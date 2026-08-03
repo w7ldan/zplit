@@ -21,3 +21,16 @@ npm test
 npm run lint
 npm run build
 ```
+
+## Private Docker deployment
+
+The standalone Docker image runs Zplit as a non-root production process behind the shared Caddy ingress network.
+
+```sh
+docker compose -f compose.yml build web
+docker compose -f compose.yml up -d web
+docker compose -f compose.yml ps
+docker compose -f compose.yml logs -f web
+```
+
+No host port is published. The service is available only through the shared external Caddy ingress network, and `idr.wildan.lol` is not routed in this checkpoint. PostgreSQL and authentication remain unimplemented.
