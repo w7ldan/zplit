@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Database } from "../db/client";
 import {
   expenseShares,
@@ -37,7 +37,14 @@ type WithoutOwner<T> = Omit<T, "ownerUserId"> & {
   owner_user_id?: never;
 };
 
-export type CreateFriendInput = WithoutOwner<typeof friends.$inferInsert>;
+export type FriendMutationInput = {
+  name: string;
+  phoneNumber: string | null;
+  notes: string | null;
+};
+
+export type CreateFriendInput = FriendMutationInput;
+export type UpdateFriendInput = FriendMutationInput;
 export type CreateOutingInput = WithoutOwner<typeof outings.$inferInsert>;
 export type CreateExpenseInput = WithoutOwner<typeof expenses.$inferInsert>;
 export type CreateExpenseShareInput = WithoutOwner<typeof expenseShares.$inferInsert>;
@@ -50,6 +57,20 @@ function assertInput(input: unknown): asserts input is Record<string, unknown> {
   }
   if (Object.prototype.hasOwnProperty.call(input, "ownerUserId") || Object.prototype.hasOwnProperty.call(input, "owner_user_id")) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Ledger ownership is server managed");
+  }
+}
+
+function assertFriendInput(input: unknown): asserts input is FriendMutationInput {
+  assertInput(input);
+  const keys = Object.keys(input);
+  if (keys.some((key) => !["name", "phoneNumber", "notes"].includes(key))) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "Friend fields are invalid");
+  }
+}
+
+function assertFriendId(friendId: string) {
+  if (typeof friendId !== "string" || !friendId.trim()) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "A friend ID is required");
   }
 }
 
@@ -67,7 +88,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
   if (!owner) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger owner is required");
 
   async function createFriend(input: CreateFriendInput) {
-    assertInput(input);
+    assertFriendInput(input);
     try {
       const [friend] = await database.insert(friends).values({ ...input, ownerUserId: owner }).returning();
       if (!friend) return persistenceError(new Error("friend insert returned no row"));
@@ -77,13 +98,59 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function listFriends() {
+  async function getFriend(friendId: string) {
+    assertFriendId(friendId);
+    try {
+      const [friend] = await database
+        .select()
+        .from(friends)
+        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .limit(1);
+      if (!friend) return notFound();
+      return friend;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listFriends({ archived = false }: { archived?: boolean } = {}) {
     try {
       return await database
         .select()
         .from(friends)
-        .where(eq(friends.ownerUserId, owner))
+        .where(and(eq(friends.ownerUserId, owner), archived ? isNotNull(friends.archivedAt) : isNull(friends.archivedAt)))
         .orderBy(asc(friends.name), asc(friends.id));
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function updateFriend(friendId: string, input: UpdateFriendInput) {
+    assertFriendId(friendId);
+    assertFriendInput(input);
+    try {
+      const [friend] = await database
+        .update(friends)
+        .set({ ...input, updatedAt: new Date() })
+        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .returning();
+      if (!friend) return notFound();
+      return friend;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function setFriendArchived(friendId: string, archived: boolean) {
+    assertFriendId(friendId);
+    try {
+      const [friend] = await database
+        .update(friends)
+        .set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() })
+        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .returning();
+      if (!friend) return notFound();
+      return friend;
     } catch (error) {
       return persistenceError(error);
     }
@@ -193,7 +260,10 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
 
   return {
     createFriend,
+    getFriend,
     listFriends,
+    updateFriend,
+    setFriendArchived,
     createOuting,
     createExpense,
     createExpenseShare,

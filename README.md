@@ -4,7 +4,7 @@ Zplit is a self-hostable personal expense and repayment tracker.
 
 ## Current checkpoint
 
-Authentication now supports multiple users structurally, and every domain record is scoped to its owner. Public registration remains disabled; production currently has one provisioned account. Financial UI and account provisioning are later stages, and temporary debtor links are not implemented yet. The design contract is in `docs/design-system.md`.
+Authentication supports multiple users structurally, every domain record is scoped to its owner, and the protected application now provides owner-scoped Friends management with active and archived records. Public registration remains disabled; production currently has one provisioned account. Outings, financial UI, account provisioning, and temporary debtor links are later stages. The design contract is in `docs/design-system.md`.
 
 ## Prerequisites
 
@@ -46,4 +46,4 @@ docker compose -f compose.yml ps
 
 The password is read from the ignored `secrets/postgres-password` file. Back it up securely; database backups are not implemented yet.
 
-The initial schema is implemented, but authentication and application database queries are intentionally deferred to later checkpoints.
+The initial schema and authenticated Friends workflow are implemented. Outings, expenses, repayments, and allocation workflows remain deferred to later checkpoints.

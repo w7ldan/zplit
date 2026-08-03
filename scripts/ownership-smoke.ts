@@ -99,7 +99,7 @@ export async function runOwnershipSmoke() {
     const repositoryA = createLedgerRepository(db, userA);
     const repositoryB = createLedgerRepository(db, userB);
     const now = new Date();
-    const friendA = await repositoryA.createFriend({ name: "Friend A" });
+    const friendA = await repositoryA.createFriend({ name: "Friend A", phoneNumber: null, notes: null });
     const outingA = await repositoryA.createOuting({ title: "Outing A", occurredAt: now });
     const expenseA = await repositoryA.createExpense({
       outingId: outingA.id,
@@ -115,7 +115,7 @@ export async function runOwnershipSmoke() {
       amount: 7500,
     });
     assert(allocationA.ownerUserId === userA, "owner A allocation is not owner scoped");
-    const friendB = await repositoryB.createFriend({ name: "Friend B" });
+    const friendB = await repositoryB.createFriend({ name: "Friend B", phoneNumber: null, notes: null });
     const outingB = await repositoryB.createOuting({ title: "Outing B", occurredAt: now });
     const expenseB = await repositoryB.createExpense({
       outingId: outingB.id,
@@ -127,8 +127,22 @@ export async function runOwnershipSmoke() {
     const repaymentB = await repositoryB.createRepayment({ friendId: friendB.id, amount: 5000, paidAt: now });
     await repositoryB.createRepaymentAllocation({ repaymentId: repaymentB.id, expenseShareId: shareB.id, amount: 5000 });
 
-    assert((await repositoryA.listFriends()).map((friend) => friend.id).join() === friendA.id, "owner A can see another friend");
-    assert((await repositoryB.listFriends()).map((friend) => friend.id).join() === friendB.id, "owner B can see another friend");
+    await repositoryA.updateFriend(friendA.id, { name: "Friend A Updated", phoneNumber: "+62 811", notes: "Owner A" });
+    assert((await repositoryA.getFriend(friendA.id)).name === "Friend A Updated", "owner A friend update failed");
+    await repositoryA.setFriendArchived(friendA.id, true);
+    assert((await repositoryA.listFriends({ archived: false })).length === 0, "archived owner A friend remains active");
+    assert((await repositoryA.listFriends({ archived: true })).map((friend) => friend.id).join() === friendA.id, "owner A archive list is wrong");
+    await repositoryA.setFriendArchived(friendA.id, false);
+
+    await repositoryB.updateFriend(friendB.id, { name: "Friend B Updated", phoneNumber: null, notes: "Owner B" });
+    assert((await repositoryB.getFriend(friendB.id)).name === "Friend B Updated", "owner B friend update failed");
+    await repositoryB.setFriendArchived(friendB.id, true);
+    assert((await repositoryB.listFriends({ archived: false })).length === 0, "archived owner B friend remains active");
+    assert((await repositoryB.listFriends({ archived: true })).map((friend) => friend.id).join() === friendB.id, "owner B archive list is wrong");
+    await repositoryB.setFriendArchived(friendB.id, false);
+
+    assert((await repositoryA.listFriends({ archived: false })).map((friend) => friend.id).join() === friendA.id, "owner A can see another friend");
+    assert((await repositoryB.listFriends({ archived: false })).map((friend) => friend.id).join() === friendB.id, "owner B can see another friend");
     for (const table of domainTables) {
       assert(await count(client, table, userA) === 1, `${table} owner A row missing`);
       assert(await count(client, table, userB) === 1, `${table} owner B row missing`);
@@ -138,6 +152,10 @@ export async function runOwnershipSmoke() {
     await expectNotFound(() => repositoryA.createExpenseShare({ expenseId: expenseA.id, friendId: friendB.id, amountOwed: 1 }));
     await expectNotFound(() => repositoryA.createRepayment({ friendId: friendB.id, amount: 1, paidAt: now }));
     await expectNotFound(() => repositoryA.createRepaymentAllocation({ repaymentId: repaymentA.id, expenseShareId: shareB.id, amount: 1 }));
+    await expectNotFound(() => repositoryA.createRepaymentAllocation({ repaymentId: repaymentB.id, expenseShareId: shareA.id, amount: 1 }));
+    await expectNotFound(() => repositoryA.getFriend(friendB.id));
+    await expectNotFound(() => repositoryA.updateFriend(friendB.id, { name: "Foreign", phoneNumber: null, notes: null }));
+    await expectNotFound(() => repositoryA.setFriendArchived(friendB.id, true));
 
     await client.query("BEGIN");
     transactionStarted = true;

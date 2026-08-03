@@ -63,9 +63,23 @@ Future authenticated pages should contain direct task actions, visible dates and
 
 ## Motion
 
-Motion is CSS-only and limited to one masked hero-text reveal, one restrained pastel-blue hero-field reveal, and subtle link or rule movement on hover. A restrained section entry is allowed only when it does not delay use. No client-side animation libraries, infinite animation, automatic marquee, parallax, scroll hijacking, pinned storytelling, or animation on every element.
+Motion is a core part of Zplit's identity, allocated as 75% utility, 20% editorial reveal, and 5% controlled spectacle. Utility motion clarifies focus, direction, state, and completion; it must never delay an action. Public pages may use one signature sequence. Authenticated task pages use utility motion and restrained reveals only.
 
-Every nonessential animation and transition must be removed under `prefers-reduced-motion: reduce`. The page must remain fully understandable and usable with motion disabled.
+The shared timing and easing tokens are:
+
+| Token | Value |
+| --- | --- |
+| Instant | `160ms` |
+| Fast | `240ms` |
+| Medium | `420ms` |
+| Reveal | `760ms` |
+| Cinematic | `1200ms` |
+| Ease out | `cubic-bezier(.22,1,.36,1)` |
+| Ease in-out | `cubic-bezier(.65,0,.35,1)` |
+
+Friends uses CSS-only motion: one masked page-heading reveal, one restrained list/rule entrance, directional underline and arrow movement, and button fill inversion. It does not use parallax, pinning, marquee, spring motion, looping, or scroll hijacking. Animation libraries require a justified dedicated checkpoint.
+
+Reduced-motion users receive immediate states or short fades. Every nonessential animation and transition must be removed under `prefers-reduced-motion: reduce`, and the page must remain fully understandable and usable with motion disabled.
 
 ## Accessibility and responsive behavior
 
