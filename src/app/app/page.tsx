@@ -11,7 +11,10 @@ export default function AppPage() {
           <p className="app-index__lede">
             Keep the people in your ledger clear first. Outings and financial records arrive in later stages.
           </p>
-          <Link className="action-link action-link--primary" href="/app/friends">Manage friends</Link>
+          <div className="app-index__actions">
+            <Link className="action-link action-link--primary" href="/app/friends">Manage friends</Link>
+            <Link className="action-link action-link--quiet" href="/app/outings">Manage outings</Link>
+          </div>
         </div>
       </div>
     </section>

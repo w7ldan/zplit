@@ -100,7 +100,7 @@ export async function runOwnershipSmoke() {
     const repositoryB = createLedgerRepository(db, userB);
     const now = new Date();
     const friendA = await repositoryA.createFriend({ name: "Friend A", phoneNumber: null, notes: null });
-    const outingA = await repositoryA.createOuting({ title: "Outing A", occurredAt: now });
+    const outingA = await repositoryA.createOuting({ title: "Outing A", occurredAt: now, notes: null });
     const expenseA = await repositoryA.createExpense({
       outingId: outingA.id,
       description: "Expense A",
@@ -116,7 +116,7 @@ export async function runOwnershipSmoke() {
     });
     assert(allocationA.ownerUserId === userA, "owner A allocation is not owner scoped");
     const friendB = await repositoryB.createFriend({ name: "Friend B", phoneNumber: null, notes: null });
-    const outingB = await repositoryB.createOuting({ title: "Outing B", occurredAt: now });
+    const outingB = await repositoryB.createOuting({ title: "Outing B", occurredAt: now, notes: null });
     const expenseB = await repositoryB.createExpense({
       outingId: outingB.id,
       description: "Expense B",
@@ -126,6 +126,13 @@ export async function runOwnershipSmoke() {
     const shareB = await repositoryB.createExpenseShare({ expenseId: expenseB.id, friendId: friendB.id, amountOwed: 5000 });
     const repaymentB = await repositoryB.createRepayment({ friendId: friendB.id, amount: 5000, paidAt: now });
     await repositoryB.createRepaymentAllocation({ repaymentId: repaymentB.id, expenseShareId: shareB.id, amount: 5000 });
+
+    await repositoryA.updateOuting(outingA.id, { title: "Outing A Updated", occurredAt: now, notes: "Owner A" });
+    assert((await repositoryA.getOuting(outingA.id)).title === "Outing A Updated", "owner A outing update failed");
+    assert((await repositoryA.listOutings()).map((outing) => outing.id).join() === outingA.id, "owner A outing list is wrong");
+    await repositoryB.updateOuting(outingB.id, { title: "Outing B Updated", occurredAt: now, notes: "Owner B" });
+    assert((await repositoryB.getOuting(outingB.id)).title === "Outing B Updated", "owner B outing update failed");
+    assert((await repositoryB.listOutings()).map((outing) => outing.id).join() === outingB.id, "owner B outing list is wrong");
 
     await repositoryA.updateFriend(friendA.id, { name: "Friend A Updated", phoneNumber: "+62 811", notes: "Owner A" });
     assert((await repositoryA.getFriend(friendA.id)).name === "Friend A Updated", "owner A friend update failed");
@@ -149,6 +156,12 @@ export async function runOwnershipSmoke() {
     }
 
     await expectNotFound(() => repositoryA.createExpense({ outingId: outingB.id, description: "Cross", amount: 1, occurredAt: now }));
+    const absentOuting = await repositoryA.getOuting("00000000-0000-0000-0000-000000000000").catch((error) => error);
+    const foreignOuting = await repositoryA.getOuting(outingB.id).catch((error) => error);
+    assert(absentOuting instanceof LedgerNotFoundError, "absent outing did not map to not-found");
+    assert(foreignOuting instanceof LedgerNotFoundError, "foreign outing did not map to not-found");
+    assert(absentOuting.message === foreignOuting.message, "outing not-found errors differ");
+    await expectNotFound(() => repositoryA.updateOuting(outingB.id, { title: "Foreign", occurredAt: now, notes: null }));
     await expectNotFound(() => repositoryA.createExpenseShare({ expenseId: expenseA.id, friendId: friendB.id, amountOwed: 1 }));
     await expectNotFound(() => repositoryA.createRepayment({ friendId: friendB.id, amount: 1, paidAt: now }));
     await expectNotFound(() => repositoryA.createRepaymentAllocation({ repaymentId: repaymentA.id, expenseShareId: shareB.id, amount: 1 }));

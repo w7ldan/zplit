@@ -899,7 +899,9 @@ select {
 
 .app-index,
 .friends-page,
-.friend-record {
+.friend-record,
+.outings-page,
+.outing-record {
   position: relative;
   min-height: calc(100svh - 5.5rem);
   overflow: hidden;
@@ -908,7 +910,9 @@ select {
 
 .app-index::before,
 .friends-page::before,
-.friend-record::before {
+.friend-record::before,
+.outings-page::before,
+.outing-record::before {
   position: absolute;
   z-index: 0;
   inset: 0 0 0 auto;
@@ -919,7 +923,9 @@ select {
 
 .app-index__layout,
 .friends-page__layout,
-.friend-record__layout {
+.friend-record__layout,
+.outings-page__layout,
+.outing-record__layout {
   position: relative;
   z-index: 1;
   align-content: start;
@@ -929,7 +935,9 @@ select {
 
 .app-index__marker,
 .friends-page__marker,
-.friend-record__marker {
+.friend-record__marker,
+.outings-page__marker,
+.outing-record__marker {
   grid-column: 1 / -1;
   padding-block: 0.6rem;
   border-block: 1px solid var(--rule);
@@ -942,13 +950,17 @@ select {
 
 .app-index__metadata,
 .friends-page__intro > .technical-label,
-.friend-record__intro > .technical-label {
+.friend-record__intro > .technical-label,
+.outings-page__intro > .technical-label,
+.outing-record__intro > .technical-label {
   margin: 0;
 }
 
 .app-index h1,
 .friends-page h1,
-.friend-record h1 {
+.friend-record h1,
+.outings-page h1,
+.outing-record h1 {
   max-width: 9ch;
   margin: 1.5rem 0 0;
   font-family: var(--font-display);
@@ -960,7 +972,8 @@ select {
 }
 
 .app-index__lede,
-.friends-page__intro > p:not(.technical-label) {
+.friends-page__intro > p:not(.technical-label),
+.outings-page__intro > p:not(.technical-label) {
   max-width: 31rem;
   margin: 2rem 0 0;
   color: var(--muted-ink);
@@ -972,14 +985,33 @@ select {
   margin-top: 2rem;
 }
 
+.app-index__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+.app-index__actions .action-link {
+  margin-top: 0;
+}
+
 .friends-page__intro {
   grid-column: 2 / span 7;
   padding-block: clamp(4rem, 9vw, 7rem) 3rem;
 }
 
 .friends-page__intro h1,
-.friend-record__intro h1 {
+.friend-record__intro h1,
+.outings-page__intro h1,
+.outing-record__intro h1 {
   animation: friend-heading-reveal var(--motion-reveal) var(--ease-out) both;
+}
+
+.outings-page__intro,
+.outing-record__intro {
+  grid-column: 2 / span 7;
+  padding-block: clamp(4rem, 9vw, 7rem) 3rem;
 }
 
 .friends-page__views {
@@ -1016,7 +1048,21 @@ select {
   animation: friend-list-reveal var(--motion-medium) var(--ease-out) both;
 }
 
+.outings-page__list {
+  grid-column: 2 / -1;
+  margin-top: 1.5rem;
+  border-block: 1px solid var(--ink);
+  animation: friend-list-reveal var(--motion-medium) var(--ease-out) both;
+}
+
 .friends-page__list-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.75rem;
+}
+
+.outings-page__list-heading {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -1031,6 +1077,95 @@ select {
   min-height: 6.5rem;
   padding-block: 1rem;
   border-top: 1px solid var(--rule);
+}
+
+.outing-row {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 2rem;
+  align-items: center;
+  min-height: 6.5rem;
+  padding-block: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.outing-row__primary {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+
+.outing-row__primary h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.outing-row__primary h2 a {
+  text-decoration: none;
+}
+
+.outing-row__meta {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 0.7fr;
+  gap: 1rem;
+  align-items: center;
+  min-width: 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.outing-row__meta time {
+  font-variant-numeric: tabular-nums;
+}
+
+.outing-row__edit,
+.outing-record__back {
+  position: relative;
+  width: fit-content;
+  padding-block: 0.2rem;
+  color: var(--ink);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.outing-row__edit::after,
+.outing-record__back::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: var(--ink);
+  content: "";
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--motion-instant) var(--ease-out);
+}
+
+.outing-row__edit:hover::after,
+.outing-row__edit:focus-visible::after,
+.outing-record__back:hover::after,
+.outing-record__back:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+.outing-row__edit span {
+  display: inline-block;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.outing-row__edit:hover span,
+.outing-row__edit:focus-visible span {
+  transform: translateX(0.3rem);
 }
 
 .friend-row--archived {
@@ -1104,6 +1239,28 @@ select {
   color: var(--muted-ink);
 }
 
+.outings-page__empty {
+  min-height: 9rem;
+  padding-block: 2rem;
+  border-top: 1px solid var(--rule);
+}
+
+.outings-page__empty h2,
+.outings-page__create h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.outings-page__empty p {
+  max-width: 30rem;
+  margin: 0.75rem 0 0;
+  color: var(--muted-ink);
+}
+
 .friends-page__create {
   grid-column: 2 / span 5;
   margin-top: 5rem;
@@ -1115,7 +1272,25 @@ select {
   margin-top: 1.25rem;
 }
 
+.outings-page__create {
+  grid-column: 2 / span 5;
+  margin-top: 5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+}
+
+.outings-page__create h2 {
+  margin-top: 1.25rem;
+}
+
 .friend-form {
+  display: grid;
+  gap: 1rem;
+  max-width: 31rem;
+  margin-top: 2rem;
+}
+
+.outing-form {
   display: grid;
   gap: 1rem;
   max-width: 31rem;
@@ -1127,7 +1302,19 @@ select {
   gap: 0.4rem;
 }
 
+.outing-form__field {
+  display: grid;
+  gap: 0.4rem;
+}
+
 .friend-form__field label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.outing-form__field label {
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -1148,12 +1335,36 @@ select {
   resize: vertical;
 }
 
+.outing-form__field input,
+.outing-form__field textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--ink);
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 0px;
+  border-bottom-left-radius: 0px;
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+}
+
 .friend-form__field input {
+  min-height: 3.25rem;
+}
+
+.outing-form__field input {
   min-height: 3.25rem;
 }
 
 .friend-form__field input:focus,
 .friend-form__field textarea:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.outing-form__field input:focus,
+.outing-form__field textarea:focus {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
@@ -1170,7 +1381,24 @@ select {
   min-height: 1.5rem;
 }
 
+.outing-form__field-error,
+.outing-form__message {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--destructive);
+  font-size: 0.8rem;
+}
+
+.outing-form__message {
+  min-height: 1.5rem;
+}
+
 .friend-form__submit {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.outing-form__submit {
   width: fit-content;
   cursor: pointer;
 }
@@ -1230,6 +1458,58 @@ select {
 
 .friend-record__archive {
   cursor: pointer;
+}
+
+.outing-form__submit:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.outing-record__meta {
+  display: grid;
+  grid-column: 2 / span 5;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--ink);
+}
+
+.outing-record__meta div {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.outing-record__meta time {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.outing-record__back {
+  display: inline-block;
+  margin-top: 2rem;
+}
+
+.outing-record__notes {
+  grid-column: 2 / span 5;
+  margin: 2rem 0 0;
+  color: var(--muted-ink);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.outing-record__form {
+  grid-column: 2 / span 5;
+  margin-top: 4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+}
+
+.outing-record__next {
+  max-width: 26rem;
+  margin: 2rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 @keyframes friend-heading-reveal {
@@ -1431,7 +1711,9 @@ select {
   .protected-page__field,
   .app-index::before,
   .friends-page::before,
-  .friend-record::before {
+  .friend-record::before,
+  .outings-page::before,
+  .outing-record::before {
     width: 22%;
     min-width: 5rem;
   }
@@ -1468,13 +1750,17 @@ select {
 
   .app-index__layout,
   .friends-page__layout,
-  .friend-record__layout {
+  .friend-record__layout,
+  .outings-page__layout,
+  .outing-record__layout {
     padding-block: 1.5rem 3.5rem;
   }
 
   .app-index__content,
   .friends-page__intro,
-  .friend-record__intro {
+  .friend-record__intro,
+  .outings-page__intro,
+  .outing-record__intro {
     grid-column: 1 / -1;
     padding-block: 3.5rem 2rem;
     padding-right: 0.5rem;
@@ -1482,7 +1768,9 @@ select {
 
   .app-index h1,
   .friends-page h1,
-  .friend-record h1 {
+  .friend-record h1,
+  .outings-page h1,
+  .outing-record h1 {
     font-size: clamp(3.5rem, 15vw, 5.5rem);
   }
 
@@ -1490,7 +1778,12 @@ select {
   .friends-page__list,
   .friends-page__create,
   .friend-record__meta,
-  .friend-record__form {
+  .friend-record__form,
+  .outings-page__list,
+  .outings-page__create,
+  .outing-record__meta,
+  .outing-record__notes,
+  .outing-record__form {
     grid-column: 1 / -1;
   }
 
@@ -1508,7 +1801,17 @@ select {
     padding-block: 1.25rem;
   }
 
+  .outing-row {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    padding-block: 1.25rem;
+  }
+
   .friend-row__primary {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .outing-row__primary {
     grid-template-columns: 4rem minmax(0, 1fr);
   }
 
@@ -1517,7 +1820,16 @@ select {
     gap: 0.75rem;
   }
 
+  .outing-row__meta {
+    grid-template-columns: auto 1fr auto;
+    gap: 0.75rem;
+  }
+
   .friend-row__edit {
+    justify-self: end;
+  }
+
+  .outing-row__edit {
     justify-self: end;
   }
 
@@ -1525,11 +1837,23 @@ select {
     margin-top: 4rem;
   }
 
+  .outings-page__create {
+    margin-top: 4rem;
+  }
+
   .friend-record__meta {
     margin-top: 1rem;
   }
 
+  .outing-record__meta {
+    margin-top: 1rem;
+  }
+
   .friend-record__form {
+    margin-top: 3rem;
+  }
+
+  .outing-record__form {
     margin-top: 3rem;
   }
 

@@ -45,6 +45,12 @@ describe("ledger repository", () => {
     await expect(
       repository.updateFriend("friend-a", { name: "Friend", phoneNumber: null, notes: null, ownerUserId: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      repository.createOuting({ title: "Outing", occurredAt: new Date(), notes: null, ownerUserId: "user-b" } as never),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      repository.updateOuting("outing-a", { title: "Outing", occurredAt: new Date(), notes: null, owner_user_id: "user-b" } as never),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
   });
 
   it("puts the bound owner in read predicates", async () => {
@@ -118,5 +124,39 @@ describe("ledger repository", () => {
       expect(absent).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
       expect(crossOwner).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
     }
+  });
+
+  it("owner-scopes outing get, list, create, and update predicates", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+    const input = { title: "Outing", occurredAt: new Date("2026-01-02T00:00:00.000Z"), notes: null };
+
+    await expect(repository.getOuting("outing-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
+    await expect(repository.listOutings()).resolves.toEqual([]);
+    await expect(repository.createOuting(input)).rejects.toMatchObject({ code: "PERSISTENCE_ERROR" });
+    await expect(repository.updateOuting("outing-a", input)).rejects.toBeInstanceOf(LedgerNotFoundError);
+
+    expect(queries).toHaveLength(4);
+    for (const query of queries.slice(0, 2).concat(queries.slice(3))) {
+      expect(query.sql).toContain('"outings"."owner_user_id" = $');
+      expect(query.params).toContain(owner);
+    }
+    expect(queries[2].sql).toContain('"owner_user_id"');
+    expect(queries[2].params).toContain(owner);
+    expect(queries[1].sql).toContain('order by "outings"."occurred_at" desc');
+  });
+
+  it("keeps absent and foreign outings indistinguishable and exposes no delete", async () => {
+    const database = drizzle(async () => ({ rows: [] }));
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+    expect("deleteOuting" in repository).toBe(false);
+    const absent = await repository.getOuting("absent").catch((error) => error);
+    const foreign = await repository.getOuting("foreign").catch((error) => error);
+    expect(absent).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
+    expect(foreign).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
   });
 });

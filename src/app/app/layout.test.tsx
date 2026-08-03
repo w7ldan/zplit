@@ -27,10 +27,11 @@ describe("authenticated app shell", () => {
     expect(screen.getByText("PRIVATE LEDGER")).toBeInTheDocument();
     expect(screen.getByText("Wildan")).toBeInTheDocument();
     expect(screen.getByText("owner@example.com")).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Ledger navigation" }).querySelectorAll("a")).toHaveLength(2);
+    expect(screen.getByRole("navigation", { name: "Ledger navigation" }).querySelectorAll("a")).toHaveLength(3);
     expect(screen.getByRole("link", { name: "Index" })).toHaveAttribute("href", "/app");
     expect(screen.getByRole("link", { name: "Friends" })).toHaveAttribute("href", "/app/friends");
+    expect(screen.getByRole("link", { name: "Outings" })).toHaveAttribute("href", "/app/outings");
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
-    expect(document.body).not.toHaveTextContent(/balance|chart|dashboard|outing|expense|repayment/i);
+    expect(document.body).not.toHaveTextContent(/balance|chart|dashboard|expense|repayment/i);
   });
 });

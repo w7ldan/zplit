@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Database } from "../db/client";
 import {
   expenseShares,
@@ -45,7 +45,13 @@ export type FriendMutationInput = {
 
 export type CreateFriendInput = FriendMutationInput;
 export type UpdateFriendInput = FriendMutationInput;
-export type CreateOutingInput = WithoutOwner<typeof outings.$inferInsert>;
+export type OutingMutationInput = {
+  title: string;
+  occurredAt: Date;
+  notes: string | null;
+};
+export type CreateOutingInput = OutingMutationInput;
+export type UpdateOutingInput = OutingMutationInput;
 export type CreateExpenseInput = WithoutOwner<typeof expenses.$inferInsert>;
 export type CreateExpenseShareInput = WithoutOwner<typeof expenseShares.$inferInsert>;
 export type CreateRepaymentInput = WithoutOwner<typeof repayments.$inferInsert>;
@@ -71,6 +77,28 @@ function assertFriendInput(input: unknown): asserts input is FriendMutationInput
 function assertFriendId(friendId: string) {
   if (typeof friendId !== "string" || !friendId.trim()) {
     throw new LedgerRepositoryError("INVALID_INPUT", "A friend ID is required");
+  }
+}
+
+function assertOutingInput(input: unknown): asserts input is OutingMutationInput {
+  assertInput(input);
+  const keys = Object.keys(input);
+  if (keys.some((key) => !["title", "occurredAt", "notes"].includes(key))) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "Outing fields are invalid");
+  }
+  if (
+    typeof input.title !== "string" ||
+    !(input.occurredAt instanceof Date) ||
+    Number.isNaN(input.occurredAt.getTime()) ||
+    (input.notes !== null && typeof input.notes !== "string")
+  ) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "Outing fields are invalid");
+  }
+}
+
+function assertOutingId(outingId: string) {
+  if (typeof outingId !== "string" || !outingId.trim()) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "An outing ID is required");
   }
 }
 
@@ -157,10 +185,49 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
   }
 
   async function createOuting(input: CreateOutingInput) {
-    assertInput(input);
+    assertOutingInput(input);
     try {
       const [outing] = await database.insert(outings).values({ ...input, ownerUserId: owner }).returning();
       if (!outing) return persistenceError(new Error("outing insert returned no row"));
+      return outing;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function getOuting(outingId: string) {
+    assertOutingId(outingId);
+    try {
+      const [outing] = await database
+        .select()
+        .from(outings)
+        .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+        .limit(1);
+      if (!outing) return notFound();
+      return outing;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listOutings() {
+    try {
+      return await database.select().from(outings).where(eq(outings.ownerUserId, owner)).orderBy(desc(outings.occurredAt), asc(outings.id));
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function updateOuting(outingId: string, input: UpdateOutingInput) {
+    assertOutingId(outingId);
+    assertOutingInput(input);
+    try {
+      const [outing] = await database
+        .update(outings)
+        .set({ ...input, updatedAt: new Date() })
+        .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+        .returning();
+      if (!outing) return notFound();
       return outing;
     } catch (error) {
       return persistenceError(error);
@@ -265,6 +332,9 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     updateFriend,
     setFriendArchived,
     createOuting,
+    getOuting,
+    listOutings,
+    updateOuting,
     createExpense,
     createExpenseShare,
     createRepayment,
