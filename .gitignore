@@ -1,0 +1,10 @@
+node_modules/
+.next/
+coverage/
+out/
+*.tsbuildinfo
+.DS_Store
+
+s.sh
+zip.cjs
+zplit.zip
