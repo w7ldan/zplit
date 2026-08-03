@@ -51,6 +51,12 @@ describe("ledger repository", () => {
     await expect(
       repository.updateOuting("outing-a", { title: "Outing", occurredAt: new Date(), notes: null, owner_user_id: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      repository.createExpense({ description: "Expense", amount: 100, occurredAt: new Date(), outingId: null, ownerUserId: "user-b" } as never),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(
+      repository.updateExpense("expense-a", { description: "Expense", amount: 100, occurredAt: new Date(), outingId: null, owner_user_id: "user-b" } as never),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
   });
 
   it("puts the bound owner in read predicates", async () => {
@@ -156,6 +162,35 @@ describe("ledger repository", () => {
     expect("deleteOuting" in repository).toBe(false);
     const absent = await repository.getOuting("absent").catch((error) => error);
     const foreign = await repository.getOuting("foreign").catch((error) => error);
+    expect(absent).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
+    expect(foreign).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
+  });
+
+  it("owner-scopes expense get and list queries, including the outing join", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await expect(repository.getExpense("expense-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
+    await expect(repository.listExpenses()).resolves.toEqual([]);
+
+    expect(queries).toHaveLength(2);
+    for (const query of queries) {
+      expect(query.sql).toContain('"expenses"."owner_user_id" = $');
+      expect(query.sql).toContain('"outings"."owner_user_id" = $');
+      expect(query.params).toContain(owner);
+    }
+  });
+
+  it("maps absent and foreign expenses to the same not-found error", async () => {
+    const database = drizzle(async () => ({ rows: [] }));
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+    const absent = await repository.getExpense("absent").catch((error) => error);
+    const foreign = await repository.getExpense("foreign").catch((error) => error);
+
     expect(absent).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
     expect(foreign).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
   });

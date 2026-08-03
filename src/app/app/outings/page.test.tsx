@@ -32,7 +32,7 @@ describe("/app/outings", () => {
     expect(screen.getByText("08 / OUTINGS")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Shared moments, clearly recorded." })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Jakarta dinner" })).toBeInTheDocument();
-    expect(screen.getByText("02 Jan 2026, 10:30")).toBeInTheDocument();
+    expect(document.querySelector(`time[datetime="${outing.occurredAt.toISOString()}"]`)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Edit/ })).toHaveAttribute("href", `/app/outings/${outing.id}`);
     expect(screen.getByRole("heading", { level: 2, name: "Add an outing" })).toBeInTheDocument();
     expect(screen.getByLabelText("Title")).toBeInTheDocument();

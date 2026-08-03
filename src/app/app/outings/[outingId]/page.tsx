@@ -4,6 +4,7 @@ import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { OutingForm } from "@/components/outings/outing-form";
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { updateOutingAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +25,6 @@ export default async function OutingRecordPage({ params }: { params: Promise<{ o
     throw error;
   }
 
-  const date = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(outing.createdAt);
-  const occurred = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(outing.occurredAt);
-
   return (
     <section className="outing-record" id="top">
       <div className="editorial-grid editorial-shell outing-record__layout">
@@ -37,8 +35,8 @@ export default async function OutingRecordPage({ params }: { params: Promise<{ o
           <Link className="outing-record__back" href="/app/outings">← Back to outings</Link>
         </div>
         <div className="outing-record__meta" aria-label="Outing metadata">
-          <div><span className="technical-label">Occurred</span><time dateTime={outing.occurredAt.toISOString()}>{occurred}</time></div>
-          <div><span className="technical-label">Created</span><time dateTime={outing.createdAt.toISOString()}>{date}</time></div>
+          <div><span className="technical-label">Occurred</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></div>
+          <div><span className="technical-label">Created</span><LocalDateTime iso={outing.createdAt.toISOString()} mode="date" /></div>
         </div>
         {outing.notes ? <p className="outing-record__notes">{outing.notes}</p> : null}
         <div className="outing-record__form">
@@ -49,7 +47,7 @@ export default async function OutingRecordPage({ params }: { params: Promise<{ o
             initialOccurredAtUtc={outing.occurredAt.toISOString()}
             initialValues={{ title: outing.title, occurredAtLocal: utcDateTimeLocal(outing.occurredAt), timezoneOffsetMinutes: "0", notes: outing.notes ?? "" }}
           />
-          <p className="outing-record__next">Expense assignment arrives in the next product stage.</p>
+          <p className="outing-record__next">Expenses can now be recorded separately. Friend-share assignment arrives in the next stage.</p>
         </div>
       </div>
     </section>

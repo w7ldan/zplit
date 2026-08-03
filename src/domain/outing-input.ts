@@ -1,3 +1,5 @@
+import { parseLocalDateTime } from "./expense-input";
+
 export type OutingInputValues = {
   title: string;
   occurredAtLocal: string;
@@ -21,32 +23,6 @@ export type OutingValidationResult =
 function readValue(input: unknown, key: OutingField) {
   const value = input !== null && typeof input === "object" ? (input as Record<string, unknown>)[key] : undefined;
   return typeof value === "string" ? value.trim() : "";
-}
-
-function parseLocalDateTime(value: string, timezoneOffsetMinutes: number) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
-  if (!match) return null;
-
-  const [, yearText, monthText, dayText, hourText, minuteText] = match;
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-  if (year < 1 || month < 1 || month > 12 || hour > 23 || minute > 59) return null;
-
-  const local = new Date(0);
-  local.setUTCFullYear(year, month - 1, day);
-  local.setUTCHours(hour, minute, 0, 0);
-  if (
-    local.getUTCFullYear() !== year ||
-    local.getUTCMonth() !== month - 1 ||
-    local.getUTCDate() !== day ||
-    local.getUTCHours() !== hour ||
-    local.getUTCMinutes() !== minute
-  ) return null;
-
-  return new Date(local.getTime() + timezoneOffsetMinutes * 60_000);
 }
 
 export function validateOutingInput(input: unknown): OutingValidationResult {

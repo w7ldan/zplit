@@ -9,11 +9,12 @@ export default function AppPage() {
           <p className="technical-label app-index__metadata">PRIVATE APPLICATION / OWNER SESSION</p>
           <h1>Your private record.</h1>
           <p className="app-index__lede">
-            Keep the people in your ledger clear first. Outings and financial records arrive in later stages.
+            Keep people, outings, and expenses clear first. Shares and settlement arrive in later stages.
           </p>
           <div className="app-index__actions">
             <Link className="action-link action-link--primary" href="/app/friends">Manage friends</Link>
             <Link className="action-link action-link--quiet" href="/app/outings">Manage outings</Link>
+            <Link className="action-link action-link--quiet" href="/app/expenses">Manage expenses</Link>
           </div>
         </div>
       </div>

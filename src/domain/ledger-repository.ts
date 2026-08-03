@@ -52,7 +52,14 @@ export type OutingMutationInput = {
 };
 export type CreateOutingInput = OutingMutationInput;
 export type UpdateOutingInput = OutingMutationInput;
-export type CreateExpenseInput = WithoutOwner<typeof expenses.$inferInsert>;
+export type ExpenseMutationInput = {
+  description: string;
+  amount: number;
+  occurredAt: Date;
+  outingId: string | null;
+};
+export type CreateExpenseInput = ExpenseMutationInput;
+export type UpdateExpenseInput = ExpenseMutationInput;
 export type CreateExpenseShareInput = WithoutOwner<typeof expenseShares.$inferInsert>;
 export type CreateRepaymentInput = WithoutOwner<typeof repayments.$inferInsert>;
 export type CreateRepaymentAllocationInput = WithoutOwner<typeof repaymentAllocations.$inferInsert>;
@@ -99,6 +106,34 @@ function assertOutingInput(input: unknown): asserts input is OutingMutationInput
 function assertOutingId(outingId: string) {
   if (typeof outingId !== "string" || !outingId.trim()) {
     throw new LedgerRepositoryError("INVALID_INPUT", "An outing ID is required");
+  }
+}
+
+function assertExpenseInput(input: unknown): asserts input is ExpenseMutationInput {
+  assertInput(input);
+  const keys = Object.keys(input);
+  if (keys.length !== 4 || keys.some((key) => !["description", "amount", "occurredAt", "outingId"].includes(key))) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "Expense fields are invalid");
+  }
+  if (
+    typeof input.description !== "string" ||
+    !input.description.trim() ||
+    input.description.length > 200 ||
+    typeof input.amount !== "number" ||
+    !Number.isInteger(input.amount) ||
+    input.amount <= 0 ||
+    input.amount > 2_147_483_647 ||
+    !(input.occurredAt instanceof Date) ||
+    Number.isNaN(input.occurredAt.getTime()) ||
+    (input.outingId !== null && (typeof input.outingId !== "string" || !input.outingId.trim()))
+  ) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "Expense fields are invalid");
+  }
+}
+
+function assertExpenseId(expenseId: string) {
+  if (typeof expenseId !== "string" || !expenseId.trim()) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "An expense ID is required");
   }
 }
 
@@ -234,21 +269,93 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  function expenseSelection() {
+    return {
+      id: expenses.id,
+      ownerUserId: expenses.ownerUserId,
+      outingId: expenses.outingId,
+      description: expenses.description,
+      amount: expenses.amount,
+      occurredAt: expenses.occurredAt,
+      createdAt: expenses.createdAt,
+      updatedAt: expenses.updatedAt,
+      outingTitle: outings.title,
+    };
+  }
+
+  async function assertOwnedOuting(transaction: Parameters<Parameters<Database["transaction"]>[0]>[0], outingId: string | null) {
+    if (!outingId) return;
+    const [outing] = await transaction
+      .select({ id: outings.id })
+      .from(outings)
+      .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+      .limit(1);
+    if (!outing) return notFound();
+  }
+
   async function createExpense(input: CreateExpenseInput) {
-    assertInput(input);
+    assertExpenseInput(input);
     try {
       return await database.transaction(async (transaction) => {
-        if (input.outingId) {
-          const [outing] = await transaction
-            .select({ id: outings.id })
-            .from(outings)
-            .where(and(eq(outings.ownerUserId, owner), eq(outings.id, input.outingId)))
-            .limit(1);
-          if (!outing) return notFound();
-        }
+        await assertOwnedOuting(transaction, input.outingId);
         const [expense] = await transaction.insert(expenses).values({ ...input, ownerUserId: owner }).returning();
         if (!expense) return persistenceError(new Error("expense insert returned no row"));
         return expense;
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function getExpense(expenseId: string) {
+    assertExpenseId(expenseId);
+    try {
+      const [expense] = await database
+        .select(expenseSelection())
+        .from(expenses)
+        .leftJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .limit(1);
+      if (!expense) return notFound();
+      return expense;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listExpenses() {
+    try {
+      return await database
+        .select(expenseSelection())
+        .from(expenses)
+        .leftJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .where(eq(expenses.ownerUserId, owner))
+        .orderBy(desc(expenses.occurredAt), asc(expenses.id));
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function updateExpense(expenseId: string, input: UpdateExpenseInput) {
+    assertExpenseId(expenseId);
+    assertExpenseInput(input);
+    try {
+      return await database.transaction(async (transaction) => {
+        await assertOwnedOuting(transaction, input.outingId);
+        const [expense] = await transaction
+          .update(expenses)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .returning();
+        if (!expense) return notFound();
+        const [updated] = await transaction
+          .select(expenseSelection())
+          .from(expenses)
+          .leftJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .limit(1);
+        if (!updated) return persistenceError(new Error("expense update returned no row"));
+        return updated;
       });
     } catch (error) {
       return persistenceError(error);
@@ -336,6 +443,9 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     listOutings,
     updateOuting,
     createExpense,
+    getExpense,
+    listExpenses,
+    updateExpense,
     createExpenseShare,
     createRepayment,
     createRepaymentAllocation,

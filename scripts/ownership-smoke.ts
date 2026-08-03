@@ -134,6 +134,17 @@ export async function runOwnershipSmoke() {
     assert((await repositoryB.getOuting(outingB.id)).title === "Outing B Updated", "owner B outing update failed");
     assert((await repositoryB.listOutings()).map((outing) => outing.id).join() === outingB.id, "owner B outing list is wrong");
 
+    assert((await repositoryA.listExpenses()).map((expense) => expense.id).join() === expenseA.id, "owner A expense list is wrong");
+    assert((await repositoryB.listExpenses()).map((expense) => expense.id).join() === expenseB.id, "owner B expense list is wrong");
+    assert((await repositoryA.getExpense(expenseA.id)).outingTitle === "Outing A Updated", "owner A expense outing lookup failed");
+    assert((await repositoryB.getExpense(expenseB.id)).outingTitle === "Outing B Updated", "owner B expense outing lookup failed");
+    await repositoryA.updateExpense(expenseA.id, { description: "Expense A Updated", amount: 13000, occurredAt: now, outingId: null });
+    assert((await repositoryA.getExpense(expenseA.id)).outingId === null, "owner A expense outing removal failed");
+    await repositoryA.updateExpense(expenseA.id, { description: "Expense A Updated", amount: 13000, occurredAt: now, outingId: outingA.id });
+    assert((await repositoryA.getExpense(expenseA.id)).outingTitle === "Outing A Updated", "owner A expense outing reattachment failed");
+    await repositoryB.updateExpense(expenseB.id, { description: "Expense B Updated", amount: 11000, occurredAt: now, outingId: outingB.id });
+    assert((await repositoryB.getExpense(expenseB.id)).description === "Expense B Updated", "owner B expense update failed");
+
     await repositoryA.updateFriend(friendA.id, { name: "Friend A Updated", phoneNumber: "+62 811", notes: "Owner A" });
     assert((await repositoryA.getFriend(friendA.id)).name === "Friend A Updated", "owner A friend update failed");
     await repositoryA.setFriendArchived(friendA.id, true);
@@ -156,6 +167,12 @@ export async function runOwnershipSmoke() {
     }
 
     await expectNotFound(() => repositoryA.createExpense({ outingId: outingB.id, description: "Cross", amount: 1, occurredAt: now }));
+    const absentExpense = await repositoryA.getExpense("00000000-0000-0000-0000-000000000000").catch((error) => error);
+    const foreignExpense = await repositoryA.getExpense(expenseB.id).catch((error) => error);
+    assert(absentExpense instanceof LedgerNotFoundError, "absent expense did not map to not-found");
+    assert(foreignExpense instanceof LedgerNotFoundError, "foreign expense did not map to not-found");
+    assert(absentExpense.message === foreignExpense.message, "expense not-found errors differ");
+    await expectNotFound(() => repositoryA.updateExpense(expenseB.id, { description: "Foreign", amount: 1, occurredAt: now, outingId: outingA.id }));
     const absentOuting = await repositoryA.getOuting("00000000-0000-0000-0000-000000000000").catch((error) => error);
     const foreignOuting = await repositoryA.getOuting(outingB.id).catch((error) => error);
     assert(absentOuting instanceof LedgerNotFoundError, "absent outing did not map to not-found");

@@ -27,6 +27,7 @@ export function AppShell({ user, children }: AppShellProps) {
             <Link href="/app">Index</Link>
             <Link href="/app/friends">Friends</Link>
             <Link href="/app/outings">Outings</Link>
+            <Link href="/app/expenses">Expenses</Link>
           </nav>
           <div className="app-shell__account">
             <span className="technical-label">{user.email}</span>

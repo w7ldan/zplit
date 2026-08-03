@@ -1,21 +1,7 @@
 import Link from "next/link";
 import type { InferSelectModel } from "drizzle-orm";
 import type { outings } from "@/db/schema";
-
-function formatOccurredAt(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-  }).format(date);
-}
-
-function formatCreatedAt(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
-}
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 
 export function OutingRow({ outing }: { outing: InferSelectModel<typeof outings> }) {
   return (
@@ -25,8 +11,8 @@ export function OutingRow({ outing }: { outing: InferSelectModel<typeof outings>
         <h2><Link href={`/app/outings/${outing.id}`}>{outing.title}</Link></h2>
       </div>
       <div className="outing-row__meta">
-        <time dateTime={outing.occurredAt.toISOString()}>{formatOccurredAt(outing.occurredAt)}</time>
-        <span className="technical-label">CREATED {formatCreatedAt(outing.createdAt)}</span>
+        <LocalDateTime iso={outing.occurredAt.toISOString()} />
+        <span className="technical-label">CREATED <LocalDateTime iso={outing.createdAt.toISOString()} mode="date" /></span>
         <Link className="outing-row__edit" href={`/app/outings/${outing.id}`}>Edit <span aria-hidden="true">→</span></Link>
       </div>
     </article>

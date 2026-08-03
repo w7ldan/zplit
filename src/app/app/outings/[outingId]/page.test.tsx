@@ -36,12 +36,12 @@ describe("outing record", () => {
 
     expect(screen.getByText("08 / OUTING RECORD")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Jakarta dinner" })).toBeInTheDocument();
-    expect(screen.getByText("02 Jan 2026, 10:30")).toBeInTheDocument();
-    expect(screen.getByText("02 Jan 2026")).toBeInTheDocument();
+    expect(document.querySelector(`time[datetime="${outing.occurredAt.toISOString()}"]`)).toBeInTheDocument();
+    expect(document.querySelector(`time[datetime="${outing.createdAt.toISOString()}"]`)).toBeInTheDocument();
     expect(screen.getByLabelText("Notes")).toHaveValue("Bring the receipt.");
     expect(screen.getByLabelText("Title")).toHaveValue("Jakarta dinner");
     expect(screen.getByRole("link", { name: /Back to outings/ })).toHaveAttribute("href", "/app/outings");
-    expect(screen.getByText(/Expense assignment arrives/)).toBeInTheDocument();
+    expect(screen.getByText(/Expenses can now be recorded separately/)).toBeInTheDocument();
   });
 
   it("uses the same not-found path for absent and foreign outings", async () => {
