@@ -10,5 +10,8 @@ export function parseRupiah(value: unknown): number | null {
 }
 
 export function formatRupiah(amount: number) {
+  if (!Number.isSafeInteger(amount) || amount < 0) {
+    throw new RangeError("Rupiah amount must be a safe non-negative integer");
+  }
   return `Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(amount)}`;
 }

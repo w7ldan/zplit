@@ -121,6 +121,13 @@ export async function runOwnershipSmoke() {
     let shareA = sharesA[0];
     assert(shareA?.friendId === friendA.id, "owner A share was not assigned");
     const originalShareAId = shareA!.id;
+    const ownerASummaryBeforeOwnerB = await repositoryA.getLedgerSummary();
+    assert(ownerASummaryBeforeOwnerB.totalExpenseAmount === 12500, "owner A initial paid-out total is wrong");
+    assert(ownerASummaryBeforeOwnerB.totalAssignedAmount === 7500, "owner A initial assigned total is wrong");
+    assert(ownerASummaryBeforeOwnerB.totalRepaidAmount === 0, "owner A initial repaid total is wrong");
+    assert(ownerASummaryBeforeOwnerB.totalOutstandingAmount === 7500, "owner A partial outstanding total is wrong");
+    assert(ownerASummaryBeforeOwnerB.ownerPortionAmount === 5000, "owner A initial owner portion is wrong");
+    assert(ownerASummaryBeforeOwnerB.friendBalances[0]?.outstandingAmount === 7500, "owner A partial friend balance is wrong");
     const friendB = await repositoryB.createFriend({ name: "Friend B", phoneNumber: null, notes: null });
     const outingB = await repositoryB.createOuting({ title: "Outing B", occurredAt: now, notes: null });
     const outingB2 = await repositoryB.createOuting({ title: "Outing B 2", occurredAt: new Date("2026-01-05T10:30:00.000Z"), notes: null });
@@ -132,6 +139,8 @@ export async function runOwnershipSmoke() {
     const sharesB = await repositoryB.replaceExpenseShares(expenseB.id, [{ friendId: friendB.id, amountOwed: 5000 }]);
     const shareB = sharesB[0];
     assert(shareB?.friendId === friendB.id, "owner B share was not assigned");
+    const ownerASummaryAfterOwnerB = await repositoryA.getLedgerSummary();
+    assert(JSON.stringify(ownerASummaryAfterOwnerB) === JSON.stringify(ownerASummaryBeforeOwnerB), "owner B data changed owner A summary");
 
     await repositoryA.updateOuting(outingA.id, { title: "Outing A Updated", occurredAt: now, notes: "Owner A" });
     assert((await repositoryA.getOuting(outingA.id)).title === "Outing A Updated", "owner A outing update failed");
@@ -191,6 +200,19 @@ export async function runOwnershipSmoke() {
     assert(allocationA.ownerUserId === userA, "owner A allocation is not owner scoped");
     const repaymentB = await repositoryB.createRepayment({ friendId: friendB.id, amount: 5000, paidAt: now });
     await repositoryB.createRepaymentAllocation({ repaymentId: repaymentB.id, expenseShareId: shareB!.id, amount: 5000 });
+    const ownerASummary = await repositoryA.getLedgerSummary();
+    const ownerBSummary = await repositoryB.getLedgerSummary();
+    assert(ownerASummary.totalExpenseAmount === 13000, "owner A paid-out total is wrong");
+    assert(ownerASummary.totalAssignedAmount === 7500, "owner A assigned total is wrong");
+    assert(ownerASummary.totalRepaidAmount === 7500, "owner A repaid total is wrong");
+    assert(ownerASummary.totalOutstandingAmount === 0, "owner A fully repaid outstanding total is wrong");
+    assert(ownerASummary.ownerPortionAmount === 5500, "owner A owner portion total is wrong");
+    assert(ownerASummary.friendBalances[0]?.outstandingAmount === 0, "owner A fully repaid friend balance is wrong");
+    assert(ownerBSummary.totalExpenseAmount === 11000, "owner B paid-out total is wrong");
+    assert(ownerBSummary.totalAssignedAmount === 5000, "owner B assigned total is wrong");
+    assert(ownerBSummary.totalRepaidAmount === 5000, "owner B repaid total is wrong");
+    assert(ownerBSummary.totalOutstandingAmount === 0, "owner B fully repaid outstanding total is wrong");
+    assert(ownerBSummary.ownerPortionAmount === 6000, "owner B owner portion total is wrong");
 
     await repositoryA.updateFriend(friendA.id, { name: "Friend A Updated", phoneNumber: "+62 811", notes: "Owner A" });
     assert((await repositoryA.getFriend(friendA.id)).name === "Friend A Updated", "owner A friend update failed");
@@ -322,7 +344,7 @@ export async function runOwnershipSmoke() {
     await pool.end();
   }
 
-  console.log("ownership smoke passed");
+  console.log("ownership smoke passed: owner A expense=13000 assigned=7500 repaid=7500 outstanding=0 owner=5500; owner B expense=11000 assigned=5000 repaid=5000 outstanding=0 owner=6000");
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

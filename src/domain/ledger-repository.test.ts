@@ -6,6 +6,7 @@ import {
   LedgerNotFoundError,
   LedgerRepositoryError,
 } from "./ledger-repository";
+import { LedgerIntegrityError } from "./ledger-summary";
 
 const owner = "user-a";
 
@@ -200,5 +201,44 @@ describe("ledger repository", () => {
 
     expect(absent).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
     expect(foreign).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
+  });
+
+  it("builds the summary from five owner-scoped queries", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const summary = await createLedgerRepository(database as unknown as Database, owner).getLedgerSummary();
+
+    expect(summary).toEqual({
+      totalExpenseAmount: 0,
+      totalAssignedAmount: 0,
+      totalRepaidAmount: 0,
+      totalOutstandingAmount: 0,
+      ownerPortionAmount: 0,
+      friendBalances: [],
+    });
+    expect(queries).toHaveLength(5);
+    for (const query of queries) {
+      expect(query.sql).toContain("owner_user_id");
+      expect(query.params).toContain(owner);
+    }
+    expect(queries.map(({ sql }) => sql).join(" ")).toContain('"friends"');
+    expect(queries.map(({ sql }) => sql).join(" ")).toContain('"expenses"');
+    expect(queries.map(({ sql }) => sql).join(" ")).toContain('"expense_shares"');
+    expect(queries.map(({ sql }) => sql).join(" ")).toContain('"repayments"');
+    expect(queries.map(({ sql }) => sql).join(" ")).toContain('"repayment_allocations"');
+  });
+
+  it("preserves the typed integrity error from summary building", async () => {
+    const database = drizzle(async (sql) => {
+      if (sql.includes('"friends"')) return { rows: [] };
+      if (sql.includes('"expenses"')) return { rows: [{ id: "expense", amount: 1 }] };
+      if (sql.includes('"expense_shares"')) return { rows: [{ id: "share", expenseId: "expense", friendId: "missing", amountOwed: 1 }] };
+      return { rows: [] };
+    });
+
+    await expect(createLedgerRepository(database as unknown as Database, owner).getLedgerSummary()).rejects.toBeInstanceOf(LedgerIntegrityError);
   });
 });

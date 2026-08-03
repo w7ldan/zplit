@@ -24,7 +24,7 @@ export function AppShell({ user, children }: AppShellProps) {
             <strong>{user.name}</strong>
           </div>
           <nav className="app-shell__nav" aria-label="Ledger navigation">
-            <Link href="/app">Index</Link>
+            <Link href="/app">Overview</Link>
             <Link href="/app/friends">Friends</Link>
             <Link href="/app/outings">Outings</Link>
             <Link href="/app/expenses">Expenses</Link>

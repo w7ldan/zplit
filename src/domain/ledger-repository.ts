@@ -8,6 +8,7 @@ import {
   repaymentAllocations,
   repayments,
 } from "../db/schema";
+import { buildLedgerSummary, LedgerIntegrityError } from "./ledger-summary";
 
 export type LedgerErrorCode =
   | "INVALID_INPUT"
@@ -177,7 +178,7 @@ function notFound(): never {
 }
 
 function persistenceError(error: unknown): never {
-  if (error instanceof LedgerRepositoryError) throw error;
+  if (error instanceof LedgerRepositoryError || error instanceof LedgerIntegrityError) throw error;
   throw new LedgerRepositoryError("PERSISTENCE_ERROR", "Ledger operation failed");
 }
 
@@ -372,6 +373,43 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
         .where(eq(expenses.ownerUserId, owner))
         .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id));
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function getLedgerSummary() {
+    try {
+      const [friendRows, expenseRows, shareRows, repaymentRows, allocationRows] = await Promise.all([
+        database
+          .select({ id: friends.id, name: friends.name, archivedAt: friends.archivedAt })
+          .from(friends)
+          .where(eq(friends.ownerUserId, owner)),
+        database
+          .select({ id: expenses.id, amount: expenses.amount })
+          .from(expenses)
+          .where(eq(expenses.ownerUserId, owner)),
+        database
+          .select({ id: expenseShares.id, expenseId: expenseShares.expenseId, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
+          .from(expenseShares)
+          .where(eq(expenseShares.ownerUserId, owner)),
+        database
+          .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount })
+          .from(repayments)
+          .where(eq(repayments.ownerUserId, owner)),
+        database
+          .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
+          .from(repaymentAllocations)
+          .where(eq(repaymentAllocations.ownerUserId, owner)),
+      ]);
+
+      return buildLedgerSummary({
+        friends: friendRows,
+        expenses: expenseRows,
+        expenseShares: shareRows,
+        repayments: repaymentRows,
+        repaymentAllocations: allocationRows,
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -580,6 +618,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     createExpense,
     getExpense,
     listExpenses,
+    getLedgerSummary,
     updateExpense,
     listExpenseShares,
     replaceExpenseShares,

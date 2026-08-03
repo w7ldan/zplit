@@ -16,6 +16,14 @@ describe("rupiah", () => {
   });
 
   it("formats whole rupiah", () => {
+    expect(formatRupiah(0)).toBe("Rp 0");
     expect(formatRupiah(84000)).toBe("Rp 84.000");
+    expect(formatRupiah(Number.MAX_SAFE_INTEGER)).toBe("Rp 9.007.199.254.740.991");
+  });
+
+  it("rejects invalid formatter amounts", () => {
+    for (const amount of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => formatRupiah(amount)).toThrow(RangeError);
+    }
   });
 });
