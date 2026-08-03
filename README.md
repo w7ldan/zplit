@@ -4,7 +4,7 @@ Zplit is a self-hostable personal expense and repayment tracker.
 
 ## Current checkpoint
 
-This checkpoint contains the frontend, private Docker deployment, PostgreSQL, and the initial debt-tracking schema. Authentication and application database usage are not implemented yet.
+The PostgreSQL foundation remains implemented. The public editorial design system is now implemented; authentication and application database usage remain deferred. The design contract is in `docs/design-system.md`.
 
 ## Prerequisites
 
