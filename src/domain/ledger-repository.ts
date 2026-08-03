@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { Database } from "../db/client";
 import {
   expenseShares,
@@ -13,6 +13,7 @@ export type LedgerErrorCode =
   | "INVALID_INPUT"
   | "INVALID_OWNER"
   | "NOT_FOUND"
+  | "SHARE_TOTAL_EXCEEDED"
   | "PERSISTENCE_ERROR";
 
 export class LedgerRepositoryError extends Error {
@@ -29,6 +30,13 @@ export class LedgerNotFoundError extends LedgerRepositoryError {
   constructor() {
     super("NOT_FOUND", "Ledger record not found");
     this.name = "LedgerNotFoundError";
+  }
+}
+
+export class ExpenseShareInvariantError extends LedgerRepositoryError {
+  constructor() {
+    super("SHARE_TOTAL_EXCEEDED", "Assigned shares cannot exceed the expense amount.");
+    this.name = "ExpenseShareInvariantError";
   }
 }
 
@@ -59,7 +67,10 @@ export type ExpenseMutationInput = {
 };
 export type CreateExpenseInput = ExpenseMutationInput;
 export type UpdateExpenseInput = ExpenseMutationInput;
-export type CreateExpenseShareInput = WithoutOwner<typeof expenseShares.$inferInsert>;
+export type ExpenseShareInput = {
+  friendId: string;
+  amountOwed: number;
+};
 export type CreateRepaymentInput = WithoutOwner<typeof repayments.$inferInsert>;
 export type CreateRepaymentAllocationInput = WithoutOwner<typeof repaymentAllocations.$inferInsert>;
 
@@ -132,6 +143,32 @@ function assertExpenseInput(input: unknown): asserts input is ExpenseMutationInp
 function assertExpenseId(expenseId: string) {
   if (typeof expenseId !== "string" || !expenseId.trim()) {
     throw new LedgerRepositoryError("INVALID_INPUT", "An expense ID is required");
+  }
+}
+
+function assertExpenseSharesInput(shares: unknown): asserts shares is ExpenseShareInput[] {
+  if (!Array.isArray(shares)) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "Expense shares are invalid");
+  }
+  const seen = new Set<string>();
+  for (const share of shares) {
+    if (
+      share === null ||
+      typeof share !== "object" ||
+      Array.isArray(share) ||
+      Object.keys(share).some((key) => !["friendId", "amountOwed"].includes(key)) ||
+      typeof (share as ExpenseShareInput).friendId !== "string" ||
+      !(share as ExpenseShareInput).friendId.trim() ||
+      typeof (share as ExpenseShareInput).amountOwed !== "number" ||
+      !Number.isInteger((share as ExpenseShareInput).amountOwed) ||
+      (share as ExpenseShareInput).amountOwed <= 0 ||
+      (share as ExpenseShareInput).amountOwed > 2_147_483_647
+    ) {
+      throw new LedgerRepositoryError("INVALID_INPUT", "Expense shares are invalid");
+    }
+    const friendId = (share as ExpenseShareInput).friendId.trim().toLowerCase();
+    if (seen.has(friendId)) throw new LedgerRepositoryError("INVALID_INPUT", "Each friend can have only one share per expense.");
+    seen.add(friendId);
   }
 }
 
@@ -345,6 +382,21 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     assertExpenseInput(input);
     try {
       return await database.transaction(async (transaction) => {
+        const [currentExpense] = await transaction
+          .select({ id: expenses.id, amount: expenses.amount })
+          .from(expenses)
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .limit(1)
+          .for("update");
+        if (!currentExpense) return notFound();
+
+        const currentShares = await transaction
+          .select({ amountOwed: expenseShares.amountOwed })
+          .from(expenseShares)
+          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)));
+        const assignedTotal = currentShares.reduce((total, share) => total + share.amountOwed, 0);
+        if (input.amount < assignedTotal) throw new ExpenseShareInvariantError();
+
         await assertOwnedOuting(transaction, input.outingId);
         const [expense] = await transaction
           .update(expenses)
@@ -366,24 +418,103 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function createExpenseShare(input: CreateExpenseShareInput) {
-    assertInput(input);
+  function shareSelection() {
+    return {
+      id: expenseShares.id,
+      friendId: friends.id,
+      friendName: friends.name,
+      friendArchivedAt: friends.archivedAt,
+      amountOwed: expenseShares.amountOwed,
+    };
+  }
+
+  async function listExpenseSharesFor(transaction: Pick<Database, "select">, expenseId: string) {
+    return transaction
+      .select(shareSelection())
+      .from(expenseShares)
+      .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
+      .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)))
+      .orderBy(asc(friends.name), asc(expenseShares.id));
+  }
+
+  async function listExpenseShares(expenseId: string) {
+    assertExpenseId(expenseId);
+    try {
+      const [expense] = await database
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .limit(1);
+      if (!expense) return notFound();
+      return await listExpenseSharesFor(database, expenseId);
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput[]) {
+    assertExpenseId(expenseId);
+    assertExpenseSharesInput(shares);
     try {
       return await database.transaction(async (transaction) => {
         const [expense] = await transaction
-          .select({ id: expenses.id })
+          .select({ id: expenses.id, amount: expenses.amount })
           .from(expenses)
-          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, input.expenseId)))
-          .limit(1);
-        const [friend] = await transaction
-          .select({ id: friends.id })
-          .from(friends)
-          .where(and(eq(friends.ownerUserId, owner), eq(friends.id, input.friendId)))
-          .limit(1);
-        if (!expense || !friend) return notFound();
-        const [share] = await transaction.insert(expenseShares).values({ ...input, ownerUserId: owner }).returning();
-        if (!share) return persistenceError(new Error("expense share insert returned no row"));
-        return share;
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .limit(1)
+          .for("update");
+        if (!expense) return notFound();
+
+        const currentShares = await transaction
+          .select({ id: expenseShares.id, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
+          .from(expenseShares)
+          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)));
+        const currentByFriend = new Map(currentShares.map((share) => [share.friendId, share]));
+        const requested = shares.map((share) => ({ ...share, friendId: share.friendId.trim().toLowerCase() }));
+
+        const friendIds = requested.map((share) => share.friendId);
+        const ownedFriends = friendIds.length
+          ? await transaction
+              .select({ id: friends.id, archivedAt: friends.archivedAt })
+              .from(friends)
+              .where(and(eq(friends.ownerUserId, owner), inArray(friends.id, friendIds)))
+          : [];
+        if (ownedFriends.length !== new Set(friendIds).size) return notFound();
+        for (const friend of ownedFriends) {
+          if (friend.archivedAt !== null && !currentByFriend.has(friend.id)) {
+            throw new LedgerRepositoryError("INVALID_INPUT", "Archived friends cannot be newly assigned.");
+          }
+        }
+        const total = requested.reduce((sum, share) => sum + share.amountOwed, 0);
+        if (total > expense.amount) throw new ExpenseShareInvariantError();
+
+        const requestedByFriend = new Map(requested.map((share) => [share.friendId, share.amountOwed]));
+        for (const current of currentShares) {
+          const amountOwed = requestedByFriend.get(current.friendId);
+          if (amountOwed === undefined) continue;
+          if (amountOwed !== current.amountOwed) {
+            await transaction
+              .update(expenseShares)
+              .set({ amountOwed })
+              .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.id, current.id)));
+          }
+        }
+
+        const newShares = requested.filter((share) => !currentByFriend.has(share.friendId));
+        if (newShares.length > 0) {
+          await transaction.insert(expenseShares).values(
+            newShares.map((share) => ({ ownerUserId: owner, expenseId, friendId: share.friendId, amountOwed: share.amountOwed })),
+          );
+        }
+
+        const omittedIds = currentShares.filter((share) => !requestedByFriend.has(share.friendId)).map((share) => share.id);
+        if (omittedIds.length > 0) {
+          await transaction
+            .delete(expenseShares)
+            .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId), inArray(expenseShares.id, omittedIds)));
+        }
+
+        return await listExpenseSharesFor(transaction, expenseId);
       });
     } catch (error) {
       return persistenceError(error);
@@ -450,7 +581,8 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     getExpense,
     listExpenses,
     updateExpense,
-    createExpenseShare,
+    listExpenseShares,
+    replaceExpenseShares,
     createRepayment,
     createRepaymentAllocation,
   };

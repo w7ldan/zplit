@@ -4,7 +4,7 @@ Zplit is a self-hostable personal expense and repayment tracker.
 
 ## Current checkpoint
 
-Authentication supports multiple users structurally, every domain record is scoped to its owner, and the protected application provides owner-scoped Friends, Outings, and outing-bound Expenses management. Outings own occurrence date and time; changing an expense’s outing changes its effective date, and independent expenses are not supported. Public registration remains disabled; production currently has one provisioned account. Repayments, allocation workflows, account provisioning, and temporary debtor links are later stages. The design contract is in `docs/design-system.md`.
+Authentication supports multiple users structurally, every domain record is scoped to its owner, and the protected application provides owner-scoped Friends, Outings, outing-bound Expenses, and manual whole-rupiah friend-share assignment. Outings own occurrence date and time; changing an expense’s outing changes its effective date, and independent expenses are not supported. Public registration remains disabled; production currently has one provisioned account. Repayments, balance calculations, account provisioning, and temporary debtor links are later stages. The design contract is in `docs/design-system.md`.
 
 ## Prerequisites
 
@@ -46,4 +46,4 @@ docker compose -f compose.yml ps
 
 The password is read from the ignored `secrets/postgres-password` file. Back it up securely; database backups are not implemented yet.
 
-The initial schema and authenticated Friends, Outings, and outing-bound Expenses workflows are implemented. Repayments, allocation workflows, and temporary debtor links remain deferred to later checkpoints.
+The initial schema and authenticated Friends, Outings, outing-bound Expenses, and owner-scoped manual share workflows are implemented. Repayments, balance calculations, and temporary debtor links remain deferred to later checkpoints.

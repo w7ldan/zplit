@@ -21,7 +21,7 @@ export default async function ExpensesPage() {
         <div className="expenses-page__intro">
           <p className="technical-label">PRIVATE AMOUNTS / OWNER RECORDS</p>
           <h1>Every amount, accounted for.</h1>
-          <p>Record each expense in whole rupiah and connect it to an outing when the context is clear.</p>
+          <p>Every expense belongs to an outing. Record it in whole rupiah, then assign the friends who owe a share.</p>
         </div>
 
         <div className="expenses-page__list" aria-live="polite">
@@ -34,7 +34,7 @@ export default async function ExpensesPage() {
           ) : (
             <div className="expenses-page__empty">
               <h2>No expenses yet.</h2>
-              <p>Record the first amount when you are ready. Shares and settlement arrive in later stages.</p>
+              <p>Record the first amount when you are ready. Every expense is kept under an outing.</p>
             </div>
           )}
         </div>

@@ -1,3 +1,5 @@
+import { MAX_RUPIAH, parseRupiah } from "./rupiah";
+
 export type ExpenseInputValues = {
   description: string;
   amountRupiah: string;
@@ -22,12 +24,6 @@ function readValue(input: unknown, key: ExpenseField) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function parseAmount(value: string) {
-  if (/^\d+$/.test(value)) return Number(value);
-  if (/^\d{1,3}(\.\d{3})+$/.test(value)) return Number(value.replaceAll(".", ""));
-  return null;
-}
-
 function isCanonicalUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
@@ -43,17 +39,23 @@ export function validateExpenseInput(input: unknown): ExpenseValidationResult {
   if (!values.description) errors.description = "Description is required.";
   else if (values.description.length > 200) errors.description = "Description must be 200 characters or fewer.";
 
-  const amount = parseAmount(values.amountRupiah);
+  const amount = parseRupiah(values.amountRupiah);
   if (!values.amountRupiah) errors.amountRupiah = "Amount is required.";
-  else if (amount === null) errors.amountRupiah = "Enter whole rupiah, such as 84000 or 84.000.";
-  else if (amount <= 0) errors.amountRupiah = "Amount must be greater than zero.";
-  else if (amount > 2_147_483_647) errors.amountRupiah = "Amount is too large.";
+  else if (amount === null) {
+    const numericText = /^(?:\d+|\d{1,3}(?:\.\d{3})+)$/.test(values.amountRupiah)
+      ? values.amountRupiah.replaceAll(".", "")
+      : "";
+    const numericAmount = numericText ? Number(numericText) : null;
+    if (numericAmount === 0) errors.amountRupiah = "Amount must be greater than zero.";
+    else if (numericAmount !== null && numericAmount > MAX_RUPIAH) errors.amountRupiah = "Amount is too large.";
+    else errors.amountRupiah = "Enter whole rupiah, such as 84000 or 84.000.";
+  }
 
   const outingId = values.outingId.toLowerCase();
   if (!outingId) errors.outingId = "Outing is required.";
   else if (!isCanonicalUuid(outingId)) errors.outingId = "Select a valid outing.";
 
-  if (Object.keys(errors).length > 0 || amount === null || amount <= 0 || amount > 2_147_483_647) {
+  if (Object.keys(errors).length > 0 || amount === null) {
     return { ok: false, errors, values };
   }
 

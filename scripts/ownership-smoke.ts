@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { PoolClient } from "pg";
 import { createAuth } from "../src/auth/factory";
-import { createLedgerRepository, LedgerNotFoundError } from "../src/domain/ledger-repository";
+import { createLedgerRepository, ExpenseShareInvariantError, LedgerNotFoundError } from "../src/domain/ledger-repository";
 import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { readSecretFile } from "../src/server/secret-file";
@@ -63,6 +63,16 @@ async function expectNotFound(action: () => Promise<unknown>) {
   throw new Error("cross-owner reference was accepted");
 }
 
+async function expectShareInvariant(action: () => Promise<unknown>) {
+  try {
+    await action();
+  } catch (error) {
+    assert(error instanceof ExpenseShareInvariantError, "share total invariant error type is wrong");
+    return;
+  }
+  throw new Error("share total invariant was bypassed");
+}
+
 export async function runOwnershipSmoke() {
   if (process.env.DB_NAME !== "zplit_test") throw new Error("ownership smoke requires DB_NAME=zplit_test");
 
@@ -107,14 +117,10 @@ export async function runOwnershipSmoke() {
       description: "Expense A",
       amount: 12500,
     });
-    const shareA = await repositoryA.createExpenseShare({ expenseId: expenseA.id, friendId: friendA.id, amountOwed: 7500 });
-    const repaymentA = await repositoryA.createRepayment({ friendId: friendA.id, amount: 7500, paidAt: now });
-    const allocationA = await repositoryA.createRepaymentAllocation({
-      repaymentId: repaymentA.id,
-      expenseShareId: shareA.id,
-      amount: 7500,
-    });
-    assert(allocationA.ownerUserId === userA, "owner A allocation is not owner scoped");
+    let sharesA = await repositoryA.replaceExpenseShares(expenseA.id, [{ friendId: friendA.id, amountOwed: 7500 }]);
+    let shareA = sharesA[0];
+    assert(shareA?.friendId === friendA.id, "owner A share was not assigned");
+    const originalShareAId = shareA!.id;
     const friendB = await repositoryB.createFriend({ name: "Friend B", phoneNumber: null, notes: null });
     const outingB = await repositoryB.createOuting({ title: "Outing B", occurredAt: now, notes: null });
     const outingB2 = await repositoryB.createOuting({ title: "Outing B 2", occurredAt: new Date("2026-01-05T10:30:00.000Z"), notes: null });
@@ -123,9 +129,9 @@ export async function runOwnershipSmoke() {
       description: "Expense B",
       amount: 10000,
     });
-    const shareB = await repositoryB.createExpenseShare({ expenseId: expenseB.id, friendId: friendB.id, amountOwed: 5000 });
-    const repaymentB = await repositoryB.createRepayment({ friendId: friendB.id, amount: 5000, paidAt: now });
-    await repositoryB.createRepaymentAllocation({ repaymentId: repaymentB.id, expenseShareId: shareB.id, amount: 5000 });
+    const sharesB = await repositoryB.replaceExpenseShares(expenseB.id, [{ friendId: friendB.id, amountOwed: 5000 }]);
+    const shareB = sharesB[0];
+    assert(shareB?.friendId === friendB.id, "owner B share was not assigned");
 
     await repositoryA.updateOuting(outingA.id, { title: "Outing A Updated", occurredAt: now, notes: "Owner A" });
     assert((await repositoryA.getOuting(outingA.id)).title === "Outing A Updated", "owner A outing update failed");
@@ -144,6 +150,47 @@ export async function runOwnershipSmoke() {
     const updatedExpenseB = await repositoryB.updateExpense(expenseB.id, { description: "Expense B Updated", amount: 11000, outingId: outingB2.id });
     assert(updatedExpenseB.outingOccurredAt.getTime() === outingB2.occurredAt.getTime(), "owner B expense date did not come from outing");
     assert((await repositoryB.getExpense(expenseB.id)).description === "Expense B Updated", "owner B expense update failed");
+
+    sharesA = await repositoryA.replaceExpenseShares(expenseA.id, [{ friendId: friendA.id, amountOwed: 13000 }]);
+    assert(sharesA[0]?.id === originalShareAId, "updating a share did not preserve its ID");
+    assert((await repositoryA.listExpenseShares(expenseA.id)).reduce((sum, share) => sum + share.amountOwed, 0) === 13000, "owner A assigned total is wrong");
+    assert(13000 - 13000 === 0, "owner portion at a fully assigned total is wrong");
+    await expectShareInvariant(() => repositoryA.replaceExpenseShares(expenseA.id, [{ friendId: friendA.id, amountOwed: 13001 }]));
+    await expectShareInvariant(() => repositoryA.updateExpense(expenseA.id, { description: "Too Small", amount: 12999, outingId: outingA2.id }));
+    sharesA = await repositoryA.replaceExpenseShares(expenseA.id, [{ friendId: friendA.id, amountOwed: 7500 }]);
+    shareA = sharesA[0];
+    assert(sharesA[0]?.id === originalShareAId, "existing share was not retained after amount update");
+    assert(13000 - sharesA.reduce((sum, share) => sum + share.amountOwed, 0) === 5500, "owner portion is wrong");
+
+    await repositoryA.setFriendArchived(friendA.id, true);
+    const archivedShares = await repositoryA.replaceExpenseShares(expenseA.id, [{ friendId: friendA.id, amountOwed: 7500 }]);
+    assert(archivedShares[0]?.friendArchivedAt !== null, "archived existing friend was not preserved");
+    await repositoryA.setFriendArchived(friendA.id, false);
+    await expectNotFound(() => repositoryA.listExpenseShares(expenseB.id));
+    await expectNotFound(() => repositoryA.replaceExpenseShares(expenseB.id, [{ friendId: friendB.id, amountOwed: 1 }]));
+    await expectNotFound(() => repositoryA.replaceExpenseShares(expenseA.id, [{ friendId: friendB.id, amountOwed: 1 }]));
+    const removedShares = await repositoryA.replaceExpenseShares(expenseA.id, []);
+    assert(removedShares.length === 0, "removing a share failed");
+    assert(13000 - removedShares.reduce((sum, share) => sum + share.amountOwed, 0) === 13000, "owner portion after removal is wrong");
+    await repositoryA.setFriendArchived(friendA.id, true);
+    let archivedRejected = false;
+    try {
+      await repositoryA.replaceExpenseShares(expenseA.id, [{ friendId: friendA.id, amountOwed: 1 }]);
+    } catch (error) {
+      assert(error instanceof Error && error.message === "Archived friends cannot be newly assigned.", "archived-new friend message is wrong");
+      archivedRejected = true;
+    }
+    assert(archivedRejected, "archived-new friend was accepted");
+    await repositoryA.setFriendArchived(friendA.id, false);
+    sharesA = await repositoryA.replaceExpenseShares(expenseA.id, [{ friendId: friendA.id, amountOwed: 7500 }]);
+    shareA = sharesA[0];
+    assert(shareA, "owner A share could not be restored");
+
+    const repaymentA = await repositoryA.createRepayment({ friendId: friendA.id, amount: 7500, paidAt: now });
+    const allocationA = await repositoryA.createRepaymentAllocation({ repaymentId: repaymentA.id, expenseShareId: shareA.id, amount: 7500 });
+    assert(allocationA.ownerUserId === userA, "owner A allocation is not owner scoped");
+    const repaymentB = await repositoryB.createRepayment({ friendId: friendB.id, amount: 5000, paidAt: now });
+    await repositoryB.createRepaymentAllocation({ repaymentId: repaymentB.id, expenseShareId: shareB!.id, amount: 5000 });
 
     await repositoryA.updateFriend(friendA.id, { name: "Friend A Updated", phoneNumber: "+62 811", notes: "Owner A" });
     assert((await repositoryA.getFriend(friendA.id)).name === "Friend A Updated", "owner A friend update failed");
@@ -180,7 +227,6 @@ export async function runOwnershipSmoke() {
     assert(foreignOuting instanceof LedgerNotFoundError, "foreign outing did not map to not-found");
     assert(absentOuting.message === foreignOuting.message, "outing not-found errors differ");
     await expectNotFound(() => repositoryA.updateOuting(outingB.id, { title: "Foreign", occurredAt: now, notes: null }));
-    await expectNotFound(() => repositoryA.createExpenseShare({ expenseId: expenseA.id, friendId: friendB.id, amountOwed: 1 }));
     await expectNotFound(() => repositoryA.createRepayment({ friendId: friendB.id, amount: 1, paidAt: now }));
     await expectNotFound(() => repositoryA.createRepaymentAllocation({ repaymentId: repaymentA.id, expenseShareId: shareB.id, amount: 1 }));
     await expectNotFound(() => repositoryA.createRepaymentAllocation({ repaymentId: repaymentB.id, expenseShareId: shareA.id, amount: 1 }));

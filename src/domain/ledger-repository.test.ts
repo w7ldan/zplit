@@ -10,11 +10,16 @@ import {
 const owner = "user-a";
 
 function emptyTransactionalDatabase() {
+  function noRows() {
+    const result = Promise.resolve([]) as Promise<never[]> & { for: () => Promise<never[]> };
+    result.for = async () => [];
+    return result;
+  }
   const transaction = {
     select: () => ({
       from: () => ({
         where: () => ({
-          limit: async () => [],
+          limit: () => noRows(),
         }),
       }),
     }),
@@ -117,7 +122,7 @@ describe("ledger repository", () => {
     const repository = createLedgerRepository(emptyTransactionalDatabase(), owner);
     const actions = [
       () => repository.createExpense({ description: "Expense", amount: 100, outingId: "other-outing" }),
-      () => repository.createExpenseShare({ expenseId: "other-expense", friendId: "other-friend", amountOwed: 50 }),
+      () => repository.replaceExpenseShares("other-expense", []),
       () => repository.createRepayment({ friendId: "other-friend", amount: 50, paidAt: new Date() }),
       () => repository.createRepaymentAllocation({ repaymentId: "other-repayment", expenseShareId: "other-share", amount: 50 }),
     ];

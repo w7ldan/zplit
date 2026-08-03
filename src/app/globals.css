@@ -1817,12 +1817,122 @@ select {
   border-top: 1px solid var(--ink);
 }
 
-.expense-record__next {
-  max-width: 26rem;
-  margin: 2rem 0 0;
+.expense-record__shares {
+  grid-column: 2 / -1;
+  margin-top: 5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+}
+
+.expense-share-editor {
+  max-width: 52rem;
+  animation: friend-list-reveal var(--motion-medium) var(--ease-out) both;
+}
+
+.expense-share-editor h2 {
+  margin: 1.25rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.expense-share-editor__totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--rule);
+}
+
+.expense-share-editor__totals div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.expense-share-editor__totals strong {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.expense-share-editor__form {
+  display: grid;
+  gap: 1rem;
+  max-width: 31rem;
+  margin-top: 2rem;
+}
+
+.expense-share-editor__help,
+.expense-share-editor__field-error,
+.expense-share-editor__message {
+  min-height: 1.25rem;
+  margin: 0;
   color: var(--muted-ink);
-  font-size: 0.85rem;
-  line-height: 1.5;
+  font-size: 0.8rem;
+}
+
+.expense-share-editor__field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.expense-share-editor__field label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.expense-share-editor__field input[type="text"] {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--ink);
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 0px;
+  border-bottom-left-radius: 0px;
+  background: var(--paper);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.expense-share-editor__field input[type="text"]:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.expense-share-editor__field-error,
+.expense-share-editor__message {
+  color: var(--destructive);
+}
+
+.expense-share-editor__message {
+  min-height: 1.5rem;
+}
+
+.expense-share-editor__submit:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.expense-share-editor--empty {
+  max-width: 31rem;
+}
+
+.expense-share-editor--empty > p:not(.technical-label) {
+  margin: 1.25rem 0 0;
+  color: var(--muted-ink);
+}
+
+.expense-share-editor--empty .action-link {
+  margin-top: 1.5rem;
 }
 
 @keyframes friend-heading-reveal {
@@ -2280,6 +2390,15 @@ select {
 
   .expense-record__form {
     margin-top: 3rem;
+  }
+
+  .expense-record__shares {
+    grid-column: 1 / -1;
+    margin-top: 4rem;
+  }
+
+  .expense-share-editor__totals {
+    grid-template-columns: 1fr;
   }
 }
 

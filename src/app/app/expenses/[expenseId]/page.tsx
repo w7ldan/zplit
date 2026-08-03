@@ -4,14 +4,12 @@ import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { ExpenseForm } from "@/components/expenses/expense-form";
+import { ExpenseShareEditor } from "@/components/expenses/expense-share-editor";
+import { formatRupiah } from "@/domain/rupiah";
 import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
-import { updateExpenseAction } from "../actions";
+import { replaceExpenseSharesAction, updateExpenseAction } from "../actions";
 
 export const dynamic = "force-dynamic";
-
-function formatRupiah(amount: number) {
-  return `Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(amount)}`;
-}
 
 export default async function ExpenseRecordPage({ params }: { params: Promise<{ expenseId: string }> }) {
   const session = await requireSession();
@@ -25,6 +23,19 @@ export default async function ExpenseRecordPage({ params }: { params: Promise<{ 
     throw error;
   }
   const outings = await repository.listOutings();
+  const [activeFriends, shares] = await Promise.all([repository.listFriends(), repository.listExpenseShares(expense.id)]);
+  const shareByFriend = new Map(shares.map((share) => [share.friendId, share]));
+  const friends = [
+    ...activeFriends.map((friend) => ({
+      id: friend.id,
+      name: friend.name,
+      archivedAt: friend.archivedAt,
+      amountOwed: shareByFriend.get(friend.id)?.amountOwed,
+    })),
+    ...shares
+      .filter((share) => share.friendArchivedAt !== null && !activeFriends.some((friend) => friend.id === share.friendId))
+      .map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, amountOwed: share.amountOwed })),
+  ];
 
   return (
     <section className="expense-record" id="top">
@@ -49,7 +60,13 @@ export default async function ExpenseRecordPage({ params }: { params: Promise<{ 
             mode="edit"
             initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
           />
-          <p className="expense-record__next">Friend-share assignment arrives in the next product stage.</p>
+        </div>
+        <div className="expense-record__shares">
+          <ExpenseShareEditor
+            action={replaceExpenseSharesAction.bind(null, expense.id)}
+            expenseAmount={expense.amount}
+            friends={friends}
+          />
         </div>
       </div>
     </section>

@@ -33,19 +33,26 @@ describe("expense record", () => {
   it("uses the outing date and has no independent occurrence field", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ getExpense: vi.fn().mockResolvedValue(expense), listOutings: vi.fn().mockResolvedValue([{ id: expense.outingId, title: expense.outingTitle }]) });
+    mocks.createLedgerRepository.mockReturnValue({
+      getExpense: vi.fn().mockResolvedValue(expense),
+      listOutings: vi.fn().mockResolvedValue([{ id: expense.outingId, title: expense.outingTitle }]),
+      listFriends: vi.fn().mockResolvedValue([{ id: "33333333-3333-4333-8333-333333333333", name: "Rani", archivedAt: null }]),
+      listExpenseShares: vi.fn().mockResolvedValue([]),
+    });
     render(await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) }));
 
     expect(screen.getByText("09 / EXPENSE RECORD")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Dinner" })).toBeInTheDocument();
-    expect(screen.getByText("Rp 84.000")).toBeInTheDocument();
+    expect(screen.getAllByText("Rp 84.000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Jakarta dinner").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Outing date")).toBeInTheDocument();
     expect(document.querySelector(`time[datetime="${expense.outingOccurredAt.toISOString()}"]`)).toBeInTheDocument();
     expect(screen.getByLabelText("Description")).toHaveValue("Dinner");
     expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("84000");
     expect(screen.getByRole("link", { name: /Back to expenses/ })).toHaveAttribute("href", "/app/expenses");
-    expect(screen.getByText(/Friend-share assignment arrives/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Assign the split" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Rani")).toBeInTheDocument();
+    expect(screen.getByText("Owner portion")).toBeInTheDocument();
     expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
   });
 

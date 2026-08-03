@@ -50,6 +50,7 @@ describe("/app/expenses", () => {
     expect(screen.getByRole("link", { name: /Edit/ })).toHaveAttribute("href", `/app/expenses/${expense.id}`);
     expect(screen.getByRole("heading", { level: 2, name: "Add an expense" })).toBeInTheDocument();
     expect(screen.getByLabelText("Amount in rupiah")).toBeInTheDocument();
+    expect(screen.getByText(/Every expense belongs to an outing/)).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/UNASSIGNED|balance|pill|avatar|status dot|share control|dashboard/i);
   });
 
