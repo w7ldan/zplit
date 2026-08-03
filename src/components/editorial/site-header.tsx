@@ -9,6 +9,7 @@ export function SiteHeader() {
         <a href="#method">Method</a>
         <a href="#ledger">Ledger</a>
         <a href="#system">System</a>
+        <a className="site-header__access" href="/app">Open ledger</a>
       </nav>
     </header>
   );

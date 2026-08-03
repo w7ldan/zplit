@@ -2,14 +2,16 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import * as schema from "./schema";
 
-const tableNames = [
-  "expenseShares",
+const domainTables = [
+  "expense_shares",
   "expenses",
   "friends",
   "outings",
-  "repaymentAllocations",
+  "repayment_allocations",
   "repayments",
 ];
+
+const authTables = [schema.users, schema.sessions, schema.accounts, schema.verifications];
 
 function columnNames(columns: readonly unknown[]) {
   return columns.flatMap((column) => {
@@ -21,20 +23,35 @@ function columnNames(columns: readonly unknown[]) {
 }
 
 describe("database schema", () => {
-  it("exports exactly the six domain tables", () => {
-    expect(Object.keys(schema).sort()).toEqual(tableNames);
+  it("exports the six domain tables and four auth tables", () => {
     expect(
       [schema.friends, schema.outings, schema.expenses, schema.expenseShares, schema.repayments, schema.repaymentAllocations]
         .map((table) => getTableConfig(table).name)
         .sort(),
-    ).toEqual([
-      "expense_shares",
-      "expenses",
-      "friends",
-      "outings",
-      "repayment_allocations",
-      "repayments",
+    ).toEqual(domainTables);
+    expect(authTables.map((table) => getTableConfig(table).name).sort()).toEqual([
+      "accounts",
+      "sessions",
+      "users",
+      "verifications",
     ]);
+  });
+
+  it("keeps canonical Better Auth fields and lookup indexes", () => {
+    expect(schema.users.email.isUnique).toBe(true);
+    expect(schema.sessions.token.isUnique).toBe(true);
+    expect(
+      authTables.flatMap((table) => getTableConfig(table).indexes.map((index) => index.config.name)),
+    ).toEqual(
+      expect.arrayContaining([
+        "sessions_userId_idx",
+        "accounts_userId_idx",
+        "accounts_provider_account_uidx",
+        "verifications_identifier_idx",
+      ]),
+    );
+    expect(getTableConfig(schema.sessions).foreignKeys[0].onDelete).toBe("cascade");
+    expect(getTableConfig(schema.accounts).foreignKeys[0].onDelete).toBe("cascade");
   });
 
   it("uses integer money columns and positive amount checks", () => {

@@ -14,6 +14,7 @@
     "db:check": "drizzle-kit check",
     "db:migrate": "tsx scripts/migrate.ts",
     "test:database": "tsx scripts/database-smoke.ts",
+    "test:auth": "tsx scripts/auth-smoke.ts",
     "test:deployment": "node deploy/test-deployment.mjs",
     "test:watch": "vitest"
   },
@@ -24,12 +25,14 @@
     }
   },
   "dependencies": {
+    "better-auth": "1.6.25",
     "clsx": "2.1.1",
     "drizzle-orm": "0.45.2",
     "next": "16.2.12",
     "pg": "8.22.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "server-only": "0.0.1",
     "tailwind-merge": "3.6.0"
   },
   "devDependencies": {

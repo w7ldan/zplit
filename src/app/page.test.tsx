@@ -12,6 +12,7 @@ describe("public editorial page", () => {
     for (const label of ["Method", "Ledger", "System"]) {
       expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
     }
+    expect(screen.getByRole("link", { name: "Open ledger" })).toHaveAttribute("href", "/app");
 
     for (const chapter of ["0", "1", "2", "3"]) {
       expect(screen.getByLabelText(new RegExp(`^Chapter ${chapter}:`))).toBeInTheDocument();

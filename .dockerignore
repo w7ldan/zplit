@@ -6,6 +6,10 @@ out
 .env
 .env.*
 secrets/
+**/better-auth-secret
+**/owner-name
+**/owner-email
+**/owner-password
 postgres-data/
 postgres_data/
 pgdata/

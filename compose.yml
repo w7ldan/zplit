@@ -13,12 +13,26 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       HOSTNAME: 0.0.0.0
       PORT: "3000"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: zplit
+      DB_USER: zplit
+      DB_PASSWORD_FILE: /run/secrets/postgres_password
+      BETTER_AUTH_URL: https://idr.wildan.lol
+      BETTER_AUTH_SECRET_FILE: /run/secrets/better_auth_secret
+    secrets:
+      - postgres_password
+      - better_auth_secret
     expose:
       - "3000"
     networks:
       ingress:
         aliases:
           - zplit-web
+      database:
+    depends_on:
+      postgres:
+        condition: service_healthy
     read_only: true
     cap_drop:
       - ALL
@@ -102,9 +116,60 @@ services:
       - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=1777
     user: node
 
+  bootstrap-owner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: auth-tool
+    image: zplit-auth-tool:local
+    profiles:
+      - tools
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    secrets:
+      - postgres_password
+      - better_auth_secret
+      - owner_name
+      - owner_email
+      - owner_password
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: zplit
+      DB_USER: zplit
+      DB_PASSWORD_FILE: /run/secrets/postgres_password
+      BETTER_AUTH_URL: https://idr.wildan.lol
+      BETTER_AUTH_SECRET_FILE: /run/secrets/better_auth_secret
+      OWNER_NAME_FILE: /run/secrets/owner_name
+      OWNER_EMAIL_FILE: /run/secrets/owner_email
+      OWNER_PASSWORD_FILE: /run/secrets/owner_password
+    networks:
+      - database
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=1777
+    user: node
+    command:
+      - ./node_modules/.bin/tsx
+      - scripts/bootstrap-owner.ts
+
 secrets:
   postgres_password:
     file: ./secrets/postgres-password
+  better_auth_secret:
+    file: ./secrets/better-auth-secret
+  owner_name:
+    file: ./secrets/owner-name
+  owner_email:
+    file: ./secrets/owner-email
+  owner_password:
+    file: ./secrets/owner-password
 
 volumes:
   postgres_data:

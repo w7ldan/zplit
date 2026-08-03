@@ -6,6 +6,10 @@ out/
 .DS_Store
 
 secrets/
+secrets/better-auth-secret
+secrets/owner-name
+secrets/owner-email
+secrets/owner-password
 
 s.sh
 zip.cjs

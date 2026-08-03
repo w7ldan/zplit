@@ -20,6 +20,18 @@ COPY scripts/migrate.ts ./scripts/migrate.ts
 USER node
 CMD ["./node_modules/.bin/tsx", "scripts/migrate.ts"]
 
+FROM dependencies AS auth-tool
+
+WORKDIR /app
+COPY src/auth/factory.ts ./src/auth/factory.ts
+COPY src/auth/runtime.ts ./src/auth/runtime.ts
+COPY src/db/client.ts ./src/db/client.ts
+COPY src/db/schema.ts ./src/db/schema.ts
+COPY src/server/secret-file.ts ./src/server/secret-file.ts
+COPY scripts/bootstrap-owner.ts ./scripts/bootstrap-owner.ts
+USER node
+CMD ["./node_modules/.bin/tsx", "scripts/bootstrap-owner.ts"]
+
 FROM node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS runtime
 
 WORKDIR /app

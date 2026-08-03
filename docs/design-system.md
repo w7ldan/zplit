@@ -92,3 +92,11 @@ Explicitly prohibited:
 - animation on every element.
 
 Also avoid fake application screenshots, decorative blobs, random 3D objects, gradient backgrounds, glass effects, automatic marquees, and compressed desktop tables on mobile.
+
+## Authenticated interfaces
+
+Access pages use the editorial grid rather than centered rounded auth cards. Private forms use persistent visible labels, square fields, and direct actions. Authentication errors are direct but generic, and pending states reserve their layout so they do not shift surrounding content.
+
+Session and account metadata use technical labels. The protected shell prioritizes task navigation over fake analytics and does not invent dashboard totals, cards, charts, or unfinished destinations.
+
+Mobile authentication is independently composed on the 4-column grid. Pastel blue remains structural rather than decorative, and all nonessential motion follows the complete reduced-motion rule above.
