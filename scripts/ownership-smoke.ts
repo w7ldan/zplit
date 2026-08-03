@@ -98,14 +98,14 @@ export async function runOwnershipSmoke() {
 
     const repositoryA = createLedgerRepository(db, userA);
     const repositoryB = createLedgerRepository(db, userB);
-    const now = new Date();
+    const now = new Date("2026-01-02T10:30:00.000Z");
     const friendA = await repositoryA.createFriend({ name: "Friend A", phoneNumber: null, notes: null });
     const outingA = await repositoryA.createOuting({ title: "Outing A", occurredAt: now, notes: null });
+    const outingA2 = await repositoryA.createOuting({ title: "Outing A 2", occurredAt: new Date("2026-01-04T10:30:00.000Z"), notes: null });
     const expenseA = await repositoryA.createExpense({
       outingId: outingA.id,
       description: "Expense A",
       amount: 12500,
-      occurredAt: now,
     });
     const shareA = await repositoryA.createExpenseShare({ expenseId: expenseA.id, friendId: friendA.id, amountOwed: 7500 });
     const repaymentA = await repositoryA.createRepayment({ friendId: friendA.id, amount: 7500, paidAt: now });
@@ -117,11 +117,11 @@ export async function runOwnershipSmoke() {
     assert(allocationA.ownerUserId === userA, "owner A allocation is not owner scoped");
     const friendB = await repositoryB.createFriend({ name: "Friend B", phoneNumber: null, notes: null });
     const outingB = await repositoryB.createOuting({ title: "Outing B", occurredAt: now, notes: null });
+    const outingB2 = await repositoryB.createOuting({ title: "Outing B 2", occurredAt: new Date("2026-01-05T10:30:00.000Z"), notes: null });
     const expenseB = await repositoryB.createExpense({
       outingId: outingB.id,
       description: "Expense B",
       amount: 10000,
-      occurredAt: now,
     });
     const shareB = await repositoryB.createExpenseShare({ expenseId: expenseB.id, friendId: friendB.id, amountOwed: 5000 });
     const repaymentB = await repositoryB.createRepayment({ friendId: friendB.id, amount: 5000, paidAt: now });
@@ -129,20 +129,20 @@ export async function runOwnershipSmoke() {
 
     await repositoryA.updateOuting(outingA.id, { title: "Outing A Updated", occurredAt: now, notes: "Owner A" });
     assert((await repositoryA.getOuting(outingA.id)).title === "Outing A Updated", "owner A outing update failed");
-    assert((await repositoryA.listOutings()).map((outing) => outing.id).join() === outingA.id, "owner A outing list is wrong");
+    assert((await repositoryA.listOutings()).map((outing) => outing.id).sort().join() === [outingA.id, outingA2.id].sort().join(), "owner A outing list is wrong");
     await repositoryB.updateOuting(outingB.id, { title: "Outing B Updated", occurredAt: now, notes: "Owner B" });
     assert((await repositoryB.getOuting(outingB.id)).title === "Outing B Updated", "owner B outing update failed");
-    assert((await repositoryB.listOutings()).map((outing) => outing.id).join() === outingB.id, "owner B outing list is wrong");
+    assert((await repositoryB.listOutings()).map((outing) => outing.id).sort().join() === [outingB.id, outingB2.id].sort().join(), "owner B outing list is wrong");
 
     assert((await repositoryA.listExpenses()).map((expense) => expense.id).join() === expenseA.id, "owner A expense list is wrong");
     assert((await repositoryB.listExpenses()).map((expense) => expense.id).join() === expenseB.id, "owner B expense list is wrong");
     assert((await repositoryA.getExpense(expenseA.id)).outingTitle === "Outing A Updated", "owner A expense outing lookup failed");
     assert((await repositoryB.getExpense(expenseB.id)).outingTitle === "Outing B Updated", "owner B expense outing lookup failed");
-    await repositoryA.updateExpense(expenseA.id, { description: "Expense A Updated", amount: 13000, occurredAt: now, outingId: null });
-    assert((await repositoryA.getExpense(expenseA.id)).outingId === null, "owner A expense outing removal failed");
-    await repositoryA.updateExpense(expenseA.id, { description: "Expense A Updated", amount: 13000, occurredAt: now, outingId: outingA.id });
-    assert((await repositoryA.getExpense(expenseA.id)).outingTitle === "Outing A Updated", "owner A expense outing reattachment failed");
-    await repositoryB.updateExpense(expenseB.id, { description: "Expense B Updated", amount: 11000, occurredAt: now, outingId: outingB.id });
+    const updatedExpenseA = await repositoryA.updateExpense(expenseA.id, { description: "Expense A Updated", amount: 13000, outingId: outingA2.id });
+    assert(updatedExpenseA.outingId === outingA2.id, "owner A expense outing reassignment failed");
+    assert(updatedExpenseA.outingOccurredAt.getTime() === outingA2.occurredAt.getTime(), "owner A expense date did not come from outing");
+    const updatedExpenseB = await repositoryB.updateExpense(expenseB.id, { description: "Expense B Updated", amount: 11000, outingId: outingB2.id });
+    assert(updatedExpenseB.outingOccurredAt.getTime() === outingB2.occurredAt.getTime(), "owner B expense date did not come from outing");
     assert((await repositoryB.getExpense(expenseB.id)).description === "Expense B Updated", "owner B expense update failed");
 
     await repositoryA.updateFriend(friendA.id, { name: "Friend A Updated", phoneNumber: "+62 811", notes: "Owner A" });
@@ -162,17 +162,18 @@ export async function runOwnershipSmoke() {
     assert((await repositoryA.listFriends({ archived: false })).map((friend) => friend.id).join() === friendA.id, "owner A can see another friend");
     assert((await repositoryB.listFriends({ archived: false })).map((friend) => friend.id).join() === friendB.id, "owner B can see another friend");
     for (const table of domainTables) {
-      assert(await count(client, table, userA) === 1, `${table} owner A row missing`);
-      assert(await count(client, table, userB) === 1, `${table} owner B row missing`);
+      const expected = table === "outings" ? 2 : 1;
+      assert(await count(client, table, userA) === expected, `${table} owner A row missing`);
+      assert(await count(client, table, userB) === expected, `${table} owner B row missing`);
     }
 
-    await expectNotFound(() => repositoryA.createExpense({ outingId: outingB.id, description: "Cross", amount: 1, occurredAt: now }));
+    await expectNotFound(() => repositoryA.createExpense({ outingId: outingB.id, description: "Cross", amount: 1 }));
     const absentExpense = await repositoryA.getExpense("00000000-0000-0000-0000-000000000000").catch((error) => error);
     const foreignExpense = await repositoryA.getExpense(expenseB.id).catch((error) => error);
     assert(absentExpense instanceof LedgerNotFoundError, "absent expense did not map to not-found");
     assert(foreignExpense instanceof LedgerNotFoundError, "foreign expense did not map to not-found");
     assert(absentExpense.message === foreignExpense.message, "expense not-found errors differ");
-    await expectNotFound(() => repositoryA.updateExpense(expenseB.id, { description: "Foreign", amount: 1, occurredAt: now, outingId: outingA.id }));
+    await expectNotFound(() => repositoryA.updateExpense(expenseB.id, { description: "Foreign", amount: 1, outingId: outingA.id }));
     const absentOuting = await repositoryA.getOuting("00000000-0000-0000-0000-000000000000").catch((error) => error);
     const foreignOuting = await repositoryA.getOuting(outingB.id).catch((error) => error);
     assert(absentOuting instanceof LedgerNotFoundError, "absent outing did not map to not-found");
@@ -213,9 +214,16 @@ export async function runOwnershipSmoke() {
     await expectConstraint(
       client,
       "23514",
-      "INSERT INTO expenses (owner_user_id, description, amount, occurred_at) VALUES ($1, $2, $3, $4)",
-      [userA, "Invalid amount", 0, now],
+      "INSERT INTO expenses (owner_user_id, outing_id, description, amount) VALUES ($1, $2, $3, $4)",
+      [userA, outingA.id, "Invalid amount", 0],
       "amount_expense",
+    );
+    await expectConstraint(
+      client,
+      "23502",
+      "INSERT INTO expenses (owner_user_id, description, amount) VALUES ($1, $2, $3)",
+      [userA, "Missing outing", 1],
+      "required_expense_outing",
     );
     await expectConstraint(
       client,

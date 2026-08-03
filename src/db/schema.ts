@@ -64,6 +64,7 @@ export const outings = pgTable(
   },
   (table) => [
     check("outings_title_not_blank", sql`btrim(${table.title}) <> ''`),
+    uniqueIndex("outings_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
     index("outings_occurred_at_idx").on(table.ownerUserId, table.occurredAt),
   ],
 );
@@ -75,19 +76,22 @@ export const expenses = pgTable(
     ownerUserId: text("owner_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
-    outingId: uuid("outing_id").references(() => outings.id, { onDelete: "set null" }),
+    outingId: uuid("outing_id").notNull(),
     description: varchar("description", { length: 200 }).notNull(),
     amount: integer("amount").notNull(),
-    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     check("expenses_description_not_blank", sql`btrim(${table.description}) <> ''`),
     check("expenses_amount_positive", sql`${table.amount} > 0`),
+    foreignKey({
+      columns: [table.ownerUserId, table.outingId],
+      foreignColumns: [outings.ownerUserId, outings.id],
+      name: "expenses_owner_outing_fk",
+    }).onDelete("restrict"),
     uniqueIndex("expenses_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
     index("expenses_outing_id_idx").on(table.ownerUserId, table.outingId),
-    index("expenses_occurred_at_idx").on(table.ownerUserId, table.occurredAt),
   ],
 );
 

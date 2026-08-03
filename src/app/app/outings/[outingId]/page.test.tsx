@@ -41,7 +41,7 @@ describe("outing record", () => {
     expect(screen.getByLabelText("Notes")).toHaveValue("Bring the receipt.");
     expect(screen.getByLabelText("Title")).toHaveValue("Jakarta dinner");
     expect(screen.getByRole("link", { name: /Back to outings/ })).toHaveAttribute("href", "/app/outings");
-    expect(screen.getByText(/Expenses can now be recorded separately/)).toBeInTheDocument();
+    expect(screen.getByText(/Expenses recorded under this outing inherit its date and time/)).toBeInTheDocument();
   });
 
   it("uses the same not-found path for absent and foreign outings", async () => {

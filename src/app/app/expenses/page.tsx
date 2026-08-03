@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { createLedgerRepository } from "@/domain/ledger-repository";
@@ -41,7 +42,14 @@ export default async function ExpensesPage() {
         <div className="expenses-page__create">
           <p className="technical-label">NEW RECORD</p>
           <h2>Add an expense</h2>
-          <ExpenseForm action={createExpenseAction} outings={outings} />
+          {outings.length > 0 ? (
+            <ExpenseForm action={createExpenseAction} outings={outings} />
+          ) : (
+            <div className="expenses-page__empty">
+              <p>Create an outing before recording an expense.</p>
+              <Link className="action-link" href="/app/outings">Create an outing <span aria-hidden="true">→</span></Link>
+            </div>
+          )}
         </div>
       </div>
     </section>

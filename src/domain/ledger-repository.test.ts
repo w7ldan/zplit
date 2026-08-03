@@ -52,10 +52,10 @@ describe("ledger repository", () => {
       repository.updateOuting("outing-a", { title: "Outing", occurredAt: new Date(), notes: null, owner_user_id: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
-      repository.createExpense({ description: "Expense", amount: 100, occurredAt: new Date(), outingId: null, ownerUserId: "user-b" } as never),
+      repository.createExpense({ description: "Expense", amount: 100, outingId: "outing-a", ownerUserId: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
-      repository.updateExpense("expense-a", { description: "Expense", amount: 100, occurredAt: new Date(), outingId: null, owner_user_id: "user-b" } as never),
+      repository.updateExpense("expense-a", { description: "Expense", amount: 100, outingId: "outing-a", owner_user_id: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
   });
 
@@ -116,7 +116,7 @@ describe("ledger repository", () => {
   it("maps absent and cross-owner references to one generic not-found error", async () => {
     const repository = createLedgerRepository(emptyTransactionalDatabase(), owner);
     const actions = [
-      () => repository.createExpense({ description: "Expense", amount: 100, occurredAt: new Date(), outingId: "other-outing" }),
+      () => repository.createExpense({ description: "Expense", amount: 100, outingId: "other-outing" }),
       () => repository.createExpenseShare({ expenseId: "other-expense", friendId: "other-friend", amountOwed: 50 }),
       () => repository.createRepayment({ friendId: "other-friend", amount: 50, paidAt: new Date() }),
       () => repository.createRepaymentAllocation({ repaymentId: "other-repayment", expenseShareId: "other-share", amount: 50 }),
@@ -181,8 +181,10 @@ describe("ledger repository", () => {
     for (const query of queries) {
       expect(query.sql).toContain('"expenses"."owner_user_id" = $');
       expect(query.sql).toContain('"outings"."owner_user_id" = $');
+      expect(query.sql).toContain("inner join");
       expect(query.params).toContain(owner);
     }
+    expect(queries[1].sql).toContain('order by "outings"."occurred_at" desc, "expenses"."created_at" desc');
   });
 
   it("maps absent and foreign expenses to the same not-found error", async () => {

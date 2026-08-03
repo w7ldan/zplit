@@ -47,7 +47,7 @@ export default async function OutingRecordPage({ params }: { params: Promise<{ o
             initialOccurredAtUtc={outing.occurredAt.toISOString()}
             initialValues={{ title: outing.title, occurredAtLocal: utcDateTimeLocal(outing.occurredAt), timezoneOffsetMinutes: "0", notes: outing.notes ?? "" }}
           />
-          <p className="outing-record__next">Expenses can now be recorded separately. Friend-share assignment arrives in the next stage.</p>
+          <p className="outing-record__next">Expenses recorded under this outing inherit its date and time. Friend-share assignment arrives in the next stage.</p>
         </div>
       </div>
     </section>

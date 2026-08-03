@@ -23,27 +23,30 @@ const expense = {
   outingId: "11111111-1111-4111-8111-111111111111",
   description: "Dinner",
   amount: 84000,
-  occurredAt: new Date("2026-01-02T10:30:00.000Z"),
+  outingOccurredAt: new Date("2026-01-02T10:30:00.000Z"),
   createdAt: new Date("2026-01-02T00:00:00.000Z"),
   updatedAt: new Date("2026-01-02T00:00:00.000Z"),
   outingTitle: "Jakarta dinner",
 };
 
 describe("expense record", () => {
-  it("renders identity, rupiah amount, local metadata, assignment, and edit fields", async () => {
+  it("uses the outing date and has no independent occurrence field", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ getExpense: vi.fn().mockResolvedValue(expense), listOutings: vi.fn().mockResolvedValue([]) });
+    mocks.createLedgerRepository.mockReturnValue({ getExpense: vi.fn().mockResolvedValue(expense), listOutings: vi.fn().mockResolvedValue([{ id: expense.outingId, title: expense.outingTitle }]) });
     render(await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) }));
 
     expect(screen.getByText("09 / EXPENSE RECORD")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Dinner" })).toBeInTheDocument();
     expect(screen.getByText("Rp 84.000")).toBeInTheDocument();
     expect(screen.getAllByText("Jakarta dinner").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Outing date")).toBeInTheDocument();
+    expect(document.querySelector(`time[datetime="${expense.outingOccurredAt.toISOString()}"]`)).toBeInTheDocument();
     expect(screen.getByLabelText("Description")).toHaveValue("Dinner");
     expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("84000");
     expect(screen.getByRole("link", { name: /Back to expenses/ })).toHaveAttribute("href", "/app/expenses");
     expect(screen.getByText(/Friend-share assignment arrives/)).toBeInTheDocument();
+    expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
   });
 
   it("uses the same not-found path for absent and foreign expenses", async () => {

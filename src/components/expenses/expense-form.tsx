@@ -1,7 +1,7 @@
 "use client";
 
 import type { InferSelectModel } from "drizzle-orm";
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ExpenseActionState } from "@/app/app/expenses/actions";
 import type { outings } from "@/db/schema";
@@ -13,19 +13,11 @@ type ExpenseFormProps = {
   action: ExpenseAction;
   outings: Array<InferSelectModel<typeof outings>>;
   initialValues?: ExpenseInputValues;
-  initialOccurredAtUtc?: string;
   mode?: "create" | "edit";
 };
 
-const emptyValues: ExpenseInputValues = { description: "", amountRupiah: "", occurredAtLocal: "", timezoneOffsetMinutes: "", outingId: "" };
+const emptyValues: ExpenseInputValues = { description: "", amountRupiah: "", outingId: "" };
 const emptyActionState: ExpenseActionState = { fieldErrors: {}, formError: "", values: emptyValues };
-
-function localValueFromUtc(utc: string) {
-  const date = new Date(utc);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (value: number) => value.toString().padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
 
 function SubmitButton({ mode }: { mode: "create" | "edit" }) {
   const { pending } = useFormStatus();
@@ -40,35 +32,15 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="expense-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
-export function ExpenseForm({ action, outings: outingOptions, initialValues = emptyValues, initialOccurredAtUtc, mode = "create" }: ExpenseFormProps) {
+export function ExpenseForm({ action, outings: outingOptions, initialValues = emptyValues, mode = "create" }: ExpenseFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
-  const formRef = useRef<HTMLFormElement>(null);
-  const timezoneOffsetRef = useRef<HTMLInputElement>(null);
-  const initializedRef = useRef(false);
-
-  useEffect(() => {
-    const offset = new Date().getTimezoneOffset().toString();
-    if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = offset;
-    if (!initializedRef.current && initialOccurredAtUtc) {
-      initializedRef.current = true;
-      const localValue = localValueFromUtc(initialOccurredAtUtc);
-      const occurredAtInput = formRef.current?.elements.namedItem("occurredAtLocal");
-      if (occurredAtInput instanceof HTMLInputElement && localValue) occurredAtInput.value = localValue;
-    }
-  }, [initialOccurredAtUtc]);
-
-  function setCurrentTimezoneOffset() {
-    if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = new Date().getTimezoneOffset().toString();
-  }
 
   return (
     <form
-      ref={formRef}
-      key={`${state.values.description}\u0000${state.values.amountRupiah}\u0000${state.values.occurredAtLocal}\u0000${state.values.timezoneOffsetMinutes}\u0000${state.values.outingId}`}
+      key={`${state.values.description}\u0000${state.values.amountRupiah}\u0000${state.values.outingId}`}
       className="expense-form"
       action={formAction}
       noValidate
-      onSubmit={setCurrentTimezoneOffset}
     >
       <div className="expense-form__field">
         <label htmlFor="expense-description">Description</label>
@@ -82,15 +54,8 @@ export function ExpenseForm({ action, outings: outingOptions, initialValues = em
         <FieldError id="expense-amount-error" message={state.fieldErrors.amountRupiah} />
       </div>
       <div className="expense-form__field">
-        <label htmlFor="expense-occurred-at">Date and time</label>
-        <input id="expense-occurred-at" name="occurredAtLocal" type="datetime-local" defaultValue={state.values.occurredAtLocal} aria-invalid={Boolean(state.fieldErrors.occurredAtLocal)} aria-describedby="expense-occurred-at-error" />
-        <FieldError id="expense-occurred-at-error" message={state.fieldErrors.occurredAtLocal} />
-      </div>
-      <input ref={timezoneOffsetRef} type="hidden" name="timezoneOffsetMinutes" defaultValue={state.values.timezoneOffsetMinutes} />
-      <div className="expense-form__field">
         <label htmlFor="expense-outing">Outing</label>
-        <select id="expense-outing" name="outingId" defaultValue={state.values.outingId} aria-invalid={Boolean(state.fieldErrors.outingId)} aria-describedby="expense-outing-error">
-          <option value="">No outing</option>
+        <select id="expense-outing" name="outingId" required defaultValue={state.values.outingId || outingOptions[0]?.id || ""} aria-invalid={Boolean(state.fieldErrors.outingId)} aria-describedby="expense-outing-error">
           {outingOptions.map((outing) => <option key={outing.id} value={outing.id}>{outing.title}</option>)}
         </select>
         <FieldError id="expense-outing-error" message={state.fieldErrors.outingId} />

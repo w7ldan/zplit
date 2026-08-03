@@ -73,34 +73,39 @@ export async function runDatabaseSmoke() {
     await client.query("BEGIN");
     transactionStarted = true;
     const now = new Date().toISOString();
+    const ownerUserId = randomUUID();
+    await client.query(
+      "INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, $4)",
+      [ownerUserId, "Smoke Owner", `smoke-${ownerUserId}@example.com`, true],
+    );
     const friend = await client.query<{ id: string }>(
-      "INSERT INTO friends (name) VALUES ($1) RETURNING id",
-      ["Smoke Friend"],
+      "INSERT INTO friends (owner_user_id, name) VALUES ($1, $2) RETURNING id",
+      [ownerUserId, "Smoke Friend"],
     );
     const friendId = friend.rows[0].id;
     const outing = await client.query<{ id: string }>(
-      "INSERT INTO outings (title, occurred_at) VALUES ($1, $2) RETURNING id",
-      ["Smoke Outing", now],
+      "INSERT INTO outings (owner_user_id, title, occurred_at) VALUES ($1, $2, $3) RETURNING id",
+      [ownerUserId, "Smoke Outing", now],
     );
     const outingId = outing.rows[0].id;
     const expense = await client.query<{ id: string }>(
-      "INSERT INTO expenses (outing_id, description, amount, occurred_at) VALUES ($1, $2, $3, $4) RETURNING id",
-      [outingId, "Smoke Expense", 12500, now],
+      "INSERT INTO expenses (owner_user_id, outing_id, description, amount) VALUES ($1, $2, $3, $4) RETURNING id",
+      [ownerUserId, outingId, "Smoke Expense", 12500],
     );
     const expenseId = expense.rows[0].id;
     const share = await client.query<{ id: string }>(
-      "INSERT INTO expense_shares (expense_id, friend_id, amount_owed) VALUES ($1, $2, $3) RETURNING id",
-      [expenseId, friendId, 7500],
+      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4) RETURNING id",
+      [ownerUserId, expenseId, friendId, 7500],
     );
     const shareId = share.rows[0].id;
     const repayment = await client.query<{ id: string }>(
-      "INSERT INTO repayments (friend_id, amount, paid_at) VALUES ($1, $2, $3) RETURNING id",
-      [friendId, 7500, now],
+      "INSERT INTO repayments (owner_user_id, friend_id, amount, paid_at) VALUES ($1, $2, $3, $4) RETURNING id",
+      [ownerUserId, friendId, 7500, now],
     );
     const repaymentId = repayment.rows[0].id;
     await client.query(
-      "INSERT INTO repayment_allocations (repayment_id, expense_share_id, amount) VALUES ($1, $2, $3)",
-      [repaymentId, shareId, 7500],
+      "INSERT INTO repayment_allocations (owner_user_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
+      [ownerUserId, repaymentId, shareId, 7500],
     );
 
     const relationship = await client.query<{
@@ -111,11 +116,11 @@ export async function runDatabaseSmoke() {
     }>(
       `SELECT e.outing_id, es.friend_id AS share_friend_id, r.friend_id AS repayment_friend_id, ra.amount AS allocation_amount
        FROM expenses e
-       JOIN expense_shares es ON es.expense_id = e.id
-       JOIN repayments r ON r.friend_id = es.friend_id
-       JOIN repayment_allocations ra ON ra.repayment_id = r.id AND ra.expense_share_id = es.id
-       WHERE e.id = $1 AND r.id = $2`,
-      [expenseId, repaymentId],
+       JOIN expense_shares es ON es.owner_user_id = e.owner_user_id AND es.expense_id = e.id
+       JOIN repayments r ON r.owner_user_id = es.owner_user_id AND r.friend_id = es.friend_id
+       JOIN repayment_allocations ra ON ra.owner_user_id = r.owner_user_id AND ra.repayment_id = r.id AND ra.expense_share_id = es.id
+       WHERE e.owner_user_id = $3 AND e.id = $1 AND r.id = $2`,
+      [expenseId, repaymentId, ownerUserId],
     );
     assert(relationship.rowCount === 1, "inserted relationships are missing");
     assert(relationship.rows[0].outing_id === outingId, "expense outing relationship is wrong");
@@ -126,22 +131,29 @@ export async function runDatabaseSmoke() {
     await expectConstraint(
       client,
       "23514",
-      "INSERT INTO expenses (description, amount, occurred_at) VALUES ($1, $2, $3)",
-      ["Rejected Expense", 0, now],
+      "INSERT INTO expenses (owner_user_id, outing_id, description, amount) VALUES ($1, $2, $3, $4)",
+      [ownerUserId, outingId, "Rejected Expense", 0],
       "smoke_amount_check",
     );
     await expectConstraint(
       client,
+      "23502",
+      "INSERT INTO expenses (owner_user_id, description, amount) VALUES ($1, $2, $3)",
+      [ownerUserId, "Missing Outing", 1],
+      "smoke_required_outing",
+    );
+    await expectConstraint(
+      client,
       "23505",
-      "INSERT INTO expense_shares (expense_id, friend_id, amount_owed) VALUES ($1, $2, $3)",
-      [expenseId, friendId, 1],
+      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4)",
+      [ownerUserId, expenseId, friendId, 1],
       "smoke_duplicate_share",
     );
     await expectConstraint(
       client,
       "23503",
-      "INSERT INTO expense_shares (expense_id, friend_id, amount_owed) VALUES ($1, $2, $3)",
-      [expenseId, randomUUID(), 1],
+      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4)",
+      [ownerUserId, expenseId, randomUUID(), 1],
       "smoke_invalid_foreign_key",
     );
 

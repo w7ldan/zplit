@@ -17,8 +17,6 @@ function valuesFromForm(formData: FormData) {
   return validateExpenseInput({
     description: formData.get("description"),
     amountRupiah: formData.get("amountRupiah"),
-    occurredAtLocal: formData.get("occurredAtLocal"),
-    timezoneOffsetMinutes: formData.get("timezoneOffsetMinutes"),
     outingId: formData.get("outingId"),
   });
 }

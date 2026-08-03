@@ -22,6 +22,13 @@
       "when": 1785764527747,
       "tag": "0002_add_domain_ownership",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785776157555,
+      "tag": "0003_bind_expenses_to_outings",
+      "breakpoints": true
     }
   ]
 }

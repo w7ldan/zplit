@@ -55,8 +55,7 @@ export type UpdateOutingInput = OutingMutationInput;
 export type ExpenseMutationInput = {
   description: string;
   amount: number;
-  occurredAt: Date;
-  outingId: string | null;
+  outingId: string;
 };
 export type CreateExpenseInput = ExpenseMutationInput;
 export type UpdateExpenseInput = ExpenseMutationInput;
@@ -112,7 +111,7 @@ function assertOutingId(outingId: string) {
 function assertExpenseInput(input: unknown): asserts input is ExpenseMutationInput {
   assertInput(input);
   const keys = Object.keys(input);
-  if (keys.length !== 4 || keys.some((key) => !["description", "amount", "occurredAt", "outingId"].includes(key))) {
+  if (keys.length !== 3 || keys.some((key) => !["description", "amount", "outingId"].includes(key))) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Expense fields are invalid");
   }
   if (
@@ -123,9 +122,8 @@ function assertExpenseInput(input: unknown): asserts input is ExpenseMutationInp
     !Number.isInteger(input.amount) ||
     input.amount <= 0 ||
     input.amount > 2_147_483_647 ||
-    !(input.occurredAt instanceof Date) ||
-    Number.isNaN(input.occurredAt.getTime()) ||
-    (input.outingId !== null && (typeof input.outingId !== "string" || !input.outingId.trim()))
+    typeof input.outingId !== "string" ||
+    !input.outingId.trim()
   ) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Expense fields are invalid");
   }
@@ -276,15 +274,14 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       outingId: expenses.outingId,
       description: expenses.description,
       amount: expenses.amount,
-      occurredAt: expenses.occurredAt,
       createdAt: expenses.createdAt,
       updatedAt: expenses.updatedAt,
       outingTitle: outings.title,
+      outingOccurredAt: outings.occurredAt,
     };
   }
 
-  async function assertOwnedOuting(transaction: Parameters<Parameters<Database["transaction"]>[0]>[0], outingId: string | null) {
-    if (!outingId) return;
+  async function assertOwnedOuting(transaction: Parameters<Parameters<Database["transaction"]>[0]>[0], outingId: string) {
     const [outing] = await transaction
       .select({ id: outings.id })
       .from(outings)
@@ -300,7 +297,14 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         await assertOwnedOuting(transaction, input.outingId);
         const [expense] = await transaction.insert(expenses).values({ ...input, ownerUserId: owner }).returning();
         if (!expense) return persistenceError(new Error("expense insert returned no row"));
-        return expense;
+        const [created] = await transaction
+          .select(expenseSelection())
+          .from(expenses)
+          .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expense.id)))
+          .limit(1);
+        if (!created) return persistenceError(new Error("expense insert lookup returned no row"));
+        return created;
       });
     } catch (error) {
       return persistenceError(error);
@@ -313,7 +317,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       const [expense] = await database
         .select(expenseSelection())
         .from(expenses)
-        .leftJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
         .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
         .limit(1);
       if (!expense) return notFound();
@@ -328,9 +332,9 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       return await database
         .select(expenseSelection())
         .from(expenses)
-        .leftJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
         .where(eq(expenses.ownerUserId, owner))
-        .orderBy(desc(expenses.occurredAt), asc(expenses.id));
+        .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id));
     } catch (error) {
       return persistenceError(error);
     }
@@ -351,7 +355,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         const [updated] = await transaction
           .select(expenseSelection())
           .from(expenses)
-          .leftJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+          .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
           .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
           .limit(1);
         if (!updated) return persistenceError(new Error("expense update returned no row"));

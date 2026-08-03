@@ -95,6 +95,7 @@ describe("database schema", () => {
 
     for (const [table, name] of [
       [schema.friends, "friends_owner_user_id_id_uidx"],
+      [schema.outings, "outings_owner_user_id_id_uidx"],
       [schema.expenses, "expenses_owner_user_id_id_uidx"],
       [schema.expenseShares, "expense_shares_owner_user_id_id_uidx"],
       [schema.repayments, "repayments_owner_user_id_id_uidx"],
@@ -165,7 +166,7 @@ describe("database schema", () => {
     ];
     expect(actions).toEqual(
       expect.arrayContaining([
-        { from: ["outing_id"], to: "outings", target: ["id"], onDelete: "set null" },
+        { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "restrict" },
         { from: ["owner_user_id", "expense_id"], to: "expenses", target: ["owner_user_id", "id"], onDelete: "cascade" },
         { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
         { from: ["owner_user_id", "repayment_id"], to: "repayments", target: ["owner_user_id", "id"], onDelete: "cascade" },
@@ -181,12 +182,23 @@ describe("database schema", () => {
       [schema.friends, "friends_archived_at_idx", ["owner_user_id", "archived_at"]],
       [schema.outings, "outings_occurred_at_idx", ["owner_user_id", "occurred_at"]],
       [schema.expenses, "expenses_outing_id_idx", ["owner_user_id", "outing_id"]],
-      [schema.expenses, "expenses_occurred_at_idx", ["owner_user_id", "occurred_at"]],
       [schema.expenseShares, "expense_shares_friend_id_idx", ["owner_user_id", "friend_id"]],
       [schema.repayments, "repayments_friend_id_idx", ["owner_user_id", "friend_id"]],
       [schema.repayments, "repayments_paid_at_idx", ["owner_user_id", "paid_at"]],
       [schema.repaymentAllocations, "repayment_allocations_expense_share_id_idx", ["owner_user_id", "expense_share_id"]],
     ] as const;
     for (const [table, name, columns] of indexes) expect(indexColumns(table, name)).toEqual(columns);
+  });
+
+  it("binds every expense to a required outing without an independent occurrence time", () => {
+    const expenseColumns = getTableConfig(schema.expenses).columns;
+    expect(expenseColumns.find((column) => column.name === "outing_id")?.notNull).toBe(true);
+    expect(expenseColumns.some((column) => column.name === "occurred_at")).toBe(false);
+    expect(getTableConfig(schema.expenses).indexes.some((index) => index.config.name === "expenses_occurred_at_idx")).toBe(false);
+    expect(foreignKeyShape(schema.expenses)).toEqual(
+      expect.arrayContaining([
+        { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "restrict" },
+      ]),
+    );
   });
 });

@@ -9,11 +9,6 @@ import { updateExpenseAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-function utcDateTimeLocal(date: Date) {
-  const pad = (value: number) => value.toString().padStart(2, "0");
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
-}
-
 function formatRupiah(amount: number) {
   return `Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(amount)}`;
 }
@@ -42,8 +37,8 @@ export default async function ExpenseRecordPage({ params }: { params: Promise<{ 
         </div>
         <div className="expense-record__meta" aria-label="Expense metadata">
           <div><span className="technical-label">Amount</span><strong>{formatRupiah(expense.amount)}</strong></div>
-          <div><span className="technical-label">Occurred</span><LocalDateTime iso={expense.occurredAt.toISOString()} /></div>
-          <div><span className="technical-label">Outing</span><span>{expense.outingTitle || "UNASSIGNED"}</span></div>
+          <div><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></div>
+          <div><span className="technical-label">Outing date</span><LocalDateTime iso={expense.outingOccurredAt.toISOString()} /></div>
           <div><span className="technical-label">Created</span><LocalDateTime iso={expense.createdAt.toISOString()} mode="date" /></div>
         </div>
         <div className="expense-record__form">
@@ -52,8 +47,7 @@ export default async function ExpenseRecordPage({ params }: { params: Promise<{ 
             action={updateExpenseAction.bind(null, expense.id)}
             outings={outings}
             mode="edit"
-            initialOccurredAtUtc={expense.occurredAt.toISOString()}
-            initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), occurredAtLocal: utcDateTimeLocal(expense.occurredAt), timezoneOffsetMinutes: "0", outingId: expense.outingId ?? "" }}
+            initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
           />
           <p className="expense-record__next">Friend-share assignment arrives in the next product stage.</p>
         </div>
