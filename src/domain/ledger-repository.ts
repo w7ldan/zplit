@@ -15,6 +15,8 @@ export type LedgerErrorCode =
   | "INVALID_OWNER"
   | "NOT_FOUND"
   | "SHARE_TOTAL_EXCEEDED"
+  | "REPAYMENT_AMOUNT_TOO_LOW"
+  | "REPAYMENT_FRIEND_LOCKED"
   | "PERSISTENCE_ERROR";
 
 export class LedgerRepositoryError extends Error {
@@ -38,6 +40,20 @@ export class ExpenseShareInvariantError extends LedgerRepositoryError {
   constructor() {
     super("SHARE_TOTAL_EXCEEDED", "Assigned shares cannot exceed the expense amount.");
     this.name = "ExpenseShareInvariantError";
+  }
+}
+
+export class RepaymentAmountInvariantError extends LedgerRepositoryError {
+  constructor() {
+    super("REPAYMENT_AMOUNT_TOO_LOW", "Repayment amount cannot be lower than its allocated amount.");
+    this.name = "RepaymentAmountInvariantError";
+  }
+}
+
+export class RepaymentFriendInvariantError extends LedgerRepositoryError {
+  constructor() {
+    super("REPAYMENT_FRIEND_LOCKED", "The friend cannot be changed after this repayment has allocations.");
+    this.name = "RepaymentFriendInvariantError";
   }
 }
 
@@ -72,8 +88,29 @@ export type ExpenseShareInput = {
   friendId: string;
   amountOwed: number;
 };
-export type CreateRepaymentInput = WithoutOwner<typeof repayments.$inferInsert>;
+export type RepaymentMutationInput = {
+  friendId: string;
+  amount: number;
+  paidAt: Date;
+  paymentMethod: string | null;
+  notes: string | null;
+};
+export type CreateRepaymentInput = RepaymentMutationInput;
+export type UpdateRepaymentInput = RepaymentMutationInput;
 export type CreateRepaymentAllocationInput = WithoutOwner<typeof repaymentAllocations.$inferInsert>;
+
+type RepaymentRecord = {
+  id: string;
+  ownerUserId: string;
+  friendId: string;
+  amount: number;
+  paidAt: Date;
+  paymentMethod: string | null;
+  notes: string | null;
+  createdAt: Date;
+  friendName: string;
+  friendArchivedAt: Date | null;
+};
 
 function assertInput(input: unknown): asserts input is Record<string, unknown> {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
@@ -144,6 +181,33 @@ function assertExpenseInput(input: unknown): asserts input is ExpenseMutationInp
 function assertExpenseId(expenseId: string) {
   if (typeof expenseId !== "string" || !expenseId.trim()) {
     throw new LedgerRepositoryError("INVALID_INPUT", "An expense ID is required");
+  }
+}
+
+function assertRepaymentId(repaymentId: string) {
+  if (typeof repaymentId !== "string" || !repaymentId.trim()) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "A repayment ID is required");
+  }
+}
+
+function assertRepaymentInput(input: unknown): asserts input is RepaymentMutationInput {
+  assertInput(input);
+  const keys = Object.keys(input);
+  if (keys.length !== 5 || keys.some((key) => !["friendId", "amount", "paidAt", "paymentMethod", "notes"].includes(key))) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "Repayment fields are invalid");
+  }
+  if (
+    typeof input.friendId !== "string" ||
+    !input.friendId.trim() ||
+    typeof input.amount !== "number" ||
+    !Number.isSafeInteger(input.amount) ||
+    input.amount <= 0 ||
+    !(input.paidAt instanceof Date) ||
+    Number.isNaN(input.paidAt.getTime()) ||
+    (input.paymentMethod !== null && typeof input.paymentMethod !== "string") ||
+    (input.notes !== null && typeof input.notes !== "string")
+  ) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "Repayment fields are invalid");
   }
 }
 
@@ -559,19 +623,159 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  function repaymentSelection() {
+    return {
+      id: repayments.id,
+      ownerUserId: repayments.ownerUserId,
+      friendId: repayments.friendId,
+      amount: repayments.amount,
+      paidAt: repayments.paidAt,
+      paymentMethod: repayments.paymentMethod,
+      notes: repayments.notes,
+      createdAt: repayments.createdAt,
+      friendName: friends.name,
+      friendArchivedAt: friends.archivedAt,
+    };
+  }
+
+  async function withRepaymentTotals(
+    transaction: Pick<Database, "select">,
+    rows: RepaymentRecord[],
+    repaymentId?: string,
+  ) {
+    const allocations = await transaction
+      .select({ repaymentId: repaymentAllocations.repaymentId, amount: repaymentAllocations.amount })
+      .from(repaymentAllocations)
+      .where(
+        repaymentId
+          ? and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId))
+          : eq(repaymentAllocations.ownerUserId, owner),
+      );
+    const allocatedByRepayment = new Map<string, number>();
+    for (const allocation of allocations) {
+      if (!Number.isSafeInteger(allocation.amount) || allocation.amount < 0) {
+        throw new LedgerIntegrityError(`Allocated amount for repayment ${allocation.repaymentId} is invalid.`);
+      }
+      const total = (allocatedByRepayment.get(allocation.repaymentId) ?? 0) + allocation.amount;
+      if (!Number.isSafeInteger(total)) throw new LedgerIntegrityError(`Allocated amount for repayment ${allocation.repaymentId} is unsafe.`);
+      allocatedByRepayment.set(allocation.repaymentId, total);
+    }
+    return rows.map((repayment) => {
+      if (!Number.isSafeInteger(repayment.amount) || repayment.amount < 0) {
+        throw new LedgerIntegrityError(`Repayment ${repayment.id} amount is invalid.`);
+      }
+      const allocatedAmount = allocatedByRepayment.get(repayment.id) ?? 0;
+      if (allocatedAmount > repayment.amount) throw new LedgerIntegrityError(`Allocations exceed repayment ${repayment.id}.`);
+      return {
+        ...repayment,
+        allocatedAmount,
+        unallocatedAmount: repayment.amount - allocatedAmount,
+      };
+    });
+  }
+
+  async function assertOwnedFriend(transaction: Pick<Database, "select">, friendId: string) {
+    const [friend] = await transaction
+      .select({ id: friends.id })
+      .from(friends)
+      .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+      .limit(1);
+    if (!friend) return notFound();
+  }
+
   async function createRepayment(input: CreateRepaymentInput) {
-    assertInput(input);
+    assertRepaymentInput(input);
+    const requested = { ...input, friendId: input.friendId.trim().toLowerCase() };
     try {
       return await database.transaction(async (transaction) => {
-        const [friend] = await transaction
-          .select({ id: friends.id })
-          .from(friends)
-          .where(and(eq(friends.ownerUserId, owner), eq(friends.id, input.friendId)))
-          .limit(1);
-        if (!friend) return notFound();
-        const [repayment] = await transaction.insert(repayments).values({ ...input, ownerUserId: owner }).returning();
+        await assertOwnedFriend(transaction, requested.friendId);
+        const [repayment] = await transaction.insert(repayments).values({ ...requested, ownerUserId: owner }).returning();
         if (!repayment) return persistenceError(new Error("repayment insert returned no row"));
         return repayment;
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function getRepayment(repaymentId: string) {
+    assertRepaymentId(repaymentId);
+    try {
+      const [repayment] = await database
+        .select(repaymentSelection())
+        .from(repayments)
+        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
+        .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+        .limit(1);
+      if (!repayment) return notFound();
+      return (await withRepaymentTotals(database, [repayment], repaymentId))[0]!;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listRepayments() {
+    try {
+      const rows = await database
+        .select(repaymentSelection())
+        .from(repayments)
+        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
+        .where(eq(repayments.ownerUserId, owner))
+        .orderBy(desc(repayments.paidAt), desc(repayments.createdAt), asc(repayments.id));
+      return await withRepaymentTotals(database, rows);
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function updateRepayment(repaymentId: string, input: UpdateRepaymentInput) {
+    assertRepaymentId(repaymentId);
+    assertRepaymentInput(input);
+    const requested = { ...input, friendId: input.friendId.trim().toLowerCase() };
+    try {
+      return await database.transaction(async (transaction) => {
+        const [current] = await transaction
+          .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount })
+          .from(repayments)
+          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .limit(1)
+          .for("update");
+        if (!current) return notFound();
+
+        const allocations = await transaction
+          .select({ amount: repaymentAllocations.amount })
+          .from(repaymentAllocations)
+          .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)))
+          .for("update");
+        if (!Number.isSafeInteger(current.amount) || current.amount < 0) throw new LedgerIntegrityError(`Repayment ${repaymentId} amount is invalid.`);
+        let allocatedAmount = 0;
+        for (const allocation of allocations) {
+          if (!Number.isSafeInteger(allocation.amount) || allocation.amount < 0) {
+            throw new LedgerIntegrityError(`Allocated amount for repayment ${repaymentId} is invalid.`);
+          }
+          allocatedAmount += allocation.amount;
+          if (!Number.isSafeInteger(allocatedAmount)) throw new LedgerIntegrityError(`Allocated amount for repayment ${repaymentId} is unsafe.`);
+        }
+        if (allocatedAmount > current.amount) throw new LedgerIntegrityError(`Allocations exceed repayment ${repaymentId}.`);
+        if (requested.amount < allocatedAmount) throw new RepaymentAmountInvariantError();
+        if (allocations.length > 0 && requested.friendId !== current.friendId) throw new RepaymentFriendInvariantError();
+
+        await assertOwnedFriend(transaction, requested.friendId);
+        const [repayment] = await transaction
+          .update(repayments)
+          .set(requested)
+          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .returning();
+        if (!repayment) return notFound();
+
+        const [updated] = await transaction
+          .select(repaymentSelection())
+          .from(repayments)
+          .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
+          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .limit(1);
+        if (!updated) return persistenceError(new Error("repayment update lookup returned no row"));
+        return (await withRepaymentTotals(transaction, [updated], repaymentId))[0]!;
       });
     } catch (error) {
       return persistenceError(error);
@@ -623,6 +827,9 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     listExpenseShares,
     replaceExpenseShares,
     createRepayment,
+    getRepayment,
+    listRepayments,
+    updateRepayment,
     createRepaymentAllocation,
   };
 }

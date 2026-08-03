@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { describe, expect, it } from "vitest";
 import type { Database } from "../db/client";
+import { repayments } from "../db/schema";
 import {
   createLedgerRepository,
   LedgerNotFoundError,
@@ -124,7 +125,7 @@ describe("ledger repository", () => {
     const actions = [
       () => repository.createExpense({ description: "Expense", amount: 100, outingId: "other-outing" }),
       () => repository.replaceExpenseShares("other-expense", []),
-      () => repository.createRepayment({ friendId: "other-friend", amount: 50, paidAt: new Date() }),
+      () => repository.createRepayment({ friendId: "other-friend", amount: 50, paidAt: new Date(), paymentMethod: null, notes: null }),
       () => repository.createRepaymentAllocation({ repaymentId: "other-repayment", expenseShareId: "other-share", amount: 50 }),
     ];
 
@@ -215,6 +216,8 @@ describe("ledger repository", () => {
       totalExpenseAmount: 0,
       totalAssignedAmount: 0,
       totalRepaidAmount: 0,
+      totalReceivedAmount: 0,
+      totalUnallocatedRepaymentAmount: 0,
       totalOutstandingAmount: 0,
       ownerPortionAmount: 0,
       friendBalances: [],
@@ -240,5 +243,61 @@ describe("ledger repository", () => {
     });
 
     await expect(createLedgerRepository(database as unknown as Database, owner).getLedgerSummary()).rejects.toBeInstanceOf(LedgerIntegrityError);
+  });
+
+  it("owner-scopes repayment get and list queries and exposes no delete", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await expect(repository.getRepayment("repayment-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
+    await expect(repository.listRepayments()).resolves.toEqual([]);
+    expect("deleteRepayment" in repository).toBe(false);
+    expect(queries).toHaveLength(3);
+    for (const query of queries) {
+      expect(query.sql).toContain("owner_user_id");
+      expect(query.params).toContain(owner);
+    }
+    expect(queries[0].sql).toContain("inner join");
+    expect(queries[1].sql).toContain("inner join");
+    expect(queries[1].sql).toContain('order by "repayments"."paid_at" desc');
+    expect(queries[2].sql).toContain('"repayment_allocations"');
+  });
+
+  it("locks allocations before rejecting an amount below allocation or a friend change", async () => {
+    function query<T>(rows: T[]) {
+      const result = Promise.resolve(rows) as Promise<T[]> & { for: () => Promise<T[]> };
+      result.for = async () => rows;
+      return result;
+    }
+    function lockingDatabase() {
+      const transaction = {
+        select(selection?: unknown) {
+          const state: { table?: unknown; selection?: unknown } = { selection };
+          const chain = {
+            from(table: unknown) { state.table = table; return chain; },
+            where() { return chain; },
+            limit() { return query(state.table === repayments ? [{ id: "repayment-a", friendId: "friend-a", amount: 100 }] : [{ amount: 60 }]); },
+            for() { return query(state.table === repayments ? [{ id: "repayment-a", friendId: "friend-a", amount: 100 }] : [{ amount: 60 }]); },
+          };
+          return chain;
+        },
+      };
+      return { transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction) } as unknown as Database;
+    }
+    const repository = createLedgerRepository(lockingDatabase(), owner);
+    const base = { friendId: "friend-a", amount: 100, paidAt: new Date(), paymentMethod: null, notes: null };
+
+    await expect(repository.updateRepayment("repayment-a", { ...base, amount: 59 })).rejects.toMatchObject({
+      code: "REPAYMENT_AMOUNT_TOO_LOW",
+      message: "Repayment amount cannot be lower than its allocated amount.",
+    });
+    await expect(repository.updateRepayment("repayment-a", { ...base, friendId: "friend-b" })).rejects.toMatchObject({
+      code: "REPAYMENT_FRIEND_LOCKED",
+      message: "The friend cannot be changed after this repayment has allocations.",
+    });
   });
 });

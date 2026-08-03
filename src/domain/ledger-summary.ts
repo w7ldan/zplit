@@ -49,6 +49,8 @@ export type LedgerSummary = {
   totalExpenseAmount: number;
   totalAssignedAmount: number;
   totalRepaidAmount: number;
+  totalReceivedAmount: number;
+  totalUnallocatedRepaymentAmount: number;
   totalOutstandingAmount: number;
   ownerPortionAmount: number;
   friendBalances: FriendBalance[];
@@ -124,6 +126,13 @@ export function buildLedgerSummary(input: LedgerSummaryInput): LedgerSummary {
     totalExpenseAmount = add(totalExpenseAmount, expense.amount, "Total expense amount");
   }
 
+  let totalReceivedAmount = 0;
+  for (const repayment of input.repayments) {
+    assertAmount(repayment.amount, `Repayment ${repayment.id} amount`);
+    if (!friends.has(repayment.friendId)) throw new LedgerIntegrityError(`Repayment ${repayment.id} references an unknown friend.`);
+    totalReceivedAmount = add(totalReceivedAmount, repayment.amount, "Total received amount");
+  }
+
   let totalAssignedAmount = 0;
   for (const share of input.expenseShares) {
     assertAmount(share.amountOwed, `Expense share ${share.id} amount`);
@@ -166,7 +175,6 @@ export function buildLedgerSummary(input: LedgerSummaryInput): LedgerSummary {
     if (repaid > share.amountOwed) throw new LedgerIntegrityError(`Allocations exceed expense share ${share.id}.`);
   }
   for (const repayment of input.repayments) {
-    assertAmount(repayment.amount, `Repayment ${repayment.id} amount`);
     const allocated = allocatedByRepayment.get(repayment.id) ?? 0;
     if (allocated > repayment.amount) throw new LedgerIntegrityError(`Allocations exceed repayment ${repayment.id}.`);
   }
@@ -201,6 +209,8 @@ export function buildLedgerSummary(input: LedgerSummaryInput): LedgerSummary {
     totalExpenseAmount,
     totalAssignedAmount,
     totalRepaidAmount,
+    totalReceivedAmount,
+    totalUnallocatedRepaymentAmount: subtract(totalReceivedAmount, totalRepaidAmount, "Total unallocated repayment amount"),
     totalOutstandingAmount: subtract(totalAssignedAmount, totalRepaidAmount, "Total outstanding amount"),
     ownerPortionAmount,
     friendBalances,

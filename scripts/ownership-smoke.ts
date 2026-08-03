@@ -3,7 +3,13 @@ import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { PoolClient } from "pg";
 import { createAuth } from "../src/auth/factory";
-import { createLedgerRepository, ExpenseShareInvariantError, LedgerNotFoundError } from "../src/domain/ledger-repository";
+import {
+  createLedgerRepository,
+  ExpenseShareInvariantError,
+  LedgerNotFoundError,
+  RepaymentAmountInvariantError,
+  RepaymentFriendInvariantError,
+} from "../src/domain/ledger-repository";
 import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { readSecretFile } from "../src/server/secret-file";
@@ -125,6 +131,8 @@ export async function runOwnershipSmoke() {
     assert(ownerASummaryBeforeOwnerB.totalExpenseAmount === 12500, "owner A initial paid-out total is wrong");
     assert(ownerASummaryBeforeOwnerB.totalAssignedAmount === 7500, "owner A initial assigned total is wrong");
     assert(ownerASummaryBeforeOwnerB.totalRepaidAmount === 0, "owner A initial repaid total is wrong");
+    assert(ownerASummaryBeforeOwnerB.totalReceivedAmount === 0, "owner A initial received total is wrong");
+    assert(ownerASummaryBeforeOwnerB.totalUnallocatedRepaymentAmount === 0, "owner A initial unallocated total is wrong");
     assert(ownerASummaryBeforeOwnerB.totalOutstandingAmount === 7500, "owner A partial outstanding total is wrong");
     assert(ownerASummaryBeforeOwnerB.ownerPortionAmount === 5000, "owner A initial owner portion is wrong");
     assert(ownerASummaryBeforeOwnerB.friendBalances[0]?.outstandingAmount === 7500, "owner A partial friend balance is wrong");
@@ -195,22 +203,63 @@ export async function runOwnershipSmoke() {
     shareA = sharesA[0];
     assert(shareA, "owner A share could not be restored");
 
-    const repaymentA = await repositoryA.createRepayment({ friendId: friendA.id, amount: 7500, paidAt: now });
+    await repositoryA.setFriendArchived(friendA.id, true);
+    const repaymentA = await repositoryA.createRepayment({ friendId: friendA.id, amount: 7500, paidAt: now, paymentMethod: "bank transfer", notes: "Allocated repayment" });
+    assert((await repositoryA.getRepayment(repaymentA.id)).friendArchivedAt !== null, "archived friend could not receive a repayment");
+    await repositoryA.setFriendArchived(friendA.id, false);
     const allocationA = await repositoryA.createRepaymentAllocation({ repaymentId: repaymentA.id, expenseShareId: shareA.id, amount: 7500 });
     assert(allocationA.ownerUserId === userA, "owner A allocation is not owner scoped");
-    const repaymentB = await repositoryB.createRepayment({ friendId: friendB.id, amount: 5000, paidAt: now });
+    const repaymentAUnallocated = await repositoryA.createRepayment({ friendId: friendA.id, amount: 2500, paidAt: now, paymentMethod: "cash", notes: "Unallocated repayment" });
+    const updatedRepaymentAUnallocated = await repositoryA.updateRepayment(repaymentAUnallocated.id, {
+      friendId: friendA.id,
+      amount: 3000,
+      paidAt: new Date("2026-01-03T10:30:00.000Z"),
+      paymentMethod: "mobile transfer",
+      notes: "Updated unallocated repayment",
+    });
+    assert(updatedRepaymentAUnallocated.amount === 3000, "owner A unallocated repayment amount update failed");
+    assert(updatedRepaymentAUnallocated.paymentMethod === "mobile transfer", "owner A repayment method update failed");
+    assert(updatedRepaymentAUnallocated.notes === "Updated unallocated repayment", "owner A repayment notes update failed");
+    assert(updatedRepaymentAUnallocated.unallocatedAmount === 3000, "owner A unallocated repayment total is wrong");
+    assert((await repositoryA.getRepayment(repaymentAUnallocated.id)).paidAt.getTime() === new Date("2026-01-03T10:30:00.000Z").getTime(), "owner A repayment date update failed");
+    await expectNotFound(() => repositoryB.getRepayment(repaymentAUnallocated.id));
+    const repaymentB = await repositoryB.createRepayment({ friendId: friendB.id, amount: 5000, paidAt: now, paymentMethod: null, notes: null });
     await repositoryB.createRepaymentAllocation({ repaymentId: repaymentB.id, expenseShareId: shareB!.id, amount: 5000 });
+    let repaymentAmountRejected = false;
+    try {
+      await repositoryA.updateRepayment(repaymentA.id, { friendId: friendA.id, amount: 7499, paidAt: now, paymentMethod: "bank transfer", notes: "Allocated repayment" });
+    } catch (error) {
+      assert(error instanceof RepaymentAmountInvariantError && error.message === "Repayment amount cannot be lower than its allocated amount.", "repayment amount invariant message is wrong");
+      repaymentAmountRejected = true;
+    }
+    assert(repaymentAmountRejected, "repayment amount below allocation was accepted");
+    let repaymentFriendRejected = false;
+    try {
+      await repositoryA.updateRepayment(repaymentA.id, { friendId: friendB.id, amount: 7500, paidAt: now, paymentMethod: "bank transfer", notes: "Allocated repayment" });
+    } catch (error) {
+      assert(error instanceof RepaymentFriendInvariantError && error.message === "The friend cannot be changed after this repayment has allocations.", "repayment friend invariant message is wrong");
+      repaymentFriendRejected = true;
+    }
+    assert(repaymentFriendRejected, "repayment friend change after allocation was accepted");
+    const repaymentsA = await repositoryA.listRepayments();
+    assert(repaymentsA.length === 2 && repaymentsA[0]?.unallocatedAmount === 3000, "owner A repayment list is wrong");
+    assert(repaymentsA.some((repayment) => repayment.friendName === "Friend A" && repayment.allocatedAmount === 7500), "owner A repayment friend or allocation is wrong");
+    assert((await repositoryB.listRepayments()).length === 1, "owner B repayment list is wrong");
     const ownerASummary = await repositoryA.getLedgerSummary();
     const ownerBSummary = await repositoryB.getLedgerSummary();
     assert(ownerASummary.totalExpenseAmount === 13000, "owner A paid-out total is wrong");
     assert(ownerASummary.totalAssignedAmount === 7500, "owner A assigned total is wrong");
     assert(ownerASummary.totalRepaidAmount === 7500, "owner A repaid total is wrong");
+    assert(ownerASummary.totalReceivedAmount === 10500, "owner A received total is wrong");
+    assert(ownerASummary.totalUnallocatedRepaymentAmount === 3000, "owner A unallocated total is wrong");
     assert(ownerASummary.totalOutstandingAmount === 0, "owner A fully repaid outstanding total is wrong");
     assert(ownerASummary.ownerPortionAmount === 5500, "owner A owner portion total is wrong");
     assert(ownerASummary.friendBalances[0]?.outstandingAmount === 0, "owner A fully repaid friend balance is wrong");
     assert(ownerBSummary.totalExpenseAmount === 11000, "owner B paid-out total is wrong");
     assert(ownerBSummary.totalAssignedAmount === 5000, "owner B assigned total is wrong");
     assert(ownerBSummary.totalRepaidAmount === 5000, "owner B repaid total is wrong");
+    assert(ownerBSummary.totalReceivedAmount === 5000, "owner B received total is wrong");
+    assert(ownerBSummary.totalUnallocatedRepaymentAmount === 0, "owner B unallocated total is wrong");
     assert(ownerBSummary.totalOutstandingAmount === 0, "owner B fully repaid outstanding total is wrong");
     assert(ownerBSummary.ownerPortionAmount === 6000, "owner B owner portion total is wrong");
 
@@ -231,9 +280,10 @@ export async function runOwnershipSmoke() {
     assert((await repositoryA.listFriends({ archived: false })).map((friend) => friend.id).join() === friendA.id, "owner A can see another friend");
     assert((await repositoryB.listFriends({ archived: false })).map((friend) => friend.id).join() === friendB.id, "owner B can see another friend");
     for (const table of domainTables) {
-      const expected = table === "outings" ? 2 : 1;
-      assert(await count(client, table, userA) === expected, `${table} owner A row missing`);
-      assert(await count(client, table, userB) === expected, `${table} owner B row missing`);
+      const expectedA = table === "outings" ? 2 : table === "repayments" ? 2 : 1;
+      const expectedB = table === "outings" ? 2 : 1;
+      assert(await count(client, table, userA) === expectedA, `${table} owner A row missing`);
+      assert(await count(client, table, userB) === expectedB, `${table} owner B row missing`);
     }
 
     await expectNotFound(() => repositoryA.createExpense({ outingId: outingB.id, description: "Cross", amount: 1 }));
@@ -249,7 +299,7 @@ export async function runOwnershipSmoke() {
     assert(foreignOuting instanceof LedgerNotFoundError, "foreign outing did not map to not-found");
     assert(absentOuting.message === foreignOuting.message, "outing not-found errors differ");
     await expectNotFound(() => repositoryA.updateOuting(outingB.id, { title: "Foreign", occurredAt: now, notes: null }));
-    await expectNotFound(() => repositoryA.createRepayment({ friendId: friendB.id, amount: 1, paidAt: now }));
+    await expectNotFound(() => repositoryA.createRepayment({ friendId: friendB.id, amount: 1, paidAt: now, paymentMethod: null, notes: null }));
     await expectNotFound(() => repositoryA.createRepaymentAllocation({ repaymentId: repaymentA.id, expenseShareId: shareB.id, amount: 1 }));
     await expectNotFound(() => repositoryA.createRepaymentAllocation({ repaymentId: repaymentB.id, expenseShareId: shareA.id, amount: 1 }));
     await expectNotFound(() => repositoryA.getFriend(friendB.id));
@@ -344,7 +394,7 @@ export async function runOwnershipSmoke() {
     await pool.end();
   }
 
-  console.log("ownership smoke passed: owner A expense=13000 assigned=7500 repaid=7500 outstanding=0 owner=5500; owner B expense=11000 assigned=5000 repaid=5000 outstanding=0 owner=6000");
+  console.log("ownership smoke passed: owner A expense=13000 assigned=7500 received=10500 allocated=7500 unallocated=3000 outstanding=0; owner B expense=11000 assigned=5000 received=5000 allocated=5000 unallocated=0 outstanding=0");
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

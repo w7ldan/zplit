@@ -23,6 +23,8 @@ describe("ledger summary", () => {
       totalExpenseAmount: 0,
       totalAssignedAmount: 0,
       totalRepaidAmount: 0,
+      totalReceivedAmount: 0,
+      totalUnallocatedRepaymentAmount: 0,
       totalOutstandingAmount: 0,
       ownerPortionAmount: 0,
       friendBalances: [],
@@ -60,6 +62,8 @@ describe("ledger summary", () => {
       totalExpenseAmount: 30_000,
       totalAssignedAmount: 11_000,
       totalRepaidAmount: 7_000,
+      totalReceivedAmount: 12_000,
+      totalUnallocatedRepaymentAmount: 5_000,
       totalOutstandingAmount: 4_000,
       ownerPortionAmount: 19_000,
       friendBalances: [
@@ -112,6 +116,13 @@ describe("ledger summary", () => {
       expenseShares: [{ id: "share", expenseId: "expense", friendId: "friend-a", amountOwed: 1 }],
       repayments: [{ id: "repayment", friendId: "friend-b", amount: 1 }],
       repaymentAllocations: [{ repaymentId: "repayment", expenseShareId: "share", amount: 1 }],
+    });
+  });
+
+  it("rejects a repayment with an unknown friend", () => {
+    expectIntegrity({
+      ...emptyLedger,
+      repayments: [{ id: "repayment", friendId: "missing", amount: 1 }],
     });
   });
 

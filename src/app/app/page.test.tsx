@@ -16,6 +16,8 @@ const summary = {
   totalExpenseAmount: 30_000,
   totalAssignedAmount: 11_000,
   totalRepaidAmount: 7_000,
+  totalReceivedAmount: 12_000,
+  totalUnallocatedRepaymentAmount: 5_000,
   totalOutstandingAmount: 4_000,
   ownerPortionAmount: 19_000,
   friendBalances: [
@@ -33,11 +35,13 @@ describe("/app", () => {
 
     expect(screen.getByText("06 / LEDGER OVERVIEW")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "What is still owed." })).toBeInTheDocument();
-    expect(screen.getByText("Balances represent assigned shares minus allocated repayments.")).toBeInTheDocument();
-    for (const label of ["Outstanding", "Assigned to friends", "Repaid toward shares", "Your portion", "Total paid out", "Friend balances"]) {
+    expect(screen.getByText("Only allocated repayments reduce outstanding debt; unallocated money remains received but open.")).toBeInTheDocument();
+    for (const label of ["Outstanding", "Assigned to friends", "Repaid toward shares", "Received", "Unallocated", "Your portion", "Total paid out", "Friend balances"]) {
       expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
     }
     expect(screen.getByText("Rp 4.000")).toBeInTheDocument();
+    expect(screen.getByText("Rp 12.000")).toBeInTheDocument();
+    expect(screen.getByText("Rp 5.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Ari/ })).toHaveAttribute("href", "/app/friends/friend-a");
     expect(screen.getByText("ARCHIVED")).toBeInTheDocument();
     expect(screen.queryByText("SETTLED")).not.toBeInTheDocument();
@@ -51,7 +55,7 @@ describe("/app", () => {
   it("renders the real totals and links for an empty balance list", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.createLedgerRepository.mockReturnValue({
-      getLedgerSummary: vi.fn().mockResolvedValue({ ...summary, totalExpenseAmount: 25_000, totalAssignedAmount: 0, totalRepaidAmount: 0, totalOutstandingAmount: 0, ownerPortionAmount: 25_000, friendBalances: [] }),
+      getLedgerSummary: vi.fn().mockResolvedValue({ ...summary, totalExpenseAmount: 25_000, totalAssignedAmount: 0, totalRepaidAmount: 0, totalReceivedAmount: 0, totalUnallocatedRepaymentAmount: 0, totalOutstandingAmount: 0, ownerPortionAmount: 25_000, friendBalances: [] }),
     });
 
     render(await AppPage());

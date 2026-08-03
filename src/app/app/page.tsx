@@ -17,7 +17,7 @@ export default async function AppPage() {
         <div className="ledger-overview__intro">
           <p className="technical-label">OWNER-SCOPED RECORD / WHOLE RUPIAH</p>
           <h1>What is still owed.</h1>
-          <p>Balances represent assigned shares minus allocated repayments.</p>
+          <p>Only allocated repayments reduce outstanding debt; unallocated money remains received but open.</p>
         </div>
 
         <div className="ledger-overview__summary" aria-label="Ledger totals">
@@ -27,6 +27,8 @@ export default async function AppPage() {
           </div>
           <div className="ledger-overview__metric"><span className="technical-label">Assigned to friends</span><strong>{formatRupiah(summary.totalAssignedAmount)}</strong></div>
           <div className="ledger-overview__metric"><span className="technical-label">Repaid toward shares</span><strong>{formatRupiah(summary.totalRepaidAmount)}</strong></div>
+          <div className="ledger-overview__metric"><span className="technical-label">Received</span><strong>{formatRupiah(summary.totalReceivedAmount)}</strong></div>
+          <div className="ledger-overview__metric"><span className="technical-label">Unallocated</span><strong>{formatRupiah(summary.totalUnallocatedRepaymentAmount)}</strong></div>
           <div className="ledger-overview__metric"><span className="technical-label">Your portion</span><strong>{formatRupiah(summary.ownerPortionAmount)}</strong></div>
           <div className="ledger-overview__metric"><span className="technical-label">Total paid out</span><strong>{formatRupiah(summary.totalExpenseAmount)}</strong></div>
         </div>

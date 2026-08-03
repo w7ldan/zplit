@@ -984,7 +984,7 @@ select {
 .ledger-overview__summary {
   display: grid;
   grid-column: 2 / -1;
-  grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr));
+  grid-template-columns: 1.4fr repeat(6, minmax(0, 1fr));
   margin-top: 1rem;
   border-block: 1px solid var(--ink);
   animation: ledger-rule-reveal var(--motion-medium) var(--ease-out) both;
@@ -2089,6 +2089,344 @@ select {
   margin-top: 1.5rem;
 }
 
+.repayments-page,
+.repayment-record {
+  position: relative;
+  min-height: calc(100svh - 5.5rem);
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.repayments-page::before,
+.repayment-record::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 0 auto;
+  width: 23%;
+  background: var(--pastel-blue);
+  content: "";
+}
+
+.repayments-page__layout,
+.repayment-record__layout {
+  position: relative;
+  z-index: 1;
+  align-content: start;
+  row-gap: 0;
+  padding-block: 2rem 5rem;
+}
+
+.repayments-page__marker,
+.repayment-record__marker {
+  grid-column: 1 / -1;
+  padding-block: 0.6rem;
+  border-block: 1px solid var(--rule);
+}
+
+.repayments-page__intro,
+.repayment-record__intro {
+  grid-column: 2 / span 7;
+  padding-block: clamp(4rem, 9vw, 7rem) 3rem;
+}
+
+.repayments-page__intro > .technical-label,
+.repayment-record__intro > .technical-label {
+  margin: 0;
+}
+
+.repayments-page h1,
+.repayment-record h1 {
+  max-width: 9ch;
+  margin: 1.5rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 8vw, 8rem);
+  font-weight: 800;
+  letter-spacing: -0.085em;
+  line-height: 0.86;
+  text-wrap: balance;
+  animation: friend-heading-reveal var(--motion-reveal) var(--ease-out) both;
+}
+
+.repayments-page__intro > p:not(.technical-label) {
+  max-width: 31rem;
+  margin: 2rem 0 0;
+  color: var(--muted-ink);
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.repayments-page__list {
+  grid-column: 2 / -1;
+  margin-top: 1.5rem;
+  border-block: 1px solid var(--ink);
+  animation: friend-list-reveal var(--motion-medium) var(--ease-out) both;
+}
+
+.repayments-page__list-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.75rem;
+}
+
+.repayment-row {
+  display: grid;
+  grid-template-columns: 1.05fr 2.35fr;
+  gap: 2rem;
+  align-items: center;
+  min-height: 6.5rem;
+  padding-block: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.repayment-row__primary {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+
+.repayment-row__primary h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2.2vw, 1.9rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.repayment-row__primary h2 a {
+  text-decoration: none;
+}
+
+.repayment-row__primary p {
+  margin: 0.65rem 0 0;
+}
+
+.repayment-row__meta {
+  display: grid;
+  grid-template-columns: 0.9fr 1.2fr 1fr 0.9fr 0.9fr 0.8fr 0.6fr;
+  gap: 1rem;
+  align-items: center;
+  min-width: 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.repayment-row__meta strong {
+  color: var(--ink);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.repayment-row__meta div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.repayment-row__edit,
+.repayment-record__back {
+  position: relative;
+  width: fit-content;
+  padding-block: 0.2rem;
+  color: var(--ink);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.repayment-row__edit::after,
+.repayment-record__back::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: var(--ink);
+  content: "";
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--motion-instant) var(--ease-out);
+}
+
+.repayment-row__edit:hover::after,
+.repayment-row__edit:focus-visible::after,
+.repayment-record__back:hover::after,
+.repayment-record__back:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+.repayment-row__edit span {
+  display: inline-block;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.repayment-row__edit:hover span,
+.repayment-row__edit:focus-visible span {
+  transform: translateX(0.3rem);
+}
+
+.repayments-page__empty {
+  min-height: 9rem;
+  padding-block: 2rem;
+  border-top: 1px solid var(--rule);
+}
+
+.repayments-page__empty h2,
+.repayments-page__create h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.repayments-page__empty p {
+  max-width: 30rem;
+  margin: 0.75rem 0 0;
+  color: var(--muted-ink);
+}
+
+.repayments-page__empty .action-link {
+  margin-top: 1.5rem;
+}
+
+.repayments-page__create {
+  grid-column: 2 / span 5;
+  margin-top: 5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+}
+
+.repayments-page__create h2 {
+  margin-top: 1.25rem;
+}
+
+.repayment-form {
+  display: grid;
+  gap: 1rem;
+  max-width: 31rem;
+  margin-top: 2rem;
+}
+
+.repayment-form__field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.repayment-form__field label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.repayment-form__field input,
+.repayment-form__field select,
+.repayment-form__field textarea {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--ink);
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 0px;
+  border-bottom-left-radius: 0px;
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+}
+
+.repayment-form__field input:focus,
+.repayment-form__field select:focus,
+.repayment-form__field textarea:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.repayment-form__help,
+.repayment-form__field-error,
+.repayment-form__message {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.repayment-form__field-error,
+.repayment-form__message {
+  color: var(--destructive);
+}
+
+.repayment-form__message {
+  min-height: 1.5rem;
+}
+
+.repayment-form__submit {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.repayment-form__submit:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.repayment-record__intro h1 {
+  max-width: 10ch;
+}
+
+.repayment-record__back {
+  display: inline-block;
+  margin-top: 2rem;
+}
+
+.repayment-record__meta {
+  display: grid;
+  grid-column: 2 / span 6;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--ink);
+}
+
+.repayment-record__meta div {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.repayment-record__meta strong,
+.repayment-record__meta time,
+.repayment-record__meta div > span:last-child {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.repayment-record__notes-value {
+  white-space: pre-wrap;
+}
+
+.repayment-record__form {
+  grid-column: 2 / span 5;
+  margin-top: 4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+}
+
+.repayment-record__next {
+  max-width: 26rem;
+  margin: 2rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
 @keyframes friend-heading-reveal {
   from {
     clip-path: inset(0 0 100% 0);
@@ -2513,7 +2851,7 @@ select {
   .app-shell__nav {
     grid-column: 1 / -1;
     justify-content: space-between;
-    gap: 0.65rem;
+    gap: 0.45rem;
   }
 
   .expenses-page::before,
@@ -2594,6 +2932,81 @@ select {
 
   .expense-share-editor__totals {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .repayments-page::before,
+  .repayment-record::before {
+    width: 22%;
+    min-width: 5rem;
+  }
+
+  .repayments-page__layout,
+  .repayment-record__layout {
+    padding-block: 1.5rem 3.5rem;
+  }
+
+  .repayments-page__intro,
+  .repayment-record__intro,
+  .repayments-page__list,
+  .repayments-page__create,
+  .repayment-record__meta,
+  .repayment-record__form {
+    grid-column: 1 / -1;
+  }
+
+  .repayments-page__intro,
+  .repayment-record__intro {
+    padding-block: 3.5rem 2rem;
+    padding-right: 0.5rem;
+  }
+
+  .repayments-page h1,
+  .repayment-record h1 {
+    font-size: clamp(3.5rem, 15vw, 5.5rem);
+  }
+
+  .repayments-page__list {
+    margin-top: 3rem;
+  }
+
+  .repayment-row {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    padding-block: 1.25rem;
+  }
+
+  .repayment-row__primary {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .repayment-row__meta {
+    grid-template-columns: auto 1fr auto;
+    gap: 0.75rem;
+  }
+
+  .repayment-row__meta > strong,
+  .repayment-row__meta > div:nth-of-type(1),
+  .repayment-row__meta > div:nth-of-type(2) {
+    grid-column: 1 / -1;
+  }
+
+  .repayment-row__edit {
+    justify-self: end;
+  }
+
+  .repayments-page__create {
+    margin-top: 4rem;
+  }
+
+  .repayment-record__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 1rem;
+  }
+
+  .repayment-record__form {
+    margin-top: 3rem;
   }
 }
 
