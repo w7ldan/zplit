@@ -5,6 +5,8 @@ out/
 *.tsbuildinfo
 .DS_Store
 
+secrets/
+
 s.sh
 zip.cjs
 zplit.zip

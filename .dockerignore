@@ -5,6 +5,10 @@ coverage
 out
 .env
 .env.*
+secrets/
+postgres-data/
+postgres_data/
+pgdata/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

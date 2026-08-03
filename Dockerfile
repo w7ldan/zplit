@@ -12,6 +12,14 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
+FROM dependencies AS migrator
+
+WORKDIR /app
+COPY drizzle ./drizzle
+COPY scripts/migrate.ts ./scripts/migrate.ts
+USER node
+CMD ["./node_modules/.bin/tsx", "scripts/migrate.ts"]
+
 FROM node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS runtime
 
 WORKDIR /app

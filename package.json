@@ -10,6 +10,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "test:database": "tsx scripts/database-smoke.ts",
     "test:deployment": "node deploy/test-deployment.mjs",
     "test:watch": "vitest"
   },
@@ -21,7 +25,9 @@
   },
   "dependencies": {
     "clsx": "2.1.1",
+    "drizzle-orm": "0.45.2",
     "next": "16.2.12",
+    "pg": "8.22.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwind-merge": "3.6.0"
@@ -31,14 +37,17 @@
     "@testing-library/jest-dom": "7.0.0",
     "@testing-library/react": "16.3.2",
     "@types/node": "26.1.2",
+    "@types/pg": "8.20.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.0.5",
+    "drizzle-kit": "0.31.10",
     "eslint": "9.39.5",
     "eslint-config-next": "16.2.12",
     "jsdom": "30.0.1",
     "postcss": "8.5.25",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.5",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
   }

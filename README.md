@@ -4,17 +4,17 @@ Zplit is a self-hostable personal expense and repayment tracker.
 
 ## Current checkpoint
 
-This checkpoint contains the frontend and development foundation only. Database, authentication, and deployment are not implemented yet.
+This checkpoint contains the frontend, private Docker deployment, PostgreSQL, and the initial debt-tracking schema. Authentication and application database usage are not implemented yet.
 
 ## Prerequisites
 
-- Node.js 20.9+
-- npm 10+
+- Node.js 24.18 or newer
+- npm 11
 
 ## Commands
 
 ```sh
-npm install
+npm ci
 npm run dev
 npm run typecheck
 npm test
@@ -24,7 +24,7 @@ npm run build
 
 ## Private Docker deployment
 
-The standalone Docker image runs Zplit as a non-root production process behind the shared Caddy ingress network.
+The standalone Docker image runs Zplit as a non-root production process behind the shared Caddy ingress network. Zplit is publicly routed at `https://idr.wildan.lol`.
 
 ```sh
 docker compose -f compose.yml build web
@@ -33,4 +33,17 @@ docker compose -f compose.yml ps
 docker compose -f compose.yml logs -f web
 ```
 
-No host port is published. The service is available only through the shared external Caddy ingress network, and `idr.wildan.lol` is not routed in this checkpoint. PostgreSQL and authentication remain unimplemented.
+No host port is published for the web or PostgreSQL services. PostgreSQL is private to the internal `database` network.
+
+Start PostgreSQL and apply the schema:
+
+```sh
+docker compose -f compose.yml up -d postgres
+docker compose -f compose.yml build migrate
+docker compose -f compose.yml --profile tools run --rm migrate
+docker compose -f compose.yml ps
+```
+
+The password is read from the ignored `secrets/postgres-password` file. Back it up securely; database backups are not implemented yet.
+
+The initial schema is implemented, but authentication and application database queries are intentionally deferred to later checkpoints.
