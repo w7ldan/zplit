@@ -15,6 +15,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "test:database": "tsx scripts/database-smoke.ts",
     "test:auth": "tsx scripts/auth-smoke.ts",
+    "test:ownership": "tsx scripts/ownership-smoke.ts",
     "test:deployment": "node deploy/test-deployment.mjs",
     "test:watch": "vitest"
   },

@@ -22,6 +22,23 @@ function columnNames(columns: readonly unknown[]) {
   });
 }
 
+function indexColumns(table: unknown, name: string) {
+  const index = getTableConfig(table as never).indexes.find((candidate) => candidate.config.name === name);
+  return index ? columnNames(index.config.columns) : undefined;
+}
+
+function foreignKeyShape(table: unknown) {
+  return getTableConfig(table as never).foreignKeys.map((foreignKey) => {
+    const reference = foreignKey.reference();
+    return {
+      from: columnNames(reference.columns),
+      to: getTableConfig(reference.foreignTable).name,
+      target: columnNames(reference.foreignColumns),
+      onDelete: foreignKey.onDelete,
+    };
+  });
+}
+
 describe("database schema", () => {
   it("exports the six domain tables and four auth tables", () => {
     expect(
@@ -52,6 +69,51 @@ describe("database schema", () => {
     );
     expect(getTableConfig(schema.sessions).foreignKeys[0].onDelete).toBe("cascade");
     expect(getTableConfig(schema.accounts).foreignKeys[0].onDelete).toBe("cascade");
+  });
+
+  it("adds required owner columns, restrictions, and composite targets", () => {
+    const domainTables = [
+      schema.friends,
+      schema.outings,
+      schema.expenses,
+      schema.expenseShares,
+      schema.repayments,
+      schema.repaymentAllocations,
+    ];
+    for (const table of domainTables) {
+      const ownerColumn = getTableConfig(table).columns.find((column) => column.name === "owner_user_id");
+      expect(ownerColumn).toBeDefined();
+      expect(ownerColumn?.notNull).toBe(true);
+      expect(ownerColumn?.columnType).toBe(schema.users.id.columnType);
+      expect(
+        foreignKeyShape(table).some(
+          ({ from, to, target, onDelete }) =>
+            from.join(",") === "owner_user_id" && to === "users" && target.join(",") === "id" && onDelete === "restrict",
+        ),
+      ).toBe(true);
+    }
+
+    for (const [table, name] of [
+      [schema.friends, "friends_owner_user_id_id_uidx"],
+      [schema.expenses, "expenses_owner_user_id_id_uidx"],
+      [schema.expenseShares, "expense_shares_owner_user_id_id_uidx"],
+      [schema.repayments, "repayments_owner_user_id_id_uidx"],
+    ] as const) {
+      expect(indexColumns(table, name)).toEqual(["owner_user_id", "id"]);
+    }
+  });
+
+  it("uses owner-aware composite foreign keys for domain relationships", () => {
+    const references = [
+      [schema.expenseShares, ["owner_user_id", "expense_id"], "expenses", ["owner_user_id", "id"], "cascade"],
+      [schema.expenseShares, ["owner_user_id", "friend_id"], "friends", ["owner_user_id", "id"], "restrict"],
+      [schema.repayments, ["owner_user_id", "friend_id"], "friends", ["owner_user_id", "id"], "restrict"],
+      [schema.repaymentAllocations, ["owner_user_id", "repayment_id"], "repayments", ["owner_user_id", "id"], "cascade"],
+      [schema.repaymentAllocations, ["owner_user_id", "expense_share_id"], "expense_shares", ["owner_user_id", "id"], "restrict"],
+    ] as const;
+    for (const [table, from, to, target, onDelete] of references) {
+      expect(foreignKeyShape(table)).toEqual(expect.arrayContaining([{ from, to, target, onDelete }]));
+    }
   });
 
   it("uses integer money columns and positive amount checks", () => {
@@ -95,50 +157,36 @@ describe("database schema", () => {
   });
 
   it("defines the required foreign-key delete actions", () => {
-    const foreignKeys = [
-      ...getTableConfig(schema.expenses).foreignKeys,
-      ...getTableConfig(schema.expenseShares).foreignKeys,
-      ...getTableConfig(schema.repayments).foreignKeys,
-      ...getTableConfig(schema.repaymentAllocations).foreignKeys,
+    const actions = [
+      ...foreignKeyShape(schema.expenses),
+      ...foreignKeyShape(schema.expenseShares),
+      ...foreignKeyShape(schema.repayments),
+      ...foreignKeyShape(schema.repaymentAllocations),
     ];
-    const actions = foreignKeys.map((foreignKey) => ({
-      from: foreignKey.reference().columns[0].name,
-      to: getTableConfig(foreignKey.reference().foreignTable).name,
-      onDelete: foreignKey.onDelete,
-    }));
     expect(actions).toEqual(
       expect.arrayContaining([
-        { from: "outing_id", to: "outings", onDelete: "set null" },
-        { from: "expense_id", to: "expenses", onDelete: "cascade" },
-        { from: "friend_id", to: "friends", onDelete: "restrict" },
-        { from: "repayment_id", to: "repayments", onDelete: "cascade" },
-        { from: "expense_share_id", to: "expense_shares", onDelete: "restrict" },
+        { from: ["outing_id"], to: "outings", target: ["id"], onDelete: "set null" },
+        { from: ["owner_user_id", "expense_id"], to: "expenses", target: ["owner_user_id", "id"], onDelete: "cascade" },
+        { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
+        { from: ["owner_user_id", "repayment_id"], to: "repayments", target: ["owner_user_id", "id"], onDelete: "cascade" },
+        { from: ["owner_user_id", "expense_share_id"], to: "expense_shares", target: ["owner_user_id", "id"], onDelete: "restrict" },
       ]),
     );
-    expect(actions.filter(({ from, to }) => from === "friend_id" && to === "friends")).toHaveLength(2);
+    expect(actions.filter(({ from, to }) => from.join(",") === "owner_user_id,friend_id" && to === "friends")).toHaveLength(2);
   });
 
   it("defines the expected lookup indexes", () => {
     const indexes = [
-      ...getTableConfig(schema.friends).indexes,
-      ...getTableConfig(schema.outings).indexes,
-      ...getTableConfig(schema.expenses).indexes,
-      ...getTableConfig(schema.expenseShares).indexes,
-      ...getTableConfig(schema.repayments).indexes,
-      ...getTableConfig(schema.repaymentAllocations).indexes,
-    ].map((index) => index.config.name);
-    expect(indexes).toEqual(
-      expect.arrayContaining([
-        "friends_name_idx",
-        "friends_archived_at_idx",
-        "outings_occurred_at_idx",
-        "expenses_outing_id_idx",
-        "expenses_occurred_at_idx",
-        "expense_shares_friend_id_idx",
-        "repayments_friend_id_idx",
-        "repayments_paid_at_idx",
-        "repayment_allocations_expense_share_id_idx",
-      ]),
-    );
+      [schema.friends, "friends_name_idx", ["owner_user_id", "name"]],
+      [schema.friends, "friends_archived_at_idx", ["owner_user_id", "archived_at"]],
+      [schema.outings, "outings_occurred_at_idx", ["owner_user_id", "occurred_at"]],
+      [schema.expenses, "expenses_outing_id_idx", ["owner_user_id", "outing_id"]],
+      [schema.expenses, "expenses_occurred_at_idx", ["owner_user_id", "occurred_at"]],
+      [schema.expenseShares, "expense_shares_friend_id_idx", ["owner_user_id", "friend_id"]],
+      [schema.repayments, "repayments_friend_id_idx", ["owner_user_id", "friend_id"]],
+      [schema.repayments, "repayments_paid_at_idx", ["owner_user_id", "paid_at"]],
+      [schema.repaymentAllocations, "repayment_allocations_expense_share_id_idx", ["owner_user_id", "expense_share_id"]],
+    ] as const;
+    for (const [table, name, columns] of indexes) expect(indexColumns(table, name)).toEqual(columns);
   });
 });

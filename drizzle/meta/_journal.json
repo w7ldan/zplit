@@ -15,6 +15,13 @@
       "when": 1785760421928,
       "tag": "0001_add_auth_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785764527747,
+      "tag": "0002_add_domain_ownership",
+      "breakpoints": true
     }
   ]
 }
