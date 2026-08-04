@@ -5315,3 +5315,346 @@ select {
     transition: none !important;
   }
 }
+
+.friend-share {
+  grid-column: 7 / -1;
+  order: 6;
+  align-self: start;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+}
+
+.friend-share__heading,
+.friend-share__item-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.friend-share__heading h2 {
+  margin: 0.45rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.friend-share__state,
+.friend-share__expiry,
+.friend-share__description,
+.friend-share__message,
+.friend-share__result p {
+  font-size: 0.82rem;
+}
+
+.friend-share__state {
+  color: var(--muted-ink);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.friend-share__description,
+.friend-share__expiry {
+  margin: 1rem 0 0;
+  color: var(--muted-ink);
+}
+
+.friend-share__expiry time,
+.friend-share__result .technical-label {
+  font-variant-numeric: tabular-nums;
+}
+
+.friend-share__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.friend-share__actions form {
+  margin: 0;
+}
+
+.friend-share__actions button,
+.friend-share__copy-row button {
+  cursor: pointer;
+}
+
+.friend-share__actions button:disabled,
+.friend-share__copy-row button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.friend-share__message {
+  margin: 1rem 0 0;
+  color: var(--error);
+}
+
+.friend-share__result {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  padding: 0.9rem 1rem;
+  border-left: 3px solid var(--ink);
+  background: var(--mint);
+}
+
+.friend-share__result p,
+.friend-share__result .technical-label {
+  margin: 0;
+}
+
+.friend-share__result label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.friend-share__copy-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.friend-share__copy-row input {
+  min-width: 0;
+  flex: 1;
+}
+
+.friend-share__warning {
+  font-weight: 700;
+}
+
+.debtor-statement {
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.debtor-statement__field {
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 0 auto;
+  width: 22%;
+  background: var(--pastel-blue);
+}
+
+.debtor-statement__shell {
+  position: relative;
+  z-index: 1;
+  padding-block: 1.25rem 4rem;
+}
+
+.debtor-statement__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.75rem;
+  border-block: 1px solid var(--rule);
+}
+
+.debtor-statement__header p,
+.debtor-statement__footer p {
+  margin: 0;
+}
+
+.debtor-statement__brand {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.08em;
+}
+
+.debtor-statement__intro {
+  max-width: 44rem;
+  padding-block: clamp(4rem, 10vw, 8rem) 3rem;
+}
+
+.debtor-statement__intro h1,
+.debtor-statement--unavailable h1 {
+  max-width: 11ch;
+  margin: 1rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 8vw, 7rem);
+  font-weight: 800;
+  letter-spacing: -0.085em;
+  line-height: 0.88;
+}
+
+.debtor-statement__lede {
+  max-width: 32rem;
+  margin: 1.5rem 0 0;
+  color: var(--muted-ink);
+  font-size: 1rem;
+}
+
+.debtor-statement__summary {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(2, 1fr);
+  border-block: 1px solid var(--ink);
+}
+
+.debtor-statement__summary > div {
+  display: grid;
+  align-content: center;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 1rem;
+  border-left: 1px solid var(--rule);
+}
+
+.debtor-statement__summary > div:first-child {
+  border-left: 0;
+}
+
+.debtor-statement__summary strong {
+  font-size: clamp(1.2rem, 2.7vw, 2.4rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.debtor-statement__primary {
+  background: var(--pastel-blue);
+}
+
+.debtor-statement__items {
+  max-width: 64rem;
+  margin-top: 4rem;
+  border-block: 1px solid var(--ink);
+}
+
+.debtor-statement__items-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.75rem;
+}
+
+.debtor-statement__items-heading h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.debtor-statement__item {
+  padding-block: 1.15rem;
+  border-top: 1px solid var(--rule);
+}
+
+.debtor-statement__item-heading h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.debtor-statement__item-heading p {
+  margin: 0.3rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+}
+
+.debtor-statement__state {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.debtor-statement__state--open {
+  color: var(--error);
+}
+
+.debtor-statement__state--settled {
+  color: #2f6b47;
+}
+
+.debtor-statement__item-values {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 1rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+}
+
+.debtor-statement__item-values div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.debtor-statement__item-values dt {
+  color: var(--muted-ink);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.debtor-statement__item-values dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.debtor-statement__empty {
+  padding-block: 1.25rem;
+  border-top: 1px solid var(--rule);
+  color: var(--muted-ink);
+}
+
+.debtor-statement__footer {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 40rem;
+  margin-top: 2rem;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.debtor-statement--unavailable .debtor-statement__shell {
+  padding-top: 3rem;
+}
+
+@media (max-width: 767px) {
+  .friend-share {
+    grid-column: 1 / -1;
+  }
+
+  .friend-share__heading,
+  .debtor-statement__item-heading {
+    align-items: start;
+  }
+
+  .friend-share__copy-row {
+    display: grid;
+  }
+
+  .friend-share__copy-row button {
+    width: fit-content;
+  }
+
+  .debtor-statement__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .debtor-statement__summary > div,
+  .debtor-statement__summary > div:first-child {
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .debtor-statement__summary > div:first-child {
+    border-top: 0;
+  }
+
+  .debtor-statement__item-values {
+    grid-template-columns: 1fr;
+  }
+}

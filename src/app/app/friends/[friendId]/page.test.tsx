@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   getDatabase: vi.fn(),
   createLedgerRepository: vi.fn(),
+  getDebtorShareLinkStatus: vi.fn(),
   notFound: vi.fn(() => { throw new Error("not-found"); }),
 }));
 
@@ -16,6 +17,7 @@ vi.mock("@/domain/ledger-repository", async () => {
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
 });
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("@/server/debtor-share-links", () => ({ getDebtorShareLinkStatus: mocks.getDebtorShareLinkStatus }));
 
 const friend = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -33,6 +35,7 @@ describe("friend record", () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
     mocks.createLedgerRepository.mockReturnValue({ getFriend: vi.fn().mockResolvedValue(friend) });
+    mocks.getDebtorShareLinkStatus.mockResolvedValue({ status: "none", expiresAt: null });
     render(await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) }));
 
     expect(screen.getByText("Friend · editable record")).toBeInTheDocument();
@@ -41,6 +44,8 @@ describe("friend record", () => {
     expect(screen.getByText("02 Jan 2026")).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("Ada Lovelace");
     expect(screen.getByRole("button", { name: "Archive friend" })).toBeInTheDocument();
+    expect(screen.getByText("A private, read-only view")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create balance link" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Back to friends/ })).toHaveAttribute("href", "/app/friends");
   });
 

@@ -9,6 +9,7 @@ import {
   repayments,
 } from "../db/schema";
 import { buildLedgerSummary, LedgerIntegrityError } from "./ledger-summary";
+import { buildDebtorStatement, DebtorStatementIntegrityError } from "./debtor-statement";
 import type { RepaymentAllocationInput } from "./repayment-allocation-input";
 import { MAX_RUPIAH } from "./rupiah";
 
@@ -295,7 +296,7 @@ function notFound(): never {
 }
 
 function persistenceError(error: unknown): never {
-  if (error instanceof LedgerRepositoryError || error instanceof LedgerIntegrityError) throw error;
+  if (error instanceof LedgerRepositoryError || error instanceof LedgerIntegrityError || error instanceof DebtorStatementIntegrityError) throw error;
   throw new LedgerRepositoryError("PERSISTENCE_ERROR", "Ledger operation failed");
 }
 
@@ -526,6 +527,81 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         expenseShares: shareRows,
         repayments: repaymentRows,
         repaymentAllocations: allocationRows,
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function getFriendDebtorStatement(friendId: string, asOf = new Date()) {
+    assertFriendId(friendId);
+    try {
+      const [friend] = await database
+        .select({ id: friends.id, name: friends.name })
+        .from(friends)
+        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .limit(1);
+      if (!friend) return notFound();
+
+      const shares = await database
+        .select({
+          id: expenseShares.id,
+          friendId: expenseShares.friendId,
+          expenseDescription: expenses.description,
+          outingTitle: outings.title,
+          outingOccurredAt: outings.occurredAt,
+          amountOwed: expenseShares.amountOwed,
+        })
+        .from(expenseShares)
+        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.friendId, friendId)));
+
+      const repaymentRows = await database
+        .select({
+          repaymentId: repayments.id,
+          repaymentFriendId: repayments.friendId,
+          repaymentAmount: repayments.amount,
+          expenseShareId: repaymentAllocations.expenseShareId,
+          allocationAmount: repaymentAllocations.amount,
+        })
+        .from(repayments)
+        .leftJoin(
+          repaymentAllocations,
+          and(
+            eq(repaymentAllocations.ownerUserId, owner),
+            eq(repaymentAllocations.repaymentId, repayments.id),
+          ),
+        )
+        .leftJoin(
+          expenseShares,
+          and(
+            eq(expenseShares.ownerUserId, owner),
+            eq(expenseShares.id, repaymentAllocations.expenseShareId),
+            eq(expenseShares.friendId, friendId),
+          ),
+        )
+        .where(and(eq(repayments.ownerUserId, owner), eq(repayments.friendId, friendId)));
+
+      const repaymentById = new Map<string, { id: string; friendId: string; amount: number }>();
+      const allocations = [] as { repaymentId: string; expenseShareId: string; amount: number }[];
+      for (const row of repaymentRows) {
+        repaymentById.set(row.repaymentId, {
+          id: row.repaymentId,
+          friendId: row.repaymentFriendId,
+          amount: row.repaymentAmount,
+        });
+        if (row.expenseShareId !== null && row.allocationAmount !== null) {
+          allocations.push({ repaymentId: row.repaymentId, expenseShareId: row.expenseShareId, amount: row.allocationAmount });
+        }
+      }
+
+      return buildDebtorStatement({
+        friend,
+        shares,
+        repayments: [...repaymentById.values()],
+        allocations,
+        asOf,
       });
     } catch (error) {
       return persistenceError(error);
@@ -1054,6 +1130,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     getExpense,
     listExpenses,
     getLedgerSummary,
+    getFriendDebtorStatement,
     updateExpense,
     listExpenseShares,
     replaceExpenseShares,

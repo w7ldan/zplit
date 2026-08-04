@@ -302,6 +302,40 @@ export const accountInvitations = pgTable(
   ],
 );
 
+export const debtorShareLinks = pgTable(
+  "debtor_share_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    friendId: uuid("friend_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("debtor_share_links_token_hash_hex", sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`),
+    check("debtor_share_links_expires_after_created", sql`${table.expiresAt} > ${table.createdAt}`),
+    check(
+      "debtor_share_links_revoked_after_created",
+      sql`${table.revokedAt} IS NULL OR ${table.revokedAt} >= ${table.createdAt}`,
+    ),
+    foreignKey({
+      columns: [table.ownerUserId, table.friendId],
+      foreignColumns: [friends.ownerUserId, friends.id],
+      name: "debtor_share_links_owner_friend_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("debtor_share_links_token_hash_uidx").on(table.tokenHash),
+    uniqueIndex("debtor_share_links_active_owner_friend_uidx")
+      .on(table.ownerUserId, table.friendId)
+      .where(sql`${table.revokedAt} IS NULL`),
+    index("debtor_share_links_owner_friend_idx").on(table.ownerUserId, table.friendId),
+    index("debtor_share_links_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   accounts: many(accounts),

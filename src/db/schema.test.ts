@@ -99,6 +99,42 @@ describe("database schema", () => {
     );
   });
 
+  it("defines owner-bound temporary debtor share links", () => {
+    const table = getTableConfig(schema.debtorShareLinks);
+    expect(table.name).toBe("debtor_share_links");
+    expect(table.columns.map((column) => column.name)).toEqual([
+      "id",
+      "token_hash",
+      "owner_user_id",
+      "friend_id",
+      "created_at",
+      "expires_at",
+      "revoked_at",
+    ]);
+    expect((table.columns.find((column) => column.name === "token_hash") as unknown as { config: { length: number } }).config.length).toBe(64);
+    expect(table.indexes.map((index) => index.config.name)).toEqual(
+      expect.arrayContaining([
+        "debtor_share_links_token_hash_uidx",
+        "debtor_share_links_active_owner_friend_uidx",
+        "debtor_share_links_owner_friend_idx",
+        "debtor_share_links_expires_at_idx",
+      ]),
+    );
+    expect(foreignKeyShape(schema.debtorShareLinks)).toEqual(
+      expect.arrayContaining([
+        { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+        { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
+      ]),
+    );
+    expect(table.checks.map((check) => check.name)).toEqual(
+      expect.arrayContaining([
+        "debtor_share_links_token_hash_hex",
+        "debtor_share_links_expires_after_created",
+        "debtor_share_links_revoked_after_created",
+      ]),
+    );
+  });
+
   it("keeps canonical Better Auth fields and lookup indexes", () => {
     expect(schema.users.email.isUnique).toBe(true);
     expect(schema.sessions.token.isUnique).toBe(true);

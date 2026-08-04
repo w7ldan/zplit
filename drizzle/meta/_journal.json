@@ -43,6 +43,13 @@
       "when": 1785849024693,
       "tag": "0005_harden_account_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785854449049,
+      "tag": "0006_add_debtor_share_links",
+      "breakpoints": true
     }
   ]
 }

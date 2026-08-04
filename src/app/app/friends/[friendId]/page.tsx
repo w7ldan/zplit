@@ -4,8 +4,11 @@ import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { FriendArchiveForm, FriendForm } from "@/components/friends/friend-form";
+import { FriendShareLink } from "@/components/friends/friend-share-link";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { archiveFriendAction, restoreFriendAction, updateFriendAction } from "../actions";
+import { createDebtorShareLinkAction, revokeDebtorShareLinkAction } from "./share-actions";
+import { getDebtorShareLinkStatus } from "@/server/debtor-share-links";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +17,12 @@ export default async function FriendRecordPage({ params, searchParams }: { param
   const { friendId } = await params;
   const query = await searchParams;
   let friend;
+  let shareStatus;
   try {
-    friend = await createLedgerRepository(getDatabase(), session.user.id).getFriend(friendId);
+    const database = getDatabase();
+    const repository = createLedgerRepository(database, session.user.id);
+    friend = await repository.getFriend(friendId);
+    shareStatus = await getDebtorShareLinkStatus(database, session.user.id, friendId);
   } catch (error) {
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
@@ -46,6 +53,11 @@ export default async function FriendRecordPage({ params, searchParams }: { param
           />
           <FriendArchiveForm action={(archived ? restoreFriendAction : archiveFriendAction).bind(null, friend.id)} archived={archived} />
         </div>
+        <FriendShareLink
+          status={{ status: shareStatus.status, expiresAt: shareStatus.expiresAt?.toISOString() ?? null }}
+          createAction={createDebtorShareLinkAction.bind(null, friend.id)}
+          revokeAction={revokeDebtorShareLinkAction.bind(null, friend.id)}
+        />
       </div>
     </section>
   );

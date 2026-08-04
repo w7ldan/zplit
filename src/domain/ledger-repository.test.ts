@@ -241,6 +241,30 @@ describe("ledger repository", () => {
     expect(queries.map(({ sql }) => sql).join(" ")).toContain('"repayment_allocations"');
   });
 
+  it("builds a debtor statement in three owner-scoped queries without private fields", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      if (queries.length === 1) {
+        return { rows: [["friend-a", "Ada"]] };
+      }
+      return { rows: [] };
+    });
+    const statement = await createLedgerRepository(database as unknown as Database, owner).getFriendDebtorStatement("friend-a", new Date("2026-08-04T00:00:00.000Z"));
+
+    expect(statement).toMatchObject({ friendName: "Ada", assignedAmount: 0, repaidAmount: 0, outstandingAmount: 0, items: [] });
+    expect(queries).toHaveLength(3);
+    for (const query of queries) {
+      expect(query.params).toContain(owner);
+      expect(query.sql).not.toMatch(/phone_number|notes|payment_method/);
+    }
+    expect(queries[1].sql).toContain('"expenses"."owner_user_id"');
+    expect(queries[1].sql).toContain('"outings"."owner_user_id"');
+    expect(queries[2].sql).toContain('"repayments"."owner_user_id"');
+    expect(queries[2].sql).toContain('"repayment_allocations"."owner_user_id"');
+    expect(queries[2].sql).toContain('"expense_shares"."owner_user_id"');
+  });
+
   it("preserves the typed integrity error from summary building", async () => {
     const database = drizzle(async (sql) => {
       if (sql.includes('"friends"')) return { rows: [] };
