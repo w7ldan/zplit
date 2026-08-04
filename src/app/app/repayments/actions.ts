@@ -17,7 +17,9 @@ import {
   RepaymentAllocationShareInvariantError,
   RepaymentAmountInvariantError,
   RepaymentFriendInvariantError,
+  RepaymentDeletionInvariantError,
 } from "@/domain/ledger-repository";
+import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 
 export type RepaymentActionState = {
   fieldErrors: RepaymentFieldErrors;
@@ -30,6 +32,8 @@ export type RepaymentAllocationActionState = {
   formError: string;
   values: RepaymentAllocationInputValues;
 };
+
+export type RepaymentDeleteActionState = DeleteRecordActionState;
 
 function valuesFromForm(formData: FormData) {
   return validateRepaymentInput({
@@ -135,4 +139,36 @@ export async function replaceRepaymentAllocationsAction(
   revalidatePath("/app/repayments");
   revalidatePath(`/app/repayments/${repaymentId}`);
   redirect(`/app/repayments/${repaymentId}?saved=1`);
+}
+
+export async function deleteRepaymentAction(
+  repaymentId: string,
+  _previousState: RepaymentDeleteActionState,
+  formData: FormData,
+): Promise<RepaymentDeleteActionState> {
+  const session = await requireSession();
+  if (formData.getAll("confirm").length !== 1 || formData.get("confirm") !== "delete") return { formError: "Type delete to confirm." };
+
+  let result;
+  try {
+    result = await createLedgerRepository(getDatabase(), session.user.id).deleteRepayment(repaymentId);
+  } catch (error) {
+    return {
+      formError: error instanceof RepaymentDeletionInvariantError
+        ? error.message
+        : error instanceof LedgerNotFoundError
+          ? "This repayment is no longer available."
+          : "Unable to delete this repayment.",
+    };
+  }
+
+  revalidatePath("/app");
+  revalidatePath("/app/history");
+  revalidatePath("/app/repayments");
+  revalidatePath("/app/friends");
+  for (const friendId of result.friendIds) {
+    revalidatePath(`/app/friends/${friendId}`);
+  }
+  revalidatePath("/share/[token]", "page");
+  redirect("/app/repayments?deleted=1");
 }

@@ -41,6 +41,7 @@ describe("authenticated app shell", () => {
     expect(within(navigation).getByRole("link", { name: "Expenses" })).toHaveAttribute("href", "/app/expenses");
     expect(within(navigation).getByRole("link", { name: "Repayments" })).toHaveAttribute("href", "/app/repayments");
     expect(screen.getByRole("link", { name: "Invitations" })).toHaveAttribute("href", "/app/invites");
+    expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
     expect(within(navigation).getByRole("link", { name: "Expenses" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("navigation", { name: "Mobile ledger navigation" }).querySelectorAll("a")).toHaveLength(5);
@@ -55,5 +56,6 @@ describe("authenticated app shell", () => {
     render(await AppLayout({ children: <p>Private content</p> }));
     expect(screen.queryByRole("link", { name: "Invitations" })).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Ledger navigation" }).querySelectorAll("a")).toHaveLength(5);
+    expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");
   });
 });

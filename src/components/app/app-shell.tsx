@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { DeleteConfirmation } from "./delete-record-form";
 
 const destinations = [
   ["Overview", "/app"],
@@ -59,6 +60,7 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
               <span className="technical-label">Signed in as</span>
               <strong>{user.name}</strong>
               <span>{user.email}</span>
+              <Link href="/app/history">History</Link>
               {canManageInvites ? <Link href="/app/invites">Invitations</Link> : null}
               <SignOutButton />
             </div>
@@ -72,7 +74,7 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
           </Link>
         ))}
       </nav>
-      <main className="app-shell__main">{children}</main>
+      <main className="app-shell__main"><DeleteConfirmation />{children}</main>
     </div>
   );
 }

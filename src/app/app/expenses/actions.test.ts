@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createExpenseAction, replaceExpenseSharesAction, updateExpenseAction, type ExpenseActionState, type ExpenseShareActionState } from "./actions";
-import { ExpenseShareInvariantError, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { createExpenseAction, deleteExpenseAction, replaceExpenseSharesAction, updateExpenseAction, type ExpenseActionState, type ExpenseShareActionState } from "./actions";
+import { ExpenseDeletionInvariantError, ExpenseShareInvariantError, LedgerNotFoundError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -120,5 +120,24 @@ describe("expense actions", () => {
     mocks.createLedgerRepository.mockReturnValue({ updateExpense: vi.fn().mockRejectedValue(new ExpenseShareInvariantError()) });
     const state = await updateExpenseAction("expense-a", initialState, form(values));
     expect(state.formError).toBe("Expense amount cannot be lower than its assigned shares.");
+  });
+
+  it("requires exact deletion confirmation, revalidates affected friends, and redirects canonically", async () => {
+    const deleteExpense = vi.fn().mockResolvedValue({ friendIds: ["friend-a"] });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ deleteExpense });
+    expect((await deleteExpenseAction("expense-a", { formError: "" }, form({ confirm: "DELETE" }))).formError).toBe("Type delete to confirm.");
+    await expect(deleteExpenseAction("expense-a", { formError: "" }, form({ confirm: "delete" }))).rejects.toThrow("redirect:/app/expenses?deleted=1");
+    expect(deleteExpense).toHaveBeenCalledWith("expense-a");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/friends/friend-a");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/share/[token]", "page");
+  });
+
+  it("maps the expense deletion invariant exactly", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ deleteExpense: vi.fn().mockRejectedValue(new ExpenseDeletionInvariantError()) });
+    expect((await deleteExpenseAction("expense-a", { formError: "" }, form({ confirm: "delete" }))).formError).toBe("Remove repayment allocations before deleting this expense.");
   });
 });

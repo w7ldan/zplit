@@ -69,7 +69,9 @@ describe("repayment record", () => {
     expect(screen.getByLabelText("Friend")).toBeDisabled();
     expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
     expect(screen.getByText("Dinner")).toBeInTheDocument();
-    expect(document.body).not.toHaveTextContent(/delete|allocation editor|debtor|card|pill|status dot/i);
+    expect(screen.getByRole("heading", { name: "Delete repayment" })).toBeInTheDocument();
+    expect(screen.getByText("Remove this repayment's allocations before deleting it.")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/allocation editor|debtor|card|pill|status dot/i);
   });
 
   it("uses one not-found path for foreign and absent records", async () => {

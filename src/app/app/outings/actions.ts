@@ -5,13 +5,16 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { validateOutingInput, type OutingFieldErrors, type OutingInputValues } from "@/domain/outing-input";
-import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { createLedgerRepository, LedgerNotFoundError, OutingDeletionInvariantError } from "@/domain/ledger-repository";
+import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 
 export type OutingActionState = {
   fieldErrors: OutingFieldErrors;
   formError: string;
   values: OutingInputValues;
 };
+
+export type OutingDeleteActionState = DeleteRecordActionState;
 
 const initialOutingActionState: OutingActionState = {
   fieldErrors: {},
@@ -77,4 +80,30 @@ export async function updateOutingAction(
   revalidatePath("/app");
   revalidatePath("/app/outings");
   redirect(`/app/outings/${outingId}?saved=1`);
+}
+
+export async function deleteOutingAction(
+  outingId: string,
+  _previousState: OutingDeleteActionState,
+  formData: FormData,
+): Promise<OutingDeleteActionState> {
+  const session = await requireSession();
+  if (formData.getAll("confirm").length !== 1 || formData.get("confirm") !== "delete") return { formError: "Type delete to confirm." };
+
+  try {
+    await createLedgerRepository(getDatabase(), session.user.id).deleteOuting(outingId);
+  } catch (error) {
+    return {
+      formError: error instanceof OutingDeletionInvariantError
+        ? error.message
+        : error instanceof LedgerNotFoundError
+          ? "This outing is no longer available."
+          : "Unable to delete this outing.",
+    };
+  }
+
+  revalidatePath("/app");
+  revalidatePath("/app/history");
+  revalidatePath("/app/outings");
+  redirect("/app/outings?deleted=1");
 }

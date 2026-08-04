@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { createOutingAction, updateOutingAction } from "./actions";
+import { createOutingAction, deleteOutingAction, updateOutingAction } from "./actions";
 import type { OutingActionState } from "./actions";
-import { LedgerNotFoundError } from "@/domain/ledger-repository";
+import { LedgerNotFoundError, OutingDeletionInvariantError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -71,5 +71,28 @@ describe("outing actions", () => {
 
     expect(state.formError).toBe("This outing is no longer available.");
     expect(state.formError).not.toContain("outing-b");
+  });
+
+  it("requires exact deletion confirmation and uses the canonical list redirect", async () => {
+    const deleteOuting = vi.fn().mockResolvedValue({ friendIds: [] });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ deleteOuting });
+
+    expect((await deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "yes" }))).formError).toBe("Type delete to confirm.");
+    expect(deleteOuting).not.toHaveBeenCalled();
+    await expect(deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete" }))).rejects.toThrow("redirect:/app/outings?deleted=1");
+    expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
+    expect(deleteOuting).toHaveBeenCalledWith("outing-a");
+  });
+
+  it("maps the outing invariant and missing record to stable messages", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    const deleteOuting = vi.fn().mockRejectedValue(new OutingDeletionInvariantError());
+    mocks.createLedgerRepository.mockReturnValue({ deleteOuting });
+    expect((await deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete" }))).formError).toBe("Move or delete this outing's expenses first.");
+    deleteOuting.mockRejectedValue(new LedgerNotFoundError());
+    expect((await deleteOutingAction("foreign", { formError: "" }, form({ confirm: "delete" }))).formError).toBe("This outing is no longer available.");
   });
 });

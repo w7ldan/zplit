@@ -9,6 +9,8 @@ import { formatRupiah } from "@/domain/rupiah";
 import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { replaceExpenseSharesAction, updateExpenseAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
+import { DeleteRecordForm } from "@/components/app/delete-record-form";
+import { deleteExpenseAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +72,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
             friends={friends}
           />
         </div>
+        <DeleteRecordForm action={deleteExpenseAction.bind(null, expense.id)} recordType="expense" />
       </div>
     </section>
   );

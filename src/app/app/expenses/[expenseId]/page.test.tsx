@@ -54,6 +54,8 @@ describe("expense record", () => {
     expect(screen.getByLabelText("Rani")).toBeInTheDocument();
     expect(screen.getByText("Owner portion")).toBeInTheDocument();
     expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
+    expect(screen.getByRole("heading", { name: "Delete expense" })).toBeInTheDocument();
+    expect(screen.getByText("Remove repayment allocations before deleting this expense.")).toBeInTheDocument();
   });
 
   it("uses the same not-found path for absent and foreign expenses", async () => {

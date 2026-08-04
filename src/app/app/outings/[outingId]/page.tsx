@@ -7,6 +7,8 @@ import { OutingForm } from "@/components/outings/outing-form";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { updateOutingAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
+import { DeleteRecordForm } from "@/components/app/delete-record-form";
+import { deleteOutingAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,7 @@ export default async function OutingRecordPage({ params, searchParams }: { param
           />
           <p className="outing-record__next">Expenses recorded under this outing inherit its date and time. Friend-share assignment arrives in the next stage.</p>
         </div>
+        <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" />
       </div>
     </section>
   );

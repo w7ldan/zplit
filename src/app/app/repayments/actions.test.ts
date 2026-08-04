@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRepaymentAction, replaceRepaymentAllocationsAction, updateRepaymentAction, type RepaymentActionState, type RepaymentAllocationActionState } from "./actions";
-import { LedgerNotFoundError, RepaymentAllocationAmountInvariantError, RepaymentAllocationShareInvariantError, RepaymentAmountInvariantError, RepaymentFriendInvariantError } from "@/domain/ledger-repository";
+import { createRepaymentAction, deleteRepaymentAction, replaceRepaymentAllocationsAction, updateRepaymentAction, type RepaymentActionState, type RepaymentAllocationActionState } from "./actions";
+import { LedgerNotFoundError, RepaymentAllocationAmountInvariantError, RepaymentAllocationShareInvariantError, RepaymentAmountInvariantError, RepaymentDeletionInvariantError, RepaymentFriendInvariantError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -127,5 +127,24 @@ describe("repayment actions", () => {
     expect((await replaceRepaymentAllocationsAction("repayment-a", initialAllocationState, allocationForm([{ expenseShareId, amountRupiah: "84000" }]))).formError).toBe("An allocation cannot exceed the share's remaining balance.");
     replaceRepaymentAllocations.mockRejectedValue(new LedgerNotFoundError());
     expect((await replaceRepaymentAllocationsAction("foreign", initialAllocationState, allocationForm([]))).formError).toBe("This friend, repayment, or expense share is no longer available.");
+  });
+
+  it("requires exact deletion confirmation and revalidates the debtor friend", async () => {
+    const deleteRepayment = vi.fn().mockResolvedValue({ friendIds: [friendId] });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ deleteRepayment });
+    expect((await deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete,delete" }))).formError).toBe("Type delete to confirm.");
+    await expect(deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete" }))).rejects.toThrow("redirect:/app/repayments?deleted=1");
+    expect(deleteRepayment).toHaveBeenCalledWith("repayment-a");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/app/friends/${friendId}`);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/share/[token]", "page");
+  });
+
+  it("maps the repayment deletion invariant exactly", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ deleteRepayment: vi.fn().mockRejectedValue(new RepaymentDeletionInvariantError()) });
+    expect((await deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete" }))).formError).toBe("Remove this repayment's allocations before deleting it.");
   });
 });

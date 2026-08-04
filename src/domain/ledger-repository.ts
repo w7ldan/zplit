@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { Database } from "../db/client";
 import {
   expenseShares,
@@ -12,6 +12,16 @@ import { buildLedgerSummary, LedgerIntegrityError } from "./ledger-summary";
 import { buildDebtorStatement, DebtorStatementIntegrityError } from "./debtor-statement";
 import type { RepaymentAllocationInput } from "./repayment-allocation-input";
 import { MAX_RUPIAH } from "./rupiah";
+import {
+  buildLedgerHistory,
+  LedgerHistoryError,
+  LedgerHistoryIntegrityError,
+  parseLedgerHistoryCursor,
+  type LedgerHistoryExpenseRecord,
+  type LedgerHistoryRepaymentRecord,
+  type LedgerHistoryResult,
+  type LedgerHistoryType,
+} from "./ledger-history";
 
 export type LedgerErrorCode =
   | "INVALID_INPUT"
@@ -22,6 +32,9 @@ export type LedgerErrorCode =
   | "REPAYMENT_FRIEND_LOCKED"
   | "REPAYMENT_ALLOCATION_AMOUNT_EXCEEDED"
   | "REPAYMENT_ALLOCATION_SHARE_EXCEEDED"
+  | "OUTING_HAS_EXPENSES"
+  | "EXPENSE_HAS_ALLOCATIONS"
+  | "REPAYMENT_HAS_ALLOCATIONS"
   | "PERSISTENCE_ERROR";
 
 export class LedgerRepositoryError extends Error {
@@ -73,6 +86,27 @@ export class RepaymentAllocationShareInvariantError extends LedgerRepositoryErro
   constructor() {
     super("REPAYMENT_ALLOCATION_SHARE_EXCEEDED", "An allocation cannot exceed the share's remaining balance.");
     this.name = "RepaymentAllocationShareInvariantError";
+  }
+}
+
+export class OutingDeletionInvariantError extends LedgerRepositoryError {
+  constructor() {
+    super("OUTING_HAS_EXPENSES", "Move or delete this outing's expenses first.");
+    this.name = "OutingDeletionInvariantError";
+  }
+}
+
+export class ExpenseDeletionInvariantError extends LedgerRepositoryError {
+  constructor() {
+    super("EXPENSE_HAS_ALLOCATIONS", "Remove repayment allocations before deleting this expense.");
+    this.name = "ExpenseDeletionInvariantError";
+  }
+}
+
+export class RepaymentDeletionInvariantError extends LedgerRepositoryError {
+  constructor() {
+    super("REPAYMENT_HAS_ALLOCATIONS", "Remove this repayment's allocations before deleting it.");
+    this.name = "RepaymentDeletionInvariantError";
   }
 }
 
@@ -296,7 +330,7 @@ function notFound(): never {
 }
 
 function persistenceError(error: unknown): never {
-  if (error instanceof LedgerRepositoryError || error instanceof LedgerIntegrityError || error instanceof DebtorStatementIntegrityError) throw error;
+  if (error instanceof LedgerRepositoryError || error instanceof LedgerIntegrityError || error instanceof DebtorStatementIntegrityError || error instanceof LedgerHistoryError) throw error;
   throw new LedgerRepositoryError("PERSISTENCE_ERROR", "Ledger operation failed");
 }
 
@@ -423,6 +457,38 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  async function deleteOuting(outingId: string) {
+    assertOutingId(outingId);
+    try {
+      return await database.transaction(async (transaction) => {
+        const [outing] = await transaction
+          .select({ id: outings.id })
+          .from(outings)
+          .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+          .limit(1)
+          .for("update");
+        if (!outing) return notFound();
+
+        const dependentExpenses = await transaction
+          .select({ id: expenses.id })
+          .from(expenses)
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.outingId, outingId)))
+          .orderBy(asc(expenses.id))
+          .for("update");
+        if (dependentExpenses.length > 0) throw new OutingDeletionInvariantError();
+
+        const deleted = await transaction
+          .delete(outings)
+          .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+          .returning({ id: outings.id });
+        if (deleted.length === 0) return notFound();
+        return { friendIds: [] as string[] };
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
   function expenseSelection() {
     return {
       id: expenses.id,
@@ -491,6 +557,164 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
         .where(eq(expenses.ownerUserId, owner))
         .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id));
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  type HistoryRow = {
+    event_type: string;
+    record_id: string;
+    effective_at: Date | string;
+    description: string | null;
+    outing_title: string | null;
+    friend_id: string | null;
+    friend_name: string | null;
+    total_amount: number | string | null;
+    shares: unknown;
+    allocations: unknown;
+  };
+
+  function historyAmount(value: unknown, label: string) {
+    const result = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : NaN;
+    if (!Number.isSafeInteger(result) || result < 0) throw new LedgerHistoryIntegrityError(`${label} is not a safe whole-rupiah amount.`);
+    return result;
+  }
+
+  function historyArray(value: unknown, label: string) {
+    if (typeof value === "string") {
+      try { value = JSON.parse(value); } catch { throw new LedgerHistoryIntegrityError(`${label} is invalid.`); }
+    }
+    if (!Array.isArray(value)) throw new LedgerHistoryIntegrityError(`${label} is invalid.`);
+    return value;
+  }
+
+  async function listLedgerHistory({ cursor, type = "all", limit = 30 }: { cursor?: string; type?: LedgerHistoryType; limit?: number } = {}): Promise<LedgerHistoryResult> {
+    if (type !== "all" && type !== "expense" && type !== "repayment") throw new LedgerHistoryError("Ledger history type is invalid.");
+    const requestedLimit = typeof limit === "number" && Number.isFinite(limit) ? Math.trunc(limit) : 30;
+    const pageLimit = Math.min(50, Math.max(1, requestedLimit));
+    const parsedCursor = cursor === undefined ? undefined : parseLedgerHistoryCursor(cursor);
+    const typeClause = type === "all" ? sql`true` : sql`event_type = ${type}`;
+    const cursorClause = parsedCursor
+      ? sql`(
+          effective_at < ${parsedCursor.effectiveAt} OR
+          (effective_at = ${parsedCursor.effectiveAt} AND event_type > ${parsedCursor.eventType}) OR
+          (effective_at = ${parsedCursor.effectiveAt} AND event_type = ${parsedCursor.eventType} AND record_id > ${parsedCursor.recordId})
+        )`
+      : sql`true`;
+    try {
+      const result = await database.execute<HistoryRow>(sql`
+        WITH share_data AS (
+          SELECT
+            es.owner_user_id,
+            es.id,
+            es.expense_id,
+            es.friend_id,
+            es.amount_owed,
+            COALESCE(SUM(ra.amount), 0) AS allocated_amount
+          FROM expense_shares es
+          LEFT JOIN repayment_allocations ra
+            ON ra.owner_user_id = es.owner_user_id
+            AND ra.expense_share_id = es.id
+          WHERE es.owner_user_id = ${owner}
+          GROUP BY es.owner_user_id, es.id, es.expense_id, es.friend_id, es.amount_owed
+        ), expense_events AS (
+          SELECT
+            'expense'::text AS event_type,
+            e.id AS record_id,
+            o.occurred_at AS effective_at,
+            e.description,
+            o.title AS outing_title,
+            NULL::uuid AS friend_id,
+            NULL::text AS friend_name,
+            e.amount AS total_amount,
+            COALESCE(jsonb_agg(jsonb_build_object(
+              'id', sd.id,
+              'friendId', sd.friend_id,
+              'amountOwed', sd.amount_owed,
+              'allocatedAmount', sd.allocated_amount
+            ) ORDER BY sd.id) FILTER (WHERE sd.id IS NOT NULL), '[]'::jsonb) AS shares,
+            '[]'::jsonb AS allocations
+          FROM expenses e
+          INNER JOIN outings o
+            ON o.owner_user_id = e.owner_user_id
+            AND o.id = e.outing_id
+          LEFT JOIN share_data sd
+            ON sd.owner_user_id = e.owner_user_id
+            AND sd.expense_id = e.id
+          WHERE e.owner_user_id = ${owner}
+          GROUP BY e.id, o.occurred_at, e.description, o.title, e.amount
+        ), repayment_events AS (
+          SELECT
+            'repayment'::text AS event_type,
+            r.id AS record_id,
+            r.paid_at AS effective_at,
+            NULL::text AS description,
+            NULL::text AS outing_title,
+            f.id AS friend_id,
+            f.name AS friend_name,
+            r.amount AS total_amount,
+            '[]'::jsonb AS shares,
+            COALESCE(jsonb_agg(jsonb_build_object(
+              'expenseShareId', ra.expense_share_id,
+              'amount', ra.amount,
+              'friendId', sd.friend_id,
+              'shareAmountOwed', sd.amount_owed,
+              'shareAllocatedAmount', sd.allocated_amount
+            ) ORDER BY ra.expense_share_id) FILTER (WHERE ra.expense_share_id IS NOT NULL), '[]'::jsonb) AS allocations
+          FROM repayments r
+          INNER JOIN friends f
+            ON f.owner_user_id = r.owner_user_id
+            AND f.id = r.friend_id
+          LEFT JOIN repayment_allocations ra
+            ON ra.owner_user_id = r.owner_user_id
+            AND ra.repayment_id = r.id
+          LEFT JOIN share_data sd
+            ON sd.owner_user_id = r.owner_user_id
+            AND sd.id = ra.expense_share_id
+          WHERE r.owner_user_id = ${owner}
+          GROUP BY r.id, r.paid_at, f.id, f.name, r.amount
+        ), events AS (
+          SELECT * FROM expense_events
+          UNION ALL
+          SELECT * FROM repayment_events
+        )
+        SELECT event_type, record_id, effective_at, description, outing_title, friend_id, friend_name, total_amount, shares, allocations
+        FROM events
+        WHERE ${typeClause} AND ${cursorClause}
+        ORDER BY effective_at DESC, event_type ASC, record_id ASC
+        LIMIT ${pageLimit + 1}
+      `);
+
+      const expenses: LedgerHistoryExpenseRecord[] = [];
+      const repayments: LedgerHistoryRepaymentRecord[] = [];
+      const historyRows = (Array.isArray(result) ? result : result.rows) as HistoryRow[];
+      for (const row of historyRows) {
+        if (row.event_type === "expense") {
+          if (row.description === null || row.outing_title === null || row.total_amount === null) throw new LedgerHistoryIntegrityError("Expense history row is incomplete.");
+          expenses.push({
+            id: row.record_id,
+            description: row.description,
+            outingTitle: row.outing_title,
+            outingOccurredAt: row.effective_at,
+            amount: historyAmount(row.total_amount, `Expense ${row.record_id} amount`),
+            shares: historyArray(row.shares, `Expense ${row.record_id} shares`) as LedgerHistoryExpenseRecord["shares"],
+          });
+        } else if (row.event_type === "repayment") {
+          if (row.friend_id === null || row.friend_name === null || row.total_amount === null) throw new LedgerHistoryIntegrityError("Repayment history row is incomplete.");
+          repayments.push({
+            id: row.record_id,
+            friendId: row.friend_id,
+            friendName: row.friend_name,
+            paidAt: row.effective_at,
+            amount: historyAmount(row.total_amount, `Repayment ${row.record_id} amount`),
+            allocations: historyArray(row.allocations, `Repayment ${row.record_id} allocations`) as LedgerHistoryRepaymentRecord["allocations"],
+          });
+        } else {
+          throw new LedgerHistoryIntegrityError("Ledger history event type is invalid.");
+        }
+      }
+      return buildLedgerHistory({ expenses, repayments }, { type, limit: pageLimit, allocationsComplete: false });
     } catch (error) {
       return persistenceError(error);
     }
@@ -643,6 +867,47 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           .limit(1);
         if (!updated) return persistenceError(new Error("expense update returned no row"));
         return updated;
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function deleteExpense(expenseId: string) {
+    assertExpenseId(expenseId);
+    try {
+      return await database.transaction(async (transaction) => {
+        const [expense] = await transaction
+          .select({ id: expenses.id })
+          .from(expenses)
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .limit(1)
+          .for("update");
+        if (!expense) return notFound();
+
+        const shares = await transaction
+          .select({ id: expenseShares.id, friendId: expenseShares.friendId })
+          .from(expenseShares)
+          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)))
+          .orderBy(asc(expenseShares.id))
+          .for("update");
+        const shareIds = shares.map((share) => share.id);
+        if (shareIds.length > 0) {
+          const allocations = await transaction
+            .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId })
+            .from(repaymentAllocations)
+            .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+            .orderBy(asc(repaymentAllocations.expenseShareId), asc(repaymentAllocations.repaymentId))
+            .for("update");
+          if (allocations.length > 0) throw new ExpenseDeletionInvariantError();
+        }
+
+        const deleted = await transaction
+          .delete(expenses)
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .returning({ id: expenses.id });
+        if (deleted.length === 0) return notFound();
+        return { friendIds: [...new Set(shares.map((share) => share.friendId))] };
       });
     } catch (error) {
       return persistenceError(error);
@@ -911,6 +1176,38 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  async function deleteRepayment(repaymentId: string) {
+    assertRepaymentId(repaymentId);
+    try {
+      return await database.transaction(async (transaction) => {
+        const [repayment] = await transaction
+          .select({ id: repayments.id, friendId: repayments.friendId })
+          .from(repayments)
+          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .limit(1)
+          .for("update");
+        if (!repayment) return notFound();
+
+        const allocations = await transaction
+          .select({ expenseShareId: repaymentAllocations.expenseShareId })
+          .from(repaymentAllocations)
+          .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)))
+          .orderBy(asc(repaymentAllocations.expenseShareId))
+          .for("update");
+        if (allocations.length > 0) throw new RepaymentDeletionInvariantError();
+
+        const deleted = await transaction
+          .delete(repayments)
+          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .returning({ id: repayments.id });
+        if (deleted.length === 0) return notFound();
+        return { friendIds: [repayment.friendId] };
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
   async function allocationPlanFor(transaction: Pick<Database, "select">, repaymentId: string): Promise<RepaymentAllocationPlan> {
     const [repayment] = await transaction
       .select(repaymentSelection())
@@ -1126,18 +1423,22 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     getOuting,
     listOutings,
     updateOuting,
+    deleteOuting,
     createExpense,
     getExpense,
     listExpenses,
+    listLedgerHistory,
     getLedgerSummary,
     getFriendDebtorStatement,
     updateExpense,
+    deleteExpense,
     listExpenseShares,
     replaceExpenseShares,
     createRepayment,
     getRepayment,
     listRepayments,
     updateRepayment,
+    deleteRepayment,
     getRepaymentAllocationPlan,
     replaceRepaymentAllocations,
   };

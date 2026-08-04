@@ -958,6 +958,179 @@ select {
   }
 }
 
+.history-page .app-page__header {
+  align-items: start;
+}
+
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.history-filters__link {
+  padding: 0.7rem 0;
+  color: var(--muted-ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.history-filters__link--selected {
+  color: var(--ink);
+}
+
+.history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--ink);
+}
+
+.history-row {
+  border-top: 1px solid var(--rule);
+}
+
+.history-row:first-child {
+  border-top: 0;
+}
+
+.history-row__link {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) minmax(20rem, 1.2fr);
+  gap: 1.25rem;
+  align-items: center;
+  min-height: 5.75rem;
+  padding-block: 0.9rem;
+  text-decoration: none;
+}
+
+.history-row__main,
+.history-row__values,
+.history-row__values span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.history-row__main {
+  min-width: 0;
+}
+
+.history-row__main strong {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: -0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-row__main span,
+.history-row__values small {
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.history-row__values {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  text-align: right;
+}
+
+.history-row__values strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.history-next {
+  display: inline-flex;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.delete-record-form {
+  grid-column: 1 / -1;
+  order: 6;
+  max-width: 38rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+}
+
+.delete-record-form h2 {
+  margin: 0.45rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.delete-record-form > p:not(.technical-label),
+.delete-record-form__restriction {
+  max-width: 34rem;
+  margin: 0.7rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.88rem;
+}
+
+.delete-record-form__restriction {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.delete-record-form form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.delete-record-form__confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.delete-record-form__confirm input {
+  min-height: auto;
+  accent-color: var(--error);
+}
+
+.delete-record-form__submit {
+  width: fit-content;
+  border-color: var(--error);
+  color: var(--error);
+  cursor: pointer;
+}
+
+.delete-record-form__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.delete-record-form__message {
+  min-height: 1.1rem;
+  margin: 0;
+  color: var(--error);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 767px) {
+  .history-row__link {
+    grid-template-columns: 4.8rem minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .history-row__values {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+}
+
 .login-form__submit,
 .sign-out-button {
   width: fit-content;

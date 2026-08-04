@@ -4,8 +4,11 @@ import type { Database } from "../db/client";
 import { repayments } from "../db/schema";
 import {
   createLedgerRepository,
+  ExpenseDeletionInvariantError,
   LedgerNotFoundError,
   LedgerRepositoryError,
+  OutingDeletionInvariantError,
+  RepaymentDeletionInvariantError,
 } from "./ledger-repository";
 import { LedgerIntegrityError } from "./ledger-summary";
 
@@ -173,7 +176,7 @@ describe("ledger repository", () => {
   it("keeps absent and foreign outings indistinguishable and exposes no delete", async () => {
     const database = drizzle(async () => ({ rows: [] }));
     const repository = createLedgerRepository(database as unknown as Database, owner);
-    expect("deleteOuting" in repository).toBe(false);
+    expect("deleteOuting" in repository).toBe(true);
     const absent = await repository.getOuting("absent").catch((error) => error);
     const foreign = await repository.getOuting("foreign").catch((error) => error);
     expect(absent).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
@@ -286,7 +289,7 @@ describe("ledger repository", () => {
 
     await expect(repository.getRepayment("repayment-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
     await expect(repository.listRepayments()).resolves.toEqual([]);
-    expect("deleteRepayment" in repository).toBe(false);
+    expect("deleteRepayment" in repository).toBe(true);
     expect(queries).toHaveLength(3);
     for (const query of queries) {
       expect(query.sql).toContain("owner_user_id");
@@ -310,6 +313,48 @@ describe("ledger repository", () => {
     expect(queries[0].sql).toContain('"repayments"."owner_user_id"');
     expect(queries[0].sql).toContain('"friends"."owner_user_id"');
     expect(queries[0].params).toContain(owner);
+  });
+
+  it("loads unified history with one owner-scoped query and no private fields", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [
+        {
+          event_type: "expense",
+          record_id: "expense-a",
+          effective_at: new Date("2026-08-04T00:00:00.000Z"),
+          description: "Dinner",
+          outing_title: "Saturday",
+          friend_id: null,
+          friend_name: null,
+          total_amount: 10000,
+          shares: [{ id: "share-a", friendId: "friend-a", amountOwed: 4000, allocatedAmount: 0 }],
+          allocations: [],
+        },
+        {
+          event_type: "repayment",
+          record_id: "repayment-a",
+          effective_at: new Date("2026-08-03T00:00:00.000Z"),
+          description: null,
+          outing_title: null,
+          friend_id: "friend-a",
+          friend_name: "Ari",
+          total_amount: 2000,
+          shares: [],
+          allocations: [],
+        },
+      ] };
+    });
+    const history = await createLedgerRepository(database as unknown as Database, owner).listLedgerHistory({ limit: 1 });
+
+    expect(history.items).toHaveLength(1);
+    expect(history.items[0]).toMatchObject({ type: "expense", totalAmount: 10000, assignedAmount: 4000, ownerPortionAmount: 6000 });
+    expect(history.nextCursor).toBeTruthy();
+    expect(queries).toHaveLength(1);
+    expect(queries[0].params).toContain(owner);
+    expect(queries[0].sql).toContain("owner_user_id");
+    expect(queries[0].sql).not.toMatch(/phone_number|payment_method|notes|token/i);
   });
 
   it("locks allocations before rejecting an amount below allocation or a friend change", async () => {
@@ -344,5 +389,81 @@ describe("ledger repository", () => {
       code: "REPAYMENT_FRIEND_LOCKED",
       message: "The friend cannot be changed after this repayment has allocations.",
     });
+  });
+
+  it("locks deletion targets and dependents in stable order", async () => {
+    const lockLog: string[] = [];
+    const outingTable = (await import("../db/schema")).outings;
+    const expenseTable = (await import("../db/schema")).expenses;
+    const shareTable = (await import("../db/schema")).expenseShares;
+    const allocationTable = (await import("../db/schema")).repaymentAllocations;
+    const repaymentTable = (await import("../db/schema")).repayments;
+    const transaction = {
+      select(selection?: unknown) {
+        const state: { table?: unknown; selection?: unknown } = { selection };
+        const chain = {
+          from(table: unknown) { state.table = table; return chain; },
+          where() { return chain; },
+          limit() { return chain; },
+          orderBy() { return chain; },
+          for(lock: string) { lockLog.push(`${state.table === outingTable ? "outing" : state.table === expenseTable ? "expense" : state.table === shareTable ? "share" : state.table === allocationTable ? "allocation" : state.table === repaymentTable ? "repayment" : "other"}:${lock}`); return Promise.resolve([]); },
+        };
+        return chain;
+      },
+      delete(table: unknown) {
+        return { where: () => ({ returning: () => Promise.resolve([{ id: table === outingTable ? "outing-a" : table === expenseTable ? "expense-a" : "repayment-a" }]) }) };
+      },
+    };
+    const database = { transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction) } as unknown as Database;
+    const repository = createLedgerRepository(database, owner);
+
+    await expect(repository.deleteOuting("outing-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
+    expect(lockLog).toEqual(["outing:update"]);
+    lockLog.length = 0;
+    await expect(repository.deleteExpense("expense-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
+    expect(lockLog).toEqual(["expense:update"]);
+    lockLog.length = 0;
+    await expect(repository.deleteRepayment("repayment-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
+    expect(lockLog).toEqual(["repayment:update"]);
+
+    const dependent = {
+      select(selection?: unknown) {
+        const state: { table?: unknown } = {};
+        const chain = {
+          from(table: unknown) { state.table = table; return chain; }, where() { return chain; }, limit() { return chain; }, orderBy() { return chain; },
+          for(lock: string) {
+            lockLog.push(`${state.table === outingTable ? "outing" : state.table === expenseTable ? "expense" : state.table === shareTable ? "share" : state.table === allocationTable ? "allocation" : state.table === repaymentTable ? "repayment" : "other"}:${lock}`);
+            if (state.table === outingTable) return Promise.resolve([{ id: "outing-a" }]);
+            if (state.table === expenseTable) return Promise.resolve([{ id: "expense-a" }]);
+            if (state.table === shareTable) return Promise.resolve([{ id: "share-b", friendId: "friend-a" }, { id: "share-a", friendId: "friend-a" }]);
+            if (state.table === allocationTable) return Promise.resolve([{ repaymentId: "repayment-a", expenseShareId: "share-a" }]);
+            if (state.table === repaymentTable) return Promise.resolve([{ id: "repayment-a", friendId: "friend-a" }]);
+            return Promise.resolve([]);
+          },
+        };
+        void selection;
+        return chain;
+      },
+    };
+    const dependentDb = { transaction: async (callback: (tx: typeof dependent) => Promise<unknown>) => callback(dependent) } as unknown as Database;
+    const dependentRepository = createLedgerRepository(dependentDb, owner);
+    await expect(dependentRepository.deleteOuting("outing-a")).rejects.toBeInstanceOf(OutingDeletionInvariantError);
+    await expect(dependentRepository.deleteExpense("expense-a")).rejects.toBeInstanceOf(ExpenseDeletionInvariantError);
+    await expect(dependentRepository.deleteRepayment("repayment-a")).rejects.toBeInstanceOf(RepaymentDeletionInvariantError);
+    expect(lockLog).toContain("share:update");
+    expect(lockLog).toContain("allocation:update");
+  });
+
+  it("treats missing and cross-owner delete targets identically", async () => {
+    const database = {
+      transaction: async (callback: (tx: { select: () => { from: () => { where: () => { limit: () => { for: () => Promise<never[]> } } } } }) => Promise<unknown>) => callback({ select: () => ({ from: () => ({ where: () => ({ limit: () => ({ for: async () => [] }) }) }) }) }),
+    } as unknown as Database;
+    const repository = createLedgerRepository(database, owner);
+    for (const method of [repository.deleteOuting, repository.deleteExpense, repository.deleteRepayment]) {
+      const missing = await method("missing").catch((error) => error);
+      const foreign = await method("foreign").catch((error) => error);
+      expect(missing).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
+      expect(foreign).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
+    }
   });
 });

@@ -6,7 +6,8 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { validateExpenseShareInput, type ExpenseShareFieldErrors, type ExpenseShareInputValues } from "@/domain/expense-share-input";
 import { validateExpenseInput, type ExpenseFieldErrors, type ExpenseInputValues } from "@/domain/expense-input";
-import { createLedgerRepository, ExpenseShareInvariantError, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { createLedgerRepository, ExpenseDeletionInvariantError, ExpenseShareInvariantError, LedgerNotFoundError } from "@/domain/ledger-repository";
+import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 
 export type ExpenseActionState = {
   fieldErrors: ExpenseFieldErrors;
@@ -19,6 +20,8 @@ export type ExpenseShareActionState = {
   formError: string;
   values: ExpenseShareInputValues;
 };
+
+export type ExpenseDeleteActionState = DeleteRecordActionState;
 
 function valuesFromForm(formData: FormData) {
   return validateExpenseInput({
@@ -126,4 +129,36 @@ export async function replaceExpenseSharesAction(
 
   revalidatePath(`/app/expenses/${expenseId}`);
   redirect(`/app/expenses/${expenseId}?saved=1`);
+}
+
+export async function deleteExpenseAction(
+  expenseId: string,
+  _previousState: ExpenseDeleteActionState,
+  formData: FormData,
+): Promise<ExpenseDeleteActionState> {
+  const session = await requireSession();
+  if (formData.getAll("confirm").length !== 1 || formData.get("confirm") !== "delete") return { formError: "Type delete to confirm." };
+
+  let result;
+  try {
+    result = await createLedgerRepository(getDatabase(), session.user.id).deleteExpense(expenseId);
+  } catch (error) {
+    return {
+      formError: error instanceof ExpenseDeletionInvariantError
+        ? error.message
+        : error instanceof LedgerNotFoundError
+          ? "This expense is no longer available."
+          : "Unable to delete this expense.",
+    };
+  }
+
+  revalidatePath("/app");
+  revalidatePath("/app/history");
+  revalidatePath("/app/expenses");
+  revalidatePath("/app/friends");
+  for (const friendId of result.friendIds) {
+    revalidatePath(`/app/friends/${friendId}`);
+  }
+  revalidatePath("/share/[token]", "page");
+  redirect("/app/expenses?deleted=1");
 }
