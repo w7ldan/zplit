@@ -5,7 +5,7 @@ import { InviteSignupForm } from "./invite-signup-form";
 const initialState = {
   fieldErrors: {},
   formError: "",
-  values: { name: "", password: "", confirmPassword: "" },
+  values: { name: "" },
 };
 
 describe("InviteSignupForm", () => {
@@ -24,7 +24,7 @@ describe("InviteSignupForm", () => {
       ...initialState,
       fieldErrors: { confirmPassword: "Passwords do not match." },
       formError: "Please correct the marked fields.",
-      values: { name: "Ada Lovelace", password: "", confirmPassword: "" },
+      values: { name: "Ada Lovelace" },
     });
     render(<InviteSignupForm email="person@example.com" action={action} />);
     fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Ada Lovelace" } });

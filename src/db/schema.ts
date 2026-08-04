@@ -280,6 +280,10 @@ export const accountInvitations = pgTable(
       sql`(${table.acceptedAt} IS NULL) = (${table.acceptedUserId} IS NULL)`,
     ),
     check(
+      "account_invitations_accepted_not_revoked",
+      sql`${table.acceptedAt} IS NULL OR ${table.revokedAt} IS NULL`,
+    ),
+    check(
       "account_invitations_accepted_after_claimed",
       sql`${table.acceptedAt} IS NULL OR (${table.claimedAt} IS NOT NULL AND ${table.acceptedAt} >= ${table.claimedAt})`,
     ),
@@ -290,6 +294,11 @@ export const accountInvitations = pgTable(
     uniqueIndex("account_invitations_token_hash_uidx").on(table.tokenHash),
     index("account_invitations_created_by_user_id_idx").on(table.createdByUserId),
     index("account_invitations_email_idx").on(table.email),
+    index("account_invitations_expires_at_idx").on(table.expiresAt),
+    index("account_invitations_accepted_user_id_idx").on(table.acceptedUserId),
+    index("account_invitations_active_email_expires_idx")
+      .on(table.email, table.expiresAt)
+      .where(sql`${table.acceptedAt} IS NULL AND ${table.revokedAt} IS NULL`),
   ],
 );
 

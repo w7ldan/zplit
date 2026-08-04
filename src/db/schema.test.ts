@@ -74,7 +74,13 @@ describe("database schema", () => {
     expect((table.columns.find((column) => column.name === "email") as unknown as { config: { length: number } }).config.length).toBe(254);
     expect((table.columns.find((column) => column.name === "suggested_name") as unknown as { config: { length: number } }).config.length).toBe(120);
     expect(table.indexes.map((index) => index.config.name)).toEqual(
-      expect.arrayContaining(["account_invitations_token_hash_uidx", "account_invitations_created_by_user_id_idx"]),
+      expect.arrayContaining([
+        "account_invitations_token_hash_uidx",
+        "account_invitations_created_by_user_id_idx",
+        "account_invitations_expires_at_idx",
+        "account_invitations_accepted_user_id_idx",
+        "account_invitations_active_email_expires_idx",
+      ]),
     );
     expect(foreignKeyShape(schema.accountInvitations)).toEqual(
       expect.arrayContaining([
@@ -88,6 +94,7 @@ describe("database schema", () => {
         "account_invitations_email_lowercase",
         "account_invitations_expires_after_created",
         "account_invitations_accepted_pair",
+        "account_invitations_accepted_not_revoked",
       ]),
     );
   });

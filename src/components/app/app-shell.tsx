@@ -12,7 +12,6 @@ const destinations = [
   ["Outings", "/app/outings"],
   ["Expenses", "/app/expenses"],
   ["Repayments", "/app/repayments"],
-  ["Invites", "/app/invites"],
 ] as const;
 
 type AppShellProps = {
@@ -20,6 +19,7 @@ type AppShellProps = {
     name: string;
     email: string;
   };
+  canManageInvites?: boolean;
   children: ReactNode;
 };
 
@@ -27,7 +27,7 @@ function isCurrent(pathname: string, href: string) {
   return href === "/app" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppShell({ user, children }: AppShellProps) {
+export function AppShell({ user, canManageInvites, children }: AppShellProps) {
   const pathname = usePathname() ?? "";
 
   useEffect(() => {
@@ -59,6 +59,7 @@ export function AppShell({ user, children }: AppShellProps) {
               <span className="technical-label">Signed in as</span>
               <strong>{user.name}</strong>
               <span>{user.email}</span>
+              {canManageInvites ? <Link href="/app/invites">Invitations</Link> : null}
               <SignOutButton />
             </div>
           </details>

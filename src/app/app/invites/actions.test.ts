@@ -6,16 +6,22 @@ const mocks = vi.hoisted(() => ({
   getAuth: vi.fn(() => ({ options: { baseURL: "https://zplit.example" } })),
   createInvitation: vi.fn(),
   revokeInvitation: vi.fn(),
+  isInstallationOwner: vi.fn(),
+  notFound: vi.fn(() => { throw new Error("not-found"); }),
   revalidatePath: vi.fn(),
 }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/auth/runtime", () => ({ getAuth: mocks.getAuth }));
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/auth/invitations", () => ({
+  ACTIVE_INVITATION_ERROR: "An active invitation already exists for that email.",
+  EXISTING_ACCOUNT_ERROR: "An account with that email already exists.",
   createInvitation: mocks.createInvitation,
   revokeInvitation: mocks.revokeInvitation,
+  isInstallationOwner: mocks.isInstallationOwner,
   normalizeInvitationEmail: (value: unknown) => typeof value === "string" ? value.trim().toLowerCase() : "",
   normalizeSuggestedName: (value: unknown) => typeof value === "string" ? value.trim() : "",
   validateInvitationEmail: (value: string) => value === "person@example.com",
@@ -36,6 +42,7 @@ describe("invite actions", () => {
 
   it("creates a normalized invitation and returns a shareable link", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.isInstallationOwner.mockResolvedValue(true);
     mocks.createInvitation.mockResolvedValue({
       invitation: { email: "person@example.com", expiresAt: new Date("2026-08-11T00:00:00.000Z") },
       token: "a".repeat(64),
@@ -60,11 +67,31 @@ describe("invite actions", () => {
 
   it("rejects invalid input before touching the database", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.isInstallationOwner.mockResolvedValue(true);
     const form = new FormData();
     form.set("email", "bad");
     const state = await createInviteAction(initialInviteActionState, form);
 
     expect(state.fieldErrors.email).toBeTruthy();
+    expect(mocks.createInvitation).not.toHaveBeenCalled();
+  });
+
+  it("returns stable duplicate errors", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.isInstallationOwner.mockResolvedValue(true);
+    mocks.createInvitation.mockRejectedValue(new Error("An active invitation already exists for that email."));
+    const form = new FormData();
+    form.set("email", "person@example.com");
+
+    await expect(createInviteAction(initialInviteActionState, form)).resolves.toMatchObject({
+      formError: "An active invitation already exists for that email.",
+    });
+  });
+
+  it("rejects non-owner actions through not-found", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "user-b" } });
+    mocks.isInstallationOwner.mockResolvedValue(false);
+    await expect(createInviteAction(initialInviteActionState, new FormData())).rejects.toThrow("not-found");
     expect(mocks.createInvitation).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { notFound } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getAuth } from "@/auth/runtime";
-import { createInvitation, normalizeInvitationEmail, normalizeSuggestedName, validateInvitationEmail, validateSuggestedName, revokeInvitation } from "@/auth/invitations";
+import {
+  ACTIVE_INVITATION_ERROR,
+  createInvitation,
+  EXISTING_ACCOUNT_ERROR,
+  isInstallationOwner,
+  normalizeInvitationEmail,
+  normalizeSuggestedName,
+  revokeInvitation,
+  validateInvitationEmail,
+  validateSuggestedName,
+} from "@/auth/invitations";
 import { getDatabase } from "@/db/client";
 
 export type InviteActionState = {
@@ -36,6 +47,8 @@ export async function createInviteAction(
   formData: FormData,
 ): Promise<InviteActionState> {
   const session = await requireSession();
+  const database = getDatabase();
+  if (!(await isInstallationOwner(database, session.user.id))) notFound();
   const values = valuesFromForm(formData);
   const fieldErrors: InviteActionState["fieldErrors"] = {};
   if (!validateInvitationEmail(values.email)) fieldErrors.email = "Enter a valid email address.";
@@ -43,7 +56,7 @@ export async function createInviteAction(
   if (Object.keys(fieldErrors).length > 0) return { ...initialInviteActionState, fieldErrors, values };
 
   try {
-    const { invitation, token } = await createInvitation(getDatabase(), {
+    const { invitation, token } = await createInvitation(database, {
       email: values.email,
       suggestedName: values.suggestedName || null,
       createdByUserId: session.user.id,
@@ -60,7 +73,10 @@ export async function createInviteAction(
         expiresAt: invitation.expiresAt.toISOString(),
       },
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && [EXISTING_ACCOUNT_ERROR, ACTIVE_INVITATION_ERROR].includes(error.message)) {
+      return { ...initialInviteActionState, values, formError: error.message };
+    }
     return { ...initialInviteActionState, values, formError: "Unable to create this invitation." };
   }
 }
@@ -68,6 +84,8 @@ export async function createInviteAction(
 export async function revokeInviteAction(id: string, _formData: FormData) {
   void _formData;
   const session = await requireSession();
-  await revokeInvitation(getDatabase(), id, session.user.id);
+  const database = getDatabase();
+  if (!(await isInstallationOwner(database, session.user.id))) notFound();
+  await revokeInvitation(database, id, session.user.id);
   revalidatePath("/app/invites");
 }

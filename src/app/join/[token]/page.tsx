@@ -1,12 +1,19 @@
+import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { findUsableInvitation } from "@/auth/invitations";
 import { getDatabase } from "@/db/client";
+import { getAuth } from "@/auth/runtime";
 import { InviteSignupForm } from "@/components/auth/invite-signup-form";
 import { acceptInvitationAction } from "./actions";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function JoinPage({ params }: { params: Promise<{ token: string }> }) {
+  if (await getAuth().api.getSession({ headers: await headers() })) redirect("/app");
   const { token } = await params;
   let invitation = null;
   try {
@@ -30,8 +37,8 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
             </>
           ) : (
             <>
-              <h1>Invitation unavailable.</h1>
-              <p className="access-page__lede">This invitation may have expired, been revoked, or already been used.</p>
+              <h1>This invitation is unavailable.</h1>
+              <p className="access-page__lede">Ask the installation owner for a new invitation.</p>
               <Link className="action-link action-link--quiet access-page__back" href="/login">Go to login</Link>
             </>
           )}

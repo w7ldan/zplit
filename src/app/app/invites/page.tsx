@@ -1,6 +1,7 @@
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { listInvitations } from "@/auth/invitations";
+import { isInstallationOwner, listInvitations } from "@/auth/invitations";
+import { notFound } from "next/navigation";
 import { InviteForm } from "@/components/invites/invite-form";
 import { createInviteAction, revokeInviteAction } from "./actions";
 
@@ -15,7 +16,9 @@ function invitationStatus(invitation: { acceptedAt: Date | null; revokedAt: Date
 
 export default async function InvitesPage() {
   const session = await requireSession();
-  const invitations = await listInvitations(getDatabase(), session.user.id);
+  const database = getDatabase();
+  if (!(await isInstallationOwner(database, session.user.id))) notFound();
+  const invitations = await listInvitations(database, session.user.id);
   const now = new Date();
 
   return (

@@ -1,0 +1,4 @@
+CREATE INDEX "account_invitations_expires_at_idx" ON "account_invitations" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX "account_invitations_accepted_user_id_idx" ON "account_invitations" USING btree ("accepted_user_id");--> statement-breakpoint
+CREATE INDEX "account_invitations_active_email_expires_idx" ON "account_invitations" USING btree ("email","expires_at") WHERE "account_invitations"."accepted_at" IS NULL AND "account_invitations"."revoked_at" IS NULL;--> statement-breakpoint
+ALTER TABLE "account_invitations" ADD CONSTRAINT "account_invitations_accepted_not_revoked" CHECK ("account_invitations"."accepted_at" IS NULL OR "account_invitations"."revoked_at" IS NULL);

@@ -35,4 +35,11 @@ describe("/login", () => {
     mocks.getSession.mockResolvedValue({ user: { name: "Wildan", email: "owner@example.com" } });
     await expect(LoginPage()).rejects.toThrow("redirect:/app");
   });
+
+  it("shows only the joined confirmation flag", async () => {
+    mocks.getSession.mockResolvedValue(null);
+    render(await LoginPage({ searchParams: Promise.resolve({ joined: "1", next: "ledger" }) }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Your account is ready. Sign in to open your ledger.");
+  });
 });

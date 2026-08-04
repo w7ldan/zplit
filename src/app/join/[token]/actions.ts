@@ -3,8 +3,7 @@
 import { redirect } from "next/navigation";
 import {
   acceptInvitation,
-  claimInvitation,
-  createInvitedCredentialAccount,
+  INVITATION_UNAVAILABLE_ERROR,
   normalizeSuggestedName,
   validateInvitePassword,
   validateSuggestedName,
@@ -14,13 +13,13 @@ import { getDatabase } from "@/db/client";
 export type JoinActionState = {
   fieldErrors: { name?: string; password?: string; confirmPassword?: string };
   formError: string;
-  values: { name: string; password: string; confirmPassword: string };
+  values: { name: string };
 };
 
 const initialJoinActionState: JoinActionState = {
   fieldErrors: {},
   formError: "",
-  values: { name: "", password: "", confirmPassword: "" },
+  values: { name: "" },
 };
 
 function valuesFromForm(formData: FormData) {
@@ -43,30 +42,16 @@ export async function acceptInvitationAction(
   if (passwordError) fieldErrors.password = passwordError;
   if (values.password !== values.confirmPassword) fieldErrors.confirmPassword = "Passwords do not match.";
   if (Object.keys(fieldErrors).length > 0) {
-    return { ...initialJoinActionState, fieldErrors, values: { ...values, password: "", confirmPassword: "" } };
+    return { ...initialJoinActionState, fieldErrors, values: { name: values.name } };
   }
 
-  let invitation;
   try {
-    invitation = await claimInvitation(getDatabase(), token);
+    await acceptInvitation(getDatabase(), token, { name: values.name, password: values.password });
   } catch {
-    return { ...initialJoinActionState, values: { name: values.name, password: "", confirmPassword: "" }, formError: "This invitation is unavailable." };
-  }
-  if (!invitation) {
-    return { ...initialJoinActionState, values: { name: values.name, password: "", confirmPassword: "" }, formError: "This invitation is invalid, expired, revoked, or already used." };
+    return { ...initialJoinActionState, values: { name: values.name }, formError: INVITATION_UNAVAILABLE_ERROR };
   }
 
-  let user;
-  try {
-    user = await createInvitedCredentialAccount({ name: values.name, email: invitation.email, password: values.password });
-    if (!user) throw new Error("Account was not created");
-    const accepted = await acceptInvitation(getDatabase(), invitation.id, user.id);
-    if (!accepted) throw new Error("Invitation was not accepted");
-  } catch {
-    return { ...initialJoinActionState, values: { name: values.name, password: "", confirmPassword: "" }, formError: "Unable to complete this invitation." };
-  }
-
-  redirect("/login?created=1");
+  redirect("/login?joined=1");
 }
 
 export async function acceptInviteAction(token: string, previousState: JoinActionState, formData: FormData) {

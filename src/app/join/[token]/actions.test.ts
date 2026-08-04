@@ -2,8 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getDatabase: vi.fn(() => "database"),
-  claimInvitation: vi.fn(),
-  createInvitedCredentialAccount: vi.fn(),
   acceptInvitation: vi.fn(),
   redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }),
 }));
@@ -11,8 +9,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/auth/invitations", () => ({
-  claimInvitation: mocks.claimInvitation,
-  createInvitedCredentialAccount: mocks.createInvitedCredentialAccount,
+  INVITATION_UNAVAILABLE_ERROR: "This invitation is unavailable.",
   acceptInvitation: mocks.acceptInvitation,
   normalizeSuggestedName: (value: unknown) => typeof value === "string" ? value.trim() : "",
   validateInvitePassword: (value: string) => value.length >= 16 ? "" : "Password is too short.",
@@ -24,35 +21,34 @@ import { acceptInvitationAction } from "./actions";
 const initialJoinActionState = {
   fieldErrors: {},
   formError: "",
-  values: { name: "", password: "", confirmPassword: "" },
+  values: { name: "" },
 };
 
 describe("join actions", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("claims the invitation, creates a credential account, and enters login", async () => {
-    mocks.claimInvitation.mockResolvedValue({ id: "invite-a", email: "person@example.com" });
-    mocks.createInvitedCredentialAccount.mockResolvedValue({ id: "user-b" });
-    mocks.acceptInvitation.mockResolvedValue({ id: "invite-a", acceptedUserId: "user-b" });
+  it("accepts through the invitation service and enters login", async () => {
+    mocks.acceptInvitation.mockResolvedValue({ id: "user-b" });
     const form = new FormData();
     form.set("name", "Ada Lovelace");
     form.set("password", "a".repeat(16));
     form.set("confirmPassword", "a".repeat(16));
 
-    await expect(acceptInvitationAction("b".repeat(64), initialJoinActionState, form)).rejects.toThrow("redirect:/login?created=1");
-    expect(mocks.claimInvitation).toHaveBeenCalledWith("database", "b".repeat(64));
-    expect(mocks.createInvitedCredentialAccount).toHaveBeenCalledWith({ name: "Ada Lovelace", email: "person@example.com", password: "a".repeat(16) });
-    expect(mocks.acceptInvitation).toHaveBeenCalledWith("database", "invite-a", "user-b");
+    await expect(acceptInvitationAction("b".repeat(43), initialJoinActionState, form)).rejects.toThrow("redirect:/login?joined=1");
+    expect(mocks.acceptInvitation).toHaveBeenCalledWith("database", "b".repeat(43), { name: "Ada Lovelace", password: "a".repeat(16) });
   });
 
-  it("rejects a used or invalid invitation without creating an account", async () => {
-    mocks.claimInvitation.mockResolvedValue(null);
+  it("rejects an unavailable invitation without returning passwords", async () => {
+    mocks.acceptInvitation.mockRejectedValue(new Error("This invitation is unavailable."));
     const form = new FormData();
     form.set("name", "Ada");
     form.set("password", "a".repeat(16));
     form.set("confirmPassword", "a".repeat(16));
 
-    await expect(acceptInvitationAction("b".repeat(64), initialJoinActionState, form)).resolves.toMatchObject({ formError: expect.stringMatching(/invalid|expired|revoked|used/) });
-    expect(mocks.createInvitedCredentialAccount).not.toHaveBeenCalled();
+    await expect(acceptInvitationAction("b".repeat(43), initialJoinActionState, form)).resolves.toEqual({
+      fieldErrors: {},
+      formError: "This invitation is unavailable.",
+      values: { name: "Ada" },
+    });
   });
 });

@@ -9,7 +9,7 @@ type JoinAction = (previousState: JoinActionState, formData: FormData) => Promis
 const emptyState: JoinActionState = {
   fieldErrors: {},
   formError: "",
-  values: { name: "", password: "", confirmPassword: "" },
+  values: { name: "" },
 };
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -22,7 +22,7 @@ function SubmitButton() {
 }
 
 export function InviteSignupForm({ email, suggestedName, action }: { email: string; suggestedName?: string | null; action: JoinAction }) {
-  const [state, formAction] = useActionState(action, { ...emptyState, values: { name: suggestedName ?? "", password: "", confirmPassword: "" } });
+  const [state, formAction] = useActionState(action, { ...emptyState, values: { name: suggestedName ?? "" } });
   return (
     <form className="invite-signup-form" action={formAction} noValidate>
       <div className="invite-signup-form__invitee">
@@ -36,12 +36,12 @@ export function InviteSignupForm({ email, suggestedName, action }: { email: stri
       </div>
       <div className="invite-signup-form__field">
         <label htmlFor="join-password">Password</label>
-        <input id="join-password" name="password" type="password" autoComplete="new-password" required defaultValue={state.values.password} aria-invalid={Boolean(state.fieldErrors.password)} aria-describedby="join-password-error" />
+        <input id="join-password" name="password" type="password" autoComplete="new-password" required aria-invalid={Boolean(state.fieldErrors.password)} aria-describedby="join-password-error" />
         <FieldError id="join-password-error" message={state.fieldErrors.password} />
       </div>
       <div className="invite-signup-form__field">
         <label htmlFor="join-confirm-password">Confirm password</label>
-        <input id="join-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" required defaultValue={state.values.confirmPassword} aria-invalid={Boolean(state.fieldErrors.confirmPassword)} aria-describedby="join-confirm-password-error" />
+        <input id="join-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" required aria-invalid={Boolean(state.fieldErrors.confirmPassword)} aria-describedby="join-confirm-password-error" />
         <FieldError id="join-confirm-password-error" message={state.fieldErrors.confirmPassword} />
       </div>
       <p className="invite-signup-form__hint">Use 16–128 characters. You will sign in through the normal login page after creating the account.</p>
