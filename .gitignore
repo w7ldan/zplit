@@ -11,6 +11,9 @@ secrets/owner-name
 secrets/owner-email
 secrets/owner-password
 
+/backups/
+*.partial
+
 s.sh
 zip.cjs
 zplit.zip

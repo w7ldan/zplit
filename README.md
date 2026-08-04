@@ -46,6 +46,33 @@ docker compose -f compose.yml --profile tools run --rm migrate
 docker compose -f compose.yml ps
 ```
 
-The password is read from the ignored `secrets/postgres-password` file. Back it up securely; database backups are not implemented yet.
+The password is read from the ignored `secrets/postgres-password` file. Back it up securely.
+
+## PostgreSQL backups
+
+Create a metadata-only companion manifest and a secure PostgreSQL custom-format archive from the healthy Compose database:
+
+```sh
+./scripts/create-backup.sh /absolute/backup/directory
+./scripts/verify-backup.sh /absolute/backup/directory/zplit-YYYYMMDDTHHMMSSZ.dump
+```
+
+The archive includes users and credentials, ledger data, invitations, debtor share links, and private receipt bytes. Store backup files securely; they contain credentials, ledger data, invitation data, share-link hashes, and private receipt images. The manifest contains only the format version, UTC creation time, Git commit, PostgreSQL version, archive hash and size, and archive filename. A backup is not trusted until disposable restoration verification passes.
+
+### Production restoration runbook
+
+Production restoration is deliberately manual and must never replace the live database automatically:
+
+1. Verify the archive with `./scripts/verify-backup.sh`.
+2. Stop the Zplit web service.
+3. Prepare a new empty PostgreSQL database or volume.
+4. Restore the archive into that empty target with `pg_restore --exit-on-error --no-owner --no-privileges`.
+5. Run the current migrations.
+6. Run the backup-integrity checks.
+7. Point Zplit at the restored database.
+8. Start the web service and check `/healthz`.
+9. Retain the old database until the restored deployment is verified.
+
+Backup encryption and automatic scheduling are not implemented. Keep the archive and its manifest access-controlled and protected by the storage system used for backups.
 
 The initial schema and authenticated Friends, Outings, outing-bound Expenses, owner-scoped manual share workflows, repayment recording, repayment allocation, ledger overview, invitation-only account registration, and temporary debtor balance links are implemented. Only allocated repayment money reduces outstanding balances.
