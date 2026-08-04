@@ -30,32 +30,51 @@ const repayment = {
   unallocatedAmount: 44_000,
 };
 const friend = { id: repayment.friendId, name: "Ari", archivedAt: null };
+const allocationPlan = {
+  ...repayment,
+  ownerUserId: "owner-a",
+  createdAt: repayment.paidAt,
+  shares: [{
+    id: "22222222-2222-4222-8222-222222222222",
+    expenseShareId: "22222222-2222-4222-8222-222222222222",
+    expenseDescription: "Dinner",
+    outingTitle: "Friday night",
+    outingOccurredAt: new Date("2026-01-01T10:00:00.000Z"),
+    amountOwed: 70000,
+    allocatedByOtherRepayments: 30000,
+    currentAllocation: 40000,
+    capacityAvailable: 40000,
+  }],
+};
 
 describe("repayment record", () => {
   it("renders the friend identity, totals, local date metadata, and editable fields", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ getRepayment: vi.fn().mockResolvedValue(repayment), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])) });
+    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])) });
 
     render(await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }) }));
 
     expect(screen.getByText("10 / REPAYMENT RECORD")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Ari" })).toBeInTheDocument();
-    expect(screen.getByText("Rp 84.000")).toBeInTheDocument();
-    expect(screen.getByText("Rp 40.000")).toBeInTheDocument();
-    expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
+    expect(screen.getAllByText("Rp 84.000")).not.toHaveLength(0);
+    expect(screen.getAllByText("Rp 40.000")).not.toHaveLength(0);
+    expect(screen.getAllByText("Rp 44.000")).not.toHaveLength(0);
     expect(screen.getByText("Bank transfer")).toBeInTheDocument();
     expect(screen.getByLabelText("Notes")).toHaveValue("Received in full");
     expect(document.querySelector(`time[datetime="${repayment.paidAt.toISOString()}"]`)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Back to repayments/ })).toHaveAttribute("href", "/app/repayments");
     expect(screen.getByLabelText("Friend")).toHaveValue(friend.id);
-    expect(screen.getByText(/Allocation management arrives next/)).toBeInTheDocument();
+    expect(screen.getByText("Apply the received money")).toBeInTheDocument();
+    expect(screen.getByLabelText("Friend")).toBeDisabled();
+    expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
+    expect(screen.getByText("Dinner")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/delete|allocation editor|debtor|card|pill|status dot/i);
   });
 
   it("uses one not-found path for foreign and absent records", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ getRepayment: vi.fn().mockRejectedValue(new (await import("@/domain/ledger-repository")).LedgerNotFoundError()) });
+    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockRejectedValue(new (await import("@/domain/ledger-repository")).LedgerNotFoundError()) });
 
     await expect(RepaymentRecordPage({ params: Promise.resolve({ repaymentId: "foreign" }) })).rejects.toThrow("not-found");
     expect(mocks.notFound).toHaveBeenCalledOnce();

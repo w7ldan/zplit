@@ -15,6 +15,7 @@ type RepaymentFormProps = {
   initialValues?: RepaymentInputValues;
   initialPaidAtUtc?: string;
   mode?: "create" | "edit";
+  friendLocked?: boolean;
 };
 
 const emptyValues: RepaymentInputValues = {
@@ -47,7 +48,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="repayment-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
-export function RepaymentForm({ action, friends: friendOptions, initialValues = emptyValues, initialPaidAtUtc, mode = "create" }: RepaymentFormProps) {
+export function RepaymentForm({ action, friends: friendOptions, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false }: RepaymentFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
   const formRef = useRef<HTMLFormElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
@@ -78,9 +79,11 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
     >
       <div className="repayment-form__field">
         <label htmlFor="repayment-friend">Friend</label>
-        <select id="repayment-friend" name="friendId" required defaultValue={state.values.friendId || friendOptions[0]?.id || ""} aria-invalid={Boolean(state.fieldErrors.friendId)} aria-describedby="repayment-friend-error">
+        {friendLocked ? <input type="hidden" name="friendId" value={state.values.friendId} /> : null}
+        <select id="repayment-friend" name={friendLocked ? undefined : "friendId"} required disabled={friendLocked} defaultValue={state.values.friendId || friendOptions[0]?.id || ""} aria-invalid={Boolean(state.fieldErrors.friendId)} aria-describedby="repayment-friend-error">
           {friendOptions.map((friend) => <option key={friend.id} value={friend.id}>{friend.name}{friend.archivedAt ? " (ARCHIVED)" : ""}</option>)}
         </select>
+        {friendLocked ? <p className="repayment-form__help">The friend is fixed while this repayment has allocations.</p> : null}
         <FieldError id="repayment-friend-error" message={state.fieldErrors.friendId} />
       </div>
       <div className="repayment-form__field">

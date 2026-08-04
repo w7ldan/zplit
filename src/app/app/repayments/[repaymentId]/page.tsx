@@ -4,9 +4,10 @@ import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { RepaymentForm } from "@/components/repayments/repayment-form";
+import { RepaymentAllocationEditor } from "@/components/repayments/repayment-allocation-editor";
 import { formatRupiah } from "@/domain/rupiah";
 import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
-import { updateRepaymentAction } from "../actions";
+import { replaceRepaymentAllocationsAction, updateRepaymentAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,15 +15,16 @@ export default async function RepaymentRecordPage({ params }: { params: Promise<
   const session = await requireSession();
   const { repaymentId } = await params;
   const repository = createLedgerRepository(getDatabase(), session.user.id);
-  let repayment;
+  let plan;
   try {
-    repayment = await repository.getRepayment(repaymentId);
+    plan = await repository.getRepaymentAllocationPlan(repaymentId);
   } catch (error) {
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
   }
   const [activeFriends, archivedFriends] = await Promise.all([repository.listFriends(), repository.listFriends({ archived: true })]);
   const friends = [...activeFriends, ...archivedFriends];
+  const repayment = plan;
 
   return (
     <section className="repayment-record" id="top">
@@ -47,10 +49,13 @@ export default async function RepaymentRecordPage({ params }: { params: Promise<
             action={updateRepaymentAction.bind(null, repayment.id)}
             friends={friends}
             mode="edit"
+            friendLocked={repayment.allocatedAmount > 0}
             initialPaidAtUtc={repayment.paidAt.toISOString()}
             initialValues={{ friendId: repayment.friendId, amountRupiah: repayment.amount.toString(), paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: repayment.paymentMethod ?? "", notes: repayment.notes ?? "" }}
           />
-          <p className="repayment-record__next">Allocation management arrives next. Until then, unallocated money stays visible and does not reduce outstanding debt.</p>
+        </div>
+        <div className="repayment-record__allocations">
+          <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, repayment.id)} plan={plan} />
         </div>
       </div>
     </section>

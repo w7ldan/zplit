@@ -64,4 +64,20 @@ describe("RepaymentForm", () => {
     expect(screen.getByRole("button", { name: "Recording repayment…" })).toBeDisabled();
     resolveAction(initialState);
   });
+
+  it("locks the friend selector and submits the existing friend ID when allocations exist", () => {
+    render(
+      <RepaymentForm
+        action={vi.fn().mockResolvedValue(initialState)}
+        friends={[activeFriend, archivedFriend]}
+        mode="edit"
+        friendLocked
+        initialValues={{ friendId: activeFriend.id, amountRupiah: "84000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "Cash", notes: "Received" }}
+      />,
+    );
+
+    expect(screen.getByLabelText("Friend")).toBeDisabled();
+    expect(document.querySelector('input[type="hidden"][name="friendId"]')).toHaveValue(activeFriend.id);
+    expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
+  });
 });

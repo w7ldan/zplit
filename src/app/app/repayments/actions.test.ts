@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRepaymentAction, updateRepaymentAction, type RepaymentActionState } from "./actions";
-import { LedgerNotFoundError, RepaymentAmountInvariantError, RepaymentFriendInvariantError } from "@/domain/ledger-repository";
+import { createRepaymentAction, replaceRepaymentAllocationsAction, updateRepaymentAction, type RepaymentActionState, type RepaymentAllocationActionState } from "./actions";
+import { LedgerNotFoundError, RepaymentAllocationAmountInvariantError, RepaymentAllocationShareInvariantError, RepaymentAmountInvariantError, RepaymentFriendInvariantError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -25,10 +25,20 @@ const initialState: RepaymentActionState = {
   formError: "",
   values: { friendId: "", amountRupiah: "", paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: "", notes: "" },
 };
+const initialAllocationState: RepaymentAllocationActionState = { fieldErrors: {}, formError: "", values: [] };
 
 function form(values: Record<string, string>) {
   const formData = new FormData();
   for (const [key, value] of Object.entries(values)) formData.set(key, value);
+  return formData;
+}
+
+function allocationForm(rows: Array<{ expenseShareId: string; amountRupiah: string }>) {
+  const formData = new FormData();
+  for (const row of rows) {
+    formData.append("expenseShareId", row.expenseShareId);
+    formData.append("amountRupiah", row.amountRupiah);
+  }
   return formData;
 }
 
@@ -79,5 +89,43 @@ describe("repayment actions", () => {
     expect((await updateRepaymentAction("repayment-a", initialState, form(values))).formError).toBe("Repayment amount cannot be lower than its allocated amount.");
     updateRepayment.mockRejectedValue(new RepaymentFriendInvariantError());
     expect((await updateRepaymentAction("repayment-a", initialState, form(values))).formError).toBe("The friend cannot be changed after this repayment has allocations.");
+  });
+
+  it("binds allocation replacement to the session owner and canonical routes", async () => {
+    const replaceRepaymentAllocations = vi.fn().mockResolvedValue({});
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ replaceRepaymentAllocations });
+    const expenseShareId = "11111111-1111-4111-8111-111111111111";
+
+    await expect(replaceRepaymentAllocationsAction("repayment-a", initialAllocationState, allocationForm([
+      { expenseShareId: expenseShareId.toUpperCase(), amountRupiah: "84.000" },
+      { expenseShareId: "22222222-2222-4222-8222-222222222222", amountRupiah: "" },
+    ]))).rejects.toThrow("redirect:/app/repayments/repayment-a");
+
+    expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
+    expect(replaceRepaymentAllocations).toHaveBeenCalledWith("repayment-a", [{ expenseShareId, amount: 84000 }]);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments/repayment-a");
+  });
+
+  it("returns stable allocation field and invariant errors", async () => {
+    const expenseShareId = "11111111-1111-4111-8111-111111111111";
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    const replaceRepaymentAllocations = vi.fn();
+    mocks.createLedgerRepository.mockReturnValue({ replaceRepaymentAllocations });
+
+    const invalid = await replaceRepaymentAllocationsAction("repayment-a", initialAllocationState, allocationForm([{ expenseShareId, amountRupiah: "84.00" }]));
+    expect(invalid).toMatchObject({ formError: "Please correct the marked fields.", fieldErrors: { [expenseShareId]: "Enter whole rupiah, such as 84000 or 84.000." } });
+    expect(replaceRepaymentAllocations).not.toHaveBeenCalled();
+
+    replaceRepaymentAllocations.mockRejectedValue(new RepaymentAllocationAmountInvariantError());
+    expect((await replaceRepaymentAllocationsAction("repayment-a", initialAllocationState, allocationForm([{ expenseShareId, amountRupiah: "84000" }]))).formError).toBe("Allocated amount cannot exceed the repayment amount.");
+    replaceRepaymentAllocations.mockRejectedValue(new RepaymentAllocationShareInvariantError());
+    expect((await replaceRepaymentAllocationsAction("repayment-a", initialAllocationState, allocationForm([{ expenseShareId, amountRupiah: "84000" }]))).formError).toBe("An allocation cannot exceed the share's remaining balance.");
+    replaceRepaymentAllocations.mockRejectedValue(new LedgerNotFoundError());
+    expect((await replaceRepaymentAllocationsAction("foreign", initialAllocationState, allocationForm([]))).formError).toBe("This friend, repayment, or expense share is no longer available.");
   });
 });

@@ -120,13 +120,20 @@ describe("ledger repository", () => {
     expect(foreign).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
   });
 
+  it("removes the single-row allocation API", () => {
+    const repository = createLedgerRepository({} as Database, owner);
+    expect("createRepaymentAllocation" in repository).toBe(false);
+    expect("replaceRepaymentAllocations" in repository).toBe(true);
+    expect("getRepaymentAllocationPlan" in repository).toBe(true);
+  });
+
   it("maps absent and cross-owner references to one generic not-found error", async () => {
     const repository = createLedgerRepository(emptyTransactionalDatabase(), owner);
     const actions = [
       () => repository.createExpense({ description: "Expense", amount: 100, outingId: "other-outing" }),
       () => repository.replaceExpenseShares("other-expense", []),
       () => repository.createRepayment({ friendId: "other-friend", amount: 50, paidAt: new Date(), paymentMethod: null, notes: null }),
-      () => repository.createRepaymentAllocation({ repaymentId: "other-repayment", expenseShareId: "other-share", amount: 50 }),
+      () => repository.replaceRepaymentAllocations("other-repayment", []),
     ];
 
     for (const action of actions) {
@@ -265,6 +272,20 @@ describe("ledger repository", () => {
     expect(queries[1].sql).toContain("inner join");
     expect(queries[1].sql).toContain('order by "repayments"."paid_at" desc');
     expect(queries[2].sql).toContain('"repayment_allocations"');
+  });
+
+  it("owner-scopes allocation plans before loading share details", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+
+    await expect(createLedgerRepository(database as unknown as Database, owner).getRepaymentAllocationPlan("repayment-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
+    expect(queries).toHaveLength(1);
+    expect(queries[0].sql).toContain('"repayments"."owner_user_id"');
+    expect(queries[0].sql).toContain('"friends"."owner_user_id"');
+    expect(queries[0].params).toContain(owner);
   });
 
   it("locks allocations before rejecting an amount below allocation or a friend change", async () => {

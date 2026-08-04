@@ -2419,12 +2419,165 @@ select {
   border-top: 1px solid var(--ink);
 }
 
-.repayment-record__next {
-  max-width: 26rem;
-  margin: 2rem 0 0;
+.repayment-record__allocations {
+  grid-column: 2 / -1;
+  margin-top: 5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+}
+
+.repayment-allocation-editor {
+  max-width: 58rem;
+  animation: friend-list-reveal var(--motion-medium) var(--ease-out) both;
+}
+
+.repayment-allocation-editor h2 {
+  margin: 1.25rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.repayment-allocation-editor__totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--rule);
+}
+
+.repayment-allocation-editor__totals div,
+.repayment-allocation-editor__details dl div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.repayment-allocation-editor__totals strong,
+.repayment-allocation-editor__details dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.repayment-allocation-editor__form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.repayment-allocation-editor__help,
+.repayment-allocation-editor__field-error,
+.repayment-allocation-editor__message {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.repayment-allocation-editor__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(14rem, 0.7fr);
+  gap: 2rem;
+  padding-block: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+
+.repayment-allocation-editor__description,
+.repayment-allocation-editor__outing {
+  margin: 0;
+}
+
+.repayment-allocation-editor__description {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.repayment-allocation-editor__outing {
+  margin-top: 0.35rem;
   color: var(--muted-ink);
   font-size: 0.85rem;
-  line-height: 1.5;
+}
+
+.repayment-allocation-editor__details dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0 0;
+}
+
+.repayment-allocation-editor__details dt {
+  color: var(--muted-ink);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.repayment-allocation-editor__details dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.repayment-allocation-editor__field {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+}
+
+.repayment-allocation-editor__field label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.repayment-allocation-editor__field input[type="text"] {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--ink);
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 0px;
+  border-bottom-left-radius: 0px;
+  background: var(--paper);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.repayment-allocation-editor__field input[type="text"]:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.repayment-allocation-editor__field-error,
+.repayment-allocation-editor__message {
+  color: var(--destructive);
+}
+
+.repayment-allocation-editor__message {
+  min-height: 1.5rem;
+}
+
+.repayment-allocation-editor__submit:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.repayment-allocation-editor--empty {
+  max-width: 31rem;
+}
+
+.repayment-allocation-editor--empty > p:not(.technical-label) {
+  margin: 1.25rem 0 0;
+  color: var(--muted-ink);
+}
+
+.repayment-allocation-editor--empty .action-link {
+  margin-top: 1.5rem;
 }
 
 @keyframes friend-heading-reveal {
@@ -2952,7 +3105,8 @@ select {
   .repayments-page__list,
   .repayments-page__create,
   .repayment-record__meta,
-  .repayment-record__form {
+  .repayment-record__form,
+  .repayment-record__allocations {
     grid-column: 1 / -1;
   }
 
@@ -3007,6 +3161,20 @@ select {
 
   .repayment-record__form {
     margin-top: 3rem;
+  }
+
+  .repayment-record__allocations {
+    margin-top: 4rem;
+  }
+
+  .repayment-allocation-editor__totals,
+  .repayment-allocation-editor__details dl {
+    grid-template-columns: 1fr;
+  }
+
+  .repayment-allocation-editor__row {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
   }
 }
 
