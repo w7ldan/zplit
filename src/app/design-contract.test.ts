@@ -44,12 +44,13 @@ function cssBraceDepth(source: string) {
   return depth;
 }
 
-describe("authenticated design contract", () => {
-  it("keeps the palette, geometry, semantic states, and motion budget explicit", () => {
+describe("Zplit design contract", () => {
+  it("keeps the palette, geometry, public/authenticated modes, and motion budget explicit", () => {
     for (const token of ["#111315", "#F4F1EA", "#FFFEFA", "#C7E4F6", "#62676B", "#C8C7C1", "--mint", "--peach", "--amber", "--error"]) {
       expect(css).toContain(token);
     }
 
+    expect(css).toContain("--radius: 10px");
     expect(css).toContain("--radius-control: 10px");
     expect(css).toContain("--radius-panel: 16px");
     for (const timing of ["--motion-press: 100ms", "--motion-fast: 160ms", "--motion-state: 220ms", "--motion-layout: 300ms", "--motion-panel: 360ms", "--motion-reveal: 640ms", "--motion-story: 900ms"]) {
@@ -63,10 +64,13 @@ describe("authenticated design contract", () => {
     expect(css).toMatch(/html\.zplit-product-mode\s*\{[\s\S]*?scroll-behavior:\s*auto;/);
     expect(css).toContain("scroll-behavior: smooth");
     expect(css).toContain("animation: none");
+    expect(documentation).toContain("65% clarity, 25% editorial expression, and 10% controlled spectacle");
     expect(documentation).toContain("85% functional clarity");
-    expect(documentation).toContain("Ledger rows stay primarily open and rule-based");
-    expect(documentation).toContain("Native predictable scrolling");
+    expect(documentation).toContain("Product UI is the illustration");
+    expect(documentation).toContain("public interactive journey");
+    expect(documentation).toContain("separate density modes");
     expect(documentation).toContain("80% on state feedback");
+    expect(documentation).toContain("prefers-reduced-motion: reduce");
   });
 
   it("keeps prohibited visual patterns out of the authenticated contract", () => {
@@ -89,6 +93,7 @@ describe("authenticated design contract", () => {
     expect(css).not.toMatch(/gradient/i);
     expect(css).not.toContain("backdrop-filter");
     expect(css).not.toContain("box-shadow");
+    expect(css).not.toContain("--motion-cinematic");
     expect(css).not.toContain("friend-heading-reveal");
     expect(css).not.toContain("friend-list-reveal");
   });

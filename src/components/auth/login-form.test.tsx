@@ -24,8 +24,12 @@ describe("LoginForm", () => {
 
   it("normalizes email, preserves password, and enters the ledger", async () => {
     render(<LoginForm />);
-    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "  OWNER@EXAMPLE.COM " } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "  Keep spaces exactly  " } });
+    const email = screen.getByLabelText("Email address");
+    const password = screen.getByLabelText("Password");
+    expect(email).toHaveAttribute("autocomplete", "username");
+    expect(password).toHaveAttribute("autocomplete", "current-password");
+    fireEvent.change(email, { target: { value: "  OWNER@EXAMPLE.COM " } });
+    fireEvent.change(password, { target: { value: "  Keep spaces exactly  " } });
     fireEvent.click(screen.getByLabelText("Keep me signed in"));
     fireEvent.submit(screen.getByRole("button", { name: "Enter the ledger" }));
 

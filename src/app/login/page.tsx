@@ -14,17 +14,15 @@ export default async function LoginPage() {
     <main className="access-page" id="top">
       <div className="access-page__field" aria-hidden="true" />
       <div className="editorial-grid editorial-shell access-page__layout">
-        <div className="access-page__marker technical-label">05 / ACCESS</div>
+        <div className="access-page__marker technical-label"><Link href="/">Zplit</Link><span>ACCESS</span></div>
         <div className="access-page__content">
-          <p className="technical-label access-page__metadata">PRIVATE RECORD / SINGLE OWNER</p>
-          <h1>Private ledger.</h1>
+          <p className="technical-label access-page__metadata">RETURNING TO YOUR LEDGER</p>
+          <h1>Welcome back.</h1>
           <p className="access-page__lede">
-            Zplit is a single-owner record for one operator. Enter the ledger to continue to the private application.
+            Sign in to continue your shared-expense record and see what is open, repaid, or settled.
           </p>
           <LoginForm />
-          <Link className="action-link action-link--quiet access-page__back" href="/">
-            Back to the public record
-          </Link>
+          <Link className="access-page__back" href="/">← Back to Zplit</Link>
         </div>
       </div>
     </main>

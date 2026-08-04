@@ -1,64 +1,54 @@
 # Zplit design system
 
-This is the visual contract for Zplit. The authenticated product is an expressive editorial utility: 85% functional clarity, 12% editorial personality, and 3% controlled spectacle.
+Zplit uses expressive editorial utility in public surfaces: 65% clarity, 25% editorial expression, and 10% controlled spectacle. The authenticated product remains denser and more task-focused: 85% functional clarity, 12% editorial personality, and 3% controlled spectacle.
 
-## Authenticated product
+## Product direction
 
-The protected shell keeps navigation stable and the primary task visible. Pages are compact, useful in the first viewport, and organized around open ledger rows, contextual task panels, and clear record states. Outstanding money answers the first question on Overview; recent expenses and repayments provide context without charts, trends, percentages, or invented metrics.
+The public homepage tells a practical product story. Product UI is the illustration: outing labels, expense rows, friend shares, allocation bars, repayment rows, and settled balances. Public examples are clearly labelled illustrative scenarios and use whole rupiah values.
+
+The public interactive journey is one click-led, keyboard-operable five-step scenario:
+
+1. An outing is created.
+2. Expenses enter the outing.
+3. Friend shares are assigned manually.
+4. A repayment is recorded and allocated.
+5. A friend balance becomes settled while any other outstanding balance remains visible.
+
+The example must stay truthful to the application. Zplit does not imply automatic splitting, automatic allocation, notifications, receipt scanning, debtor actions, or other capabilities that are not implemented.
 
 ## Palette
 
 | Token | Value | Use |
 | --- | --- | --- |
 | Ink | `#111315` | Primary text and strong rules |
-| Paper | `#F4F1EA` | Warm public-product background |
-| Surface | `#FFFEFA` | Authenticated product surface |
-| Pastel blue | `#C7E4F6` | Primary action, active navigation, selected or newly created records |
+| Paper | `#F4F1EA` | Warm public background |
+| Surface | `#FFFEFA` | Focused working surfaces |
+| Pastel blue | `#C7E4F6` | Primary action, active navigation, selected records |
 | Muted ink | `#62676B` | Supporting text and metadata |
 | Rule | `#C8C7C1` | Thin ledger dividers and field boundaries |
-| Mint | restrained pale mint | Confirmed or settled context, always paired with text |
-| Peach | restrained pale peach | Secondary contextual emphasis, always paired with text |
-| Amber | restrained pale amber | Unallocated money or attention state, always paired with text |
+| Mint | restrained pale mint | Settled or confirmed financial context |
+| Peach | restrained pale peach | Secondary contextual emphasis |
+| Amber | restrained pale amber | Unallocated or still-open financial context |
 | Error | `#B42318` | Validation and invariant errors, always paired with wording |
 
-Semantic color is never the only signal. Statuses use text, labels, rules, or structure as well as color. No status dots, gradients, glow, glass, or decorative blobs.
+Semantic color is never the only signal. Financial state also uses text, labels, rules, and structure. Do not use status dots, gradients, glow, glass, or decorative blobs.
 
-## Typography and layout
+## Typography and geometry
 
-Use the dependency-free system grotesk stack: Arial, Helvetica Neue, Helvetica, sans-serif. Use tabular numerals for rupiah values and dates. Authenticated pages use sentence case for headings, labels, and actions. Keep one clear page-level `h1`, short supporting copy, and essential actions beside the heading.
+Use the dependency-free system grotesk stack: Arial, Helvetica Neue, Helvetica, sans-serif. Use tabular numerals for rupiah values and dates. Use sentence case for authenticated headings, labels, and actions.
 
-The warm paper, strong ink, pastel blue, tabular rupiah values, thin rules, and row-first ledger presentation remain core Zplit cues. Authenticated surfaces use `#FFFEFA` so working records remain calm and legible. Ledger rows stay primarily open and rule-based; use moderate rounding only for genuinely interactive grouped surfaces.
+Public composition uses a disciplined grid, thin rules, warm paper, surface white, pastel blue, and moderate tactile geometry. Controls use `10–12px` radii and practical 44px minimum targets. Focused product frames and task panels use `14–16px` radii. Ledger rows stay open and rule-based rather than becoming card mosaics.
 
-Native predictable scrolling is preferred. Desktop uses a readable wide layout; mobile uses a four-column composition with no horizontal scrolling. The mobile shell has five fixed destinations, safe-area spacing, and a visible Add expense action that never covers content.
-
-## Geometry and interaction
-
-- Controls use `10–12px` radius and practical 44px minimum targets.
-- Task panels use `14–16px` radius: right-side dialog on desktop, bottom sheet on mobile.
-- Ledger rows use thin rules and open surfaces rather than card mosaics.
-- Forms keep persistent labels, grouped related fields, adjacent accessible errors, stable-width pending buttons, and submitted values after errors.
-- Native dialog behavior blocks background interaction, focuses the first meaningful field, supports Escape and explicit close, and restores focus to the trigger.
-- Confirmation flags are concise, remove themselves from browser history after consumption, and do not replay on refresh.
+The public mode is spacious enough to explain the product but keeps the hero action and product object visible in the first viewport. The authenticated mode is compact, surface-white, and task-first. These are separate density modes, not competing page templates.
 
 ## Motion
 
-Authenticated motion spends approximately 80% on state feedback and manipulation, 17% on orientation and continuity, and 3% on delight. It is limited to active navigation, task-panel entry and exit, small row insertion movement, changed-value feedback, allocation bars, affected-record emphasis, and concise save confirmation.
+Public motion uses one short non-blocking opening fade, interaction feedback, and journey state changes. Utility timing is `100–220ms`; layout and state timing is `220–360ms`; public reveal is `500–750ms`; journey transitions stay below `900ms`. Content is rendered immediately, there are no fake loaders, scroll hijacks, perpetual animations, or routine text scrambling.
 
-| Token | Value |
-| --- | --- |
-| Press | `100ms` |
-| Fast | `160ms` |
-| State | `220ms` |
-| Layout | `300ms` |
-| Panel | `360ms` |
-| Reveal | `640ms` |
-| Story | `900ms` |
-| Product ease | `cubic-bezier(.2,.8,.2,1)` |
-| Emphasized ease | `cubic-bezier(.22,1,.36,1)` |
-| Standard ease | `cubic-bezier(.4,0,.2,1)` |
+Authenticated motion is denser and spends approximately 80% on state feedback, 17% on orientation and continuity, and 3% on delight. It is limited to active navigation, task panels, small row insertion, changed values, allocation bars, affected records, and concise save confirmation. Authenticated pages do not use cinematic heading reveals or decorative background motion.
 
-Authenticated routes do not use routine masked heading reveals, initial ledger-row staggers, counters on route entry, shaking errors, or background decoration. Under `prefers-reduced-motion: reduce`, remove translation, scale, panel travel, and number movement while preserving immediate state changes and focus behavior.
+Under `prefers-reduced-motion: reduce`, remove translation, scaling, clipping travel, staged sequences, and movement of values. Preserve immediate state changes, short opacity feedback where useful, keyboard focus, and full journey operation.
 
 ## Prohibited patterns
 
-Avoid generic SaaS dashboards, generic rounded cards, excessive pills, colored status dots, glassmorphism, gradient blobs, glowing effects, heavy shadows, decorative 3D, fake analytics, animation on every element, fake application screenshots, automatic marquees, and compressed desktop tables on mobile.
+Avoid generic SaaS dashboards, generic rounded cards, excessive pills, colored status dots, glassmorphism, gradient blobs, glowing effects, heavy shadows, decorative 3D, fake analytics, fake application screenshots, automatic marquees, animation on every element, compressed desktop tables on mobile, and any unimplemented capability presented as real.
