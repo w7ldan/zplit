@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import * as schema from "./schema";
 
 const domainTables = [
+  "expense_receipts",
   "expense_shares",
   "expenses",
   "friends",
@@ -40,9 +41,9 @@ function foreignKeyShape(table: unknown) {
 }
 
 describe("database schema", () => {
-  it("exports the six domain tables and four auth tables", () => {
+  it("exports the seven domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.outings, schema.expenses, schema.expenseShares, schema.repayments, schema.repaymentAllocations]
+      [schema.friends, schema.outings, schema.expenses, schema.expenseShares, schema.expenseReceipts, schema.repayments, schema.repaymentAllocations]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -52,6 +53,38 @@ describe("database schema", () => {
       "users",
       "verifications",
     ]);
+  });
+
+  it("defines private receipt storage constraints and indexes", () => {
+    const table = getTableConfig(schema.expenseReceipts);
+    expect(table.name).toBe("expense_receipts");
+    expect(table.columns.map((column) => column.name)).toEqual([
+      "id",
+      "owner_user_id",
+      "expense_id",
+      "original_filename",
+      "media_type",
+      "byte_size",
+      "sha256",
+      "content",
+      "created_at",
+    ]);
+    expect((table.columns.find((column) => column.name === "original_filename") as unknown as { config: { length: number } }).config.length).toBe(160);
+    expect((table.columns.find((column) => column.name === "media_type") as unknown as { config: { length: number } }).config.length).toBe(32);
+    expect((table.columns.find((column) => column.name === "sha256") as unknown as { config: { length: number } }).config.length).toBe(64);
+    expect(table.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "expense_receipts_media_type_allowed",
+      "expense_receipts_byte_size_valid",
+      "expense_receipts_content_size_matches",
+      "expense_receipts_filename_not_blank",
+      "expense_receipts_sha256_hex",
+    ]));
+    expect(foreignKeyShape(schema.expenseReceipts)).toEqual(expect.arrayContaining([
+      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      { from: ["owner_user_id", "expense_id"], to: "expenses", target: ["owner_user_id", "id"], onDelete: "cascade" },
+    ]));
+    expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_sha256_uidx")).toEqual(["owner_user_id", "expense_id", "sha256"]);
+    expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_created_id_idx")).toEqual(["owner_user_id", "expense_id", "created_at", "id"]);
   });
 
   it("defines one-time account invitations with bounded, linked fields", () => {
@@ -158,6 +191,7 @@ describe("database schema", () => {
       schema.outings,
       schema.expenses,
       schema.expenseShares,
+      schema.expenseReceipts,
       schema.repayments,
       schema.repaymentAllocations,
     ];

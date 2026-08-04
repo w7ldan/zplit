@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   getDatabase: vi.fn(),
   createLedgerRepository: vi.fn(),
+  listExpenseReceipts: vi.fn(),
   notFound: vi.fn(() => { throw new Error("not-found"); }),
 }));
 
@@ -15,6 +16,7 @@ vi.mock("@/domain/ledger-repository", async () => {
   const actual = await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository");
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
 });
+vi.mock("@/server/expense-receipts", () => ({ listExpenseReceipts: mocks.listExpenseReceipts }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
 const expense = {
@@ -33,6 +35,7 @@ describe("expense record", () => {
   it("uses the outing date and has no independent occurrence field", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
+    mocks.listExpenseReceipts.mockResolvedValue([]);
     mocks.createLedgerRepository.mockReturnValue({
       getExpense: vi.fn().mockResolvedValue(expense),
       listOutings: vi.fn().mockResolvedValue([{ id: expense.outingId, title: expense.outingTitle }]),
@@ -55,11 +58,13 @@ describe("expense record", () => {
     expect(screen.getByText("Owner portion")).toBeInTheDocument();
     expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
     expect(screen.getByRole("heading", { name: "Delete expense" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Receipts" })).toBeInTheDocument();
     expect(screen.getByText("Remove repayment allocations before deleting this expense.")).toBeInTheDocument();
   });
 
   it("uses the same not-found path for absent and foreign expenses", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
+    mocks.listExpenseReceipts.mockResolvedValue([]);
     mocks.createLedgerRepository.mockReturnValue({ getExpense: vi.fn().mockRejectedValue(new (await import("@/domain/ledger-repository")).LedgerNotFoundError()) });
 
     await expect(ExpenseRecordPage({ params: Promise.resolve({ expenseId: "foreign" }) })).rejects.toThrow("not-found");

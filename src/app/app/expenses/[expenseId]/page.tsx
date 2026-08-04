@@ -5,8 +5,10 @@ import { requireSession } from "@/auth/require-session";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ExpenseShareEditor } from "@/components/expenses/expense-share-editor";
+import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
 import { formatRupiah } from "@/domain/rupiah";
 import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { listExpenseReceipts } from "@/server/expense-receipts";
 import { replaceExpenseSharesAction, updateExpenseAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
@@ -18,7 +20,8 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
   const session = await requireSession();
   const { expenseId } = await params;
   const query = await searchParams;
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const database = getDatabase();
+  const repository = createLedgerRepository(database, session.user.id);
   let expense;
   try {
     expense = await repository.getExpense(expenseId);
@@ -27,7 +30,11 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
     throw error;
   }
   const outings = await repository.listOutings();
-  const [activeFriends, shares] = await Promise.all([repository.listFriends(), repository.listExpenseShares(expense.id)]);
+  const [activeFriends, shares, receipts] = await Promise.all([
+    repository.listFriends(),
+    repository.listExpenseShares(expense.id),
+    listExpenseReceipts(database, session.user.id, expense.id),
+  ]);
   const shareByFriend = new Map(shares.map((share) => [share.friendId, share]));
   const friends = [
     ...activeFriends.map((friend) => ({
@@ -72,6 +79,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
             friends={friends}
           />
         </div>
+        <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts} />
         <DeleteRecordForm action={deleteExpenseAction.bind(null, expense.id)} recordType="expense" />
       </div>
     </section>

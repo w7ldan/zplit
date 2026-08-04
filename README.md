@@ -4,7 +4,7 @@ Zplit is a self-hostable personal expense and repayment tracker.
 
 ## Current checkpoint
 
-Authentication supports multiple users structurally, every domain record is scoped to its owner, and the protected application provides owner-scoped Friends, Outings, outing-bound Expenses, manual whole-rupiah friend-share assignment, repayment records, repayment allocation, ledger overview, owner-issued one-time account invitations, and temporary read-only debtor balance links. Outings own occurrence date and time; changing an expense’s outing changes its effective date, and independent expenses are not supported. Public registration remains disabled; invitations create normal Better Auth credential accounts with empty ledgers. Notifications and exports are later stages. The design contract is in `docs/design-system.md`.
+Authentication supports multiple users structurally, every domain record is scoped to its owner, and the protected application provides owner-scoped Friends, Outings, outing-bound Expenses, private PostgreSQL-backed receipt images, manual whole-rupiah friend-share assignment, repayment records, repayment allocation, ledger overview, owner-issued one-time account invitations, temporary read-only debtor balance links, and ledger exports. Outings own occurrence date and time; changing an expense’s outing changes its effective date, and independent expenses are not supported. Public registration remains disabled; invitations create normal Better Auth credential accounts with empty ledgers. The design contract is in `docs/design-system.md`.
 
 ## Prerequisites
 
@@ -18,6 +18,7 @@ npm ci
 npm run dev
 npm run typecheck
 npm run test:debtor-shares
+npm run test:receipts
 npm test
 npm run lint
 npm run build

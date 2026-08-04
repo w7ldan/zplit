@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  customType,
   foreignKey,
   index,
   integer,
@@ -13,6 +14,10 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -92,6 +97,37 @@ export const expenses = pgTable(
     }).onDelete("restrict"),
     uniqueIndex("expenses_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
     index("expenses_outing_id_idx").on(table.ownerUserId, table.outingId),
+  ],
+);
+
+export const expenseReceipts = pgTable(
+  "expense_receipts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    expenseId: uuid("expense_id").notNull(),
+    originalFilename: varchar("original_filename", { length: 160 }).notNull(),
+    mediaType: varchar("media_type", { length: 32 }).notNull(),
+    byteSize: integer("byte_size").notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    content: bytea("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("expense_receipts_media_type_allowed", sql`${table.mediaType} IN ('image/jpeg', 'image/png', 'image/webp')`),
+    check("expense_receipts_byte_size_valid", sql`${table.byteSize} BETWEEN 1 AND 5242880`),
+    check("expense_receipts_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
+    check("expense_receipts_filename_not_blank", sql`btrim(${table.originalFilename}) <> ''`),
+    check("expense_receipts_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    foreignKey({
+      columns: [table.ownerUserId, table.expenseId],
+      foreignColumns: [expenses.ownerUserId, expenses.id],
+      name: "expense_receipts_owner_expense_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("expense_receipts_owner_expense_sha256_uidx").on(table.ownerUserId, table.expenseId, table.sha256),
+    index("expense_receipts_owner_expense_created_id_idx").on(table.ownerUserId, table.expenseId, table.createdAt, table.id),
   ],
 );
 
