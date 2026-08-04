@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import type { DebtorShareActionState } from "@/app/app/friends/[friendId]/share-actions";
+import { buildFriendReminder, buildWhatsAppUrl } from "@/domain/friend-reminder";
 
 type ShareAction = (
   previousState: DebtorShareActionState,
@@ -15,7 +16,7 @@ type ShareStatus = {
   expiresAt: string | null;
 };
 
-const initialDebtorShareActionState: DebtorShareActionState = { error: "", link: null, revoked: false };
+const initialDebtorShareActionState: DebtorShareActionState = { error: "", link: null, statement: null, revoked: false };
 
 function formatExpiry(value: string | null) {
   if (!value) return null;
@@ -32,15 +33,18 @@ function RevokeButton() {
   return <button className="action-link action-link--quiet" type="submit" disabled={pending} aria-busy={pending}>{pending ? "Revoking…" : "Revoke link"}</button>;
 }
 
-export function FriendShareLink({ status, createAction, revokeAction }: { status: ShareStatus; createAction: ShareAction; revokeAction: ShareAction }) {
+export function FriendShareLink({ status, phoneNumber, createAction, revokeAction }: { status: ShareStatus; phoneNumber: string | null; createAction: ShareAction; revokeAction: ShareAction }) {
   const [createState, createFormAction] = useActionState(createAction, initialDebtorShareActionState);
   const [revokeState, revokeFormAction] = useActionState(revokeAction, initialDebtorShareActionState);
   const [copied, setCopied] = useState(false);
+  const [reminderCopied, setReminderCopied] = useState(false);
   const shareUrl = createState.link && typeof window !== "undefined" ? `${window.location.origin}/share/${createState.link.token}` : null;
   const currentStatus = createState.link ? "active" : revokeState.revoked ? "revoked" : status.status;
   const currentExpiry = createState.link?.expiresAt ?? status.expiresAt;
   const expiry = formatExpiry(currentExpiry);
   const error = createState.error || revokeState.error;
+  const reminder = shareUrl && createState.statement ? buildFriendReminder({ ...createState.statement, balanceUrl: shareUrl }) : null;
+  const whatsappUrl = reminder ? buildWhatsAppUrl(phoneNumber, reminder) : null;
 
   async function copyLink() {
     if (!shareUrl) return;
@@ -52,6 +56,27 @@ export function FriendShareLink({ status, createAction, revokeAction }: { status
       document.execCommand("copy");
     }
     setCopied(true);
+  }
+
+  async function copyReminder() {
+    if (!reminder) return;
+    try {
+      await navigator.clipboard.writeText(reminder);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = reminder;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+    setReminderCopied(true);
+  }
+
+  function openWhatsApp() {
+    if (whatsappUrl) window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -82,6 +107,16 @@ export function FriendShareLink({ status, createAction, revokeAction }: { status
           </div>
           <p className="friend-share__warning">Save or send this link now. Zplit cannot recover it later.</p>
           {createState.link ? <p className="technical-label">Expires {formatExpiry(createState.link.expiresAt)}</p> : null}
+          {reminder ? (
+            <div className="friend-share__reminder" aria-label="WhatsApp reminder">
+              <p><strong>Reminder ready.</strong></p>
+              <p className="friend-share__reminder-copy">{reminder}</p>
+              <div className="friend-share__actions">
+                <button className="action-link action-link--quiet" type="button" onClick={copyReminder}>{reminderCopied ? "Copied" : "Copy reminder"}</button>
+                {whatsappUrl ? <button className="action-link action-link--quiet" type="button" onClick={openWhatsApp}>Open WhatsApp</button> : null}
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
     </section>

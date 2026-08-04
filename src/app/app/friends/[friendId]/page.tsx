@@ -55,6 +55,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
         </div>
         <FriendShareLink
           status={{ status: shareStatus.status, expiresAt: shareStatus.expiresAt?.toISOString() ?? null }}
+          phoneNumber={friend.phoneNumber}
           createAction={createDebtorShareLinkAction.bind(null, friend.id)}
           revokeAction={revokeDebtorShareLinkAction.bind(null, friend.id)}
         />

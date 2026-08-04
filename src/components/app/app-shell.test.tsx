@@ -12,5 +12,6 @@ describe("AppShell", () => {
     expect(within(primary).getAllByRole("link")).toHaveLength(5);
     expect(within(primary).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");
+    expect(screen.getByRole("link", { name: "Exports" })).toHaveAttribute("href", "/app/exports");
   });
 });

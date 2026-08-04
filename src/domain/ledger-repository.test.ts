@@ -244,6 +244,26 @@ describe("ledger repository", () => {
     expect(queries.map(({ sql }) => sql).join(" ")).toContain('"repayment_allocations"');
   });
 
+  it("builds the export snapshot from five owner-scoped queries without private fields", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const snapshot = await createLedgerRepository(database as unknown as Database, owner).getLedgerExportSnapshot();
+
+    expect(snapshot).toEqual({ friends: [], expenses: [], expenseShares: [], repayments: [], repaymentAllocations: [] });
+    expect(queries).toHaveLength(5);
+    for (const query of queries) {
+      expect(query.sql).toContain("owner_user_id");
+      expect(query.params).toContain(owner);
+      expect(query.sql).not.toMatch(/phone_number|notes|token_hash|owner_user_id\"\s+as/i);
+    }
+    expect(queries[1].sql).toContain('"outings"."owner_user_id"');
+    expect(queries[1].sql).toContain("inner join");
+    expect(queries.map(({ sql }) => sql).join(" ")).toMatch(/friends|expenses|expense_shares|repayments|repayment_allocations/);
+  });
+
   it("builds a debtor statement in three owner-scoped queries without private fields", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

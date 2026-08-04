@@ -10,6 +10,7 @@ import {
 } from "../db/schema";
 import { buildLedgerSummary, LedgerIntegrityError } from "./ledger-summary";
 import { buildDebtorStatement, DebtorStatementIntegrityError } from "./debtor-statement";
+import { validateLedgerExportSnapshot, LedgerExportIntegrityError, type LedgerExportSnapshot } from "./ledger-export";
 import type { RepaymentAllocationInput } from "./repayment-allocation-input";
 import { MAX_RUPIAH } from "./rupiah";
 import {
@@ -330,7 +331,7 @@ function notFound(): never {
 }
 
 function persistenceError(error: unknown): never {
-  if (error instanceof LedgerRepositoryError || error instanceof LedgerIntegrityError || error instanceof DebtorStatementIntegrityError || error instanceof LedgerHistoryError) throw error;
+  if (error instanceof LedgerRepositoryError || error instanceof LedgerIntegrityError || error instanceof DebtorStatementIntegrityError || error instanceof LedgerExportIntegrityError || error instanceof LedgerHistoryError) throw error;
   throw new LedgerRepositoryError("PERSISTENCE_ERROR", "Ledger operation failed");
 }
 
@@ -752,6 +753,51 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         repayments: repaymentRows,
         repaymentAllocations: allocationRows,
       });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function getLedgerExportSnapshot(): Promise<LedgerExportSnapshot> {
+    try {
+      const [friendRows, expenseRows, shareRows, repaymentRows, allocationRows] = await Promise.all([
+        database
+          .select({ id: friends.id, name: friends.name, archivedAt: friends.archivedAt })
+          .from(friends)
+          .where(eq(friends.ownerUserId, owner)),
+        database
+          .select({
+            id: expenses.id,
+            description: expenses.description,
+            amount: expenses.amount,
+            outingTitle: outings.title,
+            outingOccurredAt: outings.occurredAt,
+          })
+          .from(expenses)
+          .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+          .where(eq(expenses.ownerUserId, owner)),
+        database
+          .select({ id: expenseShares.id, expenseId: expenseShares.expenseId, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
+          .from(expenseShares)
+          .where(eq(expenseShares.ownerUserId, owner)),
+        database
+          .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount, paidAt: repayments.paidAt, paymentMethod: repayments.paymentMethod })
+          .from(repayments)
+          .where(eq(repayments.ownerUserId, owner)),
+        database
+          .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
+          .from(repaymentAllocations)
+          .where(eq(repaymentAllocations.ownerUserId, owner)),
+      ]);
+      const snapshot = {
+        friends: friendRows,
+        expenses: expenseRows,
+        expenseShares: shareRows,
+        repayments: repaymentRows,
+        repaymentAllocations: allocationRows,
+      };
+      validateLedgerExportSnapshot(snapshot);
+      return snapshot;
     } catch (error) {
       return persistenceError(error);
     }
@@ -1429,6 +1475,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     listExpenses,
     listLedgerHistory,
     getLedgerSummary,
+    getLedgerExportSnapshot,
     getFriendDebtorStatement,
     updateExpense,
     deleteExpense,
