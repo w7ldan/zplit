@@ -4,6 +4,45 @@ import { describe, expect, it } from "vitest";
 
 const css = readFileSync(path.resolve(process.cwd(), "src/app/globals.css"), "utf8");
 const documentation = readFileSync(path.resolve(process.cwd(), "docs/design-system.md"), "utf8");
+const taskPanelSource = readFileSync(path.resolve(process.cwd(), "src/components/app/task-panel.tsx"), "utf8");
+const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/components/app/record-confirmation.tsx"), "utf8");
+
+function cssBraceDepth(source: string) {
+  let depth = 0;
+  let quote = "";
+  let comment = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    const next = source[index + 1];
+
+    if (comment) {
+      if (character === "*" && next === "/") {
+        comment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (character === "\\") index += 1;
+      else if (character === quote) quote = "";
+      continue;
+    }
+    if (character === "/" && next === "*") {
+      comment = true;
+      index += 1;
+    } else if (character === "\"" || character === "'") {
+      quote = character;
+    } else if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      if (depth < 0) return depth;
+    }
+  }
+
+  return depth;
+}
 
 describe("authenticated design contract", () => {
   it("keeps the palette, geometry, semantic states, and motion budget explicit", () => {
@@ -21,6 +60,8 @@ describe("authenticated design contract", () => {
     }
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
     expect(css).toContain(".app-page h1");
+    expect(css).toMatch(/html\.zplit-product-mode\s*\{[\s\S]*?scroll-behavior:\s*auto;/);
+    expect(css).toContain("scroll-behavior: smooth");
     expect(css).toContain("animation: none");
     expect(documentation).toContain("85% functional clarity");
     expect(documentation).toContain("Ledger rows stay primarily open and rule-based");
@@ -50,5 +91,13 @@ describe("authenticated design contract", () => {
     expect(css).not.toContain("box-shadow");
     expect(css).not.toContain("friend-heading-reveal");
     expect(css).not.toContain("friend-list-reveal");
+  });
+
+  it("keeps the authenticated lifecycle and CSS syntax native and bounded", () => {
+    expect(cssBraceDepth(css)).toBe(0);
+    expect(taskPanelSource).toContain("router?.replace");
+    expect(recordConfirmationSource).toContain("router?.replace");
+    expect(taskPanelSource).not.toContain("window.history.replaceState");
+    expect(recordConfirmationSource).not.toContain("window.history.replaceState");
   });
 });

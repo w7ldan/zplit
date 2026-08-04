@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "@/components/auth/sign-out-button";
@@ -27,6 +28,11 @@ function isCurrent(pathname: string, href: string) {
 
 export function AppShell({ user, children }: AppShellProps) {
   const pathname = usePathname() ?? "";
+
+  useEffect(() => {
+    document.documentElement.classList.add("zplit-product-mode");
+    return () => document.documentElement.classList.remove("zplit-product-mode");
+  }, []);
 
   return (
     <div className="app-shell">

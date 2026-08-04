@@ -101,6 +101,10 @@ html {
   scroll-behavior: smooth;
 }
 
+html.zplit-product-mode {
+  scroll-behavior: auto;
+}
+
 body {
   min-height: 100vh;
   margin: 0;
@@ -3380,6 +3384,7 @@ select {
 
 .record-confirmation {
   grid-column: 1 / -1;
+  min-height: 2.7rem;
   margin: 0;
   padding: 0.7rem 0.85rem;
   border-left: 3px solid var(--ink);
@@ -3387,6 +3392,10 @@ select {
   background: var(--mint);
   font-size: 0.88rem;
   font-weight: 700;
+}
+
+.record-confirmation--hidden {
+  visibility: hidden;
 }
 
 .overview-summary {
