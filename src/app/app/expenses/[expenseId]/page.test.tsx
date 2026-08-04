@@ -41,7 +41,7 @@ describe("expense record", () => {
     });
     render(await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) }));
 
-    expect(screen.getByText("09 / EXPENSE RECORD")).toBeInTheDocument();
+    expect(screen.getByText("Expense · assign shares")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Dinner" })).toBeInTheDocument();
     expect(screen.getAllByText("Rp 84.000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Jakarta dinner").length).toBeGreaterThanOrEqual(1);

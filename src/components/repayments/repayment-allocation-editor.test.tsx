@@ -45,9 +45,11 @@ describe("RepaymentAllocationEditor", () => {
     expect(screen.getByText("Rp 84.000")).toBeInTheDocument();
     expect(screen.getAllByText("Rp 40.000")).not.toHaveLength(0);
     expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Repayment allocation progress" })).toHaveAttribute("aria-valuenow", "40000");
 
     fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "100000" } });
     expect(screen.getAllByText("Rp 0").length).toBeGreaterThan(0);
+    expect(screen.getByText("Over-allocated by Rp 16.000.")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/-Rp|automatic|distribut|delete|debtor|card|pill|status dot/i);
   });
 

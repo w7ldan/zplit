@@ -3,70 +3,85 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { createLedgerRepository } from "@/domain/ledger-repository";
 import { formatRupiah } from "@/domain/rupiah";
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppPage() {
   const session = await requireSession();
-  const summary = await createLedgerRepository(getDatabase(), session.user.id).getLedgerSummary();
+  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const [summary, expenses, repayments] = await Promise.all([
+    repository.getLedgerSummary(),
+    repository.listExpenses(),
+    repository.listRepayments(),
+  ]);
+  const activity = [
+    ...expenses.map((expense) => ({
+      kind: "Expense" as const,
+      title: expense.description,
+      detail: expense.outingTitle,
+      amount: expense.amount,
+      date: expense.outingOccurredAt,
+      href: `/app/expenses/${expense.id}`,
+    })),
+    ...repayments.map((repayment) => ({
+      kind: "Repayment" as const,
+      title: repayment.friendName,
+      detail: repayment.unallocatedAmount > 0 ? "Money received · unallocated remains open" : "Money received",
+      amount: repayment.amount,
+      date: repayment.paidAt,
+      href: `/app/repayments/${repayment.id}`,
+    })),
+  ].sort((left, right) => right.date.getTime() - left.date.getTime()).slice(0, 6);
 
   return (
-    <section className="ledger-overview" id="top">
-      <div className="editorial-grid editorial-shell ledger-overview__layout">
-        <div className="ledger-overview__marker technical-label">06 / LEDGER OVERVIEW</div>
-        <div className="ledger-overview__intro">
-          <p className="technical-label">OWNER-SCOPED RECORD / WHOLE RUPIAH</p>
-          <h1>What is still owed.</h1>
-          <p>Only allocated repayments reduce outstanding debt; unallocated money remains received but open.</p>
+    <section className="app-page overview-page" id="top">
+      <div className="editorial-shell app-page__layout">
+        <div className="app-page__header">
+          <div>
+            <p className="technical-label">Overview · owner-scoped ledger</p>
+            <h1>What is still open?</h1>
+            <p className="app-page__lede">Outstanding is the amount friends still owe after allocated repayments.</p>
+          </div>
+          <div className="app-page__actions">
+            <Link className="action-link action-link--primary" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
+            <Link className="action-link action-link--quiet" href="/app/repayments?create=1" data-task-trigger="repayment-create">Record repayment</Link>
+          </div>
+        </div>
+        <div className="overview-summary" aria-label="Ledger totals">
+          <div className="overview-summary__primary"><span className="technical-label">Outstanding</span><strong>{formatRupiah(summary.totalOutstandingAmount)}</strong><span>Who owes it is below.</span></div>
+          <div><span className="technical-label">Assigned</span><strong>{formatRupiah(summary.totalAssignedAmount)}</strong></div>
+          <div><span className="technical-label">Repaid</span><strong>{formatRupiah(summary.totalRepaidAmount)}</strong></div>
+          <div><span className="technical-label">Received</span><strong>{formatRupiah(summary.totalReceivedAmount)}</strong></div>
+          <div className={summary.totalUnallocatedRepaymentAmount > 0 ? "overview-summary__attention" : undefined}><span className="technical-label">Unallocated</span><strong>{formatRupiah(summary.totalUnallocatedRepaymentAmount)}</strong>{summary.totalUnallocatedRepaymentAmount > 0 ? <span>Needs allocation.</span> : null}</div>
+          <div><span className="technical-label">Your portion</span><strong>{formatRupiah(summary.ownerPortionAmount)}</strong></div>
+          <div><span className="technical-label">Paid out</span><strong>{formatRupiah(summary.totalExpenseAmount)}</strong></div>
         </div>
 
-        <div className="ledger-overview__summary" aria-label="Ledger totals">
-          <div className="ledger-overview__primary">
-            <span className="technical-label">Outstanding</span>
-            <strong>{formatRupiah(summary.totalOutstandingAmount)}</strong>
-          </div>
-          <div className="ledger-overview__metric"><span className="technical-label">Assigned to friends</span><strong>{formatRupiah(summary.totalAssignedAmount)}</strong></div>
-          <div className="ledger-overview__metric"><span className="technical-label">Repaid toward shares</span><strong>{formatRupiah(summary.totalRepaidAmount)}</strong></div>
-          <div className="ledger-overview__metric"><span className="technical-label">Received</span><strong>{formatRupiah(summary.totalReceivedAmount)}</strong></div>
-          <div className="ledger-overview__metric"><span className="technical-label">Unallocated</span><strong>{formatRupiah(summary.totalUnallocatedRepaymentAmount)}</strong></div>
-          <div className="ledger-overview__metric"><span className="technical-label">Your portion</span><strong>{formatRupiah(summary.ownerPortionAmount)}</strong></div>
-          <div className="ledger-overview__metric"><span className="technical-label">Total paid out</span><strong>{formatRupiah(summary.totalExpenseAmount)}</strong></div>
+        <div className="app-page__columns">
+          <section className="ledger-section" aria-labelledby="balances-heading">
+            <div className="ledger-section__heading"><h2 id="balances-heading">Friend balances</h2><span className="technical-label">{summary.friendBalances.length} with assigned shares</span></div>
+            {summary.friendBalances.length === 0 ? (
+              <div className="ledger-empty"><h3>No balances yet.</h3><p>Balances appear after assigning friends to an expense.</p><Link className="text-link" href="/app/friends">Add a friend <span aria-hidden="true">→</span></Link></div>
+            ) : summary.friendBalances.map((friend) => (
+              <div className="balance-row" key={friend.friendId}>
+                <Link href={`/app/friends/${friend.friendId}`}><strong>{friend.name}</strong><span aria-hidden="true">→</span></Link>
+                <span><span className="technical-label">Outstanding</span><strong>{formatRupiah(friend.outstandingAmount)}</strong></span>
+              </div>
+            ))}
+          </section>
+          <section className="ledger-section" aria-labelledby="activity-heading">
+            <div className="ledger-section__heading"><h2 id="activity-heading">Recent activity</h2><span className="technical-label">Latest records</span></div>
+            {activity.length === 0 ? <div className="ledger-empty"><p>No expenses or repayments yet.</p></div> : activity.map((item) => (
+              <Link className="activity-row" href={item.href} key={`${item.kind}-${item.href}`}>
+                <span className="technical-label">{item.kind}</span>
+                <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+                <span><strong>{formatRupiah(item.amount)}</strong><LocalDateTime iso={item.date.toISOString()} mode="date" /></span>
+              </Link>
+            ))}
+          </section>
         </div>
-
-        <section className="ledger-overview__balances" aria-labelledby="friend-balances-heading">
-          <div className="ledger-overview__balances-heading">
-            <h2 id="friend-balances-heading">Friend balances</h2>
-            <span className="technical-label">{summary.friendBalances.length.toString().padStart(2, "0")} FRIENDS</span>
-          </div>
-
-          {summary.friendBalances.length === 0 ? (
-            <div className="ledger-overview__empty">
-              <h3>No balances yet.</h3>
-              <p>Balances appear after assigning friends to an expense.</p>
-              <div className="ledger-overview__empty-links">
-                <Link className="ledger-overview__link" href="/app/expenses">Expenses <span aria-hidden="true">→</span></Link>
-                <Link className="ledger-overview__link" href="/app/friends">Friends <span aria-hidden="true">→</span></Link>
-              </div>
-            </div>
-          ) : (
-            summary.friendBalances.map((friend) => (
-              <div className="ledger-overview__row" key={friend.friendId}>
-                <div className="ledger-overview__friend">
-                  <Link className="ledger-overview__friend-link" href={`/app/friends/${friend.friendId}`}>
-                    <span>{friend.name}</span><span aria-hidden="true">→</span>
-                  </Link>
-                  <div className="ledger-overview__states">
-                    {friend.archived ? <span className="technical-label">ARCHIVED</span> : null}
-                    {friend.outstandingAmount === 0 ? <span className="technical-label">SETTLED</span> : null}
-                  </div>
-                </div>
-                <div className="ledger-overview__amount"><span className="technical-label">Assigned</span><strong>{formatRupiah(friend.assignedAmount)}</strong></div>
-                <div className="ledger-overview__amount"><span className="technical-label">Repaid</span><strong>{formatRupiah(friend.repaidAmount)}</strong></div>
-                <div className="ledger-overview__amount"><span className="technical-label">Outstanding</span><strong>{formatRupiah(friend.outstandingAmount)}</strong></div>
-              </div>
-            ))
-          )}
-        </section>
+        {summary.totalUnallocatedRepaymentAmount > 0 ? <p className="overview-attention" role="status">{formatRupiah(summary.totalUnallocatedRepaymentAmount)} received remains unallocated. Review repayments to apply it to eligible shares.</p> : null}
       </div>
     </section>
   );

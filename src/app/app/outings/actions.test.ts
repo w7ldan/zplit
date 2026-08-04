@@ -54,7 +54,7 @@ describe("outing actions", () => {
       timezoneOffsetMinutes: "-480",
       notes: "  Notes  ",
       ownerUserId: "owner-b",
-    }))).rejects.toThrow("redirect:/app/outings");
+    }))).rejects.toThrow("redirect:/app/outings?created=outing-a");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
     expect(createOuting).toHaveBeenCalledWith({ title: "Dinner", occurredAt: new Date("2026-01-02T02:30:00.000Z"), notes: "Notes" });

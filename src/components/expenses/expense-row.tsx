@@ -9,9 +9,9 @@ function formatRupiah(amount: number) {
   return `Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(amount)}`;
 }
 
-export function ExpenseRow({ expense }: { expense: ExpenseRecord }) {
+export function ExpenseRow({ expense, emphasized = false }: { expense: ExpenseRecord; emphasized?: boolean }) {
   return (
-    <article className="expense-row">
+    <article className={`expense-row${emphasized ? " expense-row--created" : ""}`} data-record-id={expense.id}>
       <div className="expense-row__primary">
         <span className="technical-label">EXPENSE</span>
         <h2><Link href={`/app/expenses/${expense.id}`}>{expense.description}</Link></h2>

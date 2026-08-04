@@ -1,11 +1,12 @@
 "use client";
 
 import type { InferSelectModel } from "drizzle-orm";
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { RepaymentActionState } from "@/app/app/repayments/actions";
 import type { friends } from "@/db/schema";
 import type { RepaymentInputValues } from "@/domain/repayment-input";
+import { formatRupiah } from "@/domain/rupiah";
 
 type RepaymentAction = (previousState: RepaymentActionState, formData: FormData) => Promise<RepaymentActionState>;
 
@@ -16,6 +17,7 @@ type RepaymentFormProps = {
   initialPaidAtUtc?: string;
   mode?: "create" | "edit";
   friendLocked?: boolean;
+  outstandingByFriend?: Record<string, number>;
 };
 
 const emptyValues: RepaymentInputValues = {
@@ -48,8 +50,9 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="repayment-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
-export function RepaymentForm({ action, friends: friendOptions, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false }: RepaymentFormProps) {
+export function RepaymentForm({ action, friends: friendOptions, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, outstandingByFriend = {} }: RepaymentFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
+  const [selectedFriendId, setSelectedFriendId] = useState(initialValues.friendId || friendOptions[0]?.id || "");
   const formRef = useRef<HTMLFormElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
@@ -80,9 +83,10 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
       <div className="repayment-form__field">
         <label htmlFor="repayment-friend">Friend</label>
         {friendLocked ? <input type="hidden" name="friendId" value={state.values.friendId} /> : null}
-        <select id="repayment-friend" name={friendLocked ? undefined : "friendId"} required disabled={friendLocked} defaultValue={state.values.friendId || friendOptions[0]?.id || ""} aria-invalid={Boolean(state.fieldErrors.friendId)} aria-describedby="repayment-friend-error">
+        <select id="repayment-friend" name={friendLocked ? undefined : "friendId"} required disabled={friendLocked} defaultValue={state.values.friendId || friendOptions[0]?.id || ""} onChange={(event) => setSelectedFriendId(event.target.value)} aria-invalid={Boolean(state.fieldErrors.friendId)} aria-describedby="repayment-friend-error">
           {friendOptions.map((friend) => <option key={friend.id} value={friend.id}>{friend.name}{friend.archivedAt ? " (ARCHIVED)" : ""}</option>)}
         </select>
+        <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptions.find((friend) => friend.id === selectedFriendId)?.name ?? "this friend"}: {formatRupiah(outstandingByFriend[selectedFriendId] ?? 0)}</p>
         {friendLocked ? <p className="repayment-form__help">The friend is fixed while this repayment has allocations.</p> : null}
         <FieldError id="repayment-friend-error" message={state.fieldErrors.friendId} />
       </div>

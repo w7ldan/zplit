@@ -35,7 +35,7 @@ describe("friend record", () => {
     mocks.createLedgerRepository.mockReturnValue({ getFriend: vi.fn().mockResolvedValue(friend) });
     render(await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) }));
 
-    expect(screen.getByText("07 / FRIEND RECORD")).toBeInTheDocument();
+    expect(screen.getByText("Friend · editable record")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Ada Lovelace" })).toBeInTheDocument();
     expect(screen.getByText("ACTIVE")).toBeInTheDocument();
     expect(screen.getByText("02 Jan 2026")).toBeInTheDocument();

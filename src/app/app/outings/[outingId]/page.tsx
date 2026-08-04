@@ -6,6 +6,7 @@ import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-rep
 import { OutingForm } from "@/components/outings/outing-form";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { updateOutingAction } from "../actions";
+import { RecordConfirmation } from "@/components/app/record-confirmation";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,10 @@ function utcDateTimeLocal(date: Date) {
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
 }
 
-export default async function OutingRecordPage({ params }: { params: Promise<{ outingId: string }> }) {
+export default async function OutingRecordPage({ params, searchParams }: { params: Promise<{ outingId: string }>; searchParams?: Promise<{ saved?: string | string[] }> }) {
   const session = await requireSession();
   const { outingId } = await params;
+  const query = await searchParams;
   let outing;
   try {
     outing = await createLedgerRepository(getDatabase(), session.user.id).getOuting(outingId);
@@ -26,14 +28,14 @@ export default async function OutingRecordPage({ params }: { params: Promise<{ o
   }
 
   return (
-    <section className="outing-record" id="top">
+    <section className="app-page outing-record" id="top">
       <div className="editorial-grid editorial-shell outing-record__layout">
-        <div className="outing-record__marker technical-label">08 / OUTING RECORD</div>
         <div className="outing-record__intro">
-          <p className="technical-label">PRIVATE OUTING / EDITABLE RECORD</p>
+          <p className="technical-label">Outing · editable record</p>
           <h1>{outing.title}</h1>
           <Link className="outing-record__back" href="/app/outings">← Back to outings</Link>
         </div>
+        {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Outing changes saved." /> : null}
         <div className="outing-record__meta" aria-label="Outing metadata">
           <div><span className="technical-label">Occurred</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></div>
           <div><span className="technical-label">Created</span><LocalDateTime iso={outing.createdAt.toISOString()} mode="date" /></div>

@@ -52,7 +52,7 @@ describe("friend actions", () => {
       phoneNumber: " +62 1 ",
       notes: "  Notes  ",
       ownerUserId: "owner-b",
-    }))).rejects.toThrow("redirect:/app/friends");
+    }))).rejects.toThrow("redirect:/app/friends?created=friend-a");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
     expect(createFriend).toHaveBeenCalledWith({ name: "Ada", phoneNumber: "+62 1", notes: "Notes" });
@@ -76,11 +76,11 @@ describe("friend actions", () => {
     mocks.getDatabase.mockReturnValue("database");
     mocks.createLedgerRepository.mockReturnValue({ setFriendArchived });
 
-    await expect(archiveFriendAction("friend-a", initialFriendActionState, new FormData())).rejects.toThrow("redirect:/app/friends/friend-a");
+    await expect(archiveFriendAction("friend-a", initialFriendActionState, new FormData())).rejects.toThrow("redirect:/app/friends/friend-a?saved=1");
     expect(setFriendArchived).toHaveBeenCalledWith("friend-a", true);
 
     mocks.redirect.mockImplementationOnce((path: string) => { throw new Error(`redirect:${path}`); });
-    await expect(restoreFriendAction("friend-a", initialFriendActionState, new FormData())).rejects.toThrow("redirect:/app/friends/friend-a");
+    await expect(restoreFriendAction("friend-a", initialFriendActionState, new FormData())).rejects.toThrow("redirect:/app/friends/friend-a?saved=1");
     expect(setFriendArchived).toHaveBeenCalledWith("friend-a", false);
   });
 });

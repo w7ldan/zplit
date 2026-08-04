@@ -51,11 +51,11 @@ describe("repayment record", () => {
   it("renders the friend identity, totals, local date metadata, and editable fields", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])) });
+    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])), getLedgerSummary: vi.fn().mockResolvedValue({ friendBalances: [{ friendId: friend.id, name: friend.name, outstandingAmount: 44_000 }] }) });
 
     render(await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }) }));
 
-    expect(screen.getByText("10 / REPAYMENT RECORD")).toBeInTheDocument();
+    expect(screen.getByText("Repayment · allocate received money")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Ari" })).toBeInTheDocument();
     expect(screen.getAllByText("Rp 84.000")).not.toHaveLength(0);
     expect(screen.getAllByText("Rp 40.000")).not.toHaveLength(0);

@@ -67,8 +67,8 @@ describe("repayment actions", () => {
     mocks.getDatabase.mockReturnValue("database");
     mocks.createLedgerRepository.mockReturnValue({ createRepayment, updateRepayment });
 
-    await expect(createRepaymentAction(initialState, form({ ...values, ownerUserId: "owner-b" }))).rejects.toThrow("redirect:/app/repayments");
-    await expect(updateRepaymentAction("repayment-a", initialState, form(values))).rejects.toThrow("redirect:/app/repayments/repayment-a");
+    await expect(createRepaymentAction(initialState, form({ ...values, ownerUserId: "owner-b" }))).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1");
+    await expect(updateRepaymentAction("repayment-a", initialState, form(values))).rejects.toThrow("redirect:/app/repayments/repayment-a?saved=1");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
     expect(createRepayment).toHaveBeenCalledWith({ friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", notes: "Received" });
@@ -101,7 +101,7 @@ describe("repayment actions", () => {
     await expect(replaceRepaymentAllocationsAction("repayment-a", initialAllocationState, allocationForm([
       { expenseShareId: expenseShareId.toUpperCase(), amountRupiah: "84.000" },
       { expenseShareId: "22222222-2222-4222-8222-222222222222", amountRupiah: "" },
-    ]))).rejects.toThrow("redirect:/app/repayments/repayment-a");
+    ]))).rejects.toThrow("redirect:/app/repayments/repayment-a?saved=1");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
     expect(replaceRepaymentAllocations).toHaveBeenCalledWith("repayment-a", [{ expenseShareId, amount: 84000 }]);

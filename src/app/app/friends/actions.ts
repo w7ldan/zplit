@@ -50,15 +50,15 @@ export async function createFriendAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
 
+  let friend;
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).createFriend(result.value);
+    friend = await createLedgerRepository(getDatabase(), session.user.id).createFriend(result.value);
   } catch (error) {
     return errorState(error, "save");
   }
-
   revalidatePath("/app");
   revalidatePath("/app/friends");
-  redirect("/app/friends");
+  redirect(`/app/friends?created=${encodeURIComponent(friend.id)}`);
 }
 
 export async function updateFriendAction(
@@ -78,7 +78,7 @@ export async function updateFriendAction(
 
   revalidatePath("/app/friends");
   revalidatePath(`/app/friends/${friendId}`);
-  redirect(`/app/friends/${friendId}`);
+  redirect(`/app/friends/${friendId}?saved=1`);
 }
 
 export async function archiveFriendAction(
@@ -111,5 +111,5 @@ async function setArchived(friendId: string, archived: boolean): Promise<FriendA
 
   revalidatePath("/app/friends");
   revalidatePath(`/app/friends/${friendId}`);
-  redirect(`/app/friends/${friendId}`);
+  redirect(`/app/friends/${friendId}?saved=1`);
 }

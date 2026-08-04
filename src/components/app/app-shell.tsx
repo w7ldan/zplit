@@ -1,6 +1,17 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+
+const destinations = [
+  ["Overview", "/app"],
+  ["Friends", "/app/friends"],
+  ["Outings", "/app/outings"],
+  ["Expenses", "/app/expenses"],
+  ["Repayments", "/app/repayments"],
+] as const;
 
 type AppShellProps = {
   user: {
@@ -10,32 +21,49 @@ type AppShellProps = {
   children: ReactNode;
 };
 
+function isCurrent(pathname: string, href: string) {
+  return href === "/app" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function AppShell({ user, children }: AppShellProps) {
+  const pathname = usePathname() ?? "";
+
   return (
     <div className="app-shell">
       <header className="app-shell__header">
-        <div className="editorial-grid editorial-shell app-shell__header-layout">
-          <Link className="app-shell__brand" href="/app" aria-label="Zplit index">
+        <div className="editorial-shell app-shell__header-layout">
+          <Link className="app-shell__brand" href="/app" aria-label="Zplit overview">
             <span className="app-shell__wordmark">Zplit</span>
             <span className="technical-label">PRIVATE LEDGER</span>
           </Link>
-          <div className="app-shell__owner" aria-label="Signed-in owner">
-            <span className="technical-label">Owner</span>
-            <strong>{user.name}</strong>
-          </div>
           <nav className="app-shell__nav" aria-label="Ledger navigation">
-            <Link href="/app">Overview</Link>
-            <Link href="/app/friends">Friends</Link>
-            <Link href="/app/outings">Outings</Link>
-            <Link href="/app/expenses">Expenses</Link>
-            <Link href="/app/repayments">Repayments</Link>
+            {destinations.map(([label, href]) => (
+              <Link key={href} href={href} aria-current={isCurrent(pathname, href) ? "page" : undefined} className={isCurrent(pathname, href) ? "app-shell__nav-link app-shell__nav-link--active" : "app-shell__nav-link"}>
+                {label}
+              </Link>
+            ))}
           </nav>
-          <div className="app-shell__account">
-            <span className="technical-label">{user.email}</span>
-            <SignOutButton />
-          </div>
+          <Link className="action-link action-link--primary app-shell__add-expense" href="/app/expenses?create=1" data-task-trigger="expense-create">
+            Add expense
+          </Link>
+          <details className="account-menu">
+            <summary aria-label="Open account menu"><span className="account-menu__name">{user.name}</span><span className="account-menu__label">Account</span></summary>
+            <div className="account-menu__panel">
+              <span className="technical-label">Signed in as</span>
+              <strong>{user.name}</strong>
+              <span>{user.email}</span>
+              <SignOutButton />
+            </div>
+          </details>
         </div>
       </header>
+      <nav className="app-shell__mobile-nav" aria-label="Mobile ledger navigation">
+        {destinations.map(([label, href]) => (
+          <Link key={href} href={href} aria-current={isCurrent(pathname, href) ? "page" : undefined} className={isCurrent(pathname, href) ? "app-shell__mobile-link app-shell__mobile-link--active" : "app-shell__mobile-link"}>
+            <span>{label}</span>
+          </Link>
+        ))}
+      </nav>
       <main className="app-shell__main">{children}</main>
     </div>
   );

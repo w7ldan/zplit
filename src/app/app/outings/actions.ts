@@ -48,15 +48,15 @@ export async function createOutingAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
 
+  let outing;
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).createOuting(result.value);
+    outing = await createLedgerRepository(getDatabase(), session.user.id).createOuting(result.value);
   } catch (error) {
     return errorState(error);
   }
-
   revalidatePath("/app");
   revalidatePath("/app/outings");
-  redirect("/app/outings");
+  redirect(`/app/outings?created=${encodeURIComponent(outing.id)}`);
 }
 
 export async function updateOutingAction(
@@ -76,5 +76,5 @@ export async function updateOutingAction(
 
   revalidatePath("/app");
   revalidatePath("/app/outings");
-  redirect(`/app/outings/${outingId}`);
+  redirect(`/app/outings/${outingId}?saved=1`);
 }

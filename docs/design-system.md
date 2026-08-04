@@ -1,116 +1,64 @@
 # Zplit design system
 
-This document is the normative visual contract for every future Zplit interface.
+This is the visual contract for Zplit. The authenticated product is an expressive editorial utility: 85% functional clarity, 12% editorial personality, and 3% controlled spectacle.
 
-## Thesis
+## Authenticated product
 
-Zplit is a personal ledger, presented with the discipline of an exhibition catalogue or architectural publication. The interface should feel cinematic and high-contrast, with oversized grotesk typography, strict alignment, generous negative space, thin rules, square geometry, and useful metadata.
-
-The balance is 70/20/10:
-
-- 70% functional clarity: readable records, direct actions, visible amounts, dates, and state.
-- 20% editorial expression: chapter numbering, technical labels, asymmetry, typography, and deliberate pacing.
-- 10% controlled spectacle: a small number of meaningful reveals or structural fields.
-
-Spectacle never delays recording an expense or repayment.
+The protected shell keeps navigation stable and the primary task visible. Pages are compact, useful in the first viewport, and organized around open ledger rows, contextual task panels, and clear record states. Outstanding money answers the first question on Overview; recent expenses and repayments provide context without charts, trends, percentages, or invented metrics.
 
 ## Palette
 
-The primary palette is fixed:
-
-| Token | Value | Semantic use |
+| Token | Value | Use |
 | --- | --- | --- |
-| Ink | `#111315` | Primary text, rules, and dark action states |
-| Paper | `#F4F1EA` | Page background and reverse text on ink |
-| Pastel blue | `#C7E4F6` | Hero side field, chapter markers, focus and primary-action states, selected ledger information |
-| Muted ink | `#5F6468` | Supporting text and technical metadata |
-| Rule | `#B9BAB6` | Thin dividers and field boundaries |
-| White | `#FFFFFF` | Reverse or elevated semantic surfaces when needed |
+| Ink | `#111315` | Primary text and strong rules |
+| Paper | `#F4F1EA` | Warm public-product background |
+| Surface | `#FFFEFA` | Authenticated product surface |
+| Pastel blue | `#C7E4F6` | Primary action, active navigation, selected or newly created records |
+| Muted ink | `#62676B` | Supporting text and metadata |
+| Rule | `#C8C7C1` | Thin ledger dividers and field boundaries |
+| Mint | restrained pale mint | Confirmed or settled context, always paired with text |
+| Peach | restrained pale peach | Secondary contextual emphasis, always paired with text |
+| Amber | restrained pale amber | Unallocated money or attention state, always paired with text |
+| Error | `#B42318` | Validation and invariant errors, always paired with wording |
 
-Pastel blue is the only expressive accent. It is structural and occasional, never a glow or a decorative wash across every section. Destructive semantics retain their existing error token and are not decorative page color.
+Semantic color is never the only signal. Statuses use text, labels, rules, or structure as well as color. No status dots, gradients, glow, glass, or decorative blobs.
 
-## Typography
+## Typography and layout
 
-Typography uses a dependency-free system grotesk stack: Arial, Helvetica Neue, Helvetica, sans-serif. No external font files are fetched.
+Use the dependency-free system grotesk stack: Arial, Helvetica Neue, Helvetica, sans-serif. Use tabular numerals for rupiah values and dates. Authenticated pages use sentence case for headings, labels, and actions. Keep one clear page-level `h1`, short supporting copy, and essential actions beside the heading.
 
-- Display: oversized, heavy grotesk headlines with tight tracking and compressed line height.
-- Section heading: large, short editorial statements that create hierarchy through scale.
-- Body: readable text with a restrained line length and accessible default line height.
-- Technical label: uppercase, small, bold text with wider tracking.
-- Numerals: tabular numerals for rupiah values, dates, chapter numbers, and transaction metadata.
+The warm paper, strong ink, pastel blue, tabular rupiah values, thin rules, and row-first ledger presentation remain core Zplit cues. Authenticated surfaces use `#FFFEFA` so working records remain calm and legible. Ledger rows stay primarily open and rule-based; use moderate rounding only for genuinely interactive grouped surfaces.
 
-There is one page-level `h1`. Headings must describe the current chapter, not decorate it.
+Native predictable scrolling is preferred. Desktop uses a readable wide layout; mobile uses a four-column composition with no horizontal scrolling. The mobile shell has five fixed destinations, safe-area spacing, and a visible Add expense action that never covers content.
 
-## Grid and spacing
+## Geometry and interaction
 
-Desktop uses a 12-column grid. Navigation, chapter labels, headings, metadata, rules, and content align to those columns, with asymmetric spans used intentionally. The readable content width is wide enough to feel like a publication spread without becoming a centered SaaS card.
-
-Mobile uses a 4-column grid. Mobile layouts are designed independently: they do not compress a desktop table or preserve desktop spans at the cost of readability. No page may introduce horizontal scrolling.
-
-Spacing is generous and structural. Thin one-pixel rules establish rhythm; borders, alignment, and field contrast do the work that shadows and containers would otherwise do.
-
-## Geometry and components
-
-All radius tokens are zero. Use square fields, square actions, and direct edges. Do not use generic rounded cards, floating card grids, or excessive containers.
-
-Navigation remains obvious at every width and uses direct anchor links when a destination exists. Calls to action are semantic anchors with primary and quiet variants, visible keyboard focus, square geometry, and clear hover states. Do not use icon dependencies to communicate a basic action.
-
-Ledger views lead with rows before card collections. A ledger row exposes a clear amount, person, status, visible date when available, and transaction metadata. Rupiah totals remain explicit. Status is plain text, never a pill or colored status dot.
-
-Future forms align their labels, fields, validation, and actions to the editorial grid. Future modals keep a clear title, task action, escape path, and focus order. Empty states explain what is absent and expose the direct next task. Total summaries use clear rupiah values and supporting date or scope metadata without fake analytics.
-
-Future authenticated pages should contain direct task actions, visible dates and transaction metadata, and ledger rows before card collections. Mobile recording flows must be designed for the small screen first. Spectacle must never delay recording an expense or repayment.
+- Controls use `10–12px` radius and practical 44px minimum targets.
+- Task panels use `14–16px` radius: right-side dialog on desktop, bottom sheet on mobile.
+- Ledger rows use thin rules and open surfaces rather than card mosaics.
+- Forms keep persistent labels, grouped related fields, adjacent accessible errors, stable-width pending buttons, and submitted values after errors.
+- Native dialog behavior blocks background interaction, focuses the first meaningful field, supports Escape and explicit close, and restores focus to the trigger.
+- Confirmation flags are concise, remove themselves from browser history after consumption, and do not replay on refresh.
 
 ## Motion
 
-Motion is a core part of Zplit's identity, allocated as 75% utility, 20% editorial reveal, and 5% controlled spectacle. Utility motion clarifies focus, direction, state, and completion; it must never delay an action. Public pages may use one signature sequence. Authenticated task pages use utility motion and restrained reveals only.
-
-The shared timing and easing tokens are:
+Authenticated motion spends approximately 80% on state feedback and manipulation, 17% on orientation and continuity, and 3% on delight. It is limited to active navigation, task-panel entry and exit, small row insertion movement, changed-value feedback, allocation bars, affected-record emphasis, and concise save confirmation.
 
 | Token | Value |
 | --- | --- |
-| Instant | `160ms` |
-| Fast | `240ms` |
-| Medium | `420ms` |
-| Reveal | `760ms` |
-| Cinematic | `1200ms` |
-| Ease out | `cubic-bezier(.22,1,.36,1)` |
-| Ease in-out | `cubic-bezier(.65,0,.35,1)` |
+| Press | `100ms` |
+| Fast | `160ms` |
+| State | `220ms` |
+| Layout | `300ms` |
+| Panel | `360ms` |
+| Reveal | `640ms` |
+| Story | `900ms` |
+| Product ease | `cubic-bezier(.2,.8,.2,1)` |
+| Emphasized ease | `cubic-bezier(.22,1,.36,1)` |
+| Standard ease | `cubic-bezier(.4,0,.2,1)` |
 
-Friends uses CSS-only motion: one masked page-heading reveal, one restrained list/rule entrance, directional underline and arrow movement, and button fill inversion. It does not use parallax, pinning, marquee, spring motion, looping, or scroll hijacking. Animation libraries require a justified dedicated checkpoint.
+Authenticated routes do not use routine masked heading reveals, initial ledger-row staggers, counters on route entry, shaking errors, or background decoration. Under `prefers-reduced-motion: reduce`, remove translation, scale, panel travel, and number movement while preserving immediate state changes and focus behavior.
 
-Reduced-motion users receive immediate states or short fades. Every nonessential animation and transition must be removed under `prefers-reduced-motion: reduce`, and the page must remain fully understandable and usable with motion disabled.
+## Prohibited patterns
 
-## Accessibility and responsive behavior
-
-Use semantic landmarks, one clear page-level `h1`, ordered content, descriptive link names, readable body contrast, visible `:focus-visible` indicators, and native keyboard behavior. Color cannot be the only signal for status or selection. Never rely on hover to expose essential content.
-
-At narrow widths, navigation remains readable, actions remain obvious, long headlines wrap without clipping, and ledger rows reflow into stacked records with field labels. Body text maintains a readable line length. At desktop widths, the grid preserves deliberate asymmetry without creating a wall of text.
-
-## Imagery and prohibited patterns
-
-The system prefers typographic composition, rules, metadata, and field contrast. Use imagery only when it has a real editorial or product purpose; never add stock photography to fill space.
-
-Explicitly prohibited:
-
-- generic SaaS dashboards;
-- generic rounded cards;
-- excessive pills;
-- colored status dots;
-- glassmorphism;
-- gradient blobs;
-- glowing effects;
-- heavy shadows;
-- decorative 3D;
-- fake analytics;
-- animation on every element.
-
-Also avoid fake application screenshots, decorative blobs, random 3D objects, gradient backgrounds, glass effects, automatic marquees, and compressed desktop tables on mobile.
-
-## Authenticated interfaces
-
-Access pages use the editorial grid rather than centered rounded auth cards. Private forms use persistent visible labels, square fields, and direct actions. Authentication errors are direct but generic, and pending states reserve their layout so they do not shift surrounding content.
-
-Session and account metadata use technical labels. The protected shell prioritizes task navigation over fake analytics and does not invent dashboard totals, cards, charts, or unfinished destinations.
-
-Mobile authentication is independently composed on the 4-column grid. Pastel blue remains structural rather than decorative, and all nonessential motion follows the complete reduced-motion rule above.
+Avoid generic SaaS dashboards, generic rounded cards, excessive pills, colored status dots, glassmorphism, gradient blobs, glowing effects, heavy shadows, decorative 3D, fake analytics, animation on every element, fake application screenshots, automatic marquees, and compressed desktop tables on mobile.

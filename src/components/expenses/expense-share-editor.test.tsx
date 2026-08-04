@@ -16,6 +16,7 @@ describe("expense share editor", () => {
     expect(screen.getByText("Rp 84.000")).toBeInTheDocument();
     expect(screen.getByText("Rp 60.000")).toBeInTheDocument();
     expect(screen.getByText("Rp 24.000")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Expense allocation" })).toHaveAttribute("aria-valuenow", "60000");
     expect(screen.getByLabelText("Rani")).toHaveAttribute("inputmode", "numeric");
     expect(screen.getByLabelText("Rani")).toHaveAttribute("aria-describedby", expect.stringContaining("help"));
     expect(document.body).not.toHaveTextContent(/pill|status dot/);
@@ -27,6 +28,7 @@ describe("expense share editor", () => {
     fireEvent.change(screen.getByLabelText(/^Bima/), { target: { value: "84000" } });
 
     expect(screen.getAllByText("Rp 0").length).toBeGreaterThan(0);
+    expect(screen.getByText("Over-allocated by Rp 84.000.")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/-Rp|-\d/);
   });
 

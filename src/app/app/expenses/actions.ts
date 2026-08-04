@@ -62,15 +62,15 @@ export async function createExpenseAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
 
+  let expense;
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).createExpense(result.value);
+    expense = await createLedgerRepository(getDatabase(), session.user.id).createExpense(result.value);
   } catch (error) {
     return errorState(error, result.values);
   }
-
   revalidatePath("/app");
   revalidatePath("/app/expenses");
-  redirect("/app/expenses");
+  redirect(`/app/expenses/${encodeURIComponent(expense.id)}?created=1`);
 }
 
 export async function updateExpenseAction(
@@ -91,7 +91,7 @@ export async function updateExpenseAction(
   revalidatePath("/app");
   revalidatePath("/app/expenses");
   revalidatePath(`/app/expenses/${expenseId}`);
-  redirect(`/app/expenses/${expenseId}`);
+  redirect(`/app/expenses/${expenseId}?saved=1`);
 }
 
 export async function replaceExpenseSharesAction(
@@ -125,5 +125,5 @@ export async function replaceExpenseSharesAction(
   }
 
   revalidatePath(`/app/expenses/${expenseId}`);
-  redirect(`/app/expenses/${expenseId}`);
+  redirect(`/app/expenses/${expenseId}?saved=1`);
 }

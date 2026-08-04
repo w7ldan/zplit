@@ -64,8 +64,8 @@ describe("expense actions", () => {
     mocks.getDatabase.mockReturnValue("database");
     mocks.createLedgerRepository.mockReturnValue({ createExpense, updateExpense });
 
-    await expect(createExpenseAction(initialState, form({ ...values, ownerUserId: "owner-b" }))).rejects.toThrow("redirect:/app/expenses");
-    await expect(updateExpenseAction("expense-a", initialState, form(values))).rejects.toThrow("redirect:/app/expenses/expense-a");
+    await expect(createExpenseAction(initialState, form({ ...values, ownerUserId: "owner-b" }))).rejects.toThrow("redirect:/app/expenses/expense-a?created=1");
+    await expect(updateExpenseAction("expense-a", initialState, form(values))).rejects.toThrow("redirect:/app/expenses/expense-a?saved=1");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
     expect(createExpense).toHaveBeenCalledWith({ description: "Dinner", amount: 84000, outingId: values.outingId });
@@ -93,7 +93,7 @@ describe("expense actions", () => {
     await expect(replaceExpenseSharesAction("expense-a", initialShareState, shareForm([
       { friendId: "11111111-1111-4111-8111-111111111111", amountRupiah: "84.000" },
       { friendId: "22222222-2222-4222-8222-222222222222", amountRupiah: "" },
-    ]))).rejects.toThrow("redirect:/app/expenses/expense-a");
+    ]))).rejects.toThrow("redirect:/app/expenses/expense-a?saved=1");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
     expect(replaceExpenseShares).toHaveBeenCalledWith("expense-a", [{ friendId: "11111111-1111-4111-8111-111111111111", amountOwed: 84000 }]);

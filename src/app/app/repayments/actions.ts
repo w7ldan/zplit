@@ -76,15 +76,15 @@ export async function createRepaymentAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
 
+  let repayment;
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).createRepayment(result.value);
+    repayment = await createLedgerRepository(getDatabase(), session.user.id).createRepayment(result.value);
   } catch (error) {
     return errorState(error, result.values);
   }
-
   revalidatePath("/app");
   revalidatePath("/app/repayments");
-  redirect("/app/repayments");
+  redirect(`/app/repayments/${encodeURIComponent(repayment.id)}?created=1`);
 }
 
 export async function updateRepaymentAction(
@@ -105,7 +105,7 @@ export async function updateRepaymentAction(
   revalidatePath("/app");
   revalidatePath("/app/repayments");
   revalidatePath(`/app/repayments/${repaymentId}`);
-  redirect(`/app/repayments/${repaymentId}`);
+  redirect(`/app/repayments/${repaymentId}?saved=1`);
 }
 
 export async function replaceRepaymentAllocationsAction(
@@ -134,5 +134,5 @@ export async function replaceRepaymentAllocationsAction(
   revalidatePath("/app");
   revalidatePath("/app/repayments");
   revalidatePath(`/app/repayments/${repaymentId}`);
-  redirect(`/app/repayments/${repaymentId}`);
+  redirect(`/app/repayments/${repaymentId}?saved=1`);
 }

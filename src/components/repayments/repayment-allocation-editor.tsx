@@ -56,6 +56,7 @@ export function RepaymentAllocationEditor({ action, plan }: RepaymentAllocationE
   }
 
   const allocatedAmount = plan.shares.reduce((total, share) => total + (parseRupiah(draftAmounts[share.expenseShareId] ?? "") ?? 0), 0);
+  const overAllocated = allocatedAmount > plan.amount;
   const unallocatedAmount = Math.max(plan.amount - allocatedAmount, 0);
 
   return (
@@ -66,6 +67,10 @@ export function RepaymentAllocationEditor({ action, plan }: RepaymentAllocationE
         <div><span className="technical-label">Repayment amount</span><strong>{formatRupiah(plan.amount)}</strong></div>
         <div><span className="technical-label">Allocated</span><strong>{formatRupiah(allocatedAmount)}</strong></div>
         <div><span className="technical-label">Unallocated</span><strong>{formatRupiah(unallocatedAmount)}</strong></div>
+      </div>
+      <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Repayment allocation progress" role="progressbar" aria-valuemin={0} aria-valuemax={plan.amount} aria-valuenow={Math.min(allocatedAmount, plan.amount)}>
+        <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ width: `${Math.min((allocatedAmount / plan.amount) * 100, 100)}%` }} /></span>
+        <span>{overAllocated ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.` : `${formatRupiah(unallocatedAmount)} remains unallocated.`}</span>
       </div>
       <form className="repayment-allocation-editor__form" action={formAction} noValidate>
         <p className="repayment-allocation-editor__help">Enter a whole-rupiah amount. A blank field removes this allocation.</p>

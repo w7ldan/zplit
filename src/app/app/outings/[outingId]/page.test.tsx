@@ -34,7 +34,7 @@ describe("outing record", () => {
     mocks.createLedgerRepository.mockReturnValue({ getOuting: vi.fn().mockResolvedValue(outing) });
     render(await OutingRecordPage({ params: Promise.resolve({ outingId: outing.id }) }));
 
-    expect(screen.getByText("08 / OUTING RECORD")).toBeInTheDocument();
+    expect(screen.getByText("Outing · editable record")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Jakarta dinner" })).toBeInTheDocument();
     expect(document.querySelector(`time[datetime="${outing.occurredAt.toISOString()}"]`)).toBeInTheDocument();
     expect(document.querySelector(`time[datetime="${outing.createdAt.toISOString()}"]`)).toBeInTheDocument();

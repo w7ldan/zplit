@@ -8,12 +8,14 @@ import { ExpenseShareEditor } from "@/components/expenses/expense-share-editor";
 import { formatRupiah } from "@/domain/rupiah";
 import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { replaceExpenseSharesAction, updateExpenseAction } from "../actions";
+import { RecordConfirmation } from "@/components/app/record-confirmation";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExpenseRecordPage({ params }: { params: Promise<{ expenseId: string }> }) {
+export default async function ExpenseRecordPage({ params, searchParams }: { params: Promise<{ expenseId: string }>; searchParams?: Promise<{ created?: string | string[]; saved?: string | string[] }> }) {
   const session = await requireSession();
   const { expenseId } = await params;
+  const query = await searchParams;
   const repository = createLedgerRepository(getDatabase(), session.user.id);
   let expense;
   try {
@@ -38,14 +40,14 @@ export default async function ExpenseRecordPage({ params }: { params: Promise<{ 
   ];
 
   return (
-    <section className="expense-record" id="top">
+    <section className="app-page expense-record" id="top">
       <div className="editorial-grid editorial-shell expense-record__layout">
-        <div className="expense-record__marker technical-label">09 / EXPENSE RECORD</div>
         <div className="expense-record__intro">
-          <p className="technical-label">PRIVATE EXPENSE / EDITABLE RECORD</p>
+          <p className="technical-label">Expense · assign shares</p>
           <h1>{expense.description}</h1>
           <Link className="expense-record__back" href="/app/expenses">← Back to expenses</Link>
         </div>
+        {query?.created === "1" ? <RecordConfirmation queryKey="created" message="Expense recorded. Assign shares below." /> : query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Expense changes saved." /> : null}
         <div className="expense-record__meta" aria-label="Expense metadata">
           <div><span className="technical-label">Amount</span><strong>{formatRupiah(expense.amount)}</strong></div>
           <div><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></div>
