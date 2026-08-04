@@ -752,6 +752,212 @@ select {
   font-size: 0.85rem;
 }
 
+.login-form__success {
+  max-width: 30rem;
+  margin: 2rem 0 -1rem;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--ink);
+  background: var(--mint);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.invite-signup-form,
+.invite-form {
+  display: grid;
+  gap: 1rem;
+  max-width: 30rem;
+  margin-top: 2.5rem;
+}
+
+.invite-signup-form__invitee,
+.invite-form__result {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--ink);
+  background: var(--mint);
+}
+
+.invite-signup-form__invitee strong,
+.invite-form__result input {
+  overflow-wrap: anywhere;
+}
+
+.invite-signup-form__field,
+.invite-form__field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.invite-signup-form__field label,
+.invite-form__field label,
+.invite-form__result label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.invite-signup-form__field input,
+.invite-form__field input,
+.invite-form__result input {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.invite-signup-form__field input:focus,
+.invite-form__field input:focus,
+.invite-form__result input:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.invite-signup-form__field-error,
+.invite-signup-form__message,
+.invite-form__field-error,
+.invite-form__message {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--destructive);
+  font-size: 0.8rem;
+}
+
+.invite-signup-form__message,
+.invite-form__message {
+  min-height: 1.5rem;
+}
+
+.invite-signup-form__hint,
+.invite-form__result p,
+.invite-form__result .technical-label {
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.invite-signup-form__submit,
+.invite-form__submit {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.invite-signup-form__submit:disabled,
+.invite-form__submit:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.invites-page__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 2rem;
+}
+
+.invites-page__create,
+.invites-page__history {
+  min-width: 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+}
+
+.invites-page__create h2,
+.invites-page__history h2 {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.5vw, 2.25rem);
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.invites-page__history-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.invites-page__history-heading h2 {
+  margin-top: 0;
+}
+
+.invites-page__empty {
+  margin: 1.5rem 0 0;
+  color: var(--muted-ink);
+}
+
+.invites-list {
+  margin: 1.5rem 0 0;
+  padding: 0;
+  border-block: 1px solid var(--ink);
+  list-style: none;
+}
+
+.invites-list__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 1rem;
+  align-items: center;
+  min-height: 4.75rem;
+  padding-block: 0.8rem;
+  border-top: 1px solid var(--rule);
+}
+
+.invites-list__row:first-child {
+  border-top: 0;
+}
+
+.invites-list__row > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.invites-list__row > div:first-child strong,
+.invites-list__row > div:first-child span {
+  overflow-wrap: anywhere;
+}
+
+.invites-list__row > div:first-child span,
+.invites-list__meta {
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.invites-list__meta {
+  display: grid;
+  gap: 0.25rem;
+  text-align: right;
+}
+
+.invites-list__revoke {
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+@media (max-width: 767px) {
+  .invites-page__columns {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .invites-list__row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .invites-list__row form {
+    grid-column: 2;
+  }
+}
+
 .login-form__submit,
 .sign-out-button {
   width: fit-content;
@@ -4187,7 +4393,7 @@ select {
     bottom: 0;
     left: 0;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
     border-top: 1px solid var(--rule);
     background: var(--surface);

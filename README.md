@@ -4,7 +4,7 @@ Zplit is a self-hostable personal expense and repayment tracker.
 
 ## Current checkpoint
 
-Authentication supports multiple users structurally, every domain record is scoped to its owner, and the protected application provides owner-scoped Friends, Outings, outing-bound Expenses, manual whole-rupiah friend-share assignment, repayment records, repayment allocation, and a ledger overview. Outings own occurrence date and time; changing an expense’s outing changes its effective date, and independent expenses are not supported. Public registration remains disabled; production currently has one provisioned account. Account provisioning, notifications, debtor links, and exports are later stages. The design contract is in `docs/design-system.md`.
+Authentication supports multiple users structurally, every domain record is scoped to its owner, and the protected application provides owner-scoped Friends, Outings, outing-bound Expenses, manual whole-rupiah friend-share assignment, repayment records, repayment allocation, ledger overview, and owner-issued one-time account invitations. Outings own occurrence date and time; changing an expense’s outing changes its effective date, and independent expenses are not supported. Public registration remains disabled; invitations create normal Better Auth credential accounts with empty ledgers. Notifications, debtor links, and exports are later stages. The design contract is in `docs/design-system.md`.
 
 ## Prerequisites
 
@@ -46,4 +46,4 @@ docker compose -f compose.yml ps
 
 The password is read from the ignored `secrets/postgres-password` file. Back it up securely; database backups are not implemented yet.
 
-The initial schema and authenticated Friends, Outings, outing-bound Expenses, owner-scoped manual share workflows, repayment recording, repayment allocation, and ledger overview are implemented. Only allocated repayment money reduces outstanding balances; temporary debtor links remain deferred to later checkpoints.
+The initial schema and authenticated Friends, Outings, outing-bound Expenses, owner-scoped manual share workflows, repayment recording, repayment allocation, ledger overview, and invitation-only account registration are implemented. Only allocated repayment money reduces outstanding balances; temporary debtor links remain deferred to later checkpoints.

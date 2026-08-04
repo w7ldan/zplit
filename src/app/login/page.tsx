@@ -6,9 +6,11 @@ import { LoginForm } from "@/components/auth/login-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ created?: string | string[] }> } = {}) {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (session) redirect("/app");
+  const created = searchParams ? await searchParams : {};
+  const accountCreated = Array.isArray(created.created) ? created.created[0] === "1" : created.created === "1";
 
   return (
     <main className="access-page" id="top">
@@ -21,6 +23,7 @@ export default async function LoginPage() {
           <p className="access-page__lede">
             Sign in to continue your shared-expense record and see what is open, repaid, or settled.
           </p>
+          {accountCreated ? <p className="login-form__success" role="status">Your account is ready. Sign in below.</p> : null}
           <LoginForm />
           <Link className="access-page__back" href="/">← Back to Zplit</Link>
         </div>

@@ -12,6 +12,7 @@ const destinations = [
   ["Outings", "/app/outings"],
   ["Expenses", "/app/expenses"],
   ["Repayments", "/app/repayments"],
+  ["Invites", "/app/invites"],
 ] as const;
 
 type AppShellProps = {

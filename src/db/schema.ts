@@ -246,9 +246,58 @@ export const verifications = pgTable(
   (table) => [index("verifications_identifier_idx").on(table.identifier)],
 );
 
+export const accountInvitations = pgTable(
+  "account_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    email: varchar("email", { length: 254 }).notNull(),
+    suggestedName: varchar("suggested_name", { length: 120 }),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedUserId: text("accepted_user_id").references(() => users.id, { onDelete: "restrict" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("account_invitations_token_hash_hex", sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`),
+    check("account_invitations_email_lowercase", sql`${table.email} = lower(${table.email})`),
+    check(
+      "account_invitations_suggested_name_not_blank",
+      sql`${table.suggestedName} IS NULL OR btrim(${table.suggestedName}) <> ''`,
+    ),
+    check("account_invitations_expires_after_created", sql`${table.expiresAt} > ${table.createdAt}`),
+    check(
+      "account_invitations_claimed_after_created",
+      sql`${table.claimedAt} IS NULL OR ${table.claimedAt} >= ${table.createdAt}`,
+    ),
+    check(
+      "account_invitations_accepted_pair",
+      sql`(${table.acceptedAt} IS NULL) = (${table.acceptedUserId} IS NULL)`,
+    ),
+    check(
+      "account_invitations_accepted_after_claimed",
+      sql`${table.acceptedAt} IS NULL OR (${table.claimedAt} IS NOT NULL AND ${table.acceptedAt} >= ${table.claimedAt})`,
+    ),
+    check(
+      "account_invitations_revoked_after_created",
+      sql`${table.revokedAt} IS NULL OR ${table.revokedAt} >= ${table.createdAt}`,
+    ),
+    uniqueIndex("account_invitations_token_hash_uidx").on(table.tokenHash),
+    index("account_invitations_created_by_user_id_idx").on(table.createdByUserId),
+    index("account_invitations_email_idx").on(table.email),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   accounts: many(accounts),
+  createdInvitations: many(accountInvitations, { relationName: "createdInvitations" }),
+  acceptedInvitations: many(accountInvitations, { relationName: "acceptedInvitations" }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
@@ -262,5 +311,18 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
   users: one(users, {
     fields: [accounts.userId],
     references: [users.id],
+  }),
+}));
+
+export const accountInvitationsRelations = relations(accountInvitations, ({ one }) => ({
+  createdBy: one(users, {
+    fields: [accountInvitations.createdByUserId],
+    references: [users.id],
+    relationName: "createdInvitations",
+  }),
+  acceptedUser: one(users, {
+    fields: [accountInvitations.acceptedUserId],
+    references: [users.id],
+    relationName: "acceptedInvitations",
   }),
 }));

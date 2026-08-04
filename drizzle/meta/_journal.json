@@ -29,6 +29,13 @@
       "when": 1785776157555,
       "tag": "0003_bind_expenses_to_outings",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785842000882,
+      "tag": "0004_overjoyed_avengers",
+      "breakpoints": true
     }
   ]
 }

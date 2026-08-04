@@ -28,15 +28,16 @@ describe("authenticated app shell", () => {
     expect(screen.getAllByText("Wildan").length).toBeGreaterThan(0);
     expect(screen.getByText("owner@example.com")).toBeInTheDocument();
     const navigation = screen.getByRole("navigation", { name: "Ledger navigation" });
-    expect(navigation.querySelectorAll("a")).toHaveLength(5);
+    expect(navigation.querySelectorAll("a")).toHaveLength(6);
     expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app");
     expect(within(navigation).getByRole("link", { name: "Friends" })).toHaveAttribute("href", "/app/friends");
     expect(within(navigation).getByRole("link", { name: "Outings" })).toHaveAttribute("href", "/app/outings");
     expect(within(navigation).getByRole("link", { name: "Expenses" })).toHaveAttribute("href", "/app/expenses");
     expect(within(navigation).getByRole("link", { name: "Repayments" })).toHaveAttribute("href", "/app/repayments");
+    expect(within(navigation).getByRole("link", { name: "Invites" })).toHaveAttribute("href", "/app/invites");
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
     expect(within(navigation).getByRole("link", { name: "Expenses" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("navigation", { name: "Mobile ledger navigation" }).querySelectorAll("a")).toHaveLength(5);
+    expect(screen.getByRole("navigation", { name: "Mobile ledger navigation" }).querySelectorAll("a")).toHaveLength(6);
     expect(screen.getByText("owner@example.com")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/chart|dashboard|share/i);

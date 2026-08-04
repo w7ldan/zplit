@@ -54,6 +54,44 @@ describe("database schema", () => {
     ]);
   });
 
+  it("defines one-time account invitations with bounded, linked fields", () => {
+    const table = getTableConfig(schema.accountInvitations);
+    expect(table.name).toBe("account_invitations");
+    expect(table.columns.map((column) => column.name)).toEqual([
+      "id",
+      "token_hash",
+      "email",
+      "suggested_name",
+      "created_by_user_id",
+      "created_at",
+      "expires_at",
+      "claimed_at",
+      "accepted_at",
+      "accepted_user_id",
+      "revoked_at",
+    ]);
+    expect((table.columns.find((column) => column.name === "token_hash") as unknown as { config: { length: number } }).config.length).toBe(64);
+    expect((table.columns.find((column) => column.name === "email") as unknown as { config: { length: number } }).config.length).toBe(254);
+    expect((table.columns.find((column) => column.name === "suggested_name") as unknown as { config: { length: number } }).config.length).toBe(120);
+    expect(table.indexes.map((index) => index.config.name)).toEqual(
+      expect.arrayContaining(["account_invitations_token_hash_uidx", "account_invitations_created_by_user_id_idx"]),
+    );
+    expect(foreignKeyShape(schema.accountInvitations)).toEqual(
+      expect.arrayContaining([
+        { from: ["created_by_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+        { from: ["accepted_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      ]),
+    );
+    expect(table.checks.map((check) => check.name)).toEqual(
+      expect.arrayContaining([
+        "account_invitations_token_hash_hex",
+        "account_invitations_email_lowercase",
+        "account_invitations_expires_after_created",
+        "account_invitations_accepted_pair",
+      ]),
+    );
+  });
+
   it("keeps canonical Better Auth fields and lookup indexes", () => {
     expect(schema.users.email.isUnique).toBe(true);
     expect(schema.sessions.token.isUnique).toBe(true);
