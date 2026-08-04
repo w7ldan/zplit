@@ -1,0 +1,9 @@
+idr.wildan.lol {
+    bind 0.0.0.0
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "same-origin"
+        X-Frame-Options "DENY"
+    }
+    reverse_proxy zplit-web:3000
+}
