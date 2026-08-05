@@ -5,9 +5,9 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://idr.wildan.lol"),
-  title: "Zplit — Personal Ledger",
+  title: "Zplit — Shared expenses, clearly settled",
   applicationName: "Zplit",
-  description: "A personal record for shared expenses, repayments, and open balances.",
+  description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -23,12 +23,17 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
   },
   openGraph: {
-    title: "Zplit — Personal Ledger",
-    description: "A personal record for shared expenses, repayments, and open balances.",
+    title: "Zplit — Shared expenses, clearly settled",
+    description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
     url: "https://idr.wildan.lol",
     siteName: "Zplit",
     locale: "en_US",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Zplit — Shared expenses, clearly settled",
+    description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
   },
 };
 

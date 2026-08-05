@@ -41,7 +41,15 @@ describe("/share/[token]", () => {
   it("declares noindex, nofollow, no-referrer, and dynamic no-store behavior", async () => {
     expect(dynamic).toBe("force-dynamic");
     expect(revalidate).toBe(0);
-    expect(metadata).toMatchObject({ robots: { index: false, follow: false }, referrer: "no-referrer" });
+    expect(metadata).toMatchObject({
+      title: "Private Zplit balance",
+      description: "A private, read-only Zplit balance is ready to view.",
+      robots: { index: false, follow: false },
+      referrer: "no-referrer",
+      openGraph: { title: "Private Zplit balance", description: "A private, read-only Zplit balance is ready to view." },
+      twitter: { card: "summary_large_image", title: "Private Zplit balance", description: "A private, read-only Zplit balance is ready to view." },
+    });
+    expect(JSON.stringify(metadata)).not.toMatch(/Ada|owner|Rp|42\.500|token|receipt/i);
     mocks.resolve.mockResolvedValue(null);
     await DebtorSharePage({ params: Promise.resolve({ token: "malformed" }) });
     expect(mocks.unstableNoStore).toHaveBeenCalled();

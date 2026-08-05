@@ -7,8 +7,22 @@ import { DebtorStatementView } from "@/components/share/debtor-statement";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const metadata: Metadata = {
+  title: "Private Zplit balance",
+  description: "A private, read-only Zplit balance is ready to view.",
   robots: { index: false, follow: false },
   referrer: "no-referrer",
+  openGraph: {
+    title: "Private Zplit balance",
+    description: "A private, read-only Zplit balance is ready to view.",
+    siteName: "Zplit",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Private Zplit balance",
+    description: "A private, read-only Zplit balance is ready to view.",
+  },
 };
 
 export default async function DebtorSharePage({ params }: { params: Promise<{ token: string }> }) {

@@ -1,9 +1,27 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/auth/runtime";
 import { JoinedConfirmation } from "@/components/auth/joined-confirmation";
 import { LoginForm } from "@/components/auth/login-form";
+
+export const metadata: Metadata = {
+  title: "Sign in to Zplit",
+  description: "Sign in to open your private shared-expense ledger.",
+  openGraph: {
+    title: "Sign in to Zplit",
+    description: "Sign in to open your private shared-expense ledger.",
+    siteName: "Zplit",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sign in to Zplit",
+    description: "Sign in to open your private shared-expense ledger.",
+  },
+};
 
 export const dynamic = "force-dynamic";
 

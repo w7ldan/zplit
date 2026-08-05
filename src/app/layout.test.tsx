@@ -11,4 +11,25 @@ describe("root PWA metadata", () => {
     expect(viewport).toEqual({ themeColor: "#111315" });
     expect(metadata.icons).toMatchObject({ apple: "/icons/apple-touch-icon.png" });
   });
+
+  it("publishes generic Open Graph and Twitter metadata", () => {
+    expect(metadata).toMatchObject({
+      title: "Zplit — Shared expenses, clearly settled",
+      description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
+      metadataBase: new URL("https://idr.wildan.lol"),
+      openGraph: {
+        title: "Zplit — Shared expenses, clearly settled",
+        description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
+        url: "https://idr.wildan.lol",
+        siteName: "Zplit",
+        locale: "en_US",
+        type: "website",
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: "Zplit — Shared expenses, clearly settled",
+        description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
+      },
+    });
+  });
 });

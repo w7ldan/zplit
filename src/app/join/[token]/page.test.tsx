@@ -41,6 +41,14 @@ describe("/join/[token]", () => {
   });
 
   it("marks invitation links noindex and nofollow", () => {
-    expect(metadata).toMatchObject({ robots: { index: false, follow: false } });
+    expect(metadata).toMatchObject({
+      title: "Join Zplit",
+      description: "Create your private Zplit ledger through a secure invitation.",
+      robots: { index: false, follow: false },
+      referrer: "no-referrer",
+      openGraph: { title: "Join Zplit", description: "Create your private Zplit ledger through a secure invitation." },
+      twitter: { card: "summary_large_image", title: "Join Zplit", description: "Create your private Zplit ledger through a secure invitation." },
+    });
+    expect(JSON.stringify(metadata)).not.toMatch(/person@example\.com|Ada|expired|token/i);
   });
 });

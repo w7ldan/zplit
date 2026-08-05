@@ -10,7 +10,24 @@ import { acceptInvitationAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-export const metadata: Metadata = { robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: "Join Zplit",
+  description: "Create your private Zplit ledger through a secure invitation.",
+  robots: { index: false, follow: false },
+  referrer: "no-referrer",
+  openGraph: {
+    title: "Join Zplit",
+    description: "Create your private Zplit ledger through a secure invitation.",
+    siteName: "Zplit",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Join Zplit",
+    description: "Create your private Zplit ledger through a secure invitation.",
+  },
+};
 
 export default async function JoinPage({ params }: { params: Promise<{ token: string }> }) {
   if (await getAuth().api.getSession({ headers: await headers() })) redirect("/app");
