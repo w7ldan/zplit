@@ -30,6 +30,7 @@ const expense = {
   updatedAt: new Date("2026-01-02T00:00:00.000Z"),
   outingTitle: "Jakarta dinner",
 };
+const deletionImpact = { recordType: "expense" as const, receiptCount: 0, shareCount: 0, allocationCount: 0, affectedRepaymentCount: 0, affectedRepaymentIds: [], affectedFriendIds: [] };
 
 describe("expense record", () => {
   it("uses the outing date and has no independent occurrence field", async () => {
@@ -41,6 +42,7 @@ describe("expense record", () => {
       listOutings: vi.fn().mockResolvedValue([{ id: expense.outingId, title: expense.outingTitle }]),
       listFriends: vi.fn().mockResolvedValue([{ id: "33333333-3333-4333-8333-333333333333", name: "Rani", archivedAt: null }]),
       listExpenseShares: vi.fn().mockResolvedValue([]),
+      getExpenseDeletionImpact: vi.fn().mockResolvedValue(deletionImpact),
     });
     render(await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) }));
 
@@ -59,7 +61,7 @@ describe("expense record", () => {
     expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
     expect(screen.getByRole("heading", { name: "Delete expense" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Receipts" })).toBeInTheDocument();
-    expect(screen.getByText("Remove repayment allocations before deleting this expense.")).toBeInTheDocument();
+    expect(screen.queryByText(/Remove repayment allocations before deleting this expense/)).not.toBeInTheDocument();
   });
 
   it("uses the same not-found path for absent and foreign expenses", async () => {

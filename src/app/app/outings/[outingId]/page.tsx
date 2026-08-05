@@ -22,8 +22,11 @@ export default async function OutingRecordPage({ params, searchParams }: { param
   const { outingId } = await params;
   const query = await searchParams;
   let outing;
+  let deletionImpact;
   try {
-    outing = await createLedgerRepository(getDatabase(), session.user.id).getOuting(outingId);
+    const repository = createLedgerRepository(getDatabase(), session.user.id);
+    outing = await repository.getOuting(outingId);
+    deletionImpact = await repository.getOutingDeletionImpact(outingId);
   } catch (error) {
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
@@ -53,7 +56,7 @@ export default async function OutingRecordPage({ params, searchParams }: { param
           />
           <p className="outing-record__next">Expenses recorded under this outing inherit its date and time. Friend-share assignment arrives in the next stage.</p>
         </div>
-        <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" />
+        <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" impact={deletionImpact} />
       </div>
     </section>
   );

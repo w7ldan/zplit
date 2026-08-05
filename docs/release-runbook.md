@@ -38,7 +38,7 @@ test -z "$(pgrep -af '[z]plit|[v]itest|[n]ext build|[d]ocker compose.*build' || 
 test -z "$(journalctl -k --since '30 min ago' --no-pager 2>/dev/null | grep -Eiq 'out of memory|oom-kill|killed process' && echo oom || true)"
 ```
 
-Run the local validation sequence once, in this order:
+Run the local validation sequence once, in this order. The release includes migration `0009_cascade_confirmed_ledger_deletions`:
 
 ```sh
 npx vitest run src/auth/factory.test.ts src/auth/runtime.test.ts
@@ -186,7 +186,7 @@ printf 'release state: %s\n' "$state_file"
 
 ## Production deployment
 
-Validate the reviewed repository route before replacing the persistent source, then build the corrected web image once and run the existing migrator once:
+Validate the reviewed repository route before replacing the persistent source, then build the corrected web image once and run the existing migrator once. The migrator applies migration `0009_cascade_confirmed_ledger_deletions` before the web replacement.
 
 ```sh
 caddy_image=$(docker inspect --format '{{.Config.Image}}' "$caddy_container")
@@ -196,6 +196,8 @@ docker run --rm --network none --read-only \
 docker compose -f compose.yml build web
 docker compose -f compose.yml --profile tools run --rm migrate
 ```
+
+Migration `0009` changes only the two foreign-key delete actions for owned Expenses and repayment allocations. It performs no data rewrite and is backward-compatible with the immediately previous application. Backup verification remains mandatory before migration. Ordinary application rollback does not restore the database; database restoration is reserved for confirmed data-loss recovery and requires an explicit operator decision.
 
 Install the new route atomically into the authoritative persistent source, validate the assembled Caddy configuration inside the running Caddy container, reload Caddy without restarting its container, and prove the running container sees the same route bytes:
 
@@ -259,10 +261,10 @@ caddy_container=$(docker ps --filter name='^/desktorrent-watch-web-1$' --filter 
 [[ "$caddy_container" =~ ^[0-9a-f]{12,64}$ ]]
 docker exec "$caddy_container" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker exec "$caddy_container" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
-rollback_caddy_copy=$(mktemp)
-docker exec "$caddy_container" cat /etc/caddy/Caddyfile > "$rollback_caddy_copy"
-cmp -s "$previous_caddy_rollback_copy" "$rollback_caddy_copy"
-rm -f "$rollback_caddy_copy"
+rollback_zplit_route=$(mktemp)
+docker exec "$caddy_container" cat /etc/caddy/routes/zplit.caddy > "$rollback_zplit_route"
+cmp -s "$previous_caddy_rollback_copy" "$rollback_zplit_route"
+rm -f "$rollback_zplit_route"
 test "$(docker image inspect --format '{{.Id}}' "$rollback_image_tag")" = "$previous_image_id"
 docker tag "$rollback_image_tag" zplit-web:local
 test "$(docker image inspect --format '{{.Id}}' zplit-web:local)" = "$previous_image_id"

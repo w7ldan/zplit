@@ -94,7 +94,7 @@ export const expenses = pgTable(
       columns: [table.ownerUserId, table.outingId],
       foreignColumns: [outings.ownerUserId, outings.id],
       name: "expenses_owner_outing_fk",
-    }).onDelete("restrict"),
+    }).onDelete("cascade"),
     uniqueIndex("expenses_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
     index("expenses_outing_id_idx").on(table.ownerUserId, table.outingId),
   ],
@@ -216,7 +216,7 @@ export const repaymentAllocations = pgTable(
       columns: [table.ownerUserId, table.expenseShareId],
       foreignColumns: [expenseShares.ownerUserId, expenseShares.id],
       name: "repayment_allocations_owner_expense_share_fk",
-    }).onDelete("restrict"),
+    }).onDelete("cascade"),
     index("repayment_allocations_expense_share_id_idx").on(table.ownerUserId, table.expenseShareId),
   ],
 );

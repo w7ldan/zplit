@@ -26,6 +26,7 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
   }
+  const deletionImpact = await repository.getRepaymentDeletionImpact(repaymentId);
   const [activeFriends, archivedFriends, summary] = await Promise.all([repository.listFriends(), repository.listFriends({ archived: true }), repository.getLedgerSummary()]);
   const friends = [...activeFriends, ...archivedFriends];
   const repayment = plan;
@@ -62,7 +63,7 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
         <div className="repayment-record__allocations">
           <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, repayment.id)} plan={plan} />
         </div>
-        <DeleteRecordForm action={deleteRepaymentAction.bind(null, repayment.id)} recordType="repayment" />
+        <DeleteRecordForm action={deleteRepaymentAction.bind(null, repayment.id)} recordType="repayment" impact={deletionImpact} />
       </div>
     </section>
   );

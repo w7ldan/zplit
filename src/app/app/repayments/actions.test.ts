@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRepaymentAction, deleteRepaymentAction, replaceRepaymentAllocationsAction, updateRepaymentAction, type RepaymentActionState, type RepaymentAllocationActionState } from "./actions";
-import { LedgerNotFoundError, RepaymentAllocationAmountInvariantError, RepaymentAllocationShareInvariantError, RepaymentAmountInvariantError, RepaymentDeletionInvariantError, RepaymentFriendInvariantError } from "@/domain/ledger-repository";
+import { LedgerDeletionConfirmationRequiredError, LedgerNotFoundError, RepaymentAllocationAmountInvariantError, RepaymentAllocationShareInvariantError, RepaymentAmountInvariantError, RepaymentFriendInvariantError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -148,21 +148,29 @@ describe("repayment actions", () => {
   });
 
   it("requires exact deletion confirmation and revalidates the debtor friend", async () => {
-    const deleteRepayment = vi.fn().mockResolvedValue({ friendIds: [friendId] });
+    const deleteRepayment = vi.fn().mockResolvedValue({ friendIds: [friendId], repaymentIds: [] });
+    const getRepaymentDeletionImpact = vi.fn().mockResolvedValue({ recordType: "repayment", allocationCount: 0, friendId });
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ deleteRepayment });
+    mocks.createLedgerRepository.mockReturnValue({ deleteRepayment, getRepaymentDeletionImpact });
     expect((await deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete,delete" }))).formError).toBe("Type delete to confirm.");
     await expect(deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete" }))).rejects.toThrow("redirect:/app/repayments?deleted=1");
-    expect(deleteRepayment).toHaveBeenCalledWith("repayment-a");
+    expect(deleteRepayment).toHaveBeenCalledWith("repayment-a", { cascadeDependents: false });
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/app/friends/${friendId}`);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/share/[token]", "page");
   });
 
-  it("maps the repayment deletion invariant exactly", async () => {
+  it("requires current repayment cascade confirmation", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ deleteRepayment: vi.fn().mockRejectedValue(new RepaymentDeletionInvariantError()) });
-    expect((await deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete" }))).formError).toBe("Remove this repayment's allocations before deleting it.");
+    const getRepaymentDeletionImpact = vi.fn().mockResolvedValue({ recordType: "repayment", allocationCount: 2, friendId });
+    const deleteRepayment = vi.fn().mockRejectedValue(new LedgerDeletionConfirmationRequiredError({ recordType: "repayment", allocationCount: 2, friendId }));
+    mocks.createLedgerRepository.mockReturnValue({ deleteRepayment, getRepaymentDeletionImpact });
+    expect((await deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete" }))).formError).toContain("Check the additional cascade confirmation");
+    deleteRepayment.mockResolvedValue({ friendIds: [friendId], repaymentIds: [] });
+    const confirmed = form({ confirm: "delete" });
+    confirmed.set("confirmCascade", "delete-dependents");
+    await expect(deleteRepaymentAction("repayment-a", { formError: "" }, confirmed)).rejects.toThrow("redirect:/app/repayments?deleted=1");
+    expect(deleteRepayment).toHaveBeenCalledWith("repayment-a", { cascadeDependents: true });
   });
 });

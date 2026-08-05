@@ -46,12 +46,13 @@ const allocationPlan = {
     capacityAvailable: 40000,
   }],
 };
+const deletionImpact = { recordType: "repayment" as const, allocationCount: 0, friendId: repayment.friendId };
 
 describe("repayment record", () => {
   it("renders the friend identity, totals, local date metadata, and editable fields", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])), getLedgerSummary: vi.fn().mockResolvedValue({ friendBalances: [{ friendId: friend.id, name: friend.name, outstandingAmount: 44_000 }] }) });
+    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact: vi.fn().mockResolvedValue(deletionImpact), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])), getLedgerSummary: vi.fn().mockResolvedValue({ friendBalances: [{ friendId: friend.id, name: friend.name, outstandingAmount: 44_000 }] }) });
 
     render(await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }) }));
 
@@ -70,7 +71,7 @@ describe("repayment record", () => {
     expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
     expect(screen.getByText("Dinner")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Delete repayment" })).toBeInTheDocument();
-    expect(screen.getByText("Remove this repayment's allocations before deleting it.")).toBeInTheDocument();
+    expect(screen.queryByText(/Remove this repayment's allocations before deleting it/)).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/allocation editor|debtor|card|pill|status dot/i);
   });
 

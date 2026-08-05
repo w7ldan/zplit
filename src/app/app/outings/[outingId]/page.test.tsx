@@ -26,12 +26,13 @@ const outing = {
   createdAt: new Date("2026-01-02T00:00:00.000Z"),
   updatedAt: new Date("2026-01-02T00:00:00.000Z"),
 };
+const deletionImpact = { recordType: "outing" as const, expenseCount: 0, expenseTotal: 0, receiptCount: 0, shareCount: 0, allocationCount: 0, affectedRepaymentCount: 0, affectedRepaymentIds: [], affectedFriendIds: [] };
 
 describe("outing record", () => {
   it("renders identity, metadata, notes, and edit fields", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ getOuting: vi.fn().mockResolvedValue(outing) });
+    mocks.createLedgerRepository.mockReturnValue({ getOuting: vi.fn().mockResolvedValue(outing), getOutingDeletionImpact: vi.fn().mockResolvedValue(deletionImpact) });
     render(await OutingRecordPage({ params: Promise.resolve({ outingId: outing.id }) }));
 
     expect(screen.getByText("Outing · editable record")).toBeInTheDocument();
@@ -43,7 +44,7 @@ describe("outing record", () => {
     expect(screen.getByRole("link", { name: /Back to outings/ })).toHaveAttribute("href", "/app/outings");
     expect(screen.getByText(/Expenses recorded under this outing inherit its date and time/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Delete outing" })).toBeInTheDocument();
-    expect(screen.getByText("Move or delete this outing's expenses first.")).toBeInTheDocument();
+    expect(screen.queryByText(/Move or delete this outing's expenses first/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete outing" })).toBeDisabled();
   });
 

@@ -6,7 +6,7 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { validateExpenseShareInput, type ExpenseShareFieldErrors, type ExpenseShareInputValues } from "@/domain/expense-share-input";
 import { validateExpenseInput, type ExpenseFieldErrors, type ExpenseInputValues } from "@/domain/expense-input";
-import { createLedgerRepository, ExpenseDeletionInvariantError, ExpenseShareInvariantError, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { createLedgerRepository, ExpenseShareInvariantError, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError, type ExpenseDeletionImpact } from "@/domain/ledger-repository";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 
 export type ExpenseActionState = {
@@ -22,6 +22,21 @@ export type ExpenseShareActionState = {
 };
 
 export type ExpenseDeleteActionState = DeleteRecordActionState;
+
+function hasDependents(impact: ExpenseDeletionImpact) {
+  return impact.receiptCount > 0 || impact.shareCount > 0 || impact.allocationCount > 0;
+}
+
+function dependencyWarning(impact: ExpenseDeletionImpact) {
+  return `This expense now has ${impact.receiptCount} receipt${impact.receiptCount === 1 ? "" : "s"}, ${impact.shareCount} share${impact.shareCount === 1 ? "" : "s"}, and ${impact.allocationCount} allocation${impact.allocationCount === 1 ? "" : "s"}. Check the additional cascade confirmation to continue.`;
+}
+
+function cascadeValue(formData: FormData) {
+  const values = formData.getAll("confirmCascade");
+  if (values.length === 0) return false;
+  if (values.length !== 1 || values[0] !== "delete-dependents") throw new Error("Cascade confirmation is invalid.");
+  return true;
+}
 
 function valuesFromForm(formData: FormData) {
   return validateExpenseInput({
@@ -139,13 +154,22 @@ export async function deleteExpenseAction(
   const session = await requireSession();
   if (formData.getAll("confirm").length !== 1 || formData.get("confirm") !== "delete") return { formError: "Type delete to confirm." };
 
+  const repository = createLedgerRepository(getDatabase(), session.user.id);
   let result;
   try {
-    result = await createLedgerRepository(getDatabase(), session.user.id).deleteExpense(expenseId);
+    const impact = await repository.getExpenseDeletionImpact(expenseId);
+    let cascadeDependents;
+    try {
+      cascadeDependents = cascadeValue(formData);
+    } catch (error) {
+      return { formError: error instanceof Error ? error.message : "Cascade confirmation is invalid." };
+    }
+    if (!hasDependents(impact) && cascadeDependents) return { formError: "Cascade confirmation is no longer applicable." };
+    result = await repository.deleteExpense(expenseId, { cascadeDependents });
   } catch (error) {
     return {
-      formError: error instanceof ExpenseDeletionInvariantError
-        ? error.message
+      formError: error instanceof LedgerDeletionConfirmationRequiredError
+        ? dependencyWarning(error.impact as ExpenseDeletionImpact)
         : error instanceof LedgerNotFoundError
           ? "This expense is no longer available."
           : "Unable to delete this expense.",
@@ -155,6 +179,8 @@ export async function deleteExpenseAction(
   revalidatePath("/app");
   revalidatePath("/app/history");
   revalidatePath("/app/expenses");
+  revalidatePath("/app/outings");
+  revalidatePath("/app/repayments");
   revalidatePath("/app/friends");
   for (const friendId of result.friendIds) {
     revalidatePath(`/app/friends/${friendId}`);

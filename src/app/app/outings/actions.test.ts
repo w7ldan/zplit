@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createOutingAction, deleteOutingAction, updateOutingAction } from "./actions";
 import type { OutingActionState } from "./actions";
-import { LedgerNotFoundError, OutingDeletionInvariantError } from "@/domain/ledger-repository";
+import { LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -98,25 +98,34 @@ describe("outing actions", () => {
   });
 
   it("requires exact deletion confirmation and uses the canonical list redirect", async () => {
-    const deleteOuting = vi.fn().mockResolvedValue({ friendIds: [] });
+    const deleteOuting = vi.fn().mockResolvedValue({ friendIds: [], repaymentIds: [] });
+    const getOutingDeletionImpact = vi.fn().mockResolvedValue({ recordType: "outing", expenseCount: 0, expenseTotal: 0, receiptCount: 0, shareCount: 0, allocationCount: 0, affectedRepaymentCount: 0, affectedRepaymentIds: [], affectedFriendIds: [] });
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ deleteOuting });
+    mocks.createLedgerRepository.mockReturnValue({ deleteOuting, getOutingDeletionImpact });
 
     expect((await deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "yes" }))).formError).toBe("Type delete to confirm.");
     expect(deleteOuting).not.toHaveBeenCalled();
     await expect(deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete" }))).rejects.toThrow("redirect:/app/outings?deleted=1");
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
-    expect(deleteOuting).toHaveBeenCalledWith("outing-a");
+    expect(deleteOuting).toHaveBeenCalledWith("outing-a", { cascadeDependents: false });
   });
 
-  it("maps the outing invariant and missing record to stable messages", async () => {
+  it("requires current cascade confirmation and preserves missing-record handling", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    const deleteOuting = vi.fn().mockRejectedValue(new OutingDeletionInvariantError());
-    mocks.createLedgerRepository.mockReturnValue({ deleteOuting });
-    expect((await deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete" }))).formError).toBe("Move or delete this outing's expenses first.");
+    const impact = { recordType: "outing" as const, expenseCount: 1, expenseTotal: 100, receiptCount: 0, shareCount: 1, allocationCount: 1, affectedRepaymentCount: 1, affectedRepaymentIds: ["repayment-a"], affectedFriendIds: ["friend-a"] };
+    const getOutingDeletionImpact = vi.fn().mockResolvedValue(impact);
+    const deleteOuting = vi.fn().mockRejectedValue(new LedgerDeletionConfirmationRequiredError(impact));
+    mocks.createLedgerRepository.mockReturnValue({ deleteOuting, getOutingDeletionImpact });
+    expect((await deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete" }))).formError).toContain("Check the additional cascade confirmation");
+    deleteOuting.mockResolvedValue({ friendIds: ["friend-a"], repaymentIds: ["repayment-a"] });
+    const confirmed = form({ confirm: "delete" });
+    confirmed.set("confirmCascade", "delete-dependents");
+    await expect(deleteOutingAction("outing-a", { formError: "" }, confirmed)).rejects.toThrow("redirect:/app/outings?deleted=1");
+    expect(deleteOuting).toHaveBeenCalledWith("outing-a", { cascadeDependents: true });
     deleteOuting.mockRejectedValue(new LedgerNotFoundError());
-    expect((await deleteOutingAction("foreign", { formError: "" }, form({ confirm: "delete" }))).formError).toBe("This outing is no longer available.");
+    getOutingDeletionImpact.mockRejectedValue(new LedgerNotFoundError());
+    expect((await deleteOutingAction("foreign", { formError: "" }, confirmed)).formError).toBe("This outing is no longer available.");
   });
 });

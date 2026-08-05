@@ -51,6 +51,12 @@ Record retrieval is URL-backed: free-text search is debounced and live, discrete
 - Returned values and validation errors reveal their containing disclosure.
 - Edit forms remain direct when hiding controls would obstruct review.
 
+## Destructive ledger actions
+
+Database cascades model true ownership: an Outing owns its Expenses, an Expense owns its receipts and shares, and a Repayment owns its allocation links. Destructive cascades always disclose their impact before the controls, and dependent data requires an extra explicit confirmation.
+
+Deleting an Expense allocation link never silently deletes the Repayment. The repayment remains and its removed amount becomes unallocated. Server confirmation is based on current transactional impact, not client counts.
+
 ## Motion
 
 Public motion uses one short non-blocking opening fade, restrained bottom-to-top text reveals, interaction feedback, and the wide-screen journey’s scroll-linked panel movement. Utility timing is `100–220ms`; layout and state timing is `220–360ms`; public reveal is `500–750ms`; journey transitions stay below `900ms`. Content is rendered immediately, there are no fake loaders, scroll hijacks, perpetual animations, or routine text scrambling. Navigation may become a detached surface after a small scroll threshold, using one restrained shadow for separation. Authenticated sticky navigation remains geometrically stable while scrolling; it may change surface emphasis but does not change width, position, alignment, or radius.

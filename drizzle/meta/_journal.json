@@ -64,6 +64,13 @@
       "when": 1785891497204,
       "tag": "0008_add_optional_shared_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785959900952,
+      "tag": "0009_cascade_confirmed_ledger_deletions",
+      "breakpoints": true
     }
   ]
 }

@@ -225,7 +225,7 @@ describe("database schema", () => {
       [schema.expenseShares, ["owner_user_id", "friend_id"], "friends", ["owner_user_id", "id"], "restrict"],
       [schema.repayments, ["owner_user_id", "friend_id"], "friends", ["owner_user_id", "id"], "restrict"],
       [schema.repaymentAllocations, ["owner_user_id", "repayment_id"], "repayments", ["owner_user_id", "id"], "cascade"],
-      [schema.repaymentAllocations, ["owner_user_id", "expense_share_id"], "expense_shares", ["owner_user_id", "id"], "restrict"],
+      [schema.repaymentAllocations, ["owner_user_id", "expense_share_id"], "expense_shares", ["owner_user_id", "id"], "cascade"],
     ] as const;
     for (const [table, from, to, target, onDelete] of references) {
       expect(foreignKeyShape(table)).toEqual(expect.arrayContaining([{ from, to, target, onDelete }]));
@@ -302,14 +302,31 @@ describe("database schema", () => {
     ];
     expect(actions).toEqual(
       expect.arrayContaining([
-        { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "restrict" },
+        { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "cascade" },
         { from: ["owner_user_id", "expense_id"], to: "expenses", target: ["owner_user_id", "id"], onDelete: "cascade" },
         { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
         { from: ["owner_user_id", "repayment_id"], to: "repayments", target: ["owner_user_id", "id"], onDelete: "cascade" },
-        { from: ["owner_user_id", "expense_share_id"], to: "expense_shares", target: ["owner_user_id", "id"], onDelete: "restrict" },
+        { from: ["owner_user_id", "expense_share_id"], to: "expense_shares", target: ["owner_user_id", "id"], onDelete: "cascade" },
       ]),
     );
     expect(actions.filter(({ from, to }) => from.join(",") === "owner_user_id,friend_id" && to === "friends")).toHaveLength(2);
+  });
+
+  it("keeps the ownership cascade graph exact", () => {
+    expect(foreignKeyShape(schema.expenses)).toEqual([
+      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "cascade" },
+    ]);
+    expect(foreignKeyShape(schema.expenseShares)).toEqual([
+      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      { from: ["owner_user_id", "expense_id"], to: "expenses", target: ["owner_user_id", "id"], onDelete: "cascade" },
+      { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
+    ]);
+    expect(foreignKeyShape(schema.repaymentAllocations)).toEqual([
+      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      { from: ["owner_user_id", "repayment_id"], to: "repayments", target: ["owner_user_id", "id"], onDelete: "cascade" },
+      { from: ["owner_user_id", "expense_share_id"], to: "expense_shares", target: ["owner_user_id", "id"], onDelete: "cascade" },
+    ]);
   });
 
   it("defines the expected lookup indexes", () => {
@@ -333,7 +350,7 @@ describe("database schema", () => {
     expect(getTableConfig(schema.expenses).indexes.some((index) => index.config.name === "expenses_occurred_at_idx")).toBe(false);
     expect(foreignKeyShape(schema.expenses)).toEqual(
       expect.arrayContaining([
-        { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "restrict" },
+        { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "cascade" },
       ]),
     );
   });

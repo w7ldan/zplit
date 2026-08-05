@@ -49,9 +49,7 @@ export type LedgerErrorCode =
   | "REPAYMENT_FRIEND_LOCKED"
   | "REPAYMENT_ALLOCATION_AMOUNT_EXCEEDED"
   | "REPAYMENT_ALLOCATION_SHARE_EXCEEDED"
-  | "OUTING_HAS_EXPENSES"
-  | "EXPENSE_HAS_ALLOCATIONS"
-  | "REPAYMENT_HAS_ALLOCATIONS"
+  | "DELETION_CONFIRMATION_REQUIRED"
   | "PERSISTENCE_ERROR";
 
 export class LedgerRepositoryError extends Error {
@@ -103,27 +101,6 @@ export class RepaymentAllocationShareInvariantError extends LedgerRepositoryErro
   constructor() {
     super("REPAYMENT_ALLOCATION_SHARE_EXCEEDED", "An allocation cannot exceed the share's remaining balance.");
     this.name = "RepaymentAllocationShareInvariantError";
-  }
-}
-
-export class OutingDeletionInvariantError extends LedgerRepositoryError {
-  constructor() {
-    super("OUTING_HAS_EXPENSES", "Move or delete this outing's expenses first.");
-    this.name = "OutingDeletionInvariantError";
-  }
-}
-
-export class ExpenseDeletionInvariantError extends LedgerRepositoryError {
-  constructor() {
-    super("EXPENSE_HAS_ALLOCATIONS", "Remove repayment allocations before deleting this expense.");
-    this.name = "ExpenseDeletionInvariantError";
-  }
-}
-
-export class RepaymentDeletionInvariantError extends LedgerRepositoryError {
-  constructor() {
-    super("REPAYMENT_HAS_ALLOCATIONS", "Remove this repayment's allocations before deleting it.");
-    this.name = "RepaymentDeletionInvariantError";
   }
 }
 
@@ -206,6 +183,52 @@ export type RepaymentAllocationPlan = RepaymentRecord & {
   unallocatedAmount: number;
   shares: RepaymentAllocationShare[];
 };
+
+export type DeleteRecordOptions = { cascadeDependents: boolean };
+
+export type OutingDeletionImpact = {
+  recordType: "outing";
+  expenseCount: number;
+  expenseTotal: number;
+  receiptCount: number;
+  shareCount: number;
+  allocationCount: number;
+  affectedRepaymentCount: number;
+  affectedRepaymentIds: string[];
+  affectedFriendIds: string[];
+};
+
+export type ExpenseDeletionImpact = {
+  recordType: "expense";
+  receiptCount: number;
+  shareCount: number;
+  allocationCount: number;
+  affectedRepaymentCount: number;
+  affectedRepaymentIds: string[];
+  affectedFriendIds: string[];
+};
+
+export type RepaymentDeletionImpact = {
+  recordType: "repayment";
+  allocationCount: number;
+  friendId: string;
+};
+
+export type DeletionImpact = OutingDeletionImpact | ExpenseDeletionImpact | RepaymentDeletionImpact;
+
+export class LedgerDeletionConfirmationRequiredError extends LedgerRepositoryError {
+  constructor(readonly impact: DeletionImpact) {
+    super("DELETION_CONFIRMATION_REQUIRED", "Additional destructive confirmation is required.");
+    this.name = "LedgerDeletionConfirmationRequiredError";
+  }
+}
+
+/** @deprecated Use LedgerDeletionConfirmationRequiredError. */
+export class OutingDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}
+/** @deprecated Use LedgerDeletionConfirmationRequiredError. */
+export class ExpenseDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}
+/** @deprecated Use LedgerDeletionConfirmationRequiredError. */
+export class RepaymentDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}
 
 export type OpenExpenseShare = {
   id: string;
@@ -401,6 +424,27 @@ function safeRetrievalInteger(value: unknown, label: string) {
   const number = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : NaN;
   if (!Number.isSafeInteger(number) || number < 0) throw new LedgerIntegrityError(`${label} is invalid.`);
   return number;
+}
+
+function safeDeletionIds(values: unknown[], label: string) {
+  const ids = values.map((value) => {
+    if (typeof value !== "string" || !value.trim()) throw new LedgerIntegrityError(`${label} is invalid.`);
+    return value;
+  });
+  return [...new Set(ids)].sort();
+}
+
+function addDeletionAmount(total: number, amount: unknown, label: string) {
+  const value = safeRetrievalInteger(amount, label);
+  const next = total + value;
+  if (!Number.isSafeInteger(next)) throw new LedgerIntegrityError(`${label} is unsafe.`);
+  return next;
+}
+
+function assertDeleteOptions(options: DeleteRecordOptions): asserts options is DeleteRecordOptions {
+  if (!options || typeof options.cascadeDependents !== "boolean") {
+    throw new LedgerRepositoryError("INVALID_INPUT", "Deletion options are invalid.");
+  }
 }
 
 type RecentActivityRow = {
@@ -624,8 +668,89 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function deleteOuting(outingId: string) {
+  async function getOutingDeletionImpact(outingId: string): Promise<OutingDeletionImpact> {
     assertOutingId(outingId);
+    try {
+      const [outing] = await database
+        .select({ id: outings.id })
+        .from(outings)
+        .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+        .limit(1);
+      if (!outing) return notFound();
+      const expenseRows = await database
+        .select({ id: expenses.id, amount: expenses.amount })
+        .from(expenses)
+        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.outingId, outingId)));
+      const expenseIds = safeDeletionIds(expenseRows.map((expense) => expense.id), "Outing expense ID");
+      let expenseTotal = 0;
+      for (const expense of expenseRows) expenseTotal = addDeletionAmount(expenseTotal, expense.amount, `Expense ${expense.id} amount`);
+      const shareRows = expenseIds.length
+        ? await database.select({ id: expenseShares.id, friendId: expenseShares.friendId }).from(expenseShares).where(and(eq(expenseShares.ownerUserId, owner), inArray(expenseShares.expenseId, expenseIds)))
+        : [];
+      const shareIds = safeDeletionIds(shareRows.map((share) => share.id), "Expense share ID");
+      const [receiptRows, allocationRows] = expenseIds.length
+        ? await Promise.all([
+            database.select({ id: expenseReceipts.id }).from(expenseReceipts).where(and(eq(expenseReceipts.ownerUserId, owner), inArray(expenseReceipts.expenseId, expenseIds))),
+            shareIds.length
+              ? database.select({ repaymentId: repaymentAllocations.repaymentId }).from(repaymentAllocations).where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+              : Promise.resolve([]),
+          ])
+        : [[], []];
+      const affectedRepaymentIds = safeDeletionIds(allocationRows.map((allocation) => allocation.repaymentId), "Affected repayment ID");
+      return {
+        recordType: "outing",
+        expenseCount: safeRetrievalInteger(expenseRows.length, "Outing expense count"),
+        expenseTotal,
+        receiptCount: safeRetrievalInteger(receiptRows.length, "Outing receipt count"),
+        shareCount: safeRetrievalInteger(shareRows.length, "Outing share count"),
+        allocationCount: safeRetrievalInteger(allocationRows.length, "Outing allocation count"),
+        affectedRepaymentCount: safeRetrievalInteger(affectedRepaymentIds.length, "Affected repayment count"),
+        affectedRepaymentIds,
+        affectedFriendIds: safeDeletionIds(shareRows.map((share) => share.friendId), "Affected friend ID"),
+      };
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function lockExpenseDependents(
+    transaction: Parameters<Parameters<Database["transaction"]>[0]>[0],
+    expenseIds: string[],
+  ) {
+    if (expenseIds.length === 0) return { receipts: [], publicReceipts: [], shares: [], allocations: [] };
+    const receipts = await transaction
+      .select({ id: expenseReceipts.id })
+      .from(expenseReceipts)
+      .where(and(eq(expenseReceipts.ownerUserId, owner), inArray(expenseReceipts.expenseId, expenseIds)))
+      .orderBy(asc(expenseReceipts.id))
+      .for("update");
+    const publicReceipts = await transaction
+      .select({ id: debtorShareReceipts.id })
+      .from(debtorShareReceipts)
+      .where(and(eq(debtorShareReceipts.ownerUserId, owner), inArray(debtorShareReceipts.expenseId, expenseIds)))
+      .orderBy(asc(debtorShareReceipts.id))
+      .for("update");
+    const shares = await transaction
+      .select({ id: expenseShares.id, friendId: expenseShares.friendId })
+      .from(expenseShares)
+      .where(and(eq(expenseShares.ownerUserId, owner), inArray(expenseShares.expenseId, expenseIds)))
+      .orderBy(asc(expenseShares.id))
+      .for("update");
+    const shareIds = safeDeletionIds(shares.map((share) => share.id), "Expense share ID");
+    const allocations = shareIds.length
+      ? await transaction
+          .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId })
+          .from(repaymentAllocations)
+          .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+          .orderBy(asc(repaymentAllocations.expenseShareId), asc(repaymentAllocations.repaymentId))
+          .for("update")
+      : [];
+    return { receipts, publicReceipts, shares, allocations };
+  }
+
+  async function deleteOuting(outingId: string, options: DeleteRecordOptions = { cascadeDependents: false }) {
+    assertOutingId(outingId);
+    assertDeleteOptions(options);
     try {
       return await database.transaction(async (transaction) => {
         const [outing] = await transaction
@@ -635,21 +760,34 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           .limit(1)
           .for("update");
         if (!outing) return notFound();
-
         const dependentExpenses = await transaction
-          .select({ id: expenses.id })
+          .select({ id: expenses.id, amount: expenses.amount })
           .from(expenses)
           .where(and(eq(expenses.ownerUserId, owner), eq(expenses.outingId, outingId)))
           .orderBy(asc(expenses.id))
           .for("update");
-        if (dependentExpenses.length > 0) throw new OutingDeletionInvariantError();
-
+        const expenseIds = safeDeletionIds(dependentExpenses.map((expense) => expense.id), "Outing expense ID");
+        const dependents = await lockExpenseDependents(transaction, expenseIds);
+        const affectedRepaymentIds = safeDeletionIds(dependents.allocations.map((allocation) => allocation.repaymentId), "Affected repayment ID");
+        const impact: OutingDeletionImpact = {
+          recordType: "outing",
+          expenseCount: safeRetrievalInteger(dependentExpenses.length, "Outing expense count"),
+          expenseTotal: dependentExpenses.reduce((total, expense) => addDeletionAmount(total, expense.amount, `Expense ${expense.id} amount`), 0),
+          receiptCount: safeRetrievalInteger(dependents.receipts.length, "Outing receipt count"),
+          shareCount: safeRetrievalInteger(dependents.shares.length, "Outing share count"),
+          allocationCount: safeRetrievalInteger(dependents.allocations.length, "Outing allocation count"),
+          affectedRepaymentCount: safeRetrievalInteger(affectedRepaymentIds.length, "Affected repayment count"),
+          affectedRepaymentIds,
+          affectedFriendIds: safeDeletionIds(dependents.shares.map((share) => share.friendId), "Affected friend ID"),
+        };
+        const hasDependents = impact.expenseCount > 0 || impact.receiptCount > 0 || impact.shareCount > 0 || impact.allocationCount > 0;
+        if (hasDependents && !options.cascadeDependents) throw new OutingDeletionInvariantError(impact);
         const deleted = await transaction
           .delete(outings)
           .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
           .returning({ id: outings.id });
         if (deleted.length === 0) return notFound();
-        return { friendIds: [] as string[] };
+        return { friendIds: impact.affectedFriendIds, repaymentIds: impact.affectedRepaymentIds };
       });
     } catch (error) {
       return persistenceError(error);
@@ -1308,8 +1446,41 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function deleteExpense(expenseId: string) {
+  async function getExpenseDeletionImpact(expenseId: string): Promise<ExpenseDeletionImpact> {
     assertExpenseId(expenseId);
+    try {
+      const [expense] = await database
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .limit(1);
+      if (!expense) return notFound();
+      const [receiptRows, shareRows] = await Promise.all([
+        database.select({ id: expenseReceipts.id }).from(expenseReceipts).where(and(eq(expenseReceipts.ownerUserId, owner), eq(expenseReceipts.expenseId, expenseId))),
+        database.select({ id: expenseShares.id, friendId: expenseShares.friendId }).from(expenseShares).where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId))),
+      ]);
+      const shareIds = safeDeletionIds(shareRows.map((share) => share.id), "Expense share ID");
+      const allocationRows = shareIds.length
+        ? await database.select({ repaymentId: repaymentAllocations.repaymentId }).from(repaymentAllocations).where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+        : [];
+      const affectedRepaymentIds = safeDeletionIds(allocationRows.map((allocation) => allocation.repaymentId), "Affected repayment ID");
+      return {
+        recordType: "expense",
+        receiptCount: safeRetrievalInteger(receiptRows.length, "Expense receipt count"),
+        shareCount: safeRetrievalInteger(shareRows.length, "Expense share count"),
+        allocationCount: safeRetrievalInteger(allocationRows.length, "Expense allocation count"),
+        affectedRepaymentCount: safeRetrievalInteger(affectedRepaymentIds.length, "Affected repayment count"),
+        affectedRepaymentIds,
+        affectedFriendIds: safeDeletionIds(shareRows.map((share) => share.friendId), "Affected friend ID"),
+      };
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function deleteExpense(expenseId: string, options: DeleteRecordOptions = { cascadeDependents: false }) {
+    assertExpenseId(expenseId);
+    assertDeleteOptions(options);
     try {
       return await database.transaction(async (transaction) => {
         const [expense] = await transaction
@@ -1319,30 +1490,25 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           .limit(1)
           .for("update");
         if (!expense) return notFound();
-
-        const shares = await transaction
-          .select({ id: expenseShares.id, friendId: expenseShares.friendId })
-          .from(expenseShares)
-          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)))
-          .orderBy(asc(expenseShares.id))
-          .for("update");
-        const shareIds = shares.map((share) => share.id);
-        if (shareIds.length > 0) {
-          const allocations = await transaction
-            .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId })
-            .from(repaymentAllocations)
-            .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
-            .orderBy(asc(repaymentAllocations.expenseShareId), asc(repaymentAllocations.repaymentId))
-            .for("update");
-          if (allocations.length > 0) throw new ExpenseDeletionInvariantError();
-        }
-
+        const dependents = await lockExpenseDependents(transaction, [expenseId]);
+        const affectedRepaymentIds = safeDeletionIds(dependents.allocations.map((allocation) => allocation.repaymentId), "Affected repayment ID");
+        const impact: ExpenseDeletionImpact = {
+          recordType: "expense",
+          receiptCount: safeRetrievalInteger(dependents.receipts.length, "Expense receipt count"),
+          shareCount: safeRetrievalInteger(dependents.shares.length, "Expense share count"),
+          allocationCount: safeRetrievalInteger(dependents.allocations.length, "Expense allocation count"),
+          affectedRepaymentCount: safeRetrievalInteger(affectedRepaymentIds.length, "Affected repayment count"),
+          affectedRepaymentIds,
+          affectedFriendIds: safeDeletionIds(dependents.shares.map((share) => share.friendId), "Affected friend ID"),
+        };
+        const hasDependents = impact.receiptCount > 0 || impact.shareCount > 0 || impact.allocationCount > 0;
+        if (hasDependents && !options.cascadeDependents) throw new ExpenseDeletionInvariantError(impact);
         const deleted = await transaction
           .delete(expenses)
           .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
           .returning({ id: expenses.id });
         if (deleted.length === 0) return notFound();
-        return { friendIds: [...new Set(shares.map((share) => share.friendId))] };
+        return { friendIds: impact.affectedFriendIds, repaymentIds: impact.affectedRepaymentIds };
       });
     } catch (error) {
       return persistenceError(error);
@@ -1774,8 +1940,33 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function deleteRepayment(repaymentId: string) {
+  async function getRepaymentDeletionImpact(repaymentId: string): Promise<RepaymentDeletionImpact> {
     assertRepaymentId(repaymentId);
+    try {
+      const [repayment] = await database
+        .select({ id: repayments.id, friendId: repayments.friendId })
+        .from(repayments)
+        .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+        .limit(1);
+      if (!repayment) return notFound();
+      const allocations = await database
+        .select({ expenseShareId: repaymentAllocations.expenseShareId })
+        .from(repaymentAllocations)
+        .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)));
+      const [friendId] = safeDeletionIds([repayment.friendId], "Affected friend ID");
+      return {
+        recordType: "repayment",
+        allocationCount: safeRetrievalInteger(allocations.length, "Repayment allocation count"),
+        friendId,
+      };
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function deleteRepayment(repaymentId: string, options: DeleteRecordOptions = { cascadeDependents: false }) {
+    assertRepaymentId(repaymentId);
+    assertDeleteOptions(options);
     try {
       return await database.transaction(async (transaction) => {
         const [repayment] = await transaction
@@ -1785,21 +1976,25 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           .limit(1)
           .for("update");
         if (!repayment) return notFound();
-
         const allocations = await transaction
           .select({ expenseShareId: repaymentAllocations.expenseShareId })
           .from(repaymentAllocations)
           .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)))
           .orderBy(asc(repaymentAllocations.expenseShareId))
           .for("update");
-        if (allocations.length > 0) throw new RepaymentDeletionInvariantError();
-
+        const [friendId] = safeDeletionIds([repayment.friendId], "Affected friend ID");
+        const impact: RepaymentDeletionImpact = {
+          recordType: "repayment",
+          allocationCount: safeRetrievalInteger(allocations.length, "Repayment allocation count"),
+          friendId,
+        };
+        if (impact.allocationCount > 0 && !options.cascadeDependents) throw new RepaymentDeletionInvariantError(impact);
         const deleted = await transaction
           .delete(repayments)
           .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
           .returning({ id: repayments.id });
         if (deleted.length === 0) return notFound();
-        return { friendIds: [repayment.friendId] };
+        return { friendIds: [friendId], repaymentIds: [] as string[] };
       });
     } catch (error) {
       return persistenceError(error);
@@ -2023,12 +2218,14 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     listOutings,
     listOutingRecords,
     updateOuting,
+    getOutingDeletionImpact,
     deleteOuting,
     createExpense,
     getExpense,
     listExpenses,
     listRecentActivity,
     listExpenseRecords,
+    getExpenseDeletionImpact,
     listLedgerHistory,
     getLedgerSummary,
     getLedgerExportSnapshot,
@@ -2045,6 +2242,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     listRepayments,
     listRepaymentRecords,
     updateRepayment,
+    getRepaymentDeletionImpact,
     deleteRepayment,
     getRepaymentAllocationPlan,
     replaceRepaymentAllocations,

@@ -29,6 +29,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
   }
+  const deletionImpact = await repository.getExpenseDeletionImpact(expenseId);
   const outings = await repository.listOutings();
   const [activeFriends, shares, receipts] = await Promise.all([
     repository.listFriends(),
@@ -80,7 +81,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
           />
         </div>
         <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts} />
-        <DeleteRecordForm action={deleteExpenseAction.bind(null, expense.id)} recordType="expense" />
+        <DeleteRecordForm action={deleteExpenseAction.bind(null, expense.id)} recordType="expense" impact={deletionImpact} />
       </div>
     </section>
   );
