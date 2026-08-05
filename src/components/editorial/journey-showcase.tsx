@@ -62,6 +62,7 @@ export function JourneyShowcase() {
   const tabs = useRef<Array<HTMLButtonElement | null>>([]);
   const runway = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
+  const journeyFrame = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
 
   const setRailProgress = useCallback((progress: number) => {
@@ -71,6 +72,16 @@ export function JourneyShowcase() {
   }, []);
 
   const stageHeight = useCallback(() => Math.max(stage.current?.offsetHeight ?? 0, window.innerHeight), []);
+  const journeyStartOffset = useCallback(() => {
+    const stageElement = stage.current;
+    const frameElement = journeyFrame.current;
+    if (!stageElement || !frameElement) return 0;
+    const stageTop = stageElement.getBoundingClientRect().top;
+    const frameBottom = frameElement.getBoundingClientRect().bottom;
+    const stickyTop = Number.parseFloat(window.getComputedStyle(stageElement).top);
+    const availableHeight = window.innerHeight - (Number.isFinite(stickyTop) ? stickyTop : 0);
+    return Math.max(frameBottom - stageTop - availableHeight, 0);
+  }, []);
 
   useEffect(() => {
     const wide = window.matchMedia?.("(min-width: 960px)");
@@ -96,14 +107,14 @@ export function JourneyShowcase() {
     let frame: number | null = null;
     const updateDimensions = () => {
       const element = runway.current;
-      if (element) element.style.height = `${stageHeight() + window.innerHeight * (steps.length - 1)}px`;
+      if (element) element.style.height = `${stageHeight() + journeyStartOffset() + window.innerHeight * (steps.length - 1)}px`;
     };
     const updateProgress = () => {
       frame = null;
       const element = runway.current;
       if (!element) return;
       const travel = Math.max(element.offsetHeight - stageHeight(), 1);
-      const progress = clampProgress(-element.getBoundingClientRect().top / travel);
+      const progress = clampProgress((-element.getBoundingClientRect().top - journeyStartOffset()) / travel);
       setRailProgress(progress);
       const nextStep = Math.round(progress * (steps.length - 1));
       setActiveStep((current) => current === nextStep ? current : nextStep);
@@ -119,12 +130,12 @@ export function JourneyShowcase() {
       window.removeEventListener("resize", onResize);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, [desktopSequence, setRailProgress, stageHeight]);
+  }, [desktopSequence, journeyStartOffset, setRailProgress, stageHeight]);
 
   function scrollToStep(step: number) {
     if (!desktopSequence || !runway.current) return;
     const travel = Math.max(runway.current.offsetHeight - stageHeight(), 1);
-    const top = runway.current.getBoundingClientRect().top + window.scrollY + (step / (steps.length - 1)) * travel;
+    const top = runway.current.getBoundingClientRect().top + window.scrollY + journeyStartOffset() + (step / (steps.length - 1)) * travel;
     window.scrollTo({ top, behavior: "smooth" });
   }
 
@@ -157,7 +168,7 @@ export function JourneyShowcase() {
                 {steps.map((item, index) => <button aria-controls="journey-panel" aria-selected={activeStep === index} className={`journey-tab${activeStep === index ? " journey-tab--active" : ""}`} id={`journey-tab-${index}`} key={item.label} onClick={() => selectStep(index)} onKeyDown={(event) => handleKeyDown(event, index)} ref={(element) => { tabs.current[index] = element; }} role="tab" tabIndex={activeStep === index ? 0 : -1} type="button"><span>{String(index + 1).padStart(2, "0")}</span>{item.label}</button>)}
               </div>
               <p className="journey-announcement" aria-live="polite">Step {activeStep + 1} of {steps.length}: {steps[activeStep].label}</p>
-              <div className="journey-frame" id="journey-panel" role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}>
+              <div className="journey-frame" id="journey-panel" ref={journeyFrame} role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}>
                 <div className="journey-frame__header"><span className="technical-label">Zplit / illustrative scenario</span><span className="technical-label">Whole rupiah · entered by owner</span></div>
                 <div className="journey-frame__body"><div className="journey-rail" ref={rail}>{steps.map((step, index) => <article className={`journey-panel${activeStep === index ? " journey-panel--active" : ""}`} data-journey-step={index} aria-hidden={desktopSequence ? activeStep !== index : undefined} key={step.label}><div className="journey-frame__intro"><span className="journey-step-mark">{String(index + 1).padStart(2, "0")}</span><div><p className="technical-label">{step.label}</p><p>{step.copy}</p></div></div><StepPanel step={index} /></article>)}</div></div>
               </div>

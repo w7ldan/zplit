@@ -41,6 +41,16 @@ describe("useDetachedHeader", () => {
     unmount();
   });
 
+  it("rechecks after the browser restores the scroll position", () => {
+    const { result, unmount } = renderHook(() => useDetachedHeader(32));
+    expect(result.current).toBe(false);
+    setScrollY(40);
+    act(() => window.dispatchEvent(new Event("pageshow")));
+    act(() => frameCallback?.(1));
+    expect(result.current).toBe(true);
+    unmount();
+  });
+
   it("cleans a scheduled frame and changes immediately under reduced motion", () => {
     const cancel = vi.fn();
     vi.stubGlobal("cancelAnimationFrame", cancel);

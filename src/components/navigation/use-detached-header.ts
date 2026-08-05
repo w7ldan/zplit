@@ -24,15 +24,18 @@ export function useDetachedHeader(threshold = DETACHED_HEADER_THRESHOLD) {
       }
       if (frame === null) frame = window.requestAnimationFrame(update);
     };
+    const onPageShow = () => onScroll();
 
     update();
     document.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("pageshow", onPageShow);
     const onMotionChange = () => onScroll();
     motionQuery?.addEventListener?.("change", onMotionChange);
     return () => {
       document.removeEventListener("scroll", onScroll);
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("pageshow", onPageShow);
       motionQuery?.removeEventListener?.("change", onMotionChange);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
