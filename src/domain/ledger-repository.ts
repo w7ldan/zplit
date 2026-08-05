@@ -735,25 +735,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
     try {
       const result = await database.execute<RecentActivityRow>(sql`
-        WITH repayment_totals AS (
-          SELECT
-            ra.owner_user_id,
-            ra.repayment_id,
-            COALESCE(SUM(ra.amount), 0) AS allocated_amount
-          FROM repayment_allocations ra
-          WHERE ra.owner_user_id = ${owner}
-          GROUP BY ra.owner_user_id, ra.repayment_id
-        )
-        SELECT
-          activity.event_kind,
-          activity.record_id,
-          activity.title_source,
-          activity.detail_source,
-          activity.amount,
-          activity.effective_at,
-          activity.created_at,
-          activity.allocated_amount
-        FROM (
+        WITH expense_candidates AS MATERIALIZED (
           SELECT
             'Expense'::text AS event_kind,
             e.id AS record_id,
@@ -769,7 +751,10 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
             AND o.id = e.outing_id
           WHERE e.owner_user_id = ${owner}
             AND o.owner_user_id = ${owner}
-          UNION ALL
+          ORDER BY o.occurred_at DESC, e.created_at DESC, e.id ASC
+          LIMIT ${limit}
+        ),
+        repayment_candidates AS MATERIALIZED (
           SELECT
             'Repayment'::text AS event_kind,
             r.id AS record_id,
@@ -778,23 +763,61 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
             r.amount,
             r.paid_at AS effective_at,
             r.created_at,
-            COALESCE(rt.allocated_amount, 0)::bigint AS allocated_amount
+            0::bigint AS allocated_amount
           FROM repayments r
           INNER JOIN friends f
             ON f.owner_user_id = r.owner_user_id
             AND f.id = r.friend_id
-          LEFT JOIN repayment_totals rt
-            ON rt.owner_user_id = r.owner_user_id
-            AND rt.repayment_id = r.id
           WHERE r.owner_user_id = ${owner}
             AND f.owner_user_id = ${owner}
-        ) AS activity
+          ORDER BY r.paid_at DESC, r.created_at DESC, r.id ASC
+          LIMIT ${limit}
+        ),
+        bounded_activity AS MATERIALIZED (
+          SELECT * FROM expense_candidates
+          UNION ALL
+          SELECT * FROM repayment_candidates
+        ),
+        final_activity AS MATERIALIZED (
+          SELECT activity.*
+          FROM bounded_activity activity
+          ORDER BY
+            activity.effective_at DESC,
+            CASE WHEN activity.event_kind = 'Expense' THEN 0 ELSE 1 END ASC,
+            activity.created_at DESC,
+            activity.record_id ASC
+          LIMIT ${limit}
+        ),
+        repayment_totals AS (
+          SELECT
+            ra.owner_user_id,
+            ra.repayment_id,
+            COALESCE(SUM(ra.amount), 0) AS allocated_amount
+          FROM repayment_allocations ra
+          INNER JOIN final_activity activity
+            ON activity.event_kind = 'Repayment'
+            AND activity.record_id = ra.repayment_id
+          WHERE ra.owner_user_id = ${owner}
+          GROUP BY ra.owner_user_id, ra.repayment_id
+        )
+        SELECT
+          activity.event_kind,
+          activity.record_id,
+          activity.title_source,
+          activity.detail_source,
+          activity.amount,
+          activity.effective_at,
+          activity.created_at,
+          COALESCE(rt.allocated_amount, 0)::bigint AS allocated_amount
+        FROM final_activity activity
+        LEFT JOIN repayment_totals rt
+          ON rt.owner_user_id = ${owner}
+          AND rt.repayment_id = activity.record_id
         ORDER BY
           activity.effective_at DESC,
           CASE WHEN activity.event_kind = 'Expense' THEN 0 ELSE 1 END ASC,
           activity.created_at DESC,
           activity.record_id ASC
-        LIMIT ${limit}
       `);
 
       const activityRows = (Array.isArray(result) ? result : result.rows) as RecentActivityRow[];

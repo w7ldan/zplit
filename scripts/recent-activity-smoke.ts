@@ -44,6 +44,7 @@ async function run() {
   const expenseIds = [1, 2, 3, 4, 5, 6].map((value) => id(base, value));
   const foreignExpense = id(base, 201);
   const repaymentIds = [101, 102, 103].map((value) => id(base, value));
+  const olderRepaymentIds = [104, 105].map((value) => id(base, value));
   const foreignRepayment = id(base, 202);
   const shareE1 = id(base, 501);
   const shareE3 = id(base, 502);
@@ -86,11 +87,15 @@ async function run() {
       [repaymentIds[0], repositoryOwner, friendA, 1000, "2026-08-10T00:00:00Z", "2026-08-01T00:00:00Z"],
       [repaymentIds[1], repositoryOwner, friendA, 2000, "2026-08-09T00:00:00Z", "2026-08-02T00:00:00Z"],
       [repaymentIds[2], repositoryOwner, friendA, 3000, "2026-08-06T00:00:00Z", "2026-08-04T00:00:00Z"],
+      [olderRepaymentIds[0], repositoryOwner, friendA, 4000, "2020-08-05T00:00:00Z", "2020-08-01T00:00:00Z"],
+      [olderRepaymentIds[1], repositoryOwner, friendA, 5000, "2020-08-04T00:00:00Z", "2020-08-02T00:00:00Z"],
       [foreignRepayment, foreignOwner, friendB, 9000, "2030-01-01T00:00:00Z", "2030-01-01T00:00:00Z"],
     ]);
     await insertRows("repayment_allocations", "owner_user_id, repayment_id, expense_share_id, amount", [
       [repositoryOwner, repaymentIds[0], shareE1, 1000],
       [repositoryOwner, repaymentIds[2], shareE3, 500],
+      [repositoryOwner, olderRepaymentIds[0], shareE1, 400],
+      [repositoryOwner, olderRepaymentIds[1], shareE3, 500],
     ]);
 
     const repository = createLedgerRepository(database, repositoryOwner);
@@ -103,6 +108,7 @@ async function run() {
     assert(JSON.stringify(six.map((item) => item.id)) === JSON.stringify(expectedSix), "PostgreSQL activity ordering is wrong");
     assert(!six.some((item) => item.id === foreignExpense || item.id === foreignRepayment), "foreign-owner activity leaked");
     assert(!six.some((item) => item.id === expenseIds[3]), "the older seventh owner record was not excluded");
+    assert(!six.some((item) => olderRepaymentIds.includes(item.id)), "older allocated repayments were not excluded");
 
     const expense = six.find((item) => item.id === expenseIds[0]);
     assert(expense?.kind === "Expense" && expense.title === "Dinner" && expense.detail === "Jakarta" && expense.amount === 8000, "expense mapping is wrong");
@@ -113,7 +119,7 @@ async function run() {
     assert(unallocated?.detail === "Money received · unallocated remains open", "unallocated repayment mapping is wrong");
 
     const all = await repository.listRecentActivity({ limit: 20 });
-    const expectedAll = [expenseIds[0], repaymentIds[0], expenseIds[1], repaymentIds[1], expenseIds[2], expenseIds[5], expenseIds[3], expenseIds[4], repaymentIds[2]];
+    const expectedAll = [expenseIds[0], repaymentIds[0], expenseIds[1], repaymentIds[1], expenseIds[2], expenseIds[5], expenseIds[3], expenseIds[4], repaymentIds[2], olderRepaymentIds[0], olderRepaymentIds[1]];
     assert(JSON.stringify(all.map((item) => item.id)) === JSON.stringify(expectedAll), "full activity ordering is wrong");
     assert(all[6]?.id === expenseIds[3] && all[7]?.id === expenseIds[4], "same-type ID tie-breaking is wrong");
 

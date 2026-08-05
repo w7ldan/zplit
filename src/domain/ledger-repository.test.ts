@@ -230,16 +230,41 @@ describe("ledger repository", () => {
     await expect(repository.listRecentActivity({ limit: 3 })).resolves.toEqual([]);
 
     expect(queries).toHaveLength(2);
-    expect(queries[0].params).toContain(6);
-    expect(queries[1].params).toContain(3);
-    expect(queries[0].sql).toContain("UNION ALL");
-    expect(queries[0].sql).toContain("LIMIT");
-    expect(queries[0].sql).toContain("expenses");
-    expect(queries[0].sql).toContain("outings");
-    expect(queries[0].sql).toContain("repayments");
-    expect(queries[0].sql).toContain("friends");
-    expect(queries[0].sql).toContain("repayment_allocations");
-    expect(queries[0].params).toContain(owner);
+    for (const [query, limit] of queries.map((query, index) => [query, index === 0 ? 6 : 3] as const)) {
+      const sql = query.sql.replace(/\s+/g, " ").trim().toLowerCase();
+      expect(query.params.filter((value) => value === limit)).toHaveLength(3);
+      expect(sql.match(/\blimit \$\d+/g)).toHaveLength(3);
+      expect(sql).toContain("union all");
+      expect(query.params).toContain(owner);
+
+      const repaymentCandidates = sql.indexOf("repayment_candidates as materialized");
+      const boundedActivity = sql.indexOf("bounded_activity as materialized");
+      const finalActivity = sql.indexOf("final_activity as materialized");
+      const allocationTotals = sql.indexOf("repayment_totals as");
+      expect(repaymentCandidates).toBeGreaterThan(0);
+      expect(boundedActivity).toBeGreaterThan(repaymentCandidates);
+      expect(finalActivity).toBeGreaterThan(boundedActivity);
+      expect(allocationTotals).toBeGreaterThan(finalActivity);
+
+      const expenseBranch = sql.slice(sql.indexOf("expense_candidates as materialized"), repaymentCandidates);
+      const repaymentBranch = sql.slice(repaymentCandidates, boundedActivity);
+      expect(expenseBranch).toContain("from expenses e");
+      expect(expenseBranch).toContain("inner join outings o");
+      expect(expenseBranch).toContain("where e.owner_user_id = $");
+      expect(expenseBranch).toContain("and o.owner_user_id = $");
+      expect(expenseBranch).toContain("order by o.occurred_at desc, e.created_at desc, e.id asc limit");
+      expect(repaymentBranch).toContain("from repayments r");
+      expect(repaymentBranch).toContain("inner join friends f");
+      expect(repaymentBranch).toContain("where r.owner_user_id = $");
+      expect(repaymentBranch).toContain("and f.owner_user_id = $");
+      expect(repaymentBranch).toContain("order by r.paid_at desc, r.created_at desc, r.id asc limit");
+
+      expect(sql.slice(0, finalActivity)).not.toContain("repayment_allocations");
+      expect(sql.slice(allocationTotals)).toContain("from repayment_allocations ra inner join final_activity activity");
+      expect(sql.slice(allocationTotals)).toContain("activity.event_kind = 'repayment'");
+      expect(sql).toContain("order by activity.effective_at desc, case when activity.event_kind = 'expense' then 0 else 1 end asc, activity.created_at desc, activity.record_id asc limit");
+      expect(sql).toContain("from final_activity activity left join repayment_totals rt");
+    }
   });
 
   it("rejects invalid recent activity limits before database execution", async () => {
