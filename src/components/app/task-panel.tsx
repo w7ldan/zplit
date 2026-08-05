@@ -34,14 +34,31 @@ export function TaskPanel({ open, title, description, triggerId, children }: Tas
   const triggerRef = useRef<HTMLElement | null>(null);
   const openedRef = useRef(false);
   const closingRef = useRef(false);
+  const mountedRef = useRef(true);
   const closeTimerRef = useRef<number | null>(null);
   const closeFrameRef = useRef<number | null>(null);
   const [closing, setClosing] = useState(false);
 
+  function clearCloseWork() {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    if (closeFrameRef.current !== null) window.cancelAnimationFrame(closeFrameRef.current);
+    closeTimerRef.current = null;
+    closeFrameRef.current = null;
+  }
+
   useEffect(() => {
     if (!open) {
+      clearCloseWork();
       openedRef.current = false;
       closingRef.current = false;
+      // The prop is the external lifecycle signal; reset the visual state with it.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setClosing(false);
+      const dialog = dialogRef.current;
+      if (dialog?.open) {
+        if (typeof dialog.close === "function") dialog.close();
+        else dialog.open = false;
+      }
       return;
     }
 
@@ -49,9 +66,10 @@ export function TaskPanel({ open, title, description, triggerId, children }: Tas
     if (!dialog || openedRef.current) return;
 
     const activeElement = document.activeElement;
-    triggerRef.current = activeElement instanceof HTMLElement && activeElement.dataset.taskTrigger ? activeElement : null;
+    triggerRef.current = activeElement instanceof HTMLElement && activeElement.dataset.taskTrigger === triggerId ? activeElement : null;
     openedRef.current = true;
     closingRef.current = false;
+    setClosing(false);
 
     if (!dialog.open) {
       if (typeof dialog.showModal === "function") dialog.showModal();
@@ -60,19 +78,22 @@ export function TaskPanel({ open, title, description, triggerId, children }: Tas
 
     const firstField = dialog.querySelector<HTMLElement>("input:not([type='hidden']), select, textarea") ?? dialog.querySelector<HTMLElement>("button");
     firstField?.focus();
-  }, [open]);
+  }, [open, triggerId]);
 
-  useEffect(() => () => {
-    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
-    if (closeFrameRef.current !== null) window.cancelAnimationFrame(closeFrameRef.current);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      closingRef.current = false;
+      clearCloseWork();
+    };
   }, []);
 
   function finalizeClose() {
-    if (!closingRef.current) return;
-    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
-    if (closeFrameRef.current !== null) window.cancelAnimationFrame(closeFrameRef.current);
-    closeTimerRef.current = null;
-    closeFrameRef.current = null;
+    if (!closingRef.current || !mountedRef.current) return;
+    closingRef.current = false;
+    clearCloseWork();
+    setClosing(false);
     const dialog = dialogRef.current;
     if (dialog?.open) {
       if (typeof dialog.close === "function") dialog.close();
@@ -90,11 +111,9 @@ export function TaskPanel({ open, title, description, triggerId, children }: Tas
     closingRef.current = true;
     setClosing(true);
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    closeTimerRef.current = window.setTimeout(() => finalizeClose(), panelExitFallbackMs);
     if (reduced) {
       closeFrameRef.current = window.requestAnimationFrame(() => finalizeClose());
-      closeTimerRef.current = window.setTimeout(() => finalizeClose(), 0);
-    } else {
-      closeTimerRef.current = window.setTimeout(() => finalizeClose(), panelExitFallbackMs);
     }
   }
 
@@ -115,10 +134,7 @@ export function TaskPanel({ open, title, description, triggerId, children }: Tas
         if (event.target === event.currentTarget) close();
       }}
       onTransitionEnd={(event) => {
-        if (closing && event.target === event.currentTarget) finalizeClose();
-      }}
-      onAnimationEnd={(event) => {
-        if (closing && event.target === event.currentTarget) finalizeClose();
+        if (closingRef.current && event.target === event.currentTarget && event.propertyName === "transform") finalizeClose();
       }}
     >
       <div className="task-panel__surface">

@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   window.history.replaceState({}, "", "/");
@@ -22,8 +23,10 @@ afterEach(() => {
 function panel(open = true) {
   return (
     <TaskPanel open={open} title="Add a friend" description="Details" triggerId="friend-create">
-      <label htmlFor="name">Name</label>
-      <input id="name" />
+      <form data-testid="panel-form">
+        <label htmlFor="name">Name</label>
+        <input id="name" />
+      </form>
     </TaskPanel>
   );
 }
@@ -50,9 +53,14 @@ describe("TaskPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
 
     expect(dialog).toHaveClass("task-panel--closing");
+    expect(screen.getByRole("button", { name: "Close panel" })).toBeDisabled();
     expect((dialog as HTMLDialogElement).open).toBe(true);
     expect(mocks.replace).not.toHaveBeenCalled();
-    fireEvent.transitionEnd(dialog);
+    fireEvent.transitionEnd(dialog, { propertyName: "opacity" });
+    fireEvent.animationEnd(dialog);
+    expect((dialog as HTMLDialogElement).open).toBe(true);
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
     expect((dialog as HTMLDialogElement).open).toBe(false);
     expect(screen.getByRole("link", { name: "Add friend" })).toHaveFocus();
     expect(mocks.replace).toHaveBeenCalledWith("/", { scroll: false });
@@ -69,7 +77,7 @@ describe("TaskPanel", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
-    fireEvent.transitionEnd(screen.getByRole("dialog"));
+    fireEvent.transitionEnd(screen.getByRole("dialog"), { propertyName: "transform" });
 
     expect(secondTrigger).toHaveFocus();
   });
@@ -81,7 +89,7 @@ describe("TaskPanel", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
-    fireEvent.transitionEnd(screen.getByRole("dialog"));
+    fireEvent.transitionEnd(screen.getByRole("dialog"), { propertyName: "transform" });
     expect(mocks.replace).toHaveBeenCalledWith("/app/friends?q=alice#top", { scroll: false });
 
     view.rerender(<Wrapper open={false} />);
@@ -95,7 +103,7 @@ describe("TaskPanel", () => {
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
     const dialog = screen.getByRole("dialog");
     fireEvent(dialog, new Event("cancel", { bubbles: true, cancelable: true }));
-    fireEvent.transitionEnd(dialog);
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
     expect((dialog as HTMLDialogElement).open).toBe(false);
 
     view.rerender(panel(false));
@@ -103,7 +111,7 @@ describe("TaskPanel", () => {
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
     const backdropDialog = screen.getByRole("dialog");
     fireEvent.click(backdropDialog);
-    fireEvent.transitionEnd(backdropDialog);
+    fireEvent.transitionEnd(backdropDialog, { propertyName: "transform" });
     expect((backdropDialog as HTMLDialogElement).open).toBe(false);
   });
 
@@ -118,16 +126,59 @@ describe("TaskPanel", () => {
     act(() => vi.advanceTimersByTime(260));
     expect((dialog as HTMLDialogElement).open).toBe(false);
     expect(mocks.replace).toHaveBeenCalledOnce();
-    vi.useRealTimers();
   });
 
   it("finalizes on the next frame without spatial motion when reduced motion is requested", async () => {
+    vi.useFakeTimers();
+    let frameCallback: FrameRequestCallback | null = null;
     vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === "(prefers-reduced-motion: reduce)" }));
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(1); return 1; });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frameCallback = callback; return 1; });
     render(panel());
     const dialog = screen.getByRole("dialog");
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+    expect((dialog as HTMLDialogElement).open).toBe(true);
+    expect(mocks.replace).not.toHaveBeenCalled();
+    act(() => frameCallback?.(1));
     expect((dialog as HTMLDialogElement).open).toBe(false);
     expect(mocks.replace).toHaveBeenCalledOnce();
+    act(() => vi.advanceTimersByTime(260));
+    expect(mocks.replace).toHaveBeenCalledOnce();
+  });
+
+  it("prevents submission while closing", async () => {
+    render(panel());
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+
+    const event = new Event("submit", { bubbles: true, cancelable: true });
+    fireEvent(screen.getByTestId("panel-form"), event);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("cancels delayed finalization when unmounted", () => {
+    vi.useFakeTimers();
+    const view = render(panel());
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+    view.unmount();
+
+    act(() => vi.advanceTimersByTime(260));
+    expect(mocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("resets a mounted panel before opening it again", async () => {
+    const Wrapper = ({ open }: { open: boolean }) => panel(open);
+    const view = render(<Wrapper open />);
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+    const dialog = screen.getByRole("dialog");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
+    view.rerender(<Wrapper open={false} />);
+    view.rerender(<Wrapper open />);
+
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+    expect(dialog).not.toHaveClass("task-panel--closing");
+    expect(screen.getByRole("button", { name: "Close panel" })).not.toBeDisabled();
+    expect((dialog as HTMLDialogElement).open).toBe(true);
   });
 });

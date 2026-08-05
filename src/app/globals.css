@@ -4960,11 +4960,16 @@ select {
   .app-page .expense-row--created,
   .task-panel,
   .task-panel--closing,
-  .allocation-bar__fill,
   .invite-form__result,
   .friend-share__result {
     animation: none !important;
     transform: none !important;
+    transition: none !important;
+  }
+
+  .allocation-bar__fill {
+    transform-origin: left center;
+    animation: none !important;
     transition: none !important;
   }
 

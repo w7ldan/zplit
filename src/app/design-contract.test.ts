@@ -78,6 +78,7 @@ describe("Zplit design contract", () => {
     expect(documentation).toContain("Motion communicates insertion, completion, state change, or spatial entry/exit");
     expect(documentation).toContain("Frequent financial inputs remain immediate");
     expect(documentation).toContain("Reduced motion removes spatial effects");
+    expect(documentation).toContain("Authenticated sticky navigation remains geometrically stable while scrolling; it may change surface emphasis but does not change width, position, alignment, or radius.");
   });
 
   it("keeps prohibited visual patterns out of the authenticated contract", () => {
@@ -152,13 +153,17 @@ describe("Zplit design contract", () => {
     expect(css).toContain(".friend-share__result {");
     expect(css).toContain("transform-origin: left center;");
     expect(css).toContain("transition: transform var(--motion-state) var(--ease-product), background-color var(--motion-state) var(--ease-product);");
+    expect(css).toMatch(/\.allocation-bar__fill\s*\{[\s\S]*?width:\s*100%;[\s\S]*?transform-origin:\s*left center;[\s\S]*?transition:\s*transform var\(--motion-state\)/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.allocation-bar__fill\s*\{[\s\S]*?transform-origin:\s*left center;[\s\S]*?animation:\s*none !important;[\s\S]*?transition:\s*none !important;/);
+    expect(css).not.toMatch(/\.allocation-bar__fill\s*\{[^}]*transform:\s*(?:none|scaleX\(1\))/);
+    expect(css).toMatch(/\.task-panel--closing,[\s\S]*?transform:\s*none !important;/);
     expect(expenseShareSource).toContain("style={{ transform: `scaleX(${allocationProgress})` }}");
     expect(repaymentAllocationSource).toContain("style={{ transform: `scaleX(${allocationProgress})` }}");
     expect(expenseShareSource).not.toContain("style={{ width:");
     expect(repaymentAllocationSource).not.toContain("style={{ width:");
     expect(taskPanelSource).toContain("task-panel--closing");
     expect(taskPanelSource).toContain("onTransitionEnd");
-    expect(taskPanelSource).toContain("onAnimationEnd");
+    expect(taskPanelSource).not.toContain("onAnimationEnd");
     expect(recordConfirmationSource).toContain('"entering"');
     expect(recordConfirmationSource).toContain('"exiting"');
     expect(recordConfirmationSource).toContain("return null");
