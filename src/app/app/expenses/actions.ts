@@ -185,6 +185,9 @@ export async function deleteExpenseAction(
   for (const friendId of result.friendIds) {
     revalidatePath(`/app/friends/${friendId}`);
   }
+  for (const repaymentId of result.repaymentIds) {
+    revalidatePath(`/app/repayments/${repaymentId}`);
+  }
   revalidatePath("/share/[token]", "page");
   redirect("/app/expenses?deleted=1");
 }

@@ -123,7 +123,7 @@ describe("expense actions", () => {
   });
 
   it("requires exact deletion confirmation, revalidates affected friends, and redirects canonically", async () => {
-    const deleteExpense = vi.fn().mockResolvedValue({ friendIds: ["friend-a"], repaymentIds: [] });
+    const deleteExpense = vi.fn().mockResolvedValue({ friendIds: ["friend-a"], repaymentIds: ["repayment-a"] });
     const getExpenseDeletionImpact = vi.fn().mockResolvedValue({ recordType: "expense", receiptCount: 0, shareCount: 0, allocationCount: 0, affectedRepaymentCount: 0, affectedRepaymentIds: [], affectedFriendIds: [] });
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
@@ -132,6 +132,7 @@ describe("expense actions", () => {
     await expect(deleteExpenseAction("expense-a", { formError: "" }, form({ confirm: "delete" }))).rejects.toThrow("redirect:/app/expenses?deleted=1");
     expect(deleteExpense).toHaveBeenCalledWith("expense-a", { cascadeDependents: false });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/friends/friend-a");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments/repayment-a");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/share/[token]", "page");
   });
 
