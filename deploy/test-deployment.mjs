@@ -5,6 +5,30 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const caddy = readFileSync(path.join(root, "deploy/Caddyfile"), "utf8");
+const cloudflareProxyRanges = [
+  "103.21.244.0/22",
+  "103.22.200.0/22",
+  "103.31.4.0/22",
+  "104.16.0.0/13",
+  "104.24.0.0/14",
+  "108.162.192.0/18",
+  "131.0.72.0/22",
+  "141.101.64.0/18",
+  "162.158.0.0/15",
+  "172.64.0.0/13",
+  "173.245.48.0/20",
+  "188.114.96.0/20",
+  "190.93.240.0/20",
+  "197.234.240.0/22",
+  "198.41.128.0/17",
+  "2400:cb00::/32",
+  "2606:4700::/32",
+  "2803:f800::/32",
+  "2405:b500::/32",
+  "2405:8100::/32",
+  "2a06:98c0::/29",
+  "2c0f:f248::/32",
+];
 const baseImage =
   "node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d";
 const postgresImage =
@@ -53,9 +77,20 @@ const forbiddenServiceFeatures = (service) => {
 requireCondition((caddy.match(/^[^\s@{}]+\s*\{$/gm) ?? []).length === 1, "only one public Caddy site may be declared");
 requireCondition(/^idr\.wildan\.lol\s*\{$/m.test(caddy), "Caddy must serve the exact Zplit site");
 requireCondition((caddy.match(/^\s*bind 0\.0\.0\.0$/gm) ?? []).length === 1, "Caddy must bind to 0.0.0.0");
-requireCondition((caddy.match(/^\s*reverse_proxy zplit-web:3000$/gm) ?? []).length === 1, "Caddy must use only the Zplit upstream");
+requireCondition((caddy.match(/^\s*reverse_proxy zplit-web:3000(?:\s*\{)?$/gm) ?? []).length === 1, "Caddy must use only the Zplit upstream");
 requireCondition(!/reverse_proxy\s+(?!zplit-web:3000\b)/.test(caddy), "Caddy must not add another public upstream");
 requireCondition(!/metrics/i.test(caddy), "Caddy must not expose a metrics route");
+const globalServers = caddy.match(/^\{\n\s+servers \{\n([\s\S]*?)\n\s+\}\n\}/m)?.[1] ?? "";
+requireCondition(globalServers.length > 0, "global trusted-proxy server options must be configured");
+const trustedProxyLine = globalServers.match(/^\s*trusted_proxies static (.+)$/m)?.[1]?.trim() ?? "";
+requireCondition(trustedProxyLine === cloudflareProxyRanges.join(" "), "Caddy must trust exactly the current Cloudflare proxy ranges");
+requireCondition((globalServers.match(/^\s*trusted_proxies static /gm) ?? []).length === 1, "Caddy must use one static trusted-proxy range list");
+requireCondition((globalServers.match(/^\s*trusted_proxies_strict\s*$/gm) ?? []).length === 1, "Caddy strict proxy parsing must be enabled");
+requireCondition((globalServers.match(/^\s*client_ip_headers CF-Connecting-IP X-Forwarded-For\s*$/gm) ?? []).length === 1, "Caddy must use the required client-IP headers");
+for (const range of cloudflareProxyRanges) requireCondition(caddy.split(range).length - 1 === 1, `Cloudflare proxy range must appear exactly once: ${range}`);
+requireCondition(caddy.replace(globalServers, "").indexOf("CF-Connecting-IP") === -1, "CF-Connecting-IP must only be considered by trusted Caddy proxy parsing");
+requireCondition((caddy.match(/^\s*header_up X-Zplit-Client-IP \{client_ip\}$/gm) ?? []).length === 1, "Caddy must overwrite the internal client-IP header");
+requireCondition(!/^\s*header_up \+X-Zplit-Client-IP /m.test(caddy), "Caddy must not append a caller-supplied internal client-IP header");
 const csp = caddy.match(/Content-Security-Policy\s+"([^"]+)"/)?.[1] ?? "";
 requireCondition(csp.length > 0, "CSP must be configured");
 for (const directive of [

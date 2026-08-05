@@ -66,6 +66,7 @@ export function createAuth({ db, secret, baseURL, enableBootstrapSignUp }: AuthF
     },
     advanced: {
       useSecureCookies: url.protocol === "https:",
+      ipAddress: { ipAddressHeaders: ["x-zplit-client-ip"] },
       cookiePrefix: "zplit",
       defaultCookieAttributes: {
         httpOnly: true,

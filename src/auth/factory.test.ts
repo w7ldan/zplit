@@ -14,6 +14,7 @@ describe("auth factory", () => {
       max: 100,
       customRules: { "/sign-in/email": { window: 60, max: 5 } },
     });
+    expect(auth.options.advanced?.ipAddress?.ipAddressHeaders).toEqual(["x-zplit-client-ip"]);
   });
 
   it("keeps public email sign-up disabled for runtime auth", () => {

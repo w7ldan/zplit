@@ -31,6 +31,7 @@ describe("auth configuration", () => {
     });
     expect(auth.options.advanced).toMatchObject({
       useSecureCookies: true,
+      ipAddress: { ipAddressHeaders: ["x-zplit-client-ip"] },
       cookiePrefix: "zplit",
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", secure: true },
       disableCSRFCheck: false,
@@ -55,6 +56,7 @@ describe("auth configuration", () => {
 
     expect(auth.options.emailAndPassword?.disableSignUp).toBe(false);
     expect(auth.options.advanced?.useSecureCookies).toBe(false);
+    expect(auth.options.advanced?.ipAddress?.ipAddressHeaders).toEqual(["x-zplit-client-ip"]);
     expect(auth.options.rateLimit).toMatchObject({
       enabled: true,
       storage: "memory",

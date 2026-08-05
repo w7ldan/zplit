@@ -31,6 +31,8 @@ Authentication keeps production sign-up invitation-only, permits bootstrap-only 
 
 The edge removes the `Server` header, enforces HSTS, CSP, permissions, opener, frame, content-type, and referrer policies, and marks private paths non-indexable and non-cacheable. Crawlers may index only the public root. See the [release runbook](docs/release-runbook.md) for backup, deployment, verification, and rollback.
 
+Caddy converts Cloudflare’s trusted client address into `X-Zplit-Client-IP`, and Better Auth trusts only that internal header. Review the configured Cloudflare proxy ranges whenever Cloudflare publishes changes.
+
 ## Private Docker deployment
 
 The standalone Docker image runs Zplit as a non-root production process behind the shared Caddy ingress network. Zplit is publicly routed at `https://idr.wildan.lol`.
