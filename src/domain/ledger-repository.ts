@@ -180,6 +180,15 @@ export type RepaymentListRecord = RepaymentRecord & {
   unallocatedAmount: number;
 };
 
+export type RecentActivityRecord = {
+  kind: "Expense" | "Repayment";
+  id: string;
+  title: string;
+  detail: string;
+  amount: number;
+  date: Date;
+};
+
 export type RepaymentAllocationShare = {
   id: string;
   expenseShareId: string;
@@ -392,6 +401,34 @@ function safeRetrievalInteger(value: unknown, label: string) {
   const number = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : NaN;
   if (!Number.isSafeInteger(number) || number < 0) throw new LedgerIntegrityError(`${label} is invalid.`);
   return number;
+}
+
+type RecentActivityRow = {
+  event_kind: unknown;
+  record_id: unknown;
+  title_source: unknown;
+  detail_source: unknown;
+  amount: unknown;
+  effective_at: unknown;
+  created_at: unknown;
+  allocated_amount: unknown;
+};
+
+function recentActivityText(value: unknown, label: string) {
+  if (typeof value !== "string" || !value.trim()) throw new LedgerIntegrityError(`${label} is invalid.`);
+  return value;
+}
+
+function recentActivityAmount(value: unknown, label: string) {
+  const amount = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : NaN;
+  if (!Number.isSafeInteger(amount) || amount < 0) throw new LedgerIntegrityError(`${label} is not a safe whole-rupiah amount.`);
+  return amount;
+}
+
+function recentActivityDate(value: unknown, label: string) {
+  const date = value instanceof Date ? new Date(value.getTime()) : typeof value === "string" ? new Date(value) : null;
+  if (!date || !Number.isFinite(date.getTime())) throw new LedgerIntegrityError(`${label} is invalid.`);
+  return date;
 }
 
 export function createLedgerRepository(database: Database, ownerUserId: string) {
@@ -687,6 +724,105 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
         .where(eq(expenses.ownerUserId, owner))
         .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id));
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listRecentActivity({ limit = 6 }: { limit?: number } = {}): Promise<RecentActivityRecord[]> {
+    if (typeof limit !== "number" || !Number.isFinite(limit) || !Number.isInteger(limit) || limit < 1 || limit > 20) {
+      throw new LedgerRepositoryError("INVALID_INPUT", "Recent activity limit is invalid.");
+    }
+    try {
+      const result = await database.execute<RecentActivityRow>(sql`
+        WITH repayment_totals AS (
+          SELECT
+            ra.owner_user_id,
+            ra.repayment_id,
+            COALESCE(SUM(ra.amount), 0) AS allocated_amount
+          FROM repayment_allocations ra
+          WHERE ra.owner_user_id = ${owner}
+          GROUP BY ra.owner_user_id, ra.repayment_id
+        )
+        SELECT
+          activity.event_kind,
+          activity.record_id,
+          activity.title_source,
+          activity.detail_source,
+          activity.amount,
+          activity.effective_at,
+          activity.created_at,
+          activity.allocated_amount
+        FROM (
+          SELECT
+            'Expense'::text AS event_kind,
+            e.id AS record_id,
+            e.description AS title_source,
+            o.title AS detail_source,
+            e.amount,
+            o.occurred_at AS effective_at,
+            e.created_at,
+            0::bigint AS allocated_amount
+          FROM expenses e
+          INNER JOIN outings o
+            ON o.owner_user_id = e.owner_user_id
+            AND o.id = e.outing_id
+          WHERE e.owner_user_id = ${owner}
+            AND o.owner_user_id = ${owner}
+          UNION ALL
+          SELECT
+            'Repayment'::text AS event_kind,
+            r.id AS record_id,
+            f.name AS title_source,
+            'Money received'::text AS detail_source,
+            r.amount,
+            r.paid_at AS effective_at,
+            r.created_at,
+            COALESCE(rt.allocated_amount, 0)::bigint AS allocated_amount
+          FROM repayments r
+          INNER JOIN friends f
+            ON f.owner_user_id = r.owner_user_id
+            AND f.id = r.friend_id
+          LEFT JOIN repayment_totals rt
+            ON rt.owner_user_id = r.owner_user_id
+            AND rt.repayment_id = r.id
+          WHERE r.owner_user_id = ${owner}
+            AND f.owner_user_id = ${owner}
+        ) AS activity
+        ORDER BY
+          activity.effective_at DESC,
+          CASE WHEN activity.event_kind = 'Expense' THEN 0 ELSE 1 END ASC,
+          activity.created_at DESC,
+          activity.record_id ASC
+        LIMIT ${limit}
+      `);
+
+      const activityRows = (Array.isArray(result) ? result : result.rows) as RecentActivityRow[];
+      return activityRows.map((row) => {
+        if (row.event_kind !== "Expense" && row.event_kind !== "Repayment") {
+          throw new LedgerIntegrityError("Recent activity event kind is invalid.");
+        }
+        const id = recentActivityText(row.record_id, "Recent activity record ID");
+        const title = recentActivityText(row.title_source, `Recent activity ${row.event_kind} title`);
+        const detailSource = recentActivityText(row.detail_source, `Recent activity ${row.event_kind} detail`);
+        const amount = recentActivityAmount(row.amount, `Recent activity ${id} amount`);
+        const allocatedAmount = recentActivityAmount(row.allocated_amount, `Allocation for repayment ${id}`);
+        const date = recentActivityDate(row.effective_at, `Recent activity ${id} date`);
+        recentActivityDate(row.created_at, `Recent activity ${id} creation time`);
+        if (row.event_kind === "Repayment" && allocatedAmount > amount) {
+          throw new LedgerIntegrityError(`Allocations exceed repayment ${id}.`);
+        }
+        return {
+          kind: row.event_kind,
+          id,
+          title,
+          detail: row.event_kind === "Repayment" && amount - allocatedAmount > 0
+            ? `${detailSource} · unallocated remains open`
+            : detailSource,
+          amount,
+          date,
+        };
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -1868,6 +2004,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     createExpense,
     getExpense,
     listExpenses,
+    listRecentActivity,
     listExpenseRecords,
     listLedgerHistory,
     getLedgerSummary,

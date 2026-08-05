@@ -10,29 +10,10 @@ export const dynamic = "force-dynamic";
 export default async function AppPage() {
   const session = await requireSession();
   const repository = createLedgerRepository(getDatabase(), session.user.id);
-  const [summary, expenses, repayments] = await Promise.all([
+  const [summary, activity] = await Promise.all([
     repository.getLedgerSummary(),
-    repository.listExpenses(),
-    repository.listRepayments(),
+    repository.listRecentActivity({ limit: 6 }),
   ]);
-  const activity = [
-    ...expenses.map((expense) => ({
-      kind: "Expense" as const,
-      title: expense.description,
-      detail: expense.outingTitle,
-      amount: expense.amount,
-      date: expense.outingOccurredAt,
-      href: `/app/expenses/${expense.id}`,
-    })),
-    ...repayments.map((repayment) => ({
-      kind: "Repayment" as const,
-      title: repayment.friendName,
-      detail: repayment.unallocatedAmount > 0 ? "Money received · unallocated remains open" : "Money received",
-      amount: repayment.amount,
-      date: repayment.paidAt,
-      href: `/app/repayments/${repayment.id}`,
-    })),
-  ].sort((left, right) => right.date.getTime() - left.date.getTime()).slice(0, 6);
 
   return (
     <section className="app-page overview-page" id="top">
@@ -69,7 +50,7 @@ export default async function AppPage() {
           <section className="ledger-section" aria-labelledby="activity-heading">
             <div className="ledger-section__heading"><h2 id="activity-heading">Recent activity</h2><span className="technical-label">Latest records</span></div>
             {activity.length === 0 ? <div className="ledger-empty"><p>No expenses or repayments yet.</p></div> : activity.map((item) => (
-              <Link className="activity-row" href={item.href} key={`${item.kind}-${item.href}`}>
+              <Link className="activity-row" href={item.kind === "Expense" ? `/app/expenses/${item.id}` : `/app/repayments/${item.id}`} key={`${item.kind}-${item.id}`}>
                 <span className="technical-label">{item.kind}</span>
                 <span><strong>{item.title}</strong><small>{item.detail}</small></span>
                 <span><strong>{formatRupiah(item.amount)}</strong><LocalDateTime iso={item.date.toISOString()} mode="date" /></span>

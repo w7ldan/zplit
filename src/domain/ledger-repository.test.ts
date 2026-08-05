@@ -218,6 +218,143 @@ describe("ledger repository", () => {
     expect(queries[1].sql).toContain('order by "outings"."occurred_at" desc, "expenses"."created_at" desc');
   });
 
+  it("bounds recent activity in one owner-scoped query with the default and explicit limits", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await expect(repository.listRecentActivity()).resolves.toEqual([]);
+    await expect(repository.listRecentActivity({ limit: 3 })).resolves.toEqual([]);
+
+    expect(queries).toHaveLength(2);
+    expect(queries[0].params).toContain(6);
+    expect(queries[1].params).toContain(3);
+    expect(queries[0].sql).toContain("UNION ALL");
+    expect(queries[0].sql).toContain("LIMIT");
+    expect(queries[0].sql).toContain("expenses");
+    expect(queries[0].sql).toContain("outings");
+    expect(queries[0].sql).toContain("repayments");
+    expect(queries[0].sql).toContain("friends");
+    expect(queries[0].sql).toContain("repayment_allocations");
+    expect(queries[0].params).toContain(owner);
+  });
+
+  it("rejects invalid recent activity limits before database execution", async () => {
+    let executions = 0;
+    const database = drizzle(async () => {
+      executions += 1;
+      return { rows: [] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    for (const limit of [0, -1, 21, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(repository.listRecentActivity({ limit })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    }
+    expect(executions).toBe(0);
+  });
+
+  it("maps the exact recent activity contract from Date and timestamp-string rows", async () => {
+    const database = drizzle(async () => ({ rows: [
+      {
+        event_kind: "Expense",
+        record_id: "expense-a",
+        title_source: "Dinner",
+        detail_source: "Jakarta",
+        amount: "8000",
+        effective_at: "2026-01-02T10:30:00.000Z",
+        created_at: "2026-01-02T10:31:00.000Z",
+        allocated_amount: "0",
+      },
+      {
+        event_kind: "Repayment",
+        record_id: "repayment-a",
+        title_source: "Ari",
+        detail_source: "Money received",
+        amount: 5000,
+        effective_at: new Date("2026-01-03T10:30:00.000Z"),
+        created_at: new Date("2026-01-03T10:31:00.000Z"),
+        allocated_amount: 2000,
+      },
+      {
+        event_kind: "Repayment",
+        record_id: "repayment-b",
+        title_source: "Bima",
+        detail_source: "Money received",
+        amount: 7000,
+        effective_at: new Date("2026-01-01T10:30:00.000Z"),
+        created_at: new Date("2026-01-01T10:31:00.000Z"),
+        allocated_amount: "7000",
+      },
+    ] }));
+
+    await expect(createLedgerRepository(database as unknown as Database, owner).listRecentActivity()).resolves.toEqual([
+      {
+        kind: "Expense",
+        id: "expense-a",
+        title: "Dinner",
+        detail: "Jakarta",
+        amount: 8000,
+        date: new Date("2026-01-02T10:30:00.000Z"),
+      },
+      {
+        kind: "Repayment",
+        id: "repayment-a",
+        title: "Ari",
+        detail: "Money received · unallocated remains open",
+        amount: 5000,
+        date: new Date("2026-01-03T10:30:00.000Z"),
+      },
+      {
+        kind: "Repayment",
+        id: "repayment-b",
+        title: "Bima",
+        detail: "Money received",
+        amount: 7000,
+        date: new Date("2026-01-01T10:30:00.000Z"),
+      },
+    ]);
+  });
+
+  it("preserves PostgreSQL row order without sorting in application code", async () => {
+    const database = drizzle(async () => ({ rows: [
+      {
+        event_kind: "Repayment", record_id: "repayment-first", title_source: "Ari", detail_source: "Money received", amount: 100,
+        effective_at: new Date("2026-01-01T00:00:00Z"), created_at: new Date("2026-01-01T00:00:00Z"), allocated_amount: 0,
+      },
+      {
+        event_kind: "Expense", record_id: "expense-second", title_source: "Dinner", detail_source: "Jakarta", amount: 200,
+        effective_at: new Date("2026-01-03T00:00:00Z"), created_at: new Date("2026-01-03T00:00:00Z"), allocated_amount: 0,
+      },
+    ] }));
+
+    const activity = await createLedgerRepository(database as unknown as Database, owner).listRecentActivity();
+    expect(activity.map((item) => item.id)).toEqual(["repayment-first", "expense-second"]);
+  });
+
+  it.each([
+    ["unsafe amount", { amount: "9007199254740992", allocated_amount: 0 }],
+    ["over-allocation", { amount: 100, allocated_amount: 101 }],
+    ["unknown event kind", { amount: 100, allocated_amount: 0, event_kind: "Other" }],
+  ])("rejects %s recent activity rows with ledger integrity errors", async (_label, overrides) => {
+    const row: Record<string, unknown> = {
+      event_kind: "Repayment",
+      record_id: "repayment-a",
+      title_source: "Ari",
+      detail_source: "Money received",
+      amount: 100,
+      effective_at: new Date("2026-01-01T00:00:00Z"),
+      created_at: new Date("2026-01-01T00:00:00Z"),
+      allocated_amount: 0,
+    };
+    Object.assign(row, overrides);
+    const database = drizzle(async () => ({ rows: [row] }));
+
+    await expect(createLedgerRepository(database as unknown as Database, owner).listRecentActivity()).rejects.toBeInstanceOf(LedgerIntegrityError);
+  });
+
   it("keeps paginated record retrieval in owner-scoped SQL", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

@@ -21,6 +21,7 @@
     "test:receipts": "tsx scripts/receipt-smoke.ts",
     "test:shared-receipts": "tsx scripts/shared-receipts-smoke.ts",
     "test:repayment-entry": "tsx scripts/repayment-entry-smoke.ts",
+    "test:recent-activity": "tsx scripts/recent-activity-smoke.ts",
     "test:debtor-shares": "tsx scripts/debtor-share-smoke.ts",
     "test:history-delete": "tsx scripts/history-delete-smoke.ts",
     "test:deployment": "node deploy/test-deployment.mjs",
