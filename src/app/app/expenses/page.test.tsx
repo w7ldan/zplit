@@ -50,6 +50,16 @@ describe("/app/expenses", () => {
     expect(within(screen.getByRole("dialog")).getByLabelText("Outing")).toHaveValue(outing.id);
   });
 
+  it("offers a continuation link when Add expense has no outing prerequisite", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), listOutings: vi.fn().mockResolvedValue([]) });
+    render(await ExpensesPage({ searchParams: Promise.resolve({ create: "1", q: "Dinner", month: "2026-04", page: "2", source: "ledger" }) }));
+
+    const link = screen.getByRole("link", { name: "Create an outing and continue" });
+    expect(link).toHaveAttribute("href", "/app/outings?create=1&returnTo=%2Fapp%2Fexpenses%3Fcreate%3D1%26q%3DDinner%26month%3D2026-04%26page%3D2%26source%3Dledger");
+    expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+  });
+
   it("preserves retrieval context when opening Add expense", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue(expensePage), listOutings: vi.fn().mockResolvedValue([outing]) });

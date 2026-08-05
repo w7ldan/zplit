@@ -61,4 +61,18 @@ describe("/app/outings", () => {
 
     expect(screen.getByRole("link", { name: "Add outing" })).toHaveAttribute("href", "/app/outings?q=Dinner&month=2026-04&page=2&task=open&source=ledger&create=1");
   });
+
+  it("removes an invalid return target before authentication or repository access", async () => {
+    await expect(OutingsPage({ searchParams: Promise.resolve({ returnTo: "https://evil.example/app/expenses", q: "Dinner", month: "2026-04", page: "2", create: "1", created: "outing-a", source: "ledger" }) })).rejects.toThrow("redirect:/app/outings?q=Dinner&month=2026-04&page=2&create=1&created=outing-a&source=ledger");
+    expect(mocks.requireSession).not.toHaveBeenCalled();
+    expect(mocks.createLedgerRepository).not.toHaveBeenCalled();
+  });
+
+  it("preserves a valid return target through Add outing navigation", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listOutingRecords: vi.fn().mockResolvedValue(outingPage) });
+    render(await OutingsPage({ searchParams: Promise.resolve({ returnTo: "/app/expenses?create=1&q=Dinner", q: "Dinner", month: "2026-04", page: "2" }) }));
+
+    expect(screen.getByRole("link", { name: "Add outing" })).toHaveAttribute("href", "/app/outings?returnTo=%2Fapp%2Fexpenses%3Fcreate%3D1%26q%3DDinner&q=Dinner&month=2026-04&page=2&create=1");
+  });
 });

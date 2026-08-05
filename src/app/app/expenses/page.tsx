@@ -10,6 +10,7 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { groupRecordsByMonth, monthDisplayLabel, normalizeExpenseFilters, recordHref } from "@/domain/record-retrieval";
+import { validateExpenseReturnTarget } from "@/domain/expense-return";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
   const groups = groupRecordsByMonth(expensePage.items, (expense) => expense.outingOccurredAt);
   const filtered = Boolean(filters.q || filters.month || filters.outingId || filters.assignment !== "all");
   const listHref = recordHref("/app/expenses", params);
+  const expenseReturnTarget = validateExpenseReturnTarget(recordHref("/app/expenses", params, { create: "1" })) ?? "/app/expenses?create=1";
 
   return (
     <section className="app-page expenses-page" id="top">
@@ -64,7 +66,7 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
         </div>
       </div>
       {openCreate ? <TaskPanel open title="Add an expense" description="Choose the outing, record the whole-rupiah amount, and assign shares next." triggerId="expense-create">
-        {outings.length > 0 ? <ExpenseForm action={createExpenseAction} outings={outings} initialValues={{ description: "", amountRupiah: "", outingId: outingId ?? "" }} /> : <div className="task-panel__empty"><p>Create an outing before recording an expense.</p><Link className="action-link action-link--primary" href="/app/outings?create=1">Create an outing</Link></div>}
+        {outings.length > 0 ? <ExpenseForm action={createExpenseAction} outings={outings} initialValues={{ description: "", amountRupiah: "", outingId: outingId ?? "" }} /> : <div className="task-panel__empty"><p>Create an outing before recording an expense.</p><Link className="action-link action-link--primary" href={`/app/outings?create=1&returnTo=${encodeURIComponent(expenseReturnTarget)}`} data-task-trigger="outing-create">Create an outing and continue</Link></div>}
       </TaskPanel> : null}
     </section>
   );

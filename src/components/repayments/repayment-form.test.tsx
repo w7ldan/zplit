@@ -34,6 +34,10 @@ describe("RepaymentForm", () => {
     expect(screen.getByRole("option", { name: "Ari" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Bima (ARCHIVED)" })).toBeInTheDocument();
     expect(document.querySelectorAll(".repayment-form__field-error")).toHaveLength(5);
+    expect(screen.getByText("Allocate now")).toBeInTheDocument();
+    expect(screen.getByText("Optional details")).toBeInTheDocument();
+    expect(screen.getByText("Allocate now").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Optional details").closest("details")).not.toHaveAttribute("open");
   });
 
   it("preserves values and exposes accessible errors after validation failure", async () => {
@@ -86,10 +90,37 @@ describe("RepaymentForm", () => {
   it("shows optional open shares and clears draft allocations when the friend changes", () => {
     render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[activeFriend, archivedFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share], [archivedFriend.id]: [otherShare] }} />);
 
-    expect(screen.getByRole("heading", { name: "Apply to outstanding expenses" })).toBeInTheDocument();
+    expect(screen.getByText("Allocate now").closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Allocate now"));
+    expect(screen.getByRole("heading", { name: "Apply to outstanding expenses" })).toBeVisible();
     expect(screen.getByText("Dinner")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Friend"), { target: { value: archivedFriend.id } });
     expect(screen.queryByText("Dinner")).not.toBeInTheDocument();
     expect(screen.getByText("Taxi")).toBeInTheDocument();
+  });
+
+  it("opens disclosures when returned values or allocation errors need attention", async () => {
+    const action = vi.fn().mockResolvedValue({
+      ...initialState,
+      fieldErrors: { notes: "Notes must be 4000 characters or fewer." },
+      values: { ...initialState.values, friendId: activeFriend.id, paymentMethod: "Cash", notes: "Too long" },
+      allocations: [{ expenseShareId: share.id, amountRupiah: "84000" }],
+      allocationFieldErrors: { [share.id]: "Allocation is invalid." },
+    });
+    render(<RepaymentForm action={action} friends={[activeFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share] }} />);
+    fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByLabelText("Payment method")).toHaveValue("Cash"));
+    expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open");
+    expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
+  });
+
+  it("keeps disclosures out of edit mode", () => {
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[activeFriend]} mode="edit" />);
+
+    expect(screen.queryByText("Allocate now")).not.toBeInTheDocument();
+    expect(screen.queryByText("Optional details")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Payment method")).toBeVisible();
+    expect(screen.getByLabelText("Notes")).toBeVisible();
   });
 });

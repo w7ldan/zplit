@@ -11,6 +11,7 @@ import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { groupRecordsByMonth, monthDisplayLabel, normalizeOutingFilters, recordHref } from "@/domain/record-retrieval";
+import { validateExpenseReturnTarget } from "@/domain/expense-return";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,9 @@ function first(value: string | string[] | undefined) {
 
 export default async function OutingsPage({ searchParams = Promise.resolve({}) }: OutingsPageProps = {}) {
   const params = await searchParams;
+  const returnToInput = first(params?.returnTo);
+  const returnTo = validateExpenseReturnTarget(returnToInput);
+  if (returnToInput !== undefined && !returnTo) redirect(recordHref("/app/outings", params, { returnTo: undefined }));
   const emptyParams = ["q", "month"].filter((name) => first(params?.[name]) === "");
   if (emptyParams.length) redirect(recordHref("/app/outings", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
   const session = await requireSession();
@@ -58,7 +62,7 @@ export default async function OutingsPage({ searchParams = Promise.resolve({}) }
           <RecordPagination page={outingPage.page} pageSize={outingPage.pageSize} totalItems={outingPage.totalItems} totalPages={outingPage.totalPages} href={listHref} />
         </div>
       </div>
-      {openCreate ? <TaskPanel open title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create"><OutingForm action={createOutingAction} /></TaskPanel> : null}
+      {openCreate ? <TaskPanel open title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create"><OutingForm action={createOutingAction.bind(null, returnTo)} /></TaskPanel> : null}
     </section>
   );
 }

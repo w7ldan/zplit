@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createOutingAction, deleteOutingAction, updateOutingAction } from "./actions";
 import type { OutingActionState } from "./actions";
 import { LedgerNotFoundError, OutingDeletionInvariantError } from "@/domain/ledger-repository";
@@ -33,9 +33,11 @@ function form(values: Record<string, string>) {
 }
 
 describe("outing actions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("returns validation errors before touching the repository", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    const state = await createOutingAction(initialState, form({ title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "" }));
+    const state = await createOutingAction(undefined, initialState, form({ title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "" }));
 
     expect(state.formError).toBe("Please correct the marked fields.");
     expect(state.fieldErrors).toMatchObject({ title: "Title is required." });
@@ -48,7 +50,7 @@ describe("outing actions", () => {
     mocks.getDatabase.mockReturnValue("database");
     mocks.createLedgerRepository.mockReturnValue({ createOuting });
 
-    await expect(createOutingAction(initialState, form({
+    await expect(createOutingAction(undefined, initialState, form({
       title: "  Dinner  ",
       occurredAtLocal: "2026-01-02T10:30",
       timezoneOffsetMinutes: "-480",
@@ -60,6 +62,28 @@ describe("outing actions", () => {
     expect(createOuting).toHaveBeenCalledWith({ title: "Dinner", occurredAt: new Date("2026-01-02T02:30:00.000Z"), notes: "Notes" });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/outings");
+  });
+
+  it("returns to Add expense with the created outing selected", async () => {
+    const createOuting = vi.fn().mockResolvedValue({ id: "outing-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createOuting });
+
+    await expect(createOutingAction("/app/expenses?q=Dinner&outing=old&create=0#top", initialState, form({
+      title: "Dinner",
+      occurredAtLocal: "2026-01-02T10:30",
+      timezoneOffsetMinutes: "-480",
+      notes: "",
+    }))).rejects.toThrow("redirect:/app/expenses?q=Dinner&outing=outing-a&create=1#top");
+  });
+
+  it("keeps continuation validation errors inside the outing form", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    const state = await createOutingAction("/app/expenses", initialState, form({ title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "" }));
+
+    expect(state.formError).toBe("Please correct the marked fields.");
+    expect(mocks.createLedgerRepository).not.toHaveBeenCalled();
   });
 
   it("maps a foreign update to the generic not-found form error", async () => {

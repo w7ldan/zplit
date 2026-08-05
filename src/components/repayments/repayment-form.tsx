@@ -60,6 +60,8 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
   const selectedShares = openExpenseSharesByFriend[selectedFriendId] ?? [];
+  const allocationDisclosureOpen = (state.allocations ?? []).some((allocation) => allocation.amountRupiah.trim() !== "") || Object.keys(state.allocationFieldErrors ?? {}).length > 0;
+  const detailsDisclosureOpen = Boolean(state.values.paymentMethod || state.values.notes || state.fieldErrors.paymentMethod || state.fieldErrors.notes);
 
   useEffect(() => {
     if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = new Date().getTimezoneOffset().toString();
@@ -106,33 +108,52 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
         <FieldError id="repayment-paid-at-error" message={state.fieldErrors.paidAtLocal} />
       </div>
       <input ref={timezoneOffsetRef} type="hidden" name="timezoneOffsetMinutes" defaultValue={state.values.timezoneOffsetMinutes} />
-      <div className="repayment-form__field">
-        <label htmlFor="repayment-payment-method">Payment method</label>
-        <input id="repayment-payment-method" name="paymentMethod" maxLength={40} defaultValue={state.values.paymentMethod} aria-invalid={Boolean(state.fieldErrors.paymentMethod)} aria-describedby="repayment-payment-method-error" autoComplete="off" />
-        <FieldError id="repayment-payment-method-error" message={state.fieldErrors.paymentMethod} />
-      </div>
-      <div className="repayment-form__field">
-        <label htmlFor="repayment-notes">Notes</label>
-        <textarea id="repayment-notes" name="notes" maxLength={4000} defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="repayment-notes-error" rows={5} />
-        <FieldError id="repayment-notes-error" message={state.fieldErrors.notes} />
-      </div>
-      <section className="repayment-form__allocations" aria-labelledby="repayment-allocations-heading">
-        <h2 id="repayment-allocations-heading">Apply to outstanding expenses</h2>
-        <p className="repayment-form__help">Optional. Leave these blank to allocate the repayment later.</p>
-        {selectedShares.length > 0 ? selectedShares.map((share) => (
-          <div className="repayment-form__allocation" key={share.id}>
-            <div className="repayment-form__allocation-details">
-              <strong>{share.expenseDescription}</strong>
-              <span>{share.outingTitle} · {formatDate(share.outingOccurredAt)}</span>
-              <span>Original share {formatRupiah(share.amountOwed)} · Previously repaid {formatRupiah(share.repaidAmount)} · Remaining {formatRupiah(share.remainingAmount)}</span>
-            </div>
-            <input type="hidden" name="expenseShareId" value={share.id} readOnly />
-            <label htmlFor={`repayment-allocation-${share.id}`}>Allocation for {share.expenseDescription}</label>
-            <input id={`repayment-allocation-${share.id}`} name="amountRupiah" type="text" inputMode="numeric" placeholder="Optional" value={draftAllocations[share.id] ?? ""} onChange={(event) => setDraftAllocations((current) => ({ ...current, [share.id]: event.target.value }))} aria-invalid={Boolean(state.allocationFieldErrors?.[share.id])} />
-            {state.allocationFieldErrors?.[share.id] ? <p className="repayment-form__field-error">{state.allocationFieldErrors[share.id]}</p> : null}
+      {mode === "create" ? <>
+        <details className="repayment-form__disclosure" open={allocationDisclosureOpen || undefined}>
+          <summary>Allocate now</summary>
+          <section className="repayment-form__allocations" aria-labelledby="repayment-allocations-heading">
+            <h2 id="repayment-allocations-heading">Apply to outstanding expenses</h2>
+            <p className="repayment-form__help">Optional. Leave these blank to allocate the repayment later.</p>
+            {selectedShares.length > 0 ? selectedShares.map((share) => (
+              <div className="repayment-form__allocation" key={share.id}>
+                <div className="repayment-form__allocation-details">
+                  <strong>{share.expenseDescription}</strong>
+                  <span>{share.outingTitle} · {formatDate(share.outingOccurredAt)}</span>
+                  <span>Original share {formatRupiah(share.amountOwed)} · Previously repaid {formatRupiah(share.repaidAmount)} · Remaining {formatRupiah(share.remainingAmount)}</span>
+                </div>
+                <input type="hidden" name="expenseShareId" value={share.id} readOnly />
+                <label htmlFor={`repayment-allocation-${share.id}`}>Allocation for {share.expenseDescription}</label>
+                <input id={`repayment-allocation-${share.id}`} name="amountRupiah" type="text" inputMode="numeric" placeholder="Optional" value={draftAllocations[share.id] ?? ""} onChange={(event) => setDraftAllocations((current) => ({ ...current, [share.id]: event.target.value }))} aria-invalid={Boolean(state.allocationFieldErrors?.[share.id])} />
+                {state.allocationFieldErrors?.[share.id] ? <p className="repayment-form__field-error">{state.allocationFieldErrors[share.id]}</p> : null}
+              </div>
+            )) : <p className="repayment-form__help">No outstanding expense shares for this friend.</p>}
+          </section>
+        </details>
+        <details className="repayment-form__disclosure" open={detailsDisclosureOpen || undefined}>
+          <summary>Optional details</summary>
+          <div className="repayment-form__field">
+            <label htmlFor="repayment-payment-method">Payment method</label>
+            <input id="repayment-payment-method" name="paymentMethod" maxLength={40} defaultValue={state.values.paymentMethod} aria-invalid={Boolean(state.fieldErrors.paymentMethod)} aria-describedby="repayment-payment-method-error" autoComplete="off" />
+            <FieldError id="repayment-payment-method-error" message={state.fieldErrors.paymentMethod} />
           </div>
-        )) : <p className="repayment-form__help">No outstanding expense shares for this friend.</p>}
-      </section>
+          <div className="repayment-form__field">
+            <label htmlFor="repayment-notes">Notes</label>
+            <textarea id="repayment-notes" name="notes" maxLength={4000} defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="repayment-notes-error" rows={5} />
+            <FieldError id="repayment-notes-error" message={state.fieldErrors.notes} />
+          </div>
+        </details>
+      </> : <>
+        <div className="repayment-form__field">
+          <label htmlFor="repayment-payment-method">Payment method</label>
+          <input id="repayment-payment-method" name="paymentMethod" maxLength={40} defaultValue={state.values.paymentMethod} aria-invalid={Boolean(state.fieldErrors.paymentMethod)} aria-describedby="repayment-payment-method-error" autoComplete="off" />
+          <FieldError id="repayment-payment-method-error" message={state.fieldErrors.paymentMethod} />
+        </div>
+        <div className="repayment-form__field">
+          <label htmlFor="repayment-notes">Notes</label>
+          <textarea id="repayment-notes" name="notes" maxLength={4000} defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="repayment-notes-error" rows={5} />
+          <FieldError id="repayment-notes-error" message={state.fieldErrors.notes} />
+        </div>
+      </>}
       <p className="repayment-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
       <SubmitButton mode={mode} />
     </form>

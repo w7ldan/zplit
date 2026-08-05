@@ -6,6 +6,7 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { validateOutingInput, type OutingFieldErrors, type OutingInputValues } from "@/domain/outing-input";
 import { createLedgerRepository, LedgerNotFoundError, OutingDeletionInvariantError } from "@/domain/ledger-repository";
+import { addOutingToExpenseReturnTarget, validateExpenseReturnTarget } from "@/domain/expense-return";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 
 export type OutingActionState = {
@@ -44,10 +45,12 @@ function errorState(error: unknown): OutingActionState {
 }
 
 export async function createOutingAction(
+  boundReturnTo: string | undefined,
   _previousState: OutingActionState,
   formData: FormData,
 ): Promise<OutingActionState> {
   const session = await requireSession();
+  const returnTo = validateExpenseReturnTarget(boundReturnTo);
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
 
@@ -59,6 +62,8 @@ export async function createOutingAction(
   }
   revalidatePath("/app");
   revalidatePath("/app/outings");
+  const returnTarget = returnTo ? addOutingToExpenseReturnTarget(returnTo, outing.id) : undefined;
+  if (returnTarget) redirect(returnTarget);
   redirect(`/app/outings?created=${encodeURIComponent(outing.id)}`);
 }
 
