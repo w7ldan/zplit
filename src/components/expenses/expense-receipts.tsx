@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
 
 export type ExpenseReceipt = {
@@ -32,6 +32,8 @@ export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsP
   const [uploading, setUploading] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null);
+  const [selectedFilename, setSelectedFilename] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
 
@@ -61,6 +63,7 @@ export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsP
       if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "Unable to save this receipt.");
       setReceipts((current) => [...current, body.receipt as ExpenseReceipt]);
       form.reset();
+      setSelectedFilename("");
       setStatus("Receipt uploaded.");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Unable to save this receipt.");
@@ -103,11 +106,14 @@ export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsP
         <span className="technical-label">{receipts.length}/5 · {formatBytes(totalBytes)}/15 MiB</span>
       </div>
       <form className="expense-receipts__upload" onSubmit={upload}>
-        <label htmlFor="expense-receipt-file">Add a receipt image</label>
-        <input id="expense-receipt-file" name="receipt" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="expense-receipt-help expense-receipt-error" />
+        <div className="expense-receipts__file-picker">
+          <label className="action-link action-link--quiet" htmlFor="expense-receipt-file">{selectedFilename ? "Change" : "Choose receipt image"}</label>
+          {selectedFilename ? <><span className="expense-receipts__filename">{selectedFilename}</span><button className="text-link" type="button" onClick={() => { if (fileInput.current) fileInput.current.value = ""; setSelectedFilename(""); }}>Clear</button></> : null}
+        </div>
+        <input ref={fileInput} className="expense-receipts__file-input" id="expense-receipt-file" name="receipt" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="expense-receipt-help expense-receipt-error" onChange={(event) => { setSelectedFilename(event.currentTarget.files?.[0]?.name ?? ""); setError(""); }} />
         <p className="expense-receipts__help" id="expense-receipt-help">The file signature is checked before it is stored.</p>
         <p className="expense-receipts__error" id="expense-receipt-error" role={error ? "alert" : undefined} aria-live="polite">{error || "\u00a0"}</p>
-        <button className="action-link action-link--primary" type="submit" disabled={uploading} aria-busy={uploading}>{uploading ? "Uploading receipt…" : "Upload receipt"}</button>
+        <button className="action-link action-link--primary" type="submit" disabled={uploading || !selectedFilename} aria-busy={uploading}>{uploading ? "Uploading receipt…" : "Upload receipt"}</button>
       </form>
       <p className="expense-receipts__status" role="status" aria-live="polite">{status || "\u00a0"}</p>
       {receipts.length > 0 ? (

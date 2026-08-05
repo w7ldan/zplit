@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { formatRupiah } from "@/domain/rupiah";
 
 const scenario = {
@@ -129,12 +129,84 @@ function StepPanel({ step }: { step: number }) {
   );
 }
 
+function JourneyPanel({ step, index, active, desktop }: { step: (typeof steps)[number]; index: number; active: boolean; desktop: boolean }) {
+  return (
+    <article className={`journey-panel${active ? " journey-panel--active" : ""}`} data-journey-step={index} aria-hidden={desktop ? !active : undefined}>
+      <div className="journey-frame__intro">
+        <span className="journey-step-mark">{String(index + 1).padStart(2, "0")}</span>
+        <div><p className="technical-label">{step.label}</p><p>{step.copy}</p></div>
+      </div>
+      <StepPanel step={index} />
+    </article>
+  );
+}
+
+function clampProgress(value: number) {
+  return Math.min(1, Math.max(0, value));
+}
+
 export function ProductJourney() {
   const [activeStep, setActiveStep] = useState(0);
+  const [desktopSequence, setDesktopSequence] = useState(false);
   const tabs = useRef<Array<HTMLButtonElement | null>>([]);
+  const runway = useRef<HTMLDivElement>(null);
+  const rail = useRef<HTMLDivElement>(null);
+
+  const setRailProgress = useCallback((progress: number) => {
+    const value = clampProgress(progress);
+    rail.current?.style.setProperty("--journey-progress", value.toFixed(4));
+    rail.current?.style.setProperty("--journey-offset", `${value * -80}%`);
+  }, []);
+
+  useEffect(() => {
+    const wide = typeof window.matchMedia === "function" ? window.matchMedia("(min-width: 960px)") : null;
+    const reduced = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+    const updateMode = () => setDesktopSequence((current) => {
+      const next = Boolean(wide?.matches && !reduced?.matches);
+      if (current && !next) setRailProgress(0);
+      return current === next ? current : next;
+    });
+    updateMode();
+    wide?.addEventListener?.("change", updateMode);
+    reduced?.addEventListener?.("change", updateMode);
+    return () => {
+      wide?.removeEventListener?.("change", updateMode);
+      reduced?.removeEventListener?.("change", updateMode);
+    };
+  }, [setRailProgress]);
+
+  useEffect(() => {
+    if (!desktopSequence) return;
+    let frame: number | null = null;
+
+    const updateProgress = () => {
+      frame = null;
+      const element = runway.current;
+      if (!element) return;
+      const bounds = element.getBoundingClientRect();
+      const travel = Math.max(element.offsetHeight - window.innerHeight, 1);
+      const progress = clampProgress(-bounds.top / travel);
+      setRailProgress(progress);
+      const nextStep = Math.round(progress * (steps.length - 1));
+      setActiveStep((current) => current === nextStep ? current : nextStep);
+    };
+    const scheduleUpdate = () => {
+      if (frame === null) frame = window.requestAnimationFrame(updateProgress);
+    };
+
+    updateProgress();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    return () => {
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, [desktopSequence, setRailProgress]);
 
   function selectStep(step: number, moveFocus = false) {
     setActiveStep(step);
+    if (desktopSequence) setRailProgress(step / (steps.length - 1));
     if (moveFocus) requestAnimationFrame(() => tabs.current[step]?.focus());
   }
 
@@ -149,7 +221,6 @@ export function ProductJourney() {
             ? steps.length - 1
             : null;
     if (nextStep === null) return;
-    event.preventDefault();
     selectStep(nextStep, true);
   }
 
@@ -158,7 +229,7 @@ export function ProductJourney() {
       <div className="journey-tabs" role="tablist" aria-label="Zplit journey steps">
         {steps.map((item, index) => (
           <button
-            aria-controls={`journey-panel-${index}`}
+            aria-controls="journey-panel"
             aria-selected={activeStep === index}
             className={`journey-tab${activeStep === index ? " journey-tab--active" : ""}`}
             id={`journey-tab-${index}`}
@@ -176,17 +247,19 @@ export function ProductJourney() {
         ))}
       </div>
       <p className="journey-announcement" aria-live="polite">Step {activeStep + 1} of {steps.length}: {steps[activeStep].label}</p>
-      <div className="journey-frame" id={`journey-panel-${activeStep}`} role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}>
-        <div className="journey-frame__header">
-          <span className="technical-label">Zplit / illustrative scenario</span>
-          <span className="technical-label">Whole rupiah · entered by owner</span>
-        </div>
-        <div className="journey-frame__body">
-          <div className="journey-frame__intro">
-            <span className="journey-step-mark">{String(activeStep + 1).padStart(2, "0")}</span>
-            <div><p className="technical-label">{steps[activeStep].label}</p><p>{steps[activeStep].copy}</p></div>
+      <div className="journey-runway" ref={runway}>
+        <div className="journey-sticky">
+          <div className="journey-frame" id="journey-panel" role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}>
+            <div className="journey-frame__header">
+              <span className="technical-label">Zplit / illustrative scenario</span>
+              <span className="technical-label">Whole rupiah · entered by owner</span>
+            </div>
+            <div className="journey-frame__body">
+              <div className="journey-rail" ref={rail}>
+                {steps.map((step, index) => <JourneyPanel key={step.label} step={step} index={index} active={activeStep === index} desktop={desktopSequence} />)}
+              </div>
+            </div>
           </div>
-          <StepPanel key={activeStep} step={activeStep} />
         </div>
       </div>
       <noscript>

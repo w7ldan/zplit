@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { useDetachedHeader } from "@/components/navigation/use-detached-header";
 import { DeleteConfirmation } from "./delete-record-form";
 
 const destinations = [
@@ -30,6 +31,7 @@ function isCurrent(pathname: string, href: string) {
 
 export function AppShell({ user, canManageInvites, children }: AppShellProps) {
   const pathname = usePathname() ?? "";
+  const detached = useDetachedHeader();
 
   useEffect(() => {
     document.documentElement.classList.add("zplit-product-mode");
@@ -38,7 +40,7 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
 
   return (
     <div className="app-shell">
-      <header className="app-shell__header">
+      <header className={`app-shell__header${detached ? " app-shell__header--detached" : ""}`}>
         <div className="editorial-shell app-shell__header-layout">
           <Link className="app-shell__brand" href="/app" aria-label="Zplit overview">
             <span className="app-shell__wordmark">Zplit</span>
@@ -55,7 +57,7 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
             Add expense
           </Link>
           <details className="account-menu">
-            <summary aria-label="Open account menu"><span className="account-menu__name">{user.name}</span><span className="account-menu__label">Account</span></summary>
+            <summary aria-label={`Open account menu for ${user.name}`}><span className="account-menu__name">{user.name}</span></summary>
             <div className="account-menu__panel">
               <span className="technical-label">Signed in as</span>
               <strong>{user.name}</strong>

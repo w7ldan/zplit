@@ -166,10 +166,23 @@ select {
 }
 
 .site-header {
+  position: sticky;
+  z-index: 20;
+  top: 0;
   align-items: start;
   min-height: 5.5rem;
   padding-block: 1.5rem;
   border-bottom: 1px solid var(--rule);
+}
+
+.site-header--detached,
+.app-shell__header--detached {
+  width: min(calc(100% - 2rem), 72rem);
+  margin-inline: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
 }
 
 .site-header__brand {
@@ -1003,11 +1016,34 @@ select {
   font-weight: 700;
 }
 
-.expense-receipts__upload input[type="file"] {
-  width: 100%;
-  padding: 0.65rem;
-  border: 1px solid var(--ink);
-  background: var(--paper);
+.expense-receipts__file-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.expense-receipts__file-picker label {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.expense-receipts__filename {
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expense-receipts__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .expense-receipts__upload button {
@@ -3768,6 +3804,11 @@ select {
   padding-block: 0.75rem;
 }
 
+.app-shell__header--detached .app-shell__header-layout {
+  width: 100%;
+  max-width: none;
+}
+
 .app-shell__brand {
   display: inline-flex;
   flex: 0 0 auto;
@@ -3844,8 +3885,18 @@ select {
 }
 
 .account-menu summary::after {
-  content: "⌄";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
   color: var(--muted-ink);
+  content: "";
+  transform: rotate(45deg) translateY(-0.1rem);
+  transition: transform var(--motion-fast) var(--ease-product);
+}
+
+.account-menu[open] summary::after {
+  transform: rotate(225deg) translateY(-0.1rem);
 }
 
 .account-menu__name {
@@ -3853,12 +3904,6 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.account-menu__label {
-  color: var(--muted-ink);
-  font-size: 0.72rem;
-  font-weight: 500;
 }
 
 .account-menu__panel {
@@ -4949,7 +4994,8 @@ select {
 }
 
 .public-home .site-header {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 2;
   min-height: 4.75rem;
   padding-block: 1.1rem;
@@ -5113,6 +5159,14 @@ select {
   margin-top: 3.25rem;
 }
 
+.journey-runway {
+  min-width: 0;
+}
+
+.journey-sticky {
+  min-width: 0;
+}
+
 .journey-tabs {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -5182,10 +5236,19 @@ select {
 }
 
 .journey-frame__body {
-  display: grid;
-  grid-template-columns: minmax(11rem, 0.75fr) minmax(0, 1.25fr);
-  gap: clamp(1.5rem, 4vw, 4rem);
   padding: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+.journey-rail {
+  display: grid;
+  gap: 2.25rem;
+  min-width: 0;
+}
+
+.journey-panel {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
 }
 
 .journey-frame__intro {
@@ -5214,7 +5277,6 @@ select {
 
 .journey-panel__content {
   min-width: 0;
-  animation: journey-state-in var(--motion-layout) var(--ease-product) both;
 }
 
 .journey-panel__content h3 {
@@ -5525,6 +5587,46 @@ select {
   animation: public-field-fade var(--motion-reveal) var(--ease-product) both;
 }
 
+.landing-reveal {
+  transition: opacity var(--motion-reveal) var(--ease-emphasized), transform var(--motion-reveal) var(--ease-emphasized), clip-path var(--motion-reveal) var(--ease-emphasized);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.landing-reveal--ready:not(.landing-reveal--visible) {
+  opacity: 0;
+  clip-path: inset(0 0 12% 0);
+  transform: translateY(16px);
+}
+
+@media (min-width: 960px) {
+  .journey-runway {
+    min-height: calc(100svh * 4);
+  }
+
+  .journey-sticky {
+    position: sticky;
+    top: 1rem;
+  }
+
+  .journey-frame__body {
+    padding: 0;
+  }
+
+  .journey-rail {
+    display: flex;
+    width: 500%;
+    gap: 0;
+    transform: translate3d(var(--journey-offset, 0%), 0, 0);
+  }
+
+  .journey-panel {
+    flex: 0 0 20%;
+    grid-template-columns: minmax(11rem, 0.75fr) minmax(0, 1.25fr);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    padding: clamp(1.25rem, 3vw, 2.5rem);
+  }
+}
+
 @media (max-width: 767px) {
   .public-home .site-header {
     row-gap: 0.75rem;
@@ -5677,14 +5779,42 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .account-menu summary::after {
+    transition: none;
+  }
+
+  .landing-reveal,
+  .landing-reveal--ready:not(.landing-reveal--visible),
   .public-home .hero__field[data-reveal="field"],
   .journey-panel__content {
     animation: none !important;
+    clip-path: none !important;
+    opacity: 1 !important;
     transform: none !important;
+    transition: none !important;
   }
 
   .journey-allocation__track span {
     transition: none !important;
+  }
+
+  .journey-runway {
+    min-height: 0;
+  }
+
+  .journey-sticky {
+    position: static;
+  }
+
+  .journey-rail {
+    display: grid;
+    width: auto;
+    transform: none !important;
+  }
+
+  .journey-panel {
+    flex: none;
+    padding: 0;
   }
 }
 

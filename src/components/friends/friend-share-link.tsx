@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 import type { DebtorShareActionState } from "@/app/app/friends/[friendId]/share-actions";
 import { buildFriendReminder, buildWhatsAppUrl } from "@/domain/friend-reminder";
 
@@ -33,17 +33,53 @@ function RevokeButton() {
   return <button className="action-link action-link--quiet" type="submit" disabled={pending} aria-busy={pending}>{pending ? "Revoking…" : "Revoke link"}</button>;
 }
 
+function RefreshAfterAction({ revision }: { revision: number }) {
+  const router = useRouter();
+  useEffect(() => router.refresh(), [router, revision]);
+  return null;
+}
+
 export function FriendShareLink({ status, phoneNumber, createAction, revokeAction }: { status: ShareStatus; phoneNumber: string | null; createAction: ShareAction; revokeAction: ShareAction }) {
-  const [createState, createFormAction] = useActionState(createAction, initialDebtorShareActionState);
-  const [revokeState, revokeFormAction] = useActionState(revokeAction, initialDebtorShareActionState);
+  const [visibleResult, setVisibleResult] = useState<Pick<DebtorShareActionState, "link" | "statement"> | null>(null);
+  const [currentStatus, setCurrentStatus] = useState(status.status);
+  const [error, setError] = useState("");
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const [copied, setCopied] = useState(false);
   const [reminderCopied, setReminderCopied] = useState(false);
-  const shareUrl = createState.link && typeof window !== "undefined" ? `${window.location.origin}/share/${createState.link.token}` : null;
-  const currentStatus = createState.link ? "active" : revokeState.revoked ? "revoked" : status.status;
-  const currentExpiry = createState.link?.expiresAt ?? status.expiresAt;
+  const [, createFormAction] = useActionState(async (previousState: DebtorShareActionState, formData: FormData) => {
+    setError("");
+    const result = await createAction(previousState, formData);
+    if (result.error) {
+      setError(result.error);
+      return result;
+    }
+    if (!result.link) return result;
+    setVisibleResult({ link: result.link, statement: result.statement });
+    setCurrentStatus("active");
+    setCopied(false);
+    setReminderCopied(false);
+    setRefreshRevision((current) => current + 1);
+    return result;
+  }, initialDebtorShareActionState);
+  const [, revokeFormAction] = useActionState(async (previousState: DebtorShareActionState, formData: FormData) => {
+    setError("");
+    const result = await revokeAction(previousState, formData);
+    if (result.error) {
+      setError(result.error);
+      return result;
+    }
+    if (!result.revoked) return result;
+    setVisibleResult(null);
+    setCurrentStatus("revoked");
+    setCopied(false);
+    setReminderCopied(false);
+    setRefreshRevision((current) => current + 1);
+    return result;
+  }, initialDebtorShareActionState);
+  const shareUrl = visibleResult?.link && typeof window !== "undefined" ? `${window.location.origin}/share/${visibleResult.link.token}` : null;
+  const currentExpiry = currentStatus === "active" || currentStatus === "expired" ? visibleResult?.link?.expiresAt ?? status.expiresAt : null;
   const expiry = formatExpiry(currentExpiry);
-  const error = createState.error || revokeState.error;
-  const reminder = shareUrl && createState.statement ? buildFriendReminder({ ...createState.statement, balanceUrl: shareUrl }) : null;
+  const reminder = shareUrl && visibleResult?.statement ? buildFriendReminder({ ...visibleResult.statement, balanceUrl: shareUrl }) : null;
   const whatsappUrl = reminder ? buildWhatsAppUrl(phoneNumber, reminder) : null;
 
   async function copyLink() {
@@ -81,6 +117,7 @@ export function FriendShareLink({ status, phoneNumber, createAction, revokeActio
 
   return (
     <section className="friend-share" aria-labelledby="friend-share-heading">
+      {refreshRevision ? <RefreshAfterAction revision={refreshRevision} /> : null}
       <div className="friend-share__heading">
         <div>
           <p className="technical-label">Share balance</p>
@@ -92,7 +129,7 @@ export function FriendShareLink({ status, phoneNumber, createAction, revokeActio
       {expiry ? <p className="friend-share__expiry">{currentStatus === "expired" ? "Expired" : "Expires"} <time dateTime={currentExpiry ?? undefined}>{expiry}</time></p> : null}
       <div className="friend-share__actions">
         <form action={createFormAction}>
-          <SubmitButton replace={currentStatus !== "none"} />
+          <SubmitButton replace={currentStatus === "active" || currentStatus === "expired"} />
         </form>
         {currentStatus === "active" ? <form action={revokeFormAction}><RevokeButton /></form> : null}
       </div>
@@ -106,7 +143,7 @@ export function FriendShareLink({ status, phoneNumber, createAction, revokeActio
             <button className="action-link action-link--quiet" type="button" onClick={copyLink}>{copied ? "Copied" : "Copy"}</button>
           </div>
           <p className="friend-share__warning">Save or send this link now. Zplit cannot recover it later.</p>
-          {createState.link ? <p className="technical-label">Expires {formatExpiry(createState.link.expiresAt)}</p> : null}
+          {visibleResult?.link ? <p className="technical-label">Expires {formatExpiry(visibleResult.link.expiresAt)}</p> : null}
           {reminder ? (
             <div className="friend-share__reminder" aria-label="WhatsApp reminder">
               <p><strong>Reminder ready.</strong></p>

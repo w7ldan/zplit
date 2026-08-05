@@ -7,6 +7,7 @@ describe("public Zplit page", () => {
     render(<HomePage />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Shared expenses without the group-chat accounting." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).not.toHaveClass("landing-reveal");
     const navigation = within(screen.getByRole("navigation", { name: "Primary navigation" }));
     expect(navigation.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "#journey");
     expect(navigation.getByRole("link", { name: "The ledger" })).toHaveAttribute("href", "#ledger");
@@ -48,8 +49,8 @@ describe("public Zplit page", () => {
     expect(screen.getAllByText("Rp 126.500", { exact: true }).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("tab", { name: /The balance becomes settled/ }));
-    expect(screen.getByText("Rani", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Dimas", { exact: true })).toBeInTheDocument();
+    expect(screen.getAllByText("Rani", { exact: true }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Dimas", { exact: true }).length).toBeGreaterThan(0);
     expect(screen.getByText("SETTLED", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Remaining across this illustrative outing:", { exact: false })).toBeInTheDocument();
     expect(screen.getAllByText("Rp 42.500", { exact: true }).length).toBeGreaterThan(0);
