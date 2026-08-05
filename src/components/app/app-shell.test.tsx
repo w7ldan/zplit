@@ -23,6 +23,14 @@ describe("AppShell", () => {
     expect(document.querySelector(".app-shell__actions")).toBeInTheDocument();
     expect(within(primary).getAllByRole("link")).toHaveLength(5);
     expect(within(mobile).getAllByRole("link")).toHaveLength(5);
+    expect(within(primary).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/app",
+      "/app/friends",
+      "/app/outings",
+      "/app/expenses",
+      "/app/repayments",
+    ]);
+    expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
     expect(within(primary).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");
     expect(screen.getByRole("link", { name: "Exports" })).toHaveAttribute("href", "/app/exports");
@@ -45,10 +53,29 @@ describe("AppShell", () => {
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frameCallback = callback; return 1; });
     render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     const header = screen.getByRole("banner");
+    const panel = header.querySelector<HTMLElement>(".app-shell__header-layout")!;
+    expect(header).not.toHaveClass("app-shell__header--detached");
+    expect(panel).not.toHaveClass("app-shell__header-layout--detached");
     Object.defineProperty(window, "scrollY", { configurable: true, value: 40 });
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frameCallback?.(1));
     expect(header).toHaveClass("app-shell__header--detached");
+    expect(panel).toHaveClass("app-shell__header-layout--detached");
+  });
+
+  it("removes detached classes when returning above the scroll threshold", () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frameCallback = callback; return 1; });
+    render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
+    const header = screen.getByRole("banner");
+    const panel = header.querySelector<HTMLElement>(".app-shell__header-layout")!;
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 40 });
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frameCallback?.(1));
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frameCallback?.(2));
+    expect(header).not.toHaveClass("app-shell__header--detached");
+    expect(panel).not.toHaveClass("app-shell__header-layout--detached");
   });
 
   it("keeps the painted panel inside the transparent header wrapper", () => {
@@ -57,6 +84,8 @@ describe("AppShell", () => {
     const panel = header.querySelector<HTMLElement>(".app-shell__header-layout");
     expect(panel).toBeInTheDocument();
     expect(header).toContainElement(panel);
+    expect(header).not.toHaveClass("app-shell__header--detached");
+    expect(panel).not.toHaveClass("app-shell__header-layout--detached");
     expect(panel).toHaveAttribute("data-detached", "false");
   });
 

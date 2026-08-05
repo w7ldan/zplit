@@ -128,5 +128,9 @@ describe("CSS architecture", () => {
     expect(lateOverridesSource).not.toMatch(/\.app-shell__header(?:-layout)?\b/);
     expect(bundle.css).toContain(".app-shell__header {\n");
     expect(bundle.css).toContain(".app-shell__header-layout--detached {\n");
+    expect(lateOverridesSource).not.toContain("app-shell__header-layout--detached");
+    expect(bundle.css).toMatch(/\.app-shell__header\s*\{[\s\S]*?border:\s*0;[\s\S]*?background:\s*transparent;[\s\S]*?box-shadow:\s*none;/);
+    expect(bundle.css).toMatch(/\.app-shell__header-layout\s*\{[\s\S]*?border:\s*1px solid transparent;[\s\S]*?background:\s*transparent;/);
+    expect(bundle.css).toMatch(/\.app-shell__header-layout--detached\s*\{[\s\S]*?border-color:\s*var\(--rule\);[\s\S]*?border-radius:\s*var\(--radius-panel\);[\s\S]*?background:\s*var\(--surface\);[\s\S]*?box-shadow:/);
   });
 });

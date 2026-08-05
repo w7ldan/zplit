@@ -2219,6 +2219,7 @@
   border: 0;
   background: transparent;
   box-shadow: none;
+  overflow: visible;
   pointer-events: none;
 }
 
@@ -2230,15 +2231,17 @@
   width: min(calc(100% - 2rem), 72rem);
   max-width: 72rem;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
+  border: 1px solid transparent;
+  background: transparent;
   box-sizing: border-box;
   pointer-events: auto;
-  transition: border-color var(--motion-state) var(--ease-product), background-color var(--motion-state) var(--ease-product), box-shadow var(--motion-state) var(--ease-product);
+  transition: border-color var(--motion-state) var(--ease-product), background-color var(--motion-state) var(--ease-product), border-radius var(--motion-state) var(--ease-product), box-shadow var(--motion-state) var(--ease-product);
 }
 
 .app-shell__header-layout--detached {
+  border-color: var(--rule);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
   box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
 }
 
