@@ -58,76 +58,73 @@ function listenToMediaQuery(query: MediaQueryList, listener: () => void) {
 
 export function JourneyShowcase() {
   const [activeStep, setActiveStep] = useState(0);
+  const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const [desktopSequence, setDesktopSequence] = useState(false);
+  const activeStepRef = useRef(0);
   const tabs = useRef<Array<HTMLButtonElement | null>>([]);
   const runway = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const rail = useRef<HTMLDivElement>(null);
-
-  const setRailProgress = useCallback((progress: number) => {
-    const value = clampProgress(progress);
-    rail.current?.style.setProperty("--journey-progress", value.toFixed(4));
-    rail.current?.style.setProperty("--journey-offset", `${value * -80}%`);
-  }, []);
+  const ignoredProgress = useRef<number | null>(null);
 
   const stageHeight = useCallback(() => {
-    const measured = stage.current?.offsetHeight ?? 0;
-    return Math.max(measured || window.innerHeight, 1);
+    return Math.max(stage.current?.offsetHeight ?? 0, 1);
   }, []);
   const stickyTop = useCallback(() => {
     const value = Number.parseFloat(window.getComputedStyle(stage.current ?? document.body).top);
     return Number.isFinite(value) ? value : 0;
   }, []);
 
+  const updateActiveStep = useCallback((step: number, protectFromStaleProgress = false) => {
+    if (protectFromStaleProgress) ignoredProgress.current = step;
+    if (activeStepRef.current === step) return;
+    setDirection(step > activeStepRef.current ? "forward" : "backward");
+    activeStepRef.current = step;
+    setActiveStep(step);
+  }, []);
+
   useEffect(() => {
     const wide = window.matchMedia?.("(min-width: 960px)");
+    const tall = window.matchMedia?.("(min-height: 760px)");
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const updateMode = () => {
-      const availableHeight = window.innerHeight - stickyTop() - 24;
-      const panels = stage.current ? [...stage.current.querySelectorAll<HTMLElement>(".journey-panel")] : [];
-      const activePanel = panels.find((panel) => panel.classList.contains("journey-panel--active"));
-      const baseHeight = stage.current ? stage.current.scrollHeight - (activePanel?.scrollHeight ?? 0) : 0;
-      const panelHeight = panels.reduce((maximum, panel) => {
-        const previousDisplay = panel.style.display;
-        panel.style.display = "grid";
-        const height = panel.scrollHeight;
-        panel.style.display = previousDisplay;
-        return Math.max(maximum, height);
-      }, activePanel?.scrollHeight ?? 0);
-      const fits = !stage.current || baseHeight + panelHeight <= availableHeight;
-      const next = Boolean(wide?.matches && !reduced?.matches && fits);
+      const next = Boolean(wide?.matches && tall?.matches && !reduced?.matches);
       setDesktopSequence((current) => {
         if (current && !next) {
           runway.current?.style.removeProperty("height");
-          rail.current?.style.removeProperty("--journey-progress");
-          rail.current?.style.removeProperty("--journey-offset");
         }
         return current === next ? current : next;
       });
     };
     updateMode();
     const removeWide = wide ? listenToMediaQuery(wide, updateMode) : undefined;
+    const removeTall = tall ? listenToMediaQuery(tall, updateMode) : undefined;
     const removeReduced = reduced ? listenToMediaQuery(reduced, updateMode) : undefined;
     window.addEventListener("resize", updateMode);
-    return () => { removeWide?.(); removeReduced?.(); window.removeEventListener("resize", updateMode); };
-  }, [stickyTop]);
+    return () => { removeWide?.(); removeTall?.(); removeReduced?.(); window.removeEventListener("resize", updateMode); };
+  }, []);
 
   useEffect(() => {
     if (!desktopSequence) return;
     let frame: number | null = null;
+    const sequenceTravel = () => Math.max(window.innerHeight, stageHeight()) * (steps.length - 1);
     const updateDimensions = () => {
       const element = runway.current;
-      if (element) element.style.height = `${stageHeight() + window.innerHeight * (steps.length - 1)}px`;
+      if (element) element.style.height = `${stageHeight() + sequenceTravel()}px`;
     };
+    const availableTravel = () => Math.max((runway.current?.offsetHeight ?? 0) - stageHeight(), 1);
     const updateProgress = () => {
       frame = null;
       const element = runway.current;
       if (!element) return;
-      const travel = Math.max(element.offsetHeight - stageHeight(), 1);
-      const progress = clampProgress((stickyTop() - element.getBoundingClientRect().top) / travel);
-      setRailProgress(progress);
+      const travel = availableTravel();
+      const runwayDocumentTop = element.getBoundingClientRect().top + window.scrollY;
+      const progress = clampProgress((window.scrollY - (runwayDocumentTop - stickyTop())) / travel);
+      if (ignoredProgress.current !== null) {
+        ignoredProgress.current = null;
+        return;
+      }
       const nextStep = Math.round(progress * (steps.length - 1));
-      setActiveStep((current) => current === nextStep ? current : nextStep);
+      updateActiveStep(nextStep);
     };
     const scheduleUpdate = () => { if (frame === null) frame = window.requestAnimationFrame(updateProgress); };
     const onResize = () => { updateDimensions(); scheduleUpdate(); };
@@ -147,17 +144,18 @@ export function JourneyShowcase() {
       resizeObserver?.disconnect();
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, [desktopSequence, setRailProgress, stageHeight, stickyTop]);
+  }, [desktopSequence, stageHeight, stickyTop, updateActiveStep]);
 
   function scrollToStep(step: number) {
     if (!desktopSequence || !runway.current) return;
     const travel = Math.max(runway.current.offsetHeight - stageHeight(), 1);
-    const top = runway.current.getBoundingClientRect().top + window.scrollY - stickyTop() + (step / (steps.length - 1)) * travel;
+    const runwayDocumentTop = runway.current.getBoundingClientRect().top + window.scrollY;
+    const top = runwayDocumentTop - stickyTop() + (step / (steps.length - 1)) * travel;
     window.scrollTo({ top, behavior: "smooth" });
   }
 
   function selectStep(step: number, moveFocus = false) {
-    setActiveStep(step);
+    updateActiveStep(step, desktopSequence);
     scrollToStep(step);
     if (moveFocus) window.requestAnimationFrame(() => tabs.current[step]?.focus());
   }
@@ -187,7 +185,7 @@ export function JourneyShowcase() {
               <p className="journey-announcement" aria-live="polite">Step {activeStep + 1} of {steps.length}: {steps[activeStep].label}</p>
               <div className="journey-frame" id="journey-panel" role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}>
                 <div className="journey-frame__header"><span className="technical-label">Zplit / illustrative scenario</span><span className="technical-label">Whole rupiah · entered by owner</span></div>
-                <div className="journey-frame__body"><div className="journey-rail" ref={rail}>{steps.map((step, index) => <article className={`journey-panel${activeStep === index ? " journey-panel--active" : ""}`} data-journey-step={index} aria-hidden={desktopSequence ? activeStep !== index : undefined} key={step.label}><div className="journey-frame__intro"><span className="journey-step-mark">{String(index + 1).padStart(2, "0")}</span><div><p className="technical-label">{step.label}</p><p>{step.copy}</p></div></div><StepPanel step={index} /></article>)}</div></div>
+                <div className="journey-frame__body"><article className={`journey-panel journey-panel--active journey-panel--${direction}`} data-journey-step={activeStep} key={steps[activeStep].label}><div className="journey-frame__intro"><span className="journey-step-mark">{String(activeStep + 1).padStart(2, "0")}</span><div><p className="technical-label">{steps[activeStep].label}</p><p>{steps[activeStep].copy}</p></div></div><StepPanel step={activeStep} /></article></div>
               </div>
             </div>
           </div>

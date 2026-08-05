@@ -5374,13 +5374,8 @@ select {
 }
 
 .journey-frame__body {
-  padding: clamp(1.25rem, 3vw, 2.5rem);
-}
-
-.journey-rail {
-  display: grid;
-  gap: 2.25rem;
   min-width: 0;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
 }
 
 .journey-panel {
@@ -5716,6 +5711,24 @@ select {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes journey-panel-forward {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes journey-panel-backward {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.journey-panel--forward {
+  animation: journey-panel-forward 220ms var(--ease-product) both;
+}
+
+.journey-panel--backward {
+  animation: journey-panel-backward 220ms var(--ease-product) both;
+}
+
 @keyframes public-field-fade {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -5737,31 +5750,8 @@ select {
 }
 
 @media (min-width: 960px) {
-  .journey-runway {
-    height: calc(100svh * 5);
-  }
-
-  .journey-sticky {
-    position: sticky;
-    top: clamp(5rem, 11vh, 7rem);
-  }
-
   .journey-frame__body {
     padding: 0;
-  }
-
-  .journey-rail {
-    display: flex;
-    width: 500%;
-    gap: 0;
-    transform: translate3d(var(--journey-offset, 0%), 0, 0);
-  }
-
-  .journey-panel {
-    flex: 0 0 20%;
-    grid-template-columns: minmax(11rem, 0.75fr) minmax(0, 1.25fr);
-    gap: clamp(1.5rem, 4vw, 4rem);
-    padding: clamp(1.25rem, 3vw, 2.5rem);
   }
 }
 
@@ -6006,6 +5996,7 @@ select {
   .landing-reveal,
   .landing-reveal--ready:not(.landing-reveal--visible),
   .public-home .hero__field[data-reveal="field"],
+  .journey-panel,
   .journey-panel__content {
     animation: none !important;
     clip-path: none !important;
@@ -6026,16 +6017,6 @@ select {
     position: static;
   }
 
-  .journey-rail {
-    display: grid;
-    width: auto;
-    transform: none !important;
-  }
-
-  .journey-panel {
-    flex: none;
-    padding: 0;
-  }
 }
 
 .friend-share {
@@ -6465,24 +6446,9 @@ select {
   --journey-bottom-clearance: clamp(1rem, 3vh, 2rem);
 }
 
-.journey-panel:not(.journey-panel--active) {
-  display: none;
-}
-
 @media (min-width: 960px) {
   .journey-runway {
     height: auto;
-  }
-
-  .journey-sticky:not(.journey-sticky--pinned) .journey-rail {
-    display: grid;
-    width: auto;
-    transform: none;
-  }
-
-  .journey-sticky:not(.journey-sticky--pinned) .journey-panel {
-    flex: none;
-    padding: 0;
   }
 
   .journey-stage {
@@ -6582,18 +6548,10 @@ select {
     overflow: hidden;
   }
 
-  .journey-sticky--pinned .journey-rail {
-    display: flex;
-    width: 500%;
-    min-height: 0;
-    gap: 0;
-    transform: translate3d(var(--journey-offset, 0%), 0, 0);
-  }
-
   .journey-sticky--pinned .journey-panel {
     display: grid;
-    flex: 0 0 20%;
     min-height: 0;
+    width: 100%;
     grid-template-columns: minmax(11rem, 0.75fr) minmax(0, 1.25fr);
     gap: clamp(1rem, 3vw, 2.5rem);
     padding: clamp(0.9rem, 2vw, 1.5rem);

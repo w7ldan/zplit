@@ -1,11 +1,18 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/app/history", useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/auth/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
 
+let frameCallback: FrameRequestCallback | undefined;
+
 afterEach(() => vi.unstubAllGlobals());
+
+beforeEach(() => {
+  Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
+  frameCallback = undefined;
+});
 
 describe("AppShell", () => {
   it("keeps five primary destinations and puts History in the account menu", () => {
@@ -33,11 +40,19 @@ describe("AppShell", () => {
   });
 
   it("uses the shared detached-header behavior", () => {
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(1); return 1; });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frameCallback = callback; return 1; });
     render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     const header = screen.getByRole("banner");
     Object.defineProperty(window, "scrollY", { configurable: true, value: 40 });
     act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frameCallback?.(1));
     expect(header).toHaveClass("app-shell__header--detached");
+  });
+
+  it("mounts the authenticated header detached after restored scroll", () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frameCallback = callback; return 1; });
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 48 });
+    render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
+    expect(screen.getByRole("banner")).toHaveClass("app-shell__header--detached");
   });
 });

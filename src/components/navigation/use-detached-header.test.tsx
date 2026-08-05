@@ -8,26 +8,26 @@ function setScrollY(value: number) {
 
 describe("useDetachedHeader", () => {
   let frameCallback: FrameRequestCallback | undefined;
-  const originalMatchMedia = window.matchMedia;
+  let frameId = 0;
 
   beforeEach(() => {
     setScrollY(0);
     frameCallback = undefined;
+    frameId = 0;
+    vi.useFakeTimers();
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       frameCallback = callback;
-      return 1;
+      return ++frameId;
     });
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false })) });
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
-    if (originalMatchMedia) Object.defineProperty(window, "matchMedia", { configurable: true, value: originalMatchMedia });
-    else delete (window as unknown as { matchMedia?: typeof window.matchMedia }).matchMedia;
   });
 
-  it("starts from the current scroll position and batches threshold changes", () => {
+  it("mounts detached from the restored scroll position and batches threshold changes", () => {
     setScrollY(36);
     const { result, unmount } = renderHook(() => useDetachedHeader(32));
     expect(result.current).toBe(true);
@@ -41,27 +41,47 @@ describe("useDetachedHeader", () => {
     unmount();
   });
 
-  it("rechecks after the browser restores the scroll position", () => {
+  it("rechecks after delayed browser scroll restoration", () => {
     const { result, unmount } = renderHook(() => useDetachedHeader(32));
+    act(() => frameCallback?.(1));
     expect(result.current).toBe(false);
+
     setScrollY(40);
-    act(() => window.dispatchEvent(new Event("pageshow")));
+    act(() => vi.runAllTimers());
     act(() => frameCallback?.(1));
     expect(result.current).toBe(true);
     unmount();
   });
 
-  it("cleans a scheduled frame and changes immediately under reduced motion", () => {
-    const cancel = vi.fn();
-    vi.stubGlobal("cancelAnimationFrame", cancel);
-    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: true })) });
+  it("rechecks on pageshow, resize, and visibility changes", () => {
     const { result, unmount } = renderHook(() => useDetachedHeader());
-    setScrollY(40);
-    act(() => window.dispatchEvent(new Event("scroll")));
-    expect(result.current).toBe(false);
     act(() => frameCallback?.(1));
-    expect(result.current).toBe(true);
+
+    for (const target of [
+      () => window.dispatchEvent(new Event("pageshow")),
+      () => window.dispatchEvent(new Event("resize")),
+      () => document.dispatchEvent(new Event("visibilitychange")),
+    ]) {
+      setScrollY(40);
+      act(target);
+      act(() => frameCallback?.(1));
+      expect(result.current).toBe(true);
+      setScrollY(0);
+      act(() => window.dispatchEvent(new Event("scroll")));
+      act(() => frameCallback?.(1));
+      expect(result.current).toBe(false);
+    }
+
     unmount();
-    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("uses a passive scroll listener and cleans timers and frames", () => {
+    const addEventListener = vi.spyOn(window, "addEventListener");
+    const clearTimeout = vi.spyOn(window, "clearTimeout");
+    const { unmount } = renderHook(() => useDetachedHeader());
+    expect(addEventListener.mock.calls).toContainEqual(["scroll", expect.any(Function), { passive: true }]);
+    unmount();
+    expect(clearTimeout).toHaveBeenCalled();
+    expect(window.cancelAnimationFrame).toHaveBeenCalled();
   });
 });

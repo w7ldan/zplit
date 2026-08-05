@@ -25,6 +25,8 @@ describe("public Zplit page", () => {
 
     const tabs = screen.getAllByRole("tab");
     expect(tabs).toHaveLength(5);
+    expect(document.querySelectorAll(".journey-panel")).toHaveLength(1);
+    expect(document.querySelector(".journey-rail")).not.toBeInTheDocument();
     for (const label of [
       "An outing is created",
       "Expenses enter the outing",
