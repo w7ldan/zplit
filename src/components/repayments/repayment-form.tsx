@@ -58,6 +58,9 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
   const [draftAllocations, setDraftAllocations] = useState<Record<string, string>>(() => Object.fromEntries((state.allocations ?? []).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
   const formRef = useRef<HTMLFormElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
+  const allocationDisclosureRef = useRef<HTMLDetailsElement>(null);
+  const detailsDisclosureRef = useRef<HTMLDetailsElement>(null);
+  const previousActionStateRef = useRef(state);
   const initializedRef = useRef(false);
   const selectedShares = openExpenseSharesByFriend[selectedFriendId] ?? [];
   const allocationDisclosureOpen = (state.allocations ?? []).some((allocation) => allocation.amountRupiah.trim() !== "") || Object.keys(state.allocationFieldErrors ?? {}).length > 0;
@@ -72,6 +75,13 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
       if (paidAtInput instanceof HTMLInputElement && localValue) paidAtInput.value = localValue;
     }
   }, [initialPaidAtUtc, initialValues.paidAtLocal]);
+
+  useEffect(() => {
+    if (state === previousActionStateRef.current) return;
+    previousActionStateRef.current = state;
+    if (allocationDisclosureOpen) allocationDisclosureRef.current?.setAttribute("open", "");
+    if (detailsDisclosureOpen) detailsDisclosureRef.current?.setAttribute("open", "");
+  }, [allocationDisclosureOpen, detailsDisclosureOpen, state]);
 
   function setCurrentTimezoneOffset() {
     if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = new Date().getTimezoneOffset().toString();
@@ -109,7 +119,7 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
       </div>
       <input ref={timezoneOffsetRef} type="hidden" name="timezoneOffsetMinutes" defaultValue={state.values.timezoneOffsetMinutes} />
       {mode === "create" ? <>
-        <details className="repayment-form__disclosure" open={allocationDisclosureOpen || undefined}>
+        <details ref={allocationDisclosureRef} className="repayment-form__disclosure">
           <summary>Allocate now</summary>
           <section className="repayment-form__allocations" aria-labelledby="repayment-allocations-heading">
             <h2 id="repayment-allocations-heading">Apply to outstanding expenses</h2>
@@ -129,7 +139,7 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
             )) : <p className="repayment-form__help">No outstanding expense shares for this friend.</p>}
           </section>
         </details>
-        <details className="repayment-form__disclosure" open={detailsDisclosureOpen || undefined}>
+        <details ref={detailsDisclosureRef} className="repayment-form__disclosure">
           <summary>Optional details</summary>
           <div className="repayment-form__field">
             <label htmlFor="repayment-payment-method">Payment method</label>

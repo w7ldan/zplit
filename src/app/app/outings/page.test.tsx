@@ -43,6 +43,7 @@ describe("/app/outings", () => {
     render(await OutingsPage({ searchParams: Promise.resolve({ create: "1" }) }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Title")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add an outing" })).toHaveAttribute("href", "/app/outings?create=1");
   });
 
   it("shows a filtered empty state with a narrow clear link", async () => {
@@ -74,5 +75,15 @@ describe("/app/outings", () => {
     render(await OutingsPage({ searchParams: Promise.resolve({ returnTo: "/app/expenses?create=1&q=Dinner", q: "Dinner", month: "2026-04", page: "2" }) }));
 
     expect(screen.getByRole("link", { name: "Add outing" })).toHaveAttribute("href", "/app/outings?returnTo=%2Fapp%2Fexpenses%3Fcreate%3D1%26q%3DDinner&q=Dinner&month=2026-04&page=2&create=1");
+  });
+
+  it("preserves a valid return target through the unfiltered empty-state Add outing link", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listOutingRecords: vi.fn().mockResolvedValue({ ...outingPage, items: [], totalItems: 0, totalPages: 1 }) });
+    render(await OutingsPage({ searchParams: Promise.resolve({ returnTo: "/app/expenses?create=1&q=Dinner", page: "2", task: "open", source: "ledger" }) }));
+
+    const href = "/app/outings?returnTo=%2Fapp%2Fexpenses%3Fcreate%3D1%26q%3DDinner&page=2&task=open&source=ledger&create=1";
+    expect(screen.getByRole("link", { name: "Add outing" })).toHaveAttribute("href", href);
+    expect(screen.getByRole("link", { name: "Add an outing" })).toHaveAttribute("href", href);
   });
 });

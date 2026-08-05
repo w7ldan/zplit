@@ -15,6 +15,7 @@ const activeFriend = {
 const archivedFriend = { ...activeFriend, id: "22222222-2222-4222-8222-222222222222", name: "Bima", archivedAt: new Date("2026-01-01T00:00:00.000Z") };
 const share = { id: "33333333-3333-4333-8333-333333333333", friendId: activeFriend.id, friendName: "Ari", expenseDescription: "Dinner", outingTitle: "Bandung day out", outingOccurredAt: new Date("2026-01-01T00:00:00.000Z"), amountOwed: 84_000, repaidAmount: 20_000, remainingAmount: 64_000 };
 const otherShare = { ...share, id: "44444444-4444-4444-8444-444444444444", friendId: archivedFriend.id, friendName: "Bima", expenseDescription: "Taxi" };
+const secondShare = { ...share, id: "55555555-5555-4555-8555-555555555555", expenseDescription: "Coffee" };
 const initialState = {
   fieldErrors: {},
   formError: "",
@@ -55,6 +56,26 @@ describe("RepaymentForm", () => {
     expect(screen.getByLabelText("Amount in rupiah")).toHaveAttribute("aria-invalid", "true");
     expect(document.getElementById("repayment-amount-error")).toHaveTextContent("Enter whole rupiah");
     expect(screen.getByRole("alert")).toHaveTextContent("Please correct the marked fields.");
+    expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
+  });
+
+  it("submits closed disclosure controls in their existing order", async () => {
+    const action = vi.fn().mockResolvedValue(initialState);
+    render(<RepaymentForm action={action} friends={[activeFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share, secondShare] }} />);
+    fireEvent.change(screen.getByLabelText("Amount in rupiah"), { target: { value: "84000" } });
+    fireEvent.change(screen.getByLabelText("Payment date and time"), { target: { value: "2026-01-02T10:30" } });
+    fireEvent.change(screen.getByLabelText("Payment method"), { target: { value: "Cash" } });
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Received" } });
+    fireEvent.change(screen.getByLabelText("Allocation for Dinner"), { target: { value: "20000" } });
+    fireEvent.change(screen.getByLabelText("Allocation for Coffee"), { target: { value: "30000" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
+
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    const formData = action.mock.calls[0][1] as FormData;
+    expect(formData.get("paymentMethod")).toBe("Cash");
+    expect(formData.get("notes")).toBe("Received");
+    expect(formData.getAll("expenseShareId")).toEqual([share.id, secondShare.id]);
+    expect(formData.getAll("amountRupiah")).toEqual(["84000", "20000", "30000"]);
   });
 
   it("shows the required pending label and prevents repeat submission", () => {
@@ -87,10 +108,33 @@ describe("RepaymentForm", () => {
     expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
   });
 
-  it("shows optional open shares and clears draft allocations when the friend changes", () => {
+  it("opens and closes natively, and keeps Allocate now open through local rerenders", () => {
     render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[activeFriend, archivedFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share], [archivedFriend.id]: [otherShare] }} />);
 
     expect(screen.getByText("Allocate now").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Optional details").closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Allocate now"));
+    expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Allocate now"));
+    expect(screen.getByText("Allocate now").closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Optional details"));
+    expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Optional details"));
+    expect(screen.getByText("Optional details").closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Allocate now"));
+    fireEvent.change(screen.getByLabelText("Allocation for Dinner"), { target: { value: "12000" } });
+    expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open");
+    fireEvent.change(screen.getByLabelText("Friend"), { target: { value: archivedFriend.id } });
+    expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open");
+    expect(screen.queryByText("Dinner")).not.toBeInTheDocument();
+    expect(screen.getByText("Taxi")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Friend"), { target: { value: activeFriend.id } });
+    expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("");
+  });
+
+  it("shows optional open shares and clears draft allocations when the friend changes", () => {
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[activeFriend, archivedFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share], [archivedFriend.id]: [otherShare] }} />);
+
     fireEvent.click(screen.getByText("Allocate now"));
     expect(screen.getByRole("heading", { name: "Apply to outstanding expenses" })).toBeVisible();
     expect(screen.getByText("Dinner")).toBeInTheDocument();
@@ -113,6 +157,45 @@ describe("RepaymentForm", () => {
     await waitFor(() => expect(screen.getByLabelText("Payment method")).toHaveValue("Cash"));
     expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open");
     expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
+  });
+
+  it("opens Allocate now for returned allocation values and errors", async () => {
+    for (const result of [
+      { allocations: [{ expenseShareId: share.id, amountRupiah: "84000" }] },
+      { allocations: [{ expenseShareId: share.id, amountRupiah: "" }], allocationFieldErrors: { [share.id]: "Allocation is invalid." } },
+    ]) {
+      const action = vi.fn().mockResolvedValue({ ...initialState, ...result, values: { ...initialState.values, friendId: activeFriend.id } });
+      const { unmount } = render(<RepaymentForm action={action} friends={[activeFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share] }} />);
+      fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
+
+      await waitFor(() => expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open"));
+      unmount();
+    }
+  });
+
+  it("opens Optional details for returned validation errors", async () => {
+    const action = vi.fn().mockResolvedValue({
+      ...initialState,
+      fieldErrors: { paymentMethod: "Payment method is too long.", notes: "Notes are too long." },
+      values: initialState.values,
+    });
+    render(<RepaymentForm action={action} friends={[activeFriend]} />);
+    fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open"));
+  });
+
+  it("reopens a disclosure for each qualifying action result", async () => {
+    const result = { ...initialState, values: { ...initialState.values, friendId: activeFriend.id }, allocations: [{ expenseShareId: share.id, amountRupiah: "84000" }] };
+    const action = vi.fn().mockResolvedValueOnce({ ...result }).mockResolvedValueOnce({ ...result, allocations: [...result.allocations] });
+    render(<RepaymentForm action={action} friends={[activeFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share] }} />);
+
+    fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
+    await waitFor(() => expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open"));
+    fireEvent.click(screen.getByText("Allocate now"));
+    expect(screen.getByText("Allocate now").closest("details")).not.toHaveAttribute("open");
+    fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
+    await waitFor(() => expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open"));
   });
 
   it("keeps disclosures out of edit mode", () => {

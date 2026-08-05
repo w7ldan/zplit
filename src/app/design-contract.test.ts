@@ -89,6 +89,10 @@ describe("Zplit design contract", () => {
     expect(documentation).toContain("Frequent financial inputs remain immediate");
     expect(documentation).toContain("Reduced motion removes spatial effects");
     expect(documentation).toContain("Authenticated sticky navigation remains geometrically stable while scrolling; it may change surface emphasis but does not change width, position, alignment, or radius.");
+    expect(documentation).toContain("Prerequisite creation preserves the owner’s original task and returns automatically.");
+    expect(documentation).toContain("Optional create-time fields use native progressive disclosure.");
+    expect(documentation).toContain("Returned values and validation errors reveal their containing disclosure.");
+    expect(documentation).toContain("Edit forms remain direct when hiding controls would obstruct review.");
   });
 
   it("keeps prohibited visual patterns out of the authenticated contract", () => {
@@ -160,6 +164,7 @@ describe("Zplit design contract", () => {
     expect(css).not.toContain(".friend-row__edit:hover span");
     expect(css).not.toContain(".outing-row__edit:hover span");
     expect(css).not.toContain(".expense-row__edit:hover span");
+    expect(cssRuleBody(css, ".repayment-form__disclosure > summary")).toContain("border-radius: var(--radius-control);");
   });
 
   it("keeps the authenticated desktop header in one centered three-region grid", () => {

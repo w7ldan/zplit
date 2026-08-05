@@ -2892,6 +2892,7 @@ input[type="search"]::-webkit-search-decoration {
   min-height: 2.75rem;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--ink);
+  border-radius: var(--radius-control);
   background: var(--surface);
   cursor: pointer;
   font-weight: 700;

@@ -43,6 +43,13 @@ The public mode is spacious enough to explain the product but keeps the hero act
 
 Record retrieval is URL-backed: free-text search is debounced and live, discrete filters apply immediately, and filter bars remain compact ledger controls. Record lists use bounded pagination rather than unbounded loading.
 
+## Entry-flow rules
+
+- Prerequisite creation preserves the owner’s original task and returns automatically.
+- Optional create-time fields use native progressive disclosure.
+- Returned values and validation errors reveal their containing disclosure.
+- Edit forms remain direct when hiding controls would obstruct review.
+
 ## Motion
 
 Public motion uses one short non-blocking opening fade, restrained bottom-to-top text reveals, interaction feedback, and the wide-screen journey’s scroll-linked panel movement. Utility timing is `100–220ms`; layout and state timing is `220–360ms`; public reveal is `500–750ms`; journey transitions stay below `900ms`. Content is rendered immediately, there are no fake loaders, scroll hijacks, perpetual animations, or routine text scrambling. Navigation may become a detached surface after a small scroll threshold, using one restrained shadow for separation. Authenticated sticky navigation remains geometrically stable while scrolling; it may change surface emphasis but does not change width, position, alignment, or radius.
