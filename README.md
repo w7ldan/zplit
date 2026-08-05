@@ -35,7 +35,9 @@ The shared master Caddyfile is owned by DeskTorrent infrastructure; Zplit owns o
 
 ## Private Docker deployment
 
-The standalone Docker image runs Zplit as a non-root production process behind the shared Caddy ingress network. Zplit is publicly routed at `https://idr.wildan.lol`.
+The standalone Docker image runs Zplit as a non-root production process behind
+the isolated `wildan-edge-zplit` network. The neutral edge owns public Caddy
+and routes Zplit at `https://idr.wildan.lol`.
 
 ```sh
 docker compose -f compose.yml build web

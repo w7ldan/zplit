@@ -177,6 +177,6 @@ volumes:
 networks:
   ingress:
     external: true
-    name: desktorrent-watch_ingress
+    name: wildan-edge-zplit
   database:
     internal: true

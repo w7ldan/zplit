@@ -140,7 +140,7 @@ requireCondition(onlyKeys(secrets, ["postgres_password", "better_auth_secret", "
 
 const ingress = networks.ingress;
 const database = networks.database;
-requireCondition(ingress?.external === true && ingress.name === "desktorrent-watch_ingress", "ingress must be the existing external network");
+requireCondition(ingress?.external === true && ingress.name === "wildan-edge-zplit", "ingress must be the neutral edge external network");
 requireCondition(database?.internal === true, "database must be internal");
 requireCondition(volumes.postgres_data?.name === "zplit_postgres_data", "postgres_data must use the zplit_postgres_data volume");
 
