@@ -1,20 +1,29 @@
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client";
+import { Pool } from "pg";
 import * as schema from "../src/db/schema";
 import {
   createLedgerRepository,
+  deletionImpactRevision,
   LedgerDeletionConfirmationRequiredError,
   LedgerNotFoundError,
 } from "../src/domain/ledger-repository";
 
-if (process.env.DB_NAME !== "zplit_test") throw new Error("history-delete smoke requires DB_NAME=zplit_test");
+const databaseUrl = process.env.DATABASE_URL?.trim();
+if (!databaseUrl) throw new Error("history-delete smoke requires DATABASE_URL");
+let databaseName: string;
+try {
+  databaseName = decodeURIComponent(new URL(databaseUrl).pathname.slice(1));
+} catch {
+  throw new Error("history-delete smoke requires a valid DATABASE_URL");
+}
+if (databaseName !== "zplit_test") throw new Error("history-delete smoke requires the disposable zplit_test database");
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-async function count(pool: ReturnType<typeof createDatabasePool>, table: string, owner: string) {
+async function count(pool: Pool, table: string, owner: string) {
   const result = await pool.query<{ count: string }>(`SELECT count(*)::text AS count FROM ${table} WHERE owner_user_id = $1`, [owner]);
   return Number(result.rows[0]?.count ?? 0);
 }
@@ -29,7 +38,7 @@ async function expectError(action: () => Promise<unknown>, errorType: new (...ar
   throw new Error(`expected ${errorType.name}`);
 }
 
-const pool = createDatabasePool(readRuntimeDatabaseConfig());
+const pool = new Pool({ connectionString: databaseUrl, max: 5 });
 const database = drizzle(pool, { schema });
 const ownerA = randomUUID();
 const ownerB = randomUUID();
@@ -40,6 +49,7 @@ const outingCascade = randomUUID();
 const outingExpense = randomUUID();
 const outingRepayment = randomUUID();
 const outingB = randomUUID();
+const expenseRace = randomUUID();
 const expenseOne = randomUUID();
 const expenseTwo = randomUUID();
 const expenseCascade = randomUUID();
@@ -50,6 +60,7 @@ const shareTwo = randomUUID();
 const shareCascade = randomUUID();
 const shareRepayment = randomUUID();
 const shareB = randomUUID();
+const shareRace = randomUUID();
 const receiptOne = randomUUID();
 const receiptTwo = randomUUID();
 const receiptCascade = randomUUID();
@@ -131,11 +142,34 @@ try {
   assert(outingImpact.expenseCount === 2 && outingImpact.expenseTotal === 30000, "outing impact expenses are wrong");
   assert(outingImpact.receiptCount === 2 && outingImpact.shareCount === 2 && outingImpact.allocationCount === 2, "outing impact subtree counts are wrong");
   assert(outingImpact.affectedRepaymentCount === 2 && outingImpact.affectedFriendIds.length === 1, "outing impact dependencies are wrong");
+  const outingRevision = deletionImpactRevision(outingImpact);
+  await pool.query(
+    "INSERT INTO expenses (id, owner_user_id, outing_id, description, amount) VALUES ($1, $2, $3, $4, $5)",
+    [expenseRace, ownerA, outingCascade, "Race expense", 11000],
+  );
+  await pool.query(
+    "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+    [shareRace, ownerA, expenseRace, friendA, 11000],
+  );
+  await pool.query(
+    "INSERT INTO repayment_allocations (owner_user_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
+    [ownerA, repaymentTwo, shareRace, 11000],
+  );
+  await expectError(() => repositoryA.deleteOuting(outingCascade, { cascadeDependents: true, expectedImpactRevision: outingRevision }), LedgerDeletionConfirmationRequiredError);
+  assert((await repositoryA.getOuting(outingCascade)).id === outingCascade, "stale outing deletion removed the parent");
+  assert((await repositoryA.getExpense(expenseRace)).id === expenseRace, "stale outing deletion removed the new dependent");
+  assert(await count(pool, "expenses", ownerA) === 5, "stale outing deletion changed dependent expenses");
+  assert(await count(pool, "expense_shares", ownerA) === 5, "stale outing deletion changed dependent shares");
+  assert(await count(pool, "repayment_allocations", ownerA) === 5, "stale outing deletion changed dependent allocations");
+  const updatedOutingImpact = await repositoryA.getOutingDeletionImpact(outingCascade);
+  const updatedOutingRevision = deletionImpactRevision(updatedOutingImpact);
+  assert(updatedOutingRevision !== outingRevision, "stale outing revision did not change");
+  assert(updatedOutingImpact.expenseCount === 3 && updatedOutingImpact.expenseTotal === 41000, "updated outing impact is wrong");
+  await repositoryA.deleteOuting(outingCascade, { cascadeDependents: true, expectedImpactRevision: updatedOutingRevision });
+  const repaymentAfterRace = await repositoryA.getRepayment(repaymentTwo);
+  assert(repaymentAfterRace.unallocatedAmount === repaymentAfterRace.amount, "affected repayment did not remain and become unallocated");
+  assert((await repositoryB.getExpense(expenseB)).id === expenseB, "unrelated owner record did not survive the race deletion");
   await repositoryA.deleteOuting(outingEmpty);
-  await expectError(() => repositoryA.deleteOuting(outingCascade), LedgerDeletionConfirmationRequiredError);
-  assert(await count(pool, "expenses", ownerA) === 4, "denied outing deletion changed expenses");
-
-  await repositoryA.deleteOuting(outingCascade, { cascadeDependents: true });
   assert(await count(pool, "expenses", ownerA) === 2, "outing cascade did not remove its expenses");
   assert(await count(pool, "expense_receipts", ownerA) === 2, "outing cascade did not remove receipts");
   assert(await count(pool, "expense_shares", ownerA) === 2, "outing cascade did not remove shares");

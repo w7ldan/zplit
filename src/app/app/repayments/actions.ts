@@ -12,13 +12,13 @@ import {
 } from "@/domain/repayment-allocation-input";
 import {
   createLedgerRepository,
+  deletionImpactRevision,
   LedgerNotFoundError,
   RepaymentAllocationAmountInvariantError,
   RepaymentAllocationShareInvariantError,
   RepaymentAmountInvariantError,
   RepaymentFriendInvariantError,
   LedgerDeletionConfirmationRequiredError,
-  type RepaymentDeletionImpact,
 } from "@/domain/ledger-repository";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 
@@ -38,15 +38,17 @@ export type RepaymentAllocationActionState = {
 
 export type RepaymentDeleteActionState = DeleteRecordActionState;
 
-function dependencyWarning(impact: RepaymentDeletionImpact) {
-  return `This repayment now has ${impact.allocationCount} allocation${impact.allocationCount === 1 ? "" : "s"}. Check the additional cascade confirmation to continue.`;
-}
-
 function cascadeValue(formData: FormData) {
   const values = formData.getAll("confirmCascade");
   if (values.length === 0) return false;
   if (values.length !== 1 || values[0] !== "delete-dependents") throw new Error("Cascade confirmation is invalid.");
   return true;
+}
+
+function impactRevisionValue(formData: FormData) {
+  const values = formData.getAll("impactRevision");
+  if (values.length !== 1 || typeof values[0] !== "string" || !/^[0-9a-f]{64}$/.test(values[0])) return null;
+  return values[0];
 }
 
 function valuesFromForm(formData: FormData) {
@@ -166,26 +168,29 @@ export async function deleteRepaymentAction(
 ): Promise<RepaymentDeleteActionState> {
   const session = await requireSession();
   if (formData.getAll("confirm").length !== 1 || formData.get("confirm") !== "delete") return { formError: "Type delete to confirm." };
+  const expectedImpactRevision = impactRevisionValue(formData);
+  if (!expectedImpactRevision) return { formError: "Impact revision is invalid." };
 
   const repository = createLedgerRepository(getDatabase(), session.user.id);
   let result;
   try {
-    const impact = await repository.getRepaymentDeletionImpact(repaymentId);
     let cascadeDependents;
     try {
       cascadeDependents = cascadeValue(formData);
     } catch (error) {
       return { formError: error instanceof Error ? error.message : "Cascade confirmation is invalid." };
     }
-    if (impact.allocationCount === 0 && cascadeDependents) return { formError: "Cascade confirmation is no longer applicable." };
-    result = await repository.deleteRepayment(repaymentId, { cascadeDependents });
+    result = await repository.deleteRepayment(repaymentId, { cascadeDependents, expectedImpactRevision });
   } catch (error) {
     return {
       formError: error instanceof LedgerDeletionConfirmationRequiredError
-        ? dependencyWarning(error.impact as RepaymentDeletionImpact)
+        ? error.reason === "cascade_confirmation_required"
+          ? "Review the dependent records and confirm their deletion."
+          : "The dependent records changed. Review the updated deletion impact and confirm again."
         : error instanceof LedgerNotFoundError
           ? "This repayment is no longer available."
           : "Unable to delete this repayment.",
+      ...(error instanceof LedgerDeletionConfirmationRequiredError ? { impact: error.impact, impactRevision: deletionImpactRevision(error.impact) } : {}),
     };
   }
 

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import OutingRecordPage from "./page";
+import { deletionImpactRevision } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -32,7 +33,8 @@ describe("outing record", () => {
   it("renders identity, metadata, notes, and edit fields", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ getOuting: vi.fn().mockResolvedValue(outing), getOutingDeletionImpact: vi.fn().mockResolvedValue(deletionImpact) });
+    const getOutingDeletionImpact = vi.fn().mockResolvedValue(deletionImpact);
+    mocks.createLedgerRepository.mockReturnValue({ getOuting: vi.fn().mockResolvedValue(outing), getOutingDeletionImpact });
     render(await OutingRecordPage({ params: Promise.resolve({ outingId: outing.id }) }));
 
     expect(screen.getByText("Outing · editable record")).toBeInTheDocument();
@@ -46,6 +48,8 @@ describe("outing record", () => {
     expect(screen.getByRole("heading", { name: "Delete outing" })).toBeInTheDocument();
     expect(screen.queryByText(/Move or delete this outing's expenses first/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete outing" })).toBeDisabled();
+    expect(screen.getByDisplayValue(deletionImpactRevision(deletionImpact))).toHaveAttribute("name", "impactRevision");
+    expect(getOutingDeletionImpact).toHaveBeenCalledOnce();
   });
 
   it("uses the same not-found path for absent and foreign outings", async () => {

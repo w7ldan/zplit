@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gte, gt, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import type { Database } from "../db/client";
 import {
   debtorShareLinks,
@@ -184,7 +185,7 @@ export type RepaymentAllocationPlan = RepaymentRecord & {
   shares: RepaymentAllocationShare[];
 };
 
-export type DeleteRecordOptions = { cascadeDependents: boolean };
+export type DeleteRecordOptions = { cascadeDependents: boolean; expectedImpactRevision?: string };
 
 export type OutingDeletionImpact = {
   recordType: "outing";
@@ -216,8 +217,80 @@ export type RepaymentDeletionImpact = {
 
 export type DeletionImpact = OutingDeletionImpact | ExpenseDeletionImpact | RepaymentDeletionImpact;
 
+export type LedgerDeletionConfirmationReason =
+  | "cascade_confirmation_required"
+  | "impact_changed"
+  | "cascade_confirmation_obsolete";
+
+function normalizedImpactId(value: unknown, label: string) {
+  if (typeof value !== "string" || !value.trim()) throw new LedgerIntegrityError(`${label} is invalid.`);
+  return value.trim().toLowerCase();
+}
+
+function normalizedImpactIds(value: unknown, label: string) {
+  if (!Array.isArray(value)) throw new LedgerIntegrityError(`${label} is invalid.`);
+  const ids = value.map((id) => normalizedImpactId(id, label)).sort();
+  if (new Set(ids).size !== ids.length) throw new LedgerIntegrityError(`${label} contains duplicates.`);
+  return ids;
+}
+
+function deletionImpactInteger(value: unknown, label: string) {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) throw new LedgerIntegrityError(`${label} is invalid.`);
+  return value as number;
+}
+
+function deletionImpactCanonical(impact: DeletionImpact) {
+  if (!impact || typeof impact !== "object" || Array.isArray(impact)) throw new LedgerIntegrityError("Deletion impact is invalid.");
+  const value = impact as unknown as Record<string, unknown>;
+  if (value.recordType === "outing") {
+    const affectedRepaymentIds = normalizedImpactIds(value.affectedRepaymentIds, "Affected repayment ID");
+    const affectedRepaymentCount = deletionImpactInteger(value.affectedRepaymentCount, "Affected repayment count");
+    if (affectedRepaymentCount !== affectedRepaymentIds.length) throw new LedgerIntegrityError("Affected repayment count is invalid.");
+    return {
+      recordType: value.recordType,
+      expenseCount: deletionImpactInteger(value.expenseCount, "Outing expense count"),
+      expenseTotal: deletionImpactInteger(value.expenseTotal, "Outing expense total"),
+      receiptCount: deletionImpactInteger(value.receiptCount, "Outing receipt count"),
+      shareCount: deletionImpactInteger(value.shareCount, "Outing share count"),
+      allocationCount: deletionImpactInteger(value.allocationCount, "Outing allocation count"),
+      affectedRepaymentCount,
+      affectedRepaymentIds,
+      affectedFriendIds: normalizedImpactIds(value.affectedFriendIds, "Affected friend ID"),
+    };
+  }
+  if (value.recordType === "expense") {
+    const affectedRepaymentIds = normalizedImpactIds(value.affectedRepaymentIds, "Affected repayment ID");
+    const affectedRepaymentCount = deletionImpactInteger(value.affectedRepaymentCount, "Affected repayment count");
+    if (affectedRepaymentCount !== affectedRepaymentIds.length) throw new LedgerIntegrityError("Affected repayment count is invalid.");
+    return {
+      recordType: value.recordType,
+      receiptCount: deletionImpactInteger(value.receiptCount, "Expense receipt count"),
+      shareCount: deletionImpactInteger(value.shareCount, "Expense share count"),
+      allocationCount: deletionImpactInteger(value.allocationCount, "Expense allocation count"),
+      affectedRepaymentCount,
+      affectedRepaymentIds,
+      affectedFriendIds: normalizedImpactIds(value.affectedFriendIds, "Affected friend ID"),
+    };
+  }
+  if (value.recordType === "repayment") {
+    return {
+      recordType: value.recordType,
+      allocationCount: deletionImpactInteger(value.allocationCount, "Repayment allocation count"),
+      friendId: normalizedImpactId(value.friendId, "Affected friend ID"),
+    };
+  }
+  throw new LedgerIntegrityError("Deletion impact record type is invalid.");
+}
+
+export function deletionImpactRevision(impact: DeletionImpact): string {
+  return createHash("sha256").update(JSON.stringify(deletionImpactCanonical(impact))).digest("hex");
+}
+
 export class LedgerDeletionConfirmationRequiredError extends LedgerRepositoryError {
-  constructor(readonly impact: DeletionImpact) {
+  constructor(
+    readonly impact: DeletionImpact,
+    readonly reason: LedgerDeletionConfirmationReason = "cascade_confirmation_required",
+  ) {
     super("DELETION_CONFIRMATION_REQUIRED", "Additional destructive confirmation is required.");
     this.name = "LedgerDeletionConfirmationRequiredError";
   }
@@ -442,8 +515,36 @@ function addDeletionAmount(total: number, amount: unknown, label: string) {
 }
 
 function assertDeleteOptions(options: DeleteRecordOptions): asserts options is DeleteRecordOptions {
-  if (!options || typeof options.cascadeDependents !== "boolean") {
+  if (
+    !options ||
+    typeof options.cascadeDependents !== "boolean" ||
+    (options.expectedImpactRevision !== undefined && (typeof options.expectedImpactRevision !== "string" || !/^[0-9a-f]{64}$/.test(options.expectedImpactRevision)))
+  ) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Deletion options are invalid.");
+  }
+}
+
+function deletionImpactHasDependents(impact: DeletionImpact) {
+  return impact.recordType === "outing"
+    ? impact.expenseCount > 0 || impact.receiptCount > 0 || impact.shareCount > 0 || impact.allocationCount > 0
+    : impact.recordType === "expense"
+      ? impact.receiptCount > 0 || impact.shareCount > 0 || impact.allocationCount > 0
+      : impact.allocationCount > 0;
+}
+
+function assertDeletionConfirmation(
+  impact: DeletionImpact,
+  options: DeleteRecordOptions,
+  ErrorType: new (impact: DeletionImpact, reason?: LedgerDeletionConfirmationReason) => LedgerDeletionConfirmationRequiredError,
+) {
+  if (options.expectedImpactRevision !== undefined && deletionImpactRevision(impact) !== options.expectedImpactRevision) {
+    throw new ErrorType(impact, "impact_changed");
+  }
+  if (options.expectedImpactRevision !== undefined && options.cascadeDependents && !deletionImpactHasDependents(impact)) {
+    throw new ErrorType(impact, "cascade_confirmation_obsolete");
+  }
+  if (deletionImpactHasDependents(impact) && !options.cascadeDependents) {
+    throw new ErrorType(impact);
   }
 }
 
@@ -780,8 +881,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           affectedRepaymentIds,
           affectedFriendIds: safeDeletionIds(dependents.shares.map((share) => share.friendId), "Affected friend ID"),
         };
-        const hasDependents = impact.expenseCount > 0 || impact.receiptCount > 0 || impact.shareCount > 0 || impact.allocationCount > 0;
-        if (hasDependents && !options.cascadeDependents) throw new OutingDeletionInvariantError(impact);
+        assertDeletionConfirmation(impact, options, OutingDeletionInvariantError);
         const deleted = await transaction
           .delete(outings)
           .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
@@ -1501,8 +1601,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           affectedRepaymentIds,
           affectedFriendIds: safeDeletionIds(dependents.shares.map((share) => share.friendId), "Affected friend ID"),
         };
-        const hasDependents = impact.receiptCount > 0 || impact.shareCount > 0 || impact.allocationCount > 0;
-        if (hasDependents && !options.cascadeDependents) throw new ExpenseDeletionInvariantError(impact);
+        assertDeletionConfirmation(impact, options, ExpenseDeletionInvariantError);
         const deleted = await transaction
           .delete(expenses)
           .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
@@ -1988,7 +2087,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           allocationCount: safeRetrievalInteger(allocations.length, "Repayment allocation count"),
           friendId,
         };
-        if (impact.allocationCount > 0 && !options.cascadeDependents) throw new RepaymentDeletionInvariantError(impact);
+        assertDeletionConfirmation(impact, options, RepaymentDeletionInvariantError);
         const deleted = await transaction
           .delete(repayments)
           .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { OutingForm } from "@/components/outings/outing-form";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { updateOutingAction } from "../actions";
@@ -31,6 +31,7 @@ export default async function OutingRecordPage({ params, searchParams }: { param
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
   }
+  const currentImpactRevision = deletionImpactRevision(deletionImpact);
 
   return (
     <section className="app-page outing-record" id="top">
@@ -56,7 +57,7 @@ export default async function OutingRecordPage({ params, searchParams }: { param
           />
           <p className="outing-record__next">Expenses recorded under this outing inherit its date and time. Friend-share assignment arrives in the next stage.</p>
         </div>
-        <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" impact={deletionImpact} />
+        <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" impact={deletionImpact} impactRevision={currentImpactRevision} />
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRepaymentAction, deleteRepaymentAction, replaceRepaymentAllocationsAction, updateRepaymentAction, type RepaymentActionState, type RepaymentAllocationActionState } from "./actions";
-import { LedgerDeletionConfirmationRequiredError, LedgerNotFoundError, RepaymentAllocationAmountInvariantError, RepaymentAllocationShareInvariantError, RepaymentAmountInvariantError, RepaymentFriendInvariantError } from "@/domain/ledger-repository";
+import { deletionImpactRevision, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError, RepaymentAllocationAmountInvariantError, RepaymentAllocationShareInvariantError, RepaymentAmountInvariantError, RepaymentFriendInvariantError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -20,6 +20,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
 const friendId = "11111111-1111-4111-8111-111111111111";
+const revision = "a".repeat(64);
 const initialState: RepaymentActionState = {
   fieldErrors: {},
   formError: "",
@@ -154,8 +155,13 @@ describe("repayment actions", () => {
     mocks.getDatabase.mockReturnValue("database");
     mocks.createLedgerRepository.mockReturnValue({ deleteRepayment, getRepaymentDeletionImpact });
     expect((await deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete,delete" }))).formError).toBe("Type delete to confirm.");
-    await expect(deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete" }))).rejects.toThrow("redirect:/app/repayments?deleted=1");
-    expect(deleteRepayment).toHaveBeenCalledWith("repayment-a", { cascadeDependents: false });
+    expect((await deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete", impactRevision: "bad" }))).formError).toBe("Impact revision is invalid.");
+    const duplicateRevision = form({ confirm: "delete", impactRevision: revision });
+    duplicateRevision.append("impactRevision", revision);
+    expect((await deleteRepaymentAction("repayment-a", { formError: "" }, duplicateRevision)).formError).toBe("Impact revision is invalid.");
+    await expect(deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete", impactRevision: revision }))).rejects.toThrow("redirect:/app/repayments?deleted=1");
+    expect(deleteRepayment).toHaveBeenCalledWith("repayment-a", { cascadeDependents: false, expectedImpactRevision: revision });
+    expect(getRepaymentDeletionImpact).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/app/friends/${friendId}`);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/share/[token]", "page");
   });
@@ -163,14 +169,19 @@ describe("repayment actions", () => {
   it("requires current repayment cascade confirmation", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    const getRepaymentDeletionImpact = vi.fn().mockResolvedValue({ recordType: "repayment", allocationCount: 2, friendId });
-    const deleteRepayment = vi.fn().mockRejectedValue(new LedgerDeletionConfirmationRequiredError({ recordType: "repayment", allocationCount: 2, friendId }));
+    const impact = { recordType: "repayment" as const, allocationCount: 2, friendId };
+    const getRepaymentDeletionImpact = vi.fn().mockResolvedValue(impact);
+    const deleteRepayment = vi.fn().mockRejectedValue(new LedgerDeletionConfirmationRequiredError(impact));
     mocks.createLedgerRepository.mockReturnValue({ deleteRepayment, getRepaymentDeletionImpact });
-    expect((await deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete" }))).formError).toContain("Check the additional cascade confirmation");
+    const blocked = await deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete", impactRevision: revision }));
+    expect(blocked).toMatchObject({ formError: "Review the dependent records and confirm their deletion.", impact, impactRevision: deletionImpactRevision(impact) });
+    expect(getRepaymentDeletionImpact).not.toHaveBeenCalled();
+    deleteRepayment.mockRejectedValue(new LedgerDeletionConfirmationRequiredError(impact, "impact_changed"));
+    expect(await deleteRepaymentAction("repayment-a", { formError: "" }, form({ confirm: "delete", impactRevision: revision }))).toMatchObject({ formError: "The dependent records changed. Review the updated deletion impact and confirm again.", impact, impactRevision: deletionImpactRevision(impact) });
     deleteRepayment.mockResolvedValue({ friendIds: [friendId], repaymentIds: [] });
-    const confirmed = form({ confirm: "delete" });
+    const confirmed = form({ confirm: "delete", impactRevision: revision });
     confirmed.set("confirmCascade", "delete-dependents");
     await expect(deleteRepaymentAction("repayment-a", { formError: "" }, confirmed)).rejects.toThrow("redirect:/app/repayments?deleted=1");
-    expect(deleteRepayment).toHaveBeenCalledWith("repayment-a", { cascadeDependents: true });
+    expect(deleteRepayment).toHaveBeenCalledWith("repayment-a", { cascadeDependents: true, expectedImpactRevision: revision });
   });
 });

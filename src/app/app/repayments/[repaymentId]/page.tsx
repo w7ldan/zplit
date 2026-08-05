@@ -6,7 +6,7 @@ import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { RepaymentForm } from "@/components/repayments/repayment-form";
 import { RepaymentAllocationEditor } from "@/components/repayments/repayment-allocation-editor";
 import { formatRupiah } from "@/domain/rupiah";
-import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { replaceRepaymentAllocationsAction, updateRepaymentAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
@@ -27,6 +27,7 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
     throw error;
   }
   const deletionImpact = await repository.getRepaymentDeletionImpact(repaymentId);
+  const currentImpactRevision = deletionImpactRevision(deletionImpact);
   const [activeFriends, archivedFriends, summary] = await Promise.all([repository.listFriends(), repository.listFriends({ archived: true }), repository.getLedgerSummary()]);
   const friends = [...activeFriends, ...archivedFriends];
   const repayment = plan;
@@ -63,7 +64,7 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
         <div className="repayment-record__allocations">
           <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, repayment.id)} plan={plan} />
         </div>
-        <DeleteRecordForm action={deleteRepaymentAction.bind(null, repayment.id)} recordType="repayment" impact={deletionImpact} />
+        <DeleteRecordForm action={deleteRepaymentAction.bind(null, repayment.id)} recordType="repayment" impact={deletionImpact} impactRevision={currentImpactRevision} />
       </div>
     </section>
   );

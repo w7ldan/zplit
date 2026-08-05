@@ -1,10 +1,12 @@
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Database } from "../db/client";
-import { expenses, repayments } from "../db/schema";
+import { debtorShareReceipts, expenseReceipts, expenseShares, expenses, repaymentAllocations, repayments } from "../db/schema";
 import {
   createLedgerRepository,
+  deletionImpactRevision,
   ExpenseDeletionInvariantError,
+  LedgerDeletionConfirmationRequiredError,
   LedgerNotFoundError,
   LedgerRepositoryError,
   OutingDeletionInvariantError,
@@ -34,7 +36,93 @@ function emptyTransactionalDatabase() {
   } as unknown as Database;
 }
 
+function deletionDatabase(withDependents: boolean) {
+  let deleteCalls = 0;
+  const transaction = {
+    select() {
+      let table: unknown;
+      const chain = {
+        from(nextTable: unknown) { table = nextTable; return chain; },
+        where() { return chain; },
+        limit() { return chain; },
+        orderBy() { return chain; },
+        for() {
+          if (table === expenses) return Promise.resolve([{ id: "expense-a" }]);
+          if (table === expenseReceipts || table === debtorShareReceipts) return Promise.resolve([]);
+          if (table === expenseShares) return Promise.resolve(withDependents ? [{ id: "share-a", friendId: "friend-a" }] : []);
+          if (table === repaymentAllocations) return Promise.resolve(withDependents ? [{ repaymentId: "repayment-a", expenseShareId: "share-a" }] : []);
+          return Promise.resolve([]);
+        },
+      };
+      return chain;
+    },
+    delete() {
+      return { where: () => ({ returning: async () => { deleteCalls += 1; return [{ id: "expense-a" }]; } }) };
+    },
+  };
+  return {
+    database: { transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction) } as unknown as Database,
+    deleteCalls: () => deleteCalls,
+  };
+}
+
 describe("ledger repository", () => {
+  it("generates deterministic revisions from the complete normalized impact", () => {
+    const impact = {
+      recordType: "outing" as const,
+      expenseCount: 2,
+      expenseTotal: 30_000,
+      receiptCount: 1,
+      shareCount: 2,
+      allocationCount: 1,
+      affectedRepaymentCount: 2,
+      affectedRepaymentIds: [" REPAYMENT-B ", "repayment-a"],
+      affectedFriendIds: ["FRIEND-B", "friend-a"],
+    };
+    const sameImpact = { ...impact, affectedRepaymentIds: ["repayment-a", "repayment-b"], affectedFriendIds: ["friend-a", "friend-b"] };
+    expect(deletionImpactRevision(impact)).toMatch(/^[0-9a-f]{64}$/);
+    expect(deletionImpactRevision(impact)).toBe(deletionImpactRevision(sameImpact));
+    expect(deletionImpactRevision({ ...impact, allocationCount: 2 })).not.toBe(deletionImpactRevision(impact));
+    expect(deletionImpactRevision({ ...impact, expenseTotal: 30_001 })).not.toBe(deletionImpactRevision(impact));
+    expect(deletionImpactRevision({ ...impact, affectedRepaymentIds: ["repayment-b", "repayment-c"] })).not.toBe(deletionImpactRevision(impact));
+    expect(() => deletionImpactRevision({ ...impact, expenseTotal: -1 })).toThrow(LedgerIntegrityError);
+  });
+
+  it.each([
+    { recordType: "expense" as const, receiptCount: 0, shareCount: 0, allocationCount: 0, affectedRepaymentCount: 0, affectedRepaymentIds: [], affectedFriendIds: [] },
+    { recordType: "repayment" as const, allocationCount: 0, friendId: "friend-a" },
+  ])("accepts valid $recordType impact revisions", (impact) => {
+    expect(deletionImpactRevision(impact)).toHaveLength(64);
+  });
+
+  it("rejects malformed revisions before opening a transaction", async () => {
+    const transaction = vi.fn();
+    const repository = createLedgerRepository({ transaction } as unknown as Database, owner);
+    await expect(repository.deleteExpense("expense-a", { cascadeDependents: true, expectedImpactRevision: "A".repeat(64) })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(repository.deleteExpense("expense-a", { cascadeDependents: true, expectedImpactRevision: "a".repeat(63) })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("requires and compares the locked current impact before deletion", async () => {
+    const impact = { recordType: "expense" as const, receiptCount: 0, shareCount: 1, allocationCount: 1, affectedRepaymentCount: 1, affectedRepaymentIds: ["repayment-a"], affectedFriendIds: ["friend-a"] };
+    const matching = deletionDatabase(true);
+    await expect(createLedgerRepository(matching.database, owner).deleteExpense("expense-a", { cascadeDependents: true, expectedImpactRevision: deletionImpactRevision(impact) })).resolves.toEqual({ friendIds: ["friend-a"], repaymentIds: ["repayment-a"] });
+    expect(matching.deleteCalls()).toBe(1);
+
+    const stale = deletionDatabase(true);
+    const error = await createLedgerRepository(stale.database, owner).deleteExpense("expense-a", { cascadeDependents: true, expectedImpactRevision: "f".repeat(64) }).catch((value) => value);
+    expect(error).toBeInstanceOf(LedgerDeletionConfirmationRequiredError);
+    expect(error).toMatchObject({ reason: "impact_changed", impact });
+    expect(stale.deleteCalls()).toBe(0);
+  });
+
+  it("rejects an obsolete cascade confirmation with the current empty impact", async () => {
+    const currentImpact = { recordType: "expense" as const, receiptCount: 0, shareCount: 0, allocationCount: 0, affectedRepaymentCount: 0, affectedRepaymentIds: [], affectedFriendIds: [] };
+    const database = deletionDatabase(false);
+    const error = await createLedgerRepository(database.database, owner).deleteExpense("expense-a", { cascadeDependents: true, expectedImpactRevision: deletionImpactRevision(currentImpact) }).catch((value) => value);
+    expect(error).toMatchObject({ reason: "cascade_confirmation_obsolete", impact: currentImpact });
+    expect(database.deleteCalls()).toBe(0);
+  });
   it("rejects a blank owner immediately", () => {
     expect(() => createLedgerRepository({} as Database, "  ")).toThrowError(LedgerRepositoryError);
     try {

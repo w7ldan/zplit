@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { DeletionImpact } from "@/domain/ledger-repository";
 
-export type DeleteRecordActionState = { formError: string };
+export type DeleteRecordActionState = { formError: string; impact?: DeletionImpact; impactRevision?: string };
 export type DeleteRecordAction = (
   previousState: DeleteRecordActionState,
   formData: FormData,
@@ -15,6 +15,7 @@ type DeleteRecordFormProps = {
   action: DeleteRecordAction;
   recordType: "outing" | "expense" | "repayment";
   impact: DeletionImpact;
+  impactRevision: string;
 };
 
 const copy = {
@@ -80,8 +81,19 @@ function SubmitButton({ recordType, impact, confirmed, cascadeConfirmed }: { rec
   );
 }
 
-export function DeleteRecordForm({ action, recordType, impact }: DeleteRecordFormProps) {
+export function DeleteRecordForm({ action, recordType, impact, impactRevision }: DeleteRecordFormProps) {
   const [state, formAction] = useActionState(action, { formError: "" });
+  const effectiveImpact = state.impact ?? impact;
+  const effectiveImpactRevision = state.impactRevision ?? impactRevision;
+  return <DeleteRecordFormRevision key={effectiveImpactRevision} state={state} formAction={formAction} recordType={recordType} impact={effectiveImpact} impactRevision={effectiveImpactRevision} />;
+}
+
+type DeleteRecordFormRevisionProps = Omit<DeleteRecordFormProps, "action"> & {
+  state: DeleteRecordActionState;
+  formAction: (formData: FormData) => void;
+};
+
+function DeleteRecordFormRevision({ state, formAction, recordType, impact, impactRevision }: DeleteRecordFormRevisionProps) {
   const [confirmed, setConfirmed] = useState(false);
   const [cascadeConfirmed, setCascadeConfirmed] = useState(false);
   const details = copy[recordType];
@@ -101,6 +113,7 @@ export function DeleteRecordForm({ action, recordType, impact }: DeleteRecordFor
         </div>
       ) : null}
       <form action={formAction}>
+        <input type="hidden" name="impactRevision" value={impactRevision} />
         <label className="delete-record-form__confirm">
           <input type="checkbox" name="confirm" value="delete" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} aria-describedby={errorId} />
           <span>Confirm deletion</span>

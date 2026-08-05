@@ -7,7 +7,7 @@ import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ExpenseShareEditor } from "@/components/expenses/expense-share-editor";
 import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
 import { formatRupiah } from "@/domain/rupiah";
-import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { listExpenseReceipts } from "@/server/expense-receipts";
 import { replaceExpenseSharesAction, updateExpenseAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
@@ -30,6 +30,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
     throw error;
   }
   const deletionImpact = await repository.getExpenseDeletionImpact(expenseId);
+  const currentImpactRevision = deletionImpactRevision(deletionImpact);
   const outings = await repository.listOutings();
   const [activeFriends, shares, receipts] = await Promise.all([
     repository.listFriends(),
@@ -81,7 +82,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
           />
         </div>
         <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts} />
-        <DeleteRecordForm action={deleteExpenseAction.bind(null, expense.id)} recordType="expense" impact={deletionImpact} />
+        <DeleteRecordForm action={deleteExpenseAction.bind(null, expense.id)} recordType="expense" impact={deletionImpact} impactRevision={currentImpactRevision} />
       </div>
     </section>
   );

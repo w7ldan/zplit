@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import ExpenseRecordPage from "./page";
+import { deletionImpactRevision } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -37,12 +38,13 @@ describe("expense record", () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
     mocks.listExpenseReceipts.mockResolvedValue([]);
+    const getExpenseDeletionImpact = vi.fn().mockResolvedValue(deletionImpact);
     mocks.createLedgerRepository.mockReturnValue({
       getExpense: vi.fn().mockResolvedValue(expense),
       listOutings: vi.fn().mockResolvedValue([{ id: expense.outingId, title: expense.outingTitle }]),
       listFriends: vi.fn().mockResolvedValue([{ id: "33333333-3333-4333-8333-333333333333", name: "Rani", archivedAt: null }]),
       listExpenseShares: vi.fn().mockResolvedValue([]),
-      getExpenseDeletionImpact: vi.fn().mockResolvedValue(deletionImpact),
+      getExpenseDeletionImpact,
     });
     render(await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) }));
 
@@ -62,6 +64,8 @@ describe("expense record", () => {
     expect(screen.getByRole("heading", { name: "Delete expense" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Receipts" })).toBeInTheDocument();
     expect(screen.queryByText(/Remove repayment allocations before deleting this expense/)).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue(deletionImpactRevision(deletionImpact))).toHaveAttribute("name", "impactRevision");
+    expect(getExpenseDeletionImpact).toHaveBeenCalledOnce();
   });
 
   it("uses the same not-found path for absent and foreign expenses", async () => {

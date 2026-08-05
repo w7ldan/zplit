@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createOutingAction, deleteOutingAction, updateOutingAction } from "./actions";
 import type { OutingActionState } from "./actions";
-import { LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { deletionImpactRevision, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }),
 }));
+
+const revision = "a".repeat(64);
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
@@ -105,10 +107,15 @@ describe("outing actions", () => {
     mocks.createLedgerRepository.mockReturnValue({ deleteOuting, getOutingDeletionImpact });
 
     expect((await deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "yes" }))).formError).toBe("Type delete to confirm.");
+    expect((await deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete", impactRevision: "bad" }))).formError).toBe("Impact revision is invalid.");
+    const duplicateRevision = form({ confirm: "delete", impactRevision: revision });
+    duplicateRevision.append("impactRevision", revision);
+    expect((await deleteOutingAction("outing-a", { formError: "" }, duplicateRevision)).formError).toBe("Impact revision is invalid.");
     expect(deleteOuting).not.toHaveBeenCalled();
-    await expect(deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete" }))).rejects.toThrow("redirect:/app/outings?deleted=1");
+    await expect(deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete", impactRevision: revision }))).rejects.toThrow("redirect:/app/outings?deleted=1");
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
-    expect(deleteOuting).toHaveBeenCalledWith("outing-a", { cascadeDependents: false });
+    expect(deleteOuting).toHaveBeenCalledWith("outing-a", { cascadeDependents: false, expectedImpactRevision: revision });
+    expect(getOutingDeletionImpact).not.toHaveBeenCalled();
   });
 
   it("requires current cascade confirmation and preserves missing-record handling", async () => {
@@ -118,12 +125,15 @@ describe("outing actions", () => {
     const getOutingDeletionImpact = vi.fn().mockResolvedValue(impact);
     const deleteOuting = vi.fn().mockRejectedValue(new LedgerDeletionConfirmationRequiredError(impact));
     mocks.createLedgerRepository.mockReturnValue({ deleteOuting, getOutingDeletionImpact });
-    expect((await deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete" }))).formError).toContain("Check the additional cascade confirmation");
+    const blocked = await deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete", impactRevision: revision }));
+    expect(blocked).toMatchObject({ formError: "Review the dependent records and confirm their deletion.", impact, impactRevision: deletionImpactRevision(impact) });
+    deleteOuting.mockRejectedValue(new LedgerDeletionConfirmationRequiredError(impact, "impact_changed"));
+    expect(await deleteOutingAction("outing-a", { formError: "" }, form({ confirm: "delete", impactRevision: revision }))).toMatchObject({ formError: "The dependent records changed. Review the updated deletion impact and confirm again.", impact, impactRevision: deletionImpactRevision(impact) });
     deleteOuting.mockResolvedValue({ friendIds: ["friend-a"], repaymentIds: ["repayment-a"] });
-    const confirmed = form({ confirm: "delete" });
+    const confirmed = form({ confirm: "delete", impactRevision: revision });
     confirmed.set("confirmCascade", "delete-dependents");
     await expect(deleteOutingAction("outing-a", { formError: "" }, confirmed)).rejects.toThrow("redirect:/app/outings?deleted=1");
-    expect(deleteOuting).toHaveBeenCalledWith("outing-a", { cascadeDependents: true });
+    expect(deleteOuting).toHaveBeenCalledWith("outing-a", { cascadeDependents: true, expectedImpactRevision: revision });
     deleteOuting.mockRejectedValue(new LedgerNotFoundError());
     getOutingDeletionImpact.mockRejectedValue(new LedgerNotFoundError());
     expect((await deleteOutingAction("foreign", { formError: "" }, confirmed)).formError).toBe("This outing is no longer available.");

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import RepaymentRecordPage from "./page";
+import { deletionImpactRevision } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -52,7 +53,8 @@ describe("repayment record", () => {
   it("renders the friend identity, totals, local date metadata, and editable fields", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact: vi.fn().mockResolvedValue(deletionImpact), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])), getLedgerSummary: vi.fn().mockResolvedValue({ friendBalances: [{ friendId: friend.id, name: friend.name, outstandingAmount: 44_000 }] }) });
+    const getRepaymentDeletionImpact = vi.fn().mockResolvedValue(deletionImpact);
+    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact, listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])), getLedgerSummary: vi.fn().mockResolvedValue({ friendBalances: [{ friendId: friend.id, name: friend.name, outstandingAmount: 44_000 }] }) });
 
     render(await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }) }));
 
@@ -73,6 +75,8 @@ describe("repayment record", () => {
     expect(screen.getByRole("heading", { name: "Delete repayment" })).toBeInTheDocument();
     expect(screen.queryByText(/Remove this repayment's allocations before deleting it/)).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/allocation editor|debtor|card|pill|status dot/i);
+    expect(screen.getByDisplayValue(deletionImpactRevision(deletionImpact))).toHaveAttribute("name", "impactRevision");
+    expect(getRepaymentDeletionImpact).toHaveBeenCalledOnce();
   });
 
   it("uses one not-found path for foreign and absent records", async () => {
