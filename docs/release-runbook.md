@@ -79,7 +79,7 @@ docker tag "$previous_image_id" "$rollback_image_tag"
 test "$(docker image inspect --format '{{.Id}}' "$rollback_image_tag")" = "$previous_image_id"
 ```
 
-Identify the running Caddy container and resolve its authoritative host source from Docker mount metadata. A direct file bind and a bind-mounted `/etc/caddy` directory are supported. Stop if there is no candidate, more than one candidate, a symlink/non-regular source, or an unrelated/shared configuration:
+Identify the running Caddy container and resolve the authoritative mounted Zplit route from Docker mount metadata. The expected destination is `/etc/caddy/routes/zplit.caddy`. Stop if there is no candidate, more than one candidate, a symlink/non-regular source, or an unrelated/shared configuration:
 
 ```sh
 caddy_container=$(docker ps --filter name='^/desktorrent-watch-web-1$' --filter status=running --format '{{.ID}}')
@@ -89,8 +89,7 @@ mapfile -t caddy_sources < <(node --input-type=module - "$mounts" <<'NODE'
 const mounts = JSON.parse(process.argv[2]);
 for (const mount of mounts) {
   if (mount.Type !== "bind") continue;
-  if (mount.Destination === "/etc/caddy/Caddyfile") console.log(mount.Source);
-  if (mount.Destination === "/etc/caddy") console.log(mount.Source + "/Caddyfile");
+  if (mount.Destination === "/etc/caddy/routes/zplit.caddy") console.log(mount.Source);
 }
 NODE
 )
@@ -115,7 +114,7 @@ cmp -s "$authoritative_caddy_source" "$previous_caddy_rollback_copy"
 rm -f "$previous_caddy_expected"
 ```
 
-The byte-for-byte comparison above is the shared-configuration guard. Do not overwrite a Caddy container whose `/etc/caddy/Caddyfile` is image-baked, only volume-backed, or contains unrelated sites.
+The byte-for-byte comparison above is the mounted-route guard. Do not overwrite a Caddy container whose Zplit route is image-baked, only volume-backed, or mixed with unrelated sites. The shared Caddy configuration remains owned by the infrastructure deployment.
 
 ## Backup and release state
 
@@ -187,18 +186,18 @@ printf 'release state: %s\n' "$state_file"
 
 ## Production deployment
 
-Validate the reviewed repository Caddyfile before replacing the persistent source, then build the corrected web image once and run the existing migrator once:
+Validate the reviewed repository route before replacing the persistent source, then build the corrected web image once and run the existing migrator once:
 
 ```sh
 caddy_image=$(docker inspect --format '{{.Config.Image}}' "$caddy_container")
 docker run --rm --network none --read-only \
-  --mount "type=bind,src=$PWD/deploy/Caddyfile,dst=/etc/caddy/Caddyfile,readonly" \
+  --mount "type=bind,src=$PWD/deploy/Caddyfile,dst=/etc/caddy/routes/zplit.caddy,readonly" \
   "$caddy_image" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker compose -f compose.yml build web
 docker compose -f compose.yml --profile tools run --rm migrate
 ```
 
-Install the new file atomically into the authoritative persistent source, validate inside the running Caddy container, reload Caddy without restarting its container, and prove the running container sees the same bytes:
+Install the new route atomically into the authoritative persistent source, validate the assembled Caddy configuration inside the running Caddy container, reload Caddy without restarting its container, and prove the running container sees the same route bytes:
 
 ```sh
 caddy_source_mode=$(stat -c '%a' "$authoritative_caddy_source")
@@ -209,10 +208,10 @@ cmp -s deploy/Caddyfile "$caddy_new_tmp"
 mv -f "$caddy_new_tmp" "$authoritative_caddy_source"
 docker exec "$caddy_container" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker exec "$caddy_container" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
-running_caddy_copy=$(mktemp "$release_state_dir/.running-caddy.XXXXXX")
-docker exec "$caddy_container" cat /etc/caddy/Caddyfile > "$running_caddy_copy"
-cmp -s deploy/Caddyfile "$running_caddy_copy"
-rm -f "$running_caddy_copy"
+running_zplit_route=$(mktemp "$release_state_dir/.running-zplit-route.XXXXXX")
+docker exec "$caddy_container" cat /etc/caddy/routes/zplit.caddy > "$running_zplit_route"
+cmp -s deploy/Caddyfile "$running_zplit_route"
+rm -f "$running_zplit_route"
 ```
 
 Recreate only Zplit web, wait for healthy status, run the existing release smoke once, and inspect bounded recent logs. Do not start or restart DeskTorrent:
