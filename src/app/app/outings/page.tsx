@@ -40,7 +40,7 @@ export default async function OutingsPage({ searchParams = Promise.resolve({}) }
             <h1>Outings</h1>
             <p className="app-page__lede">Keep related expenses together under the event where they happened.</p>
           </div>
-          <Link className="action-link action-link--primary" href="/app/outings?create=1" data-task-trigger="outing-create">Add outing</Link>
+          <Link className="action-link action-link--primary" href={recordHref("/app/outings", params, { create: "1" })} data-task-trigger="outing-create">Add outing</Link>
         </div>
         {created ? <RecordConfirmation queryKey="created" message="Outing added." /> : null}
         <LiveRecordFilters action="/app/outings" search={{ label: "Search outings", placeholder: "Outing title", value: filters.q ?? "" }} month={{ label: "Month", value: filters.month ?? "" }} preservedParams={params} />

@@ -26,6 +26,8 @@ describe("/app/repayments", () => {
     expect(screen.getByText("Record money received and apply it to outstanding expense shares.")).toBeInTheDocument();
     expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add repayment" })).toHaveAttribute("href", "/app/repayments?create=1");
+    expect(screen.getByLabelText("Allocation")).toHaveValue("");
+    expect(screen.getByLabelText("Allocation")).not.toHaveAttribute("name");
     expect(screen.queryByLabelText("Amount in rupiah")).not.toBeInTheDocument();
     expect(getSummary).not.toHaveBeenCalled();
     expect(openShares).not.toHaveBeenCalled();
@@ -38,5 +40,13 @@ describe("/app/repayments", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(within(screen.getByRole("dialog")).getByRole("option", { name: "Bima (ARCHIVED)" })).toBeInTheDocument();
     expect(screen.getByText(/Outstanding for Ari/)).toBeInTheDocument();
+  });
+
+  it("preserves retrieval context when opening Add repayment", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [repayment], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])) });
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ q: "Cash", friendId: activeFriend.id, month: "2026-04", allocation: "needs", page: "2", task: "open", source: "ledger" }) }));
+
+    expect(screen.getByRole("link", { name: "Add repayment" })).toHaveAttribute("href", `/app/repayments?q=Cash&friendId=${activeFriend.id}&month=2026-04&allocation=needs&page=2&task=open&source=ledger&create=1`);
   });
 });

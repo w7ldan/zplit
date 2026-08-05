@@ -59,7 +59,7 @@ export default async function FriendsPage({ searchParams = Promise.resolve({}) }
             <h1>Friends</h1>
             <p className="app-page__lede">Find people connected to your shared expenses and review what remains open.</p>
           </div>
-          <Link className="action-link action-link--primary" href="/app/friends?create=1" data-task-trigger="friend-create">Add friend</Link>
+          <Link className="action-link action-link--primary" href={recordHref("/app/friends", params, { create: "1" })} data-task-trigger="friend-create">Add friend</Link>
         </div>
         {created ? <RecordConfirmation queryKey="created" message="Friend added." /> : null}
         <div className="friends-toolbar">

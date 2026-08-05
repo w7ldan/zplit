@@ -25,7 +25,7 @@ describe("/app/friends", () => {
     expect(document.body).not.toHaveTextContent(/owner records|owner-scoped ledger|chronological ledger/);
     expect(screen.getByLabelText("Search friends")).toHaveValue("Ada");
     expect(screen.getByText("Rp 64.000")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?create=1");
+    expect(screen.getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?view=active&q=Ada&create=1");
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
@@ -47,5 +47,13 @@ describe("/app/friends", () => {
     expect(screen.getByRole("link", { name: "Archived" })).toHaveAttribute("href", "/app/friends?view=archived&q=Ada&create=1&task=open");
     expect(screen.getByRole("link", { name: "Archived" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Active" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("preserves retrieval context when opening Add friend", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue(friendPage), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    render(await FriendsPage({ searchParams: Promise.resolve({ view: "archived", q: "Ada", page: "2", task: "open", source: "ledger" }) }));
+
+    expect(screen.getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?view=archived&q=Ada&page=2&task=open&source=ledger&create=1");
   });
 });

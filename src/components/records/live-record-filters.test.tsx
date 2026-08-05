@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }
 const baseProps = {
   action: "/app/outings",
   search: { label: "Search outings", placeholder: "Outing title", value: "" },
-  selects: [{ name: "assignment", label: "Assignment", value: "all", options: [{ value: "all", label: "All" }, { value: "assigned", label: "Assigned" }] }],
+  selects: [{ name: "assignment", label: "Assignment", value: "", options: [{ value: "", label: "All" }, { value: "assigned", label: "Assigned" }] }],
   month: { label: "Month", value: "" },
   preservedParams: { task: "open", page: "3" },
 };
@@ -76,13 +76,93 @@ describe("LiveRecordFilters", () => {
     expect(mocks.replace).toHaveBeenCalledWith("/app/outings?q=%E6%9D%B1%E4%BA%AC&task=open&assignment=assigned#record-list", { scroll: false });
     mocks.replace.mockReset();
     fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-04" } });
-    expect(mocks.replace).toHaveBeenCalledWith("/app/outings?q=%E6%9D%B1%E4%BA%AC&task=open&month=2026-04#record-list", { scroll: false });
+    expect(mocks.replace).toHaveBeenCalledWith("/app/outings?q=%E6%9D%B1%E4%BA%AC&task=open&assignment=assigned&month=2026-04#record-list", { scroll: false });
+  });
+
+  it("keeps a newer draft and its debounce after an older response, including after blur", () => {
+    for (const blur of [false, true]) {
+      window.history.replaceState({}, "", "/app/outings?page=3&task=open#record-list");
+      const view = render(<LiveRecordFilters {...baseProps} />);
+      const input = screen.getByLabelText("Search outings");
+      fireEvent.change(input, { target: { value: "A" } });
+      act(() => vi.advanceTimersByTime(275));
+      expect(mocks.replace).toHaveBeenCalledTimes(1);
+
+      window.history.replaceState({}, "", "/app/outings?task=open&q=A#record-list");
+      fireEvent.change(input, { target: { value: "AB" } });
+      if (blur) fireEvent.blur(input);
+      view.rerender(<LiveRecordFilters {...baseProps} search={{ ...baseProps.search, value: "A" }} />);
+      expect(input).toHaveValue("AB");
+      act(() => vi.advanceTimersByTime(274));
+      expect(mocks.replace).toHaveBeenCalledTimes(1);
+      act(() => vi.advanceTimersByTime(1));
+      expect(mocks.replace).toHaveBeenCalledTimes(2);
+      expect(mocks.replace).toHaveBeenLastCalledWith("/app/outings?task=open&q=AB#record-list", { scroll: false });
+
+      view.unmount();
+      mocks.replace.mockReset();
+    }
+  });
+
+  it("composes a pending draft with a discrete change and removes page", () => {
+    render(<LiveRecordFilters {...baseProps} />);
+    fireEvent.change(screen.getByLabelText("Search outings"), { target: { value: "Dinner" } });
+    fireEvent.change(screen.getByLabelText("Assignment"), { target: { value: "assigned" } });
+    expect(mocks.replace).toHaveBeenCalledTimes(1);
+    expect(mocks.replace).toHaveBeenCalledWith("/app/outings?task=open&q=Dinner&assignment=assigned#record-list", { scroll: false });
+    act(() => vi.advanceTimersByTime(500));
+    expect(mocks.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains rapid discrete changes and the current hash", () => {
+    const props = {
+      ...baseProps,
+      action: "/app/expenses",
+      selects: [
+        ...baseProps.selects,
+        { name: "allocation", label: "Allocation", value: "", options: [{ value: "", label: "All" }, { value: "complete", label: "Complete" }] },
+      ],
+    };
+    window.history.replaceState({}, "", "/app/expenses?page=5&task=open#record-list");
+    render(<LiveRecordFilters {...props} />);
+    fireEvent.change(screen.getByLabelText("Search outings"), { target: { value: "Dinner" } });
+    fireEvent.change(screen.getByLabelText("Assignment"), { target: { value: "assigned" } });
+    fireEvent.change(screen.getByLabelText("Allocation"), { target: { value: "complete" } });
+    fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-04" } });
+    expect(mocks.replace).toHaveBeenCalledTimes(3);
+    expect(mocks.replace).toHaveBeenLastCalledWith("/app/expenses?task=open&q=Dinner&assignment=assigned&allocation=complete&month=2026-04#record-list", { scroll: false });
+  });
+
+  it("removes inactive filters, omits them from GET form data, and suppresses duplicates", () => {
+    window.history.replaceState({}, "", "/app/outings?q=Dinner&assignment=assigned&page=2#record-list");
+    render(<LiveRecordFilters {...baseProps} search={{ ...baseProps.search, value: "Dinner" }} selects={[{ ...baseProps.selects[0], value: "assigned" }]} />);
+    fireEvent.change(screen.getByLabelText("Assignment"), { target: { value: "" } });
+    expect(mocks.replace).toHaveBeenCalledWith("/app/outings?q=Dinner#record-list", { scroll: false });
+    expect(mocks.replace.mock.calls[0][0]).not.toContain("assignment=");
+
+    mocks.replace.mockReset();
+    window.history.replaceState({}, "", "/app/outings?q=Dinner#record-list");
+    const view = render(<LiveRecordFilters {...baseProps} search={{ ...baseProps.search, value: "Dinner" }} />);
+    expect(new FormData(screen.getAllByRole("search").at(-1) as HTMLFormElement).has("assignment")).toBe(false);
+    fireEvent.change(screen.getAllByLabelText("Search outings").at(-1) as HTMLElement, { target: { value: "Dinner" } });
+    act(() => vi.advanceTimersByTime(275));
+    expect(mocks.replace).not.toHaveBeenCalled();
+    view.unmount();
+
+    window.history.replaceState({}, "", "/app/repayments?q=Cash&allocation=needs&page=2#record-list");
+    const allocationView = render(<LiveRecordFilters action="/app/repayments" search={{ label: "Search repayments", placeholder: "Friend", value: "Cash" }} selects={[{ name: "allocation", label: "Allocation", value: "needs", options: [{ value: "", label: "All allocation states" }, { value: "needs", label: "Needs allocation" }]}]} />);
+    fireEvent.change(screen.getByLabelText("Allocation"), { target: { value: "" } });
+    expect(mocks.replace).toHaveBeenCalledWith("/app/repayments?q=Cash#record-list", { scroll: false });
+    expect(mocks.replace.mock.calls[0][0]).not.toContain("allocation=");
+    allocationView.unmount();
   });
 
   it("synchronizes controls from external URL changes and cancels work on unmount", () => {
     const { rerender, unmount } = render(<LiveRecordFilters {...baseProps} />);
     const input = screen.getByLabelText("Search outings");
     fireEvent.change(input, { target: { value: "pending" } });
+    window.history.replaceState({}, "", "/app/outings?q=Back&assignment=assigned&month=2026-05#record-list");
+    fireEvent(window, new PopStateEvent("popstate"));
     rerender(<LiveRecordFilters {...baseProps} search={{ ...baseProps.search, value: "Back" }} selects={[{ ...baseProps.selects[0], value: "assigned" }]} month={{ label: "Month", value: "2026-05" }} />);
     expect(screen.getByLabelText("Search outings")).toHaveValue("Back");
     expect(screen.getByLabelText("Assignment")).toHaveValue("assigned");

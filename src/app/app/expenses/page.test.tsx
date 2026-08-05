@@ -23,6 +23,8 @@ describe("/app/expenses", () => {
     expect(screen.getByText("Record shared spending and assign the amounts each friend owes.")).toBeInTheDocument();
     expect(screen.getByText("Rp 84.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
+    expect(screen.getByLabelText("Assignment")).toHaveValue("");
+    expect(screen.getByLabelText("Assignment")).not.toHaveAttribute("name");
     expect(screen.queryByLabelText("Amount in rupiah")).not.toBeInTheDocument();
   });
 
@@ -34,5 +36,13 @@ describe("/app/expenses", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Amount in rupiah")).toBeInTheDocument();
     expect(within(screen.getByRole("dialog")).getByLabelText("Outing")).toHaveValue(outing.id);
+  });
+
+  it("preserves retrieval context when opening Add expense", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue(expensePage), listOutings: vi.fn().mockResolvedValue([outing]) });
+    render(await ExpensesPage({ searchParams: Promise.resolve({ q: "Dinner", outing: outing.id, month: "2026-04", assignment: "assigned", page: "2", task: "open", source: "ledger" }) }));
+
+    expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", `/app/expenses?q=Dinner&outing=${outing.id}&month=2026-04&assignment=assigned&page=2&task=open&source=ledger&create=1`);
   });
 });

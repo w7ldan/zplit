@@ -48,12 +48,12 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
             <h1>Repayments</h1>
             <p className="app-page__lede">Record money received and apply it to outstanding expense shares.</p>
           </div>
-          <Link className="action-link action-link--primary" href="/app/repayments?create=1" data-task-trigger="repayment-create">Add repayment</Link>
+          <Link className="action-link action-link--primary" href={recordHref("/app/repayments", params, { create: "1" })} data-task-trigger="repayment-create">Add repayment</Link>
         </div>
         <LiveRecordFilters
           action="/app/repayments"
           search={{ label: "Search repayments", placeholder: "Friend or payment method", value: filters.q ?? "" }}
-          selects={[{ name: "friendId", label: "Friend", value: friendId ?? "", options: [{ value: "", label: "All friends" }, ...friends.map((friend) => ({ value: friend.id, label: `${friend.name}${friend.archivedAt ? " (ARCHIVED)" : ""}` }))] }, { name: "allocation", label: "Allocation", value: filters.allocation, options: [{ value: "all", label: "All allocation states" }, { value: "complete", label: "Fully allocated" }, { value: "needs", label: "Needs allocation" }] }]}
+          selects={[{ name: "friendId", label: "Friend", value: friendId ?? "", options: [{ value: "", label: "All friends" }, ...friends.map((friend) => ({ value: friend.id, label: `${friend.name}${friend.archivedAt ? " (ARCHIVED)" : ""}` }))] }, { name: "allocation", label: "Allocation", value: filters.allocation === "all" ? "" : filters.allocation, options: [{ value: "", label: "All allocation states" }, { value: "complete", label: "Fully allocated" }, { value: "needs", label: "Needs allocation" }] }]}
           month={{ label: "Month", value: filters.month ?? "" }}
           preservedParams={params}
         />

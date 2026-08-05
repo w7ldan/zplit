@@ -40,12 +40,12 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
             <h1>Expenses</h1>
             <p className="app-page__lede">Record shared spending and assign the amounts each friend owes.</p>
           </div>
-          <Link className="action-link action-link--primary" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
+          <Link className="action-link action-link--primary" href={recordHref("/app/expenses", params, { create: "1" })} data-task-trigger="expense-create">Add expense</Link>
         </div>
         <LiveRecordFilters
           action="/app/expenses"
           search={{ label: "Search expenses", placeholder: "Description or outing", value: filters.q ?? "" }}
-          selects={[{ name: "outing", label: "Outing", value: outingId ?? "", options: [{ value: "", label: "All outings" }, ...outings.map((outing) => ({ value: outing.id, label: outing.title }))] }, { name: "assignment", label: "Assignment", value: filters.assignment, options: [{ value: "all", label: "All assignment states" }, { value: "assigned", label: "Assigned" }, { value: "unassigned", label: "Unassigned" }] }]}
+          selects={[{ name: "outing", label: "Outing", value: outingId ?? "", options: [{ value: "", label: "All outings" }, ...outings.map((outing) => ({ value: outing.id, label: outing.title }))] }, { name: "assignment", label: "Assignment", value: filters.assignment === "all" ? "" : filters.assignment, options: [{ value: "", label: "All assignment states" }, { value: "assigned", label: "Assigned" }, { value: "unassigned", label: "Unassigned" }] }]}
           month={{ label: "Month", value: filters.month ?? "" }}
           preservedParams={params}
         />

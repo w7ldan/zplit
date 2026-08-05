@@ -41,4 +41,12 @@ describe("/app/outings", () => {
     expect(screen.getByRole("heading", { name: "No matching outings." })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Clear filters/ })).toHaveAttribute("href", "/app/outings?create=1&task=confirm");
   });
+
+  it("preserves retrieval context when opening Add outing", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listOutingRecords: vi.fn().mockResolvedValue(outingPage) });
+    render(await OutingsPage({ searchParams: Promise.resolve({ q: "Dinner", month: "2026-04", page: "2", task: "open", source: "ledger" }) }));
+
+    expect(screen.getByRole("link", { name: "Add outing" })).toHaveAttribute("href", "/app/outings?q=Dinner&month=2026-04&page=2&task=open&source=ledger&create=1");
+  });
 });
