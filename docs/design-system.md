@@ -41,6 +41,8 @@ Public composition uses a disciplined grid, thin rules, warm paper, surface whit
 
 The public mode is spacious enough to explain the product but keeps the hero action and product object visible in the first viewport. Public pages may use expressive editorial scale; authenticated list pages prioritize task density. The authenticated mode is compact, surface-white, and task-first. These are separate density modes, not competing page templates.
 
+Record retrieval is URL-backed: free-text search is debounced and live, discrete filters apply immediately, and filter bars remain compact ledger controls. Record lists use bounded pagination rather than unbounded loading.
+
 ## Motion
 
 Public motion uses one short non-blocking opening fade, restrained bottom-to-top text reveals, interaction feedback, and the wide-screen journey’s scroll-linked panel movement. Utility timing is `100–220ms`; layout and state timing is `220–360ms`; public reveal is `500–750ms`; journey transitions stay below `900ms`. Content is rendered immediately, there are no fake loaders, scroll hijacks, perpetual animations, or routine text scrambling. Navigation may become a detached surface after a small scroll threshold, using one restrained shadow for separation. Authenticated sticky navigation remains geometrically stable while scrolling; it may change surface emphasis but does not change width, position, alignment, or radius.

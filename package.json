@@ -14,6 +14,7 @@
     "db:check": "drizzle-kit check",
     "db:migrate": "tsx scripts/migrate.ts",
     "test:database": "tsx scripts/database-smoke.ts",
+    "test:record-retrieval": "tsx scripts/record-retrieval-smoke.ts",
     "test:auth": "tsx scripts/auth-smoke.ts",
     "test:invitations": "tsx scripts/invitation-smoke.ts",
     "test:ownership": "tsx scripts/ownership-smoke.ts",

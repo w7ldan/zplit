@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import RepaymentsPage from "./page";
 
@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(),
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 
 const activeFriend = { id: "friend-a", name: "Ari", archivedAt: null };
 const archivedFriend = { id: "friend-b", name: "Bima", archivedAt: new Date("2026-01-01T00:00:00.000Z") };
@@ -15,7 +16,9 @@ const repayment = { id: "repayment-a", friendName: "Ari", friendArchivedAt: null
 describe("/app/repayments", () => {
   it("keeps allocation state explicit and provides outstanding friend context", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepayments: vi.fn().mockResolvedValue([repayment]), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
+    const getSummary = vi.fn().mockResolvedValue(summary);
+    const openShares = vi.fn().mockResolvedValue({});
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [repayment], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: getSummary, listOpenExpenseSharesByFriend: openShares });
     render(await RepaymentsPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Repayments" })).toBeInTheDocument();
@@ -24,14 +27,16 @@ describe("/app/repayments", () => {
     expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add repayment" })).toHaveAttribute("href", "/app/repayments?create=1");
     expect(screen.queryByLabelText("Amount in rupiah")).not.toBeInTheDocument();
+    expect(getSummary).not.toHaveBeenCalled();
+    expect(openShares).not.toHaveBeenCalled();
   });
 
   it("opens the repayment form only with create=1 and retains archived friends", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepayments: vi.fn().mockResolvedValue([]), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1" }) }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Bima (ARCHIVED)" })).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByRole("option", { name: "Bima (ARCHIVED)" })).toBeInTheDocument();
     expect(screen.getByText(/Outstanding for Ari/)).toBeInTheDocument();
   });
 });

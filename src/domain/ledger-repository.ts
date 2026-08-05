@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, gt, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
 import type { Database } from "../db/client";
 import {
   debtorShareLinks,
@@ -26,6 +26,19 @@ import {
   type LedgerHistoryResult,
   type LedgerHistoryType,
 } from "./ledger-history";
+import {
+  clampPage,
+  escapeLikePattern,
+  monthStart,
+  nextMonthStart,
+  normalizeExpenseFilters,
+  normalizeFriendFilters,
+  normalizeOutingFilters,
+  normalizeRepaymentFilters,
+  pageResult,
+  RECORD_PAGE_SIZE,
+  type RecordPage,
+} from "./record-retrieval";
 
 export type LedgerErrorCode =
   | "INVALID_INPUT"
@@ -160,6 +173,11 @@ export type RepaymentRecord = {
   createdAt: Date;
   friendName: string;
   friendArchivedAt: Date | null;
+};
+
+export type RepaymentListRecord = RepaymentRecord & {
+  allocatedAmount: number;
+  unallocatedAmount: number;
 };
 
 export type RepaymentAllocationShare = {
@@ -366,6 +384,16 @@ function persistenceError(error: unknown): never {
   throw new LedgerRepositoryError("PERSISTENCE_ERROR", "Ledger operation failed");
 }
 
+function literalContains(column: unknown, value: string) {
+  return sql`${column} ILIKE ${`%${escapeLikePattern(value)}%`} ESCAPE ${"\\"}`;
+}
+
+function safeRetrievalInteger(value: unknown, label: string) {
+  const number = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : NaN;
+  if (!Number.isSafeInteger(number) || number < 0) throw new LedgerIntegrityError(`${label} is invalid.`);
+  return number;
+}
+
 export function createLedgerRepository(database: Database, ownerUserId: string) {
   const owner = ownerUserId.trim();
   if (!owner) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger owner is required");
@@ -403,6 +431,33 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .from(friends)
         .where(and(eq(friends.ownerUserId, owner), archived ? isNotNull(friends.archivedAt) : isNull(friends.archivedAt)))
         .orderBy(asc(friends.name), asc(friends.id));
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listFriendRecords(options: { archived?: unknown; q?: unknown; page?: unknown } = {}): Promise<RecordPage<typeof friends.$inferSelect>> {
+    const filters = normalizeFriendFilters(options);
+    const conditions = [
+      eq(friends.ownerUserId, owner),
+      filters.archived ? isNotNull(friends.archivedAt) : isNull(friends.archivedAt),
+      ...(filters.q ? [sql`(${literalContains(friends.name, filters.q)} OR ${literalContains(friends.phoneNumber, filters.q)})`] : []),
+    ];
+    try {
+      const [{ count = 0 } = {}] = await database
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(friends)
+        .where(and(...conditions));
+      const totalItems = safeRetrievalInteger(count, "Friend count");
+      const page = clampPage(filters.page, totalItems);
+      const items = await database
+        .select()
+        .from(friends)
+        .where(and(...conditions))
+        .orderBy(asc(friends.name), asc(friends.id))
+        .limit(RECORD_PAGE_SIZE)
+        .offset((page - 1) * RECORD_PAGE_SIZE);
+      return pageResult(items, totalItems, page);
     } catch (error) {
       return persistenceError(error);
     }
@@ -468,6 +523,49 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
   async function listOutings() {
     try {
       return await database.select().from(outings).where(eq(outings.ownerUserId, owner)).orderBy(desc(outings.occurredAt), asc(outings.id));
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listOutingRecords(options: { q?: unknown; month?: unknown; page?: unknown } = {}) {
+    const filters = normalizeOutingFilters(options);
+    const conditions = [
+      eq(outings.ownerUserId, owner),
+      ...(filters.q ? [literalContains(outings.title, filters.q)] : []),
+      ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month)), lt(outings.occurredAt, nextMonthStart(filters.month))] : []),
+    ];
+    const expenseTotals = database
+      .select({
+        outingId: expenses.outingId,
+        expenseCount: sql<number>`count(${expenses.id})`.mapWith(Number).as("expense_count"),
+        expenseTotal: sql<number>`coalesce(sum(${expenses.amount}), 0)`.mapWith(Number).as("expense_total"),
+      })
+      .from(expenses)
+      .where(eq(expenses.ownerUserId, owner))
+      .groupBy(expenses.ownerUserId, expenses.outingId)
+      .as("outing_expense_totals");
+    try {
+      const [{ count = 0 } = {}] = await database
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(outings)
+        .where(and(...conditions));
+      const totalItems = safeRetrievalInteger(count, "Outing count");
+      const page = clampPage(filters.page, totalItems);
+      const rows = await database
+        .select({ outing: outings, expenseCount: expenseTotals.expenseCount, expenseTotal: expenseTotals.expenseTotal })
+        .from(outings)
+        .leftJoin(expenseTotals, eq(expenseTotals.outingId, outings.id))
+        .where(and(...conditions))
+        .orderBy(desc(outings.occurredAt), desc(outings.createdAt), asc(outings.id))
+        .limit(RECORD_PAGE_SIZE)
+        .offset((page - 1) * RECORD_PAGE_SIZE);
+      const items = rows.map(({ outing, expenseCount, expenseTotal }) => ({
+        ...outing,
+        expenseCount: safeRetrievalInteger(expenseCount ?? 0, "Outing expense count"),
+        expenseTotal: safeRetrievalInteger(expenseTotal ?? 0, "Outing expense total"),
+      }));
+      return pageResult(items, totalItems, page);
     } catch (error) {
       return persistenceError(error);
     }
@@ -589,6 +687,43 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
         .where(eq(expenses.ownerUserId, owner))
         .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id));
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; month?: unknown; assignment?: unknown; page?: unknown } = {}) {
+    const filters = normalizeExpenseFilters(options);
+    const assignmentCondition = filters.assignment === "all"
+      ? undefined
+      : filters.assignment === "assigned"
+        ? sql`exists (select 1 from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.expenseId} = ${expenses.id})`
+        : sql`not exists (select 1 from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.expenseId} = ${expenses.id})`;
+    const conditions = [
+      eq(expenses.ownerUserId, owner),
+      eq(outings.ownerUserId, owner),
+      ...(filters.q ? [sql`(${literalContains(expenses.description, filters.q)} OR ${literalContains(outings.title, filters.q)})`] : []),
+      ...(filters.outingId ? [eq(expenses.outingId, filters.outingId)] : []),
+      ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month)), lt(outings.occurredAt, nextMonthStart(filters.month))] : []),
+      ...(assignmentCondition ? [assignmentCondition] : []),
+    ];
+    try {
+      const [{ count = 0 } = {}] = await database
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(expenses)
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .where(and(...conditions));
+      const totalItems = safeRetrievalInteger(count, "Expense count");
+      const page = clampPage(filters.page, totalItems);
+      const items = await database
+        .select(expenseSelection())
+        .from(expenses)
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .where(and(...conditions))
+        .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id))
+        .limit(RECORD_PAGE_SIZE)
+        .offset((page - 1) * RECORD_PAGE_SIZE);
+      return pageResult(items, totalItems, page);
     } catch (error) {
       return persistenceError(error);
     }
@@ -1370,6 +1505,62 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; month?: unknown; allocation?: unknown; page?: unknown } = {}): Promise<RecordPage<RepaymentListRecord>> {
+    const filters = normalizeRepaymentFilters(options);
+    const allocationTotals = database
+      .select({
+        repaymentId: repaymentAllocations.repaymentId,
+        allocatedAmount: sql<number>`coalesce(sum(${repaymentAllocations.amount}), 0)`.mapWith(Number).as("allocated_amount"),
+      })
+      .from(repaymentAllocations)
+      .where(eq(repaymentAllocations.ownerUserId, owner))
+      .groupBy(repaymentAllocations.ownerUserId, repaymentAllocations.repaymentId)
+      .as("repayment_allocation_totals");
+    const allocationValue = sql`coalesce(${allocationTotals.allocatedAmount}, 0)`;
+    const allocationCondition = filters.allocation === "all"
+      ? undefined
+      : filters.allocation === "complete"
+        ? sql`${allocationValue} >= ${repayments.amount}`
+        : sql`${allocationValue} < ${repayments.amount}`;
+    const conditions = [
+      eq(repayments.ownerUserId, owner),
+      eq(friends.ownerUserId, owner),
+      ...(filters.q ? [sql`(${literalContains(friends.name, filters.q)} OR ${literalContains(repayments.paymentMethod, filters.q)})`] : []),
+      ...(filters.friendId ? [eq(repayments.friendId, filters.friendId)] : []),
+      ...(filters.month ? [gte(repayments.paidAt, monthStart(filters.month)), lt(repayments.paidAt, nextMonthStart(filters.month))] : []),
+      ...(allocationCondition ? [allocationCondition] : []),
+    ];
+    try {
+      const [{ count = 0 } = {}] = await database
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(repayments)
+        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
+        .leftJoin(allocationTotals, eq(allocationTotals.repaymentId, repayments.id))
+        .where(and(...conditions));
+      const totalItems = safeRetrievalInteger(count, "Repayment count");
+      const page = clampPage(filters.page, totalItems);
+      const rows = await database
+        .select({ ...repaymentSelection(), allocatedAmount: allocationTotals.allocatedAmount })
+        .from(repayments)
+        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
+        .leftJoin(allocationTotals, eq(allocationTotals.repaymentId, repayments.id))
+        .where(and(...conditions))
+        .orderBy(desc(repayments.paidAt), desc(repayments.createdAt), asc(repayments.id))
+        .limit(RECORD_PAGE_SIZE)
+        .offset((page - 1) * RECORD_PAGE_SIZE);
+      const items = rows.map(({ allocatedAmount, ...repayment }) => {
+        const allocated = safeRetrievalInteger(allocatedAmount ?? 0, `Allocation for repayment ${repayment.id}`);
+        if (!Number.isSafeInteger(repayment.amount) || repayment.amount < 0 || allocated > repayment.amount) {
+          throw new LedgerIntegrityError(`Allocations exceed repayment ${repayment.id}.`);
+        }
+        return { ...repayment, allocatedAmount: allocated, unallocatedAmount: repayment.amount - allocated };
+      });
+      return pageResult(items, totalItems, page);
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
   async function updateRepayment(repaymentId: string, input: UpdateRepaymentInput) {
     assertRepaymentId(repaymentId);
     assertRepaymentInput(input);
@@ -1665,16 +1856,19 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     createFriend,
     getFriend,
     listFriends,
+    listFriendRecords,
     updateFriend,
     setFriendArchived,
     createOuting,
     getOuting,
     listOutings,
+    listOutingRecords,
     updateOuting,
     deleteOuting,
     createExpense,
     getExpense,
     listExpenses,
+    listExpenseRecords,
     listLedgerHistory,
     getLedgerSummary,
     getLedgerExportSnapshot,
@@ -1689,6 +1883,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     createRepaymentWithAllocations,
     getRepayment,
     listRepayments,
+    listRepaymentRecords,
     updateRepayment,
     deleteRepayment,
     getRepaymentAllocationPlan,

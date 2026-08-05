@@ -6,10 +6,13 @@ import { RepaymentForm } from "@/components/repayments/repayment-form";
 import { RepaymentRow } from "@/components/repayments/repayment-row";
 import { createRepaymentAction } from "./actions";
 import { TaskPanel } from "@/components/app/task-panel";
+import { LiveRecordFilters } from "@/components/records/live-record-filters";
+import { RecordPagination } from "@/components/records/record-pagination";
+import { groupRecordsByMonth, monthDisplayLabel, normalizeRepaymentFilters, recordHref } from "@/domain/record-retrieval";
 
 export const dynamic = "force-dynamic";
 
-type RepaymentsPageProps = { searchParams?: Promise<{ create?: string | string[] }> };
+type RepaymentsPageProps = { searchParams?: Promise<{ [key: string]: string | string[] | undefined; create?: string | string[]; q?: string | string[]; friendId?: string | string[]; month?: string | string[]; allocation?: string | string[]; page?: string | string[] }> };
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -19,16 +22,22 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
   const session = await requireSession();
   const params = await searchParams;
   const openCreate = first(params?.create) === "1";
+  const filters = normalizeRepaymentFilters({ q: first(params?.q), friendId: first(params?.friendId), month: first(params?.month), allocation: first(params?.allocation), page: first(params?.page) });
   const repository = createLedgerRepository(getDatabase(), session.user.id);
-  const [repayments, activeFriends, archivedFriends, summary, openExpenseSharesByFriend] = await Promise.all([
-    repository.listRepayments(),
+  const [repaymentPage, activeFriends, archivedFriends] = await Promise.all([
+    repository.listRepaymentRecords({ q: first(params?.q), friendId: first(params?.friendId), month: first(params?.month), allocation: first(params?.allocation), page: first(params?.page) }),
     repository.listFriends(),
     repository.listFriends({ archived: true }),
-    repository.getLedgerSummary(),
-    repository.listOpenExpenseSharesByFriend(),
   ]);
+  let summary: Awaited<ReturnType<typeof repository.getLedgerSummary>> | undefined;
+  let openExpenseSharesByFriend: Awaited<ReturnType<typeof repository.listOpenExpenseSharesByFriend>> = {};
+  if (openCreate) [summary, openExpenseSharesByFriend] = await Promise.all([repository.getLedgerSummary(), repository.listOpenExpenseSharesByFriend()]);
   const friends = [...activeFriends, ...archivedFriends];
-  const outstandingByFriend = Object.fromEntries(summary.friendBalances.map((balance) => [balance.friendId, balance.outstandingAmount]));
+  const outstandingByFriend = Object.fromEntries((summary?.friendBalances ?? []).map((balance) => [balance.friendId, balance.outstandingAmount]));
+  const friendId = friends.some((friend) => friend.id === filters.friendId) ? filters.friendId : undefined;
+  const groups = groupRecordsByMonth(repaymentPage.items, (repayment) => repayment.paidAt);
+  const filtered = Boolean(filters.q || filters.month || filters.friendId || filters.allocation !== "all");
+  const listHref = recordHref("/app/repayments", params);
 
   return (
     <section className="app-page repayments-page" id="top">
@@ -41,11 +50,22 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
           </div>
           <Link className="action-link action-link--primary" href="/app/repayments?create=1" data-task-trigger="repayment-create">Add repayment</Link>
         </div>
-        <div className="ledger-list" aria-live="polite">
-          <div className="ledger-list__heading"><span className="technical-label">REPAYMENT RECORDS</span><span className="technical-label">{repayments.length} entries</span></div>
-          {repayments.length > 0 ? repayments.map((repayment) => <RepaymentRow key={repayment.id} repayment={repayment} />) : (
-            <div className="ledger-empty"><h2>No repayments yet.</h2><p>Record money received from a friend when it arrives; allocation follows on the record.</p><Link className="text-link" href={friends.length ? "/app/repayments?create=1" : "/app/friends?create=1"} data-task-trigger={friends.length ? "repayment-create" : "friend-create"}>{friends.length ? "Add a repayment" : "Add a friend"} <span aria-hidden="true">→</span></Link></div>
+        <LiveRecordFilters
+          action="/app/repayments"
+          search={{ label: "Search repayments", placeholder: "Friend or payment method", value: filters.q ?? "" }}
+          selects={[{ name: "friendId", label: "Friend", value: friendId ?? "", options: [{ value: "", label: "All friends" }, ...friends.map((friend) => ({ value: friend.id, label: `${friend.name}${friend.archivedAt ? " (ARCHIVED)" : ""}` }))] }, { name: "allocation", label: "Allocation", value: filters.allocation, options: [{ value: "all", label: "All allocation states" }, { value: "complete", label: "Fully allocated" }, { value: "needs", label: "Needs allocation" }] }]}
+          month={{ label: "Month", value: filters.month ?? "" }}
+          preservedParams={params}
+        />
+        <div className="ledger-list" id="record-list" aria-live="polite">
+          <div className="ledger-list__heading"><span className="technical-label">REPAYMENT RECORDS</span><span className="technical-label">{repaymentPage.totalItems} entries</span></div>
+          {repaymentPage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
+            <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
+            {group.items.map((repayment) => <RepaymentRow key={repayment.id} repayment={repayment} />)}
+          </div>) : (
+            <div className="ledger-empty"><h2>{filtered ? "No matching repayments." : "No repayments yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record money received from a friend when it arrives; allocation follows on the record."}</p>{filtered ? <Link className="text-link" href={recordHref("/app/repayments", params, { q: undefined, friendId: undefined, month: undefined, allocation: undefined, page: undefined })}>Clear filters <span aria-hidden="true">→</span></Link> : <Link className="text-link" href={friends.length ? "/app/repayments?create=1" : "/app/friends?create=1"} data-task-trigger={friends.length ? "repayment-create" : "friend-create"}>{friends.length ? "Add a repayment" : "Add a friend"} <span aria-hidden="true">→</span></Link>}</div>
           )}
+          <RecordPagination page={repaymentPage.page} pageSize={repaymentPage.pageSize} totalItems={repaymentPage.totalItems} totalPages={repaymentPage.totalPages} href={listHref} />
         </div>
       </div>
       {openCreate ? <TaskPanel open title="Add a repayment" description="Record the money received and keep its eligible shares visible for allocation." triggerId="repayment-create">

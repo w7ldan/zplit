@@ -218,6 +218,35 @@ describe("ledger repository", () => {
     expect(queries[1].sql).toContain('order by "outings"."occurred_at" desc, "expenses"."created_at" desc');
   });
 
+  it("keeps paginated record retrieval in owner-scoped SQL", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await repository.listFriendRecords({ q: "100%_\\", page: 9 });
+    await repository.listOutingRecords({ q: "Dinner", month: "2026-04", page: 9 });
+    await repository.listExpenseRecords({ q: "Dinner", outingId: "550e8400-e29b-41d4-a716-446655440000", month: "2026-04", assignment: "assigned", page: 9 });
+    await repository.listRepaymentRecords({ q: "Bank", friendId: "550e8400-e29b-41d4-a716-446655440000", month: "2026-04", allocation: "needs", page: 9 });
+
+    expect(queries).toHaveLength(8);
+    for (let index = 0; index < queries.length; index += 2) {
+      expect(queries[index].sql).toContain("count(*)");
+      expect(queries[index + 1].sql).toContain("limit");
+      expect(queries[index].params).toContain(owner);
+      expect(queries[index + 1].params).toContain(owner);
+    }
+    expect(queries[0].sql).toContain('"friends"."owner_user_id"');
+    expect(queries[1].sql).toContain('order by "friends"."name" asc, "friends"."id" asc');
+    expect(queries[3].sql).toContain('order by "outings"."occurred_at" desc, "outings"."created_at" desc');
+    expect(queries[5].sql).toContain('order by "outings"."occurred_at" desc, "expenses"."created_at" desc');
+    expect(queries[7].sql).toContain('order by "repayments"."paid_at" desc, "repayments"."created_at" desc');
+    expect(queries[5].sql).toContain("exists (select 1 from \"expense_shares\"");
+    expect(queries[7].sql).toContain('"repayment_allocations"');
+  });
+
   it("maps absent and foreign expenses to the same not-found error", async () => {
     const database = drizzle(async () => ({ rows: [] }));
     const repository = createLedgerRepository(database as unknown as Database, owner);
