@@ -74,23 +74,34 @@ const forbiddenServiceFeatures = (service) => {
   requireCondition(!JSON.stringify(service).includes("/var/run/docker.sock"), "Docker socket access is not allowed");
 };
 
-requireCondition((caddy.match(/^[^\s@{}]+\s*\{$/gm) ?? []).length === 1, "only one public Caddy site may be declared");
+requireCondition((caddy.match(/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\s*\{$/gim) ?? []).length === 1, "only one public Caddy site may be declared");
 requireCondition(/^idr\.wildan\.lol\s*\{$/m.test(caddy), "Caddy must serve the exact Zplit site");
 requireCondition((caddy.match(/^\s*bind 0\.0\.0\.0$/gm) ?? []).length === 1, "Caddy must bind to 0.0.0.0");
-requireCondition((caddy.match(/^\s*reverse_proxy zplit-web:3000(?:\s*\{)?$/gm) ?? []).length === 1, "Caddy must use only the Zplit upstream");
+requireCondition(!/^\{\s*$/m.test(caddy), "the imported route must not contain a global options block");
+for (const forbiddenOption of ["servers", "trusted_proxies", "trusted_proxies_strict", "client_ip_headers"]) {
+  requireCondition(!new RegExp(`(?:^|\\s)${forbiddenOption}(?:\\s|$)`, "m").test(caddy), `route must not configure global ${forbiddenOption}`);
+}
+requireCondition((caddy.match(/^\s*reverse_proxy zplit-web:3000(?:\s*\{)?$/gm) ?? []).length === 2, "both proxy branches must use only the Zplit upstream");
 requireCondition(!/reverse_proxy\s+(?!zplit-web:3000\b)/.test(caddy), "Caddy must not add another public upstream");
 requireCondition(!/metrics/i.test(caddy), "Caddy must not expose a metrics route");
-const globalServers = caddy.match(/^\{\n\s+servers \{\n([\s\S]*?)\n\s+\}\n\}/m)?.[1] ?? "";
-requireCondition(globalServers.length > 0, "global trusted-proxy server options must be configured");
-const trustedProxyLine = globalServers.match(/^\s*trusted_proxies static (.+)$/m)?.[1]?.trim() ?? "";
-requireCondition(trustedProxyLine === cloudflareProxyRanges.join(" "), "Caddy must trust exactly the current Cloudflare proxy ranges");
-requireCondition((globalServers.match(/^\s*trusted_proxies static /gm) ?? []).length === 1, "Caddy must use one static trusted-proxy range list");
-requireCondition((globalServers.match(/^\s*trusted_proxies_strict\s*$/gm) ?? []).length === 1, "Caddy strict proxy parsing must be enabled");
-requireCondition((globalServers.match(/^\s*client_ip_headers CF-Connecting-IP X-Forwarded-For\s*$/gm) ?? []).length === 1, "Caddy must use the required client-IP headers");
 for (const range of cloudflareProxyRanges) requireCondition(caddy.split(range).length - 1 === 1, `Cloudflare proxy range must appear exactly once: ${range}`);
-requireCondition(caddy.replace(globalServers, "").indexOf("CF-Connecting-IP") === -1, "CF-Connecting-IP must only be considered by trusted Caddy proxy parsing");
-requireCondition((caddy.match(/^\s*header_up X-Zplit-Client-IP \{client_ip\}$/gm) ?? []).length === 1, "Caddy must overwrite the internal client-IP header");
+const cloudflareMatcher = caddy.match(/^\s*@cloudflare \{\n([\s\S]*?)^\s+\}$/m)?.[1] ?? "";
+requireCondition(cloudflareMatcher.length > 0, "the Cloudflare matcher must be configured");
+requireCondition(cloudflareMatcher.includes(`remote_ip ${cloudflareProxyRanges.join(" ")}`), "Cloudflare matcher must use exactly the current proxy ranges");
+requireCondition(/^\s*header CF-Connecting-IP \*$/m.test(cloudflareMatcher), "Cloudflare matcher must require CF-Connecting-IP");
+const cloudflareBranchStart = caddy.indexOf("    handle @cloudflare {");
+const fallbackBranchStart = caddy.indexOf("    handle {", cloudflareBranchStart);
+const cloudflareBranch = caddy.slice(cloudflareBranchStart, fallbackBranchStart);
+const fallbackBranch = caddy.slice(fallbackBranchStart);
+requireCondition(cloudflareBranchStart >= 0 && fallbackBranchStart > cloudflareBranchStart, "both mutually exclusive proxy branches must exist");
+requireCondition((caddy.match(/^\s*handle @cloudflare \{$/gm) ?? []).length === 1, "Cloudflare proxy branch must be unique");
+requireCondition((caddy.match(/^\s*handle \{$/gm) ?? []).length === 1, "fallback proxy branch must be unique");
+requireCondition(cloudflareBranch.includes("header_up X-Zplit-Client-IP {http.request.header.CF-Connecting-IP}"), "Cloudflare branch must overwrite the internal header from CF-Connecting-IP");
+requireCondition(fallbackBranch.includes("header_up X-Zplit-Client-IP {remote_host}"), "fallback branch must overwrite the internal header from the socket address");
+requireCondition(!fallbackBranch.includes("CF-Connecting-IP"), "fallback branch must not trust CF-Connecting-IP");
+requireCondition((caddy.match(/^\s*header_up X-Zplit-Client-IP /gm) ?? []).length === 2, "both branches must overwrite the internal client-IP header");
 requireCondition(!/^\s*header_up \+X-Zplit-Client-IP /m.test(caddy), "Caddy must not append a caller-supplied internal client-IP header");
+requireCondition(!/\bclient_ip\b/.test(caddy), "the route must use remote_ip and never client_ip");
 const csp = caddy.match(/Content-Security-Policy\s+"([^"]+)"/)?.[1] ?? "";
 requireCondition(csp.length > 0, "CSP must be configured");
 for (const directive of [

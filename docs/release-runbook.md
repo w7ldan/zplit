@@ -41,16 +41,16 @@ test -z "$(journalctl -k --since '30 min ago' --no-pager 2>/dev/null | grep -Eiq
 Run the local validation sequence once, in this order. The release includes migration `0009_cascade_confirmed_ledger_deletions`:
 
 ```sh
-npx vitest run src/auth/factory.test.ts src/auth/runtime.test.ts
 npm run test:deployment
 npm run typecheck
+npx vitest run src/auth/factory.test.ts src/auth/runtime.test.ts
 npx vitest run --maxWorkers=1
 npm run lint
 npm run build
 git diff --check
 ```
 
-Do not run database smokes, Chromium, Playwright, browser automation, repeated full suites or builds, or `npm audit` unless the parent validation run did not complete.
+Do not run database smokes, Chromium, Playwright, browser automation, repeated full suites or builds, or `npm audit` again.
 
 ## Cloudflare topology gate
 
@@ -79,53 +79,70 @@ docker tag "$previous_image_id" "$rollback_image_tag"
 test "$(docker image inspect --format '{{.Id}}' "$rollback_image_tag")" = "$previous_image_id"
 ```
 
-Identify the running Caddy container and resolve the authoritative mounted Zplit route from Docker mount metadata. The expected destination is `/etc/caddy/routes/zplit.caddy`. Stop if there is no candidate, more than one candidate, a symlink/non-regular source, or an unrelated/shared configuration:
+The shared Caddy container owns the master `/etc/caddy/Caddyfile`; Zplit owns only the directly mounted route `/etc/caddy/routes/zplit.caddy`. Resolve exactly one read-only bind mount to the repository route. Do not search for a master-file or directory mount, reject the repository source, restart Caddy, or repair a stale mount:
 
 ```sh
 caddy_container=$(docker ps --filter name='^/desktorrent-watch-web-1$' --filter status=running --format '{{.ID}}')
 [[ "$caddy_container" =~ ^[0-9a-f]{12,64}$ ]]
+caddy_container_start=$(docker inspect --format '{{.State.StartedAt}}' "$caddy_container")
+route_destination=/etc/caddy/routes/zplit.caddy
+expected_route_source=$(realpath -- /home/ubuntu/zplit/deploy/Caddyfile)
 mounts=$(docker inspect --format '{{json .Mounts}}' "$caddy_container")
-mapfile -t caddy_sources < <(node --input-type=module - "$mounts" <<'NODE'
+mapfile -t route_mounts < <(node --input-type=module - "$mounts" <<'NODE'
 const mounts = JSON.parse(process.argv[2]);
 for (const mount of mounts) {
-  if (mount.Type !== "bind") continue;
-  if (mount.Destination === "/etc/caddy/routes/zplit.caddy") console.log(mount.Source);
+  if (mount.Type === "bind" && mount.Destination === "/etc/caddy/routes/zplit.caddy") {
+    console.log([mount.Source, mount.RW, mount.Mode].join("\t"));
+  }
 }
 NODE
 )
-test "${#caddy_sources[@]}" -eq 1
-authoritative_caddy_source="${caddy_sources[0]}"
-test -f "$authoritative_caddy_source"
-test ! -L "$authoritative_caddy_source"
-case "$authoritative_caddy_source" in
-  /home/ubuntu/zplit/*) echo "Caddy source must be outside the repository" >&2; exit 1 ;;
-esac
+test "${#route_mounts[@]}" -eq 1
+IFS=$'\t' read -r route_source route_rw route_mode <<<"${route_mounts[0]}"
+test "$route_rw" = false
+case ",$route_mode," in *,ro,*) ;; *) echo "Zplit Caddy route must be read-only" >&2; exit 1 ;; esac
+test "$(realpath -- "$route_source")" = "$expected_route_source"
+authoritative_caddy_source="$route_source"
+route_source_path="$authoritative_caddy_source"
+route_destination_path="$route_destination"
 
-release_state_root=/var/lib/zplit/release-state
+mounted_route=$(mktemp)
+docker exec "$caddy_container" cat "$route_destination" > "$mounted_route"
+cmp -s deploy/Caddyfile "$mounted_route"
+rm -f "$mounted_route"
+
+caddy_image=$(docker inspect --format '{{.Config.Image}}' "$caddy_container")
+docker run --rm --network none --read-only \
+  --mount "type=bind,src=$expected_route_source,dst=$route_destination,readonly" \
+  "$caddy_image" caddy validate --config "$route_destination" --adapter caddyfile
+docker exec "$caddy_container" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+release_state_root="${XDG_STATE_HOME:-$HOME/.local/state}/zplit/releases"
 release_state_dir="$release_state_root/$release_commit"
 test ! -e "$release_state_dir"
 install -d -m 700 "$release_state_dir"
-previous_caddy_expected=$(mktemp "$release_state_dir/.previous-caddy.XXXXXX")
-git show "${previous_commit}:deploy/Caddyfile" > "$previous_caddy_expected"
-cmp -s "$previous_caddy_expected" "$authoritative_caddy_source"
 previous_caddy_rollback_copy="$release_state_dir/previous-Caddyfile"
-install -m 600 "$authoritative_caddy_source" "$previous_caddy_rollback_copy"
-cmp -s "$authoritative_caddy_source" "$previous_caddy_rollback_copy"
-rm -f "$previous_caddy_expected"
+git show "${previous_commit}:deploy/Caddyfile" > "$previous_caddy_rollback_copy"
+chmod 600 "$previous_caddy_rollback_copy"
+test "$(stat -c '%a' "$previous_caddy_rollback_copy")" = 600
 ```
 
-The byte-for-byte comparison above is the mounted-route guard. Do not overwrite a Caddy container whose Zplit route is image-baked, only volume-backed, or mixed with unrelated sites. The shared Caddy configuration remains owned by the infrastructure deployment.
+The byte-for-byte comparison above is the mounted-route guard. Do not overwrite a Caddy container whose route is image-baked, volume-backed at another path, or stale. The shared master Caddy configuration remains owned by the infrastructure deployment.
 
 ## Backup and release state
 
-Reuse a backup only when the prior release state explicitly records successful restoration verification and both adjacent files are still regular, non-symlink files. Otherwise create and verify one backup. `ZPLIT_PREVIOUS_STATE_FILE` is optional and must point to the immediately preceding release-state file:
+Reuse a backup only when `ZPLIT_PREVIOUS_STATE_FILE` resolves to the canonical state file for `previous_commit`, records that exact previous release, records successful restoration verification, and points to regular non-symlink dump and manifest files whose manifest commit is `previous_commit`. A supplied but invalid state file is an error; it is never silently treated as reusable.
 
 ```sh
 backup_restoration_verified=no
 dump_path=
 manifest_path=
-if [[ -n "${ZPLIT_PREVIOUS_STATE_FILE:-}" && -f "$ZPLIT_PREVIOUS_STATE_FILE" ]]; then
-  previous_state_mode=$(stat -c '%a' "$ZPLIT_PREVIOUS_STATE_FILE")
+if [[ -n "${ZPLIT_PREVIOUS_STATE_FILE:-}" ]]; then
+  expected_previous_state_file=$(realpath -m -- "$release_state_root/$previous_commit/release-state.env")
+  supplied_previous_state_file=$(realpath -- "$ZPLIT_PREVIOUS_STATE_FILE")
+  test "$supplied_previous_state_file" = "$expected_previous_state_file"
+  test -f "$supplied_previous_state_file"
+  previous_state_mode=$(stat -c '%a' "$supplied_previous_state_file")
   test "$previous_state_mode" = 600
   # This file is generated below and contains paths/IDs only, never secrets.
   current_release_commit="$release_commit"
@@ -134,8 +151,14 @@ if [[ -n "${ZPLIT_PREVIOUS_STATE_FILE:-}" && -f "$ZPLIT_PREVIOUS_STATE_FILE" ]];
   current_previous_image_name="$previous_image_name"
   current_rollback_image_tag="$rollback_image_tag"
   current_authoritative_caddy_source="$authoritative_caddy_source"
+  current_route_destination="$route_destination"
+  current_route_source_path="$route_source_path"
+  current_route_destination_path="$route_destination_path"
   current_previous_caddy_rollback_copy="$previous_caddy_rollback_copy"
-  . "$ZPLIT_PREVIOUS_STATE_FILE"
+  current_caddy_container="$caddy_container"
+  current_caddy_container_start="$caddy_container_start"
+  . "$supplied_previous_state_file"
+  recorded_release_commit="$release_commit"
   recorded_backup_restoration_verified="${backup_restoration_verified:-no}"
   recorded_backup_dump_path="${backup_dump_path:-}"
   recorded_backup_manifest_path="${backup_manifest_path:-}"
@@ -145,14 +168,26 @@ if [[ -n "${ZPLIT_PREVIOUS_STATE_FILE:-}" && -f "$ZPLIT_PREVIOUS_STATE_FILE" ]];
   previous_image_name="$current_previous_image_name"
   rollback_image_tag="$current_rollback_image_tag"
   authoritative_caddy_source="$current_authoritative_caddy_source"
+  route_destination="$current_route_destination"
+  route_source_path="$current_route_source_path"
+  route_destination_path="$current_route_destination_path"
   previous_caddy_rollback_copy="$current_previous_caddy_rollback_copy"
-  if [[ "$recorded_backup_restoration_verified" = yes && -f "$recorded_backup_dump_path" && -f "$recorded_backup_manifest_path" && ! -L "$recorded_backup_dump_path" && ! -L "$recorded_backup_manifest_path" ]]; then
-    dump_path="$recorded_backup_dump_path"
-    manifest_path="$recorded_backup_manifest_path"
-  fi
+  caddy_container="$current_caddy_container"
+  caddy_container_start="$current_caddy_container_start"
+  test "$recorded_release_commit" = "$previous_commit"
+  test "$recorded_backup_restoration_verified" = yes
+  test -f "$recorded_backup_dump_path" && test ! -L "$recorded_backup_dump_path"
+  test -f "$recorded_backup_manifest_path" && test ! -L "$recorded_backup_manifest_path"
+  node --input-type=module - "$recorded_backup_manifest_path" "$previous_commit" <<'NODE'
+const [manifestPath, previousCommit] = process.argv.slice(2);
+const manifest = JSON.parse(await import("node:fs/promises").then(({ readFile }) => readFile(manifestPath, "utf8")));
+if (manifest.gitCommit !== previousCommit) process.exit(1);
+NODE
+  dump_path="$recorded_backup_dump_path"
+  manifest_path="$recorded_backup_manifest_path"
 fi
 if [[ -z "$dump_path" ]]; then
-  backup_dir="/absolute/secure/backup/directory/zplit-$(date -u +%Y%m%dT%H%M%SZ)"
+  backup_dir="${ZPLIT_BACKUP_DIRECTORY:?set an absolute secure backup directory}"
   ./scripts/create-backup.sh "$backup_dir"
   dump_path=$(find "$backup_dir" -maxdepth 1 -type f -name 'zplit-*.dump' -print -quit)
   test -n "$dump_path"
@@ -163,63 +198,83 @@ if [[ -z "$dump_path" ]]; then
 fi
 ```
 
-Persist the rollback inputs before changing the live Caddy source. The state file is restricted and contains no secrets or backup contents:
+Persist the complete rollback state before any live Caddy reload. The state file is mode `600`, the directory is mode `700`, and the file contains IDs and paths only, never secrets or backup contents. Call this function again after the new and deployed image IDs are known:
 
 ```sh
+newly_built_image_id=
+deployed_image_id=
 state_file="$release_state_dir/release-state.env"
-state_tmp="$release_state_dir/.release-state.env.tmp"
-printf '%s\n' \
-  "release_commit=$(printf '%q' "$release_commit")" \
-  "previous_commit=$(printf '%q' "$previous_commit")" \
-  "previous_image_id=$(printf '%q' "$previous_image_id")" \
-  "previous_image_name=$(printf '%q' "$previous_image_name")" \
-  "rollback_image_tag=$(printf '%q' "$rollback_image_tag")" \
-  "authoritative_caddy_source=$(printf '%q' "$authoritative_caddy_source")" \
-  "previous_caddy_rollback_copy=$(printf '%q' "$previous_caddy_rollback_copy")" \
-  "backup_dump_path=$(printf '%q' "$dump_path")" \
-  "backup_manifest_path=$(printf '%q' "$manifest_path")" \
-  "backup_restoration_verified=$(printf '%q' "$backup_restoration_verified")" > "$state_tmp"
-chmod 600 "$state_tmp"
-mv -f "$state_tmp" "$state_file"
-printf 'release state: %s\n' "$state_file"
+write_release_state() {
+  state_tmp="$release_state_dir/.release-state.env.tmp"
+  printf '%s\n' \
+    "release_commit=$(printf '%q' "$release_commit")" \
+    "previous_commit=$(printf '%q' "$previous_commit")" \
+    "previous_image_id=$(printf '%q' "$previous_image_id")" \
+    "previous_image_name=$(printf '%q' "$previous_image_name")" \
+    "newly_built_image_id=$(printf '%q' "$newly_built_image_id")" \
+    "deployed_image_id=$(printf '%q' "$deployed_image_id")" \
+    "rollback_image_tag=$(printf '%q' "$rollback_image_tag")" \
+    "authoritative_caddy_source=$(printf '%q' "$authoritative_caddy_source")" \
+    "route_destination=$(printf '%q' "$route_destination")" \
+    "route_source_path=$(printf '%q' "$route_source_path")" \
+    "route_destination_path=$(printf '%q' "$route_destination_path")" \
+    "previous_caddy_rollback_copy=$(printf '%q' "$previous_caddy_rollback_copy")" \
+    "backup_dump_path=$(printf '%q' "$dump_path")" \
+    "backup_manifest_path=$(printf '%q' "$manifest_path")" \
+    "backup_restoration_verified=$(printf '%q' "$backup_restoration_verified")" \
+    "caddy_container=$(printf '%q' "$caddy_container")" \
+    "caddy_container_start=$(printf '%q' "$caddy_container_start")" > "$state_tmp"
+  chmod 600 "$state_tmp"
+  mv -f "$state_tmp" "$state_file"
+  test "$(stat -c '%a' "$state_file")" = 600
+}
+write_release_state
 ```
 
 ## Production deployment
 
-Validate the reviewed repository route before replacing the persistent source, then build the corrected web image once and run the existing migrator once. The migrator applies migration `0009_cascade_confirmed_ledger_deletions` before the web replacement.
+Build the reviewed web image once and run the existing migrator once. Migration `0009_cascade_confirmed_ledger_deletions` changes only the two foreign-key delete actions and performs no data rewrite. Backup verification is mandatory before migration; ordinary application rollback does not restore the database.
 
 ```sh
-caddy_image=$(docker inspect --format '{{.Config.Image}}' "$caddy_container")
-docker run --rm --network none --read-only \
-  --mount "type=bind,src=$PWD/deploy/Caddyfile,dst=/etc/caddy/routes/zplit.caddy,readonly" \
-  "$caddy_image" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker compose -f compose.yml build web
+newly_built_image_id=$(docker image inspect --format '{{.Id}}' zplit-web:local)
+[[ "$newly_built_image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+write_release_state
 docker compose -f compose.yml --profile tools run --rm migrate
 ```
 
-Migration `0009` changes only the two foreign-key delete actions for owned Expenses and repayment allocations. It performs no data rewrite and is backward-compatible with the immediately previous application. Backup verification remains mandatory before migration. Ordinary application rollback does not restore the database; database restoration is reserved for confirmed data-loss recovery and requires an explicit operator decision.
-
-Install the new route atomically into the authoritative persistent source, validate the assembled Caddy configuration inside the running Caddy container, reload Caddy without restarting its container, and prove the running container sees the same route bytes:
+Confirm the direct route bind still matches the committed route, validate the route and complete master configuration, then reload only the shared Caddy process. Never replace `/etc/caddy/Caddyfile`, recreate Caddy, or restart a DeskTorrent service:
 
 ```sh
-caddy_source_mode=$(stat -c '%a' "$authoritative_caddy_source")
-caddy_new_tmp="$(dirname "$authoritative_caddy_source")/.Caddyfile.$release_commit.tmp"
-test ! -e "$caddy_new_tmp"
-install -m "$caddy_source_mode" deploy/Caddyfile "$caddy_new_tmp"
-cmp -s deploy/Caddyfile "$caddy_new_tmp"
-mv -f "$caddy_new_tmp" "$authoritative_caddy_source"
+mounted_route=$(mktemp)
+docker exec "$caddy_container" cat "$route_destination" > "$mounted_route"
+cmp -s deploy/Caddyfile "$mounted_route"
+rm -f "$mounted_route"
+docker run --rm --network none --read-only \
+  --mount "type=bind,src=$expected_route_source,dst=$route_destination,readonly" \
+  "$caddy_image" caddy validate --config "$route_destination" --adapter caddyfile
 docker exec "$caddy_container" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker exec "$caddy_container" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
-running_zplit_route=$(mktemp "$release_state_dir/.running-zplit-route.XXXXXX")
-docker exec "$caddy_container" cat /etc/caddy/routes/zplit.caddy > "$running_zplit_route"
-cmp -s deploy/Caddyfile "$running_zplit_route"
-rm -f "$running_zplit_route"
 ```
 
-Recreate only Zplit web, wait for healthy status, run the existing release smoke once, and inspect bounded recent logs. Do not start or restart DeskTorrent:
+After reload, prove the route bytes and Caddy identity are unchanged:
+
+```sh
+mounted_route=$(mktemp)
+docker exec "$caddy_container" cat "$route_destination" > "$mounted_route"
+cmp -s deploy/Caddyfile "$mounted_route"
+rm -f "$mounted_route"
+test "$(docker ps --filter name='^/desktorrent-watch-web-1$' --filter status=running --format '{{.ID}}')" = "$caddy_container"
+test "$(docker inspect --format '{{.State.StartedAt}}' "$caddy_container")" = "$caddy_container_start"
+```
+
+Recreate only Zplit web, verify the deployed image ID, wait for health, run the existing release smoke once, and inspect bounded recent logs. Do not start or restart DeskTorrent:
 
 ```sh
 docker compose -f compose.yml up -d --no-deps --force-recreate web
+deployed_image_id=$(docker inspect --format '{{.Image}}' "$(docker compose -f compose.yml ps -q web)")
+test "$deployed_image_id" = "$newly_built_image_id"
+write_release_state
 for attempt in $(seq 1 30); do
   container_id=$(docker compose -f compose.yml ps -q web)
   status=$(docker inspect --format '{{.State.Health.Status}}' "$container_id" 2>/dev/null || true)
@@ -249,22 +304,23 @@ test "$(stat -c '%a' "$ZPLIT_RELEASE_STATE_FILE")" = 600
 : "${previous_image_id:?}"
 : "${rollback_image_tag:?}"
 : "${authoritative_caddy_source:?}"
+: "${route_destination:?}"
 : "${previous_caddy_rollback_copy:?}"
+: "${caddy_container:?}"
+: "${caddy_container_start:?}"
 
-rollback_mode=$(stat -c '%a' "$authoritative_caddy_source")
-rollback_tmp="$(dirname "$authoritative_caddy_source")/.Caddyfile.rollback.tmp"
-test ! -e "$rollback_tmp"
-install -m "$rollback_mode" "$previous_caddy_rollback_copy" "$rollback_tmp"
-cmp -s "$previous_caddy_rollback_copy" "$rollback_tmp"
-mv -f "$rollback_tmp" "$authoritative_caddy_source"
-caddy_container=$(docker ps --filter name='^/desktorrent-watch-web-1$' --filter status=running --format '{{.ID}}')
-[[ "$caddy_container" =~ ^[0-9a-f]{12,64}$ ]]
+test "$(realpath -- "$authoritative_caddy_source")" = "$(realpath -- /home/ubuntu/zplit/deploy/Caddyfile)"
+route_mode=$(stat -c '%a' /home/ubuntu/zplit/deploy/Caddyfile)
+install -m "$route_mode" "$previous_caddy_rollback_copy" /home/ubuntu/zplit/deploy/Caddyfile
+cmp -s "$previous_caddy_rollback_copy" "$authoritative_caddy_source"
+test "$(docker ps --filter name='^/desktorrent-watch-web-1$' --filter status=running --format '{{.ID}}')" = "$caddy_container"
 docker exec "$caddy_container" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker exec "$caddy_container" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 rollback_zplit_route=$(mktemp)
-docker exec "$caddy_container" cat /etc/caddy/routes/zplit.caddy > "$rollback_zplit_route"
+docker exec "$caddy_container" cat "$route_destination" > "$rollback_zplit_route"
 cmp -s "$previous_caddy_rollback_copy" "$rollback_zplit_route"
 rm -f "$rollback_zplit_route"
+test "$(docker inspect --format '{{.State.StartedAt}}' "$caddy_container")" = "$caddy_container_start"
 test "$(docker image inspect --format '{{.Id}}' "$rollback_image_tag")" = "$previous_image_id"
 docker tag "$rollback_image_tag" zplit-web:local
 test "$(docker image inspect --format '{{.Id}}' zplit-web:local)" = "$previous_image_id"
@@ -279,4 +335,4 @@ done
 docker compose -f compose.yml exec -T web node -e 'fetch("http://127.0.0.1:3000/healthz").then(async response => { const body = await response.json(); if (!response.ok || body.status !== "ok") process.exit(1); }).catch(() => process.exit(1))'
 ```
 
-Never recreate PostgreSQL, restore the database, or start/restart DeskTorrent during application/Caddy rollback. Database restoration is a separate manual procedure for confirmed data loss or an incompatible migration.
+The in-place route restoration intentionally dirties the Git worktree because the file is a direct bind source. Do not clean or reset it until route validation, Caddy reload, web health, and `/healthz` verification have completed. Never recreate PostgreSQL, restore the database, or start/restart DeskTorrent during application/Caddy rollback.
