@@ -133,7 +133,29 @@ describe("LiveRecordFilters", () => {
     expect(mocks.replace).toHaveBeenLastCalledWith("/app/expenses?task=open&q=Dinner&assignment=assigned&allocation=complete&month=2026-04#record-list", { scroll: false });
   });
 
-  it("removes inactive filters, omits them from GET form data, and suppresses duplicates", () => {
+  it("keeps native names and submits direct DOM select changes", () => {
+    const props = {
+      ...baseProps,
+      action: "/app/repayments",
+      selects: [
+        { name: "outing", label: "Outing", value: "", options: [{ value: "", label: "All outings" }, { value: "outing-a", label: "Dinner" }] },
+        { name: "assignment", label: "Assignment", value: "", options: [{ value: "", label: "All" }, { value: "assigned", label: "Assigned" }] },
+        { name: "friendId", label: "Friend", value: "", options: [{ value: "", label: "All friends" }, { value: "friend-a", label: "Ada" }] },
+        { name: "allocation", label: "Allocation", value: "", options: [{ value: "", label: "All" }, { value: "complete", label: "Complete" }] },
+      ],
+    };
+    render(<LiveRecordFilters {...props} />);
+    const form = screen.getByRole("search") as HTMLFormElement;
+
+    for (const [label, name, value] of [["Outing", "outing", "outing-a"], ["Assignment", "assignment", "assigned"], ["Friend", "friendId", "friend-a"], ["Allocation", "allocation", "complete"]]) {
+      const select = screen.getByLabelText(label) as HTMLSelectElement;
+      expect(select).toHaveAttribute("name", name);
+      select.value = value;
+      expect(new FormData(form).get(name)).toBe(value);
+    }
+  });
+
+  it("removes inactive filters, keeps their native names, and suppresses duplicates", () => {
     window.history.replaceState({}, "", "/app/outings?q=Dinner&assignment=assigned&page=2#record-list");
     render(<LiveRecordFilters {...baseProps} search={{ ...baseProps.search, value: "Dinner" }} selects={[{ ...baseProps.selects[0], value: "assigned" }]} />);
     fireEvent.change(screen.getByLabelText("Assignment"), { target: { value: "" } });
@@ -143,7 +165,7 @@ describe("LiveRecordFilters", () => {
     mocks.replace.mockReset();
     window.history.replaceState({}, "", "/app/outings?q=Dinner#record-list");
     const view = render(<LiveRecordFilters {...baseProps} search={{ ...baseProps.search, value: "Dinner" }} />);
-    expect(new FormData(screen.getAllByRole("search").at(-1) as HTMLFormElement).has("assignment")).toBe(false);
+    expect(new FormData(screen.getAllByRole("search").at(-1) as HTMLFormElement).get("assignment")).toBe("");
     fireEvent.change(screen.getAllByLabelText("Search outings").at(-1) as HTMLElement, { target: { value: "Dinner" } });
     act(() => vi.advanceTimersByTime(275));
     expect(mocks.replace).not.toHaveBeenCalled();

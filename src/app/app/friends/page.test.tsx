@@ -1,18 +1,29 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import FriendsPage from "./page";
 
-const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }) }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
 const friend = { id: "friend-a", ownerUserId: "owner-a", name: "Ada Lovelace", phoneNumber: "+62 811", notes: null, archivedAt: null, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z") };
 const summary = { friendBalances: [{ friendId: "friend-a", name: "Ada Lovelace", archived: false, assignedAmount: 84_000, repaidAmount: 20_000, outstandingAmount: 64_000 }] };
 const friendPage = { items: [friend], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 };
 
 describe("/app/friends", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("redirects empty controlled search parameters to the canonical URL", async () => {
+    await expect(FriendsPage({ searchParams: Promise.resolve({ q: "" }) })).rejects.toThrow("redirect:/app/friends");
+    expect(mocks.requireSession).not.toHaveBeenCalled();
+  });
+
+  it("preserves task-panel and unrelated parameters while canonicalizing", async () => {
+    await expect(FriendsPage({ searchParams: Promise.resolve({ q: "", create: "1", task: "confirm", source: "ledger" }) })).rejects.toThrow("redirect:/app/friends?create=1&task=confirm&source=ledger");
+  });
+
   it("renders search, balance context, and no permanent creation form", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
@@ -27,6 +38,7 @@ describe("/app/friends", () => {
     expect(screen.getByText("Rp 64.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?view=active&q=Ada&create=1");
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it("only renders the creation form inside the URL-controlled panel", async () => {

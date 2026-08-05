@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { createLedgerRepository } from "@/domain/ledger-repository";
@@ -34,8 +35,10 @@ function viewHref(view: "active" | "archived", params: FriendsSearchParams) {
 }
 
 export default async function FriendsPage({ searchParams = Promise.resolve({}) }: FriendsPageProps = {}) {
-  const session = await requireSession();
   const params = await searchParams;
+  const emptyParams = ["q"].filter((name) => first(params?.[name]) === "");
+  if (emptyParams.length) redirect(recordHref("/app/friends", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
+  const session = await requireSession();
   const view = first(params?.view) === "archived" ? "archived" : "active";
   const filters = normalizeFriendFilters({ archived: view === "archived", q: first(params?.q), page: first(params?.page) });
   const created = first(params?.created);

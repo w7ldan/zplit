@@ -1,12 +1,12 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import RepaymentsPage from "./page";
 
-const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }) }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
 const activeFriend = { id: "friend-a", name: "Ari", archivedAt: null };
 const archivedFriend = { id: "friend-b", name: "Bima", archivedAt: new Date("2026-01-01T00:00:00.000Z") };
@@ -14,6 +14,17 @@ const summary = { friendBalances: [{ friendId: activeFriend.id, name: "Ari", arc
 const repayment = { id: "repayment-a", friendName: "Ari", friendArchivedAt: null, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", allocatedAmount: 40_000, unallocatedAmount: 44_000 };
 
 describe("/app/repayments", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("redirects empty controlled parameters to the canonical URL", async () => {
+    await expect(RepaymentsPage({ searchParams: Promise.resolve({ allocation: "", friendId: "", q: "" }) })).rejects.toThrow("redirect:/app/repayments");
+    expect(mocks.requireSession).not.toHaveBeenCalled();
+  });
+
+  it("preserves task-panel and unrelated parameters while canonicalizing", async () => {
+    await expect(RepaymentsPage({ searchParams: Promise.resolve({ allocation: "", friendId: "", q: "", create: "1", task: "confirm", source: "ledger" }) })).rejects.toThrow("redirect:/app/repayments?create=1&task=confirm&source=ledger");
+  });
+
   it("keeps allocation state explicit and provides outstanding friend context", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     const getSummary = vi.fn().mockResolvedValue(summary);
@@ -27,7 +38,7 @@ describe("/app/repayments", () => {
     expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add repayment" })).toHaveAttribute("href", "/app/repayments?create=1");
     expect(screen.getByLabelText("Allocation")).toHaveValue("");
-    expect(screen.getByLabelText("Allocation")).not.toHaveAttribute("name");
+    expect(screen.getByLabelText("Allocation")).toHaveAttribute("name", "allocation");
     expect(screen.queryByLabelText("Amount in rupiah")).not.toBeInTheDocument();
     expect(getSummary).not.toHaveBeenCalled();
     expect(openShares).not.toHaveBeenCalled();

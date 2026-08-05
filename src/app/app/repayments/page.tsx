@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { createLedgerRepository } from "@/domain/ledger-repository";
@@ -19,8 +20,10 @@ function first(value: string | string[] | undefined) {
 }
 
 export default async function RepaymentsPage({ searchParams = Promise.resolve({}) }: RepaymentsPageProps = {}) {
-  const session = await requireSession();
   const params = await searchParams;
+  const emptyParams = ["q", "friendId", "month", "allocation"].filter((name) => first(params?.[name]) === "");
+  if (emptyParams.length) redirect(recordHref("/app/repayments", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
+  const session = await requireSession();
   const openCreate = first(params?.create) === "1";
   const filters = normalizeRepaymentFilters({ q: first(params?.q), friendId: first(params?.friendId), month: first(params?.month), allocation: first(params?.allocation), page: first(params?.page) });
   const repository = createLedgerRepository(getDatabase(), session.user.id);

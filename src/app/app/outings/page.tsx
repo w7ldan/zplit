@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { createLedgerRepository } from "@/domain/ledger-repository";
@@ -20,8 +21,10 @@ function first(value: string | string[] | undefined) {
 }
 
 export default async function OutingsPage({ searchParams = Promise.resolve({}) }: OutingsPageProps = {}) {
-  const session = await requireSession();
   const params = await searchParams;
+  const emptyParams = ["q", "month"].filter((name) => first(params?.[name]) === "");
+  if (emptyParams.length) redirect(recordHref("/app/outings", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
+  const session = await requireSession();
   const created = first(params?.created);
   const openCreate = first(params?.create) === "1";
   const filters = normalizeOutingFilters({ q: first(params?.q), month: first(params?.month), page: first(params?.page) });

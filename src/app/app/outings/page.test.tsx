@@ -1,17 +1,28 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import OutingsPage from "./page";
 
-const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }) }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
 const outing = { id: "outing-a", ownerUserId: "owner-a", title: "Jakarta dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: null, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z") };
 const outingPage = { items: [{ ...outing, expenseCount: 1, expenseTotal: 84_000 }], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 };
 
 describe("/app/outings", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("redirects empty controlled parameters to the canonical URL", async () => {
+    await expect(OutingsPage({ searchParams: Promise.resolve({ q: "", month: "" }) })).rejects.toThrow("redirect:/app/outings");
+    expect(mocks.requireSession).not.toHaveBeenCalled();
+  });
+
+  it("preserves task-panel and unrelated parameters while canonicalizing", async () => {
+    await expect(OutingsPage({ searchParams: Promise.resolve({ q: "", month: "", create: "1", task: "confirm", source: "ledger" }) })).rejects.toThrow("redirect:/app/outings?create=1&task=confirm&source=ledger");
+  });
+
   it("shows chronological event context, expense count/total, and direct expense action", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.createLedgerRepository.mockReturnValue({ listOutingRecords: vi.fn().mockResolvedValue(outingPage) });
@@ -23,6 +34,7 @@ describe("/app/outings", () => {
     expect(screen.getByText("1 expense · Rp 84.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", `/app/expenses?create=1&outing=${outing.id}`);
     expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it("opens the outing form only with create=1", async () => {

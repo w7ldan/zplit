@@ -213,7 +213,7 @@ export function LiveRecordFilters({ action, search, selects = emptySelects, mont
           <label htmlFor={`record-filter-${select.name}`}>{select.label}</label>
           <select
             id={`record-filter-${select.name}`}
-            name={selectValues[select.name] ? select.name : undefined}
+            name={select.name}
             value={selectValues[select.name] ?? select.value}
             onChange={(event) => {
               editRevisionRef.current += 1;
