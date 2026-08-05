@@ -1433,54 +1433,6 @@ select {
   background: var(--paper);
 }
 
-.app-shell__header {
-  border-bottom: 1px solid var(--ink);
-}
-
-.app-shell__header-layout {
-  min-height: 5.5rem;
-  align-items: center;
-  padding-block: 1rem;
-  row-gap: 1rem;
-}
-
-.app-shell__brand {
-  display: flex;
-  grid-column: span 4;
-  align-items: baseline;
-  gap: 1rem;
-  width: fit-content;
-  text-decoration: none;
-}
-
-.app-shell__wordmark {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: -0.08em;
-  line-height: 1;
-}
-
-.app-shell__owner {
-  display: grid;
-  grid-column: span 2;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.app-shell__owner strong {
-  overflow-wrap: anywhere;
-  font-size: 0.85rem;
-}
-
-.app-shell__nav {
-  display: flex;
-  grid-column: span 3;
-  gap: clamp(1rem, 2vw, 2rem);
-}
-
-.app-shell__nav a,
-.friends-page__view,
 .friend-row__edit,
 .friend-record__back {
   position: relative;
@@ -1493,8 +1445,6 @@ select {
   text-transform: uppercase;
 }
 
-.app-shell__nav a::after,
-.friends-page__view::after,
 .friend-row__edit::after,
 .friend-record__back::after {
   position: absolute;
@@ -1509,42 +1459,12 @@ select {
   transition: transform var(--motion-instant) var(--ease-out);
 }
 
-.app-shell__nav a:hover::after,
-.app-shell__nav a:focus-visible::after,
-.friends-page__view:hover::after,
-.friends-page__view:focus-visible::after,
 .friend-row__edit:hover::after,
 .friend-row__edit:focus-visible::after,
 .friend-record__back:hover::after,
-.friend-record__back:focus-visible::after,
-.friends-page__view--selected::after {
+.friend-record__back:focus-visible::after {
   transform: scaleX(1);
   transform-origin: left;
-}
-
-.app-shell__account {
-  display: grid;
-  grid-column: span 3;
-  justify-items: end;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.app-shell__account > .technical-label {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  text-align: right;
-}
-
-.app-shell__account .sign-out-button {
-  min-height: 0;
-  padding: 0;
-  border-color: transparent;
-  font-size: 0.625rem;
-}
-
-.app-shell__main {
-  min-height: calc(100svh - 5.5rem);
 }
 
 .ledger-overview,
@@ -1813,30 +1733,6 @@ select {
 .outing-record__intro {
   grid-column: 2 / span 7;
   padding-block: clamp(4rem, 9vw, 7rem) 3rem;
-}
-
-.friends-page__views {
-  display: grid;
-  grid-column: 10 / -1;
-  align-self: end;
-  gap: 0.75rem;
-  padding-bottom: 3rem;
-}
-
-.friends-page__view {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.friends-page__view span {
-  display: inline-block;
-  transition: transform var(--motion-fast) var(--ease-out);
-}
-
-.friends-page__view:hover span,
-.friends-page__view:focus-visible span {
-  transform: translateX(0.3rem);
 }
 
 .friends-page__list {
@@ -3370,36 +3266,6 @@ select {
     min-width: 5rem;
   }
 
-  .app-shell__header-layout {
-    align-items: start;
-  }
-
-  .app-shell__brand {
-    grid-column: 1 / -1;
-  }
-
-  .app-shell__owner {
-    grid-column: 1 / span 2;
-  }
-
-  .app-shell__nav {
-    grid-column: 3 / -1;
-    justify-content: end;
-    gap: 1rem;
-  }
-
-  .app-shell__account {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .app-shell__account > .technical-label {
-    text-align: left;
-  }
-
   .ledger-overview__layout,
   .friends-page__layout,
   .friend-record__layout,
@@ -3458,7 +3324,6 @@ select {
     padding-top: 0.75rem;
   }
 
-  .friends-page__views,
   .friends-page__list,
   .friends-page__create,
   .friend-record__meta,
@@ -3469,10 +3334,6 @@ select {
   .outing-record__notes,
   .outing-record__form {
     grid-column: 1 / -1;
-  }
-
-  .friends-page__views {
-    padding-bottom: 0;
   }
 
   .friends-page__list {
@@ -3576,12 +3437,6 @@ select {
 }
 
 @media (max-width: 767px) {
-  .app-shell__nav {
-    grid-column: 1 / -1;
-    justify-content: space-between;
-    gap: 0.45rem;
-  }
-
   .expenses-page::before,
   .expense-record::before {
     width: 22%;
@@ -3786,15 +3641,16 @@ select {
   min-height: 4.5rem;
   align-items: center;
   gap: 1.25rem;
-  padding-block: 0.75rem;
+  padding: 0.75rem 1rem;
   border: 1px solid transparent;
   background: transparent;
+  box-sizing: border-box;
   transition: width var(--motion-state) var(--ease-standard), max-width var(--motion-state) var(--ease-standard), transform var(--motion-state) var(--ease-standard), border-radius var(--motion-state) var(--ease-standard), border-color var(--motion-state) var(--ease-standard), background-color var(--motion-state) var(--ease-standard), box-shadow var(--motion-state) var(--ease-standard);
 }
 
 .app-shell__header-layout--detached {
-  width: min(calc(100% - 2rem), 90rem);
-  max-width: 90rem;
+  width: min(calc(100% - 2rem), 72rem);
+  max-width: 72rem;
   border-color: var(--rule);
   border-radius: var(--radius-panel);
   background: var(--surface);
@@ -3802,11 +3658,15 @@ select {
   transform: translateY(0.6rem);
 }
 
+.app-shell__header--detached {
+  border-bottom-color: transparent;
+}
+
 .app-shell__brand {
   display: inline-flex;
-  flex: 0 0 auto;
-  align-items: baseline;
+  align-items: center;
   gap: 0.65rem;
+  min-width: 0;
   text-decoration: none;
 }
 
@@ -3820,9 +3680,41 @@ select {
 
 .app-shell__nav {
   display: flex;
-  flex: 1 1 auto;
   justify-content: center;
   gap: 0.2rem;
+  width: max-content;
+}
+
+@media (min-width: 768px) {
+  .app-shell__header-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    column-gap: 1.25rem;
+  }
+
+  .app-shell__brand {
+    grid-column: 1;
+    justify-self: start;
+    min-width: 0;
+    width: max-content;
+  }
+
+  .app-shell__nav {
+    grid-column: 2;
+    justify-self: center;
+    flex: none;
+    width: max-content;
+  }
+
+  .app-shell__actions {
+    display: flex;
+    grid-column: 3;
+    justify-self: end;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    width: max-content;
+  }
 }
 
 .app-shell__nav-link,
@@ -3857,6 +3749,7 @@ select {
 .account-menu {
   position: relative;
   flex: 0 0 auto;
+  width: max-content;
 }
 
 .account-menu summary {
@@ -3871,6 +3764,7 @@ select {
   list-style: none;
   font-size: 0.82rem;
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .account-menu summary::-webkit-details-marker {
@@ -3897,6 +3791,29 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+  .app-shell__header-layout {
+    column-gap: 0.65rem;
+  }
+
+  .app-shell__brand .technical-label {
+    display: none;
+  }
+
+  .app-shell__nav {
+    gap: 0;
+  }
+
+  .app-shell__nav-link {
+    padding-inline: 0.35rem;
+    font-size: 0.75rem;
+  }
+
+  .account-menu__name {
+    max-width: 7rem;
+  }
 }
 
 .account-menu__panel {
@@ -4232,19 +4149,27 @@ select {
 
 .friends-page__views {
   display: flex;
+  align-items: center;
   gap: 1rem;
 }
 
 .friends-page__view {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
   color: var(--muted-ink);
   font-size: 0.82rem;
   font-weight: 700;
-  text-decoration: underline;
+  text-decoration: none;
+  text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
 }
 
-.friends-page__view--selected {
+.friends-page__view--selected,
+.friends-page__view:hover,
+.friends-page__view:focus-visible {
   color: var(--ink);
+  text-decoration-line: underline;
 }
 
 .friend-row,
@@ -4765,6 +4690,10 @@ select {
     gap: 0.65rem;
   }
 
+  .app-shell__actions {
+    display: contents;
+  }
+
   .app-shell__brand {
     flex: 1 1 auto;
   }
@@ -5072,58 +5001,6 @@ select {
   align-items: center;
 }
 
-.app-shell__header--detached {
-  border-bottom: 1px solid transparent;
-}
-
-@media (min-width: 768px) {
-  .app-shell__header-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    column-gap: 1.25rem;
-  }
-
-  .app-shell__brand {
-    grid-column: 1;
-    align-items: center;
-  }
-
-  .app-shell__nav {
-    grid-column: 2;
-    flex: 0 1 auto;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .app-shell__actions {
-    display: flex;
-    grid-column: 3;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 0.75rem;
-    min-width: 0;
-  }
-}
-
-@media (min-width: 768px) and (max-width: 1100px) {
-  .app-shell__header-layout {
-    column-gap: 0.65rem;
-  }
-
-  .app-shell__nav {
-    gap: 0;
-  }
-
-  .app-shell__nav-link {
-    padding-inline: 0.35rem;
-    font-size: 0.75rem;
-  }
-
-  .account-menu__name {
-    max-width: 7rem;
-  }
-}
-
 @media (max-width: 767px) {
   .public-home .site-header {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -5151,13 +5028,6 @@ select {
   .public-home .site-header__nav a:nth-child(2) { grid-column: 2; }
   .public-home .site-header__actions a { grid-column: 3; }
 
-  .app-shell__header-layout {
-    display: flex;
-  }
-
-  .app-shell__actions {
-    display: contents;
-  }
 }
 
 .public-home .hero {

@@ -32,4 +32,15 @@ describe("/app/friends", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
   });
+
+  it("keeps filter URLs, selection, and unrelated search parameters intact", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listFriends: vi.fn().mockResolvedValue([]), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    render(await FriendsPage({ searchParams: Promise.resolve({ view: "archived", q: "Ada", create: "1" }) }));
+
+    expect(screen.getByRole("link", { name: "Active" })).toHaveAttribute("href", "/app/friends?view=active&q=Ada&create=1");
+    expect(screen.getByRole("link", { name: "Archived" })).toHaveAttribute("href", "/app/friends?view=archived&q=Ada&create=1");
+    expect(screen.getByRole("link", { name: "Archived" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Active" })).not.toHaveAttribute("aria-current");
+  });
 });

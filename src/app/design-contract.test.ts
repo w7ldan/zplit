@@ -121,4 +121,24 @@ describe("Zplit design contract", () => {
     expect(css).not.toContain(".outing-row__edit:hover span");
     expect(css).not.toContain(".expense-row__edit:hover span");
   });
+
+  it("keeps the authenticated desktop header in one centered three-region grid", () => {
+    expect(css).toMatch(/\.app-shell__header-layout\s*\{[\s\S]*?padding:\s*0\.75rem 1rem;/);
+    expect(css).toMatch(/\.app-shell__header-layout--detached\s*\{[\s\S]*?width:\s*min\(calc\(100% - 2rem\), 72rem\);[\s\S]*?max-width:\s*72rem;/);
+    expect(css).not.toMatch(/\.app-shell__header-layout--detached\s*\{[^}]*padding/);
+    expect(css).toMatch(/@media \(min-width: 768px\)\s*\{[\s\S]*?\.app-shell__header-layout\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\);/);
+    expect(css).toMatch(/\.app-shell__brand\s*\{[\s\S]*?grid-column:\s*1;[\s\S]*?justify-self:\s*start;[\s\S]*?min-width:\s*0;/);
+    expect(css).toMatch(/\.app-shell__nav\s*\{[\s\S]*?grid-column:\s*2;[\s\S]*?justify-self:\s*center;[\s\S]*?width:\s*max-content;/);
+    expect(css).toMatch(/\.app-shell__actions\s*\{[\s\S]*?display:\s*flex;[\s\S]*?grid-column:\s*3;[\s\S]*?justify-self:\s*end;[\s\S]*?align-items:\s*center;[\s\S]*?gap:\s*0\.75rem;[\s\S]*?width:\s*max-content;/);
+    expect(css).not.toMatch(/\.app-shell__nav\s*\{[^}]*flex:\s*1/);
+    expect(css).toContain(".site-header--detached {\n  width: min(calc(100% - 2rem), 72rem);");
+  });
+
+  it("uses one stable underline mechanism for friend filters", () => {
+    expect(css).not.toContain(".friends-page__view::after");
+    expect(css).not.toContain(".friends-page__view--selected::after");
+    expect(css).not.toContain(".friends-page__view:hover span");
+    expect(css).toMatch(/\.friends-page__view\s*\{[\s\S]*?min-height:\s*2\.75rem;[\s\S]*?text-decoration:\s*none;[\s\S]*?text-decoration-thickness:\s*1px;/);
+    expect(css).toMatch(/\.friends-page__view--selected,[\s\S]*?\.friends-page__view:hover,[\s\S]*?\.friends-page__view:focus-visible\s*\{[\s\S]*?text-decoration-line:\s*underline;/);
+  });
 });

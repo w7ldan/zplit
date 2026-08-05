@@ -11,11 +11,29 @@ import { RecordConfirmation } from "@/components/app/record-confirmation";
 export const dynamic = "force-dynamic";
 
 type FriendsPageProps = {
-  searchParams?: Promise<{ view?: string | string[]; q?: string | string[]; create?: string | string[]; created?: string | string[] }>;
+  searchParams?: Promise<FriendsSearchParams>;
+};
+
+type FriendsSearchParams = {
+  [key: string]: string | string[] | undefined;
+  view?: string | string[];
+  q?: string | string[];
+  create?: string | string[];
+  created?: string | string[];
 };
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function viewHref(view: "active" | "archived", params: FriendsSearchParams) {
+  const query = new URLSearchParams({ view });
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "view") continue;
+    const selected = first(value);
+    if (selected !== undefined) query.set(key, selected);
+  }
+  return `/app/friends?${query.toString()}`;
 }
 
 export default async function FriendsPage({ searchParams = Promise.resolve({}) }: FriendsPageProps = {}) {
@@ -55,8 +73,8 @@ export default async function FriendsPage({ searchParams = Promise.resolve({}) }
             <button className="action-link action-link--quiet" type="submit">Search</button>
           </form>
           <nav className="friends-page__views" aria-label="Friend record views">
-            <Link className={view === "active" ? "friends-page__view friends-page__view--selected" : "friends-page__view"} href={query ? `/app/friends?view=active&q=${encodeURIComponent(query)}` : "/app/friends?view=active"} aria-current={view === "active" ? "page" : undefined}>Active</Link>
-            <Link className={view === "archived" ? "friends-page__view friends-page__view--selected" : "friends-page__view"} href={query ? `/app/friends?view=archived&q=${encodeURIComponent(query)}` : "/app/friends?view=archived"} aria-current={view === "archived" ? "page" : undefined}>Archived</Link>
+            <Link className={view === "active" ? "friends-page__view friends-page__view--selected" : "friends-page__view"} href={viewHref("active", params)} aria-current={view === "active" ? "page" : undefined}>Active</Link>
+            <Link className={view === "archived" ? "friends-page__view friends-page__view--selected" : "friends-page__view"} href={viewHref("archived", params)} aria-current={view === "archived" ? "page" : undefined}>Archived</Link>
           </nav>
         </div>
         <div className="ledger-list" aria-live="polite">

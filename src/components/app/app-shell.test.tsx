@@ -18,9 +18,11 @@ describe("AppShell", () => {
   it("keeps five primary destinations and puts History in the account menu", () => {
     render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     const primary = screen.getByRole("navigation", { name: "Ledger navigation" });
+    const mobile = screen.getByRole("navigation", { name: "Mobile ledger navigation" });
     expect(document.querySelector(".app-shell__brand")).toBeInTheDocument();
     expect(document.querySelector(".app-shell__actions")).toBeInTheDocument();
     expect(within(primary).getAllByRole("link")).toHaveLength(5);
+    expect(within(mobile).getAllByRole("link")).toHaveLength(5);
     expect(within(primary).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");
     expect(screen.getByRole("link", { name: "Exports" })).toHaveAttribute("href", "/app/exports");
