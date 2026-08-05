@@ -46,6 +46,14 @@ function cssBraceDepth(source: string) {
   return depth;
 }
 
+function cssRuleBody(source: string, selector: string) {
+  const expected = selector.trim().replace(/\s+/g, " ");
+  for (const match of source.matchAll(/(?:^|\n)([^{}]+)\{([^{}]*)\}/g)) {
+    if (match[1].trim().replace(/\s+/g, " ") === expected) return match[2];
+  }
+  return "";
+}
+
 describe("Zplit design contract", () => {
   it("keeps the palette, geometry, public/authenticated modes, and motion budget explicit", () => {
     for (const token of ["#111315", "#F4F1EA", "#FFFEFA", "#C7E4F6", "#62676B", "#C8C7C1", "--mint", "--peach", "--amber", "--error"]) {
@@ -114,6 +122,28 @@ describe("Zplit design contract", () => {
     expect(recordConfirmationSource).toContain("router?.replace");
     expect(taskPanelSource).not.toContain("window.history.replaceState");
     expect(recordConfirmationSource).not.toContain("window.history.replaceState");
+  });
+
+  it("keeps component typography and link treatments authoritative", () => {
+    const baselineStart = css.indexOf("/* Explicit Zplit browser baseline. */");
+    const componentStart = css.indexOf(".editorial-shell {");
+    const baseline = css.slice(baselineStart, componentStart);
+    const headingBaseline = cssRuleBody(baseline, "h1, h2, h3, h4, h5, h6");
+    const linkBaseline = cssRuleBody(baseline, "a");
+
+    expect(headingBaseline).toContain("font-size: inherit;");
+    expect(headingBaseline).toContain("font-weight: inherit;");
+    expect(headingBaseline).not.toMatch(/font-weight:\s*(?:[0-9]+|normal|bold|bolder|lighter)/);
+    expect(linkBaseline).toContain("color: inherit;");
+    expect(linkBaseline).toContain("text-decoration: inherit;");
+    expect(linkBaseline).not.toMatch(/text-decoration:\s*(?:none|underline)/);
+
+    expect(cssRuleBody(css, ".app-page__header h1")).toMatch(/font-size:[\s\S]*font-weight: 800;/);
+    expect(cssRuleBody(css, ".principle h3")).toMatch(/font-size:[\s\S]*font-weight: 800;/);
+    expect(cssRuleBody(css, ".text-link")).toContain("text-decoration: underline;");
+    expect(cssRuleBody(css, ".site-header__nav a")).toContain("text-decoration: none;");
+    expect(cssRuleBody(css, ".friends-page__view")).toContain("text-decoration: none;");
+    expect(cssRuleBody(css, ".friends-page__view--selected, .friends-page__view:hover, .friends-page__view:focus-visible")).toContain("text-decoration-line: underline;");
   });
 
   it("keeps navigation, showcase, focus, and row actions geometrically bounded", () => {

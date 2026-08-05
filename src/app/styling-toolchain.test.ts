@@ -12,10 +12,21 @@ const packageJson = JSON.parse(readFileSync(path.join(root, "package.json"), "ut
 const ledgerRepository = readFileSync(path.join(root, "src/domain/ledger-repository.ts"), "utf8");
 const expenseRow = readFileSync(path.join(root, "src/components/expenses/expense-row.tsx"), "utf8");
 
+function cssRuleBody(source: string, selector: string) {
+  const expected = selector.trim().replace(/\s+/g, " ");
+  for (const match of source.matchAll(/(?:^|\n)([^{}]+)\{([^{}]*)\}/g)) {
+    if (match[1].trim().replace(/\s+/g, " ") === expected) return match[2];
+  }
+  return "";
+}
+
 describe("styling cleanup contract", () => {
   it("removes unused styling configuration and direct packages", () => {
     expect(existsSync(path.join(root, "components.json"))).toBe(false);
     expect(existsSync(path.join(root, "postcss.config.mjs"))).toBe(false);
+    for (const file of ["tailwind.config.js", "tailwind.config.cjs", "tailwind.config.mjs", "tailwind.config.ts"]) {
+      expect(existsSync(path.join(root, file))).toBe(false);
+    }
 
     const directDependencies = new Set([...Object.keys(packageJson.dependencies), ...Object.keys(packageJson.devDependencies)]);
     for (const dependency of ["clsx", "tailwind-merge", "@tailwindcss/postcss", "postcss", "tailwindcss"]) {
@@ -32,17 +43,32 @@ describe("styling cleanup contract", () => {
     }
 
     const baseline = css.indexOf("/* Explicit Zplit browser baseline. */");
+    const componentStyles = css.indexOf(".editorial-shell {");
     expect(baseline).toBeGreaterThanOrEqual(0);
-    expect(baseline).toBeLessThan(css.indexOf(".editorial-shell {"));
-    expect(css).toMatch(/h1,[\s\S]*?pre,\n?ul \{\n  margin: 0;/);
-    expect(css).toMatch(/menu,[\s\S]*?ul \{\n  padding: 0;\n  list-style: none;/);
-    expect(css).toMatch(/button,[\s\S]*?textarea \{\n  font: inherit;\n  color: inherit;/);
-    expect(css).toMatch(/button \{\n  padding: 0;\n  border: 0;\n  background: transparent;/);
-    expect(css).toMatch(/img,[\s\S]*?video \{[\s\S]*?display: block;[\s\S]*?max-width: 100%;/);
-    expect(css).toMatch(/audio,[\s\S]*?svg \{[\s\S]*?display: block;/);
-    expect(css).toContain("table {\n  border-collapse: collapse;");
-    expect(css).toContain("[hidden] {\n  display: none !important;");
-    expect(css).toMatch(/body \{[\s\S]*?margin: 0;[\s\S]*?background: var\(--paper\);[\s\S]*?font-family: var\(--font-body\);/);
+    expect(baseline).toBeLessThan(componentStyles);
+    const baselineCss = css.slice(baseline, componentStyles);
+
+    expect(cssRuleBody(baselineCss, "h1, h2, h3, h4, h5, h6")).toContain("font-size: inherit;");
+    expect(cssRuleBody(baselineCss, "h1, h2, h3, h4, h5, h6")).toContain("font-weight: inherit;");
+    expect(cssRuleBody(baselineCss, "a")).toMatch(/color: inherit;[\s\S]*text-decoration: inherit;/);
+
+    const controls = cssRuleBody(baselineCss, "button, input, optgroup, option, select, textarea");
+    for (const declaration of ["font: inherit;", "font-feature-settings: inherit;", "font-variation-settings: inherit;", "letter-spacing: inherit;", "color: inherit;"]) {
+      expect(controls).toContain(declaration);
+    }
+    expect(controls).toMatch(/background-color: transparent;[\s\S]*border-radius: 0;[\s\S]*opacity: 1;/);
+    expect(cssRuleBody(baselineCss, "::file-selector-button")).toContain("font: inherit;");
+    expect(cssRuleBody(baselineCss, 'input[type="search"]')).toMatch(/appearance: textfield;[\s\S]*outline-offset: -2px;/);
+    expect(cssRuleBody(baselineCss, 'input[type="search"]::-webkit-search-decoration')).toContain("-webkit-appearance: none;");
+
+    expect(cssRuleBody(baselineCss, "h1, h2, h3, h4, h5, h6, p, blockquote, dl, dd, figure, menu, ol, pre, ul")).toContain("margin: 0;");
+    expect(cssRuleBody(baselineCss, "menu, ol, ul")).toMatch(/padding: 0;[\s\S]*list-style: none;/);
+    expect(cssRuleBody(baselineCss, "button")).toMatch(/padding: 0;[\s\S]*border: 0;[\s\S]*background: transparent;/);
+    expect(cssRuleBody(baselineCss, "img, video")).toMatch(/display: block;[\s\S]*max-width: 100%;/);
+    expect(cssRuleBody(baselineCss, "audio, canvas, embed, iframe, object, svg")).toContain("display: block;");
+    expect(cssRuleBody(baselineCss, "table")).toContain("border-collapse: collapse;");
+    expect(cssRuleBody(baselineCss, "[hidden]")).toContain("display: none !important;");
+    expect(cssRuleBody(baselineCss, "body")).toMatch(/margin: 0;[\s\S]*background: var\(--paper\);[\s\S]*font-family: var\(--font-body\);/);
   });
 
   it("removes only the dead files and preserves authoritative paths", () => {
