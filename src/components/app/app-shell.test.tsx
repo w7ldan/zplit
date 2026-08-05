@@ -54,7 +54,7 @@ describe("AppShell", () => {
   it("keeps the painted panel inside the transparent header wrapper", () => {
     render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     const header = screen.getByRole("banner");
-    const panel = header.querySelector(".app-shell__header-layout");
+    const panel = header.querySelector<HTMLElement>(".app-shell__header-layout");
     expect(panel).toBeInTheDocument();
     expect(header).toContainElement(panel);
     expect(panel).toHaveAttribute("data-detached", "false");
