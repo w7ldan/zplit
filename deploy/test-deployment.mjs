@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const caddy = readFileSync(path.join(root, "deploy/Caddyfile"), "utf8");
 const baseImage =
   "node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d";
 const postgresImage =
@@ -48,6 +49,43 @@ const forbiddenServiceFeatures = (service) => {
   requireCondition(empty(service.devices), "device access is not allowed");
   requireCondition(!JSON.stringify(service).includes("/var/run/docker.sock"), "Docker socket access is not allowed");
 };
+
+requireCondition((caddy.match(/^[^\s@{}]+\s*\{$/gm) ?? []).length === 1, "only one public Caddy site may be declared");
+requireCondition(/^idr\.wildan\.lol\s*\{$/m.test(caddy), "Caddy must serve the exact Zplit site");
+requireCondition((caddy.match(/^\s*bind 0\.0\.0\.0$/gm) ?? []).length === 1, "Caddy must bind to 0.0.0.0");
+requireCondition((caddy.match(/^\s*reverse_proxy zplit-web:3000$/gm) ?? []).length === 1, "Caddy must use only the Zplit upstream");
+requireCondition(!/reverse_proxy\s+(?!zplit-web:3000\b)/.test(caddy), "Caddy must not add another public upstream");
+requireCondition(!/metrics/i.test(caddy), "Caddy must not expose a metrics route");
+const csp = caddy.match(/Content-Security-Policy\s+"([^"]+)"/)?.[1] ?? "";
+requireCondition(csp.length > 0, "CSP must be configured");
+for (const directive of [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "connect-src 'self'",
+  "manifest-src 'self'",
+  "worker-src 'self'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+]) requireCondition(csp.includes(directive), `CSP is missing ${directive}`);
+requireCondition(!/(?:^|\s|;)\*(?:\s|;|$)|\b(?:https?|wss?):\/\//i.test(csp), "CSP must not use wildcard or remote hosts");
+for (const header of [
+  /-Server/,
+  /Strict-Transport-Security\s+"max-age=31536000"/,
+  /Permissions-Policy\s+"camera=\(\), microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\)"/,
+  /Cross-Origin-Opener-Policy\s+"same-origin"/,
+  /X-Content-Type-Options\s+"nosniff"/,
+  /Referrer-Policy\s+"same-origin"/,
+  /X-Frame-Options\s+"DENY"/,
+]) requireCondition(header.test(caddy), `Caddy security header is missing: ${header}`);
+const privatePaths = ["/app", "/app/*", "/api/*", "/login", "/join/*", "/share/*", "/healthz", "/offline"];
+for (const privatePath of privatePaths) requireCondition(new RegExp(`(?:^|\\s)${privatePath.replace("*", "\\*")}(?:\\s|$)`).test(caddy), `private matcher is missing ${privatePath}`);
+requireCondition(/header @private[\s\S]*?X-Robots-Tag\s+"noindex, nofollow, noarchive"/.test(caddy), "private paths must disable crawler indexing");
+requireCondition(/header @private[\s\S]*?Cache-Control\s+"no-store"/.test(caddy), "private paths must be non-cacheable");
 
 requireCondition(onlyKeys(services, ["web", "postgres", "migrate", "bootstrap-owner"]), "exactly web, postgres, migrate, and bootstrap-owner services are required");
 requireCondition(onlyKeys(networks, ["ingress", "database"]), "only ingress and database networks may be declared");

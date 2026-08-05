@@ -22,7 +22,14 @@ npm run test:receipts
 npm test
 npm run lint
 npm run build
+npm run test:release
 ```
+
+CI runs typechecking, the full one-worker Vitest suite, lint, build, and the deployment contract test with `npm ci` on Node 24.18.0.
+
+Authentication keeps production sign-up invitation-only, permits bootstrap-only sign-up, and applies in-memory rate limits of 100 requests per 60 seconds by default and 5 email sign-in attempts per 60 seconds. In-memory storage matches the current single-web-container deployment; replace it with shared storage before horizontal scaling.
+
+The edge removes the `Server` header, enforces HSTS, CSP, permissions, opener, frame, content-type, and referrer policies, and marks private paths non-indexable and non-cacheable. Crawlers may index only the public root. See the [release runbook](docs/release-runbook.md) for backup, deployment, verification, and rollback.
 
 ## Private Docker deployment
 

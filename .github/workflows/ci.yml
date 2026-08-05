@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zplit-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test -- --maxWorkers=1
+      - run: npm run lint
+      - run: npm run build
+      - name: Test deployment contract
+        run: |
+          trap 'rm -rf secrets' EXIT
+          mkdir -m 700 secrets
+          printf '%s' 'ci-postgres-password' > secrets/postgres-password
+          printf '%s' 'ci-better-auth-secret' > secrets/better-auth-secret
+          printf '%s' 'CI Owner' > secrets/owner-name
+          printf '%s' 'ci-owner@example.test' > secrets/owner-email
+          printf '%s' 'ci-owner-password-123456' > secrets/owner-password
+          chmod 600 secrets/*
+          npm run test:deployment

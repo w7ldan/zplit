@@ -36,6 +36,13 @@ describe("auth configuration", () => {
       disableCSRFCheck: false,
       disableOriginCheck: false,
     });
+    expect(auth.options.rateLimit).toMatchObject({
+      enabled: true,
+      storage: "memory",
+      window: 60,
+      max: 100,
+      customRules: { "/sign-in/email": { window: 60, max: 5 } },
+    });
   });
 
   it("only enables sign-up for the bootstrap instance", () => {
@@ -48,5 +55,12 @@ describe("auth configuration", () => {
 
     expect(auth.options.emailAndPassword?.disableSignUp).toBe(false);
     expect(auth.options.advanced?.useSecureCookies).toBe(false);
+    expect(auth.options.rateLimit).toMatchObject({
+      enabled: true,
+      storage: "memory",
+      window: 60,
+      max: 100,
+      customRules: { "/sign-in/email": { window: 60, max: 5 } },
+    });
   });
 });

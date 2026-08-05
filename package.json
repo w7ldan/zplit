@@ -25,6 +25,7 @@
     "test:debtor-shares": "tsx scripts/debtor-share-smoke.ts",
     "test:history-delete": "tsx scripts/history-delete-smoke.ts",
     "test:deployment": "node deploy/test-deployment.mjs",
+    "test:release": "tsx scripts/release-smoke.ts",
     "test:watch": "vitest"
   },
   "overrides": {
