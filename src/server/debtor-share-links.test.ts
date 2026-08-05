@@ -31,7 +31,8 @@ function transactionDatabase({ active = [], inserted = [], revoked = [] }: { act
   const insert = vi.fn(() => ({
     values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue(inserted) })),
   }));
-  const tx = { select, update, insert };
+  const remove = vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) }));
+  const tx = { select, update, insert, delete: remove };
   return {
     transaction: vi.fn(async (callback: (database: typeof tx) => Promise<unknown>) => callback(tx)),
     select,
@@ -56,7 +57,7 @@ describe("debtor share link lifecycle", () => {
   const now = new Date("2026-08-04T00:00:00.000Z");
 
   it("creates, replaces, and stores only a digest with an exact seven-day expiry", async () => {
-    const database = transactionDatabase({ active: [friend], inserted: [{ expiresAt: new Date(now.getTime() + DEBTOR_SHARE_LINK_TTL_MS) }] });
+    const database = transactionDatabase({ active: [friend], inserted: [{ id: "link-a", expiresAt: new Date(now.getTime() + DEBTOR_SHARE_LINK_TTL_MS) }] });
     const first = await createDebtorShareLink(database, "owner-a", friend.id, now);
     const second = await createDebtorShareLink(database, "owner-a", friend.id, new Date(now.getTime() + 1_000));
     expect(first.token).not.toBe(second.token);

@@ -1,10 +1,17 @@
 export type DebtorStatementShare = {
   id: string;
   friendId: string;
+  expenseId?: string;
   expenseDescription: string;
   outingTitle: string;
   outingOccurredAt: Date;
   amountOwed: number;
+};
+
+export type DebtorStatementPublicReceipt = {
+  expenseId: string;
+  publicId: string;
+  mediaType: string;
 };
 
 export type DebtorStatementRepayment = {
@@ -24,6 +31,7 @@ export type DebtorStatementInput = {
   shares: DebtorStatementShare[];
   repayments: DebtorStatementRepayment[];
   allocations: DebtorStatementAllocation[];
+  publicReceipts?: DebtorStatementPublicReceipt[];
   asOf?: Date;
 };
 
@@ -35,6 +43,7 @@ export type DebtorStatementItem = {
   repaidAmount: number;
   remainingAmount: number;
   state: "open" | "settled";
+  sharedReceipts?: Array<{ publicId: string; label: "Receipt image"; mediaType: string }>;
 };
 
 export type DebtorStatement = {
@@ -88,6 +97,16 @@ export function buildDebtorStatement(input: DebtorStatementInput): DebtorStateme
     shares.set(share.id, share);
   }
 
+  const receiptsByExpense = new Map<string, DebtorStatementPublicReceipt[]>();
+  for (const receipt of input.publicReceipts ?? []) {
+    if (!receipt.expenseId || !receipt.publicId || !receipt.mediaType || ![...shares.values()].some((share) => share.expenseId === receipt.expenseId)) {
+      throw new DebtorStatementIntegrityError("Public receipt is invalid.");
+    }
+    const receipts = receiptsByExpense.get(receipt.expenseId) ?? [];
+    receipts.push(receipt);
+    receiptsByExpense.set(receipt.expenseId, receipts);
+  }
+
   const repayments = new Map<string, DebtorStatementRepayment>();
   for (const repayment of input.repayments) {
     if (repayments.has(repayment.id) || repayment.friendId !== input.friend.id) {
@@ -125,6 +144,7 @@ export function buildDebtorStatement(input: DebtorStatementInput): DebtorStateme
     const repaid = repaidByShare.get(share.id) ?? 0;
     repaidAmount = add(repaidAmount, repaid, "Repaid amount");
     const remaining = share.amountOwed - repaid;
+    const sharedReceipts = share.expenseId ? receiptsByExpense.get(share.expenseId) : undefined;
     return {
       expenseDescription: share.expenseDescription,
       outingTitle: share.outingTitle,
@@ -133,6 +153,9 @@ export function buildDebtorStatement(input: DebtorStatementInput): DebtorStateme
       repaidAmount: repaid,
       remainingAmount: remaining,
       state: remaining === 0 ? "settled" as const : "open" as const,
+      ...(sharedReceipts?.length ? {
+        sharedReceipts: sharedReceipts.map((receipt) => ({ publicId: receipt.publicId, label: "Receipt image" as const, mediaType: receipt.mediaType })),
+      } : {}),
     };
   });
 

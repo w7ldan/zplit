@@ -1,15 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FriendShareLink } from "./friend-share-link";
-
-const mocks = vi.hoisted(() => ({ refresh: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 
 const initial = { error: "", link: null, statement: null, revoked: false };
 
 describe("FriendShareLink", () => {
-  beforeEach(() => mocks.refresh.mockClear());
-
   it("shows status, creates a one-time visible URL, and copies it", async () => {
     const createAction = vi.fn().mockResolvedValue({ error: "", link: { token: "11111111-1111-4111-8111-111111111111", expiresAt: "2026-08-11T00:00:00.000Z" }, statement: { friendName: "Ada", assignedAmount: 1000, repaidAmount: 0, outstandingAmount: 1000 }, revoked: false });
     const revokeAction = vi.fn().mockResolvedValue({ ...initial, revoked: true });
@@ -20,7 +15,6 @@ describe("FriendShareLink", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Create balance link" }).closest("form")!);
     await waitFor(() => expect(createAction).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.getByLabelText("Temporary balance link")).toHaveValue(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`));
-    expect(mocks.refresh).toHaveBeenCalledOnce();
     expect(screen.getByText("Save or send this link now. Zplit cannot recover it later.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("/share/")));
@@ -91,5 +85,21 @@ describe("FriendShareLink", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Revoke link" }).closest("form")!);
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Unable to revoke this balance link."));
     expect(screen.getByLabelText("Temporary balance link")).toBeInTheDocument();
+  });
+
+  it("sends checked receipt IDs on create and accepts authoritative selection updates", async () => {
+    const receipt = { id: "11111111-1111-4111-8111-111111111111", originalFilename: "dinner.png", mediaType: "image/png", createdAt: new Date("2026-08-04T00:00:00Z") };
+    const createAction = vi.fn().mockResolvedValue({ error: "", link: { token: "11111111-1111-4111-8111-111111111111", expiresAt: "2026-08-11T00:00:00.000Z" }, statement: null, revoked: false, selectedReceiptIds: [receipt.id] });
+    const updateAction = vi.fn().mockResolvedValue({ error: "", link: null, statement: null, revoked: false, selectedReceiptIds: [], selectionUpdated: true });
+    render(<FriendShareLink status={{ status: "none", expiresAt: null }} phoneNumber={null} createAction={createAction} revokeAction={vi.fn()} updateSelectionAction={updateAction} eligibleReceipts={[{ expenseId: "expense-a", expenseDescription: "Dinner", outingTitle: "Saturday", receipts: [receipt] }]} selectedReceiptIds={[]} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /dinner\.png/ }));
+    fireEvent.submit(screen.getByRole("button", { name: "Create balance link" }).closest("form")!);
+    await waitFor(() => expect(createAction).toHaveBeenCalledOnce());
+    expect(createAction.mock.calls[0]?.[1].getAll("selectedReceiptId")).toEqual([receipt.id]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save receipt visibility" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("checkbox", { name: /dinner\.png/ }));
+    fireEvent.submit(screen.getByRole("button", { name: "Save receipt visibility" }).closest("form")!);
+    await waitFor(() => expect(updateAction).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: /dinner\.png/ })).not.toBeChecked());
   });
 });

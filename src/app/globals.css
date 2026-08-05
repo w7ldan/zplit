@@ -92,7 +92,7 @@
 html,
 body {
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 html {
@@ -165,24 +165,42 @@ select {
   border-width: 1px 0 0;
 }
 
-.site-header {
+.site-header-wrapper {
   position: sticky;
   z-index: 20;
   top: 0;
-  align-items: start;
   min-height: 5.5rem;
   padding-block: 1.5rem;
   border-bottom: 1px solid var(--rule);
 }
 
-.site-header--detached,
-.app-shell__header--detached {
+.site-header {
+  align-items: start;
+  min-height: 2.5rem;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  transition: width var(--motion-state) var(--ease-standard), max-width var(--motion-state) var(--ease-standard), transform var(--motion-state) var(--ease-standard), border-radius var(--motion-state) var(--ease-standard), border-color var(--motion-state) var(--ease-standard), background-color var(--motion-state) var(--ease-standard), box-shadow var(--motion-state) var(--ease-standard);
+}
+
+.site-header--detached {
   width: min(calc(100% - 2rem), 72rem);
   margin-inline: auto;
   border: 1px solid var(--rule);
   border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
+  transform: translateY(0.6rem);
+}
+
+.site-header-wrapper.site-header--detached {
+  width: auto;
+  margin-inline: 0;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
 }
 
 .site-header__brand {
@@ -3802,11 +3820,19 @@ select {
   align-items: center;
   gap: 1.25rem;
   padding-block: 0.75rem;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: width var(--motion-state) var(--ease-standard), max-width var(--motion-state) var(--ease-standard), transform var(--motion-state) var(--ease-standard), border-radius var(--motion-state) var(--ease-standard), border-color var(--motion-state) var(--ease-standard), background-color var(--motion-state) var(--ease-standard), box-shadow var(--motion-state) var(--ease-standard);
 }
 
-.app-shell__header--detached .app-shell__header-layout {
-  width: 100%;
-  max-width: none;
+.app-shell__header-layout--detached {
+  width: min(calc(100% - 2rem), 90rem);
+  max-width: 90rem;
+  border-color: var(--rule);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
+  transform: translateY(0.6rem);
 }
 
 .app-shell__brand {
@@ -4993,9 +5019,7 @@ select {
   background: var(--paper);
 }
 
-.public-home .site-header {
-  position: sticky;
-  top: 0;
+.public-home .site-header-wrapper {
   z-index: 2;
   min-height: 4.75rem;
   padding-block: 1.1rem;
@@ -5161,10 +5185,17 @@ select {
 
 .journey-runway {
   min-width: 0;
+  height: auto;
 }
 
 .journey-sticky {
   min-width: 0;
+}
+
+.journey-stage {
+  min-width: 0;
+  padding-block: clamp(1rem, 3vh, 2.25rem);
+  background: var(--paper);
 }
 
 .journey-tabs {
@@ -5600,12 +5631,12 @@ select {
 
 @media (min-width: 960px) {
   .journey-runway {
-    min-height: calc(100svh * 4);
+    height: calc(100svh * 5);
   }
 
   .journey-sticky {
     position: sticky;
-    top: 1rem;
+    top: clamp(5rem, 11vh, 7rem);
   }
 
   .journey-frame__body {
@@ -5930,6 +5961,62 @@ select {
   font-weight: 700;
 }
 
+.friend-share__receipts {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.5rem 0 0;
+  padding: 1rem;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.friend-share__receipts legend {
+  padding-inline: 0.35rem;
+  font-weight: 700;
+}
+
+.friend-share__receipts > p,
+.friend-share__receipt-group p {
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.friend-share__receipt-group {
+  display: grid;
+  gap: 0.45rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+}
+
+.friend-share__receipt-group h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.friend-share__receipt {
+  display: flex;
+  align-items: start;
+  gap: 0.65rem;
+  padding: 0.5rem 0;
+  cursor: pointer;
+}
+
+.friend-share__receipt input {
+  min-height: auto;
+  margin-top: 0.2rem;
+}
+
+.friend-share__receipt span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.friend-share__receipt small {
+  color: var(--muted-ink);
+  font-size: 0.75rem;
+}
+
 .debtor-statement {
   position: relative;
   min-height: 100svh;
@@ -6109,6 +6196,24 @@ select {
   padding-block: 1.25rem;
   border-top: 1px solid var(--rule);
   color: var(--muted-ink);
+}
+
+.debtor-statement__shared-receipts {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.debtor-statement__shared-receipts h4 {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.debtor-statement__shared-receipts ul {
+  margin: 0.6rem 0 0;
+  padding-left: 1.2rem;
 }
 
 .debtor-statement__footer {

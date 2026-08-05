@@ -1,6 +1,6 @@
 import { ActionLink } from "@/components/editorial/action-link";
 import { LandingReveal } from "@/components/editorial/landing-reveal";
-import { ProductJourney } from "@/components/editorial/product-journey";
+import { JourneyShowcase } from "@/components/editorial/journey-showcase";
 import { SiteHeader } from "@/components/editorial/site-header";
 
 const principles = [
@@ -66,16 +66,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="editorial-section journey-section" id="journey" aria-labelledby="journey-title">
-        <div className="section-layout editorial-grid editorial-shell">
-          <LandingReveal as="p" className="section-label technical-label">01 / How it works</LandingReveal>
-          <LandingReveal as="h2" className="section-heading" id="journey-title" delay={60}>From one outing to a balance you can settle.</LandingReveal>
-          <LandingReveal as="p" className="section-intro" delay={120}>
-            Follow one illustrative scenario through the same records Zplit uses in the app. Select a step or use the arrow keys; every amount is an explicit whole-rupiah example.
-          </LandingReveal>
-          <ProductJourney />
-        </div>
-      </section>
+      <JourneyShowcase />
 
       <section className="editorial-section" id="ledger" aria-labelledby="ledger-title">
         <div className="section-layout editorial-grid editorial-shell">

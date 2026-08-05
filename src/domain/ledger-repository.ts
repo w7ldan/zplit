@@ -1,6 +1,9 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { Database } from "../db/client";
 import {
+  debtorShareLinks,
+  debtorShareReceipts,
+  expenseReceipts,
   expenseShares,
   expenses,
   friends,
@@ -175,6 +178,20 @@ export type RepaymentAllocationPlan = RepaymentRecord & {
   allocatedAmount: number;
   unallocatedAmount: number;
   shares: RepaymentAllocationShare[];
+};
+
+export type EligibleDebtorShareReceipt = {
+  id: string;
+  originalFilename: string;
+  mediaType: string;
+  createdAt: Date;
+};
+
+export type EligibleDebtorShareReceiptGroup = {
+  expenseId: string;
+  expenseDescription: string;
+  outingTitle: string;
+  receipts: EligibleDebtorShareReceipt[];
 };
 
 function assertInput(input: unknown): asserts input is Record<string, unknown> {
@@ -803,7 +820,42 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function getFriendDebtorStatement(friendId: string, asOf = new Date()) {
+  async function listEligibleDebtorShareReceipts(friendId: string): Promise<EligibleDebtorShareReceiptGroup[]> {
+    assertFriendId(friendId);
+    try {
+      const rows = await database
+        .select({
+          expenseId: expenses.id,
+          expenseDescription: expenses.description,
+          outingTitle: outings.title,
+          id: expenseReceipts.id,
+          originalFilename: expenseReceipts.originalFilename,
+          mediaType: expenseReceipts.mediaType,
+          createdAt: expenseReceipts.createdAt,
+        })
+        .from(expenseReceipts)
+        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseReceipts.expenseId)))
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .innerJoin(expenseShares, and(
+          eq(expenseShares.ownerUserId, owner),
+          eq(expenseShares.expenseId, expenseReceipts.expenseId),
+          eq(expenseShares.friendId, friendId),
+        ))
+        .where(eq(expenseReceipts.ownerUserId, owner))
+        .orderBy(asc(outings.occurredAt), asc(expenses.createdAt), asc(expenseReceipts.createdAt), asc(expenseReceipts.id));
+      const groups = new Map<string, EligibleDebtorShareReceiptGroup>();
+      for (const row of rows) {
+        const group = groups.get(row.expenseId) ?? { expenseId: row.expenseId, expenseDescription: row.expenseDescription, outingTitle: row.outingTitle, receipts: [] };
+        group.receipts.push({ id: row.id, originalFilename: row.originalFilename, mediaType: row.mediaType, createdAt: row.createdAt });
+        groups.set(row.expenseId, group);
+      }
+      return [...groups.values()];
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function getFriendDebtorStatement(friendId: string, asOf = new Date(), debtorShareLinkId?: string) {
     assertFriendId(friendId);
     try {
       const [friend] = await database
@@ -817,6 +869,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .select({
           id: expenseShares.id,
           friendId: expenseShares.friendId,
+          expenseId: expenseShares.expenseId,
           expenseDescription: expenses.description,
           outingTitle: outings.title,
           outingOccurredAt: outings.occurredAt,
@@ -866,11 +919,39 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         }
       }
 
+      const publicReceipts = debtorShareLinkId && shares.length > 0
+        ? await database
+            .select({ publicId: debtorShareReceipts.id, expenseId: debtorShareReceipts.expenseId, mediaType: expenseReceipts.mediaType })
+            .from(debtorShareReceipts)
+            .innerJoin(debtorShareLinks, and(
+              eq(debtorShareLinks.id, debtorShareReceipts.debtorShareLinkId),
+              eq(debtorShareLinks.ownerUserId, owner),
+              isNull(debtorShareLinks.revokedAt),
+              gt(debtorShareLinks.expiresAt, asOf),
+            ))
+            .innerJoin(expenseReceipts, and(
+              eq(expenseReceipts.ownerUserId, owner),
+              eq(expenseReceipts.expenseId, debtorShareReceipts.expenseId),
+              eq(expenseReceipts.id, debtorShareReceipts.expenseReceiptId),
+            ))
+            .innerJoin(expenseShares, and(
+              eq(expenseShares.ownerUserId, owner),
+              eq(expenseShares.expenseId, debtorShareReceipts.expenseId),
+              eq(expenseShares.friendId, friendId),
+            ))
+            .where(and(
+              eq(debtorShareReceipts.ownerUserId, owner),
+              eq(debtorShareReceipts.debtorShareLinkId, debtorShareLinkId),
+              inArray(debtorShareReceipts.expenseId, shares.map((share) => share.expenseId)),
+            ))
+        : [];
+
       return buildDebtorStatement({
         friend,
         shares,
         repayments: [...repaymentById.values()],
         allocations,
+        publicReceipts,
         asOf,
       });
     } catch (error) {
@@ -1476,6 +1557,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     listLedgerHistory,
     getLedgerSummary,
     getLedgerExportSnapshot,
+    listEligibleDebtorShareReceipts,
     getFriendDebtorStatement,
     updateExpense,
     deleteExpense,

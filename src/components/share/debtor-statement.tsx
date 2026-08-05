@@ -5,7 +5,7 @@ function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(value);
 }
 
-export function DebtorStatementView({ statement, expiresAt }: { statement: DebtorStatement; expiresAt: Date }) {
+export function DebtorStatementView({ statement, expiresAt, token = "" }: { statement: DebtorStatement; expiresAt: Date; token?: string }) {
   return (
     <main className="debtor-statement" id="top">
       <div className="debtor-statement__field" aria-hidden="true" />
@@ -34,6 +34,7 @@ export function DebtorStatementView({ statement, expiresAt }: { statement: Debto
                 <div><dt>Allocated repayments</dt><dd>{formatRupiah(item.repaidAmount)}</dd></div>
                 <div><dt>Remaining</dt><dd>{formatRupiah(item.remainingAmount)}</dd></div>
               </dl>
+              {item.sharedReceipts?.length ? <section className="debtor-statement__shared-receipts" aria-label="Shared receipts"><h4>Shared receipts</h4><ul>{item.sharedReceipts.map((receipt) => <li key={receipt.publicId}><a href={`/share/${token}/receipts/${receipt.publicId}`}>{receipt.label}</a></li>)}</ul></section> : null}
             </article>
           ))}</div> : <p className="debtor-statement__empty">No assigned expense shares are recorded.</p>}
         </section>

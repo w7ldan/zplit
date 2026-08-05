@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { createLedgerRepository } from "@/domain/ledger-repository";
-import { createDebtorShareLink, revokeDebtorShareLink } from "@/server/debtor-share-links";
+import {
+  createDebtorShareLink,
+  DebtorShareReceiptSelectionError,
+  revokeDebtorShareLink,
+  SHARED_RECEIPT_UNAVAILABLE,
+  updateDebtorShareReceiptSelection,
+} from "@/server/debtor-share-links";
 
 export type DebtorShareStatement = {
   friendName: string;
@@ -18,6 +24,8 @@ export type DebtorShareActionState = {
   link: { token: string; expiresAt: string } | null;
   statement: DebtorShareStatement | null;
   revoked: boolean;
+  selectedReceiptIds?: string[];
+  selectionUpdated?: boolean;
 };
 
 const initialDebtorShareActionState: DebtorShareActionState = {
@@ -25,7 +33,14 @@ const initialDebtorShareActionState: DebtorShareActionState = {
   link: null,
   statement: null,
   revoked: false,
+  selectedReceiptIds: [],
 };
+
+function selectedReceiptIds(formData: FormData) {
+  const ids = formData.getAll("selectedReceiptId");
+  if (ids.some((id) => typeof id !== "string")) throw new Error(SHARED_RECEIPT_UNAVAILABLE);
+  return ids as string[];
+}
 
 export async function createDebtorShareLinkAction(
   friendId: string,
@@ -33,11 +48,13 @@ export async function createDebtorShareLinkAction(
   _formData: FormData,
 ): Promise<DebtorShareActionState> {
   void _previousState;
-  void _formData;
   const session = await requireSession();
   try {
     const database = getDatabase();
-    const link = await createDebtorShareLink(database, session.user.id, friendId);
+    const selected = selectedReceiptIds(_formData);
+    const link = selected.length > 0
+      ? await createDebtorShareLink(database, session.user.id, friendId, selected)
+      : await createDebtorShareLink(database, session.user.id, friendId);
     const statement = await createLedgerRepository(database, session.user.id).getFriendDebtorStatement(friendId);
     revalidatePath(`/app/friends/${friendId}`);
     return {
@@ -50,8 +67,10 @@ export async function createDebtorShareLinkAction(
         outstandingAmount: statement.outstandingAmount,
       },
       revoked: false,
+      selectedReceiptIds: link.selectedReceiptIds ?? [],
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof DebtorShareReceiptSelectionError) return { ...initialDebtorShareActionState, error: SHARED_RECEIPT_UNAVAILABLE };
     return { ...initialDebtorShareActionState, error: "This friend is no longer available." };
   }
 }
@@ -70,5 +89,22 @@ export async function revokeDebtorShareLinkAction(
     return { error: "", link: null, statement: null, revoked: true };
   } catch {
     return { ...initialDebtorShareActionState, error: "Unable to revoke this balance link." };
+  }
+}
+
+export async function updateDebtorShareReceiptSelectionAction(
+  friendId: string,
+  _previousState: DebtorShareActionState,
+  formData: FormData,
+): Promise<DebtorShareActionState> {
+  void _previousState;
+  const session = await requireSession();
+  try {
+    const selected = await updateDebtorShareReceiptSelection(getDatabase(), session.user.id, friendId, selectedReceiptIds(formData));
+    revalidatePath(`/app/friends/${friendId}`);
+    return { ...initialDebtorShareActionState, selectedReceiptIds: selected, selectionUpdated: true };
+  } catch (error) {
+    if (error instanceof DebtorShareReceiptSelectionError) return { ...initialDebtorShareActionState, error: SHARED_RECEIPT_UNAVAILABLE };
+    return { ...initialDebtorShareActionState, error: "Unable to save receipt visibility." };
   }
 }

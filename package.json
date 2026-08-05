@@ -18,6 +18,7 @@
     "test:invitations": "tsx scripts/invitation-smoke.ts",
     "test:ownership": "tsx scripts/ownership-smoke.ts",
     "test:receipts": "tsx scripts/receipt-smoke.ts",
+    "test:shared-receipts": "tsx scripts/shared-receipts-smoke.ts",
     "test:debtor-shares": "tsx scripts/debtor-share-smoke.ts",
     "test:history-delete": "tsx scripts/history-delete-smoke.ts",
     "test:deployment": "node deploy/test-deployment.mjs",

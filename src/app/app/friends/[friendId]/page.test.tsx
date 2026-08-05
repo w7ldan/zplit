@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getDatabase: vi.fn(),
   createLedgerRepository: vi.fn(),
   getDebtorShareLinkStatus: vi.fn(),
+  getDebtorShareReceiptSelection: vi.fn(),
   notFound: vi.fn(() => { throw new Error("not-found"); }),
 }));
 
@@ -17,7 +18,7 @@ vi.mock("@/domain/ledger-repository", async () => {
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
 });
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
-vi.mock("@/server/debtor-share-links", () => ({ getDebtorShareLinkStatus: mocks.getDebtorShareLinkStatus }));
+vi.mock("@/server/debtor-share-links", () => ({ getDebtorShareLinkStatus: mocks.getDebtorShareLinkStatus, getDebtorShareReceiptSelection: mocks.getDebtorShareReceiptSelection }));
 
 const friend = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -34,8 +35,9 @@ describe("friend record", () => {
   it("renders identity, metadata, edit fields, and archive action", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ getFriend: vi.fn().mockResolvedValue(friend) });
+    mocks.createLedgerRepository.mockReturnValue({ getFriend: vi.fn().mockResolvedValue(friend), listEligibleDebtorShareReceipts: vi.fn().mockResolvedValue([]) });
     mocks.getDebtorShareLinkStatus.mockResolvedValue({ status: "none", expiresAt: null });
+    mocks.getDebtorShareReceiptSelection.mockResolvedValue([]);
     render(await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) }));
 
     expect(screen.getByText("Friend · editable record")).toBeInTheDocument();

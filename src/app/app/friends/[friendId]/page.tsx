@@ -7,8 +7,8 @@ import { FriendArchiveForm, FriendForm } from "@/components/friends/friend-form"
 import { FriendShareLink } from "@/components/friends/friend-share-link";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { archiveFriendAction, restoreFriendAction, updateFriendAction } from "../actions";
-import { createDebtorShareLinkAction, revokeDebtorShareLinkAction } from "./share-actions";
-import { getDebtorShareLinkStatus } from "@/server/debtor-share-links";
+import { createDebtorShareLinkAction, revokeDebtorShareLinkAction, updateDebtorShareReceiptSelectionAction } from "./share-actions";
+import { getDebtorShareLinkStatus, getDebtorShareReceiptSelection } from "@/server/debtor-share-links";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +18,17 @@ export default async function FriendRecordPage({ params, searchParams }: { param
   const query = await searchParams;
   let friend;
   let shareStatus;
+  let eligibleReceipts;
+  let selectedReceiptIds;
   try {
     const database = getDatabase();
     const repository = createLedgerRepository(database, session.user.id);
     friend = await repository.getFriend(friendId);
-    shareStatus = await getDebtorShareLinkStatus(database, session.user.id, friendId);
+    [shareStatus, eligibleReceipts, selectedReceiptIds] = await Promise.all([
+      getDebtorShareLinkStatus(database, session.user.id, friendId),
+      repository.listEligibleDebtorShareReceipts(friendId),
+      getDebtorShareReceiptSelection(database, session.user.id, friendId),
+    ]);
   } catch (error) {
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
@@ -58,6 +64,9 @@ export default async function FriendRecordPage({ params, searchParams }: { param
           phoneNumber={friend.phoneNumber}
           createAction={createDebtorShareLinkAction.bind(null, friend.id)}
           revokeAction={revokeDebtorShareLinkAction.bind(null, friend.id)}
+          updateSelectionAction={updateDebtorShareReceiptSelectionAction.bind(null, friend.id)}
+          eligibleReceipts={eligibleReceipts}
+          selectedReceiptIds={selectedReceiptIds}
         />
       </div>
     </section>

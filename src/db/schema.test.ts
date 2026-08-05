@@ -272,6 +272,27 @@ describe("database schema", () => {
     expect(columnNames(allocationPrimaryKey.columns)).toEqual(["repayment_id", "expense_share_id"]);
   });
 
+  it("defines owner-bound receipt visibility mappings with cascading cleanup", () => {
+    const table = getTableConfig(schema.debtorShareReceipts);
+    expect(table.name).toBe("debtor_share_receipts");
+    expect(table.columns.map((column) => column.name)).toEqual([
+      "id",
+      "owner_user_id",
+      "debtor_share_link_id",
+      "expense_id",
+      "expense_receipt_id",
+      "created_at",
+    ]);
+    expect(foreignKeyShape(schema.debtorShareReceipts)).toEqual(expect.arrayContaining([
+      { from: ["owner_user_id", "debtor_share_link_id"], to: "debtor_share_links", target: ["owner_user_id", "id"], onDelete: "cascade" },
+      { from: ["owner_user_id", "expense_id", "expense_receipt_id"], to: "expense_receipts", target: ["owner_user_id", "expense_id", "id"], onDelete: "cascade" },
+    ]));
+    expect(indexColumns(schema.debtorShareReceipts, "debtor_share_receipts_link_idx")).toEqual(["owner_user_id", "debtor_share_link_id"]);
+    expect(indexColumns(schema.debtorShareReceipts, "debtor_share_receipts_public_id_idx")).toEqual(["id"]);
+    expect(indexColumns(schema.debtorShareLinks, "debtor_share_links_owner_user_id_id_uidx")).toEqual(["owner_user_id", "id"]);
+    expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_id_uidx")).toEqual(["owner_user_id", "expense_id", "id"]);
+  });
+
   it("defines the required foreign-key delete actions", () => {
     const actions = [
       ...foreignKeyShape(schema.expenses),

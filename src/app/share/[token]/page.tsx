@@ -20,7 +20,7 @@ export default async function DebtorSharePage({ params }: { params: Promise<{ to
   } catch {
     // Public resolution has one safe failure state.
   }
-  if (resolved) return <DebtorStatementView statement={resolved.statement} expiresAt={resolved.expiresAt} />;
+  if (resolved) return <DebtorStatementView statement={resolved.statement} expiresAt={resolved.expiresAt} token={token} />;
 
   return <main className="debtor-statement debtor-statement--unavailable"><div className="editorial-shell debtor-statement__shell"><p className="technical-label">READ-ONLY BALANCE</p><h1>{DEBTOR_SHARE_UNAVAILABLE}</h1></div></main>;
 }

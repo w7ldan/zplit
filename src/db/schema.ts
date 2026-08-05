@@ -126,6 +126,7 @@ export const expenseReceipts = pgTable(
       foreignColumns: [expenses.ownerUserId, expenses.id],
       name: "expense_receipts_owner_expense_fk",
     }).onDelete("cascade"),
+    uniqueIndex("expense_receipts_owner_expense_id_uidx").on(table.ownerUserId, table.expenseId, table.id),
     uniqueIndex("expense_receipts_owner_expense_sha256_uidx").on(table.ownerUserId, table.expenseId, table.sha256),
     index("expense_receipts_owner_expense_created_id_idx").on(table.ownerUserId, table.expenseId, table.createdAt, table.id),
   ],
@@ -363,12 +364,42 @@ export const debtorShareLinks = pgTable(
       foreignColumns: [friends.ownerUserId, friends.id],
       name: "debtor_share_links_owner_friend_fk",
     }).onDelete("restrict"),
+    uniqueIndex("debtor_share_links_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
     uniqueIndex("debtor_share_links_token_hash_uidx").on(table.tokenHash),
     uniqueIndex("debtor_share_links_active_owner_friend_uidx")
       .on(table.ownerUserId, table.friendId)
       .where(sql`${table.revokedAt} IS NULL`),
     index("debtor_share_links_owner_friend_idx").on(table.ownerUserId, table.friendId),
     index("debtor_share_links_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
+export const debtorShareReceipts = pgTable(
+  "debtor_share_receipts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    debtorShareLinkId: uuid("debtor_share_link_id").notNull(),
+    expenseId: uuid("expense_id").notNull(),
+    expenseReceiptId: uuid("expense_receipt_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.ownerUserId, table.debtorShareLinkId],
+      foreignColumns: [debtorShareLinks.ownerUserId, debtorShareLinks.id],
+      name: "debtor_share_receipts_owner_link_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.ownerUserId, table.expenseId, table.expenseReceiptId],
+      foreignColumns: [expenseReceipts.ownerUserId, expenseReceipts.expenseId, expenseReceipts.id],
+      name: "debtor_share_receipts_owner_expense_receipt_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("debtor_share_receipts_link_receipt_uidx").on(table.ownerUserId, table.debtorShareLinkId, table.expenseReceiptId),
+    index("debtor_share_receipts_link_idx").on(table.ownerUserId, table.debtorShareLinkId),
+    index("debtor_share_receipts_public_id_idx").on(table.id),
   ],
 );
 

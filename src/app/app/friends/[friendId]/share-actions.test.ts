@@ -28,7 +28,7 @@ describe("debtor share actions", () => {
     const result = await createDebtorShareLinkAction("friend-a", { error: "", link: null, statement: null, revoked: false }, new FormData());
 
     expect(mocks.create).toHaveBeenCalledWith("database", "owner-a", "friend-a");
-    expect(result).toEqual({ error: "", link: { token: "11111111-1111-4111-8111-111111111111", expiresAt: "2026-08-11T00:00:00.000Z" }, statement: { friendName: "Ada", assignedAmount: 1000, repaidAmount: 0, outstandingAmount: 1000 }, revoked: false });
+    expect(result).toEqual({ error: "", link: { token: "11111111-1111-4111-8111-111111111111", expiresAt: "2026-08-11T00:00:00.000Z" }, statement: { friendName: "Ada", assignedAmount: 1000, repaidAmount: 0, outstandingAmount: 1000 }, revoked: false, selectedReceiptIds: [] });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/friends/friend-a");
   });
 

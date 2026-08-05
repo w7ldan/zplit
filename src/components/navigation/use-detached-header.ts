@@ -9,19 +9,16 @@ export function useDetachedHeader(threshold = DETACHED_HEADER_THRESHOLD) {
 
   useEffect(() => {
     let frame: number | null = null;
-    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    let previous = window.scrollY >= threshold;
+    const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 
     const update = () => {
       frame = null;
       const next = window.scrollY >= threshold;
-      if (next === previous) return;
-      previous = next;
-      setDetached(next);
+      setDetached((current) => current === next ? current : next);
     };
 
     const onScroll = () => {
-      if (reducedMotion) {
+      if (motionQuery?.matches) {
         update();
         return;
       }
@@ -29,9 +26,14 @@ export function useDetachedHeader(threshold = DETACHED_HEADER_THRESHOLD) {
     };
 
     update();
+    document.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
+    const onMotionChange = () => onScroll();
+    motionQuery?.addEventListener?.("change", onMotionChange);
     return () => {
+      document.removeEventListener("scroll", onScroll);
       window.removeEventListener("scroll", onScroll);
+      motionQuery?.removeEventListener?.("change", onMotionChange);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
   }, [threshold]);

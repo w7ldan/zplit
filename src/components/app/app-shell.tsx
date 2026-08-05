@@ -41,7 +41,7 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
   return (
     <div className="app-shell">
       <header className={`app-shell__header${detached ? " app-shell__header--detached" : ""}`}>
-        <div className="editorial-shell app-shell__header-layout">
+        <div className={`editorial-shell app-shell__header-layout${detached ? " app-shell__header-layout--detached" : ""}`} data-detached={detached}>
           <Link className="app-shell__brand" href="/app" aria-label="Zplit overview">
             <span className="app-shell__wordmark">Zplit</span>
             <span className="technical-label">PRIVATE LEDGER</span>
