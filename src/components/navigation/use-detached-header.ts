@@ -1,45 +1,46 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 export const DETACHED_HEADER_THRESHOLD = 32;
 
 export function useDetachedHeader(threshold = DETACHED_HEADER_THRESHOLD) {
-  const [detached, setDetached] = useState(() => typeof window !== "undefined" && window.scrollY >= threshold);
-
-  useEffect(() => {
+  const getSnapshot = useCallback(() => typeof window !== "undefined" && window.scrollY >= threshold, [threshold]);
+  const getServerSnapshot = useCallback(() => false, []);
+  const subscribe = useCallback((listener: () => void) => {
     let frame: number | null = null;
-    const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-
-    const update = () => {
+    let current = getSnapshot();
+    const emit = () => {
+      const next = getSnapshot();
+      if (next === current) return;
+      current = next;
+      listener();
+    };
+    const flush = () => {
       frame = null;
-      const next = window.scrollY >= threshold;
-      setDetached((current) => current === next ? current : next);
+      emit();
     };
-
     const onScroll = () => {
-      if (motionQuery?.matches) {
-        update();
-        return;
-      }
-      if (frame === null) frame = window.requestAnimationFrame(update);
+      if (frame === null) frame = window.requestAnimationFrame(flush);
     };
-    const onPageShow = () => onScroll();
+    const onRestore = () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+      emit();
+    };
 
-    update();
-    document.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("pageshow", onPageShow);
-    const onMotionChange = () => onScroll();
-    motionQuery?.addEventListener?.("change", onMotionChange);
+    window.addEventListener("pageshow", onRestore);
+    window.addEventListener("resize", onRestore);
+    document.addEventListener("visibilitychange", onRestore);
     return () => {
-      document.removeEventListener("scroll", onScroll);
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("pageshow", onPageShow);
-      motionQuery?.removeEventListener?.("change", onMotionChange);
+      window.removeEventListener("pageshow", onRestore);
+      window.removeEventListener("resize", onRestore);
+      document.removeEventListener("visibilitychange", onRestore);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, [threshold]);
+  }, [getSnapshot]);
 
-  return detached;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

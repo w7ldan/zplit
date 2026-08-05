@@ -49,13 +49,17 @@ describe("friend actions", () => {
 
     await expect(createFriendAction(initialFriendActionState, form({
       name: "  Ada  ",
-      phoneNumber: " +62 1 ",
+      countryCode: "+62",
+      otherCountryCode: "",
+      phoneNumber: "81112345",
+      phoneFieldsChanged: "1",
+      legacyPhoneNumber: "",
       notes: "  Notes  ",
       ownerUserId: "owner-b",
     }))).rejects.toThrow("redirect:/app/friends?created=friend-a");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
-    expect(createFriend).toHaveBeenCalledWith({ name: "Ada", phoneNumber: "+62 1", notes: "Notes" });
+    expect(createFriend).toHaveBeenCalledWith({ name: "Ada", phoneNumber: "+6281112345", notes: "Notes" });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/friends");
   });
 

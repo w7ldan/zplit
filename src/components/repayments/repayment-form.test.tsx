@@ -13,6 +13,8 @@ const activeFriend = {
   updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 };
 const archivedFriend = { ...activeFriend, id: "22222222-2222-4222-8222-222222222222", name: "Bima", archivedAt: new Date("2026-01-01T00:00:00.000Z") };
+const share = { id: "33333333-3333-4333-8333-333333333333", friendId: activeFriend.id, friendName: "Ari", expenseDescription: "Dinner", outingTitle: "Bandung day out", outingOccurredAt: new Date("2026-01-01T00:00:00.000Z"), amountOwed: 84_000, repaidAmount: 20_000, remainingAmount: 64_000 };
+const otherShare = { ...share, id: "44444444-4444-4444-8444-444444444444", friendId: archivedFriend.id, friendName: "Bima", expenseDescription: "Taxi" };
 const initialState = {
   fieldErrors: {},
   formError: "",
@@ -79,5 +81,15 @@ describe("RepaymentForm", () => {
     expect(screen.getByLabelText("Friend")).toBeDisabled();
     expect(document.querySelector('input[type="hidden"][name="friendId"]')).toHaveValue(activeFriend.id);
     expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
+  });
+
+  it("shows optional open shares and clears draft allocations when the friend changes", () => {
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[activeFriend, archivedFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share], [archivedFriend.id]: [otherShare] }} />);
+
+    expect(screen.getByRole("heading", { name: "Apply to outstanding expenses" })).toBeInTheDocument();
+    expect(screen.getByText("Dinner")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Friend"), { target: { value: archivedFriend.id } });
+    expect(screen.queryByText("Dinner")).not.toBeInTheDocument();
+    expect(screen.getByText("Taxi")).toBeInTheDocument();
   });
 });

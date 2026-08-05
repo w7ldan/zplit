@@ -20,11 +20,12 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
   const params = await searchParams;
   const openCreate = first(params?.create) === "1";
   const repository = createLedgerRepository(getDatabase(), session.user.id);
-  const [repayments, activeFriends, archivedFriends, summary] = await Promise.all([
+  const [repayments, activeFriends, archivedFriends, summary, openExpenseSharesByFriend] = await Promise.all([
     repository.listRepayments(),
     repository.listFriends(),
     repository.listFriends({ archived: true }),
     repository.getLedgerSummary(),
+    repository.listOpenExpenseSharesByFriend(),
   ]);
   const friends = [...activeFriends, ...archivedFriends];
   const outstandingByFriend = Object.fromEntries(summary.friendBalances.map((balance) => [balance.friendId, balance.outstandingAmount]));
@@ -48,7 +49,7 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
         </div>
       </div>
       {openCreate ? <TaskPanel open title="Add a repayment" description="Record the money received and keep its eligible shares visible for allocation." triggerId="repayment-create">
-        {friends.length > 0 ? <RepaymentForm action={createRepaymentAction} friends={friends} outstandingByFriend={outstandingByFriend} /> : <div className="task-panel__empty"><p>Add a friend before recording money received.</p><Link className="action-link action-link--primary" href="/app/friends?create=1">Add a friend</Link></div>}
+        {friends.length > 0 ? <RepaymentForm action={createRepaymentAction} friends={friends} outstandingByFriend={outstandingByFriend} openExpenseSharesByFriend={openExpenseSharesByFriend} /> : <div className="task-panel__empty"><p>Add a friend before recording money received.</p><Link className="action-link action-link--primary" href="/app/friends?create=1">Add a friend</Link></div>}
       </TaskPanel> : null}
     </section>
   );

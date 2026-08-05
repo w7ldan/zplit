@@ -53,21 +53,21 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
               </Link>
             ))}
           </nav>
-          <Link className="action-link action-link--primary app-shell__add-expense" href="/app/expenses?create=1" data-task-trigger="expense-create">
-            Add expense
-          </Link>
-          <details className="account-menu">
-            <summary aria-label={`Open account menu for ${user.name}`}><span className="account-menu__name">{user.name}</span></summary>
-            <div className="account-menu__panel">
-              <span className="technical-label">Signed in as</span>
-              <strong>{user.name}</strong>
-              <span>{user.email}</span>
-              <Link href="/app/history">History</Link>
-              <Link href="/app/exports">Exports</Link>
-              {canManageInvites ? <Link href="/app/invites">Invitations</Link> : null}
-              <SignOutButton />
-            </div>
-          </details>
+          <div className="app-shell__actions">
+            <Link className="action-link action-link--primary app-shell__add-expense" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
+            <details className="account-menu">
+              <summary aria-label={`Open account menu for ${user.name}`}><span className="account-menu__name">{user.name}</span></summary>
+              <div className="account-menu__panel">
+                <span className="technical-label">Signed in as</span>
+                <strong>{user.name}</strong>
+                <span>{user.email}</span>
+                <Link href="/app/history">History</Link>
+                <Link href="/app/exports">Exports</Link>
+                {canManageInvites ? <Link href="/app/invites">Invitations</Link> : null}
+                <SignOutButton />
+              </div>
+            </details>
+          </div>
         </div>
       </header>
       <nav className="app-shell__mobile-nav" aria-label="Mobile ledger navigation">

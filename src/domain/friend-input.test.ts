@@ -3,10 +3,9 @@ import { validateFriendInput } from "./friend-input";
 
 describe("friend input", () => {
   it("trims values and converts empty optional fields to null", () => {
-    expect(validateFriendInput({ name: "  Ada Lovelace  ", phoneNumber: " +62 811 ", notes: "  Ledger contact  " })).toEqual({
+    expect(validateFriendInput({ name: "  Ada Lovelace  ", countryCode: "+62", phoneNumber: " 81112345 ", notes: "  Ledger contact  ", phoneFieldsChanged: "1" })).toMatchObject({
       ok: true,
-      values: { name: "Ada Lovelace", phoneNumber: "+62 811", notes: "Ledger contact" },
-      value: { name: "Ada Lovelace", phoneNumber: "+62 811", notes: "Ledger contact" },
+      value: { name: "Ada Lovelace", phoneNumber: "+6281112345", notes: "Ledger contact" },
     });
     expect(validateFriendInput({ name: "Ada", phoneNumber: "  ", notes: "" })).toMatchObject({
       ok: true,
@@ -15,10 +14,9 @@ describe("friend input", () => {
   });
 
   it("returns field-specific errors at the domain limits", () => {
-    const result = validateFriendInput({ name: "", phoneNumber: "1".repeat(33), notes: "n".repeat(2001) });
-    expect(result).toEqual({
+    const result = validateFriendInput({ name: "", countryCode: "+62", phoneNumber: "1".repeat(33), notes: "n".repeat(2001) });
+    expect(result).toMatchObject({
       ok: false,
-      values: { name: "", phoneNumber: "1".repeat(33), notes: "n".repeat(2001) },
       errors: {
         name: "Name is required.",
         phoneNumber: "Phone number must be 32 characters or fewer.",

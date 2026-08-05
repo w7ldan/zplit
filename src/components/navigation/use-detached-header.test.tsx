@@ -58,6 +58,8 @@ describe("useDetachedHeader", () => {
     const { result, unmount } = renderHook(() => useDetachedHeader());
     setScrollY(40);
     act(() => window.dispatchEvent(new Event("scroll")));
+    expect(result.current).toBe(false);
+    act(() => frameCallback?.(1));
     expect(result.current).toBe(true);
     unmount();
     expect(cancel).not.toHaveBeenCalled();

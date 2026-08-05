@@ -41,11 +41,12 @@ describe("JourneyShowcase", () => {
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frame?.(1));
     expect(rail.style.getPropertyValue("--journey-progress")).toBe("1.0000");
+    expect(screen.getByRole("tab", { name: /The balance becomes settled/ })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("tab", { name: /Expenses enter/ }));
     expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: "smooth" }));
   });
 
-  it("waits for the illustrative frame before advancing the rail", () => {
+  it("starts at the sticky boundary and falls back when the stage cannot fit", () => {
     vi.stubGlobal("matchMedia", (query: string) => mediaQuery(query === "(min-width: 960px)"));
     let frame: FrameRequestCallback | undefined;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
@@ -54,19 +55,21 @@ describe("JourneyShowcase", () => {
     render(<JourneyShowcase />);
     const runway = document.querySelector(".journey-runway")! as HTMLElement;
     const stage = document.querySelector(".journey-sticky")! as HTMLElement;
-    const illustrativeFrame = document.querySelector(".journey-frame")! as HTMLElement;
     const rail = document.querySelector(".journey-rail")! as HTMLElement;
     Object.defineProperty(stage, "offsetHeight", { configurable: true, value: 600 });
     Object.defineProperty(runway, "offsetHeight", { configurable: true, value: 2000 });
-    vi.spyOn(stage, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
-    vi.spyOn(illustrativeFrame, "getBoundingClientRect").mockReturnValue({ top: 400, bottom: 900 } as DOMRect);
-    vi.spyOn(runway, "getBoundingClientRect").mockReturnValue({ top: -399 } as DOMRect);
+    vi.stubGlobal("getComputedStyle", () => ({ top: "100px" }));
+    vi.spyOn(runway, "getBoundingClientRect").mockReturnValue({ top: 100 } as DOMRect);
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frame?.(1));
     expect(rail.style.getPropertyValue("--journey-progress")).toBe("0.0000");
-    vi.spyOn(runway, "getBoundingClientRect").mockReturnValue({ top: -800 } as DOMRect);
+    vi.spyOn(runway, "getBoundingClientRect").mockReturnValue({ top: -1500 } as DOMRect);
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frame?.(1));
-    expect(rail.style.getPropertyValue("--journey-progress")).toBe("0.2857");
+    expect(rail.style.getPropertyValue("--journey-progress")).toBe("1.0000");
+    Object.defineProperty(stage, "scrollHeight", { configurable: true, value: 2000 });
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(stage).not.toHaveClass("journey-sticky--pinned");
+    expect(document.querySelectorAll(".journey-panel--active")).toHaveLength(1);
   });
 });

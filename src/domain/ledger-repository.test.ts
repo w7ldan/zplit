@@ -109,6 +109,20 @@ describe("ledger repository", () => {
     expect(queries[4].sql).toContain('"friends"."id" = $');
   });
 
+  it("lists open expense shares with one owner-scoped fixed query", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await expect(repository.listOpenExpenseSharesByFriend()).resolves.toEqual({});
+    expect(queries).toHaveLength(1);
+    expect(queries[0].sql).toContain('"expense_shares"."owner_user_id" = $');
+    expect(queries[0].params).toContain(owner);
+  });
+
   it("does not expose a hard-delete operation and treats foreign IDs as absent", async () => {
     const repository = createLedgerRepository({} as Database, owner);
     expect("deleteFriend" in repository).toBe(false);

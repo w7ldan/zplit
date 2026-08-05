@@ -11,6 +11,8 @@ describe("AppShell", () => {
   it("keeps five primary destinations and puts History in the account menu", () => {
     render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     const primary = screen.getByRole("navigation", { name: "Ledger navigation" });
+    expect(document.querySelector(".app-shell__brand")).toBeInTheDocument();
+    expect(document.querySelector(".app-shell__actions")).toBeInTheDocument();
     expect(within(primary).getAllByRole("link")).toHaveLength(5);
     expect(within(primary).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");

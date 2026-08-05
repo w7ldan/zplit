@@ -25,6 +25,8 @@ export type RepaymentActionState = {
   fieldErrors: RepaymentFieldErrors;
   formError: string;
   values: RepaymentInputValues;
+  allocations?: RepaymentAllocationInputValues;
+  allocationFieldErrors?: RepaymentAllocationFieldErrors;
 };
 
 export type RepaymentAllocationActionState = {
@@ -50,22 +52,24 @@ function invalidState(result: Extract<ReturnType<typeof validateRepaymentInput>,
   return { fieldErrors: result.errors, formError: "Please correct the marked fields.", values: result.values };
 }
 
-function errorState(error: unknown, values: RepaymentInputValues): RepaymentActionState {
+function errorState(error: unknown, values: RepaymentInputValues, allocations: RepaymentAllocationInputValues = [], allocationFieldErrors: RepaymentAllocationFieldErrors = {}): RepaymentActionState {
   return {
     fieldErrors: {},
     formError: error instanceof LedgerNotFoundError
       ? "This friend or repayment is no longer available."
-      : error instanceof RepaymentAmountInvariantError || error instanceof RepaymentFriendInvariantError
+      : error instanceof RepaymentAmountInvariantError || error instanceof RepaymentFriendInvariantError || error instanceof RepaymentAllocationAmountInvariantError || error instanceof RepaymentAllocationShareInvariantError
         ? error.message
         : "Unable to save this repayment.",
     values,
+    allocations,
+    allocationFieldErrors,
   };
 }
 
 function allocationValuesFromForm(formData: FormData) {
   const ids = formData.getAll("expenseShareId");
-  const amounts = formData.getAll("amountRupiah");
-  const values = Array.from({ length: Math.max(ids.length, amounts.length) }, (_, index) => ({
+  const amounts = ids.length ? formData.getAll("amountRupiah").slice(-ids.length) : [];
+  const values = ids.map((_, index) => ({
     expenseShareId: typeof ids[index] === "string" ? ids[index].trim() : "",
     amountRupiah: typeof amounts[index] === "string" ? amounts[index].trim() : "",
   }));
@@ -78,13 +82,15 @@ export async function createRepaymentAction(
 ): Promise<RepaymentActionState> {
   const session = await requireSession();
   const result = valuesFromForm(formData);
-  if (!result.ok) return invalidState(result);
+  const allocationResult = allocationValuesFromForm(formData);
+  if (!result.ok) return { ...invalidState(result), allocations: allocationResult.ok ? allocationResult.values : allocationResult.values, allocationFieldErrors: allocationResult.ok ? {} : allocationResult.errors };
+  if (!allocationResult.ok) return { fieldErrors: {}, formError: "Please correct the marked fields.", values: result.values, allocations: allocationResult.values, allocationFieldErrors: allocationResult.errors };
 
   let repayment;
   try {
-    repayment = await createLedgerRepository(getDatabase(), session.user.id).createRepayment(result.value);
+    repayment = await createLedgerRepository(getDatabase(), session.user.id).createRepaymentWithAllocations(result.value, allocationResult.value);
   } catch (error) {
-    return errorState(error, result.values);
+    return errorState(error, result.values, allocationResult.values);
   }
   revalidatePath("/app");
   revalidatePath("/app/repayments");

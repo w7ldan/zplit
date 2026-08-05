@@ -23,6 +23,10 @@ function valuesFromForm(formData: FormData) {
   return validateFriendInput({
     name: formData.get("name"),
     phoneNumber: formData.get("phoneNumber"),
+    countryCode: formData.get("countryCode"),
+    otherCountryCode: formData.get("otherCountryCode"),
+    legacyPhoneNumber: formData.get("legacyPhoneNumber"),
+    phoneFieldsChanged: formData.get("phoneFieldsChanged"),
     notes: formData.get("notes"),
   });
 }

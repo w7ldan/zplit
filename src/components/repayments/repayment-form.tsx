@@ -6,6 +6,7 @@ import { useFormStatus } from "react-dom";
 import type { RepaymentActionState } from "@/app/app/repayments/actions";
 import type { friends } from "@/db/schema";
 import type { RepaymentInputValues } from "@/domain/repayment-input";
+import type { OpenExpenseShare } from "@/domain/ledger-repository";
 import { formatRupiah } from "@/domain/rupiah";
 
 type RepaymentAction = (previousState: RepaymentActionState, formData: FormData) => Promise<RepaymentActionState>;
@@ -18,6 +19,7 @@ type RepaymentFormProps = {
   mode?: "create" | "edit";
   friendLocked?: boolean;
   outstandingByFriend?: Record<string, number>;
+  openExpenseSharesByFriend?: Record<string, OpenExpenseShare[]>;
 };
 
 const emptyValues: RepaymentInputValues = {
@@ -28,7 +30,7 @@ const emptyValues: RepaymentInputValues = {
   paymentMethod: "",
   notes: "",
 };
-const emptyActionState: RepaymentActionState = { fieldErrors: {}, formError: "", values: emptyValues };
+const emptyActionState: RepaymentActionState = { fieldErrors: {}, formError: "", values: emptyValues, allocations: [] };
 
 function localValueFromUtc(utc: string) {
   const date = new Date(utc);
@@ -50,12 +52,14 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="repayment-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
-export function RepaymentForm({ action, friends: friendOptions, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, outstandingByFriend = {} }: RepaymentFormProps) {
+export function RepaymentForm({ action, friends: friendOptions, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, outstandingByFriend = {}, openExpenseSharesByFriend = {} }: RepaymentFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
   const [selectedFriendId, setSelectedFriendId] = useState(initialValues.friendId || friendOptions[0]?.id || "");
+  const [draftAllocations, setDraftAllocations] = useState<Record<string, string>>(() => Object.fromEntries((state.allocations ?? []).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
   const formRef = useRef<HTMLFormElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
+  const selectedShares = openExpenseSharesByFriend[selectedFriendId] ?? [];
 
   useEffect(() => {
     if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = new Date().getTimezoneOffset().toString();
@@ -83,7 +87,7 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
       <div className="repayment-form__field">
         <label htmlFor="repayment-friend">Friend</label>
         {friendLocked ? <input type="hidden" name="friendId" value={state.values.friendId} /> : null}
-        <select id="repayment-friend" name={friendLocked ? undefined : "friendId"} required disabled={friendLocked} defaultValue={state.values.friendId || friendOptions[0]?.id || ""} onChange={(event) => setSelectedFriendId(event.target.value)} aria-invalid={Boolean(state.fieldErrors.friendId)} aria-describedby="repayment-friend-error">
+        <select id="repayment-friend" name={friendLocked ? undefined : "friendId"} required disabled={friendLocked} defaultValue={state.values.friendId || friendOptions[0]?.id || ""} onChange={(event) => { setSelectedFriendId(event.target.value); setDraftAllocations({}); }} aria-invalid={Boolean(state.fieldErrors.friendId)} aria-describedby="repayment-friend-error">
           {friendOptions.map((friend) => <option key={friend.id} value={friend.id}>{friend.name}{friend.archivedAt ? " (ARCHIVED)" : ""}</option>)}
         </select>
         <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptions.find((friend) => friend.id === selectedFriendId)?.name ?? "this friend"}: {formatRupiah(outstandingByFriend[selectedFriendId] ?? 0)}</p>
@@ -112,8 +116,29 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
         <textarea id="repayment-notes" name="notes" maxLength={4000} defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="repayment-notes-error" rows={5} />
         <FieldError id="repayment-notes-error" message={state.fieldErrors.notes} />
       </div>
+      <section className="repayment-form__allocations" aria-labelledby="repayment-allocations-heading">
+        <h2 id="repayment-allocations-heading">Apply to outstanding expenses</h2>
+        <p className="repayment-form__help">Optional. Leave these blank to allocate the repayment later.</p>
+        {selectedShares.length > 0 ? selectedShares.map((share) => (
+          <div className="repayment-form__allocation" key={share.id}>
+            <div className="repayment-form__allocation-details">
+              <strong>{share.expenseDescription}</strong>
+              <span>{share.outingTitle} · {formatDate(share.outingOccurredAt)}</span>
+              <span>Original share {formatRupiah(share.amountOwed)} · Previously repaid {formatRupiah(share.repaidAmount)} · Remaining {formatRupiah(share.remainingAmount)}</span>
+            </div>
+            <input type="hidden" name="expenseShareId" value={share.id} readOnly />
+            <label htmlFor={`repayment-allocation-${share.id}`}>Allocation for {share.expenseDescription}</label>
+            <input id={`repayment-allocation-${share.id}`} name="amountRupiah" type="text" inputMode="numeric" placeholder="Optional" value={draftAllocations[share.id] ?? ""} onChange={(event) => setDraftAllocations((current) => ({ ...current, [share.id]: event.target.value }))} aria-invalid={Boolean(state.allocationFieldErrors?.[share.id])} />
+            {state.allocationFieldErrors?.[share.id] ? <p className="repayment-form__field-error">{state.allocationFieldErrors[share.id]}</p> : null}
+          </div>
+        )) : <p className="repayment-form__help">No outstanding expense shares for this friend.</p>}
+      </section>
       <p className="repayment-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
       <SubmitButton mode={mode} />
     </form>
   );
+}
+
+function formatDate(date: Date) {
+  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
 }

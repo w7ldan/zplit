@@ -17,6 +17,9 @@ describe("SiteHeader", () => {
   it("detaches after the shared scroll threshold while preserving navigation", () => {
     render(<SiteHeader />);
     const header = screen.getByRole("banner", { name: "Site header" });
+    expect(header.querySelector(".site-header__brand")).toBeInTheDocument();
+    expect(header.querySelector(".site-header__nav")).toBeInTheDocument();
+    expect(header.querySelector(".site-header__actions")).toBeInTheDocument();
     expect(header).not.toHaveClass("site-header--detached");
     Object.defineProperty(window, "scrollY", { configurable: true, value: 32 });
     act(() => window.dispatchEvent(new Event("scroll")));

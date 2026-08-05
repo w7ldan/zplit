@@ -19,6 +19,14 @@ describe("FriendForm", () => {
     expect(screen.getByRole("button", { name: "Add friend" })).toBeInTheDocument();
     expect(document.querySelectorAll(".friend-form__field-error")).toHaveLength(3);
     expect(document.querySelectorAll(".friend-form__message")).toHaveLength(1);
+    expect(screen.getByLabelText("Country code")).toHaveValue("+62");
+  });
+
+  it("shows an explicit Other calling-code field without changing the stored form shape", () => {
+    render(<FriendForm action={vi.fn().mockResolvedValue(initialFriendActionState)} />);
+    fireEvent.change(screen.getByLabelText("Country code"), { target: { value: "other" } });
+    expect(screen.getByLabelText("Other calling code")).toBeInTheDocument();
+    expect(screen.getByLabelText("Phone number")).toHaveAttribute("name", "phoneNumber");
   });
 
   it("preserves entered values after a validation failure and exposes the field error", async () => {

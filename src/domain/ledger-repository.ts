@@ -180,6 +180,20 @@ export type RepaymentAllocationPlan = RepaymentRecord & {
   shares: RepaymentAllocationShare[];
 };
 
+export type OpenExpenseShare = {
+  id: string;
+  friendId: string;
+  friendName: string;
+  expenseDescription: string;
+  outingTitle: string;
+  outingOccurredAt: Date;
+  amountOwed: number;
+  repaidAmount: number;
+  remainingAmount: number;
+};
+
+export type OpenExpenseSharesByFriend = Record<string, OpenExpenseShare[]>;
+
 export type EligibleDebtorShareReceipt = {
   id: string;
   originalFilename: string;
@@ -1075,6 +1089,50 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  async function listOpenExpenseSharesByFriend(): Promise<OpenExpenseSharesByFriend> {
+    try {
+      const shares = await database
+        .select({
+          id: expenseShares.id,
+          friendId: friends.id,
+          friendName: friends.name,
+          expenseDescription: expenses.description,
+          outingTitle: outings.title,
+          outingOccurredAt: outings.occurredAt,
+          amountOwed: expenseShares.amountOwed,
+        })
+        .from(expenseShares)
+        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
+        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .where(eq(expenseShares.ownerUserId, owner))
+        .orderBy(asc(friends.name), asc(outings.occurredAt), asc(expenses.createdAt), asc(expenseShares.id));
+      const allocations = shares.length
+        ? await database
+            .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
+            .from(repaymentAllocations)
+            .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shares.map((share) => share.id))))
+        : [];
+      const repaidByShare = new Map<string, number>();
+      for (const allocation of allocations) {
+        if (!Number.isSafeInteger(allocation.amount) || allocation.amount <= 0) throw new LedgerIntegrityError(`Allocation for share ${allocation.expenseShareId} is invalid.`);
+        const total = (repaidByShare.get(allocation.expenseShareId) ?? 0) + allocation.amount;
+        if (!Number.isSafeInteger(total)) throw new LedgerIntegrityError(`Allocation for share ${allocation.expenseShareId} is unsafe.`);
+        repaidByShare.set(allocation.expenseShareId, total);
+      }
+      const grouped: OpenExpenseSharesByFriend = {};
+      for (const share of shares) {
+        const repaidAmount = repaidByShare.get(share.id) ?? 0;
+        const remainingAmount = share.amountOwed - repaidAmount;
+        if (remainingAmount < 0) throw new LedgerIntegrityError(`Allocations exceed expense share ${share.id}.`);
+        if (remainingAmount > 0) (grouped[share.friendId] ??= []).push({ ...share, repaidAmount, remainingAmount });
+      }
+      return grouped;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
   async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput[]) {
     assertExpenseId(expenseId);
     assertExpenseSharesInput(shares);
@@ -1212,6 +1270,69 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         await assertOwnedFriend(transaction, requested.friendId);
         const [repayment] = await transaction.insert(repayments).values({ ...requested, ownerUserId: owner }).returning();
         if (!repayment) return persistenceError(new Error("repayment insert returned no row"));
+        return repayment;
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function lockOwnedFriend(transaction: Pick<Database, "select">, friendId: string) {
+    const [friend] = await transaction
+      .select({ id: friends.id })
+      .from(friends)
+      .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+      .limit(1)
+      .for("update");
+    if (!friend) return notFound();
+  }
+
+  async function createRepaymentWithAllocations(input: CreateRepaymentInput, allocations: RepaymentAllocationInput[]) {
+    assertRepaymentInput(input);
+    assertRepaymentAllocationsInput(allocations);
+    const requested = { ...input, friendId: input.friendId.trim().toLowerCase() };
+    const normalizedAllocations = allocations.map((allocation) => ({ ...allocation, expenseShareId: allocation.expenseShareId.trim().toLowerCase() }));
+    try {
+      return await database.transaction(async (transaction) => {
+        await lockOwnedFriend(transaction, requested.friendId);
+        const shareIds = normalizedAllocations.map((allocation) => allocation.expenseShareId).sort();
+        const lockedShares = shareIds.length
+          ? await transaction
+              .select({ id: expenseShares.id, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
+              .from(expenseShares)
+              .where(and(eq(expenseShares.ownerUserId, owner), inArray(expenseShares.id, shareIds)))
+              .orderBy(asc(expenseShares.id))
+              .for("update")
+          : [];
+        if (lockedShares.length !== shareIds.length || lockedShares.some((share) => share.friendId !== requested.friendId)) return notFound();
+        const existingAllocations = shareIds.length
+          ? await transaction
+              .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
+              .from(repaymentAllocations)
+              .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+              .orderBy(asc(repaymentAllocations.expenseShareId), asc(repaymentAllocations.repaymentId))
+              .for("update")
+          : [];
+        const allocatedByShare = new Map<string, number>();
+        for (const allocation of existingAllocations) {
+          if (!Number.isSafeInteger(allocation.amount) || allocation.amount <= 0) throw new LedgerIntegrityError(`Allocation for share ${allocation.expenseShareId} is invalid.`);
+          const total = (allocatedByShare.get(allocation.expenseShareId) ?? 0) + allocation.amount;
+          if (!Number.isSafeInteger(total)) throw new LedgerIntegrityError(`Allocation for share ${allocation.expenseShareId} is unsafe.`);
+          allocatedByShare.set(allocation.expenseShareId, total);
+        }
+        const requestedTotal = normalizedAllocations.reduce((total, allocation) => total + allocation.amount, 0);
+        if (!Number.isSafeInteger(requestedTotal) || requestedTotal > requested.amount) throw new RepaymentAllocationAmountInvariantError();
+        const shareById = new Map(lockedShares.map((share) => [share.id, share]));
+        for (const allocation of normalizedAllocations) {
+          const share = shareById.get(allocation.expenseShareId);
+          if (!share) return notFound();
+          if (allocation.amount > share.amountOwed - (allocatedByShare.get(share.id) ?? 0)) throw new RepaymentAllocationShareInvariantError();
+        }
+        const [repayment] = await transaction.insert(repayments).values({ ...requested, ownerUserId: owner }).returning();
+        if (!repayment) return persistenceError(new Error("repayment insert returned no row"));
+        if (normalizedAllocations.length > 0) {
+          await transaction.insert(repaymentAllocations).values(normalizedAllocations.map((allocation) => ({ ownerUserId: owner, repaymentId: repayment.id, ...allocation })));
+        }
         return repayment;
       });
     } catch (error) {
@@ -1562,8 +1683,10 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     updateExpense,
     deleteExpense,
     listExpenseShares,
+    listOpenExpenseSharesByFriend,
     replaceExpenseShares,
     createRepayment,
+    createRepaymentWithAllocations,
     getRepayment,
     listRepayments,
     updateRepayment,

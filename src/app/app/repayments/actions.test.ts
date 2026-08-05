@@ -61,17 +61,17 @@ describe("repayment actions", () => {
   });
 
   it("binds create and update to the authenticated owner and canonical routes", async () => {
-    const createRepayment = vi.fn().mockResolvedValue({ id: "repayment-a" });
+    const createRepaymentWithAllocations = vi.fn().mockResolvedValue({ id: "repayment-a" });
     const updateRepayment = vi.fn().mockResolvedValue({ id: "repayment-a" });
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ createRepayment, updateRepayment });
+    mocks.createLedgerRepository.mockReturnValue({ createRepaymentWithAllocations, updateRepayment });
 
     await expect(createRepaymentAction(initialState, form({ ...values, ownerUserId: "owner-b" }))).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1");
     await expect(updateRepaymentAction("repayment-a", initialState, form(values))).rejects.toThrow("redirect:/app/repayments/repayment-a?saved=1");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
-    expect(createRepayment).toHaveBeenCalledWith({ friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", notes: "Received" });
+    expect(createRepaymentWithAllocations).toHaveBeenCalledWith({ friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", notes: "Received" }, []);
     expect(updateRepayment).toHaveBeenCalledWith("repayment-a", { friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", notes: "Received" });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments");
@@ -108,6 +108,24 @@ describe("repayment actions", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments/repayment-a");
+  });
+
+  it("parses repeated create allocations and preserves their values on invariant errors", async () => {
+    const expenseShareId = "11111111-1111-4111-8111-111111111111";
+    const createRepaymentWithAllocations = vi.fn().mockResolvedValue({ id: "repayment-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createRepaymentWithAllocations });
+    const formData = form(values);
+    formData.append("expenseShareId", expenseShareId);
+    formData.append("amountRupiah", "42000");
+
+    await expect(createRepaymentAction(initialState, formData)).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1");
+    expect(createRepaymentWithAllocations).toHaveBeenCalledWith(expect.objectContaining({ amount: 84_000 }), [{ expenseShareId, amount: 42_000 }]);
+
+    createRepaymentWithAllocations.mockRejectedValue(new RepaymentAllocationShareInvariantError());
+    const failed = await createRepaymentAction(initialState, formData);
+    expect(failed).toMatchObject({ formError: "An allocation cannot exceed the share's remaining balance.", allocations: [{ expenseShareId, amountRupiah: "42000" }] });
   });
 
   it("returns stable allocation field and invariant errors", async () => {

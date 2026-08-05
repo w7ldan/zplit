@@ -105,4 +105,20 @@ describe("Zplit design contract", () => {
     expect(taskPanelSource).not.toContain("window.history.replaceState");
     expect(recordConfirmationSource).not.toContain("window.history.replaceState");
   });
+
+  it("keeps navigation, showcase, focus, and row actions geometrically bounded", () => {
+    expect(css).toContain("overflow-x: clip");
+    expect(css).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)");
+    expect(css).toContain(".journey-sticky--pinned");
+    expect(css).toContain("height: calc(100svh - var(--journey-sticky-top) - var(--journey-bottom-clearance))");
+    expect(css).toContain(".journey-sticky--pinned .journey-stage");
+    expect(css).toContain(":is(input, select, textarea):focus-visible");
+    expect(css).not.toMatch(/\.friend-form__field[^{}]*:focus(?!-)/);
+    expect(css).not.toMatch(/\.repayment-form__field[^{}]*:focus(?!-)/);
+    expect(css).toMatch(/\.friend-row__edit,[\s\S]*?text-decoration: none;/);
+    expect(css).toContain("min-height: 2.75rem");
+    expect(css).not.toContain(".friend-row__edit:hover span");
+    expect(css).not.toContain(".outing-row__edit:hover span");
+    expect(css).not.toContain(".expense-row__edit:hover span");
+  });
 });

@@ -11,7 +11,7 @@ describe("public Zplit page", () => {
     const navigation = within(screen.getByRole("navigation", { name: "Primary navigation" }));
     expect(navigation.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "#journey");
     expect(navigation.getByRole("link", { name: "The ledger" })).toHaveAttribute("href", "#ledger");
-    expect(navigation.getByRole("link", { name: "Open Zplit" })).toHaveAttribute("href", "/app");
+    expect(within(document.querySelector(".site-header__actions")!).getByRole("link", { name: "Open Zplit" })).toHaveAttribute("href", "/app");
     expect(screen.getAllByRole("link", { name: "Open Zplit" })).toHaveLength(3);
     expect(screen.getByRole("link", { name: "See how it works" })).toHaveAttribute("href", "#journey");
     expect(screen.getByText(/record an outing, add the expenses/i)).toBeInTheDocument();

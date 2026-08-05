@@ -15,7 +15,7 @@ const repayment = { id: "repayment-a", friendName: "Ari", friendArchivedAt: null
 describe("/app/repayments", () => {
   it("keeps allocation state explicit and provides outstanding friend context", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepayments: vi.fn().mockResolvedValue([repayment]), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    mocks.createLedgerRepository.mockReturnValue({ listRepayments: vi.fn().mockResolvedValue([repayment]), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
     render(await RepaymentsPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Money received, recorded." })).toBeInTheDocument();
@@ -26,7 +26,7 @@ describe("/app/repayments", () => {
 
   it("opens the repayment form only with create=1 and retains archived friends", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepayments: vi.fn().mockResolvedValue([]), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    mocks.createLedgerRepository.mockReturnValue({ listRepayments: vi.fn().mockResolvedValue([]), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1" }) }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Bima (ARCHIVED)" })).toBeInTheDocument();

@@ -15,8 +15,8 @@ export function SiteHeader() {
         <nav className="site-header__nav" aria-label="Primary navigation">
           <a href="#journey">How it works</a>
           <a href="#ledger">The ledger</a>
-          <a className="site-header__access" href="/app">Open Zplit</a>
         </nav>
+        <div className="site-header__actions"><a className="site-header__access" href="/app">Open Zplit</a></div>
       </div>
     </header>
   );
