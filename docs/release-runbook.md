@@ -131,12 +131,25 @@ if [[ -n "${ZPLIT_PREVIOUS_STATE_FILE:-}" && -f "$ZPLIT_PREVIOUS_STATE_FILE" ]];
   # This file is generated below and contains paths/IDs only, never secrets.
   current_release_commit="$release_commit"
   current_previous_commit="$previous_commit"
+  current_previous_image_id="$previous_image_id"
+  current_previous_image_name="$previous_image_name"
+  current_rollback_image_tag="$rollback_image_tag"
+  current_authoritative_caddy_source="$authoritative_caddy_source"
+  current_previous_caddy_rollback_copy="$previous_caddy_rollback_copy"
   . "$ZPLIT_PREVIOUS_STATE_FILE"
+  recorded_backup_restoration_verified="${backup_restoration_verified:-no}"
+  recorded_backup_dump_path="${backup_dump_path:-}"
+  recorded_backup_manifest_path="${backup_manifest_path:-}"
   release_commit="$current_release_commit"
   previous_commit="$current_previous_commit"
-  if [[ "${backup_restoration_verified:-no}" = yes && -f "${backup_dump_path:-}" && -f "${backup_manifest_path:-}" && ! -L "${backup_dump_path:-}" && ! -L "${backup_manifest_path:-}" ]]; then
-    dump_path="$backup_dump_path"
-    manifest_path="$backup_manifest_path"
+  previous_image_id="$current_previous_image_id"
+  previous_image_name="$current_previous_image_name"
+  rollback_image_tag="$current_rollback_image_tag"
+  authoritative_caddy_source="$current_authoritative_caddy_source"
+  previous_caddy_rollback_copy="$current_previous_caddy_rollback_copy"
+  if [[ "$recorded_backup_restoration_verified" = yes && -f "$recorded_backup_dump_path" && -f "$recorded_backup_manifest_path" && ! -L "$recorded_backup_dump_path" && ! -L "$recorded_backup_manifest_path" ]]; then
+    dump_path="$recorded_backup_dump_path"
+    manifest_path="$recorded_backup_manifest_path"
   fi
 fi
 if [[ -z "$dump_path" ]]; then
