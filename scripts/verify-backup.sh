@@ -40,10 +40,14 @@ if (typeof value.postgresqlServerVersion !== "string" || !/^[0-9]+(?:\.[0-9]+)*$
 if (typeof value.dumpSha256 !== "string" || !/^[0-9a-f]{64}$/.test(value.dumpSha256)) throw new Error("invalid manifest hash");
 if (!Number.isSafeInteger(value.dumpByteLength) || value.dumpByteLength < 1) throw new Error("invalid manifest byte length");
 if (value.dumpFilename !== expectedFilename) throw new Error("manifest filename mismatch");
-process.stdout.write([value.dumpSha256, value.dumpByteLength].join("\t"));
+process.stdout.write([value.dumpSha256, value.dumpByteLength, value.gitCommit].join("\t"));
 NODE
 )
-IFS=$'\t' read -r expected_sha256 expected_byte_length <<< "$manifest_fields"
+IFS=$'\t' read -r expected_sha256 expected_byte_length manifest_git_commit <<< "$manifest_fields"
+if ! git cat-file -e "${manifest_git_commit}^{commit}" 2>/dev/null; then
+  echo "backup manifest commit does not exist locally" >&2
+  exit 1
+fi
 actual_sha256=$(sha256sum "$dump_path" | awk '{print $1}')
 actual_byte_length=$(stat -c '%s' -- "$dump_path")
 if [[ $actual_sha256 != "$expected_sha256" ]]; then
@@ -92,5 +96,5 @@ if [[ ! $restore_host =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
   echo "could not determine disposable PostgreSQL address" >&2
   exit 1
 fi
-DB_HOST="$restore_host" DB_PORT=5432 DB_NAME=zplit_restore_test DB_USER=postgres DB_PASSWORD_FILE="$password_file" ./node_modules/.bin/tsx scripts/backup-integrity.ts
+ZPLIT_BACKUP_GIT_COMMIT="$manifest_git_commit" DB_HOST="$restore_host" DB_PORT=5432 DB_NAME=zplit_restore_test DB_USER=postgres DB_PASSWORD_FILE="$password_file" ./node_modules/.bin/tsx scripts/backup-integrity.ts
 echo "backup verification passed"

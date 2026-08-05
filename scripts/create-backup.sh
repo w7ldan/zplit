@@ -8,6 +8,15 @@ if [[ $# -ne 1 || $1 != /* ]]; then
 fi
 
 backup_dir=$1
+database_schema_commit=${ZPLIT_BACKUP_GIT_COMMIT:-}
+if [[ ! $database_schema_commit =~ ^[0-9a-f]{40}$ ]]; then
+  echo "ZPLIT_BACKUP_GIT_COMMIT must be a 40-character lowercase commit" >&2
+  exit 1
+fi
+if ! git cat-file -e "${database_schema_commit}^{commit}" 2>/dev/null; then
+  echo "ZPLIT_BACKUP_GIT_COMMIT does not exist locally" >&2
+  exit 1
+fi
 if [[ -L "$backup_dir" ]]; then
   echo "backup directory must not be a symlink" >&2
   exit 1
@@ -36,6 +45,9 @@ if [[ $state != "running healthy" ]]; then
   exit 1
 fi
 
+live_journal=$("${compose[@]}" exec -T postgres sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)" psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --tuples-only --no-align --quiet --set=ON_ERROR_STOP=1 --field-separator="$(printf "\\t")" -c "SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY id"')
+printf '%s\n' "$live_journal" | ZPLIT_BACKUP_GIT_COMMIT="$database_schema_commit" ./node_modules/.bin/tsx scripts/backup-integrity.ts --check-journal-stdin
+
 timestamp=$(date -u '+%Y%m%dT%H%M%SZ')
 created_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 dump_filename="zplit-${timestamp}.dump"
@@ -61,9 +73,8 @@ trap cleanup EXIT
 "${compose[@]}" exec -T postgres sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)" pg_dump --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --format=custom --compress=6 --no-owner --no-privileges --serializable-deferrable' > "$dump_partial"
 "${compose[@]}" exec -T postgres sh -c 'archive=$(mktemp); trap "rm -f \\\"$archive\\\"" EXIT; cat > "$archive"; pg_restore --list "$archive"' < "$dump_partial" > /dev/null
 
-git_commit=$(git rev-parse HEAD)
 postgres_version=$("${compose[@]}" exec -T postgres sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)" psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --tuples-only --no-align --quiet -c "SHOW server_version"' | tr -d '\r\n' | cut -d ' ' -f1)
-if [[ ! $git_commit =~ ^[0-9a-f]{40}$ || ! $postgres_version =~ ^[0-9]+([.][0-9]+)*$ ]]; then
+if [[ ! $postgres_version =~ ^[0-9]+([.][0-9]+)*$ ]]; then
   echo "backup metadata was invalid" >&2
   exit 1
 fi
@@ -71,7 +82,7 @@ fi
 dump_sha256=$(sha256sum "$dump_partial" | awk '{print $1}')
 dump_byte_length=$(stat -c '%s' -- "$dump_partial")
 manifest_partial=$(mktemp "$backup_dir/.zplit-${timestamp}.XXXXXX.partial")
-printf '%s\n' "{\"formatVersion\":1,\"createdAt\":\"$created_at\",\"gitCommit\":\"$git_commit\",\"postgresqlServerVersion\":\"$postgres_version\",\"dumpSha256\":\"$dump_sha256\",\"dumpByteLength\":$dump_byte_length,\"dumpFilename\":\"$dump_filename\"}" > "$manifest_partial"
+printf '%s\n' "{\"formatVersion\":1,\"createdAt\":\"$created_at\",\"gitCommit\":\"$database_schema_commit\",\"postgresqlServerVersion\":\"$postgres_version\",\"dumpSha256\":\"$dump_sha256\",\"dumpByteLength\":$dump_byte_length,\"dumpFilename\":\"$dump_filename\"}" > "$manifest_partial"
 chmod 600 "$dump_partial" "$manifest_partial"
 ln -- "$dump_partial" "$dump_path"
 dump_final_created=1

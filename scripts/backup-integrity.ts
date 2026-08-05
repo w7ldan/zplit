@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
@@ -29,6 +30,118 @@ export type BackupManifest = {
   dumpFilename: string;
 };
 
+export type ExpectedMigration = {
+  idx: number;
+  tag: string;
+  when: number;
+  hash: string;
+};
+
+const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
+const MIGRATION_TAG_PATTERN = /^\d+_[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function gitText(args: readonly string[]) {
+  return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+}
+
+function gitBytes(args: readonly string[]) {
+  return execFileSync("git", args, { stdio: ["ignore", "pipe", "pipe"] });
+}
+
+export function validateGitCommit(commit: string) {
+  if (!COMMIT_PATTERN.test(commit)) throw new Error("invalid migration history commit");
+  try {
+    execFileSync("git", ["cat-file", "-e", `${commit}^{commit}`], { stdio: "ignore" });
+  } catch {
+    throw new Error("migration history commit does not exist locally");
+  }
+  return commit;
+}
+
+function safeTimestamp(value: unknown) {
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : undefined;
+}
+
+export function deriveExpectedMigrations(journal: unknown, sqlFiles: ReadonlyMap<string, string>): ExpectedMigration[] {
+  if (!isRecord(journal) || journal.dialect !== "postgresql" || !Array.isArray(journal.entries)) {
+    throw new Error("invalid PostgreSQL migration journal");
+  }
+
+  const tags = new Set<string>();
+  const rawEntries = journal.entries as unknown[];
+  const entries = rawEntries.map((entry, index) => {
+    if (!isRecord(entry) || entry.idx !== index || typeof entry.tag !== "string" || !MIGRATION_TAG_PATTERN.test(entry.tag) || tags.has(entry.tag)) {
+      throw new Error("invalid migration journal entry");
+    }
+    const when = safeTimestamp(entry.when);
+    const previousEntry = rawEntries[index - 1];
+    const previousWhen = index > 0 && isRecord(previousEntry) ? safeTimestamp(previousEntry.when) : undefined;
+    if (when === undefined || (index > 0 && (previousWhen === undefined || when <= previousWhen))) {
+      throw new Error("migration journal timestamps must be safe and strictly increasing");
+    }
+    tags.add(entry.tag);
+    return { idx: index, tag: entry.tag, when };
+  });
+
+  for (const tag of sqlFiles.keys()) {
+    if (MIGRATION_TAG_PATTERN.test(tag) && !tags.has(tag)) throw new Error("numbered SQL migration is missing from the journal");
+  }
+
+  return entries.map((entry) => {
+    const sql = sqlFiles.get(entry.tag);
+    if (sql === undefined) throw new Error(`migration SQL file is missing: ${entry.tag}`);
+    return { ...entry, hash: createHash("sha256").update(sql).digest("hex") };
+  });
+}
+
+export function loadExpectedMigrations(commit: string): ExpectedMigration[] {
+  validateGitCommit(commit);
+  let journal: unknown;
+  try {
+    journal = JSON.parse(gitText(["show", `${commit}:drizzle/meta/_journal.json`]));
+  } catch {
+    throw new Error("migration journal is missing or malformed");
+  }
+
+  const sqlFiles = new Map<string, string>();
+  const paths = gitText(["ls-tree", "-r", "--name-only", commit, "drizzle"]).split("\n").filter(Boolean);
+  for (const filePath of paths) {
+    const match = /^drizzle\/([^/]+)\.sql$/.exec(filePath);
+    if (!match || !MIGRATION_TAG_PATTERN.test(match[1])) continue;
+    if (sqlFiles.has(match[1])) throw new Error(`duplicate migration SQL file: ${match[1]}`);
+    sqlFiles.set(match[1], gitBytes(["show", `${commit}:${filePath}`]).toString());
+  }
+  return deriveExpectedMigrations(journal, sqlFiles);
+}
+
+function safeDatabaseInteger(value: unknown) {
+  if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+  if (typeof value === "string" && /^-?\d+$/.test(value)) {
+    const parsed = Number(value);
+    if (Number.isSafeInteger(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+export function assertMigrationHistory(rows: readonly unknown[], expected: readonly ExpectedMigration[]) {
+  if (rows.length !== expected.length) throw new Error("migration history row count mismatch");
+  rows.forEach((row, index) => {
+    if (!isRecord(row) || row.id === null || row.hash === null || row.created_at === null || typeof row.hash !== "string" || !/^[0-9a-f]{64}$/.test(row.hash)) {
+      throw new Error("malformed migration history row");
+    }
+    const id = safeDatabaseInteger(row.id);
+    const createdAt = safeDatabaseInteger(row.created_at);
+    const migration = expected[index];
+    if (id === undefined || createdAt === undefined || id !== index + 1 || !migration || migration.hash !== row.hash || migration.when !== createdAt) {
+      throw new Error("migration history mismatch");
+    }
+  });
+}
+
 export function parseBackupManifest(source: string, expectedFilename?: string): BackupManifest {
   const value: unknown = JSON.parse(source);
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid backup manifest");
@@ -49,10 +162,6 @@ export function parseBackupManifest(source: string, expectedFilename?: string): 
 type IntegrityCheck = { name: string; sql: string };
 
 export const INTEGRITY_CHECKS: readonly IntegrityCheck[] = [
-  {
-    name: "migration journal",
-    sql: "SELECT CASE WHEN to_regclass('drizzle.__drizzle_migrations') IS NOT NULL AND (SELECT count(*) FROM drizzle.__drizzle_migrations) = 8 THEN 0 ELSE 1 END AS violations",
-  },
   {
     name: "expected tables",
     sql: `SELECT count(*)::int AS violations
@@ -129,6 +238,7 @@ export function assertNoViolations(value: unknown) {
 
 export async function runBackupIntegrity() {
   if (process.env.DB_NAME?.trim() !== "zplit_restore_test") throw new Error("DB_NAME must be zplit_restore_test");
+  const expectedMigrations = loadExpectedMigrations(requiredEnv("ZPLIT_BACKUP_GIT_COMMIT"));
   const pool = new Pool({
     host: requiredEnv("DB_HOST"),
     port: Number(process.env.DB_PORT?.trim() || "5432"),
@@ -139,6 +249,10 @@ export async function runBackupIntegrity() {
   });
   const client = await pool.connect();
   try {
+    const migrationTable = await client.query<{ migration_table: string | null }>("SELECT to_regclass('drizzle.__drizzle_migrations') AS migration_table");
+    if (!migrationTable.rows[0]?.migration_table) throw new Error("migration journal table is missing");
+    const migrationRows = await client.query("SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY id");
+    assertMigrationHistory(migrationRows.rows, expectedMigrations);
     for (const check of INTEGRITY_CHECKS) {
       const result = await client.query<{ violations: number | string }>(check.sql);
       assertNoViolations(result.rows[0]?.violations);
@@ -162,8 +276,26 @@ export async function runBackupIntegrity() {
   }
 }
 
+async function readStdin() {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function runJournalStdinCheck() {
+  const source = (await readStdin()).trim();
+  const rows = source ? source.split("\n").map((line) => {
+    const [id, hash, created_at] = line.split("\t");
+    if (created_at === undefined) throw new Error("malformed migration journal input");
+    return { id, hash, created_at };
+  }) : [];
+  assertMigrationHistory(rows, loadExpectedMigrations(requiredEnv("ZPLIT_BACKUP_GIT_COMMIT")));
+  console.log("migration history passed");
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  void runBackupIntegrity().catch(() => {
+  const action = process.argv[2] === "--check-journal-stdin" ? runJournalStdinCheck : runBackupIntegrity;
+  void action().catch(() => {
     console.error("backup integrity failed");
     process.exitCode = 1;
   });

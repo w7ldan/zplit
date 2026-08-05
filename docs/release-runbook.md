@@ -14,6 +14,7 @@ cd /home/ubuntu/zplit
 : "${ZPLIT_PREVIOUS_COMMIT:?set the exact currently deployed commit from the prior deployment record}"
 release_commit="$ZPLIT_RELEASE_COMMIT"
 previous_commit="$ZPLIT_PREVIOUS_COMMIT"
+database_schema_commit=
 [[ "$release_commit" =~ ^[0-9a-f]{40}$ ]]
 [[ "$previous_commit" =~ ^[0-9a-f]{40}$ ]]
 git cat-file -e "${release_commit}^{commit}"
@@ -62,6 +63,42 @@ printf '%s\n' "$production_headers" | grep -Eiq '^server:[[:space:]]*cloudflare[
 printf '%s\n' "$production_headers" | grep -Eiq '^cf-ray:'
 getent ahosts idr.wildan.lol | awk '{print $1}' | sort -u
 ```
+
+## Database schema identity
+
+Do not infer the database schema commit from `HEAD`. Read the live production
+rows from `drizzle.__drizzle_migrations` as `id`, `hash`, and `created_at`,
+ordered by `id`, and compare that complete sequence with both explicit commit
+histories. `scripts/backup-integrity.ts --check-journal-stdin` uses the
+installed Drizzle `0.45.2` file reader and hash algorithm; it does not use the
+current worktree migration journal:
+
+```sh
+live_journal=$(docker compose -f compose.yml exec -T postgres sh -c \
+  'PGPASSWORD="$(cat /run/secrets/postgres_password)" psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --tuples-only --no-align --quiet --set=ON_ERROR_STOP=1 --field-separator="$(printf "\\t")" -c "SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY id"')
+matches_previous=no
+matches_release=no
+if printf '%s\n' "$live_journal" | ZPLIT_BACKUP_GIT_COMMIT="$previous_commit" ./node_modules/.bin/tsx scripts/backup-integrity.ts --check-journal-stdin; then
+  matches_previous=yes
+fi
+if printf '%s\n' "$live_journal" | ZPLIT_BACKUP_GIT_COMMIT="$release_commit" ./node_modules/.bin/tsx scripts/backup-integrity.ts --check-journal-stdin; then
+  matches_release=yes
+fi
+if [[ "$matches_previous" = yes ]]; then
+  database_schema_commit="$previous_commit"
+elif [[ "$matches_release" = yes ]]; then
+  database_schema_commit="$release_commit"
+else
+  echo "live migration history matches neither release commit" >&2
+  exit 1
+fi
+```
+
+Record `database_schema_commit` separately from `previous_commit` and
+`release_commit`. If the live journal matches the release history,
+migration `0009` is already applied; retain the idempotent migrator run as a
+verification and do not describe it as newly applied. If it matches only the
+previous history, migration `0009` is pending and the migrator applies it.
 
 ## Capture and persistent Caddy source
 
@@ -147,6 +184,7 @@ if [[ -n "${ZPLIT_PREVIOUS_STATE_FILE:-}" ]]; then
   # This file is generated below and contains paths/IDs only, never secrets.
   current_release_commit="$release_commit"
   current_previous_commit="$previous_commit"
+  current_database_schema_commit="$database_schema_commit"
   current_previous_image_id="$previous_image_id"
   current_previous_image_name="$previous_image_name"
   current_rollback_image_tag="$rollback_image_tag"
@@ -159,11 +197,13 @@ if [[ -n "${ZPLIT_PREVIOUS_STATE_FILE:-}" ]]; then
   current_caddy_container_start="$caddy_container_start"
   . "$supplied_previous_state_file"
   recorded_release_commit="$release_commit"
+  recorded_database_schema_commit="${database_schema_commit:-}"
   recorded_backup_restoration_verified="${backup_restoration_verified:-no}"
   recorded_backup_dump_path="${backup_dump_path:-}"
   recorded_backup_manifest_path="${backup_manifest_path:-}"
   release_commit="$current_release_commit"
   previous_commit="$current_previous_commit"
+  database_schema_commit="$current_database_schema_commit"
   previous_image_id="$current_previous_image_id"
   previous_image_name="$current_previous_image_name"
   rollback_image_tag="$current_rollback_image_tag"
@@ -175,20 +215,21 @@ if [[ -n "${ZPLIT_PREVIOUS_STATE_FILE:-}" ]]; then
   caddy_container="$current_caddy_container"
   caddy_container_start="$current_caddy_container_start"
   test "$recorded_release_commit" = "$previous_commit"
+  test "$recorded_database_schema_commit" = "$database_schema_commit"
   test "$recorded_backup_restoration_verified" = yes
   test -f "$recorded_backup_dump_path" && test ! -L "$recorded_backup_dump_path"
   test -f "$recorded_backup_manifest_path" && test ! -L "$recorded_backup_manifest_path"
-  node --input-type=module - "$recorded_backup_manifest_path" "$previous_commit" <<'NODE'
-const [manifestPath, previousCommit] = process.argv.slice(2);
+node --input-type=module - "$recorded_backup_manifest_path" "$database_schema_commit" <<'NODE'
+const [manifestPath, expectedCommit] = process.argv.slice(2);
 const manifest = JSON.parse(await import("node:fs/promises").then(({ readFile }) => readFile(manifestPath, "utf8")));
-if (manifest.gitCommit !== previousCommit) process.exit(1);
+if (manifest.gitCommit !== expectedCommit) process.exit(1);
 NODE
   dump_path="$recorded_backup_dump_path"
   manifest_path="$recorded_backup_manifest_path"
 fi
 if [[ -z "$dump_path" ]]; then
   backup_dir="${ZPLIT_BACKUP_DIRECTORY:?set an absolute secure backup directory}"
-  ./scripts/create-backup.sh "$backup_dir"
+  ZPLIT_BACKUP_GIT_COMMIT="$database_schema_commit" ./scripts/create-backup.sh "$backup_dir"
   dump_path=$(find "$backup_dir" -maxdepth 1 -type f -name 'zplit-*.dump' -print -quit)
   test -n "$dump_path"
   manifest_path="${dump_path%.dump}.json"
@@ -209,6 +250,7 @@ write_release_state() {
   printf '%s\n' \
     "release_commit=$(printf '%q' "$release_commit")" \
     "previous_commit=$(printf '%q' "$previous_commit")" \
+    "database_schema_commit=$(printf '%q' "$database_schema_commit")" \
     "previous_image_id=$(printf '%q' "$previous_image_id")" \
     "previous_image_name=$(printf '%q' "$previous_image_name")" \
     "newly_built_image_id=$(printf '%q' "$newly_built_image_id")" \
@@ -233,7 +275,7 @@ write_release_state
 
 ## Production deployment
 
-Build the reviewed web image once and run the existing migrator once. Migration `0009_cascade_confirmed_ledger_deletions` changes only the two foreign-key delete actions and performs no data rewrite. Backup verification is mandatory before migration; ordinary application rollback does not restore the database.
+Build the reviewed web image once and run the existing migrator once. Migration `0009_cascade_confirmed_ledger_deletions` changes only the two foreign-key delete actions and performs no data rewrite. Backup verification is mandatory before migration; ordinary application rollback does not restore the database. Before running it, record whether `database_schema_commit` matches `release_commit`: that means `0009` was already applied and the migrator is an idempotent verification; otherwise `0009` is pending.
 
 ```sh
 docker compose -f compose.yml build web
