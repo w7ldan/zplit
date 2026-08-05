@@ -18,7 +18,9 @@ describe("/app/repayments", () => {
     mocks.createLedgerRepository.mockReturnValue({ listRepayments: vi.fn().mockResolvedValue([repayment]), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
     render(await RepaymentsPage());
 
-    expect(screen.getByRole("heading", { level: 1, name: "Money received, recorded." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Repayments" })).toBeInTheDocument();
+    expect(screen.getByText("Repayments · money returned")).toBeInTheDocument();
+    expect(screen.getByText("Record money received and apply it to outstanding expense shares.")).toBeInTheDocument();
     expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add repayment" })).toHaveAttribute("href", "/app/repayments?create=1");
     expect(screen.queryByLabelText("Amount in rupiah")).not.toBeInTheDocument();

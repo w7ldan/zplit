@@ -15,6 +15,7 @@ describe("FriendShareLink", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Create balance link" }).closest("form")!);
     await waitFor(() => expect(createAction).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.getByLabelText("Temporary balance link")).toHaveValue(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`));
+    expect(document.querySelectorAll(".friend-share__result")).toHaveLength(1);
     expect(screen.getByText("Save or send this link now. Zplit cannot recover it later.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("/share/")));

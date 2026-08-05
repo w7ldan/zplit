@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 import { TaskPanel } from "./task-panel";
@@ -15,6 +15,7 @@ vi.mock("next/navigation", () => ({
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
   window.history.replaceState({}, "", "/");
 });
 
@@ -48,6 +49,10 @@ describe("TaskPanel", () => {
     const dialog = screen.getByRole("dialog");
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
 
+    expect(dialog).toHaveClass("task-panel--closing");
+    expect((dialog as HTMLDialogElement).open).toBe(true);
+    expect(mocks.replace).not.toHaveBeenCalled();
+    fireEvent.transitionEnd(dialog);
     expect((dialog as HTMLDialogElement).open).toBe(false);
     expect(screen.getByRole("link", { name: "Add friend" })).toHaveFocus();
     expect(mocks.replace).toHaveBeenCalledWith("/", { scroll: false });
@@ -64,6 +69,7 @@ describe("TaskPanel", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+    fireEvent.transitionEnd(screen.getByRole("dialog"));
 
     expect(secondTrigger).toHaveFocus();
   });
@@ -75,6 +81,7 @@ describe("TaskPanel", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+    fireEvent.transitionEnd(screen.getByRole("dialog"));
     expect(mocks.replace).toHaveBeenCalledWith("/app/friends?q=alice#top", { scroll: false });
 
     view.rerender(<Wrapper open={false} />);
@@ -88,6 +95,7 @@ describe("TaskPanel", () => {
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
     const dialog = screen.getByRole("dialog");
     fireEvent(dialog, new Event("cancel", { bubbles: true, cancelable: true }));
+    fireEvent.transitionEnd(dialog);
     expect((dialog as HTMLDialogElement).open).toBe(false);
 
     view.rerender(panel(false));
@@ -95,6 +103,31 @@ describe("TaskPanel", () => {
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
     const backdropDialog = screen.getByRole("dialog");
     fireEvent.click(backdropDialog);
+    fireEvent.transitionEnd(backdropDialog);
     expect((backdropDialog as HTMLDialogElement).open).toBe(false);
+  });
+
+  it("ignores duplicate close requests and finalizes through the bounded fallback", async () => {
+    vi.useFakeTimers();
+    render(panel());
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+
+    expect(mocks.replace).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(260));
+    expect((dialog as HTMLDialogElement).open).toBe(false);
+    expect(mocks.replace).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+
+  it("finalizes on the next frame without spatial motion when reduced motion is requested", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === "(prefers-reduced-motion: reduce)" }));
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(1); return 1; });
+    render(panel());
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+    expect((dialog as HTMLDialogElement).open).toBe(false);
+    expect(mocks.replace).toHaveBeenCalledOnce();
   });
 });

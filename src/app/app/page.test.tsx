@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import AppPage from "./page";
 
@@ -34,13 +34,21 @@ describe("/app overview", () => {
 
     render(await AppPage());
 
-    expect(screen.getByRole("heading", { level: 1, name: "What is still open?" })).toBeInTheDocument();
-    for (const label of ["Outstanding", "Assigned", "Repaid", "Received", "Unallocated", "Your portion", "Paid out", "Friend balances", "Recent activity"]) {
+    expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
+    expect(screen.getByText("Overview · your balances")).toBeInTheDocument();
+    expect(screen.getByText("See what friends still owe, what needs allocation, and your latest activity.")).toBeInTheDocument();
+    const primary = document.querySelector<HTMLElement>(".overview-summary")!;
+    expect(primary.querySelectorAll("strong")).toHaveLength(3);
+    for (const label of ["Still owed to you", "Needs allocation", "Total spending"]) {
+      expect(within(primary).getByText(label, { exact: true })).toBeInTheDocument();
+    }
+    expect(screen.getByText("Ledger totals")).toBeInTheDocument();
+    for (const label of ["Assigned", "Repaid", "Received", "Your portion", "Friend balances", "Recent activity"]) {
       expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
     }
     expect(screen.getByText("Rp 4.000")).toBeInTheDocument();
     expect(screen.getAllByText("Ari").length).toBeGreaterThan(0);
-    expect(screen.getByText("Needs allocation.")).toBeInTheDocument();
+    expect(screen.getByText("Received money still needs an expense.")).toBeInTheDocument();
     expect(screen.getByText(/received remains unallocated/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Dinner/ })).toHaveAttribute("href", "/app/expenses/expense-a");
     expect(document.body).not.toHaveTextContent(/chart|dashboard|percentage/i);

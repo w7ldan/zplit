@@ -58,9 +58,9 @@ export default async function FriendsPage({ searchParams = Promise.resolve({}) }
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
-            <p className="technical-label">Friends · owner records</p>
-            <h1>People in your ledger.</h1>
-            <p className="app-page__lede">Find the people connected to your shared records and see what remains open.</p>
+            <p className="technical-label">Friends · people you split with</p>
+            <h1>Friends</h1>
+            <p className="app-page__lede">Find people connected to your shared expenses and review what remains open.</p>
           </div>
           <Link className="action-link action-link--primary" href="/app/friends?create=1" data-task-trigger="friend-create">Add friend</Link>
         </div>

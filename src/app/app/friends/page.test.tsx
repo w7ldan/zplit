@@ -17,7 +17,10 @@ describe("/app/friends", () => {
     mocks.createLedgerRepository.mockReturnValue({ listFriends: vi.fn().mockResolvedValue([friend]), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
     render(await FriendsPage({ searchParams: Promise.resolve({ view: "active", q: "Ada" }) }));
 
-    expect(screen.getByRole("heading", { level: 1, name: "People in your ledger." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Friends" })).toBeInTheDocument();
+    expect(screen.getByText("Friends · people you split with")).toBeInTheDocument();
+    expect(screen.getByText("Find people connected to your shared expenses and review what remains open.")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/owner records|owner-scoped ledger|chronological ledger/);
     expect(screen.getByLabelText("Search friends")).toHaveValue("Ada");
     expect(screen.getByText("Rp 64.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?create=1");

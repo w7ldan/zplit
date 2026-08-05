@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RecordConfirmation } from "./record-confirmation";
 
@@ -19,6 +19,7 @@ describe("RecordConfirmation", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
     window.history.replaceState({}, "", "/");
   });
@@ -30,18 +31,29 @@ describe("RecordConfirmation", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Friend added.");
   });
 
-  it("hides after four seconds and clears its timer on unmount", () => {
+  it("exits after four seconds, unmounts after the transition, and clears timers", () => {
     const view = render(<RecordConfirmation queryKey="created" message="Friend added." />);
     const status = screen.getByRole("status");
 
     act(() => vi.advanceTimersByTime(3999));
     expect(status).toBeVisible();
     act(() => vi.advanceTimersByTime(1));
-    expect(status).toHaveClass("record-confirmation--hidden");
-    expect(status).toHaveAttribute("aria-hidden", "true");
+    expect(status).toHaveClass("record-confirmation--exiting");
+    expect(status).toHaveTextContent("Friend added.");
+    fireEvent.transitionEnd(status);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
 
     view.unmount();
     act(() => vi.advanceTimersByTime(4000));
     expect(mocks.replace).toHaveBeenCalledOnce();
+  });
+
+  it("uses the immediate reduced-motion exit", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === "(prefers-reduced-motion: reduce)" }));
+    render(<RecordConfirmation queryKey="created" message="Friend added." />);
+
+    act(() => vi.advanceTimersByTime(4000));
+    act(() => vi.advanceTimersByTime(0));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

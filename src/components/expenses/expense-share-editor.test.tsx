@@ -17,6 +17,9 @@ describe("expense share editor", () => {
     expect(screen.getByText("Rp 60.000")).toBeInTheDocument();
     expect(screen.getByText("Rp 24.000")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Expense allocation" })).toHaveAttribute("aria-valuenow", "60000");
+    const fill = document.querySelector(".allocation-bar__fill") as HTMLElement;
+    expect(fill.style.transform).toBe("scaleX(0.7142857142857143)");
+    expect(fill.style.width).toBe("");
     expect(screen.getByLabelText("Rani")).toHaveAttribute("inputmode", "numeric");
     expect(screen.getByLabelText("Rani")).toHaveAttribute("aria-describedby", expect.stringContaining("help"));
     expect(document.body).not.toHaveTextContent(/pill|status dot/);
@@ -29,6 +32,7 @@ describe("expense share editor", () => {
 
     expect(screen.getAllByText("Rp 0").length).toBeGreaterThan(0);
     expect(screen.getByText("Over-allocated by Rp 84.000.")).toBeInTheDocument();
+    expect((document.querySelector(".allocation-bar__fill") as HTMLElement).style.transform).toBe("scaleX(1)");
     expect(document.body).not.toHaveTextContent(/-Rp|-\d/);
   });
 

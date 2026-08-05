@@ -34,9 +34,9 @@ export default async function OutingsPage({ searchParams = Promise.resolve({}) }
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
-            <p className="technical-label">Outings · shared moments</p>
-            <h1>Shared moments, clearly recorded.</h1>
-            <p className="app-page__lede">Name and date the event first; its expenses stay together underneath.</p>
+            <p className="technical-label">Outings · shared events</p>
+            <h1>Outings</h1>
+            <p className="app-page__lede">Keep related expenses together under the event where they happened.</p>
           </div>
           <Link className="action-link action-link--primary" href="/app/outings?create=1" data-task-trigger="outing-create">Add outing</Link>
         </div>

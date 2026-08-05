@@ -16,17 +16,41 @@ function useOptionalRouter() {
   }
 }
 
+type ConfirmationPhase = "entering" | "visible" | "exiting" | "unmounted";
+
+const confirmationExitMs = 220;
+
 export function RecordConfirmation({ queryKey, message }: RecordConfirmationProps) {
   const router = useOptionalRouter();
-  const [visible, setVisible] = useState(true);
+  const [phase, setPhase] = useState<ConfirmationPhase>("entering");
 
   useEffect(() => {
     const url = new URL(window.location.href);
     url.searchParams.delete(queryKey);
     router?.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
-    const timer = window.setTimeout(() => setVisible(false), 4000);
-    return () => window.clearTimeout(timer);
+    const enterTimer = window.setTimeout(() => setPhase("visible"), 0);
+    const visibleTimer = window.setTimeout(() => setPhase("exiting"), 4000);
+    return () => {
+      window.clearTimeout(enterTimer);
+      window.clearTimeout(visibleTimer);
+    };
   }, [queryKey, router]);
 
-  return <p className={visible ? "record-confirmation" : "record-confirmation record-confirmation--hidden"} role="status" aria-live="polite" aria-hidden={visible ? undefined : true}>{visible ? message : null}</p>;
+  useEffect(() => {
+    if (phase !== "exiting") return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const exitTimer = window.setTimeout(() => setPhase("unmounted"), reduced ? 0 : confirmationExitMs + 40);
+    return () => window.clearTimeout(exitTimer);
+  }, [phase]);
+
+  if (phase === "unmounted") return null;
+
+  return <p
+    className={`record-confirmation record-confirmation--${phase}`}
+    role="status"
+    aria-live="polite"
+    onTransitionEnd={(event) => {
+      if (phase === "exiting" && event.target === event.currentTarget) setPhase("unmounted");
+    }}
+  >{message}</p>;
 }

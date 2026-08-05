@@ -39,13 +39,15 @@ Use the dependency-free system grotesk stack: Arial, Helvetica Neue, Helvetica, 
 
 Public composition uses a disciplined grid, thin rules, warm paper, surface white, pastel blue, and moderate tactile geometry. Controls use `10–12px` radii and practical 44px minimum targets. Focused product frames and task panels use `14–16px` radii. Ledger rows stay open and rule-based rather than becoming card mosaics.
 
-The public mode is spacious enough to explain the product but keeps the hero action and product object visible in the first viewport. The authenticated mode is compact, surface-white, and task-first. These are separate density modes, not competing page templates.
+The public mode is spacious enough to explain the product but keeps the hero action and product object visible in the first viewport. Public pages may use expressive editorial scale; authenticated list pages prioritize task density. The authenticated mode is compact, surface-white, and task-first. These are separate density modes, not competing page templates.
 
 ## Motion
 
 Public motion uses one short non-blocking opening fade, restrained bottom-to-top text reveals, interaction feedback, and the wide-screen journey’s scroll-linked panel movement. Utility timing is `100–220ms`; layout and state timing is `220–360ms`; public reveal is `500–750ms`; journey transitions stay below `900ms`. Content is rendered immediately, there are no fake loaders, scroll hijacks, perpetual animations, or routine text scrambling. Navigation may become a detached surface after a small scroll threshold, using one restrained shadow for separation.
 
 Authenticated motion is denser and spends approximately 80% on state feedback, 17% on orientation and continuity, and 3% on delight. It is limited to active navigation, task panels, small row insertion, changed values, allocation bars, affected records, and concise save confirmation. Authenticated pages do not use cinematic heading reveals or decorative background motion.
+
+Motion communicates insertion, completion, state change, or spatial entry/exit. Frequent financial inputs remain immediate. Reduced motion removes spatial effects while preserving useful state and visibility feedback.
 
 Under `prefers-reduced-motion: reduce`, remove translation, scaling, clipping travel, staged sequences, and movement of values. Preserve immediate state changes, short opacity feedback where useful, keyboard focus, and full journey operation.
 

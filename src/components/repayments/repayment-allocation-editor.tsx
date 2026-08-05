@@ -58,6 +58,7 @@ export function RepaymentAllocationEditor({ action, plan }: RepaymentAllocationE
   const allocatedAmount = plan.shares.reduce((total, share) => total + (parseRupiah(draftAmounts[share.expenseShareId] ?? "") ?? 0), 0);
   const overAllocated = allocatedAmount > plan.amount;
   const unallocatedAmount = Math.max(plan.amount - allocatedAmount, 0);
+  const allocationProgress = plan.amount > 0 ? Math.min(Math.max(allocatedAmount / plan.amount, 0), 1) : 0;
 
   return (
     <div className="repayment-allocation-editor">
@@ -69,7 +70,7 @@ export function RepaymentAllocationEditor({ action, plan }: RepaymentAllocationE
         <div><span className="technical-label">Unallocated</span><strong>{formatRupiah(unallocatedAmount)}</strong></div>
       </div>
       <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Repayment allocation progress" role="progressbar" aria-valuemin={0} aria-valuemax={plan.amount} aria-valuenow={Math.min(allocatedAmount, plan.amount)}>
-        <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ width: `${Math.min((allocatedAmount / plan.amount) * 100, 100)}%` }} /></span>
+        <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>
         <span>{overAllocated ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.` : `${formatRupiah(unallocatedAmount)} remains unallocated.`}</span>
       </div>
       <form className="repayment-allocation-editor__form" action={formAction} noValidate>

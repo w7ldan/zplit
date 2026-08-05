@@ -6,6 +6,8 @@ const css = readFileSync(path.resolve(process.cwd(), "src/app/globals.css"), "ut
 const documentation = readFileSync(path.resolve(process.cwd(), "docs/design-system.md"), "utf8");
 const taskPanelSource = readFileSync(path.resolve(process.cwd(), "src/components/app/task-panel.tsx"), "utf8");
 const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/components/app/record-confirmation.tsx"), "utf8");
+const expenseShareSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-share-editor.tsx"), "utf8");
+const repaymentAllocationSource = readFileSync(path.resolve(process.cwd(), "src/components/repayments/repayment-allocation-editor.tsx"), "utf8");
 
 function cssBraceDepth(source: string) {
   let depth = 0;
@@ -71,6 +73,11 @@ describe("Zplit design contract", () => {
     expect(documentation).toContain("separate density modes");
     expect(documentation).toContain("80% on state feedback");
     expect(documentation).toContain("prefers-reduced-motion: reduce");
+    expect(documentation).toContain("expressive editorial scale");
+    expect(documentation).toContain("prioritize task density");
+    expect(documentation).toContain("Motion communicates insertion, completion, state change, or spatial entry/exit");
+    expect(documentation).toContain("Frequent financial inputs remain immediate");
+    expect(documentation).toContain("Reduced motion removes spatial effects");
   });
 
   it("keeps prohibited visual patterns out of the authenticated contract", () => {
@@ -124,14 +131,37 @@ describe("Zplit design contract", () => {
 
   it("keeps the authenticated desktop header in one centered three-region grid", () => {
     expect(css).toMatch(/\.app-shell__header-layout\s*\{[\s\S]*?padding:\s*0\.75rem 1rem;/);
-    expect(css).toMatch(/\.app-shell__header-layout--detached\s*\{[\s\S]*?width:\s*min\(calc\(100% - 2rem\), 72rem\);[\s\S]*?max-width:\s*72rem;/);
-    expect(css).not.toMatch(/\.app-shell__header-layout--detached\s*\{[^}]*padding/);
-    expect(css).toMatch(/@media \(min-width: 768px\)\s*\{[\s\S]*?\.app-shell__header-layout\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\);/);
+    expect(css).toMatch(/\.app-shell__header-layout\s*\{[\s\S]*?width:\s*min\(calc\(100% - 2rem\), 72rem\);[\s\S]*?max-width:\s*72rem;[\s\S]*?border-radius:\s*var\(--radius-panel\);/);
+    expect(css).toMatch(/@media \(min-width: 1024px\)\s*\{[\s\S]*?\.app-shell__header-layout\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\);/);
     expect(css).toMatch(/\.app-shell__brand\s*\{[\s\S]*?grid-column:\s*1;[\s\S]*?justify-self:\s*start;[\s\S]*?min-width:\s*0;/);
     expect(css).toMatch(/\.app-shell__nav\s*\{[\s\S]*?grid-column:\s*2;[\s\S]*?justify-self:\s*center;[\s\S]*?width:\s*max-content;/);
     expect(css).toMatch(/\.app-shell__actions\s*\{[\s\S]*?display:\s*flex;[\s\S]*?grid-column:\s*3;[\s\S]*?justify-self:\s*end;[\s\S]*?align-items:\s*center;[\s\S]*?gap:\s*0\.75rem;[\s\S]*?width:\s*max-content;/);
     expect(css).not.toMatch(/\.app-shell__nav\s*\{[^}]*flex:\s*1/);
+    expect(css).toMatch(/\.app-shell__header-layout--detached\s*\{[^}]*border-color:\s*var\(--rule\);[^}]*background:\s*var\(--surface\);[^}]*box-shadow:/);
+    expect(css).not.toMatch(/\.app-shell__header-layout--detached\s*\{[^}]*\b(?:width|max-width|transform|border-radius|padding|margin)/);
+    expect(css).toMatch(/@media \(max-width: 1023px\)\s*\{[\s\S]*?\.app-shell__mobile-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
     expect(css).toContain(".site-header--detached {\n  width: min(calc(100% - 2rem), 72rem);");
+  });
+
+  it("keeps the requested bounded motion primitives consistent", () => {
+    expect(css).toContain("animation: row-in var(--motion-layout) var(--ease-product) both;");
+    expect(css).not.toContain("row-insert");
+    expect(css).toContain("@keyframes row-in {");
+    expect(css).toContain("@keyframes result-in {");
+    expect(css).toContain(".invite-form__result {");
+    expect(css).toContain(".friend-share__result {");
+    expect(css).toContain("transform-origin: left center;");
+    expect(css).toContain("transition: transform var(--motion-state) var(--ease-product), background-color var(--motion-state) var(--ease-product);");
+    expect(expenseShareSource).toContain("style={{ transform: `scaleX(${allocationProgress})` }}");
+    expect(repaymentAllocationSource).toContain("style={{ transform: `scaleX(${allocationProgress})` }}");
+    expect(expenseShareSource).not.toContain("style={{ width:");
+    expect(repaymentAllocationSource).not.toContain("style={{ width:");
+    expect(taskPanelSource).toContain("task-panel--closing");
+    expect(taskPanelSource).toContain("onTransitionEnd");
+    expect(taskPanelSource).toContain("onAnimationEnd");
+    expect(recordConfirmationSource).toContain('"entering"');
+    expect(recordConfirmationSource).toContain('"exiting"');
+    expect(recordConfirmationSource).toContain("return null");
   });
 
   it("uses one stable underline mechanism for friend filters", () => {

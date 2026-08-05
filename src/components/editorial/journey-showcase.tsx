@@ -37,7 +37,7 @@ function ProductRow({ label, value, detail }: { label: string; value: string; de
 }
 
 function StepPanel({ step }: { step: number }) {
-  if (step === 0) return <div className="journey-panel__content"><p className="technical-label">Outing record</p><h3>{scenario.outing}</h3><div className="journey-record-meta"><ProductRow label="When" value="Saturday, 12 April 2026" /><ProductRow label="Expenses" value="None yet" detail="Ready for the first row" /></div></div>;
+  if (step === 0) return <div className="journey-panel__content"><p className="technical-label">Outing record</p><h3>{scenario.outing}</h3><div className="journey-record-meta"><ProductRow label="When" value="Sunday, 12 April 2026" /><ProductRow label="Expenses" value="None yet" detail="Ready for the first row" /></div></div>;
   if (step === 1) return <div className="journey-panel__content"><p className="technical-label">Expense rows · {scenario.outing}</p><h3>Two things paid for</h3><div className="journey-list">{scenario.expenses.map((expense) => <ProductRow key={expense.description} label={expense.description} value={formatRupiah(expense.amount)} />)}</div><div className="journey-total"><span>Outing expense total</span><strong><Amount value={expenseTotal} /></strong></div></div>;
   if (step === 2) {
     const allocationStyle = { "--allocation": `${(assignedTotal / expenseTotal) * 100}%` } as CSSProperties;

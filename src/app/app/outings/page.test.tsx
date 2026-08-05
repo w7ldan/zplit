@@ -15,7 +15,9 @@ describe("/app/outings", () => {
     mocks.createLedgerRepository.mockReturnValue({ listOutings: vi.fn().mockResolvedValue([outing]), listExpenses: vi.fn().mockResolvedValue([{ id: "expense-a", outingId: outing.id, amount: 84_000, outingTitle: outing.title, outingOccurredAt: outing.occurredAt }]) });
     render(await OutingsPage());
 
-    expect(screen.getByRole("heading", { level: 1, name: "Shared moments, clearly recorded." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Outings" })).toBeInTheDocument();
+    expect(screen.getByText("Outings · shared events")).toBeInTheDocument();
+    expect(screen.getByText("Keep related expenses together under the event where they happened.")).toBeInTheDocument();
     expect(screen.getByText("1 expense · Rp 84.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", `/app/expenses?create=1&outing=${outing.id}`);
     expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();

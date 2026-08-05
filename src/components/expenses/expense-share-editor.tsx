@@ -64,6 +64,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends }: ExpenseSh
   }, 0);
   const overAllocated = totalOwed > expenseAmount;
   const ownerPortion = Math.max(expenseAmount - totalOwed, 0);
+  const allocationProgress = expenseAmount > 0 ? Math.min(Math.max(totalOwed / expenseAmount, 0), 1) : 0;
 
   return (
     <div className="expense-share-editor">
@@ -75,7 +76,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends }: ExpenseSh
         <div><span className="technical-label">Owner portion</span><strong>{formatRupiah(ownerPortion)}</strong></div>
       </div>
       <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Expense allocation" role="progressbar" aria-valuemin={0} aria-valuemax={expenseAmount} aria-valuenow={Math.min(totalOwed, expenseAmount)}>
-        <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ width: `${Math.min((totalOwed / expenseAmount) * 100, 100)}%` }} /></span>
+        <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>
         <span>{overAllocated ? `Over-allocated by ${formatRupiah(totalOwed - expenseAmount)}.` : `${formatRupiah(ownerPortion)} remains your portion.`}</span>
       </div>
       <form className="expense-share-editor__form" action={formAction} noValidate>

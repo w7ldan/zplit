@@ -24,6 +24,7 @@ describe("InviteForm", () => {
 
     await waitFor(() => expect(action).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.getByLabelText("Temporary invitation link")).toHaveValue("https://zplit.example/join/token"));
+    expect(document.querySelectorAll(".invite-form__result")).toHaveLength(1);
   });
 
   it("shows field errors returned by the action", async () => {

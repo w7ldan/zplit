@@ -39,24 +39,20 @@ export default async function AppPage() {
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
-            <p className="technical-label">Overview · owner-scoped ledger</p>
-            <h1>What is still open?</h1>
-            <p className="app-page__lede">Outstanding is the amount friends still owe after allocated repayments.</p>
+            <p className="technical-label">Overview · your balances</p>
+            <h1>Overview</h1>
+            <p className="app-page__lede">See what friends still owe, what needs allocation, and your latest activity.</p>
           </div>
           <div className="app-page__actions">
             <Link className="action-link action-link--primary" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
             <Link className="action-link action-link--quiet" href="/app/repayments?create=1" data-task-trigger="repayment-create">Record repayment</Link>
           </div>
         </div>
-        <div className="overview-summary" aria-label="Ledger totals">
-          <div className="overview-summary__primary"><span className="technical-label">Outstanding</span><strong>{formatRupiah(summary.totalOutstandingAmount)}</strong><span>Who owes it is below.</span></div>
-          <div><span className="technical-label">Assigned</span><strong>{formatRupiah(summary.totalAssignedAmount)}</strong></div>
-          <div><span className="technical-label">Repaid</span><strong>{formatRupiah(summary.totalRepaidAmount)}</strong></div>
-          <div><span className="technical-label">Received</span><strong>{formatRupiah(summary.totalReceivedAmount)}</strong></div>
-          <div className={summary.totalUnallocatedRepaymentAmount > 0 ? "overview-summary__attention" : undefined}><span className="technical-label">Unallocated</span><strong>{formatRupiah(summary.totalUnallocatedRepaymentAmount)}</strong>{summary.totalUnallocatedRepaymentAmount > 0 ? <span>Needs allocation.</span> : null}</div>
-          <div><span className="technical-label">Your portion</span><strong>{formatRupiah(summary.ownerPortionAmount)}</strong></div>
-          <div><span className="technical-label">Paid out</span><strong>{formatRupiah(summary.totalExpenseAmount)}</strong></div>
-        </div>
+        <section className="overview-summary" aria-label="Primary ledger summary">
+          <div className="overview-summary__primary"><span className="technical-label">Still owed to you</span><strong>{formatRupiah(summary.totalOutstandingAmount)}</strong><span>Open balances across your friends.</span></div>
+          <div className={summary.totalUnallocatedRepaymentAmount > 0 ? "overview-summary__attention" : undefined}><span className="technical-label">Needs allocation</span><strong>{formatRupiah(summary.totalUnallocatedRepaymentAmount)}</strong><span>{summary.totalUnallocatedRepaymentAmount > 0 ? "Received money still needs an expense." : "All received money is assigned."}</span></div>
+          <div><span className="technical-label">Total spending</span><strong>{formatRupiah(summary.totalExpenseAmount)}</strong><span>All expenses recorded in this ledger.</span></div>
+        </section>
 
         <div className="app-page__columns">
           <section className="ledger-section" aria-labelledby="balances-heading">
@@ -81,6 +77,15 @@ export default async function AppPage() {
             ))}
           </section>
         </div>
+        <details className="overview-ledger-totals">
+          <summary>Ledger totals</summary>
+          <div className="overview-ledger-totals__grid">
+            <div><span className="technical-label">Assigned</span><strong>{formatRupiah(summary.totalAssignedAmount)}</strong></div>
+            <div><span className="technical-label">Repaid</span><strong>{formatRupiah(summary.totalRepaidAmount)}</strong></div>
+            <div><span className="technical-label">Received</span><strong>{formatRupiah(summary.totalReceivedAmount)}</strong></div>
+            <div><span className="technical-label">Your portion</span><strong>{formatRupiah(summary.ownerPortionAmount)}</strong></div>
+          </div>
+        </details>
         {summary.totalUnallocatedRepaymentAmount > 0 ? <p className="overview-attention" role="status">{formatRupiah(summary.totalUnallocatedRepaymentAmount)} received remains unallocated. Review repayments to apply it to eligible shares.</p> : null}
       </div>
     </section>

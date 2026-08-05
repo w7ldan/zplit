@@ -29,9 +29,9 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
-            <p className="technical-label">Expenses · chronological ledger</p>
-            <h1>Every amount, accounted for.</h1>
-            <p className="app-page__lede">Record the amount and event clearly, then assign the friends who owe a share.</p>
+            <p className="technical-label">Expenses · money you paid</p>
+            <h1>Expenses</h1>
+            <p className="app-page__lede">Record shared spending and assign the amounts each friend owes.</p>
           </div>
           <Link className="action-link action-link--primary" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
         </div>

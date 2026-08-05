@@ -25,6 +25,7 @@ describe("JourneyShowcase", () => {
     expect(document.querySelectorAll(".journey-panel")).toHaveLength(1);
     expect(document.querySelectorAll(".journey-panel--active")).toHaveLength(1);
     expect(screen.getByText("Bandung day out", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Sunday, 12 April 2026", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("None yet", { exact: true })).toBeInTheDocument();
 
     const frame = document.querySelector(".journey-frame")!;

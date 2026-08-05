@@ -35,9 +35,9 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
-            <p className="technical-label">Repayments · money received</p>
-            <h1>Money received, recorded.</h1>
-            <p className="app-page__lede">Record what arrived from a friend. Only allocated money reduces an outstanding share.</p>
+            <p className="technical-label">Repayments · money returned</p>
+            <h1>Repayments</h1>
+            <p className="app-page__lede">Record money received and apply it to outstanding expense shares.</p>
           </div>
           <Link className="action-link action-link--primary" href="/app/repayments?create=1" data-task-trigger="repayment-create">Add repayment</Link>
         </div>

@@ -16,7 +16,9 @@ describe("/app/expenses", () => {
     mocks.createLedgerRepository.mockReturnValue({ listExpenses: vi.fn().mockResolvedValue([expense]), listOutings: vi.fn().mockResolvedValue([outing]) });
     render(await ExpensesPage());
 
-    expect(screen.getByRole("heading", { level: 1, name: "Every amount, accounted for." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Expenses" })).toBeInTheDocument();
+    expect(screen.getByText("Expenses · money you paid")).toBeInTheDocument();
+    expect(screen.getByText("Record shared spending and assign the amounts each friend owes.")).toBeInTheDocument();
     expect(screen.getByText("Rp 84.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
     expect(screen.queryByLabelText("Amount in rupiah")).not.toBeInTheDocument();
