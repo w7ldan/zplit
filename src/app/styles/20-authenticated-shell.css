@@ -2216,8 +2216,10 @@
   position: sticky;
   z-index: 10;
   top: 0;
-  border-bottom: 1px solid var(--rule);
-  background: var(--surface);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
 }
 
 .app-shell__header-layout {
@@ -2228,21 +2230,16 @@
   width: min(calc(100% - 2rem), 72rem);
   max-width: 72rem;
   padding: 0.75rem 1rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--rule);
   border-radius: var(--radius-panel);
-  background: transparent;
+  background: var(--surface);
   box-sizing: border-box;
+  pointer-events: auto;
   transition: border-color var(--motion-state) var(--ease-product), background-color var(--motion-state) var(--ease-product), box-shadow var(--motion-state) var(--ease-product);
 }
 
 .app-shell__header-layout--detached {
-  border-color: var(--rule);
-  background: var(--surface);
   box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
-}
-
-.app-shell__header--detached {
-  border-bottom-color: transparent;
 }
 
 .app-shell__brand {

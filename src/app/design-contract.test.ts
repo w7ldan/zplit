@@ -175,6 +175,21 @@ describe("Zplit design contract", () => {
   });
 
   it("keeps the authenticated desktop header in one centered three-region grid", () => {
+    const header = cssRuleBody(css, ".app-shell__header");
+    const headerLayout = cssRuleBody(css, ".app-shell__header-layout");
+    const detachedLayout = cssRuleBody(css, ".app-shell__header-layout--detached");
+    expect(header).toContain("position: sticky;");
+    expect(header).toContain("border: 0;");
+    expect(header).toContain("background: transparent;");
+    expect(header).toContain("box-shadow: none;");
+    expect(header).toContain("pointer-events: none;");
+    expect(headerLayout).toContain("border: 1px solid var(--rule);");
+    expect(headerLayout).toContain("background: var(--surface);");
+    expect(headerLayout).toContain("border-radius: var(--radius-panel);");
+    expect(headerLayout).toContain("pointer-events: auto;");
+    expect(detachedLayout).toContain("box-shadow:");
+    expect(detachedLayout).not.toMatch(/background|border-color|width|max-width|transform|border-radius|padding|margin/);
+    expect(css).not.toContain(".app-shell__header--detached {");
     expect(css).toMatch(/\.app-shell__header-layout\s*\{[\s\S]*?padding:\s*0\.75rem 1rem;/);
     expect(css).toMatch(/\.app-shell__header-layout\s*\{[\s\S]*?width:\s*min\(calc\(100% - 2rem\), 72rem\);[\s\S]*?max-width:\s*72rem;[\s\S]*?border-radius:\s*var\(--radius-panel\);/);
     expect(css).toMatch(/@media \(min-width: 1024px\)\s*\{[\s\S]*?\.app-shell__header-layout\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\);/);
@@ -182,7 +197,6 @@ describe("Zplit design contract", () => {
     expect(css).toMatch(/\.app-shell__nav\s*\{[\s\S]*?grid-column:\s*2;[\s\S]*?justify-self:\s*center;[\s\S]*?width:\s*max-content;/);
     expect(css).toMatch(/\.app-shell__actions\s*\{[\s\S]*?display:\s*flex;[\s\S]*?grid-column:\s*3;[\s\S]*?justify-self:\s*end;[\s\S]*?align-items:\s*center;[\s\S]*?gap:\s*0\.75rem;[\s\S]*?width:\s*max-content;/);
     expect(css).not.toMatch(/\.app-shell__nav\s*\{[^}]*flex:\s*1/);
-    expect(css).toMatch(/\.app-shell__header-layout--detached\s*\{[^}]*border-color:\s*var\(--rule\);[^}]*background:\s*var\(--surface\);[^}]*box-shadow:/);
     expect(css).not.toMatch(/\.app-shell__header-layout--detached\s*\{[^}]*\b(?:width|max-width|transform|border-radius|padding|margin)/);
     expect(css).toMatch(/@media \(max-width: 1023px\)\s*\{[\s\S]*?\.app-shell__mobile-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
     expect(css).toContain(".site-header--detached {\n  width: min(calc(100% - 2rem), 72rem);");

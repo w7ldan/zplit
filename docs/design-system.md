@@ -63,6 +63,8 @@ Public motion uses one short non-blocking opening fade, restrained bottom-to-top
 
 Authenticated motion is denser and spends approximately 80% on state feedback, 17% on orientation and continuity, and 3% on delight. It is limited to active navigation, task panels, small row insertion, changed values, allocation bars, affected records, and concise save confirmation. Authenticated pages do not use cinematic heading reveals or decorative background motion.
 
+The authenticated sticky header reserves its document space transparently. Only the centered bordered navbar owns the opaque surface, rounded geometry, pointer interaction, and detached shadow; the wrapper never paints a full-width strip or intercepts content outside the panel.
+
 Motion communicates insertion, completion, state change, or spatial entry/exit. Frequent financial inputs remain immediate. Reduced motion removes spatial effects while preserving useful state and visibility feedback.
 
 Under `prefers-reduced-motion: reduce`, remove translation, scaling, clipping travel, staged sequences, and movement of values. Preserve immediate state changes, short opacity feedback where useful, keyboard focus, and full journey operation.

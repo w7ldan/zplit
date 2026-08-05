@@ -123,4 +123,10 @@ describe("CSS architecture", () => {
     expect(cssBraceDepth(lateOverridesSource)).toBe(0);
     expect(cssBraceDepth(bundle.css)).toBe(0);
   });
+
+  it("keeps authenticated header painting in its owning fragment", () => {
+    expect(lateOverridesSource).not.toMatch(/\.app-shell__header(?:-layout)?\b/);
+    expect(bundle.css).toContain(".app-shell__header {\n");
+    expect(bundle.css).toContain(".app-shell__header-layout--detached {\n");
+  });
 });

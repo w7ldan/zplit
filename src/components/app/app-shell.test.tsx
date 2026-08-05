@@ -51,6 +51,15 @@ describe("AppShell", () => {
     expect(header).toHaveClass("app-shell__header--detached");
   });
 
+  it("keeps the painted panel inside the transparent header wrapper", () => {
+    render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
+    const header = screen.getByRole("banner");
+    const panel = header.querySelector(".app-shell__header-layout");
+    expect(panel).toBeInTheDocument();
+    expect(header).toContainElement(panel);
+    expect(panel).toHaveAttribute("data-detached", "false");
+  });
+
   it("mounts the authenticated header detached after restored scroll", () => {
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frameCallback = callback; return 1; });
     Object.defineProperty(window, "scrollY", { configurable: true, value: 48 });
