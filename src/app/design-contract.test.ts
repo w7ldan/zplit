@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { readCssBundle } from "@/test/read-css-bundle";
 
-const css = readFileSync(path.resolve(process.cwd(), "src/app/globals.css"), "utf8");
+const css = readCssBundle().css;
 const documentation = readFileSync(path.resolve(process.cwd(), "docs/design-system.md"), "utf8");
 const taskPanelSource = readFileSync(path.resolve(process.cwd(), "src/components/app/task-panel.tsx"), "utf8");
 const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/components/app/record-confirmation.tsx"), "utf8");

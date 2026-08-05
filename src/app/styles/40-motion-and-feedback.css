@@ -1,0 +1,368 @@
+
+.task-panel {
+  width: min(34rem, 100vw);
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-panel) 0 0 var(--radius-panel);
+  background: transparent;
+  color: var(--ink);
+  overflow: visible;
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity var(--motion-state) var(--ease-product), transform var(--motion-state) var(--ease-product);
+  animation: panel-in var(--motion-panel) var(--ease-emphasized) both;
+}
+
+.task-panel--closing {
+  opacity: 0;
+  transform: translateX(1.5rem);
+  animation: none;
+}
+
+.task-panel::backdrop {
+  background: rgb(17 19 21 / 35%);
+}
+
+.task-panel__surface {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: auto;
+  padding: 1.25rem clamp(1.25rem, 3vw, 2rem) 2rem;
+  border-radius: inherit;
+  background: var(--surface);
+}
+
+.task-panel__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.task-panel__header h2 {
+  margin: 0.45rem 0 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+.task-panel__header p:last-child {
+  max-width: 25rem;
+  margin: 0.6rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.88rem;
+}
+
+.task-panel__close {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.task-panel__body {
+  overflow: auto;
+  padding-top: 0.25rem;
+}
+
+.task-panel__empty {
+  padding-block: 1rem;
+}
+
+.task-panel__empty p {
+  margin: 0 0 1rem;
+  color: var(--muted-ink);
+}
+
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes panel-in {
+  from { opacity: 0; transform: translateX(1.5rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes result-in {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.invite-form__result,
+.friend-share__result {
+  animation: result-in var(--motion-state) var(--ease-product) both;
+}
+
+@media (max-width: 1023px) {
+  .app-shell__brand .technical-label {
+    display: none;
+  }
+
+  .account-menu__name {
+    max-width: 7rem;
+  }
+
+  .app-shell__mobile-nav {
+    position: fixed;
+    z-index: 30;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--rule);
+    background: var(--surface);
+  }
+
+  .app-shell__mobile-link {
+    min-width: 0;
+    min-height: 2.75rem;
+    padding: 0.35rem 0.15rem;
+    font-size: 0.74rem;
+  }
+
+  .app-shell__main {
+    min-height: calc(100svh - 4.5rem);
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 767px) {
+  .app-shell__header-layout {
+    min-height: 4rem;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+  }
+
+  .app-shell__actions {
+    display: contents;
+  }
+
+  .app-shell__brand {
+    flex: 1 1 auto;
+  }
+
+  .app-shell__brand .technical-label {
+    display: none;
+  }
+
+  .app-shell__nav {
+    display: none;
+  }
+
+  .app-shell__add-expense {
+    order: 2;
+    min-height: 2.5rem;
+    padding-inline: 0.7rem;
+  }
+
+  .account-menu {
+    order: 3;
+  }
+
+  .account-menu__name {
+    max-width: 5rem;
+  }
+
+  .account-menu__label {
+    display: none;
+  }
+
+  .app-page__layout,
+  .friend-record__layout,
+  .outing-record__layout,
+  .expense-record__layout,
+  .repayment-record__layout {
+    gap: 1.1rem;
+    padding-block: 1rem 2rem;
+  }
+
+  .app-page__header,
+  .friend-record__intro,
+  .outing-record__intro,
+  .expense-record__intro,
+  .repayment-record__intro {
+    display: block;
+    padding-bottom: 1rem;
+  }
+
+  .app-page__header h1 {
+    max-width: 18ch;
+    font-size: clamp(1.75rem, 8vw, 2.25rem);
+  }
+
+  .friend-record__intro h1,
+  .outing-record__intro h1,
+  .expense-record__intro h1,
+  .repayment-record__intro h1 {
+    max-width: 13ch;
+    font-size: clamp(2.15rem, 11vw, 3.25rem);
+  }
+
+  .app-page__actions {
+    margin-top: 1rem;
+  }
+
+  .app-page__actions .action-link,
+  .app-page__header > .action-link {
+    width: 100%;
+  }
+
+  .overview-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-summary > div {
+    min-height: 4.25rem;
+    padding: 0.75rem;
+    border-left: 0;
+  }
+
+  .overview-ledger-totals__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-page__columns {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .friends-toolbar {
+    display: block;
+  }
+
+  .search-form input {
+    flex: 1 1 12rem;
+    width: auto;
+  }
+
+  .friends-page__views {
+    margin-top: 0.9rem;
+  }
+
+  .friend-row,
+  .outing-row,
+  .expense-row,
+  .repayment-row {
+    display: block;
+    padding-block: 1rem;
+  }
+
+  .friend-row__meta,
+  .outing-row__meta,
+  .expense-row__meta,
+  .repayment-row__meta {
+    justify-content: start;
+    margin-top: 0.9rem;
+  }
+
+  .outing-row__add-expense {
+    margin-top: 0.75rem;
+  }
+
+  .friend-row__edit,
+  .outing-row__edit,
+  .expense-row__edit,
+  .repayment-row__edit {
+    display: inline-flex;
+  }
+
+  .friend-record__back,
+  .outing-record__back,
+  .expense-record__back,
+  .repayment-record__back {
+    display: inline-flex;
+    margin-top: 0.8rem;
+  }
+
+  .friend-record__meta,
+  .outing-record__meta,
+  .expense-record__meta,
+  .repayment-record__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .expense-share-editor__totals,
+  .repayment-allocation-editor__totals,
+  .repayment-allocation-editor__details dl {
+    grid-template-columns: 1fr;
+  }
+
+  .repayment-allocation-editor__row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .task-panel {
+    width: 100%;
+    height: min(90dvh, 48rem);
+    max-height: 90dvh;
+    margin: auto 0 0;
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    animation-name: sheet-in;
+  }
+
+  .task-panel--closing {
+    transform: translateY(1.5rem);
+  }
+
+  .task-panel__surface {
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+  }
+}
+
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(1.5rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-page h1,
+  .friend-record h1,
+  .outing-record h1,
+  .expense-record h1,
+  .repayment-record h1,
+  .app-page .friend-row--created,
+  .app-page .outing-row--created,
+  .app-page .expense-row--created,
+  .task-panel,
+  .task-panel--closing,
+  .invite-form__result,
+  .friend-share__result {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .allocation-bar__fill {
+    transform-origin: left center;
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .record-confirmation,
+  .record-confirmation--entering,
+  .record-confirmation--exiting {
+    transform: none !important;
+    transition: opacity 1ms linear !important;
+  }
+
+  .record-confirmation--entering,
+  .record-confirmation--exiting {
+    opacity: 0;
+  }
+}

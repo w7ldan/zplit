@@ -60,6 +60,19 @@ Motion communicates insertion, completion, state change, or spatial entry/exit. 
 
 Under `prefers-reduced-motion: reduce`, remove translation, scaling, clipping travel, staged sequences, and movement of values. Preserve immediate state changes, short opacity feedback where useful, keyboard focus, and full journey operation.
 
+## CSS architecture
+
+`globals.css` is the single root stylesheet manifest. Its six fragment imports are ordered and therefore part of the cascade contract:
+
+- `00-foundation.css` owns tokens, the browser baseline, document defaults, and shared primitives and controls.
+- `10-public.css` owns the public shell, navigation, landing composition, access presentation, and informational surfaces.
+- `20-authenticated-shell.css` owns the authenticated shell, navigation, app scaffolding, and early authenticated layout rules.
+- `30-records-and-forms.css` owns record rows, detail views, forms, filters, and progressive disclosure where those rules occur in source order.
+- `40-motion-and-feedback.css` owns task panels, result states, keyframes, and reduced-motion rules.
+- `90-late-overrides.css` preserves existing source-order-sensitive debt, including later public journey and late filter rules.
+
+Add new rules to their owning fragment. Unrelated new rules must not be appended to `90-late-overrides.css`. Moving a rule between fragments requires proof of cascade equivalence; visual cleanup and deduplication belong in separate reviewed checkpoints.
+
 ## Prohibited patterns
 
 Avoid generic SaaS dashboards, generic rounded cards, excessive pills, colored status dots, glassmorphism, gradient blobs, glowing effects, heavy shadows, decorative 3D, fake analytics, fake application screenshots, automatic marquees, animation on every element, compressed desktop tables on mobile, and any unimplemented capability presented as real.

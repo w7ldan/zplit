@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { readCssBundle } from "@/test/read-css-bundle";
 
 const root = process.cwd();
-const css = readFileSync(path.join(root, "src/app/globals.css"), "utf8");
+const css = readCssBundle(root).css;
 const packageJson = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
