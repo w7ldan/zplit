@@ -52,13 +52,13 @@ describe("Zplit design contract", () => {
       expect(css).toContain(token);
     }
 
-    expect(css).toContain("--radius: 10px");
-    expect(css).toContain("--radius-control: 10px");
-    expect(css).toContain("--radius-panel: 16px");
-    for (const timing of ["--motion-press: 100ms", "--motion-fast: 160ms", "--motion-state: 220ms", "--motion-layout: 300ms", "--motion-panel: 360ms", "--motion-reveal: 640ms", "--motion-story: 900ms"]) {
+    for (const radius of ["--radius-sm: 6px", "--radius-md: 10px", "--radius-lg: 16px", "--radius-xl: 20px", "--radius-control: 10px", "--radius-panel: 16px"]) {
+      expect(css).toContain(radius);
+    }
+    for (const timing of ["--motion-press: 100ms", "--motion-fast: 160ms", "--motion-state: 220ms", "--motion-layout: 300ms", "--motion-panel: 360ms", "--motion-reveal: 640ms", "--motion-instant: 100ms"]) {
       expect(css).toContain(timing);
     }
-    for (const ease of ["--ease-product: cubic-bezier(.2,.8,.2,1)", "--ease-emphasized: cubic-bezier(.22,1,.36,1)", "--ease-standard: cubic-bezier(.4,0,.2,1)"]) {
+    for (const ease of ["--ease-product: cubic-bezier(.2,.8,.2,1)", "--ease-emphasized: cubic-bezier(.22,1,.36,1)", "--ease-standard: cubic-bezier(.4,0,.2,1)", "--ease-out: cubic-bezier(.22,1,.36,1)"]) {
       expect(css).toContain(ease);
     }
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
@@ -66,6 +66,8 @@ describe("Zplit design contract", () => {
     expect(css).toMatch(/html\.zplit-product-mode\s*\{[\s\S]*?scroll-behavior:\s*auto;/);
     expect(css).toContain("scroll-behavior: smooth");
     expect(css).toContain("animation: none");
+    expect(css.indexOf("/* Explicit Zplit browser baseline. */")).toBeGreaterThanOrEqual(0);
+    expect(css.indexOf("/* Explicit Zplit browser baseline. */")).toBeLessThan(css.indexOf(".editorial-shell {"));
     expect(documentation).toContain("65% clarity, 25% editorial expression, and 10% controlled spectacle");
     expect(documentation).toContain("85% functional clarity");
     expect(documentation).toContain("Product UI is the illustration");

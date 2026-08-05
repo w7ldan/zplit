@@ -1,13 +1,10 @@
 import Link from "next/link";
 import type { InferSelectModel } from "drizzle-orm";
 import type { expenses } from "@/db/schema";
+import { formatRupiah } from "@/domain/rupiah";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 
 type ExpenseRecord = Omit<InferSelectModel<typeof expenses>, "occurredAt"> & { outingTitle: string; outingOccurredAt: Date };
-
-function formatRupiah(amount: number) {
-  return `Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(amount)}`;
-}
 
 export function ExpenseRow({ expense, emphasized = false }: { expense: ExpenseRecord; emphasized?: boolean }) {
   return (

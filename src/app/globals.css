@@ -1,5 +1,3 @@
-@import "tailwindcss";
-
 :root {
   --ink: #111315;
   --paper: #F4F1EA;
@@ -13,26 +11,6 @@
   --error: #B42318;
   --white: #FFFFFF;
 
-  --background: var(--paper);
-  --foreground: var(--ink);
-  --card: var(--surface);
-  --card-foreground: var(--ink);
-  --popover: var(--white);
-  --popover-foreground: var(--ink);
-  --primary: var(--ink);
-  --primary-foreground: var(--paper);
-  --secondary: var(--pastel-blue);
-  --secondary-foreground: var(--ink);
-  --muted: var(--paper);
-  --muted-foreground: var(--muted-ink);
-  --accent: var(--pastel-blue);
-  --accent-foreground: var(--ink);
-  --destructive: var(--error);
-  --border: var(--rule);
-  --input: var(--rule);
-  --ring: var(--ink);
-
-  --radius: 10px;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
@@ -45,48 +23,85 @@
   --motion-layout: 300ms;
   --motion-panel: 360ms;
   --motion-reveal: 640ms;
-  --motion-story: 900ms;
   --motion-instant: 100ms;
-  --motion-medium: 300ms;
   --ease-product: cubic-bezier(.2,.8,.2,1);
   --ease-emphasized: cubic-bezier(.22,1,.36,1);
   --ease-standard: cubic-bezier(.4,0,.2,1);
   --ease-out: cubic-bezier(.22,1,.36,1);
-  --ease-in-out: cubic-bezier(.4,0,.2,1);
   --font-display: Arial, "Helvetica Neue", Helvetica, sans-serif;
   --font-body: Arial, "Helvetica Neue", Helvetica, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
-  --font-sans: var(--font-body);
-}
-
+/* Explicit Zplit browser baseline. */
 *,
 ::before,
 ::after {
   box-sizing: border-box;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote,
+dl,
+dd,
+figure,
+menu,
+ol,
+pre,
+ul {
+  margin: 0;
+}
+
+menu,
+ol,
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+button,
+input,
+optgroup,
+option,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+img,
+video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+audio,
+canvas,
+embed,
+iframe,
+object,
+svg {
+  display: block;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -116,13 +131,6 @@ body {
 
 a {
   color: inherit;
-}
-
-button,
-input,
-textarea,
-select {
-  font: inherit;
 }
 
 ::selection {
@@ -267,44 +275,6 @@ select {
 .editorial-section {
   padding-block: clamp(4.5rem, 10vw, 9rem);
   border-bottom: 1px solid var(--rule);
-}
-
-.chapter-label {
-  display: flex;
-  grid-column: 1 / -1;
-  align-items: center;
-  gap: 0.75rem;
-  min-height: 2rem;
-  padding-block: 0.45rem;
-  border-block: 1px solid var(--rule);
-}
-
-.chapter-label__number {
-  display: inline-grid;
-  min-width: 2rem;
-  min-height: 1.5rem;
-  padding-inline: 0.3rem;
-  place-items: center;
-  background: var(--pastel-blue);
-  color: var(--ink);
-  font-size: 0.6875rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-}
-
-.chapter-label__category {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.chapter-label__metadata {
-  margin-left: auto;
-  color: var(--muted-ink);
-  font-size: 0.6875rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .hero {
@@ -779,7 +749,7 @@ select {
 .login-form__error {
   min-height: 1.5rem;
   margin: 0;
-  color: var(--destructive);
+  color: var(--error);
   font-size: 0.85rem;
 }
 
@@ -855,7 +825,7 @@ select {
 .invite-form__message {
   min-height: 1.25rem;
   margin: 0;
-  color: var(--destructive);
+  color: var(--error);
   font-size: 0.8rem;
 }
 
@@ -2055,7 +2025,7 @@ select {
 .friend-form__message {
   min-height: 1.25rem;
   margin: 0;
-  color: var(--destructive);
+  color: var(--error);
   font-size: 0.8rem;
 }
 
@@ -2067,7 +2037,7 @@ select {
 .outing-form__message {
   min-height: 1.25rem;
   margin: 0;
-  color: var(--destructive);
+  color: var(--error);
   font-size: 0.8rem;
 }
 
@@ -2436,7 +2406,7 @@ select {
 
 .expense-form__field-error,
 .expense-form__message {
-  color: var(--destructive);
+  color: var(--error);
 }
 
 .expense-form__message {
@@ -2579,7 +2549,7 @@ select {
 
 .expense-share-editor__field-error,
 .expense-share-editor__message {
-  color: var(--destructive);
+  color: var(--error);
 }
 
 .expense-share-editor__message {
@@ -2863,7 +2833,7 @@ select {
 
 .repayment-form__field-error,
 .repayment-form__message {
-  color: var(--destructive);
+  color: var(--error);
 }
 
 .repayment-form__message {
@@ -3057,7 +3027,7 @@ select {
 
 .repayment-allocation-editor__field-error,
 .repayment-allocation-editor__message {
-  color: var(--destructive);
+  color: var(--error);
 }
 
 .repayment-allocation-editor__message {
@@ -3129,11 +3099,6 @@ select {
   .site-header__nav {
     justify-content: space-between;
     gap: 0.75rem;
-  }
-
-  .chapter-label__metadata {
-    max-width: 8rem;
-    text-align: right;
   }
 
   .hero {
