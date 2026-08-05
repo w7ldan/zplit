@@ -52,15 +52,18 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
           search={{ label: "Search expenses", placeholder: "Description or outing", value: filters.q ?? "" }}
           selects={[{ name: "outing", label: "Outing", value: outingId ?? "", options: [{ value: "", label: "All outings" }, ...outings.map((outing) => ({ value: outing.id, label: outing.title }))] }, { name: "assignment", label: "Assignment", value: filters.assignment === "all" ? "" : filters.assignment, options: [{ value: "", label: "All assignment states" }, { value: "assigned", label: "Assigned" }, { value: "unassigned", label: "Unassigned" }] }]}
           month={{ label: "Month", value: filters.month ?? "" }}
+          mobileDisclosure={{ activeCount: [outingId, filters.month, filters.assignment === "all" ? undefined : filters.assignment].filter(Boolean).length }}
+          clearHref={filtered ? recordHref("/app/expenses", params, { q: undefined, outing: undefined, month: undefined, assignment: undefined, page: undefined }) : undefined}
+          resultStatus={`${expensePage.totalItems} expense${expensePage.totalItems === 1 ? "" : "s"} found.`}
           preservedParams={params}
         />
-        <div className="ledger-list" id="record-list" aria-live="polite">
+        <div className="ledger-list" id="record-list">
           <div className="ledger-list__heading"><span className="technical-label">EXPENSE RECORDS</span><span className="technical-label">{expensePage.totalItems} entries</span></div>
           {expensePage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
             <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
             {group.items.map((expense) => <ExpenseRow key={expense.id} expense={expense} />)}
           </div>) : (
-            <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? <Link className="text-link" href={recordHref("/app/expenses", params, { q: undefined, outing: undefined, month: undefined, assignment: undefined, page: undefined })}>Clear filters <span aria-hidden="true">→</span></Link> : <Link className="text-link" href={outings.length ? "/app/expenses?create=1" : "/app/outings?create=1"} data-task-trigger={outings.length ? "expense-create" : "outing-create"}>{outings.length ? "Add an expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
+            <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? null : <Link className="text-link" href={outings.length ? "/app/expenses?create=1" : "/app/outings?create=1"} data-task-trigger={outings.length ? "expense-create" : "outing-create"}>{outings.length ? "Add an expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
           )}
           <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={listHref} />
         </div>

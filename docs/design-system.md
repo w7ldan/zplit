@@ -41,11 +41,12 @@ Public composition uses a disciplined grid, thin rules, warm paper, surface whit
 
 The public mode is spacious enough to explain the product but keeps the hero action and product object visible in the first viewport. Public pages may use expressive editorial scale; authenticated list pages prioritize task density. The authenticated mode is compact, surface-white, and task-first. These are separate density modes, not competing page templates.
 
-Record retrieval is URL-backed: free-text search is debounced and live, discrete filters apply immediately, and filter bars remain compact ledger controls. Record lists use bounded pagination rather than unbounded loading.
+Record retrieval is URL-backed: free-text search is debounced and live, discrete filters apply immediately, and filter bars remain compact ledger controls. On mobile, search stays visible while secondary list filters may use a native disclosure; its active-filter count excludes free-text search. Clear filters remains available whenever filtering is active. Result updates announce concise matching totals, not entire ledger lists. Record lists use bounded pagination rather than unbounded loading.
 
 ## Entry-flow rules
 
 - Prerequisite creation preserves the owner’s original task and returns automatically.
+- Creating the prerequisite Friend from Add repayment returns automatically to Repayment entry with that Friend selected.
 - Optional create-time fields use native progressive disclosure.
 - Returned values and validation errors reveal their containing disclosure.
 - Edit forms remain direct when hiding controls would obstruct review.
@@ -68,6 +69,7 @@ Under `prefers-reduced-motion: reduce`, remove translation, scaling, clipping tr
 - `10-public.css` owns the public shell, navigation, landing composition, access presentation, and informational surfaces.
 - `20-authenticated-shell.css` owns the authenticated shell, navigation, app scaffolding, and early authenticated layout rules.
 - `30-records-and-forms.css` owns record rows, detail views, forms, filters, and progressive disclosure where those rules occur in source order.
+- New record-filter and mobile-disclosure rules belong in `30-records-and-forms.css`, not the late-override quarantine.
 - `40-motion-and-feedback.css` owns task panels, result states, keyframes, and reduced-motion rules.
 - `90-late-overrides.css` preserves existing source-order-sensitive debt, including later public journey and late filter rules.
 

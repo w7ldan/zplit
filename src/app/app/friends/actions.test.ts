@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { archiveFriendAction, createFriendAction, restoreFriendAction, updateFriendAction } from "./actions";
 import type { FriendActionState } from "./actions";
 import { LedgerNotFoundError } from "@/domain/ledger-repository";
@@ -27,6 +27,8 @@ function form(values: Record<string, string>) {
 }
 
 describe("friend actions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   const initialFriendActionState: FriendActionState = {
     fieldErrors: {},
     formError: "",
@@ -35,7 +37,7 @@ describe("friend actions", () => {
 
   it("returns field errors without touching the repository", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    const state = await createFriendAction(initialFriendActionState, form({ name: "", phoneNumber: "", notes: "" }));
+    const state = await createFriendAction("/app/repayments?create=1", initialFriendActionState, form({ name: "", phoneNumber: "", notes: "" }));
 
     expect(state).toMatchObject({ formError: "Please correct the marked fields.", fieldErrors: { name: "Name is required." } });
     expect(mocks.createLedgerRepository).not.toHaveBeenCalled();
@@ -47,7 +49,7 @@ describe("friend actions", () => {
     mocks.getDatabase.mockReturnValue("database");
     mocks.createLedgerRepository.mockReturnValue({ createFriend });
 
-    await expect(createFriendAction(initialFriendActionState, form({
+    await expect(createFriendAction(undefined, initialFriendActionState, form({
       name: "  Ada  ",
       countryCode: "+62",
       otherCountryCode: "",
@@ -61,6 +63,41 @@ describe("friend actions", () => {
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
     expect(createFriend).toHaveBeenCalledWith({ name: "Ada", phoneNumber: "+6281112345", notes: "Notes" });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/friends");
+  });
+
+  it("continues to repayment with the created friend selected", async () => {
+    const createFriend = vi.fn().mockResolvedValue({ id: "friend-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createFriend });
+
+    await expect(createFriendAction("/app/repayments?q=Cash&create=0&friendId=old#top", initialFriendActionState, form({
+      name: "Ari",
+      countryCode: "+62",
+      otherCountryCode: "",
+      phoneNumber: "81112345",
+      phoneFieldsChanged: "1",
+      legacyPhoneNumber: "",
+      notes: "",
+    }))).rejects.toThrow("redirect:/app/repayments?q=Cash&create=1&friendId=friend-a#top");
+  });
+
+  it("falls back to the normal confirmation for an invalid bound target", async () => {
+    const createFriend = vi.fn().mockResolvedValue({ id: "friend-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createFriend });
+
+    await expect(createFriendAction("https://evil.example/app/repayments", initialFriendActionState, form({
+      name: "Ari",
+      countryCode: "+62",
+      otherCountryCode: "",
+      phoneNumber: "81112345",
+      phoneFieldsChanged: "1",
+      legacyPhoneNumber: "",
+      notes: "",
+    }))).rejects.toThrow("redirect:/app/friends?created=friend-a");
+    expect(mocks.redirect.mock.calls.every(([path]) => !String(path).startsWith("https://"))).toBe(true);
   });
 
   it("maps cross-owner update failures to a generic form error", async () => {

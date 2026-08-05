@@ -6,6 +6,7 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { validateFriendInput, type FriendFieldErrors, type FriendInputValues } from "@/domain/friend-input";
 import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { addFriendToRepaymentReturnTarget, validateRepaymentReturnTarget } from "@/domain/repayment-return";
 
 export type FriendActionState = {
   fieldErrors: FriendFieldErrors;
@@ -47,10 +48,12 @@ function errorState(error: unknown, operation: "save" | "archive") {
 }
 
 export async function createFriendAction(
+  boundReturnTo: string | undefined,
   _previousState: FriendActionState,
   formData: FormData,
 ): Promise<FriendActionState> {
   const session = await requireSession();
+  const returnTo = validateRepaymentReturnTarget(boundReturnTo);
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
 
@@ -62,6 +65,8 @@ export async function createFriendAction(
   }
   revalidatePath("/app");
   revalidatePath("/app/friends");
+  const returnTarget = returnTo ? addFriendToRepaymentReturnTarget(returnTo, friend.id) : undefined;
+  if (returnTarget) redirect(returnTarget);
   redirect(`/app/friends?created=${encodeURIComponent(friend.id)}`);
 }
 

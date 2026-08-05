@@ -10,6 +10,7 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { groupRecordsByMonth, monthDisplayLabel, normalizeRepaymentFilters, recordHref } from "@/domain/record-retrieval";
+import { validateRepaymentReturnTarget } from "@/domain/repayment-return";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
   const groups = groupRecordsByMonth(repaymentPage.items, (repayment) => repayment.paidAt);
   const filtered = Boolean(filters.q || filters.month || filters.friendId || filters.allocation !== "all");
   const listHref = recordHref("/app/repayments", params);
+  const repaymentReturnTarget = validateRepaymentReturnTarget(recordHref("/app/repayments", params, { create: "1" })) ?? "/app/repayments?create=1";
 
   return (
     <section className="app-page repayments-page" id="top">
@@ -58,21 +60,24 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
           search={{ label: "Search repayments", placeholder: "Friend or payment method", value: filters.q ?? "" }}
           selects={[{ name: "friendId", label: "Friend", value: friendId ?? "", options: [{ value: "", label: "All friends" }, ...friends.map((friend) => ({ value: friend.id, label: `${friend.name}${friend.archivedAt ? " (ARCHIVED)" : ""}` }))] }, { name: "allocation", label: "Allocation", value: filters.allocation === "all" ? "" : filters.allocation, options: [{ value: "", label: "All allocation states" }, { value: "complete", label: "Fully allocated" }, { value: "needs", label: "Needs allocation" }] }]}
           month={{ label: "Month", value: filters.month ?? "" }}
+          mobileDisclosure={{ activeCount: [friendId, filters.month, filters.allocation === "all" ? undefined : filters.allocation].filter(Boolean).length }}
+          clearHref={filtered ? recordHref("/app/repayments", params, { q: undefined, friendId: undefined, month: undefined, allocation: undefined, page: undefined }) : undefined}
+          resultStatus={`${repaymentPage.totalItems} repayment${repaymentPage.totalItems === 1 ? "" : "s"} found.`}
           preservedParams={params}
         />
-        <div className="ledger-list" id="record-list" aria-live="polite">
+        <div className="ledger-list" id="record-list">
           <div className="ledger-list__heading"><span className="technical-label">REPAYMENT RECORDS</span><span className="technical-label">{repaymentPage.totalItems} entries</span></div>
           {repaymentPage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
             <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
             {group.items.map((repayment) => <RepaymentRow key={repayment.id} repayment={repayment} />)}
           </div>) : (
-            <div className="ledger-empty"><h2>{filtered ? "No matching repayments." : "No repayments yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record money received from a friend when it arrives; allocation follows on the record."}</p>{filtered ? <Link className="text-link" href={recordHref("/app/repayments", params, { q: undefined, friendId: undefined, month: undefined, allocation: undefined, page: undefined })}>Clear filters <span aria-hidden="true">→</span></Link> : <Link className="text-link" href={friends.length ? "/app/repayments?create=1" : "/app/friends?create=1"} data-task-trigger={friends.length ? "repayment-create" : "friend-create"}>{friends.length ? "Add a repayment" : "Add a friend"} <span aria-hidden="true">→</span></Link>}</div>
+            <div className="ledger-empty"><h2>{filtered ? "No matching repayments." : "No repayments yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record money received from a friend when it arrives; allocation follows on the record."}</p>{filtered ? null : <Link className="text-link" href={friends.length ? "/app/repayments?create=1" : "/app/friends?create=1"} data-task-trigger={friends.length ? "repayment-create" : "friend-create"}>{friends.length ? "Add a repayment" : "Add a friend"} <span aria-hidden="true">→</span></Link>}</div>
           )}
           <RecordPagination page={repaymentPage.page} pageSize={repaymentPage.pageSize} totalItems={repaymentPage.totalItems} totalPages={repaymentPage.totalPages} href={listHref} />
         </div>
       </div>
       {openCreate ? <TaskPanel open title="Add a repayment" description="Record the money received and keep its eligible shares visible for allocation." triggerId="repayment-create">
-        {friends.length > 0 ? <RepaymentForm action={createRepaymentAction} friends={friends} outstandingByFriend={outstandingByFriend} openExpenseSharesByFriend={openExpenseSharesByFriend} /> : <div className="task-panel__empty"><p>Add a friend before recording money received.</p><Link className="action-link action-link--primary" href="/app/friends?create=1">Add a friend</Link></div>}
+        {friends.length > 0 ? <RepaymentForm action={createRepaymentAction} friends={friends} initialValues={friendId ? { friendId, amountRupiah: "", paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: "", notes: "" } : undefined} outstandingByFriend={outstandingByFriend} openExpenseSharesByFriend={openExpenseSharesByFriend} /> : <div className="task-panel__empty"><p>Add a friend before recording money received.</p><Link className="action-link action-link--primary" href={`/app/friends?create=1&returnTo=${encodeURIComponent(repaymentReturnTarget)}`}>Add a friend and continue</Link></div>}
       </TaskPanel> : null}
     </section>
   );

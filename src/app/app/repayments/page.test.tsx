@@ -8,8 +8,8 @@ vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
-const activeFriend = { id: "friend-a", name: "Ari", archivedAt: null };
-const archivedFriend = { id: "friend-b", name: "Bima", archivedAt: new Date("2026-01-01T00:00:00.000Z") };
+const activeFriend = { id: "11111111-1111-4111-8111-111111111111", name: "Ari", archivedAt: null };
+const archivedFriend = { id: "22222222-2222-4222-8222-222222222222", name: "Bima", archivedAt: new Date("2026-01-01T00:00:00.000Z") };
 const summary = { friendBalances: [{ friendId: activeFriend.id, name: "Ari", archived: false, assignedAmount: 84_000, repaidAmount: 20_000, outstandingAmount: 64_000 }] };
 const repayment = { id: "repayment-a", friendName: "Ari", friendArchivedAt: null, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", allocatedAmount: 40_000, unallocatedAmount: 44_000 };
 
@@ -36,6 +36,10 @@ describe("/app/repayments", () => {
     expect(screen.getByText("Repayments · money returned")).toBeInTheDocument();
     expect(screen.getByText("Record money received and apply it to outstanding expense shares.")).toBeInTheDocument();
     expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("1 repayment found.");
+    expect(screen.getByText("Filters", { selector: "summary" })).toBeInTheDocument();
+    expect((screen.getByText("Filters", { selector: "summary" }).parentElement as HTMLDetailsElement).open).toBe(false);
+    expect(screen.getByRole("heading", { level: 1, name: "Repayments" }).closest("section")).not.toHaveAttribute("aria-live");
     expect(screen.getByRole("link", { name: "Add repayment" })).toHaveAttribute("href", "/app/repayments?create=1");
     expect(screen.getByLabelText("Allocation")).toHaveValue("");
     expect(screen.getByLabelText("Allocation")).toHaveAttribute("name", "allocation");
@@ -53,11 +57,53 @@ describe("/app/repayments", () => {
     expect(screen.getByText(/Outstanding for Ari/)).toBeInTheDocument();
   });
 
+  it("offers a safe friend continuation when Add repayment has no friends", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 2, pageSize: 20, totalItems: 0, totalPages: 1 }),
+      listFriends: vi.fn().mockResolvedValue([]),
+      getLedgerSummary: vi.fn().mockResolvedValue({ friendBalances: [] }),
+      listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}),
+    });
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", q: "Cash", month: "2026-04", page: "2", source: "ledger" }) }));
+
+    const returnTo = "%2Fapp%2Frepayments%3Fcreate%3D1%26q%3DCash%26month%3D2026-04%26page%3D2%26source%3Dledger";
+    expect(screen.getByText("Add a friend before recording money received.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add a friend and continue" })).toHaveAttribute("href", `/app/friends?create=1&returnTo=${returnTo}`);
+    expect(within(screen.getByRole("dialog")).queryByLabelText("Friend")).not.toBeInTheDocument();
+  });
+
+  it("preselects an owner friend for returned and manually opened repayment entry", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id }) }));
+    expect(within(screen.getByRole("dialog")).getByLabelText("Friend")).toHaveValue(activeFriend.id);
+  });
+
+  it("does not preselect malformed or foreign friends", async () => {
+    for (const friendId of ["not-a-uuid", "33333333-3333-4333-8333-333333333333"]) {
+      mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+      mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
+      const view = render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId }) }));
+      expect(within(screen.getByRole("dialog")).getByLabelText("Friend")).toHaveValue(activeFriend.id);
+      view.unmount();
+    }
+  });
+
   it("preserves retrieval context when opening Add repayment", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [repayment], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])) });
     render(await RepaymentsPage({ searchParams: Promise.resolve({ q: "Cash", friendId: activeFriend.id, month: "2026-04", allocation: "needs", page: "2", task: "open", source: "ledger" }) }));
 
     expect(screen.getByRole("link", { name: "Add repayment" })).toHaveAttribute("href", `/app/repayments?q=Cash&friendId=${activeFriend.id}&month=2026-04&allocation=needs&page=2&task=open&source=ledger&create=1`);
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/app/repayments?task=open&source=ledger");
+    expect(screen.getByText("Filters (3)", { selector: "summary" })).toBeInTheDocument();
+  });
+
+  it("announces the total matching repayments rather than the current page", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [repayment], page: 2, pageSize: 20, totalItems: 12, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getLedgerSummary: vi.fn(), listOpenExpenseSharesByFriend: vi.fn() });
+    render(await RepaymentsPage());
+    expect(screen.getByRole("status")).toHaveTextContent("12 repayments found.");
   });
 });

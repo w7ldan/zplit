@@ -11,6 +11,7 @@ const baseProps = {
   selects: [{ name: "assignment", label: "Assignment", value: "", options: [{ value: "", label: "All" }, { value: "assigned", label: "Assigned" }] }],
   month: { label: "Month", value: "" },
   preservedParams: { task: "open", page: "3" },
+  resultStatus: "1 outing found.",
 };
 
 beforeEach(() => {
@@ -22,6 +23,49 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("LiveRecordFilters", () => {
+  it("does not render a mobile disclosure unless configured", () => {
+    render(<LiveRecordFilters {...baseProps} />);
+    expect(screen.queryByText("Filters", { selector: "summary" })).not.toBeInTheDocument();
+  });
+
+  it("keeps search outside a native disclosure and counts only discrete filters", () => {
+    const props = { ...baseProps, mobileDisclosure: { activeCount: 0 }, clearHref: "/app/outings" };
+    const view = render(<LiveRecordFilters {...props} />);
+    const summary = screen.getByText("Filters", { selector: "summary" });
+    const details = summary.parentElement as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(screen.getByLabelText("Search outings").parentElement).not.toBe(details);
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/app/outings");
+
+    fireEvent.click(summary);
+    expect(details.open).toBe(true);
+    view.rerender(<LiveRecordFilters {...props} />);
+    expect(details.open).toBe(true);
+    fireEvent.click(summary);
+    expect(details.open).toBe(false);
+    view.unmount();
+
+    render(<LiveRecordFilters {...baseProps} mobileDisclosure={{ activeCount: 1 }} />);
+    expect(screen.getByText("Filters (1)", { selector: "summary" })).toBeInTheDocument();
+    expect((screen.getByText("Filters (1)", { selector: "summary" }).parentElement as HTMLDetailsElement).open).toBe(true);
+  });
+
+  it("keeps closed native fields in FormData", () => {
+    render(<LiveRecordFilters {...baseProps} mobileDisclosure={{ activeCount: 0 }} />);
+    const form = screen.getByRole("search") as HTMLFormElement;
+    expect((screen.getByText("Filters", { selector: "summary" }).parentElement as HTMLDetailsElement).open).toBe(false);
+    expect(new FormData(form).get("assignment")).toBe("");
+    expect(new FormData(form).get("month")).toBe("");
+  });
+
+  it("exposes the completed result status as one polite atomic region", () => {
+    render(<LiveRecordFilters {...baseProps} resultStatus="12 outings found." />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("12 outings found.");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status).toHaveAttribute("aria-atomic", "true");
+  });
+
   it("updates visibly while typing, debounces one navigation, and has no visible Search button", () => {
     render(<LiveRecordFilters {...baseProps} />);
     const input = screen.getByLabelText("Search outings");

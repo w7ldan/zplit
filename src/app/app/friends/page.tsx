@@ -11,6 +11,7 @@ import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { normalizeFriendFilters, recordHref } from "@/domain/record-retrieval";
+import { validateRepaymentReturnTarget } from "@/domain/repayment-return";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ type FriendsSearchParams = {
   q?: string | string[];
   create?: string | string[];
   created?: string | string[];
+  returnTo?: string | string[];
 };
 
 function first(value: string | string[] | undefined) {
@@ -36,6 +38,9 @@ function viewHref(view: "active" | "archived", params: FriendsSearchParams) {
 
 export default async function FriendsPage({ searchParams = Promise.resolve({}) }: FriendsPageProps = {}) {
   const params = await searchParams;
+  const returnToInput = first(params?.returnTo);
+  const returnTo = validateRepaymentReturnTarget(returnToInput);
+  if (returnToInput !== undefined && !returnTo) redirect(recordHref("/app/friends", params, { returnTo: undefined }));
   const emptyParams = ["q"].filter((name) => first(params?.[name]) === "");
   if (emptyParams.length) redirect(recordHref("/app/friends", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
   const session = await requireSession();
@@ -66,21 +71,21 @@ export default async function FriendsPage({ searchParams = Promise.resolve({}) }
         </div>
         {created ? <RecordConfirmation queryKey="created" message="Friend added." /> : null}
         <div className="friends-toolbar">
-          <LiveRecordFilters action="/app/friends" search={{ label: "Search friends", placeholder: "Name or phone number", value: filters.q ?? "" }} preservedParams={params} />
+          <LiveRecordFilters action="/app/friends" search={{ label: "Search friends", placeholder: "Name or phone number", value: filters.q ?? "" }} clearHref={filtered ? recordHref("/app/friends", params, { q: undefined, page: undefined }) : undefined} resultStatus={`${friendPage.totalItems} friend${friendPage.totalItems === 1 ? "" : "s"} found.`} preservedParams={params} />
           <nav className="friends-page__views" aria-label="Friend record views">
             <Link className={view === "active" ? "friends-page__view friends-page__view--selected" : "friends-page__view"} href={viewHref("active", params)} aria-current={view === "active" ? "page" : undefined}>Active</Link>
             <Link className={view === "archived" ? "friends-page__view friends-page__view--selected" : "friends-page__view"} href={viewHref("archived", params)} aria-current={view === "archived" ? "page" : undefined}>Archived</Link>
           </nav>
         </div>
-        <div className="ledger-list" id="record-list" aria-live="polite">
+        <div className="ledger-list" id="record-list">
           <div className="ledger-list__heading"><span className="technical-label">{view === "active" ? "ACTIVE RECORDS" : "ARCHIVED RECORDS"}</span><span className="technical-label">{friendPage.totalItems} entries</span></div>
           {friends.length > 0 ? friends.map((friend) => <FriendRow key={friend.id} friend={friend} balance={balances.get(friend.id)} emphasized={created === friend.id} />) : (
-            <div className="ledger-empty"><h2>{filtered ? "No matching friends." : view === "active" ? "No active friends yet." : "No archived friends yet."}</h2><p>{filtered ? "Try a different name or phone number." : view === "active" ? "Add the first person to begin your private record." : "Archived records remain available here when you need them."}</p>{filtered ? <Link className="text-link" href={recordHref("/app/friends", params, { q: undefined, page: undefined })}>Clear filters <span aria-hidden="true">→</span></Link> : null}</div>
+            <div className="ledger-empty"><h2>{filtered ? "No matching friends." : view === "active" ? "No active friends yet." : "No archived friends yet."}</h2><p>{filtered ? "Try a different name or phone number." : view === "active" ? "Add the first person to begin your private record." : "Archived records remain available here when you need them."}</p></div>
           )}
           <RecordPagination page={friendPage.page} pageSize={friendPage.pageSize} totalItems={friendPage.totalItems} totalPages={friendPage.totalPages} href={listHref} />
         </div>
       </div>
-      {openCreate ? <TaskPanel open title="Add a friend" description="Keep the person’s details beside the records they support." triggerId="friend-create"><FriendForm action={createFriendAction} /></TaskPanel> : null}
+      {openCreate ? <TaskPanel open title="Add a friend" description="Keep the person’s details beside the records they support." triggerId="friend-create"><FriendForm action={createFriendAction.bind(null, returnTo)} /></TaskPanel> : null}
     </section>
   );
 }

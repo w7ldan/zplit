@@ -424,3 +424,87 @@
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
 }
+
+.live-record-filters__clear {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 2.25rem;
+  align-items: center;
+  color: var(--muted-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+form.live-record-filters.live-record-filters--mobile-disclosure {
+  min-width: 0;
+  max-width: 100%;
+}
+
+form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure {
+  min-width: 0;
+}
+
+form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure > summary {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border-block: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure > .live-record-filters__field {
+  display: grid;
+  min-width: 0;
+}
+
+form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__status {
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  form.live-record-filters.live-record-filters--mobile-disclosure {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__search {
+    order: 0;
+    width: 100%;
+  }
+
+  form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure {
+    display: grid;
+    gap: 0.65rem;
+    width: 100%;
+  }
+
+  form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure > .live-record-filters__field {
+    width: 100%;
+  }
+
+  form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__clear {
+    order: 2;
+  }
+}
+
+@media (min-width: 768px) {
+  form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure {
+    display: contents;
+  }
+
+  form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure > summary {
+    display: none;
+  }
+
+  form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure > .live-record-filters__field,
+  form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure:not([open]) > .live-record-filters__field {
+    display: grid;
+  }
+}

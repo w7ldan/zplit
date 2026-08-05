@@ -8,7 +8,7 @@ vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
-const outing = { id: "outing-a", ownerUserId: "owner-a", title: "Jakarta dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: null, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z") };
+const outing = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", ownerUserId: "owner-a", title: "Jakarta dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: null, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z") };
 const expense = { id: "expense-a", ownerUserId: "owner-a", outingId: outing.id, description: "Dinner", amount: 84_000, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z"), outingTitle: outing.title, outingOccurredAt: outing.occurredAt };
 const expensePage = { items: [expense], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 };
 
@@ -36,6 +36,8 @@ describe("/app/expenses", () => {
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
     expect(screen.getByLabelText("Assignment")).toHaveValue("");
     expect(screen.getByLabelText("Assignment")).toHaveAttribute("name", "assignment");
+    expect(screen.getByRole("status")).toHaveTextContent("1 expense found.");
+    expect(screen.getByRole("heading", { level: 1, name: "Expenses" }).closest("section")).not.toHaveAttribute("aria-live");
     expect(screen.queryByLabelText("Amount in rupiah")).not.toBeInTheDocument();
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
@@ -66,5 +68,30 @@ describe("/app/expenses", () => {
     render(await ExpensesPage({ searchParams: Promise.resolve({ q: "Dinner", outing: outing.id, month: "2026-04", assignment: "assigned", page: "2", task: "open", source: "ledger" }) }));
 
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", `/app/expenses?q=Dinner&outing=${outing.id}&month=2026-04&assignment=assigned&page=2&task=open&source=ledger&create=1`);
+  });
+
+  it("counts only discrete filters in the mobile disclosure and clears controlled retrieval state", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue(expensePage), listOutings: vi.fn().mockResolvedValue([outing]) });
+    const view = render(await ExpensesPage({ searchParams: Promise.resolve({ q: "Dinner", page: "3", source: "ledger" }) }));
+    expect(screen.getByText("Filters", { selector: "summary" })).toBeInTheDocument();
+    expect((screen.getByText("Filters", { selector: "summary" }).parentElement as HTMLDetailsElement).open).toBe(false);
+    view.unmount();
+
+    window.history.replaceState({}, "", "/app/expenses?q=Dinner&outing=outing-a&month=2026-04&assignment=assigned&page=3&source=ledger");
+    render(await ExpensesPage({ searchParams: Promise.resolve({ q: "Dinner", outing: outing.id, month: "2026-04", assignment: "assigned", page: "3", source: "ledger" }) }));
+    expect(screen.getByText("Filters (3)", { selector: "summary" })).toBeInTheDocument();
+    expect((screen.getByText("Filters (3)", { selector: "summary" }).parentElement as HTMLDetailsElement).open).toBe(true);
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/app/expenses?source=ledger");
+  });
+
+  it("keeps a filtered empty state understandable while the persistent clear action remains above it", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), listOutings: vi.fn().mockResolvedValue([outing]) });
+    render(await ExpensesPage({ searchParams: Promise.resolve({ q: "missing", page: "2", source: "ledger" }) }));
+    expect(screen.getByRole("heading", { name: "No matching expenses." })).toBeInTheDocument();
+    expect(screen.getByText("Try a different search or clear the filters.")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Clear filters" })).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("0 expenses found.");
   });
 });

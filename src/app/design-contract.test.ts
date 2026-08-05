@@ -94,6 +94,12 @@ describe("Zplit design contract", () => {
     expect(documentation).toContain("Optional create-time fields use native progressive disclosure.");
     expect(documentation).toContain("Returned values and validation errors reveal their containing disclosure.");
     expect(documentation).toContain("Edit forms remain direct when hiding controls would obstruct review.");
+    expect(documentation).toContain("Creating the prerequisite Friend from Add repayment returns automatically to Repayment entry with that Friend selected.");
+    expect(documentation).toContain("search stays visible while secondary list filters may use a native disclosure");
+    expect(documentation).toContain("active-filter count excludes free-text search");
+    expect(documentation).toContain("Clear filters remains available whenever filtering is active");
+    expect(documentation).toContain("Result updates announce concise matching totals, not entire ledger lists.");
+    expect(documentation).toContain("New record-filter and mobile-disclosure rules belong in `30-records-and-forms.css`, not the late-override quarantine.");
   });
 
   it("keeps prohibited visual patterns out of the authenticated contract", () => {

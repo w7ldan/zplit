@@ -32,6 +32,9 @@ describe("/app/outings", () => {
     expect(screen.getByText("Outings · shared events")).toBeInTheDocument();
     expect(screen.getByText("Keep related expenses together under the event where they happened.")).toBeInTheDocument();
     expect(screen.getByText("1 expense · Rp 84.000")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("1 outing found.");
+    expect(screen.getByRole("status")).toHaveAttribute("aria-atomic", "true");
+    expect(screen.getByRole("heading", { level: 1, name: "Outings" }).closest("section")).not.toHaveAttribute("aria-live");
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", `/app/expenses?create=1&outing=${outing.id}`);
     expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
     expect(mocks.redirect).not.toHaveBeenCalled();
@@ -53,6 +56,7 @@ describe("/app/outings", () => {
     render(await OutingsPage({ searchParams: Promise.resolve({ q: "missing", month: "2026-04", page: "3", create: "1", task: "confirm" }) }));
     expect(screen.getByRole("heading", { name: "No matching outings." })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Clear filters/ })).toHaveAttribute("href", "/app/outings?create=1&task=confirm");
+    expect(screen.getByRole("status")).toHaveTextContent("0 outings found.");
   });
 
   it("preserves retrieval context when opening Add outing", async () => {

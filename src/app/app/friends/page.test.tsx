@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import FriendsPage from "./page";
 
@@ -37,6 +37,11 @@ describe("/app/friends", () => {
     expect(screen.getByLabelText("Search friends")).toHaveValue("Ada");
     expect(screen.getByText("Rp 64.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?view=active&q=Ada&create=1");
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/app/friends?view=active");
+    expect(screen.getByRole("status")).toHaveTextContent("1 friend found.");
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByRole("status")).toHaveAttribute("aria-atomic", "true");
+    expect(screen.getByRole("heading", { level: 1, name: "Friends" }).closest("section")).not.toHaveAttribute("aria-live");
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
@@ -48,6 +53,12 @@ describe("/app/friends", () => {
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
+  });
+
+  it("removes an invalid return target before authentication or repository access", async () => {
+    await expect(FriendsPage({ searchParams: Promise.resolve({ returnTo: "https://evil.example/app/repayments", view: "archived", q: "Ada", page: "2", create: "1", created: "friend-a", confirmation: "yes", source: "ledger" }) })).rejects.toThrow("redirect:/app/friends?view=archived&q=Ada&page=2&create=1&created=friend-a&confirmation=yes&source=ledger");
+    expect(mocks.requireSession).not.toHaveBeenCalled();
+    expect(mocks.createLedgerRepository).not.toHaveBeenCalled();
   });
 
   it("keeps filter URLs, selection, and unrelated search parameters intact", async () => {
@@ -67,5 +78,29 @@ describe("/app/friends", () => {
     render(await FriendsPage({ searchParams: Promise.resolve({ view: "archived", q: "Ada", page: "2", task: "open", source: "ledger" }) }));
 
     expect(screen.getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?view=archived&q=Ada&page=2&task=open&source=ledger&create=1");
+  });
+
+  it("preserves a valid repayment return target through filters, views, pagination, and Add friend", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], page: 2, totalItems: 0, totalPages: 3 }), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    render(await FriendsPage({ searchParams: Promise.resolve({ returnTo: "/app/repayments?create=1&source=ledger", view: "archived", q: "Ada", page: "2", create: "1", task: "open" }) }));
+
+    const returnTo = "%2Fapp%2Frepayments%3Fcreate%3D1%26source%3Dledger";
+    expect(screen.getByRole("link", { name: "Active" })).toHaveAttribute("href", `/app/friends?returnTo=${returnTo}&view=active&q=Ada&create=1&task=open`);
+    expect(screen.getByRole("link", { name: "Archived" })).toHaveAttribute("href", `/app/friends?returnTo=${returnTo}&view=archived&q=Ada&create=1&task=open`);
+    expect(screen.getByRole("link", { name: "Add friend" })).toHaveAttribute("href", `/app/friends?returnTo=${returnTo}&view=archived&q=Ada&page=2&create=1&task=open`);
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", `/app/friends?returnTo=${returnTo}&view=archived&create=1&task=open`);
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", `/app/friends?returnTo=${returnTo}&view=archived&q=Ada&page=3&create=1&task=open#record-list`);
+  });
+
+  it("keeps the continuation server-bound instead of rendering it in the friend form", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], totalItems: 0, totalPages: 1 }), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    render(await FriendsPage({ searchParams: Promise.resolve({ returnTo: "/app/repayments?create=1", create: "1" }) }));
+
+    expect(within(screen.getByRole("dialog")).queryByDisplayValue("/app/repayments?create=1")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).queryByDisplayValue(/repayments/)).not.toBeInTheDocument();
   });
 });

@@ -6,6 +6,9 @@ import { readCssBundle } from "@/test/read-css-bundle";
 const root = process.cwd();
 const bundle = readCssBundle(root);
 const stylesRoot = path.resolve(root, "src/app/styles");
+const globalsSource = readFileSync(path.join(root, "src/app/globals.css"), "utf8");
+const recordsAndFormsSource = readFileSync(path.join(stylesRoot, "30-records-and-forms.css"), "utf8");
+const lateOverridesSource = readFileSync(path.join(stylesRoot, "90-late-overrides.css"), "utf8");
 const requiredImports = [
   "src/app/styles/00-foundation.css",
   "src/app/styles/10-public.css",
@@ -108,5 +111,16 @@ describe("CSS architecture", () => {
     expect(bundle.fragmentSources[5]).toContain("/* Refined authenticated controls and row actions. */");
     expect(bundle.fragmentSources[5]).toContain(".live-record-filters {");
     expect(bundle.fragmentSources[5]).toContain(".record-pagination {");
+  });
+
+  it("keeps mobile disclosure ownership in the records-and-forms fragment", () => {
+    expect(recordsAndFormsSource).toContain("live-record-filters--mobile-disclosure");
+    expect(recordsAndFormsSource).toContain("@media (min-width: 768px)");
+    expect(recordsAndFormsSource).toContain("__disclosure:not([open])");
+    expect(lateOverridesSource).not.toContain("live-record-filters--mobile-disclosure");
+    expect(globalsSource).toBe(`${requiredImports.map((file) => `@import \"./${file.slice("src/app/".length)}\";`).join("\n")}\n`);
+    expect(cssBraceDepth(recordsAndFormsSource)).toBe(0);
+    expect(cssBraceDepth(lateOverridesSource)).toBe(0);
+    expect(cssBraceDepth(bundle.css)).toBe(0);
   });
 });

@@ -50,14 +50,14 @@ export default async function OutingsPage({ searchParams = Promise.resolve({}) }
           <Link className="action-link action-link--primary" href={recordHref("/app/outings", params, { create: "1" })} data-task-trigger="outing-create">Add outing</Link>
         </div>
         {created ? <RecordConfirmation queryKey="created" message="Outing added." /> : null}
-        <LiveRecordFilters action="/app/outings" search={{ label: "Search outings", placeholder: "Outing title", value: filters.q ?? "" }} month={{ label: "Month", value: filters.month ?? "" }} preservedParams={params} />
-        <div className="ledger-list" id="record-list" aria-live="polite">
+        <LiveRecordFilters action="/app/outings" search={{ label: "Search outings", placeholder: "Outing title", value: filters.q ?? "" }} month={{ label: "Month", value: filters.month ?? "" }} clearHref={filtered ? recordHref("/app/outings", params, { q: undefined, month: undefined, page: undefined }) : undefined} resultStatus={`${outingPage.totalItems} outing${outingPage.totalItems === 1 ? "" : "s"} found.`} preservedParams={params} />
+        <div className="ledger-list" id="record-list">
           <div className="ledger-list__heading"><span className="technical-label">LATEST FIRST</span><span className="technical-label">{outingPage.totalItems} entries</span></div>
           {outingPage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
             <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
             {group.items.map((outing) => <OutingRow key={outing.id} outing={outing} expenseCount={outing.expenseCount} expenseTotal={outing.expenseTotal} emphasized={created === outing.id} />)}
           </div>) : (
-            <div className="ledger-empty"><h2>{filtered ? "No matching outings." : "No outings yet."}</h2><p>{filtered ? "Try a different title or month." : "Record the first shared moment before adding an expense."}</p>{filtered ? <Link className="text-link" href={recordHref("/app/outings", params, { q: undefined, month: undefined, page: undefined })}>Clear filters <span aria-hidden="true">→</span></Link> : <Link className="text-link" href={recordHref("/app/outings", params, { create: "1" })} data-task-trigger="outing-create">Add an outing <span aria-hidden="true">→</span></Link>}</div>
+            <div className="ledger-empty"><h2>{filtered ? "No matching outings." : "No outings yet."}</h2><p>{filtered ? "Try a different title or month." : "Record the first shared moment before adding an expense."}</p>{filtered ? null : <Link className="text-link" href={recordHref("/app/outings", params, { create: "1" })} data-task-trigger="outing-create">Add an outing <span aria-hidden="true">→</span></Link>}</div>
           )}
           <RecordPagination page={outingPage.page} pageSize={outingPage.pageSize} totalItems={outingPage.totalItems} totalPages={outingPage.totalPages} href={listHref} />
         </div>
