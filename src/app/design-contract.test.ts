@@ -241,7 +241,7 @@ describe("Zplit design contract", () => {
     expect(siteHeaderSource).toContain('actions={<ActionLink href="/app" variant="primary" className="site-header__access">Open Zplit</ActionLink>}');
     expect(wrapper).toContain("background: var(--surface);");
     expect(detachedWrapper).toContain("background: transparent;");
-    expect(header).toContain("background: transparent;");
+    expect(header).toContain("background: var(--surface);");
     expect(access).toContain("min-height: 2.25rem;");
     expect(access).toContain("border-radius: var(--radius-control);");
     expect(access).not.toMatch(/\b(?:background|border|color):/);
