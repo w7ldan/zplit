@@ -17,20 +17,25 @@ describe("SiteHeader", () => {
   it("detaches after the shared scroll threshold while preserving navigation", () => {
     render(<SiteHeader />);
     const header = screen.getByRole("banner", { name: "Site header" });
+    const panel = header.querySelector(".header-shell__panel")!;
     expect(header.querySelector(".site-header__brand")).toBeInTheDocument();
     expect(header.querySelector(".site-header__nav")).toBeInTheDocument();
     expect(header.querySelector(".site-header__actions")).toBeInTheDocument();
-    expect(header).not.toHaveClass("site-header--detached");
+    expect(header).not.toHaveClass("header-shell--detached");
+    expect(panel).not.toHaveClass("header-shell__panel--detached");
+    expect(header).toHaveAttribute("data-detached", "false");
     Object.defineProperty(window, "scrollY", { configurable: true, value: 32 });
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frameCallback?.(1));
-    expect(header).toHaveClass("site-header--detached");
+    expect(header).toHaveClass("header-shell--detached");
+    expect(panel).toHaveClass("header-shell__panel--detached");
+    expect(panel).toHaveAttribute("data-detached", "true");
     expect(screen.getByRole("link", { name: "Open Zplit" })).toBeInTheDocument();
   });
 
   it("mounts detached when scroll restoration already positioned the page", () => {
     Object.defineProperty(window, "scrollY", { configurable: true, value: 48 });
     render(<SiteHeader />);
-    expect(screen.getByRole("banner", { name: "Site header" })).toHaveClass("site-header--detached");
+    expect(screen.getByRole("banner", { name: "Site header" })).toHaveClass("header-shell--detached");
   });
 });

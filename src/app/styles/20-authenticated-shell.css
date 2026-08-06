@@ -2213,45 +2213,27 @@
 }
 
 .app-shell__header {
-  position: sticky;
-  z-index: 10;
-  top: 0;
+  min-height: 0;
+  padding: 0;
   border: 0;
   background: transparent;
   box-shadow: none;
-  overflow: visible;
-  pointer-events: none;
 }
 
 .app-shell__header-layout {
-  display: flex;
   min-height: 4.5rem;
   align-items: center;
   gap: 1.25rem;
-  width: min(calc(100% - 2rem), 72rem);
-  max-width: 72rem;
   padding: 0.75rem 1rem;
-  border: 1px solid transparent;
-  background: transparent;
   box-sizing: border-box;
-  pointer-events: auto;
-  transition: border-color var(--motion-state) var(--ease-product), background-color var(--motion-state) var(--ease-product), border-radius var(--motion-state) var(--ease-product), box-shadow var(--motion-state) var(--ease-product);
-}
-
-.app-shell__header-layout--detached {
-  border-color: var(--rule);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
-  box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
 }
 
 .app-shell__brand {
-  display: inline-flex;
-  flex: 1 1 auto;
+  display: flex;
   align-items: center;
   gap: 0.65rem;
   min-width: 0;
-  text-decoration: none;
+  flex: 1 1 auto;
 }
 
 .app-shell__actions {
@@ -2277,32 +2259,12 @@
 }
 
 @media (min-width: 1024px) {
-  .app-shell__header-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    column-gap: 1.25rem;
-  }
-
-  .app-shell__brand {
-    grid-column: 1;
-    justify-self: start;
-    min-width: 0;
-    width: max-content;
-  }
-
   .app-shell__nav {
     display: flex;
-    grid-column: 2;
-    justify-self: center;
-    flex: none;
     width: max-content;
   }
 
   .app-shell__actions {
-    display: flex;
-    grid-column: 3;
-    justify-self: end;
-    align-items: center;
     gap: 0.75rem;
     min-width: 0;
     width: max-content;
@@ -2325,8 +2287,10 @@
 }
 
 .app-shell__nav-link:hover,
-.app-shell__nav-link:focus-visible,
-.app-shell__nav-link--active,
+.app-shell__nav-link:focus-visible {
+  color: var(--ink);
+}
+
 .app-shell__mobile-link:hover,
 .app-shell__mobile-link:focus-visible,
 .app-shell__mobile-link--active {

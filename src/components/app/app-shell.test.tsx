@@ -54,13 +54,13 @@ describe("AppShell", () => {
     render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     const header = screen.getByRole("banner");
     const panel = header.querySelector<HTMLElement>(".app-shell__header-layout")!;
-    expect(header).not.toHaveClass("app-shell__header--detached");
-    expect(panel).not.toHaveClass("app-shell__header-layout--detached");
+    expect(header).not.toHaveClass("header-shell--detached");
+    expect(panel).not.toHaveClass("header-shell__panel--detached");
     Object.defineProperty(window, "scrollY", { configurable: true, value: 40 });
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frameCallback?.(1));
-    expect(header).toHaveClass("app-shell__header--detached");
-    expect(panel).toHaveClass("app-shell__header-layout--detached");
+    expect(header).toHaveClass("header-shell--detached");
+    expect(panel).toHaveClass("header-shell__panel--detached");
   });
 
   it("removes detached classes when returning above the scroll threshold", () => {
@@ -74,8 +74,8 @@ describe("AppShell", () => {
     Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frameCallback?.(2));
-    expect(header).not.toHaveClass("app-shell__header--detached");
-    expect(panel).not.toHaveClass("app-shell__header-layout--detached");
+    expect(header).not.toHaveClass("header-shell--detached");
+    expect(panel).not.toHaveClass("header-shell__panel--detached");
   });
 
   it("keeps the painted panel inside the transparent header wrapper", () => {
@@ -84,8 +84,8 @@ describe("AppShell", () => {
     const panel = header.querySelector<HTMLElement>(".app-shell__header-layout");
     expect(panel).toBeInTheDocument();
     expect(header).toContainElement(panel);
-    expect(header).not.toHaveClass("app-shell__header--detached");
-    expect(panel).not.toHaveClass("app-shell__header-layout--detached");
+    expect(header).not.toHaveClass("header-shell--detached");
+    expect(panel).not.toHaveClass("header-shell__panel--detached");
     expect(panel).toHaveAttribute("data-detached", "false");
   });
 
@@ -93,6 +93,6 @@ describe("AppShell", () => {
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frameCallback = callback; return 1; });
     Object.defineProperty(window, "scrollY", { configurable: true, value: 48 });
     render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
-    expect(screen.getByRole("banner")).toHaveClass("app-shell__header--detached");
+    expect(screen.getByRole("banner")).toHaveClass("header-shell--detached");
   });
 });

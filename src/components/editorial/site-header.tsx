@@ -1,23 +1,30 @@
 "use client";
 
-import { useDetachedHeader } from "@/components/navigation/use-detached-header";
+import { HeaderShell } from "@/components/navigation/header-shell";
 
 export function SiteHeader() {
-  const detached = useDetachedHeader();
-
   return (
-    <header className={`site-header-wrapper${detached ? " site-header-wrapper--detached site-header--detached" : ""}`} data-detached={detached} aria-label="Site header">
-      <div className={`site-header editorial-grid editorial-shell${detached ? " site-header--detached" : ""}`} data-detached={detached}>
-        <a className="site-header__brand" href="#top" aria-label="Zplit home">
+    <HeaderShell
+      ariaLabel="Site header"
+      navigationLabel="Primary navigation"
+      className="site-header-wrapper"
+      panelClassName="site-header"
+      brandClassName="site-header__brand"
+      navigationClassName="site-header__nav"
+      actionsClassName="site-header__actions"
+      brand={(
+        <a href="#top" aria-label="Zplit home">
           <span className="site-header__wordmark">Zplit</span>
           <span className="site-header__descriptor">SHARED EXPENSE LEDGER</span>
         </a>
-        <nav className="site-header__nav" aria-label="Primary navigation">
+      )}
+      navigation={(
+        <>
           <a href="#journey">How it works</a>
           <a href="#ledger">The ledger</a>
-        </nav>
-        <div className="site-header__actions"><a className="site-header__access" href="/app">Open Zplit</a></div>
-      </div>
-    </header>
+        </>
+      )}
+      actions={<a className="site-header__access" href="/app">Open Zplit</a>}
+    />
   );
 }

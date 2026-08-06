@@ -89,7 +89,8 @@ describe("Zplit design contract", () => {
     expect(documentation).toContain("Motion communicates insertion, completion, state change, or spatial entry/exit");
     expect(documentation).toContain("Frequent financial inputs remain immediate");
     expect(documentation).toContain("Reduced motion removes spatial effects");
-    expect(documentation).toContain("Authenticated sticky navigation remains geometrically stable while scrolling; it may change surface emphasis but does not change width, position, alignment, or radius.");
+    expect(documentation).not.toContain("Authenticated sticky navigation remains geometrically stable while scrolling; it may change surface emphasis but does not change width, position, alignment, or radius.");
+    expect(documentation).toContain("Public and authenticated navigation share the same detached-panel transition.");
     expect(documentation).toContain("Prerequisite creation preserves the owner’s original task and returns automatically.");
     expect(documentation).toContain("Optional create-time fields use native progressive disclosure.");
     expect(documentation).toContain("Returned values and validation errors reveal their containing disclosure.");
@@ -152,7 +153,7 @@ describe("Zplit design contract", () => {
     expect(cssRuleBody(css, ".app-page__header h1")).toMatch(/font-size:[\s\S]*font-weight: 800;/);
     expect(cssRuleBody(css, ".principle h3")).toMatch(/font-size:[\s\S]*font-weight: 800;/);
     expect(cssRuleBody(css, ".text-link")).toContain("text-decoration: underline;");
-    expect(cssRuleBody(css, ".site-header__nav a")).toContain("text-decoration: none;");
+    expect(cssRuleBody(css, ".header-shell__nav a")).toContain("text-decoration: none;");
     expect(cssRuleBody(css, ".friends-page__view")).toContain("text-decoration: none;");
     expect(cssRuleBody(css, ".friends-page__view--selected, .friends-page__view:hover, .friends-page__view:focus-visible")).toContain("text-decoration-line: underline;");
   });
@@ -174,37 +175,32 @@ describe("Zplit design contract", () => {
     expect(cssRuleBody(css, ".repayment-form__disclosure > summary")).toContain("border-radius: var(--radius-control);");
   });
 
-  it("keeps the authenticated desktop header in one centered three-region grid", () => {
-    const header = cssRuleBody(css, ".app-shell__header");
-    const headerLayout = cssRuleBody(css, ".app-shell__header-layout");
-    const detachedLayout = cssRuleBody(css, ".app-shell__header-layout--detached");
+  it("keeps both headers on one centered three-region detached shell", () => {
+    const header = cssRuleBody(css, ".header-shell");
+    const panel = cssRuleBody(css, ".header-shell__panel");
+    const detachedPanel = cssRuleBody(css, ".header-shell__panel--detached");
     expect(header).toContain("position: sticky;");
-    expect(header).toContain("border: 0;");
-    expect(header).toContain("background: transparent;");
-    expect(header).toContain("box-shadow: none;");
-    expect(header).toContain("overflow: visible;");
     expect(header).toContain("pointer-events: none;");
-    expect(headerLayout).toContain("border: 1px solid transparent;");
-    expect(headerLayout).toContain("background: transparent;");
-    expect(headerLayout).not.toContain("background: var(--surface);");
-    expect(headerLayout).not.toContain("box-shadow:");
-    expect(headerLayout).toContain("pointer-events: auto;");
-    expect(detachedLayout).toContain("border-color: var(--rule);");
-    expect(detachedLayout).toContain("border-radius: var(--radius-panel);");
-    expect(detachedLayout).toContain("background: var(--surface);");
-    expect(detachedLayout).toContain("box-shadow:");
-    expect(detachedLayout).not.toMatch(/border:\s*1px|width|max-width|transform|padding|margin/);
+    expect(panel).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);");
+    expect(panel).toContain("width: min(calc(100% - 2rem), 90rem);");
+    expect(panel).toContain("max-width: 90rem;");
+    expect(panel).toContain("border-bottom: 1px solid transparent;");
+    expect(panel).toContain("pointer-events: auto;");
+    expect(panel).toContain("transition: width var(--motion-state)");
+    expect(detachedPanel).toContain("width: min(calc(100% - 2rem), 72rem);");
+    expect(detachedPanel).toContain("max-width: 72rem;");
+    expect(detachedPanel).toContain("transform: translateY(0.6rem);");
+    expect(detachedPanel).toContain("border: 1px solid var(--rule);");
+    expect(detachedPanel).toContain("border-radius: var(--radius-panel);");
+    expect(detachedPanel).toContain("background: var(--surface);");
+    expect(detachedPanel).toContain("box-shadow:");
     expect(css).not.toContain(".app-shell__header--detached {");
-    expect(css).toMatch(/\.app-shell__header-layout\s*\{[\s\S]*?padding:\s*0\.75rem 1rem;/);
-    expect(css).toMatch(/\.app-shell__header-layout\s*\{[\s\S]*?width:\s*min\(calc\(100% - 2rem\), 72rem\);[\s\S]*?max-width:\s*72rem;[\s\S]*?border:\s*1px solid transparent;/);
-    expect(css).toMatch(/@media \(min-width: 1024px\)\s*\{[\s\S]*?\.app-shell__header-layout\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\);/);
-    expect(css).toMatch(/\.app-shell__brand\s*\{[\s\S]*?grid-column:\s*1;[\s\S]*?justify-self:\s*start;[\s\S]*?min-width:\s*0;/);
-    expect(css).toMatch(/\.app-shell__nav\s*\{[\s\S]*?grid-column:\s*2;[\s\S]*?justify-self:\s*center;[\s\S]*?width:\s*max-content;/);
-    expect(css).toMatch(/\.app-shell__actions\s*\{[\s\S]*?display:\s*flex;[\s\S]*?grid-column:\s*3;[\s\S]*?justify-self:\s*end;[\s\S]*?align-items:\s*center;[\s\S]*?gap:\s*0\.75rem;[\s\S]*?width:\s*max-content;/);
-    expect(css).not.toMatch(/\.app-shell__nav\s*\{[^}]*flex:\s*1/);
-    expect(css).not.toMatch(/\.app-shell__header-layout--detached\s*\{[^}]*\b(?:width|max-width|transform|padding|margin)/);
+    expect(css).not.toContain(".app-shell__header-layout--detached {");
+    expect(css).toMatch(/\.header-shell__nav a::after\s*\{[\s\S]*?transition: transform var\(--motion-instant\) var\(--ease-out\);/);
+    expect(css).toMatch(/\.header-shell__nav a:hover::after,[\s\S]*?\.header-shell__nav a\[aria-current="page"\]::after\s*\{[\s\S]*?transform: scaleX\(1\);/);
+    expect(cssRuleBody(css, ".app-shell__nav-link:hover, .app-shell__nav-link:focus-visible")).toContain("color: var(--ink);");
+    expect(css).toMatch(/@media \(min-width: 1024px\)\s*\{[\s\S]*?\.header-shell__panel\s*\{[\s\S]*?display:\s*grid;/);
     expect(css).toMatch(/@media \(max-width: 1023px\)\s*\{[\s\S]*?\.app-shell__mobile-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
-    expect(css).toContain(".site-header--detached {\n  width: min(calc(100% - 2rem), 72rem);");
   });
 
   it("keeps the requested bounded motion primitives consistent", () => {

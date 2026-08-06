@@ -184,6 +184,106 @@ input[type="search"]::-webkit-search-decoration {
   column-gap: clamp(1rem, 2.2vw, 2.25rem);
 }
 
+.header-shell {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  min-height: 5.5rem;
+  padding-block: 1.5rem;
+  border-bottom: 1px solid var(--rule);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.header-shell--detached {
+  border-bottom-color: transparent;
+}
+
+.header-shell__panel {
+  display: flex;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  min-height: 2.5rem;
+  width: min(calc(100% - 2rem), 90rem);
+  max-width: 90rem;
+  margin-inline: auto;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  pointer-events: auto;
+  transition: width var(--motion-state) var(--ease-standard), max-width var(--motion-state) var(--ease-standard), transform var(--motion-state) var(--ease-standard), border-radius var(--motion-state) var(--ease-standard), border-color var(--motion-state) var(--ease-standard), background-color var(--motion-state) var(--ease-standard), box-shadow var(--motion-state) var(--ease-standard);
+}
+
+.header-shell__panel--detached {
+  width: min(calc(100% - 2rem), 72rem);
+  max-width: 72rem;
+  margin-inline: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
+  transform: translateY(0.6rem);
+}
+
+.header-shell__brand {
+  display: flex;
+  grid-column: 1;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.header-shell__nav {
+  display: flex;
+  grid-column: 2;
+  justify-content: center;
+  gap: clamp(1rem, 3vw, 3rem);
+  width: max-content;
+}
+
+.header-shell__actions {
+  display: flex;
+  grid-column: 3;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.header-shell__nav a {
+  position: relative;
+  text-decoration: none;
+}
+
+.header-shell__nav a::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: var(--ink);
+  content: "";
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--motion-instant) var(--ease-out);
+}
+
+.header-shell__nav a:hover::after,
+.header-shell__nav a:focus-visible::after,
+.header-shell__nav a[aria-current="page"]::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+@media (min-width: 1024px) {
+  .header-shell__panel {
+    display: grid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header-shell__panel,
+  .header-shell__nav a::after {
+    transition: none;
+  }
+}
+
 .technical-label {
   color: var(--muted-ink);
   font-size: 0.6875rem;

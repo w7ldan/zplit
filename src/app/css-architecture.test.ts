@@ -95,7 +95,7 @@ describe("CSS architecture", () => {
     expect(bundle.fragmentSources.slice(1).join("")).not.toContain("/* Explicit Zplit browser baseline. */");
 
     const anchors = [
-      ".site-header-wrapper {",
+      ".header-shell {",
       ".app-shell {",
       ".app-shell__header-layout {",
       ".friend-row,\n.outing-row,",
@@ -107,7 +107,7 @@ describe("CSS architecture", () => {
 
     expect(anchors.every((index) => index >= 0)).toBe(true);
     expect(anchors).toEqual([...anchors].sort((left, right) => left - right));
-    expect(bundle.css.indexOf(".site-header-wrapper {")).toBeLessThan(bundle.css.indexOf(".app-shell {"));
+    expect(bundle.css.indexOf(".header-shell {")).toBeLessThan(bundle.css.indexOf(".app-shell {"));
     expect(bundle.fragmentSources[5]).toContain("/* Refined authenticated controls and row actions. */");
     expect(bundle.fragmentSources[5]).toContain(".live-record-filters {");
     expect(bundle.fragmentSources[5]).toContain(".record-pagination {");
@@ -124,13 +124,18 @@ describe("CSS architecture", () => {
     expect(cssBraceDepth(bundle.css)).toBe(0);
   });
 
-  it("keeps authenticated header painting in its owning fragment", () => {
+  it("keeps shared header painting in the foundation fragment", () => {
+    const foundationSource = bundle.fragmentSources[0];
+    const publicSource = bundle.fragmentSources[1];
+    const authenticatedSource = bundle.fragmentSources[2];
+    expect(foundationSource).toContain(".header-shell {");
+    expect(foundationSource).toContain(".header-shell__panel--detached {");
+    expect(publicSource).not.toContain(".site-header--detached {");
+    expect(authenticatedSource).not.toContain(".app-shell__header-layout--detached {");
+    expect(lateOverridesSource).not.toMatch(/\.header-shell(?:__[\w-]+)?\b/);
     expect(lateOverridesSource).not.toMatch(/\.app-shell__header(?:-layout)?\b/);
-    expect(bundle.css).toContain(".app-shell__header {\n");
-    expect(bundle.css).toContain(".app-shell__header-layout--detached {\n");
     expect(lateOverridesSource).not.toContain("app-shell__header-layout--detached");
-    expect(bundle.css).toMatch(/\.app-shell__header\s*\{[\s\S]*?border:\s*0;[\s\S]*?background:\s*transparent;[\s\S]*?box-shadow:\s*none;/);
-    expect(bundle.css).toMatch(/\.app-shell__header-layout\s*\{[\s\S]*?border:\s*1px solid transparent;[\s\S]*?background:\s*transparent;/);
-    expect(bundle.css).toMatch(/\.app-shell__header-layout--detached\s*\{[\s\S]*?border-color:\s*var\(--rule\);[\s\S]*?border-radius:\s*var\(--radius-panel\);[\s\S]*?background:\s*var\(--surface\);[\s\S]*?box-shadow:/);
+    expect(foundationSource).toMatch(/\.header-shell__panel\s*\{[\s\S]*?width:\s*min\(calc\(100% - 2rem\), 90rem\);[\s\S]*?max-width:\s*90rem;[\s\S]*?border-bottom:\s*1px solid transparent;/);
+    expect(foundationSource).toMatch(/\.header-shell__panel--detached\s*\{[\s\S]*?width:\s*min\(calc\(100% - 2rem\), 72rem\);[\s\S]*?max-width:\s*72rem;[\s\S]*?transform:\s*translateY\(0\.6rem\);/);
   });
 });
