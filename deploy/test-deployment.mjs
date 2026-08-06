@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,6 +33,13 @@ const baseImage =
   "node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d";
 const postgresImage =
   "postgres:18.4-bookworm@sha256:1961f96e6029a02c3812d7cb329a3b03a3ac2bb067058dec17b0f5596aca9296";
+const requiredPublicAssets = [
+  "public/sw.js",
+  "public/icons/apple-touch-icon.png",
+  "public/icons/icon-192.png",
+  "public/icons/icon-512.png",
+  "public/icons/icon-512-maskable.png",
+];
 
 function requireCondition(condition, message) {
   if (!condition) {
@@ -73,6 +80,7 @@ const forbiddenServiceFeatures = (service) => {
   requireCondition(empty(service.devices), "device access is not allowed");
   requireCondition(!JSON.stringify(service).includes("/var/run/docker.sock"), "Docker socket access is not allowed");
 };
+
 
 requireCondition((caddy.match(/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\s*\{$/gim) ?? []).length === 1, "only one public Caddy site may be declared");
 requireCondition(/^idr\.wildan\.lol\s*\{$/m.test(caddy), "Caddy must serve the exact Zplit site");
@@ -299,13 +307,18 @@ requireCondition(/^\s*USER\s+node\s*$/m.test(authToolStage), "auth-tool must use
 requireCondition(/^\s*CMD\s+\["\.\/node_modules\/\.bin\/tsx",\s*"scripts\/bootstrap-owner\.ts"\]\s*$/m.test(authToolStage), "auth-tool must execute the bootstrap script");
 
 const runtimeStage = dockerfile.slice(dockerfile.lastIndexOf("\nFROM "));
+const publicCopy = "COPY --from=builder --chown=node:node /app/public ./public";
 requireCondition(/COPY\s+--from=builder[^\n]*\/app\/.next\/standalone/.test(dockerfile), ".next/standalone must be copied");
 requireCondition(/COPY\s+--from=builder[^\n]*\/app\/.next\/static/.test(dockerfile), ".next/static must be copied");
+requireCondition(runtimeStage.includes(publicCopy), "runtime must copy public assets from the builder");
+requireCondition(runtimeStage.indexOf(publicCopy) < runtimeStage.indexOf("USER node"), "public assets must be copied before USER node");
+requireCondition(!/^COPY \. \.\s*$/m.test(runtimeStage), "runtime must not copy the full repository");
 requireCondition(/\bWORKDIR\s+\/app\b/.test(dockerfile), "the application workdir must be /app");
 requireCondition(/\bRUN\s+npm\s+ci\b/.test(dockerfile), "dependencies must be installed with npm ci");
 requireCondition(/\bRUN\s+npm\s+run\s+build\b/.test(dockerfile), "the application must be built with npm run build");
 requireCondition(/^\s*USER\s+node\s*$/m.test(runtimeStage), "runtime must use USER node");
 requireCondition(/^\s*CMD\s+\["node",\s*"server\.js"\]\s*$/m.test(runtimeStage), "runtime must use exec-form node server.js");
 requireCondition(!/\b(?:npm|yarn|pnpm|apt|apt-get|apk|dnf|yum|microdnf|pacman|zypper|dpkg)\b/.test(runtimeStage), "runtime stage must not install packages");
+for (const asset of requiredPublicAssets) requireCondition(existsSync(path.join(root, asset)), `source asset is missing: ${asset}`);
 
 console.log("deployment contract passed");
