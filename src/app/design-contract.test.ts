@@ -148,6 +148,12 @@ describe("Zplit design contract", () => {
     expect(css).not.toContain("--motion-cinematic");
     expect(css).not.toContain("friend-heading-reveal");
     expect(css).not.toContain("friend-list-reveal");
+    expect(css).toContain(".toast-viewport");
+    expect(css).toContain("width: min(26rem, calc(100vw - 2rem))");
+    expect(css).toContain("bottom: calc(4.5rem + env(safe-area-inset-bottom) + 0.75rem)");
+    expect(css).toContain("clip-path: inset(0 0 100%)");
+    expect(css).toContain(".toast {\n    clip-path: none !important;");
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.toast,[\s\S]*?animation: none !important;/);
   });
 
   it("keeps the authenticated lifecycle and CSS syntax native and bounded", () => {

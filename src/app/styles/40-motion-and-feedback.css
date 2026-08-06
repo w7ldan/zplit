@@ -86,6 +86,57 @@
   color: var(--muted-ink);
 }
 
+.toast-viewport {
+  position: fixed;
+  z-index: 60;
+  right: 1rem;
+  bottom: 1rem;
+  display: grid;
+  gap: 0.5rem;
+  width: min(26rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--ink);
+  background: var(--surface);
+  box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
+  pointer-events: auto;
+  animation: toast-in var(--motion-state) var(--ease-product) both;
+}
+
+.toast__message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.toast__action {
+  flex: 0 0 auto;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.toast__action:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 @keyframes row-in {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }
@@ -99,6 +150,11 @@
 @keyframes result-in {
   from { opacity: 0; transform: translateY(0.5rem); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; clip-path: inset(0 0 100%); transform: translateY(0.45rem); }
+  to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
 }
 
 .invite-form__result,
@@ -138,6 +194,13 @@
   .app-shell__main {
     min-height: calc(100svh - 4.5rem);
     padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+
+  .toast-viewport {
+    right: 0.75rem;
+    bottom: calc(4.5rem + env(safe-area-inset-bottom) + 0.75rem);
+    left: 0.75rem;
+    width: auto;
   }
 }
 
@@ -341,11 +404,16 @@
   .app-page .expense-row--created,
   .task-panel,
   .task-panel--closing,
+  .toast,
   .invite-form__result,
   .friend-share__result {
     animation: none !important;
     transform: none !important;
     transition: none !important;
+  }
+
+  .toast {
+    clip-path: none !important;
   }
 
   .allocation-bar__fill {

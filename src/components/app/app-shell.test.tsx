@@ -34,6 +34,7 @@ describe("AppShell", () => {
     expect(within(primary).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");
     expect(screen.getByRole("link", { name: "Exports" })).toHaveAttribute("href", "/app/exports");
+    expect(document.querySelectorAll(".toast-viewport")).toHaveLength(1);
   });
 
   it("shows only the user name in the closed account control and keeps its menu", () => {

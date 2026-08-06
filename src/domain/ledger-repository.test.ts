@@ -238,6 +238,45 @@ describe("ledger repository", () => {
     expect(queries[4].sql).toContain('"friends"."id" = $');
   });
 
+  it("returns a versioned archive receipt and reverses that exact state", async () => {
+    const archivedAt = new Date("2026-08-07T00:00:00.000Z");
+    const updatedAt = new Date("2026-08-07T00:00:01.000Z");
+    const archivedFriend = { id: "friend-a", ownerUserId: owner, name: "Friend", phoneNumber: null, notes: null, archivedAt, createdAt: new Date("2026-01-01T00:00:00.000Z"), updatedAt };
+    const restoredFriend = { ...archivedFriend, archivedAt: null, updatedAt: new Date("2026-08-07T00:00:02.000Z") };
+    const updates: unknown[] = [];
+    const database = {
+      update: () => ({
+        set: (values: unknown) => {
+          updates.push(values);
+          return { where: () => ({ returning: async () => [updates.length === 1 ? { ...archivedFriend, ...(values as object) } : restoredFriend] }) };
+        },
+      }),
+    } as unknown as Database;
+    const repository = createLedgerRepository(database, owner);
+
+    const archived = await repository.archiveFriend("friend-a");
+    expect(archived.reversalReceipt).toEqual({ version: 1, friendId: "friend-a", archivedAt: archived.friend.archivedAt!.toISOString(), updatedAt: archived.friend.updatedAt.toISOString() });
+    await expect(repository.undoFriendArchive(archived.reversalReceipt)).resolves.toEqual(restoredFriend);
+    expect(updates[0]).toMatchObject({ archivedAt: archived.friend.archivedAt, updatedAt: archived.friend.updatedAt });
+    expect(updates[1]).toMatchObject({ archivedAt: null });
+  });
+
+  it("rejects a stale reversal atomically when either archived version changed", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const receipt = { version: 1 as const, friendId: "friend-a", archivedAt: "2026-08-07T00:00:00.000Z", updatedAt: "2026-08-07T00:00:01.000Z" };
+
+    await expect(createLedgerRepository(database as unknown as Database, owner).undoFriendArchive(receipt)).rejects.toBeInstanceOf(LedgerNotFoundError);
+    expect(queries).toHaveLength(1);
+    expect(queries[0].sql).toContain('"friends"."owner_user_id" = $');
+    expect(queries[0].sql).toContain('"friends"."archived_at" = $');
+    expect(queries[0].sql).toContain('"friends"."updated_at" = $');
+    expect(queries[0].params).toContain(owner);
+  });
+
   it("lists open expense shares with one owner-scoped fixed query", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

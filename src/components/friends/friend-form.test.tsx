@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { FriendForm } from "./friend-form";
+import { FriendArchiveForm, FriendForm } from "./friend-form";
+import { ToastProvider } from "@/components/feedback/toast";
+
+const router = { replace: vi.fn(), refresh: vi.fn() };
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 const initialFriendActionState = {
   fieldErrors: {},
@@ -57,5 +61,19 @@ describe("FriendForm", () => {
     expect(action).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Adding friend…" })).toBeDisabled();
     resolveAction(initialFriendActionState);
+  });
+
+  it("archives immediately, announces it, and sends the versioned receipt to Undo", async () => {
+    const receipt = { version: 1 as const, friendId: "friend-a", archivedAt: "2026-08-07T00:00:00.000Z", updatedAt: "2026-08-07T00:00:01.000Z" };
+    const action = vi.fn().mockResolvedValue({ ...initialFriendActionState, archiveReceipt: receipt });
+    const undoAction = vi.fn().mockResolvedValue({ ok: true });
+    render(<ToastProvider><FriendArchiveForm action={action} archived={false} undoAction={undoAction} /></ToastProvider>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive friend" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Friend archived"));
+    expect(action).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(undoAction).toHaveBeenCalledWith(receipt));
+    expect(router.refresh).toHaveBeenCalled();
   });
 });

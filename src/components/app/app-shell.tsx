@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderShell } from "@/components/navigation/header-shell";
+import { ToastProvider } from "@/components/feedback/toast";
 import { DeleteConfirmation } from "./delete-record-form";
 
 const destinations = [
@@ -38,7 +39,8 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
   }, []);
 
   return (
-    <div className="app-shell">
+    <ToastProvider>
+      <div className="app-shell">
       <HeaderShell
         ariaLabel="Ledger header"
         navigationLabel="Ledger navigation"
@@ -87,7 +89,8 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
           </Link>
         ))}
       </nav>
-      <main className="app-shell__main"><DeleteConfirmation />{children}</main>
-    </div>
+        <main className="app-shell__main"><DeleteConfirmation />{children}</main>
+      </div>
+    </ToastProvider>
   );
 }

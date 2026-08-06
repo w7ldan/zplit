@@ -7,7 +7,7 @@ import { FriendArchiveForm, FriendForm } from "@/components/friends/friend-form"
 import { FriendShareLink } from "@/components/friends/friend-share-link";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
-import { archiveFriendAction, restoreFriendAction, updateFriendAction } from "../actions";
+import { archiveFriendAction, restoreFriendAction, undoFriendArchiveAction, updateFriendAction } from "../actions";
 import { createDebtorShareLinkAction, revokeDebtorShareLinkAction, updateDebtorShareReceiptSelectionAction } from "./share-actions";
 import { getDebtorShareLinkStatus, getDebtorShareReceiptSelection } from "@/server/debtor-share-links";
 
@@ -56,7 +56,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
             mode="edit"
             initialValues={{ name: friend.name, phoneNumber: friend.phoneNumber ?? "", notes: friend.notes ?? "" }}
           />
-          <FriendArchiveForm action={(archived ? restoreFriendAction : archiveFriendAction).bind(null, friend.id)} archived={archived} />
+          <FriendArchiveForm action={(archived ? restoreFriendAction : archiveFriendAction).bind(null, friend.id)} archived={archived} undoAction={undoFriendArchiveAction} />
         </div>
         <FriendShareLink
           status={{ status: shareStatus.status, expiresAt: shareStatus.expiresAt?.toISOString() ?? null }}

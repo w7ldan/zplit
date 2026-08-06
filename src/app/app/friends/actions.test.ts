@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { archiveFriendAction, createFriendAction, restoreFriendAction, updateFriendAction } from "./actions";
+import { archiveFriendAction, createFriendAction, restoreFriendAction, undoFriendArchiveAction, updateFriendAction } from "./actions";
 import type { FriendActionState } from "./actions";
 import { LedgerNotFoundError } from "@/domain/ledger-repository";
 
@@ -112,16 +112,31 @@ describe("friend actions", () => {
   });
 
   it("binds archive and restore to the authenticated owner", async () => {
+    const reversalReceipt = { version: 1 as const, friendId: "friend-a", archivedAt: "2026-08-07T00:00:00.000Z", updatedAt: "2026-08-07T00:00:00.000Z" };
+    const archiveFriend = vi.fn().mockResolvedValue({ id: "friend-a", reversalReceipt });
     const setFriendArchived = vi.fn().mockResolvedValue({ id: "friend-a" });
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ setFriendArchived });
+    mocks.createLedgerRepository.mockReturnValue({ archiveFriend, setFriendArchived });
 
-    await expect(archiveFriendAction("friend-a", initialFriendActionState, new FormData())).rejects.toThrow("redirect:/app/friends/friend-a?saved=1");
-    expect(setFriendArchived).toHaveBeenCalledWith("friend-a", true);
+    await expect(archiveFriendAction("friend-a", initialFriendActionState, new FormData())).resolves.toMatchObject({ archiveReceipt: reversalReceipt });
+    expect(archiveFriend).toHaveBeenCalledWith("friend-a");
+    expect(setFriendArchived).not.toHaveBeenCalledWith("friend-a", true);
 
     mocks.redirect.mockImplementationOnce((path: string) => { throw new Error(`redirect:${path}`); });
     await expect(restoreFriendAction("friend-a", initialFriendActionState, new FormData())).rejects.toThrow("redirect:/app/friends/friend-a?saved=1");
     expect(setFriendArchived).toHaveBeenCalledWith("friend-a", false);
+  });
+
+  it("reverses only through the authenticated owner and reports stale archives safely", async () => {
+    const receipt = { version: 1 as const, friendId: "friend-a", archivedAt: "2026-08-07T00:00:00.000Z", updatedAt: "2026-08-07T00:00:00.000Z" };
+    const undoFriendArchive = vi.fn().mockRejectedValue(new LedgerNotFoundError());
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ undoFriendArchive });
+
+    await expect(undoFriendArchiveAction(receipt)).resolves.toEqual({ ok: false, message: "Undo unavailable: this friend changed after it was archived." });
+    expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
+    expect(undoFriendArchive).toHaveBeenCalledWith(receipt);
   });
 });

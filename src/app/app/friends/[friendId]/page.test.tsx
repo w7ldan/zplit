@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import FriendRecordPage from "./page";
+import { ToastProvider } from "@/components/feedback/toast";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -17,7 +18,7 @@ vi.mock("@/domain/ledger-repository", async () => {
   const actual = await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository");
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
 });
-vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound, useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/server/debtor-share-links", () => ({ getDebtorShareLinkStatus: mocks.getDebtorShareLinkStatus, getDebtorShareReceiptSelection: mocks.getDebtorShareReceiptSelection }));
 
 const friend = {
@@ -38,7 +39,7 @@ describe("friend record", () => {
     mocks.createLedgerRepository.mockReturnValue({ getFriend: vi.fn().mockResolvedValue(friend), listEligibleDebtorShareReceipts: vi.fn().mockResolvedValue([]) });
     mocks.getDebtorShareLinkStatus.mockResolvedValue({ status: "none", expiresAt: null });
     mocks.getDebtorShareReceiptSelection.mockResolvedValue([]);
-    render(await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) }));
+    render(<ToastProvider>{await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) })}</ToastProvider>);
 
     expect(screen.getByText("Friend · editable record")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Ada Lovelace" })).toBeInTheDocument();

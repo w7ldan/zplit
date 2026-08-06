@@ -5,14 +5,19 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { validateFriendInput, type FriendFieldErrors, type FriendInputValues } from "@/domain/friend-input";
-import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { createLedgerRepository, LedgerNotFoundError, type FriendArchiveReversalReceipt } from "@/domain/ledger-repository";
 import { addFriendToRepaymentReturnTarget, validateRepaymentReturnTarget } from "@/domain/repayment-return";
 
 export type FriendActionState = {
   fieldErrors: FriendFieldErrors;
   formError: string;
   values: FriendInputValues;
+  archiveReceipt?: FriendArchiveReversalReceipt;
 };
+
+export type FriendArchiveUndoState =
+  | { ok: true }
+  | { ok: false; message: string };
 
 const initialFriendActionState: FriendActionState = {
   fieldErrors: {},
@@ -97,7 +102,16 @@ export async function archiveFriendAction(
 ): Promise<FriendActionState> {
   void _previousState;
   void _formData;
-  return setArchived(friendId, true);
+  const session = await requireSession();
+  try {
+    const result = await createLedgerRepository(getDatabase(), session.user.id).archiveFriend(friendId);
+    revalidatePath("/app");
+    revalidatePath("/app/friends");
+    revalidatePath(`/app/friends/${friendId}`);
+    return { ...initialFriendActionState, archiveReceipt: result.reversalReceipt };
+  } catch (error) {
+    return errorState(error, "archive");
+  }
 }
 
 export async function restoreFriendAction(
@@ -108,6 +122,24 @@ export async function restoreFriendAction(
   void _previousState;
   void _formData;
   return setArchived(friendId, false);
+}
+
+export async function undoFriendArchiveAction(receipt: FriendArchiveReversalReceipt): Promise<FriendArchiveUndoState> {
+  const session = await requireSession();
+  try {
+    await createLedgerRepository(getDatabase(), session.user.id).undoFriendArchive(receipt);
+    revalidatePath("/app");
+    revalidatePath("/app/friends");
+    revalidatePath(`/app/friends/${receipt.friendId}`);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof LedgerNotFoundError
+        ? "Undo unavailable: this friend changed after it was archived."
+        : "Undo unavailable: the archive could not be reversed.",
+    };
+  }
 }
 
 async function setArchived(friendId: string, archived: boolean): Promise<FriendActionState> {

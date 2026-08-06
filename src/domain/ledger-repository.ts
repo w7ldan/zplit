@@ -145,6 +145,12 @@ export type RepaymentMutationInput = {
 export type CreateRepaymentInput = RepaymentMutationInput;
 export type UpdateRepaymentInput = RepaymentMutationInput;
 export type FriendSelectorOption = { id: string; name: string; archived: boolean };
+export type FriendArchiveReversalReceipt = {
+  version: 1;
+  friendId: string;
+  archivedAt: string;
+  updatedAt: string;
+};
 export type RepaymentRecord = {
   id: string;
   ownerUserId: string;
@@ -367,6 +373,25 @@ function assertFriendInput(input: unknown): asserts input is FriendMutationInput
 function assertFriendId(friendId: string) {
   if (typeof friendId !== "string" || !friendId.trim()) {
     throw new LedgerRepositoryError("INVALID_INPUT", "A friend ID is required");
+  }
+}
+
+function assertFriendArchiveReversalReceipt(value: unknown): asserts value is FriendArchiveReversalReceipt {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.keys(value).some((key) => !["version", "friendId", "archivedAt", "updatedAt"].includes(key)) ||
+    (value as FriendArchiveReversalReceipt).version !== 1 ||
+    typeof (value as FriendArchiveReversalReceipt).friendId !== "string" ||
+    typeof (value as FriendArchiveReversalReceipt).archivedAt !== "string" ||
+    typeof (value as FriendArchiveReversalReceipt).updatedAt !== "string"
+  ) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "The archive reversal receipt is invalid");
+  }
+  assertFriendId((value as FriendArchiveReversalReceipt).friendId);
+  for (const date of [(value as FriendArchiveReversalReceipt).archivedAt, (value as FriendArchiveReversalReceipt).updatedAt]) {
+    if (Number.isNaN(new Date(date).getTime())) throw new LedgerRepositoryError("INVALID_INPUT", "The archive reversal receipt is invalid");
   }
 }
 
@@ -989,6 +1014,51 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .update(friends)
         .set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() })
         .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .returning();
+      if (!friend) return notFound();
+      return friend;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function archiveFriend(friendId: string) {
+    assertFriendId(friendId);
+    const archivedAt = new Date();
+    const updatedAt = new Date();
+    try {
+      const [friend] = await database
+        .update(friends)
+        .set({ archivedAt, updatedAt })
+        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId), isNull(friends.archivedAt)))
+        .returning();
+      if (!friend) return notFound();
+      return {
+        friend,
+        reversalReceipt: {
+          version: 1 as const,
+          friendId: friend.id,
+          archivedAt: friend.archivedAt?.toISOString() ?? archivedAt.toISOString(),
+          updatedAt: friend.updatedAt.toISOString(),
+        },
+      };
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function undoFriendArchive(receipt: FriendArchiveReversalReceipt) {
+    assertFriendArchiveReversalReceipt(receipt);
+    try {
+      const [friend] = await database
+        .update(friends)
+        .set({ archivedAt: null, updatedAt: new Date() })
+        .where(and(
+          eq(friends.ownerUserId, owner),
+          eq(friends.id, receipt.friendId),
+          eq(friends.archivedAt, new Date(receipt.archivedAt)),
+          eq(friends.updatedAt, new Date(receipt.updatedAt)),
+        ))
         .returning();
       if (!friend) return notFound();
       return friend;
@@ -2697,6 +2767,8 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     listFriendRecords,
     updateFriend,
     setFriendArchived,
+    archiveFriend,
+    undoFriendArchive,
     createOuting,
     getOuting,
     listOutings,

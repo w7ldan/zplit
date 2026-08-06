@@ -1,10 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 import type { FriendActionState } from "@/app/app/friends/actions";
+import type { FriendArchiveReversalReceipt } from "@/domain/ledger-repository";
 import { friendPhoneFormValues, type FriendInputValues } from "@/domain/friend-input";
 import { COUNTRY_CALLING_CODES, OTHER_COUNTRY_CODE } from "@/domain/country-calling-codes";
+import { useToast } from "@/components/feedback/toast";
 
 type FriendAction = (previousState: FriendActionState, formData: FormData) => Promise<FriendActionState>;
 
@@ -101,6 +104,7 @@ export function FriendForm({ action, initialValues = emptyValues, mode = "create
 }
 
 type ArchiveAction = FriendAction;
+type UndoAction = (receipt: FriendArchiveReversalReceipt) => Promise<{ ok: true } | { ok: false; message: string }>;
 
 function ArchiveSubmitButton({ archived }: { archived: boolean }) {
   const { pending } = useFormStatus();
@@ -111,8 +115,38 @@ function ArchiveSubmitButton({ archived }: { archived: boolean }) {
   );
 }
 
-export function FriendArchiveForm({ action, archived }: { action: ArchiveAction; archived: boolean }) {
+export function FriendArchiveForm({ action, archived, undoAction }: { action: ArchiveAction; archived: boolean; undoAction: UndoAction }) {
   const [state, formAction] = useActionState(action, emptyActionState);
+  const router = useRouter();
+  const { showToast } = useToast();
+  const handledReceipt = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    const receipt = state.archiveReceipt;
+    if (!receipt) return;
+    const receiptKey = `${receipt.version}:${receipt.friendId}:${receipt.archivedAt}:${receipt.updatedAt}`;
+    if (handledReceipt.current === receiptKey) return;
+    handledReceipt.current = receiptKey;
+    const url = new URL(window.location.href);
+    url.searchParams.set("saved", "1");
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+    showToast({
+      message: "Friend archived",
+      action: {
+        label: "Undo",
+        onAction: async () => {
+          try {
+            const result = await undoAction(receipt);
+            if (!result.ok) return result.message;
+            router.refresh();
+          } catch {
+            return "Undo unavailable: the archive could not be reversed.";
+          }
+        },
+      },
+    });
+  }, [router, showToast, state.archiveReceipt, undoAction]);
+
   return (
     <div className="friend-record__archive-wrap">
       <form action={formAction}>
