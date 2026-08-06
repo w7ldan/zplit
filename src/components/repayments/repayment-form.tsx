@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import type { RepaymentActionState } from "@/app/app/repayments/actions";
+import type { RepaymentActionState, RepaymentFriendContext } from "@/app/app/repayments/actions";
 import type { RepaymentInputValues } from "@/domain/repayment-input";
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
 import { formatRupiah } from "@/domain/rupiah";
@@ -18,6 +18,8 @@ type RepaymentFormProps = {
   initialPaidAtUtc?: string;
   mode?: "create" | "edit";
   friendLocked?: boolean;
+  initialFriendContext?: RepaymentFriendContext;
+  loadFriendContext?: (friendId: string, includeOpenExpenseShares?: boolean) => Promise<RepaymentFriendContext>;
   outstandingByFriend?: Record<string, number>;
   openExpenseSharesByFriend?: Record<string, OpenExpenseShare[]>;
 };
@@ -52,10 +54,12 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="repayment-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
-export function RepaymentForm({ action, friends: friendOptions, searchFriends, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, outstandingByFriend = {}, openExpenseSharesByFriend = {} }: RepaymentFormProps) {
+export function RepaymentForm({ action, friends: friendOptions, searchFriends, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, initialFriendContext, loadFriendContext, outstandingByFriend = {}, openExpenseSharesByFriend = {} }: RepaymentFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
   const [selectedFriendId, setSelectedFriendId] = useState(initialValues.friendId || friendOptions[0]?.id || "");
   const [selectedFriend, setSelectedFriend] = useState<SearchableOption | undefined>(() => friendOptions.find((friend) => friend.id === initialValues.friendId) ?? friendOptions[0]);
+  const [friendContext, setFriendContext] = useState(initialFriendContext);
+  const contextRequestRef = useRef(0);
   const [draftAllocations, setDraftAllocations] = useState<Record<string, string>>(() => Object.fromEntries((state.allocations ?? []).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
   const formRef = useRef<HTMLFormElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
@@ -64,17 +68,25 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
   const previousActionStateRef = useRef(state);
   const friendActionStateRef = useRef(state);
   const initializedRef = useRef(false);
-  const selectedShares = openExpenseSharesByFriend[selectedFriendId] ?? [];
+  const selectedShares = friendContext?.option.id === selectedFriendId ? friendContext.openExpenseShares : openExpenseSharesByFriend[selectedFriendId] ?? [];
   const friendOptionsWithSelection = selectedFriend && !friendOptions.some((friend) => friend.id === selectedFriend.id) ? [...friendOptions, selectedFriend] : friendOptions;
   const allocationDisclosureOpen = (state.allocations ?? []).some((allocation) => allocation.amountRupiah.trim() !== "") || Object.keys(state.allocationFieldErrors ?? {}).length > 0;
   const detailsDisclosureOpen = Boolean(state.values.paymentMethod || state.values.notes || state.fieldErrors.paymentMethod || state.fieldErrors.notes);
+
+  const refreshFriendContext = useCallback(async (friendId: string) => {
+    if (!loadFriendContext) return;
+    const request = ++contextRequestRef.current;
+    const context = await loadFriendContext(friendId, mode === "create");
+    if (request === contextRequestRef.current) setFriendContext(context);
+  }, [loadFriendContext, mode]);
 
   useEffect(() => {
     if (state === friendActionStateRef.current || !state.values.friendId) return;
     friendActionStateRef.current = state;
     // The action result is the source of truth after validation.
     setSelectedFriendId(state.values.friendId);
-  }, [state]);
+    if (loadFriendContext) void refreshFriendContext(state.values.friendId);
+  }, [loadFriendContext, refreshFriendContext, state]);
 
   useEffect(() => {
     if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = new Date().getTimezoneOffset().toString();
@@ -107,8 +119,8 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
     >
       <div className="repayment-form__field">
         <label id="repayment-friend-label" htmlFor="repayment-friend">Friend</label>
-        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setDraftAllocations({}); }} />
-        <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"}: {formatRupiah(outstandingByFriend[selectedFriendId] ?? 0)}</p>
+        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setDraftAllocations({}); void refreshFriendContext(friend.id); }} />
+        <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"}: {formatRupiah(friendContext?.option.id === selectedFriendId ? friendContext.outstandingAmount : outstandingByFriend[selectedFriendId] ?? 0)}</p>
         {friendLocked ? <p className="repayment-form__help">The friend is fixed while this repayment has allocations.</p> : null}
         <FieldError id="repayment-friend-error" message={state.fieldErrors.friendId} />
       </div>
@@ -125,7 +137,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
       </div>
       <input key={state.values.timezoneOffsetMinutes} ref={timezoneOffsetRef} type="hidden" name="timezoneOffsetMinutes" defaultValue={state.values.timezoneOffsetMinutes} />
       {mode === "create" ? <>
-        <details ref={allocationDisclosureRef} className="repayment-form__disclosure">
+        <details ref={allocationDisclosureRef} open={allocationDisclosureOpen || undefined} className="repayment-form__disclosure">
           <summary>Allocate now</summary>
           <section className="repayment-form__allocations" aria-labelledby="repayment-allocations-heading">
             <h2 id="repayment-allocations-heading">Apply to outstanding expenses</h2>
@@ -145,7 +157,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
             )) : <p className="repayment-form__help">No outstanding expense shares for this friend.</p>}
           </section>
         </details>
-        <details ref={detailsDisclosureRef} className="repayment-form__disclosure">
+        <details ref={detailsDisclosureRef} open={detailsDisclosureOpen || undefined} className="repayment-form__disclosure">
           <summary>Optional details</summary>
           <div className="repayment-form__field">
             <label htmlFor="repayment-payment-method">Payment method</label>

@@ -327,6 +327,12 @@ export type OpenExpenseShare = {
 
 export type OpenExpenseSharesByFriend = Record<string, OpenExpenseShare[]>;
 
+export type RepaymentFriendContext = {
+  option: FriendSelectorOption;
+  outstandingAmount: number;
+  openExpenseShares: OpenExpenseShare[];
+};
+
 export type EligibleDebtorShareReceipt = {
   id: string;
   originalFilename: string;
@@ -2012,7 +2018,8 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function listOpenExpenseSharesByFriend(): Promise<OpenExpenseSharesByFriend> {
+  async function listOpenExpenseSharesByFriend(friendId?: string): Promise<OpenExpenseSharesByFriend> {
+    if (friendId) assertFriendId(friendId);
     try {
       const shares = await database
         .select({
@@ -2028,7 +2035,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
         .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
         .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .where(eq(expenseShares.ownerUserId, owner))
+        .where(and(eq(expenseShares.ownerUserId, owner), ...(friendId ? [eq(expenseShares.friendId, friendId)] : [])))
         .orderBy(asc(friends.name), asc(outings.occurredAt), asc(expenses.createdAt), asc(expenseShares.id));
       const allocations = shares.length
         ? await database
@@ -2054,6 +2061,20 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     } catch (error) {
       return persistenceError(error);
     }
+  }
+
+  async function getRepaymentFriendContext(friendId: string, includeOpenExpenseShares = false): Promise<RepaymentFriendContext> {
+    assertFriendId(friendId);
+    const [friend, balances, shares] = await Promise.all([
+      getFriend(friendId),
+      getFriendBalances([friendId]),
+      includeOpenExpenseShares ? listOpenExpenseSharesByFriend(friendId) : Promise.resolve({} as OpenExpenseSharesByFriend),
+    ]);
+    return {
+      option: { id: friend.id, name: friend.name, archived: friend.archivedAt !== null },
+      outstandingAmount: balances[0]?.outstandingAmount ?? 0,
+      openExpenseShares: shares[friendId] ?? [],
+    };
   }
 
   async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput[]) {
@@ -2700,6 +2721,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     deleteExpense,
     listExpenseShares,
     listOpenExpenseSharesByFriend,
+    getRepaymentFriendContext,
     replaceExpenseShares,
     createRepayment,
     createRepaymentWithAllocations,

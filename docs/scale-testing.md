@@ -39,6 +39,6 @@ Selector search can be checked against the same disposable database with:
 DB_NAME=zplit_scale_test SCALE_TEST_OWNER_EMAIL=owner@example.com npm run test:selection-search-scale
 ```
 
-This smoke is read-only, checks bounded owner-scoped outing and friend searches, selected-value retention, active-before-archived ordering, and warm medians under 300 ms.
+This smoke is read-only, checks bounded owner-scoped outing and friend searches, selected-value retention, selected-friend repayment context (including open shares), active-before-archived ordering, and warm medians under 300 ms.
 
 The generated set contains 100 friends (80 active, 20 archived), 300 outings over 36 months, 2,000 expenses, 1,000 repayments, varied shares, and eight small receipts. The data includes boundary timestamps, maximum-length valid names, and paid, partial, unpaid, unallocated, and overpaid scenarios.

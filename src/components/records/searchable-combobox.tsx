@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type SearchableOption = { id: string; label: string; archived?: boolean };
 export type SearchableOptionAction = (query: string, selectedId?: string) => Promise<SearchableOption[]>;
@@ -48,14 +48,17 @@ export function SearchableCombobox({
   const [loadedOptions, setLoadedOptions] = useState<SearchableOption[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef(0);
   const searchTimerRef = useRef<number | null>(null);
   const listboxId = `${id}-listbox`;
   const currentSelectedId = value || selectedId;
-  const options = useMemo(() => mergeOptions(initialOptions, loadedOptions ?? []), [initialOptions, loadedOptions]);
+  const options = useMemo(() => (loadedOptions ?? initialOptions).slice(0, 20), [initialOptions, loadedOptions]);
+  const allOptions = useMemo(() => mergeOptions(initialOptions, loadedOptions ?? []), [initialOptions, loadedOptions]);
+  const selectedOption = allOptions.find((option) => option.id === currentSelectedId);
+  const nativeOptions = useMemo(() => mergeOptions(selectedOption ? [selectedOption] : [], options).slice(0, 20), [options, selectedOption]);
 
   // Progressive enhancement toggles the native fallback after hydration.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -79,22 +82,25 @@ export function SearchableCombobox({
   const loadOptions = useCallback((nextQuery: string) => {
     const request = ++requestRef.current;
     setError("");
-    startTransition(() => {
-      void search(nextQuery, currentSelectedId).then((result) => {
+    setLoading(true);
+    void search(nextQuery, currentSelectedId).then((result) => {
         if (request !== requestRef.current) return;
-        setLoadedOptions((current) => mergeOptions(result, current?.filter((option) => option.id === currentSelectedId) ?? []));
-        setActiveIndex(result.findIndex((option) => option.id === currentSelectedId));
+        const nextOptions = result.slice(0, 20);
+        setLoadedOptions(nextOptions);
+        const selectedIndex = nextOptions.findIndex((option) => option.id === currentSelectedId);
+        setActiveIndex(selectedIndex >= 0 ? selectedIndex : nextOptions.length ? 0 : -1);
       }).catch(() => {
         if (request === requestRef.current) setError("Unable to load options.");
+      }).finally(() => {
+        if (request === requestRef.current) setLoading(false);
       });
-    });
-  }, [currentSelectedId, search, startTransition]);
+  }, [currentSelectedId, search]);
 
   useEffect(() => {
-    if (!currentSelectedId || options.some((option) => option.id === currentSelectedId)) return;
+    if (!currentSelectedId || allOptions.some((option) => option.id === currentSelectedId)) return;
     const timer = window.setTimeout(() => loadOptions(""), 0);
     return () => window.clearTimeout(timer);
-  }, [currentSelectedId, loadOptions, options]);
+  }, [allOptions, currentSelectedId, loadOptions]);
 
   function openMenu() {
     if (disabled) return;
@@ -161,7 +167,6 @@ export function SearchableCombobox({
     }
   }
 
-  const selectedOption = options.find((option) => option.id === currentSelectedId);
   const displayValue = open ? query : selectedOption ? optionLabel(selectedOption) : "";
   const activeOption = activeIndex >= 0 ? options[activeIndex] : undefined;
 
@@ -178,11 +183,11 @@ export function SearchableCombobox({
         aria-invalid={ariaInvalid}
         aria-describedby={ariaDescribedBy}
         onChange={(event) => {
-          const option = options.find((candidate) => candidate.id === event.target.value);
+          const option = allOptions.find((candidate) => candidate.id === event.target.value);
           if (option) choose(option);
         }}
       >
-        {options.map((option) => <option key={option.id} value={option.id}>{optionLabel(option)}</option>)}
+        {nativeOptions.map((option) => <option key={option.id} value={option.id}>{optionLabel(option)}</option>)}
       </select>
       {disabled ? <input type="hidden" name={name} value={currentSelectedId} /> : null}
       <div className="searchable-combobox__custom">
@@ -202,10 +207,10 @@ export function SearchableCombobox({
           aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
           aria-invalid={ariaInvalid}
           aria-describedby={ariaDescribedBy}
-          aria-busy={isPending}
+          aria-busy={loading}
           onFocus={() => { if (!open) openMenu(); }}
           onChange={(event) => {
-            const option = options.find((candidate) => candidate.id === event.target.value);
+            const option = allOptions.find((candidate) => candidate.id === event.target.value);
             if (option) choose(option); else scheduleSearch(event.target.value);
           }}
           onKeyDown={onKeyDown}

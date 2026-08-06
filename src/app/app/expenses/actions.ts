@@ -29,6 +29,10 @@ export async function searchOutingOptions(query = "", selectedId?: string): Prom
   return (await createLedgerRepository(getDatabase(), session.user.id).searchOutings({ q: query, selectedId })).map((outing) => ({ id: outing.id, label: outing.title }));
 }
 
+export async function searchOutingFilterOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
+  return [{ id: "", label: "All outings" }, ...(await searchOutingOptions(query, selectedId)).slice(0, 19)];
+}
+
 function cascadeValue(formData: FormData) {
   const values = formData.getAll("confirmCascade");
   if (values.length === 0) return false;

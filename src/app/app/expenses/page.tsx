@@ -5,7 +5,7 @@ import { requireSession } from "@/auth/require-session";
 import { createLedgerRepository } from "@/domain/ledger-repository";
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ExpenseRow } from "@/components/expenses/expense-row";
-import { createExpenseAction, searchOutingOptions } from "./actions";
+import { createExpenseAction, searchOutingFilterOptions, searchOutingOptions } from "./actions";
 import { TaskPanel } from "@/components/app/task-panel";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
@@ -28,10 +28,10 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
   const openCreate = first(params?.create) === "1";
   const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params?.tz));
   const repository = createLedgerRepository(getDatabase(), session.user.id);
-  const outings = await repository.listOutings();
   const filters = normalizeExpenseFilters({ q: first(params?.q), outingId: first(params?.outing), month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page) });
-  const outingId = outings.some((outing) => outing.id === filters.outingId) ? filters.outingId : undefined;
-  const outingOptions = openCreate && outings.length > 0 ? (await repository.searchOutings({ selectedId: outingId })).map((outing) => ({ id: outing.id, label: outing.title })) : [];
+  const outingRows = await repository.searchOutings({ selectedId: filters.outingId });
+  const outingId = outingRows.some((outing) => outing.id === filters.outingId) ? filters.outingId : undefined;
+  const outingOptions = outingRows.map((outing) => ({ id: outing.id, label: outing.title }));
   const expensePage = await repository.listExpenseRecords({ q: first(params?.q), outingId, month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page), timezoneOffsetMinutes });
   const groups = groupRecordsByMonth(expensePage.items, (expense) => expense.outingOccurredAt, timezoneOffsetMinutes);
   const filtered = Boolean(filters.q || filters.month || filters.outingId || filters.assignment !== "all");
@@ -52,7 +52,7 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
         <LiveRecordFilters
           action="/app/expenses"
           search={{ label: "Search expenses", placeholder: "Description or outing", value: filters.q ?? "" }}
-          selects={[{ name: "outing", label: "Outing", value: outingId ?? "", options: [{ value: "", label: "All outings" }, ...outings.map((outing) => ({ value: outing.id, label: outing.title }))] }, { name: "assignment", label: "Assignment", value: filters.assignment === "all" ? "" : filters.assignment, options: [{ value: "", label: "All assignment states" }, { value: "assigned", label: "Assigned" }, { value: "unassigned", label: "Unassigned" }] }]}
+          selects={[{ name: "outing", label: "Outing", value: outingId ?? "", options: [{ value: "", label: "All outings" }, ...outingOptions.map((outing) => ({ value: outing.id, label: outing.label }))], search: searchOutingFilterOptions }, { name: "assignment", label: "Assignment", value: filters.assignment === "all" ? "" : filters.assignment, options: [{ value: "", label: "All assignment states" }, { value: "assigned", label: "Assigned" }, { value: "unassigned", label: "Unassigned" }] }]}
           month={{ label: "Month", value: filters.month ?? "" }}
           mobileDisclosure={{ activeCount: [outingId, filters.month, filters.assignment === "all" ? undefined : filters.assignment].filter(Boolean).length }}
           clearHref={filtered ? recordHref("/app/expenses", params, { q: undefined, outing: undefined, month: undefined, assignment: undefined, page: undefined }) : undefined}
@@ -65,13 +65,13 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
             <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
             {group.items.map((expense) => <ExpenseRow key={expense.id} expense={expense} />)}
           </div>) : (
-            <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? null : <Link className="text-link" href={recordHref(outings.length ? "/app/expenses" : "/app/outings", params, { create: "1" })} data-task-trigger={outings.length ? "expense-create" : "outing-create"}>{outings.length ? "Add an expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
+            <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? null : <Link className="text-link" href={recordHref(outingOptions.length ? "/app/expenses" : "/app/outings", params, { create: "1" })} data-task-trigger={outingOptions.length ? "expense-create" : "outing-create"}>{outingOptions.length ? "Add an expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
           )}
           <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={listHref} />
         </div>
       </div>
       {openCreate ? <TaskPanel open title="Add an expense" description="Choose the outing, record the whole-rupiah amount, and assign shares next." triggerId="expense-create">
-        {outings.length > 0 ? <ExpenseForm action={createExpenseAction} outings={outingOptions} searchOutings={searchOutingOptions} initialValues={{ description: "", amountRupiah: "", outingId: outingId ?? "" }} /> : <div className="task-panel__empty"><p>Create an outing before recording an expense.</p><Link className="action-link action-link--primary" href={`/app/outings?create=1&returnTo=${encodeURIComponent(expenseReturnTarget)}`} data-task-trigger="outing-create">Create an outing and continue</Link></div>}
+        {outingOptions.length > 0 ? <ExpenseForm action={createExpenseAction} outings={outingOptions} searchOutings={searchOutingOptions} initialValues={{ description: "", amountRupiah: "", outingId: outingId ?? "" }} /> : <div className="task-panel__empty"><p>Create an outing before recording an expense.</p><Link className="action-link action-link--primary" href={`/app/outings?create=1&returnTo=${encodeURIComponent(expenseReturnTarget)}`} data-task-trigger="outing-create">Create an outing and continue</Link></div>}
       </TaskPanel> : null}
     </section>
   );

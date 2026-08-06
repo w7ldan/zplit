@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { normalizeText } from "@/domain/record-retrieval";
+import { SearchableCombobox, type SearchableOptionAction } from "./searchable-combobox";
 
 export type LiveRecordSelect = {
   name: string;
   label: string;
   value: string;
   options: Array<{ value: string; label: string }>;
+  search?: SearchableOptionAction;
 };
 
 export type LiveRecordFiltersProps = {
@@ -206,8 +208,23 @@ export function LiveRecordFilters({ action, search, selects = emptySelects, mont
     <>
       {selects.map((select) => (
         <div className="live-record-filters__field" key={select.name}>
-          <label htmlFor={`record-filter-${select.name}`}>{select.label}</label>
-          <select
+          <label id={`record-filter-${select.name}-label`} htmlFor={`record-filter-${select.name}`}>{select.label}</label>
+          {select.search ? <SearchableCombobox
+            id={`record-filter-${select.name}`}
+            name={select.name}
+            value={selectValues[select.name] ?? select.value}
+            options={select.options.map((option) => ({ id: option.value, label: option.label }))}
+            search={select.search}
+            labelId={`record-filter-${select.name}-label`}
+            onValueChange={(option) => {
+              editRevisionRef.current += 1;
+              cancelDebounce();
+              const nextSelectValues = { ...selectValuesRef.current, [select.name]: option.id };
+              selectValuesRef.current = nextSelectValues;
+              setSelectValues(nextSelectValues);
+              navigate({ [select.name]: option.id || undefined, page: undefined });
+            }}
+          /> : <select
             id={`record-filter-${select.name}`}
             name={select.name}
             value={selectValues[select.name] ?? select.value}
@@ -222,7 +239,7 @@ export function LiveRecordFilters({ action, search, selects = emptySelects, mont
             }}
           >
             {select.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
+          </select>}
         </div>
       ))}
       {month ? (

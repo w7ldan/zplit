@@ -87,6 +87,13 @@ async function run() {
       return options;
     });
 
+    await measure("Selected friend context", async () => {
+      const context = await repository.getRepaymentFriendContext(selectedFriendId, true);
+      assert(context.option.id === selectedFriendId, "selected friend context returned the wrong option");
+      assert(Number.isSafeInteger(context.outstandingAmount), "selected friend context returned an invalid balance");
+      return context;
+    });
+
     const selectedOuting = await repository.searchOutings({ q: "does-not-match", selectedId: selectedOutingId });
     assert(selectedOuting.some((option) => option.id === selectedOutingId), "selected outing was dropped from search results");
     const selectedFriend = await repository.searchFriends({ q: "does-not-match", selectedId: selectedFriendId });

@@ -26,7 +26,7 @@ describe("/app/expenses", () => {
 
   it("prioritizes the chronological ledger and keeps Add expense visible", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue(expensePage), listOutings: vi.fn().mockResolvedValue([outing]) });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue(expensePage), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
     render(await ExpensesPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Expenses" })).toBeInTheDocument();
@@ -46,7 +46,7 @@ describe("/app/expenses", () => {
     const boundaryExpense = { ...expense, outingOccurredAt: new Date("2026-06-30T17:00:00.000Z") };
     const listExpenseRecords = vi.fn().mockResolvedValue({ ...expensePage, items: [boundaryExpense] });
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords, listOutings: vi.fn().mockResolvedValue([outing]) });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords, searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
 
     render(await ExpensesPage({ searchParams: Promise.resolve({ month: "2026-07", tz: "-420" }) }));
 
@@ -56,7 +56,7 @@ describe("/app/expenses", () => {
 
   it("preselects an outing inside the creation panel", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), listOutings: vi.fn().mockResolvedValue([outing]), searchOutings: vi.fn().mockResolvedValue([outing]) });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
     render(await ExpensesPage({ searchParams: Promise.resolve({ create: "1", outing: outing.id }) }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -66,7 +66,7 @@ describe("/app/expenses", () => {
 
   it("offers a continuation link when Add expense has no outing prerequisite", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), listOutings: vi.fn().mockResolvedValue([]) });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), searchOutings: vi.fn().mockResolvedValue([]) });
     render(await ExpensesPage({ searchParams: Promise.resolve({ create: "1", q: "Dinner", month: "2026-04", page: "2", source: "ledger" }) }));
 
     const link = screen.getByRole("link", { name: "Create an outing and continue" });
@@ -76,7 +76,7 @@ describe("/app/expenses", () => {
 
   it("preserves retrieval context when opening Add expense", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue(expensePage), listOutings: vi.fn().mockResolvedValue([outing]) });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue(expensePage), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
     render(await ExpensesPage({ searchParams: Promise.resolve({ q: "Dinner", outing: outing.id, month: "2026-04", assignment: "assigned", page: "2", task: "open", source: "ledger" }) }));
 
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", `/app/expenses?q=Dinner&outing=${outing.id}&month=2026-04&assignment=assigned&page=2&task=open&source=ledger&create=1`);
@@ -84,7 +84,7 @@ describe("/app/expenses", () => {
 
   it("counts only discrete filters in the mobile disclosure and clears controlled retrieval state", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue(expensePage), listOutings: vi.fn().mockResolvedValue([outing]) });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue(expensePage), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
     const view = render(await ExpensesPage({ searchParams: Promise.resolve({ q: "Dinner", page: "3", source: "ledger" }) }));
     expect(screen.getByText("Filters", { selector: "summary" })).toBeInTheDocument();
     expect((screen.getByText("Filters", { selector: "summary" }).parentElement as HTMLDetailsElement).open).toBe(false);
@@ -99,7 +99,7 @@ describe("/app/expenses", () => {
 
   it("keeps a filtered empty state understandable while the persistent clear action remains above it", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), listOutings: vi.fn().mockResolvedValue([outing]) });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
     render(await ExpensesPage({ searchParams: Promise.resolve({ q: "missing", page: "2", source: "ledger" }) }));
     expect(screen.getByRole("heading", { name: "No matching expenses." })).toBeInTheDocument();
     expect(screen.getByText("Try a different search or clear the filters.")).toBeInTheDocument();
@@ -112,7 +112,7 @@ describe("/app/expenses", () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.createLedgerRepository.mockReturnValue({
       listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [{ ...expense, description }], page: 2, totalItems: 41, totalPages: 3 }),
-      listOutings: vi.fn().mockResolvedValue([outing]),
+      searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]),
     });
 
     render(await ExpensesPage({ searchParams: Promise.resolve({ page: "2" }) }));

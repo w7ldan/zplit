@@ -656,6 +656,22 @@ describe("ledger repository", () => {
     expect(queries[0].params).toContain("friend-b");
   });
 
+  it("filters open expense shares to one selected friend", async () => {
+    const selectedId = "11111111-1111-4111-8111-111111111111";
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+
+    await expect(createLedgerRepository(database as unknown as Database, owner).listOpenExpenseSharesByFriend(selectedId)).resolves.toEqual({});
+
+    expect(queries).toHaveLength(1);
+    const shareQuery = queries[0]!;
+    expect(shareQuery.params).toContain(selectedId);
+    expect(shareQuery.sql).toContain('"expense_shares"."friend_id" = $');
+  });
+
   it("builds the export snapshot from five owner-scoped queries without private fields", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

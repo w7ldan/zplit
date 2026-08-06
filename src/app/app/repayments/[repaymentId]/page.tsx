@@ -7,7 +7,7 @@ import { RepaymentForm } from "@/components/repayments/repayment-form";
 import { RepaymentAllocationEditor } from "@/components/repayments/repayment-allocation-editor";
 import { formatRupiah } from "@/domain/rupiah";
 import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
-import { replaceRepaymentAllocationsAction, searchFriendOptions, updateRepaymentAction } from "../actions";
+import { loadRepaymentFriendContext, replaceRepaymentAllocationsAction, searchFriendOptions, updateRepaymentAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteRepaymentAction } from "../actions";
@@ -28,10 +28,9 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
   }
   const deletionImpact = await repository.getRepaymentDeletionImpact(repaymentId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
-  const [activeFriends, archivedFriends, friendOptionRows] = await Promise.all([repository.listFriends(), repository.listFriends({ archived: true }), repository.searchFriends({ selectedId: plan.friendId })]);
-  const friends = [...activeFriends, ...archivedFriends];
+  const [friendOptionRows, friendContext] = await Promise.all([repository.searchFriends({ selectedId: plan.friendId }), repository.getRepaymentFriendContext(plan.friendId)]);
   const friendOptions = friendOptionRows.map((friend) => ({ id: friend.id, label: friend.name, archived: friend.archived }));
-  const balances = await repository.getFriendBalances(friends.map((friend) => friend.id));
+  const formContext = { ...friendContext, option: { id: friendContext.option.id, label: friendContext.option.name, archived: friendContext.option.archived } };
   const repayment = plan;
 
   return (
@@ -59,8 +58,9 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
             searchFriends={searchFriendOptions}
             mode="edit"
             friendLocked={repayment.allocatedAmount > 0}
+            initialFriendContext={formContext}
+            loadFriendContext={loadRepaymentFriendContext}
             initialPaidAtUtc={repayment.paidAt.toISOString()}
-            outstandingByFriend={Object.fromEntries(balances.map((balance) => [balance.friendId, balance.outstandingAmount]))}
             initialValues={{ friendId: repayment.friendId, amountRupiah: repayment.amount.toString(), paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: repayment.paymentMethod ?? "", notes: repayment.notes ?? "" }}
           />
         </div>
