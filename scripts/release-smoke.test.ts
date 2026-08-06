@@ -5,6 +5,7 @@ import {
   readHealthResponse,
   requestHttps,
   requireRobots,
+  requirePublicServerHeader,
   requireServiceWorker,
   requireStatus,
   requireUnauthenticatedApp,
@@ -273,10 +274,21 @@ describe("service-worker response assertions", () => {
   });
 });
 
+describe("public Server header assertion", () => {
+  it.each([undefined, "", "cloudflare", "CloudFlare", "CLOUDFLARE"])("accepts %s", (server) => {
+    const headers = server === undefined ? {} : { server };
+    expect(() => requirePublicServerHeader(response(200, headers))).not.toThrow();
+  });
+
+  it.each(["cloudflare-nginx", "cloudflare, nginx", "caddy", "nginx", "arbitrary"])("rejects %s", (server) => {
+    expect(() => requirePublicServerHeader(response(200, { server }))).toThrow(/unexpected Server header/);
+  });
+});
+
 it("keeps the existing release-smoke coverage", () => {
   const source = readFileSync("scripts/release-smoke.ts", "utf8");
   for (const path of ["/healthz", "/", "/login", "/robots.txt", "/sitemap.xml", "/manifest.webmanifest", "/sw.js"]) expect(source).toContain(path);
   for (const header of ["strict-transport-security", "content-security-policy", "x-content-type-options", "permissions-policy", "referrer-policy", "cross-origin-opener-policy"]) expect(source).toContain(header);
-  expect(source).toContain('publicPage.headers.server');
+  expect(source).toContain("requirePublicServerHeader(publicPage)");
   expect(source).not.toContain("fetch(");
 });

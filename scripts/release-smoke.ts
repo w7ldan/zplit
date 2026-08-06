@@ -181,6 +181,11 @@ export function requirePrivateHeaders(response: SmokeResponse, path: string): vo
   requireHeader(response, path, "cache-control", "no-store");
 }
 
+export function requirePublicServerHeader(response: SmokeResponse): void {
+  const server = response.headers.server?.trim();
+  if (server && server.toLowerCase() !== "cloudflare") fail("/ exposes an unexpected Server header");
+}
+
 function bodyText(response: SmokeResponse): string {
   return response.body.toString("utf8");
 }
@@ -328,7 +333,7 @@ async function run(): Promise<void> {
     ["referrer-policy", "same-origin"],
     ["cross-origin-opener-policy", "same-origin"],
   ] as const) requireHeader(publicPage, "/", name, value);
-  if (publicPage.headers.server) fail("/ exposes a Server header");
+  requirePublicServerHeader(publicPage);
 
   console.log("release smoke passed");
 }
