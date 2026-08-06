@@ -35,6 +35,7 @@ const postgresImage =
   "postgres:18.4-bookworm@sha256:1961f96e6029a02c3812d7cb329a3b03a3ac2bb067058dec17b0f5596aca9296";
 const requiredPublicAssets = [
   "public/sw.js",
+  "public/icons/favicon.svg",
   "public/icons/apple-touch-icon.png",
   "public/icons/icon-192.png",
   "public/icons/icon-512.png",

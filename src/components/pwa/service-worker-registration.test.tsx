@@ -35,7 +35,7 @@ describe("service worker registration", () => {
 
 describe("service worker policy", () => {
   it("keeps the allowlist, denylist, navigation fallback, and update policy explicit", () => {
-    for (const pathName of ["/offline", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-512-maskable.png", "/icons/apple-touch-icon.png", "/_next/static/"]) expect(workerSource).toContain(pathName);
+    for (const pathName of ["/offline", "/icons/favicon.svg", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-512-maskable.png", "/icons/apple-touch-icon.png", "/_next/static/"]) expect(workerSource).toContain(pathName);
     for (const pathName of ["/app", "/api", "/join", "/share", "/receipts", "/exports"]) expect(workerSource).toContain(pathName);
     expect(workerSource).toContain('request.mode === "navigate"');
     expect(workerSource).toContain('caches.match("/offline")');

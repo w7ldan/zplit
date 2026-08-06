@@ -2,14 +2,22 @@ import { describe, expect, it } from "vitest";
 import { metadata, viewport } from "./layout";
 
 describe("root PWA metadata", () => {
-  it("links the manifest, install icons, and Apple web-app metadata", () => {
+  it("links the manifest, favicon, install icons, and Apple web-app metadata", () => {
     expect(metadata).toMatchObject({
       applicationName: "Zplit",
       manifest: "/manifest.webmanifest",
       appleWebApp: { capable: true, title: "Zplit", statusBarStyle: "default" },
     });
     expect(viewport).toEqual({ themeColor: "#111315" });
-    expect(metadata.icons).toMatchObject({ apple: "/icons/apple-touch-icon.png" });
+    expect(metadata.icons).toMatchObject({
+      icon: [
+        { url: "/icons/favicon.svg", type: "image/svg+xml" },
+        { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+        { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+        { url: "/icons/icon-512-maskable.png", sizes: "512x512", type: "image/png" },
+      ],
+      apple: "/icons/apple-touch-icon.png",
+    });
   });
 
   it("publishes generic Open Graph and Twitter metadata", () => {

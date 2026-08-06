@@ -33,6 +33,16 @@ describe("PWA manifest", () => {
     expect(pngSize("public/icons/apple-touch-icon.png")).toEqual({ width: 180, height: 180 });
     expect(valueIcon("maskable")).toMatchObject({ purpose: "maskable", sizes: "512x512" });
   });
+
+  it("keeps the favicon as the two-color Zplit mark source", () => {
+    const source = readFileSync(path.resolve(process.cwd(), "public/icons/favicon.svg"), "utf8");
+    expect(source).toContain('<rect width="512" height="512" fill="#C7E4F6"/>');
+    expect(source).toContain('x="256" y="256"');
+    expect(source).toContain('fill="#111315"');
+    expect(source).toContain('font-family="Arial, &quot;Helvetica Neue&quot;, Helvetica, sans-serif"');
+    expect(source).toContain('font-weight="800"');
+    expect(source).not.toContain("#F4F1EA");
+  });
 });
 
 function valueIcon(kind: "maskable") {
