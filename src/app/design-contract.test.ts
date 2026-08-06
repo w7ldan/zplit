@@ -199,6 +199,7 @@ describe("Zplit design contract", () => {
     expect(cssRuleBody(css, ".header-shell__brand > *")).toContain("gap: inherit;");
     expect(cssRuleBody(css, ".header-shell__nav")).toContain("justify-self: center;");
     expect(cssRuleBody(css, ".header-shell__actions")).toContain("justify-self: end;");
+    expect(cssRuleBody(css, ".public-home .site-header.header-shell__panel--detached")).toContain("padding-inline: 1rem;");
     expect(css).not.toContain(".app-shell__header--detached {");
     expect(css).not.toContain(".app-shell__header-layout--detached {");
     expect(css).toMatch(/\.header-shell__nav a::after\s*\{[\s\S]*?transition: transform var\(--motion-instant\) var\(--ease-out\);/);
