@@ -30,6 +30,10 @@
     "seed:scale": "tsx scripts/scale-fixture.ts seed",
     "verify:scale": "tsx scripts/scale-fixture.ts verify",
     "clear:scale": "tsx scripts/scale-fixture.ts clear",
+    "showcase:setup": "tsx scripts/showcase-fixture.ts setup",
+    "showcase:state": "tsx scripts/showcase-fixture.ts state",
+    "showcase:verify": "tsx scripts/showcase-fixture.ts verify",
+    "showcase:clear": "tsx scripts/showcase-fixture.ts clear",
     "test:deployment": "node deploy/test-deployment.mjs",
     "test:release": "tsx scripts/release-smoke.ts",
     "test:watch": "vitest"
