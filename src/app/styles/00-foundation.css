@@ -232,6 +232,12 @@ input[type="search"]::-webkit-search-decoration {
   flex: 1 1 auto;
 }
 
+.header-shell__brand > * {
+  display: flex;
+  align-items: inherit;
+  gap: inherit;
+}
+
 .header-shell__nav {
   display: flex;
   grid-column: 2;

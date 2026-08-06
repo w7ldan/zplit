@@ -195,6 +195,8 @@ describe("Zplit design contract", () => {
     expect(detachedPanel).toContain("background: var(--surface);");
     expect(detachedPanel).toContain("box-shadow:");
     expect(cssRuleBody(css, ".header-shell__brand")).toContain("justify-self: start;");
+    expect(cssRuleBody(css, ".header-shell__brand > *")).toContain("display: flex;");
+    expect(cssRuleBody(css, ".header-shell__brand > *")).toContain("gap: inherit;");
     expect(cssRuleBody(css, ".header-shell__nav")).toContain("justify-self: center;");
     expect(cssRuleBody(css, ".header-shell__actions")).toContain("justify-self: end;");
     expect(css).not.toContain(".app-shell__header--detached {");
