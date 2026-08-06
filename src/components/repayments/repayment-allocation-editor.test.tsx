@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { RepaymentAllocationActionState } from "@/app/app/repayments/actions";
 import type { RepaymentAllocationPlan } from "@/domain/ledger-repository";
 import { RepaymentAllocationEditor } from "./repayment-allocation-editor";
+import { ToastProvider } from "@/components/feedback/toast";
+
+const router = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 const shareA = "11111111-1111-4111-8111-111111111111";
 const plan: RepaymentAllocationPlan = {
@@ -91,5 +95,30 @@ describe("RepaymentAllocationEditor", () => {
     expect(screen.getByText("No outstanding shares for this friend.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Go to Expenses/ })).toHaveAttribute("href", "/app/expenses");
     expect(screen.queryByRole("button", { name: "Save allocations" })).not.toBeInTheDocument();
+  });
+
+  it("removes immediately and sends the exact receipt through server-backed Undo", async () => {
+    const receipt = { version: 1 as const, allocationId: `${plan.id}:${shareA}`, repaymentId: plan.id, expenseShareId: shareA, friendId: plan.friendId, amount: 40000 };
+    const removeAction = vi.fn().mockResolvedValue({ formError: "", removalReceipt: receipt });
+    const undoAction = vi.fn().mockResolvedValue({ ok: true });
+    render(<ToastProvider><RepaymentAllocationEditor action={vi.fn()} plan={plan} removeAction={removeAction} undoAction={undoAction} /></ToastProvider>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove allocation" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Allocation removed"));
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(undoAction).toHaveBeenCalledWith(receipt));
+    expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("keeps a failed allocation Undo visible with its persistent explanation", async () => {
+    const receipt = { version: 1 as const, allocationId: `${plan.id}:${shareA}`, repaymentId: plan.id, expenseShareId: shareA, friendId: plan.friendId, amount: 40000 };
+    const undoAction = vi.fn().mockResolvedValue({ ok: false, message: "Undo unavailable: the repayment no longer has capacity." });
+    render(<ToastProvider><RepaymentAllocationEditor action={vi.fn()} plan={plan} removeAction={vi.fn().mockResolvedValue({ formError: "", removalReceipt: receipt })} undoAction={undoAction} /></ToastProvider>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove allocation" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Undo unavailable: the repayment no longer has capacity."));
+    expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
   });
 });

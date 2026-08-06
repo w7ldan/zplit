@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import RepaymentRecordPage from "./page";
 import { deletionImpactRevision } from "@/domain/ledger-repository";
+import { ToastProvider } from "@/components/feedback/toast";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -16,7 +17,7 @@ vi.mock("@/domain/ledger-repository", async () => {
   const actual = await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository");
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
 });
-vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound, useRouter: () => ({ refresh: vi.fn() }) }));
 
 const repayment = {
   id: "33333333-3333-4333-8333-333333333333",
@@ -56,7 +57,7 @@ describe("repayment record", () => {
     const getRepaymentDeletionImpact = vi.fn().mockResolvedValue(deletionImpact);
     mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact, searchFriends: vi.fn().mockResolvedValue([{ id: friend.id, name: friend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: friend.id, name: friend.name, archived: false }, outstandingAmount: 44_000, openExpenseShares: [] }) });
 
-    render(await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }) }));
+    render(<ToastProvider>{await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }) })}</ToastProvider>);
 
     expect(screen.getByText("Repayment · allocate received money")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Ari" })).toBeInTheDocument();

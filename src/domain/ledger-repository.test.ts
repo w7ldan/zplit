@@ -10,6 +10,8 @@ import {
   LedgerNotFoundError,
   LedgerRepositoryError,
   OutingDeletionInvariantError,
+  RepaymentAllocationAmountInvariantError,
+  RepaymentAllocationShareInvariantError,
   RepaymentDeletionInvariantError,
 } from "./ledger-repository";
 import { LedgerIntegrityError } from "./ledger-summary";
@@ -34,6 +36,66 @@ function emptyTransactionalDatabase() {
   return {
     transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction),
   } as unknown as Database;
+}
+
+function repaymentAllocationDatabase(overrides: Partial<{
+  visible: boolean;
+  repayment: { id: string; friendId: string; amount: number } | null;
+  share: { id: string; expenseId: string; friendId: string; amountOwed: number } | null;
+  allocation: { repaymentId: string; expenseShareId: string; amount: number } | null;
+  repaymentOthers: Array<{ amount: number }>;
+  shareOthers: Array<{ amount: number }>;
+}> = {}) {
+  const state = {
+    visible: true,
+    repayment: { id: "repayment-a", friendId: "friend-a", amount: 100 },
+    share: { id: "share-a", expenseId: "expense-a", friendId: "friend-a", amountOwed: 100 },
+    allocation: { repaymentId: "repayment-a", expenseShareId: "share-a", amount: 40 },
+    repaymentOthers: [] as Array<{ amount: number }>,
+    shareOthers: [] as Array<{ amount: number }>,
+    ...overrides,
+  };
+  let allocationQuery = 0;
+  const transaction = {
+    select() {
+      let table: unknown;
+      const chain = {
+        from(nextTable: unknown) { table = nextTable; return chain; },
+        where() { return chain; },
+        limit() { return chain; },
+        orderBy() { return chain; },
+        for() {
+          if (!state.visible) return Promise.resolve([]);
+          if (table === repayments) return Promise.resolve(state.repayment ? [state.repayment] : []);
+          if (table === expenseShares) return Promise.resolve(state.share ? [state.share] : []);
+          if (table === repaymentAllocations) {
+            if (allocationQuery++ === 0) return Promise.resolve(state.allocation ? [state.allocation] : []);
+            return Promise.resolve(allocationQuery === 2 ? state.repaymentOthers : state.shareOthers);
+          }
+          return Promise.resolve([]);
+        },
+      };
+      return chain;
+    },
+    delete() {
+      return { where: () => ({ returning: async () => {
+        if (!state.allocation) return [];
+        const deleted = state.allocation;
+        state.allocation = null;
+        return [deleted];
+      } }) };
+    },
+    insert() {
+      return { values: (value: typeof state.allocation & { ownerUserId: string }) => ({ returning: async () => {
+        state.allocation = { repaymentId: value.repaymentId, expenseShareId: value.expenseShareId, amount: value.amount };
+        return [state.allocation];
+      } }) };
+    },
+  };
+  return {
+    state,
+    database: { transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => { allocationQuery = 0; return callback(transaction); } } as unknown as Database,
+  };
 }
 
 function deletionDatabase(withDependents: boolean) {
@@ -305,11 +367,65 @@ describe("ledger repository", () => {
     expect(foreign).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
   });
 
-  it("removes the single-row allocation API", () => {
+  it("exposes the transactional single-row allocation removal and undo API", () => {
     const repository = createLedgerRepository({} as Database, owner);
-    expect("createRepaymentAllocation" in repository).toBe(false);
+    expect("removeRepaymentAllocation" in repository).toBe(true);
+    expect("undoRepaymentAllocation" in repository).toBe(true);
     expect("replaceRepaymentAllocations" in repository).toBe(true);
     expect("getRepaymentAllocationPlan" in repository).toBe(true);
+  });
+
+  it("deletes immediately and restores the exact allocation snapshot", async () => {
+    const database = repaymentAllocationDatabase();
+    const repository = createLedgerRepository(database.database, owner);
+
+    const removed = await repository.removeRepaymentAllocation("repayment-a", "share-a");
+    expect(database.state.allocation).toBeNull();
+    expect(removed.reversalReceipt).toEqual({
+      version: 1,
+      allocationId: "repayment-a:share-a",
+      repaymentId: "repayment-a",
+      expenseShareId: "share-a",
+      friendId: "friend-a",
+      amount: 40,
+    });
+
+    await expect(repository.undoRepaymentAllocation(removed.reversalReceipt)).resolves.toEqual({ expenseId: "expense-a", friendId: "friend-a", repaymentId: "repayment-a" });
+    expect(database.state.allocation).toEqual({ repaymentId: "repayment-a", expenseShareId: "share-a", amount: 40 });
+  });
+
+  it("enforces owner isolation and rejects duplicate Undo", async () => {
+    const receipt = { version: 1 as const, allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId: "friend-a", amount: 40 };
+    const foreign = repaymentAllocationDatabase({ visible: false });
+    const foreignRepository = createLedgerRepository(foreign.database, owner);
+    await expect(foreignRepository.removeRepaymentAllocation("repayment-a", "share-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
+    await expect(foreignRepository.undoRepaymentAllocation(receipt)).rejects.toBeInstanceOf(LedgerNotFoundError);
+
+    const database = repaymentAllocationDatabase({ allocation: null });
+    const repository = createLedgerRepository(database.database, owner);
+    await repository.undoRepaymentAllocation(receipt);
+    await expect(repository.undoRepaymentAllocation(receipt)).rejects.toBeInstanceOf(LedgerNotFoundError);
+  });
+
+  it.each([
+    ["repayment capacity", { repayment: { id: "repayment-a", friendId: "friend-a", amount: 100 }, repaymentOthers: [{ amount: 70 }] }, RepaymentAllocationAmountInvariantError],
+    ["share capacity", { share: { id: "share-a", expenseId: "expense-a", friendId: "friend-a", amountOwed: 100 }, shareOthers: [{ amount: 70 }] }, RepaymentAllocationShareInvariantError],
+  ])("rejects Undo when it conflicts with the %s", async (_label, overrides, ErrorType) => {
+    const receipt = { version: 1 as const, allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId: "friend-a", amount: 40 };
+    const database = repaymentAllocationDatabase({ allocation: null, ...overrides });
+    await expect(createLedgerRepository(database.database, owner).undoRepaymentAllocation(receipt)).rejects.toBeInstanceOf(ErrorType);
+    expect(database.state.allocation).toBeNull();
+  });
+
+  it.each([
+    ["mismatched friend", { share: { id: "share-a", expenseId: "expense-a", friendId: "friend-b", amountOwed: 100 } }],
+    ["deleted repayment", { repayment: null }],
+    ["deleted share", { share: null }],
+  ])("rejects Undo safely after a %s", async (_label, overrides) => {
+    const receipt = { version: 1 as const, allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId: "friend-a", amount: 40 };
+    const database = repaymentAllocationDatabase({ allocation: null, ...overrides });
+    await expect(createLedgerRepository(database.database, owner).undoRepaymentAllocation(receipt)).rejects.toBeInstanceOf(LedgerNotFoundError);
+    expect(database.state.allocation).toBeNull();
   });
 
   it("maps absent and cross-owner references to one generic not-found error", async () => {

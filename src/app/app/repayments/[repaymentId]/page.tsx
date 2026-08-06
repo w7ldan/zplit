@@ -7,7 +7,7 @@ import { RepaymentForm } from "@/components/repayments/repayment-form";
 import { RepaymentAllocationEditor } from "@/components/repayments/repayment-allocation-editor";
 import { formatRupiah } from "@/domain/rupiah";
 import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
-import { loadRepaymentFriendContext, replaceRepaymentAllocationsAction, searchFriendOptions, updateRepaymentAction } from "../actions";
+import { loadRepaymentFriendContext, removeRepaymentAllocationAction, replaceRepaymentAllocationsAction, searchFriendOptions, undoRepaymentAllocationAction, updateRepaymentAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteRepaymentAction } from "../actions";
@@ -65,7 +65,7 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
           />
         </div>
         <div className="repayment-record__allocations">
-          <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, repayment.id)} plan={plan} />
+          <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, repayment.id)} plan={plan} removeAction={removeRepaymentAllocationAction} undoAction={undoRepaymentAllocationAction} />
         </div>
         <DeleteRecordForm action={deleteRepaymentAction.bind(null, repayment.id)} recordType="repayment" impact={deletionImpact} impactRevision={currentImpactRevision} />
       </div>

@@ -1,24 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
-import type { RepaymentAllocationPlan } from "@/domain/ledger-repository";
+import type { RepaymentAllocationPlan, RepaymentAllocationReversalReceipt } from "@/domain/ledger-repository";
 import { formatRupiah, parseRupiah } from "@/domain/rupiah";
-import type { RepaymentAllocationActionState } from "@/app/app/repayments/actions";
+import type { RepaymentAllocationActionState, RepaymentAllocationRemovalActionState, RepaymentAllocationUndoState } from "@/app/app/repayments/actions";
+import { useToast } from "@/components/feedback/toast";
 
 type RepaymentAllocationAction = (
   previousState: RepaymentAllocationActionState,
   formData: FormData,
 ) => Promise<RepaymentAllocationActionState>;
 
+type RepaymentAllocationRemovalAction = (
+  previousState: RepaymentAllocationRemovalActionState,
+  formData: FormData,
+) => Promise<RepaymentAllocationRemovalActionState>;
+
+type RepaymentAllocationRemovalActionFactory = (
+  repaymentId: string,
+  expenseShareId: string,
+  previousState: RepaymentAllocationRemovalActionState,
+  formData: FormData,
+) => Promise<RepaymentAllocationRemovalActionState>;
+
 type RepaymentAllocationEditorProps = {
   action: RepaymentAllocationAction;
   plan: RepaymentAllocationPlan;
+  removeAction?: RepaymentAllocationRemovalActionFactory;
+  undoAction?: (receipt: RepaymentAllocationReversalReceipt) => Promise<RepaymentAllocationUndoState>;
 };
 
 const emptyActionState: RepaymentAllocationActionState = { fieldErrors: {}, formError: "", values: [] };
+const emptyRemovalActionState: RepaymentAllocationRemovalActionState = { formError: "" };
 
 function initialValues(plan: RepaymentAllocationPlan) {
   return plan.shares.map((share) => ({
@@ -40,7 +57,54 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="repayment-allocation-editor__field-error" id={id} role={message ? "alert" : undefined}>{message || "\u00a0"}</p>;
 }
 
-export function RepaymentAllocationEditor({ action, plan }: RepaymentAllocationEditorProps) {
+function RemoveAllocationButton({ pending, onRemove }: { pending: boolean; onRemove: () => void }) {
+  return <button className="action-link action-link--quiet" type="button" onClick={onRemove} disabled={pending} aria-busy={pending}>{pending ? "Removing allocation…" : "Remove allocation"}</button>;
+}
+
+function RemoveAllocationForm({ action, undoAction }: { action: RepaymentAllocationRemovalAction; undoAction: (receipt: RepaymentAllocationReversalReceipt) => Promise<RepaymentAllocationUndoState> }) {
+  const [state, setState] = useState(emptyRemovalActionState);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  const { showToast } = useToast();
+  const handledReceipt = useRef<string | undefined>(undefined);
+
+  const remove = () => {
+    if (pending) return;
+    startTransition(async () => setState(await action(state, new FormData())));
+  };
+
+  useEffect(() => {
+    const receipt = state.removalReceipt;
+    if (!receipt) return;
+    const receiptKey = `${receipt.version}:${receipt.allocationId}:${receipt.repaymentId}:${receipt.expenseShareId}:${receipt.friendId}:${receipt.amount}`;
+    if (handledReceipt.current === receiptKey) return;
+    handledReceipt.current = receiptKey;
+    showToast({
+      message: "Allocation removed",
+      action: {
+        label: "Undo",
+        onAction: async () => {
+          try {
+            const result = await undoAction(receipt);
+            if (!result.ok) return result.message;
+            router.refresh();
+          } catch {
+            return "Undo unavailable: the allocation could not be restored.";
+          }
+        },
+      },
+    });
+  }, [router, showToast, state.removalReceipt, undoAction]);
+
+  return (
+    <div>
+      <RemoveAllocationButton pending={pending} onRemove={remove} />
+      {state.formError ? <p className="repayment-allocation-editor__message" role="alert">{state.formError}</p> : null}
+    </div>
+  );
+}
+
+export function RepaymentAllocationEditor({ action, plan, removeAction, undoAction }: RepaymentAllocationEditorProps) {
   const values = initialValues(plan);
   const [state, formAction] = useActionState(action, { ...emptyActionState, values });
   const [draftAmounts, setDraftAmounts] = useState<Record<string, string>>(() => Object.fromEntries(values.map((value) => [value.expenseShareId, value.amountRupiah])));
@@ -105,6 +169,7 @@ export function RepaymentAllocationEditor({ action, plan }: RepaymentAllocationE
                 />
                 <p className="repayment-allocation-editor__help" id={helpId}>Blank removes this allocation.</p>
                 <FieldError id={fieldErrorId} message={state.fieldErrors[share.expenseShareId]} />
+                {share.currentAllocation > 0 && removeAction && undoAction ? <RemoveAllocationForm action={removeAction.bind(null, plan.id, share.expenseShareId)} undoAction={undoAction} /> : null}
               </div>
             </div>
           );

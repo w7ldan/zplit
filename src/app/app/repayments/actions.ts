@@ -19,6 +19,7 @@ import {
   RepaymentAmountInvariantError,
   RepaymentFriendInvariantError,
   LedgerDeletionConfirmationRequiredError,
+  type RepaymentAllocationReversalReceipt,
 } from "@/domain/ledger-repository";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
@@ -37,6 +38,15 @@ export type RepaymentAllocationActionState = {
   formError: string;
   values: RepaymentAllocationInputValues;
 };
+
+export type RepaymentAllocationRemovalActionState = {
+  formError: string;
+  removalReceipt?: RepaymentAllocationReversalReceipt;
+};
+
+export type RepaymentAllocationUndoState =
+  | { ok: true }
+  | { ok: false; message: string };
 
 export type RepaymentDeleteActionState = DeleteRecordActionState;
 
@@ -109,6 +119,16 @@ function allocationValuesFromForm(formData: FormData) {
   return validateRepaymentAllocationInput(values);
 }
 
+function revalidateAllocationRoutes({ repaymentId, expenseId, friendId }: { repaymentId: string; expenseId: string; friendId: string }) {
+  revalidatePath("/app");
+  revalidatePath("/app/history");
+  revalidatePath("/app/repayments");
+  revalidatePath("/app/expenses");
+  revalidatePath(`/app/repayments/${repaymentId}`);
+  revalidatePath(`/app/expenses/${expenseId}`);
+  revalidatePath(`/app/friends/${friendId}`);
+}
+
 export async function createRepaymentAction(
   _previousState: RepaymentActionState,
   formData: FormData,
@@ -178,6 +198,46 @@ export async function replaceRepaymentAllocationsAction(
   revalidatePath("/app/repayments");
   revalidatePath(`/app/repayments/${repaymentId}`);
   redirect(`/app/repayments/${repaymentId}?saved=1`);
+}
+
+export async function removeRepaymentAllocationAction(
+  repaymentId: string,
+  expenseShareId: string,
+  _previousState: RepaymentAllocationRemovalActionState,
+  _formData: FormData,
+): Promise<RepaymentAllocationRemovalActionState> {
+  void _previousState;
+  void _formData;
+  const session = await requireSession();
+  try {
+    const result = await createLedgerRepository(getDatabase(), session.user.id).removeRepaymentAllocation(repaymentId, expenseShareId);
+    revalidateAllocationRoutes(result);
+    return { formError: "", removalReceipt: result.reversalReceipt };
+  } catch (error) {
+    return {
+      formError: error instanceof LedgerNotFoundError
+        ? "This repayment or expense share is no longer available."
+        : "Unable to remove this allocation.",
+    };
+  }
+}
+
+export async function undoRepaymentAllocationAction(receipt: RepaymentAllocationReversalReceipt): Promise<RepaymentAllocationUndoState> {
+  const session = await requireSession();
+  try {
+    const result = await createLedgerRepository(getDatabase(), session.user.id).undoRepaymentAllocation(receipt);
+    revalidateAllocationRoutes(result);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof LedgerNotFoundError
+        ? "Undo unavailable: this allocation or a related record changed."
+        : error instanceof RepaymentAllocationAmountInvariantError || error instanceof RepaymentAllocationShareInvariantError
+          ? `Undo unavailable: ${error.message}`
+          : "Undo unavailable: the allocation could not be restored.",
+    };
+  }
 }
 
 export async function deleteRepaymentAction(

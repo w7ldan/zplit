@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRepaymentAction, deleteRepaymentAction, replaceRepaymentAllocationsAction, updateRepaymentAction, type RepaymentActionState, type RepaymentAllocationActionState } from "./actions";
+import { createRepaymentAction, deleteRepaymentAction, removeRepaymentAllocationAction, replaceRepaymentAllocationsAction, undoRepaymentAllocationAction, updateRepaymentAction, type RepaymentActionState, type RepaymentAllocationActionState } from "./actions";
 import { deletionImpactRevision, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError, RepaymentAllocationAmountInvariantError, RepaymentAllocationShareInvariantError, RepaymentAmountInvariantError, RepaymentFriendInvariantError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
@@ -146,6 +146,38 @@ describe("repayment actions", () => {
     expect((await replaceRepaymentAllocationsAction("repayment-a", initialAllocationState, allocationForm([{ expenseShareId, amountRupiah: "84000" }]))).formError).toBe("An allocation cannot exceed the share's remaining balance.");
     replaceRepaymentAllocations.mockRejectedValue(new LedgerNotFoundError());
     expect((await replaceRepaymentAllocationsAction("foreign", initialAllocationState, allocationForm([]))).formError).toBe("This friend, repayment, or expense share is no longer available.");
+  });
+
+  it("removes an allocation immediately and revalidates every affected route", async () => {
+    const receipt = { version: 1 as const, allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId, amount: 40000 };
+    const removeRepaymentAllocation = vi.fn().mockResolvedValue({ reversalReceipt: receipt, repaymentId: "repayment-a", expenseId: "expense-a", friendId });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ removeRepaymentAllocation });
+
+    await expect(removeRepaymentAllocationAction("repayment-a", "share-a", { formError: "" }, new FormData())).resolves.toEqual({ formError: "", removalReceipt: receipt });
+    expect(removeRepaymentAllocation).toHaveBeenCalledWith("repayment-a", "share-a");
+    for (const path of ["/app", "/app/history", "/app/repayments", "/app/expenses", "/app/repayments/repayment-a", "/app/expenses/expense-a", `/app/friends/${friendId}`]) {
+      expect(mocks.revalidatePath).toHaveBeenCalledWith(path);
+    }
+  });
+
+  it("restores only through the authenticated owner and reports stale Undo safely", async () => {
+    const receipt = { version: 1 as const, allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId, amount: 40000 };
+    const undoRepaymentAllocation = vi.fn().mockResolvedValue({ repaymentId: "repayment-a", expenseId: "expense-a", friendId });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ undoRepaymentAllocation });
+
+    await expect(undoRepaymentAllocationAction(receipt)).resolves.toEqual({ ok: true });
+    expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
+    expect(undoRepaymentAllocation).toHaveBeenCalledWith(receipt);
+    for (const path of ["/app", "/app/history", "/app/repayments", "/app/expenses", "/app/repayments/repayment-a", "/app/expenses/expense-a", `/app/friends/${friendId}`]) {
+      expect(mocks.revalidatePath).toHaveBeenCalledWith(path);
+    }
+
+    undoRepaymentAllocation.mockRejectedValue(new LedgerNotFoundError());
+    await expect(undoRepaymentAllocationAction(receipt)).resolves.toEqual({ ok: false, message: "Undo unavailable: this allocation or a related record changed." });
   });
 
   it("requires exact deletion confirmation and revalidates the debtor friend", async () => {

@@ -151,6 +151,14 @@ export type FriendArchiveReversalReceipt = {
   archivedAt: string;
   updatedAt: string;
 };
+export type RepaymentAllocationReversalReceipt = {
+  version: 1;
+  allocationId: string;
+  repaymentId: string;
+  expenseShareId: string;
+  friendId: string;
+  amount: number;
+};
 export type RepaymentRecord = {
   id: string;
   ownerUserId: string;
@@ -392,6 +400,36 @@ function assertFriendArchiveReversalReceipt(value: unknown): asserts value is Fr
   assertFriendId((value as FriendArchiveReversalReceipt).friendId);
   for (const date of [(value as FriendArchiveReversalReceipt).archivedAt, (value as FriendArchiveReversalReceipt).updatedAt]) {
     if (Number.isNaN(new Date(date).getTime())) throw new LedgerRepositoryError("INVALID_INPUT", "The archive reversal receipt is invalid");
+  }
+}
+
+function repaymentAllocationId(repaymentId: string, expenseShareId: string) {
+  return `${repaymentId}:${expenseShareId}`;
+}
+
+function assertRepaymentAllocationReversalReceipt(value: unknown): asserts value is RepaymentAllocationReversalReceipt {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.keys(value).some((key) => !["version", "allocationId", "repaymentId", "expenseShareId", "friendId", "amount"].includes(key)) ||
+    (value as RepaymentAllocationReversalReceipt).version !== 1 ||
+    typeof (value as RepaymentAllocationReversalReceipt).allocationId !== "string" ||
+    typeof (value as RepaymentAllocationReversalReceipt).repaymentId !== "string" ||
+    typeof (value as RepaymentAllocationReversalReceipt).expenseShareId !== "string" ||
+    typeof (value as RepaymentAllocationReversalReceipt).friendId !== "string" ||
+    typeof (value as RepaymentAllocationReversalReceipt).amount !== "number" ||
+    !Number.isSafeInteger((value as RepaymentAllocationReversalReceipt).amount) ||
+    (value as RepaymentAllocationReversalReceipt).amount <= 0
+  ) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "The repayment allocation reversal receipt is invalid");
+  }
+  for (const id of [(value as RepaymentAllocationReversalReceipt).repaymentId, (value as RepaymentAllocationReversalReceipt).expenseShareId, (value as RepaymentAllocationReversalReceipt).friendId]) {
+    if (!id.trim()) throw new LedgerRepositoryError("INVALID_INPUT", "The repayment allocation reversal receipt is invalid");
+  }
+  const receipt = value as RepaymentAllocationReversalReceipt;
+  if (receipt.allocationId !== repaymentAllocationId(receipt.repaymentId, receipt.expenseShareId)) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "The repayment allocation reversal receipt is invalid");
   }
 }
 
@@ -2554,6 +2592,155 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  async function removeRepaymentAllocation(repaymentId: string, expenseShareId: string) {
+    assertRepaymentId(repaymentId);
+    if (typeof expenseShareId !== "string" || !expenseShareId.trim()) {
+      throw new LedgerRepositoryError("INVALID_INPUT", "An expense share ID is required");
+    }
+    const shareId = expenseShareId.trim().toLowerCase();
+    try {
+      return await database.transaction(async (transaction) => {
+        const [repayment] = await transaction
+          .select({ id: repayments.id, friendId: repayments.friendId })
+          .from(repayments)
+          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .limit(1)
+          .for("update");
+        if (!repayment) return notFound();
+
+        const [share] = await transaction
+          .select({ id: expenseShares.id, expenseId: expenseShares.expenseId, friendId: expenseShares.friendId })
+          .from(expenseShares)
+          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.id, shareId)))
+          .limit(1)
+          .for("update");
+        if (!share || share.friendId !== repayment.friendId) return notFound();
+
+        const [allocation] = await transaction
+          .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
+          .from(repaymentAllocations)
+          .where(and(
+            eq(repaymentAllocations.ownerUserId, owner),
+            eq(repaymentAllocations.repaymentId, repayment.id),
+            eq(repaymentAllocations.expenseShareId, share.id),
+          ))
+          .limit(1)
+          .for("update");
+        if (!allocation) return notFound();
+        if (!Number.isSafeInteger(allocation.amount) || allocation.amount <= 0) {
+          throw new LedgerIntegrityError(`Allocation for repayment ${repaymentId} is invalid.`);
+        }
+
+        const [deleted] = await transaction
+          .delete(repaymentAllocations)
+          .where(and(
+            eq(repaymentAllocations.ownerUserId, owner),
+            eq(repaymentAllocations.repaymentId, allocation.repaymentId),
+            eq(repaymentAllocations.expenseShareId, allocation.expenseShareId),
+          ))
+          .returning({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount });
+        if (!deleted) return notFound();
+
+        const reversalReceipt: RepaymentAllocationReversalReceipt = {
+          version: 1,
+          allocationId: repaymentAllocationId(deleted.repaymentId, deleted.expenseShareId),
+          repaymentId: deleted.repaymentId,
+          expenseShareId: deleted.expenseShareId,
+          friendId: share.friendId,
+          amount: deleted.amount,
+        };
+        return { expenseId: share.expenseId, friendId: share.friendId, repaymentId: repayment.id, reversalReceipt };
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function undoRepaymentAllocation(receipt: RepaymentAllocationReversalReceipt) {
+    assertRepaymentAllocationReversalReceipt(receipt);
+    try {
+      return await database.transaction(async (transaction) => {
+        const [repayment] = await transaction
+          .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount })
+          .from(repayments)
+          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, receipt.repaymentId)))
+          .limit(1)
+          .for("update");
+        if (!repayment) return notFound();
+
+        const [share] = await transaction
+          .select({ id: expenseShares.id, expenseId: expenseShares.expenseId, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
+          .from(expenseShares)
+          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.id, receipt.expenseShareId)))
+          .limit(1)
+          .for("update");
+        if (!share) return notFound();
+        if (
+          repayment.friendId !== receipt.friendId ||
+          share.friendId !== receipt.friendId ||
+          repayment.friendId !== share.friendId
+        ) return notFound();
+
+        const [existing] = await transaction
+          .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId })
+          .from(repaymentAllocations)
+          .where(and(
+            eq(repaymentAllocations.ownerUserId, owner),
+            eq(repaymentAllocations.repaymentId, receipt.repaymentId),
+            eq(repaymentAllocations.expenseShareId, receipt.expenseShareId),
+          ))
+          .limit(1)
+          .for("update");
+        if (existing) return notFound();
+
+        if (!Number.isSafeInteger(repayment.amount) || repayment.amount < 0 || !Number.isSafeInteger(share.amountOwed) || share.amountOwed < 0) {
+          throw new LedgerIntegrityError("Related allocation records contain an invalid amount.");
+        }
+        const repaymentAllocationsForRepayment = await transaction
+          .select({ amount: repaymentAllocations.amount })
+          .from(repaymentAllocations)
+          .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, receipt.repaymentId)))
+          .for("update");
+        let repaymentAllocatedAmount = 0;
+        for (const allocation of repaymentAllocationsForRepayment) {
+          if (!Number.isSafeInteger(allocation.amount) || allocation.amount <= 0) throw new LedgerIntegrityError(`Allocation for repayment ${receipt.repaymentId} is invalid.`);
+          repaymentAllocatedAmount += allocation.amount;
+          if (!Number.isSafeInteger(repaymentAllocatedAmount)) throw new LedgerIntegrityError(`Allocated amount for repayment ${receipt.repaymentId} is unsafe.`);
+        }
+        if (repaymentAllocatedAmount + receipt.amount > repayment.amount) throw new RepaymentAllocationAmountInvariantError();
+
+        const repaymentAllocationsForShare = await transaction
+          .select({ amount: repaymentAllocations.amount })
+          .from(repaymentAllocations)
+          .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.expenseShareId, receipt.expenseShareId)))
+          .for("update");
+        let shareAllocatedAmount = 0;
+        for (const allocation of repaymentAllocationsForShare) {
+          if (!Number.isSafeInteger(allocation.amount) || allocation.amount <= 0) throw new LedgerIntegrityError(`Allocation for share ${receipt.expenseShareId} is invalid.`);
+          shareAllocatedAmount += allocation.amount;
+          if (!Number.isSafeInteger(shareAllocatedAmount)) throw new LedgerIntegrityError(`Allocated amount for share ${receipt.expenseShareId} is unsafe.`);
+        }
+        if (shareAllocatedAmount + receipt.amount > share.amountOwed) throw new RepaymentAllocationShareInvariantError();
+
+        const [restored] = await transaction
+          .insert(repaymentAllocations)
+          .values({
+            ownerUserId: owner,
+            repaymentId: receipt.repaymentId,
+            expenseShareId: receipt.expenseShareId,
+            amount: receipt.amount,
+          })
+          .returning({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount });
+        if (!restored || repaymentAllocationId(restored.repaymentId, restored.expenseShareId) !== receipt.allocationId || restored.amount !== receipt.amount) {
+          return persistenceError(new Error("allocation restore returned an unexpected row"));
+        }
+        return { expenseId: share.expenseId, friendId: share.friendId, repaymentId: repayment.id };
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
   async function allocationPlanFor(transaction: Pick<Database, "select">, repaymentId: string): Promise<RepaymentAllocationPlan> {
     const [repayment] = await transaction
       .select(repaymentSelection())
@@ -2804,6 +2991,8 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     updateRepayment,
     getRepaymentDeletionImpact,
     deleteRepayment,
+    removeRepaymentAllocation,
+    undoRepaymentAllocation,
     getRepaymentAllocationPlan,
     replaceRepaymentAllocations,
   };
