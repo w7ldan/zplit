@@ -9,7 +9,7 @@ import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
 import { formatRupiah } from "@/domain/rupiah";
 import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { listExpenseReceipts } from "@/server/expense-receipts";
-import { replaceExpenseSharesAction, updateExpenseAction } from "../actions";
+import { replaceExpenseSharesAction, searchOutingOptions, updateExpenseAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteExpenseAction } from "../actions";
@@ -31,8 +31,8 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
   }
   const deletionImpact = await repository.getExpenseDeletionImpact(expenseId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
-  const outings = await repository.listOutings();
-  const [activeFriends, shares, receipts] = await Promise.all([
+  const [outingRows, activeFriends, shares, receipts] = await Promise.all([
+    repository.searchOutings({ selectedId: expense.outingId }),
     repository.listFriends(),
     repository.listExpenseShares(expense.id),
     listExpenseReceipts(database, session.user.id, expense.id),
@@ -49,6 +49,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
       .filter((share) => share.friendArchivedAt !== null && !activeFriends.some((friend) => friend.id === share.friendId))
       .map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, amountOwed: share.amountOwed })),
   ];
+  const outings = outingRows.map((outing) => ({ id: outing.id, label: outing.title }));
 
   return (
     <section className="app-page expense-record" id="top">
@@ -70,6 +71,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
           <ExpenseForm
             action={updateExpenseAction.bind(null, expense.id)}
             outings={outings}
+            searchOutings={searchOutingOptions}
             mode="edit"
             initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
           />

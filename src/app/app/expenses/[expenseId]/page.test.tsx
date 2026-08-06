@@ -41,7 +41,7 @@ describe("expense record", () => {
     const getExpenseDeletionImpact = vi.fn().mockResolvedValue(deletionImpact);
     mocks.createLedgerRepository.mockReturnValue({
       getExpense: vi.fn().mockResolvedValue(expense),
-      listOutings: vi.fn().mockResolvedValue([{ id: expense.outingId, title: expense.outingTitle }]),
+      searchOutings: vi.fn().mockResolvedValue([{ id: expense.outingId, title: expense.outingTitle }]),
       listFriends: vi.fn().mockResolvedValue([{ id: "33333333-3333-4333-8333-333333333333", name: "Rani", archivedAt: null }]),
       listExpenseShares: vi.fn().mockResolvedValue([]),
       getExpenseDeletionImpact,

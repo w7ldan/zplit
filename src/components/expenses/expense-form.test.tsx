@@ -20,7 +20,7 @@ const initialState = {
 
 describe("ExpenseForm", () => {
   it("renders accessible owner-owned outing fields without independent date controls", () => {
-    const { container } = render(<ExpenseForm action={vi.fn().mockResolvedValue(initialState)} outings={[outing]} />);
+    const { container } = render(<ExpenseForm action={vi.fn().mockResolvedValue(initialState)} outings={[{ id: outing.id, label: outing.title }]} searchOutings={vi.fn().mockResolvedValue([])} />);
 
     for (const label of ["Description", "Amount in rupiah", "Outing"]) {
       expect(screen.getByLabelText(label)).toHaveAttribute("aria-describedby", expect.stringContaining("expense-"));
@@ -42,7 +42,7 @@ describe("ExpenseForm", () => {
       formError: "Please correct the marked fields.",
       values: { description: "Dinner", amountRupiah: "84.00", outingId: outing.id },
     });
-    render(<ExpenseForm action={action} outings={[outing]} />);
+    render(<ExpenseForm action={action} outings={[{ id: outing.id, label: outing.title }]} searchOutings={vi.fn().mockResolvedValue([])} />);
     fireEvent.submit(screen.getByRole("button", { name: "Add expense" }).closest("form")!);
 
     await waitFor(() => expect(action).toHaveBeenCalledOnce());
@@ -54,7 +54,7 @@ describe("ExpenseForm", () => {
   it("shows pending text and prevents repeat submission", () => {
     let resolveAction: (state: typeof initialState) => void = () => {};
     const action = vi.fn().mockReturnValue(new Promise((resolve) => { resolveAction = resolve; }));
-    render(<ExpenseForm action={action} outings={[outing]} />);
+    render(<ExpenseForm action={action} outings={[{ id: outing.id, label: outing.title }]} searchOutings={vi.fn().mockResolvedValue([])} />);
     const form = screen.getByRole("button", { name: "Add expense" }).closest("form");
     if (!form) throw new Error("expense form is missing");
 

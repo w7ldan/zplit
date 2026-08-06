@@ -24,7 +24,7 @@ const initialState = {
 
 describe("RepaymentForm", () => {
   it("renders labelled square fields, active and archived friends, and local date controls", () => {
-    const { container } = render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[activeFriend, archivedFriend]} />);
+    const { container } = render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]} searchFriends={vi.fn().mockResolvedValue([])} />);
 
     for (const label of ["Friend", "Amount in rupiah", "Payment date and time", "Payment method", "Notes"]) {
       expect(screen.getByLabelText(label)).toHaveAttribute("aria-describedby", expect.stringContaining("repayment-"));
@@ -48,7 +48,7 @@ describe("RepaymentForm", () => {
       formError: "Please correct the marked fields.",
       values: { friendId: activeFriend.id, amountRupiah: "84.00", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "Cash", notes: "Received" },
     });
-    render(<RepaymentForm action={action} friends={[activeFriend]} />);
+    render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} />);
     fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
 
     await waitFor(() => expect(action).toHaveBeenCalledOnce());
@@ -61,7 +61,7 @@ describe("RepaymentForm", () => {
 
   it("submits closed disclosure controls in their existing order", async () => {
     const action = vi.fn().mockResolvedValue(initialState);
-    render(<RepaymentForm action={action} friends={[activeFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share, secondShare] }} />);
+    render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share, secondShare] }} />);
     fireEvent.change(screen.getByLabelText("Amount in rupiah"), { target: { value: "84000" } });
     fireEvent.change(screen.getByLabelText("Payment date and time"), { target: { value: "2026-01-02T10:30" } });
     fireEvent.change(screen.getByLabelText("Payment method"), { target: { value: "Cash" } });
@@ -81,7 +81,7 @@ describe("RepaymentForm", () => {
   it("shows the required pending label and prevents repeat submission", () => {
     let resolveAction: (state: typeof initialState) => void = () => {};
     const action = vi.fn().mockReturnValue(new Promise((resolve) => { resolveAction = resolve; }));
-    render(<RepaymentForm action={action} friends={[activeFriend]} />);
+    render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} />);
     const form = screen.getByRole("button", { name: "Record repayment" }).closest("form");
     if (!form) throw new Error("repayment form is missing");
 
@@ -96,7 +96,8 @@ describe("RepaymentForm", () => {
     render(
       <RepaymentForm
         action={vi.fn().mockResolvedValue(initialState)}
-        friends={[activeFriend, archivedFriend]}
+        friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]}
+        searchFriends={vi.fn().mockResolvedValue([])}
         mode="edit"
         friendLocked
         initialValues={{ friendId: activeFriend.id, amountRupiah: "84000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "Cash", notes: "Received" }}
@@ -109,7 +110,7 @@ describe("RepaymentForm", () => {
   });
 
   it("opens and closes natively, and keeps Allocate now open through local rerenders", () => {
-    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[activeFriend, archivedFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share], [archivedFriend.id]: [otherShare] }} />);
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share], [archivedFriend.id]: [otherShare] }} />);
 
     expect(screen.getByText("Allocate now").closest("details")).not.toHaveAttribute("open");
     expect(screen.getByText("Optional details").closest("details")).not.toHaveAttribute("open");
@@ -133,7 +134,7 @@ describe("RepaymentForm", () => {
   });
 
   it("shows optional open shares and clears draft allocations when the friend changes", () => {
-    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[activeFriend, archivedFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share], [archivedFriend.id]: [otherShare] }} />);
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share], [archivedFriend.id]: [otherShare] }} />);
 
     fireEvent.click(screen.getByText("Allocate now"));
     expect(screen.getByRole("heading", { name: "Apply to outstanding expenses" })).toBeVisible();
@@ -151,7 +152,7 @@ describe("RepaymentForm", () => {
       allocations: [{ expenseShareId: share.id, amountRupiah: "84000" }],
       allocationFieldErrors: { [share.id]: "Allocation is invalid." },
     });
-    render(<RepaymentForm action={action} friends={[activeFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share] }} />);
+    render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share] }} />);
     fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
 
     await waitFor(() => expect(screen.getByLabelText("Payment method")).toHaveValue("Cash"));
@@ -165,7 +166,7 @@ describe("RepaymentForm", () => {
       { allocations: [{ expenseShareId: share.id, amountRupiah: "" }], allocationFieldErrors: { [share.id]: "Allocation is invalid." } },
     ]) {
       const action = vi.fn().mockResolvedValue({ ...initialState, ...result, values: { ...initialState.values, friendId: activeFriend.id } });
-      const { unmount } = render(<RepaymentForm action={action} friends={[activeFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share] }} />);
+      const { unmount } = render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share] }} />);
       fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
 
       await waitFor(() => expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open"));
@@ -179,7 +180,7 @@ describe("RepaymentForm", () => {
       fieldErrors: { paymentMethod: "Payment method is too long.", notes: "Notes are too long." },
       values: initialState.values,
     });
-    render(<RepaymentForm action={action} friends={[activeFriend]} />);
+    render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} />);
     fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
 
     await waitFor(() => expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open"));
@@ -188,7 +189,7 @@ describe("RepaymentForm", () => {
   it("reopens a disclosure for each qualifying action result", async () => {
     const result = { ...initialState, values: { ...initialState.values, friendId: activeFriend.id }, allocations: [{ expenseShareId: share.id, amountRupiah: "84000" }] };
     const action = vi.fn().mockResolvedValueOnce({ ...result }).mockResolvedValueOnce({ ...result, allocations: [...result.allocations] });
-    render(<RepaymentForm action={action} friends={[activeFriend]} openExpenseSharesByFriend={{ [activeFriend.id]: [share] }} />);
+    render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share] }} />);
 
     fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
     await waitFor(() => expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open"));
@@ -199,7 +200,7 @@ describe("RepaymentForm", () => {
   });
 
   it("keeps disclosures out of edit mode", () => {
-    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[activeFriend]} mode="edit" />);
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} mode="edit" />);
 
     expect(screen.queryByText("Allocate now")).not.toBeInTheDocument();
     expect(screen.queryByText("Optional details")).not.toBeInTheDocument();

@@ -54,7 +54,7 @@ describe("repayment record", () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
     const getRepaymentDeletionImpact = vi.fn().mockResolvedValue(deletionImpact);
-    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact, listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])), getFriendBalances: vi.fn().mockResolvedValue([{ friendId: friend.id, name: friend.name, archived: false, assignedAmount: 84_000, repaidAmount: 40_000, outstandingAmount: 44_000 }]) });
+    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact, listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])), searchFriends: vi.fn().mockResolvedValue([{ id: friend.id, name: friend.name, archived: false }]), getFriendBalances: vi.fn().mockResolvedValue([{ friendId: friend.id, name: friend.name, archived: false, assignedAmount: 84_000, repaidAmount: 40_000, outstandingAmount: 44_000 }]) });
 
     render(await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }) }));
 
@@ -67,9 +67,9 @@ describe("repayment record", () => {
     expect(screen.getByLabelText("Notes")).toHaveValue("Received in full");
     expect(document.querySelector(`time[datetime="${repayment.paidAt.toISOString()}"]`)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Back to repayments/ })).toHaveAttribute("href", "/app/repayments");
-    expect(screen.getByLabelText("Friend")).toHaveValue(friend.id);
+    expect(screen.getByRole("combobox", { name: "Friend" })).toHaveValue(friend.name);
     expect(screen.getByText("Apply the received money")).toBeInTheDocument();
-    expect(screen.getByLabelText("Friend")).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Friend" })).toBeDisabled();
     expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
     expect(screen.getByText("Dinner")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Delete repayment" })).toBeInTheDocument();

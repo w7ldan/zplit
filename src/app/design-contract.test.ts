@@ -10,6 +10,8 @@ const taskPanelSource = readFileSync(path.resolve(process.cwd(), "src/components
 const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/components/app/record-confirmation.tsx"), "utf8");
 const expenseShareSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-share-editor.tsx"), "utf8");
 const repaymentAllocationSource = readFileSync(path.resolve(process.cwd(), "src/components/repayments/repayment-allocation-editor.tsx"), "utf8");
+const expenseFormSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-form.tsx"), "utf8");
+const repaymentFormSource = readFileSync(path.resolve(process.cwd(), "src/components/repayments/repayment-form.tsx"), "utf8");
 
 function cssBraceDepth(source: string) {
   let depth = 0;
@@ -57,6 +59,13 @@ function cssRuleBody(source: string, selector: string) {
 }
 
 describe("Zplit design contract", () => {
+  it("keeps record selectors shared and bounded at the form boundary", () => {
+    for (const source of [expenseFormSource, repaymentFormSource]) {
+      expect(source).toContain("SearchableCombobox");
+      expect(source).not.toContain("InferSelectModel");
+    }
+  });
+
   it("keeps the palette, geometry, public/authenticated modes, and motion budget explicit", () => {
     for (const token of ["#111315", "#F4F1EA", "#FFFEFA", "#C7E4F6", "#62676B", "#C8C7C1", "--mint", "--peach", "--amber", "--error"]) {
       expect(css).toContain(token);

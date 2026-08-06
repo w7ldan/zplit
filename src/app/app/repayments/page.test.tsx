@@ -62,7 +62,7 @@ describe("/app/repayments", () => {
 
   it("opens the repayment form only with create=1 and retains archived friends", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }, { id: archivedFriend.id, name: archivedFriend.name, archived: true }]), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1" }) }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(within(screen.getByRole("dialog")).getByRole("option", { name: "Bima (ARCHIVED)" })).toBeInTheDocument();
@@ -87,17 +87,17 @@ describe("/app/repayments", () => {
 
   it("preselects an owner friend for returned and manually opened repayment entry", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id }) }));
-    expect(within(screen.getByRole("dialog")).getByLabelText("Friend")).toHaveValue(activeFriend.id);
+    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveValue(activeFriend.name);
   });
 
   it("does not preselect malformed or foreign friends", async () => {
     for (const friendId of ["not-a-uuid", "33333333-3333-4333-8333-333333333333"]) {
       mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
       const view = render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId }) }));
-      expect(within(screen.getByRole("dialog")).getByLabelText("Friend")).toHaveValue(activeFriend.id);
+      expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveValue(activeFriend.name);
       view.unmount();
     }
   });

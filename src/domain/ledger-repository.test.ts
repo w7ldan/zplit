@@ -172,6 +172,33 @@ describe("ledger repository", () => {
     expect(queries[0].params).toContain(owner);
   });
 
+  it("bounds owner-scoped selector searches and keeps selected records searchable", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const selectedId = "11111111-1111-4111-8111-111111111111";
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await repository.searchOutings({ q: "100%_\\", selectedId });
+    await repository.searchFriends({ q: "100%_\\", selectedId });
+
+    expect(queries).toHaveLength(2);
+    const [outingQuery, friendQuery] = queries.map((query) => ({ ...query, sql: query.sql.replace(/\s+/g, " ").trim().toLowerCase() }));
+    expect(outingQuery.sql).toContain('select "id", "title"');
+    expect(friendQuery.sql).toContain('select "id", "name"');
+    for (const query of [outingQuery, friendQuery]) {
+      expect(query.sql).toContain("owner_user_id");
+      expect(query.sql).toMatch(/limit \$\d+/);
+      expect(query.params).toContain(owner);
+      expect(query.params).toContain(selectedId);
+      expect(query.params.some((value) => typeof value === "string" && value.includes("\\%") && value.includes("\\_"))).toBe(true);
+    }
+    expect(outingQuery.sql).toContain("order by");
+    expect(friendQuery.sql).toContain("case when \"friends\".\"archived_at\" is null then 0 else 1 end");
+  });
+
   it("owner-scopes get, archived list, update, archive, and restore predicates", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

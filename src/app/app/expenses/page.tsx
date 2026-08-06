@@ -5,7 +5,7 @@ import { requireSession } from "@/auth/require-session";
 import { createLedgerRepository } from "@/domain/ledger-repository";
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ExpenseRow } from "@/components/expenses/expense-row";
-import { createExpenseAction } from "./actions";
+import { createExpenseAction, searchOutingOptions } from "./actions";
 import { TaskPanel } from "@/components/app/task-panel";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
@@ -31,6 +31,7 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
   const outings = await repository.listOutings();
   const filters = normalizeExpenseFilters({ q: first(params?.q), outingId: first(params?.outing), month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page) });
   const outingId = outings.some((outing) => outing.id === filters.outingId) ? filters.outingId : undefined;
+  const outingOptions = openCreate && outings.length > 0 ? (await repository.searchOutings({ selectedId: outingId })).map((outing) => ({ id: outing.id, label: outing.title })) : [];
   const expensePage = await repository.listExpenseRecords({ q: first(params?.q), outingId, month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page), timezoneOffsetMinutes });
   const groups = groupRecordsByMonth(expensePage.items, (expense) => expense.outingOccurredAt, timezoneOffsetMinutes);
   const filtered = Boolean(filters.q || filters.month || filters.outingId || filters.assignment !== "all");
@@ -70,7 +71,7 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
         </div>
       </div>
       {openCreate ? <TaskPanel open title="Add an expense" description="Choose the outing, record the whole-rupiah amount, and assign shares next." triggerId="expense-create">
-        {outings.length > 0 ? <ExpenseForm action={createExpenseAction} outings={outings} initialValues={{ description: "", amountRupiah: "", outingId: outingId ?? "" }} /> : <div className="task-panel__empty"><p>Create an outing before recording an expense.</p><Link className="action-link action-link--primary" href={`/app/outings?create=1&returnTo=${encodeURIComponent(expenseReturnTarget)}`} data-task-trigger="outing-create">Create an outing and continue</Link></div>}
+        {outings.length > 0 ? <ExpenseForm action={createExpenseAction} outings={outingOptions} searchOutings={searchOutingOptions} initialValues={{ description: "", amountRupiah: "", outingId: outingId ?? "" }} /> : <div className="task-panel__empty"><p>Create an outing before recording an expense.</p><Link className="action-link action-link--primary" href={`/app/outings?create=1&returnTo=${encodeURIComponent(expenseReturnTarget)}`} data-task-trigger="outing-create">Create an outing and continue</Link></div>}
       </TaskPanel> : null}
     </section>
   );

@@ -1,19 +1,19 @@
 "use client";
 
-import type { InferSelectModel } from "drizzle-orm";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { RepaymentActionState } from "@/app/app/repayments/actions";
-import type { friends } from "@/db/schema";
 import type { RepaymentInputValues } from "@/domain/repayment-input";
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
 import { formatRupiah } from "@/domain/rupiah";
+import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 
 type RepaymentAction = (previousState: RepaymentActionState, formData: FormData) => Promise<RepaymentActionState>;
 
 type RepaymentFormProps = {
   action: RepaymentAction;
-  friends: Array<InferSelectModel<typeof friends>>;
+  friends: SearchableOption[];
+  searchFriends: SearchableOptionAction;
   initialValues?: RepaymentInputValues;
   initialPaidAtUtc?: string;
   mode?: "create" | "edit";
@@ -52,19 +52,29 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="repayment-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
-export function RepaymentForm({ action, friends: friendOptions, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, outstandingByFriend = {}, openExpenseSharesByFriend = {} }: RepaymentFormProps) {
+export function RepaymentForm({ action, friends: friendOptions, searchFriends, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, outstandingByFriend = {}, openExpenseSharesByFriend = {} }: RepaymentFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
   const [selectedFriendId, setSelectedFriendId] = useState(initialValues.friendId || friendOptions[0]?.id || "");
+  const [selectedFriend, setSelectedFriend] = useState<SearchableOption | undefined>(() => friendOptions.find((friend) => friend.id === initialValues.friendId) ?? friendOptions[0]);
   const [draftAllocations, setDraftAllocations] = useState<Record<string, string>>(() => Object.fromEntries((state.allocations ?? []).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
   const formRef = useRef<HTMLFormElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
   const allocationDisclosureRef = useRef<HTMLDetailsElement>(null);
   const detailsDisclosureRef = useRef<HTMLDetailsElement>(null);
   const previousActionStateRef = useRef(state);
+  const friendActionStateRef = useRef(state);
   const initializedRef = useRef(false);
   const selectedShares = openExpenseSharesByFriend[selectedFriendId] ?? [];
+  const friendOptionsWithSelection = selectedFriend && !friendOptions.some((friend) => friend.id === selectedFriend.id) ? [...friendOptions, selectedFriend] : friendOptions;
   const allocationDisclosureOpen = (state.allocations ?? []).some((allocation) => allocation.amountRupiah.trim() !== "") || Object.keys(state.allocationFieldErrors ?? {}).length > 0;
   const detailsDisclosureOpen = Boolean(state.values.paymentMethod || state.values.notes || state.fieldErrors.paymentMethod || state.fieldErrors.notes);
+
+  useEffect(() => {
+    if (state === friendActionStateRef.current || !state.values.friendId) return;
+    friendActionStateRef.current = state;
+    // The action result is the source of truth after validation.
+    setSelectedFriendId(state.values.friendId);
+  }, [state]);
 
   useEffect(() => {
     if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = new Date().getTimezoneOffset().toString();
@@ -90,34 +100,30 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
   return (
     <form
       ref={formRef}
-      key={`${state.values.friendId}\u0000${state.values.amountRupiah}\u0000${state.values.paidAtLocal}\u0000${state.values.timezoneOffsetMinutes}\u0000${state.values.paymentMethod}\u0000${state.values.notes}`}
       className="repayment-form"
       action={formAction}
       noValidate
       onSubmit={setCurrentTimezoneOffset}
     >
       <div className="repayment-form__field">
-        <label htmlFor="repayment-friend">Friend</label>
-        {friendLocked ? <input type="hidden" name="friendId" value={state.values.friendId} /> : null}
-        <select id="repayment-friend" name={friendLocked ? undefined : "friendId"} required disabled={friendLocked} defaultValue={state.values.friendId || friendOptions[0]?.id || ""} onChange={(event) => { setSelectedFriendId(event.target.value); setDraftAllocations({}); }} aria-invalid={Boolean(state.fieldErrors.friendId)} aria-describedby="repayment-friend-error">
-          {friendOptions.map((friend) => <option key={friend.id} value={friend.id}>{friend.name}{friend.archivedAt ? " (ARCHIVED)" : ""}</option>)}
-        </select>
-        <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptions.find((friend) => friend.id === selectedFriendId)?.name ?? "this friend"}: {formatRupiah(outstandingByFriend[selectedFriendId] ?? 0)}</p>
+        <label id="repayment-friend-label" htmlFor="repayment-friend">Friend</label>
+        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setDraftAllocations({}); }} />
+        <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"}: {formatRupiah(outstandingByFriend[selectedFriendId] ?? 0)}</p>
         {friendLocked ? <p className="repayment-form__help">The friend is fixed while this repayment has allocations.</p> : null}
         <FieldError id="repayment-friend-error" message={state.fieldErrors.friendId} />
       </div>
       <div className="repayment-form__field">
         <label htmlFor="repayment-amount">Amount in rupiah</label>
-        <input id="repayment-amount" name="amountRupiah" type="text" inputMode="numeric" required defaultValue={state.values.amountRupiah} aria-invalid={Boolean(state.fieldErrors.amountRupiah)} aria-describedby="repayment-amount-help repayment-amount-error" autoComplete="off" />
+        <input key={state.values.amountRupiah} id="repayment-amount" name="amountRupiah" type="text" inputMode="numeric" required defaultValue={state.values.amountRupiah} aria-invalid={Boolean(state.fieldErrors.amountRupiah)} aria-describedby="repayment-amount-help repayment-amount-error" autoComplete="off" />
         <p className="repayment-form__help" id="repayment-amount-help">Whole rupiah only. Examples: 84000 or 84.000.</p>
         <FieldError id="repayment-amount-error" message={state.fieldErrors.amountRupiah} />
       </div>
       <div className="repayment-form__field">
         <label htmlFor="repayment-paid-at">Payment date and time</label>
-        <input id="repayment-paid-at" name="paidAtLocal" type="datetime-local" required defaultValue={state.values.paidAtLocal} aria-invalid={Boolean(state.fieldErrors.paidAtLocal)} aria-describedby="repayment-paid-at-error" />
+        <input key={state.values.paidAtLocal} id="repayment-paid-at" name="paidAtLocal" type="datetime-local" required defaultValue={state.values.paidAtLocal} aria-invalid={Boolean(state.fieldErrors.paidAtLocal)} aria-describedby="repayment-paid-at-error" />
         <FieldError id="repayment-paid-at-error" message={state.fieldErrors.paidAtLocal} />
       </div>
-      <input ref={timezoneOffsetRef} type="hidden" name="timezoneOffsetMinutes" defaultValue={state.values.timezoneOffsetMinutes} />
+      <input key={state.values.timezoneOffsetMinutes} ref={timezoneOffsetRef} type="hidden" name="timezoneOffsetMinutes" defaultValue={state.values.timezoneOffsetMinutes} />
       {mode === "create" ? <>
         <details ref={allocationDisclosureRef} className="repayment-form__disclosure">
           <summary>Allocate now</summary>
@@ -143,24 +149,24 @@ export function RepaymentForm({ action, friends: friendOptions, initialValues = 
           <summary>Optional details</summary>
           <div className="repayment-form__field">
             <label htmlFor="repayment-payment-method">Payment method</label>
-            <input id="repayment-payment-method" name="paymentMethod" maxLength={40} defaultValue={state.values.paymentMethod} aria-invalid={Boolean(state.fieldErrors.paymentMethod)} aria-describedby="repayment-payment-method-error" autoComplete="off" />
+            <input key={state.values.paymentMethod} id="repayment-payment-method" name="paymentMethod" maxLength={40} defaultValue={state.values.paymentMethod} aria-invalid={Boolean(state.fieldErrors.paymentMethod)} aria-describedby="repayment-payment-method-error" autoComplete="off" />
             <FieldError id="repayment-payment-method-error" message={state.fieldErrors.paymentMethod} />
           </div>
           <div className="repayment-form__field">
             <label htmlFor="repayment-notes">Notes</label>
-            <textarea id="repayment-notes" name="notes" maxLength={4000} defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="repayment-notes-error" rows={5} />
+            <textarea key={state.values.notes} id="repayment-notes" name="notes" maxLength={4000} defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="repayment-notes-error" rows={5} />
             <FieldError id="repayment-notes-error" message={state.fieldErrors.notes} />
           </div>
         </details>
       </> : <>
         <div className="repayment-form__field">
           <label htmlFor="repayment-payment-method">Payment method</label>
-          <input id="repayment-payment-method" name="paymentMethod" maxLength={40} defaultValue={state.values.paymentMethod} aria-invalid={Boolean(state.fieldErrors.paymentMethod)} aria-describedby="repayment-payment-method-error" autoComplete="off" />
+          <input key={state.values.paymentMethod} id="repayment-payment-method" name="paymentMethod" maxLength={40} aria-invalid={Boolean(state.fieldErrors.paymentMethod)} defaultValue={state.values.paymentMethod} aria-describedby="repayment-payment-method-error" autoComplete="off" />
           <FieldError id="repayment-payment-method-error" message={state.fieldErrors.paymentMethod} />
         </div>
         <div className="repayment-form__field">
           <label htmlFor="repayment-notes">Notes</label>
-          <textarea id="repayment-notes" name="notes" maxLength={4000} defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="repayment-notes-error" rows={5} />
+          <textarea key={state.values.notes} id="repayment-notes" name="notes" maxLength={4000} defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="repayment-notes-error" rows={5} />
           <FieldError id="repayment-notes-error" message={state.fieldErrors.notes} />
         </div>
       </>}

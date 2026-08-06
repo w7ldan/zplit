@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, gt, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import type { Database } from "../db/client";
 import {
@@ -36,7 +36,9 @@ import {
   normalizeFriendFilters,
   normalizeOutingFilters,
   normalizeRepaymentFilters,
+  normalizeText,
   normalizeTimezoneOffset,
+  normalizeUuid,
   pageResult,
   RECORD_PAGE_SIZE,
   type RecordPage,
@@ -121,6 +123,7 @@ export type OutingMutationInput = {
 };
 export type CreateOutingInput = OutingMutationInput;
 export type UpdateOutingInput = OutingMutationInput;
+export type OutingSelectorOption = { id: string; title: string };
 export type ExpenseMutationInput = {
   description: string;
   amount: number;
@@ -141,6 +144,7 @@ export type RepaymentMutationInput = {
 };
 export type CreateRepaymentInput = RepaymentMutationInput;
 export type UpdateRepaymentInput = RepaymentMutationInput;
+export type FriendSelectorOption = { id: string; name: string; archived: boolean };
 export type RepaymentRecord = {
   id: string;
   ownerUserId: string;
@@ -903,6 +907,31 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  async function searchFriends(options: { q?: unknown; selectedId?: unknown } = {}): Promise<FriendSelectorOption[]> {
+    const query = normalizeText(options.q);
+    const selectedId = normalizeUuid(options.selectedId);
+    const conditions = [
+      eq(friends.ownerUserId, owner),
+      ...(query ? [selectedId ? or(literalContains(friends.name, query), literalContains(friends.phoneNumber, query), eq(friends.id, selectedId)) : or(literalContains(friends.name, query), literalContains(friends.phoneNumber, query))] : []),
+    ];
+    try {
+      const rows = await database
+        .select({ id: friends.id, name: friends.name, archived: sql<boolean>`${friends.archivedAt} is not null` })
+        .from(friends)
+        .where(and(...conditions))
+        .orderBy(
+          ...(selectedId ? [sql`case when ${friends.id} = ${selectedId} then 0 else 1 end`] : []),
+          sql`case when ${friends.archivedAt} is null then 0 else 1 end`,
+          asc(friends.name),
+          asc(friends.id),
+        )
+        .limit(20);
+      return rows;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
   async function listFriendRecords(options: { archived?: unknown; q?: unknown; page?: unknown } = {}): Promise<RecordPage<typeof friends.$inferSelect>> {
     const filters = normalizeFriendFilters(options);
     const conditions = [
@@ -990,6 +1019,30 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
   async function listOutings() {
     try {
       return await database.select().from(outings).where(eq(outings.ownerUserId, owner)).orderBy(desc(outings.occurredAt), asc(outings.id));
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function searchOutings(options: { q?: unknown; selectedId?: unknown } = {}): Promise<OutingSelectorOption[]> {
+    const query = normalizeText(options.q);
+    const selectedId = normalizeUuid(options.selectedId);
+    const conditions = [
+      eq(outings.ownerUserId, owner),
+      ...(query && selectedId ? [or(literalContains(outings.title, query), eq(outings.id, selectedId))] : query ? [literalContains(outings.title, query)] : []),
+    ];
+    try {
+      return await database
+        .select({ id: outings.id, title: outings.title })
+        .from(outings)
+        .where(and(...conditions))
+        .orderBy(
+          ...(selectedId ? [sql`case when ${outings.id} = ${selectedId} then 0 else 1 end`] : []),
+          desc(outings.occurredAt),
+          desc(outings.createdAt),
+          asc(outings.id),
+        )
+        .limit(20);
     } catch (error) {
       return persistenceError(error);
     }
@@ -2618,12 +2671,14 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     createFriend,
     getFriend,
     listFriends,
+    searchFriends,
     listFriendRecords,
     updateFriend,
     setFriendArchived,
     createOuting,
     getOuting,
     listOutings,
+    searchOutings,
     listOutingRecords,
     updateOuting,
     getOutingDeletionImpact,

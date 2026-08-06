@@ -8,6 +8,7 @@ import { validateExpenseShareInput, type ExpenseShareFieldErrors, type ExpenseSh
 import { validateExpenseInput, type ExpenseFieldErrors, type ExpenseInputValues } from "@/domain/expense-input";
 import { createLedgerRepository, deletionImpactRevision, ExpenseShareInvariantError, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
+import type { SearchableOption } from "@/components/records/searchable-combobox";
 
 export type ExpenseActionState = {
   fieldErrors: ExpenseFieldErrors;
@@ -22,6 +23,11 @@ export type ExpenseShareActionState = {
 };
 
 export type ExpenseDeleteActionState = DeleteRecordActionState;
+
+export async function searchOutingOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
+  const session = await requireSession();
+  return (await createLedgerRepository(getDatabase(), session.user.id).searchOutings({ q: query, selectedId })).map((outing) => ({ id: outing.id, label: outing.title }));
+}
 
 function cascadeValue(formData: FormData) {
   const values = formData.getAll("confirmCascade");

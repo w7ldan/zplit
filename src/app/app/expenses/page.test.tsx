@@ -56,12 +56,12 @@ describe("/app/expenses", () => {
 
   it("preselects an outing inside the creation panel", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), listOutings: vi.fn().mockResolvedValue([outing]) });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), listOutings: vi.fn().mockResolvedValue([outing]), searchOutings: vi.fn().mockResolvedValue([outing]) });
     render(await ExpensesPage({ searchParams: Promise.resolve({ create: "1", outing: outing.id }) }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Amount in rupiah")).toBeInTheDocument();
-    expect(within(screen.getByRole("dialog")).getByLabelText("Outing")).toHaveValue(outing.id);
+    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Outing" })).toHaveValue(outing.title);
   });
 
   it("offers a continuation link when Add expense has no outing prerequisite", async () => {

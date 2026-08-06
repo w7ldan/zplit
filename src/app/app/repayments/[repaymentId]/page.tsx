@@ -7,7 +7,7 @@ import { RepaymentForm } from "@/components/repayments/repayment-form";
 import { RepaymentAllocationEditor } from "@/components/repayments/repayment-allocation-editor";
 import { formatRupiah } from "@/domain/rupiah";
 import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
-import { replaceRepaymentAllocationsAction, updateRepaymentAction } from "../actions";
+import { replaceRepaymentAllocationsAction, searchFriendOptions, updateRepaymentAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteRepaymentAction } from "../actions";
@@ -28,8 +28,9 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
   }
   const deletionImpact = await repository.getRepaymentDeletionImpact(repaymentId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
-  const [activeFriends, archivedFriends] = await Promise.all([repository.listFriends(), repository.listFriends({ archived: true })]);
+  const [activeFriends, archivedFriends, friendOptionRows] = await Promise.all([repository.listFriends(), repository.listFriends({ archived: true }), repository.searchFriends({ selectedId: plan.friendId })]);
   const friends = [...activeFriends, ...archivedFriends];
+  const friendOptions = friendOptionRows.map((friend) => ({ id: friend.id, label: friend.name, archived: friend.archived }));
   const balances = await repository.getFriendBalances(friends.map((friend) => friend.id));
   const repayment = plan;
 
@@ -54,7 +55,8 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
           <p className="technical-label">EDIT RECORD</p>
           <RepaymentForm
             action={updateRepaymentAction.bind(null, repayment.id)}
-            friends={friends}
+            friends={friendOptions}
+            searchFriends={searchFriendOptions}
             mode="edit"
             friendLocked={repayment.allocatedAmount > 0}
             initialPaidAtUtc={repayment.paidAt.toISOString()}

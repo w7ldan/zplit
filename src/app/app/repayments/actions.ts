@@ -21,6 +21,7 @@ import {
   LedgerDeletionConfirmationRequiredError,
 } from "@/domain/ledger-repository";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
+import type { SearchableOption } from "@/components/records/searchable-combobox";
 
 export type RepaymentActionState = {
   fieldErrors: RepaymentFieldErrors;
@@ -37,6 +38,11 @@ export type RepaymentAllocationActionState = {
 };
 
 export type RepaymentDeleteActionState = DeleteRecordActionState;
+
+export async function searchFriendOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
+  const session = await requireSession();
+  return (await createLedgerRepository(getDatabase(), session.user.id).searchFriends({ q: query, selectedId })).map((friend) => ({ id: friend.id, label: friend.name, archived: friend.archived }));
+}
 
 function cascadeValue(formData: FormData) {
   const values = formData.getAll("confirmCascade");
