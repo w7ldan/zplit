@@ -49,6 +49,12 @@ function invalidState(result: Extract<ReturnType<typeof validateOutingInput>, { 
   return { fieldErrors: result.errors, formError: "Please correct the marked fields.", values: result.values };
 }
 
+function addTimezoneOffset(target: string, offset: string) {
+  const url = new URL(target, "https://zplit.invalid");
+  url.searchParams.set("tz", offset);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 function errorState(error: unknown): OutingActionState {
   return {
     fieldErrors: {},
@@ -76,8 +82,8 @@ export async function createOutingAction(
   revalidatePath("/app");
   revalidatePath("/app/outings");
   const returnTarget = returnTo ? addOutingToExpenseReturnTarget(returnTo, outing.id) : undefined;
-  if (returnTarget) redirect(returnTarget);
-  redirect(`/app/outings?created=${encodeURIComponent(outing.id)}`);
+  if (returnTarget) redirect(addTimezoneOffset(returnTarget, result.values.timezoneOffsetMinutes));
+  redirect(`/app/outings?created=${encodeURIComponent(outing.id)}&tz=${encodeURIComponent(result.values.timezoneOffsetMinutes)}`);
 }
 
 export async function updateOutingAction(

@@ -36,6 +36,7 @@ import {
   normalizeFriendFilters,
   normalizeOutingFilters,
   normalizeRepaymentFilters,
+  normalizeTimezoneOffset,
   pageResult,
   RECORD_PAGE_SIZE,
   type RecordPage,
@@ -710,12 +711,13 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function listOutingRecords(options: { q?: unknown; month?: unknown; page?: unknown } = {}) {
+  async function listOutingRecords(options: { q?: unknown; month?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}) {
     const filters = normalizeOutingFilters(options);
+    const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
     const conditions = [
       eq(outings.ownerUserId, owner),
       ...(filters.q ? [literalContains(outings.title, filters.q)] : []),
-      ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month)), lt(outings.occurredAt, nextMonthStart(filters.month))] : []),
+      ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
     ];
     const expenseTotals = database
       .select({
@@ -1089,8 +1091,9 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; month?: unknown; assignment?: unknown; page?: unknown } = {}) {
+  async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; month?: unknown; assignment?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}) {
     const filters = normalizeExpenseFilters(options);
+    const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
     const assignmentCondition = filters.assignment === "all"
       ? undefined
       : filters.assignment === "assigned"
@@ -1101,7 +1104,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       eq(outings.ownerUserId, owner),
       ...(filters.q ? [sql`(${literalContains(expenses.description, filters.q)} OR ${literalContains(outings.title, filters.q)})`] : []),
       ...(filters.outingId ? [eq(expenses.outingId, filters.outingId)] : []),
-      ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month)), lt(outings.occurredAt, nextMonthStart(filters.month))] : []),
+      ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
       ...(assignmentCondition ? [assignmentCondition] : []),
     ];
     try {
@@ -1929,8 +1932,9 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; month?: unknown; allocation?: unknown; page?: unknown } = {}): Promise<RecordPage<RepaymentListRecord>> {
+  async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; month?: unknown; allocation?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}): Promise<RecordPage<RepaymentListRecord>> {
     const filters = normalizeRepaymentFilters(options);
+    const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
     const allocationTotals = database
       .select({
         repaymentId: repaymentAllocations.repaymentId,
@@ -1951,7 +1955,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       eq(friends.ownerUserId, owner),
       ...(filters.q ? [sql`(${literalContains(friends.name, filters.q)} OR ${literalContains(repayments.paymentMethod, filters.q)})`] : []),
       ...(filters.friendId ? [eq(repayments.friendId, filters.friendId)] : []),
-      ...(filters.month ? [gte(repayments.paidAt, monthStart(filters.month)), lt(repayments.paidAt, nextMonthStart(filters.month))] : []),
+      ...(filters.month ? [gte(repayments.paidAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(repayments.paidAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
       ...(allocationCondition ? [allocationCondition] : []),
     ];
     try {

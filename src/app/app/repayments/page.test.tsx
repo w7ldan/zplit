@@ -48,6 +48,18 @@ describe("/app/repayments", () => {
     expect(openShares).not.toHaveBeenCalled();
   });
 
+  it("passes the normalized browser offset to repayment filtering and grouping", async () => {
+    const boundaryRepayment = { ...repayment, paidAt: new Date("2026-06-30T17:00:00.000Z") };
+    const listRepaymentRecords = vi.fn().mockResolvedValue({ items: [boundaryRepayment], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords, listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])) });
+
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ month: "2026-07", tz: "-420" }) }));
+
+    expect(screen.getByText("JULY 2026")).toBeInTheDocument();
+    expect(listRepaymentRecords).toHaveBeenCalledWith({ q: undefined, friendId: undefined, month: "2026-07", allocation: undefined, page: undefined, timezoneOffsetMinutes: -420 });
+  });
+
   it("opens the repayment form only with create=1 and retains archived friends", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });

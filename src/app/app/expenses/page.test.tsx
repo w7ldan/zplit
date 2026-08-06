@@ -42,6 +42,18 @@ describe("/app/expenses", () => {
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
+  it("passes the normalized browser offset to expense filtering and grouping", async () => {
+    const boundaryExpense = { ...expense, outingOccurredAt: new Date("2026-06-30T17:00:00.000Z") };
+    const listExpenseRecords = vi.fn().mockResolvedValue({ ...expensePage, items: [boundaryExpense] });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords, listOutings: vi.fn().mockResolvedValue([outing]) });
+
+    render(await ExpensesPage({ searchParams: Promise.resolve({ month: "2026-07", tz: "-420" }) }));
+
+    expect(screen.getByText("JULY 2026")).toBeInTheDocument();
+    expect(listExpenseRecords).toHaveBeenCalledWith({ q: undefined, outingId: undefined, month: "2026-07", assignment: undefined, page: undefined, timezoneOffsetMinutes: -420 });
+  });
+
   it("preselects an outing inside the creation panel", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), listOutings: vi.fn().mockResolvedValue([outing]) });

@@ -58,7 +58,7 @@ describe("outing actions", () => {
       timezoneOffsetMinutes: "-480",
       notes: "  Notes  ",
       ownerUserId: "owner-b",
-    }))).rejects.toThrow("redirect:/app/outings?created=outing-a");
+    }))).rejects.toThrow("redirect:/app/outings?created=outing-a&tz=-480");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
     expect(createOuting).toHaveBeenCalledWith({ title: "Dinner", occurredAt: new Date("2026-01-02T02:30:00.000Z"), notes: "Notes" });
@@ -77,7 +77,7 @@ describe("outing actions", () => {
       occurredAtLocal: "2026-01-02T10:30",
       timezoneOffsetMinutes: "-480",
       notes: "",
-    }))).rejects.toThrow("redirect:/app/expenses?q=Dinner&outing=outing-a&create=1#top");
+    }))).rejects.toThrow("redirect:/app/expenses?q=Dinner&outing=outing-a&create=1&tz=-480#top");
   });
 
   it("keeps continuation validation errors inside the outing form", async () => {

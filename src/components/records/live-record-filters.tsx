@@ -49,6 +49,7 @@ export function LiveRecordFilters({ action, search, selects = emptySelects, mont
   const observedUrlRef = useRef<string | null>(null);
   const ownNavigationUrlsRef = useRef(new Set<string>());
   const browserNavigationRef = useRef(false);
+  const timezoneSyncRef = useRef<number | null>(null);
   const externalSignature = [search.value, ...selects.map((select) => select.value), month?.value ?? ""].join("\u0000");
   const controlledNames = new Set([search.name ?? "q", ...selects.map((select) => select.name), ...(month ? [month.name ?? "month"] : []), "page"]);
   const searchName = search.name ?? "q";
@@ -76,6 +77,20 @@ export function LiveRecordFilters({ action, search, selects = emptySelects, mont
   useEffect(() => {
     if (disclosureRef.current) disclosureRef.current.open = initialDisclosureOpenRef.current;
   }, []);
+
+  useEffect(() => {
+    if (!month) return;
+    const timezoneOffset = new Date().getTimezoneOffset();
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("tz") === timezoneOffset.toString()) {
+      timezoneSyncRef.current = timezoneOffset;
+      return;
+    }
+    if (timezoneSyncRef.current === timezoneOffset) return;
+    timezoneSyncRef.current = timezoneOffset;
+    url.searchParams.set("tz", timezoneOffset.toString());
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+  }, [month, router]);
 
   useEffect(() => {
     const url = currentUrl();

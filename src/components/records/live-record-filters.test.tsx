@@ -13,11 +13,13 @@ const baseProps = {
   preservedParams: { task: "open", page: "3" },
   resultStatus: "1 outing found.",
 };
+const browserTimezone = new Date().getTimezoneOffset().toString();
+const timezoneQuery = `tz=${browserTimezone}`;
 
 beforeEach(() => {
   vi.useFakeTimers();
   mocks.replace.mockReset();
-  window.history.replaceState({}, "", "/app/outings?page=3&task=open#record-list");
+  window.history.replaceState({}, "", `/app/outings?page=3&task=open&${timezoneQuery}#record-list`);
 });
 
 afterEach(() => vi.useRealTimers());
@@ -76,7 +78,7 @@ describe("LiveRecordFilters", () => {
     expect(mocks.replace).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(1));
     expect(mocks.replace).toHaveBeenCalledTimes(1);
-    expect(mocks.replace).toHaveBeenCalledWith("/app/outings?task=open&q=Dinner#record-list", { scroll: false });
+    expect(mocks.replace).toHaveBeenCalledWith(`/app/outings?task=open&${timezoneQuery}&q=Dinner#record-list`, { scroll: false });
   });
 
   it("cancels earlier typing, clears immediately, and applies Enter immediately", () => {
@@ -125,14 +127,14 @@ describe("LiveRecordFilters", () => {
 
   it("keeps a newer draft and its debounce after an older response, including after blur", () => {
     for (const blur of [false, true]) {
-      window.history.replaceState({}, "", "/app/outings?page=3&task=open#record-list");
+      window.history.replaceState({}, "", `/app/outings?page=3&task=open&${timezoneQuery}#record-list`);
       const view = render(<LiveRecordFilters {...baseProps} />);
       const input = screen.getByLabelText("Search outings");
       fireEvent.change(input, { target: { value: "A" } });
       act(() => vi.advanceTimersByTime(275));
       expect(mocks.replace).toHaveBeenCalledTimes(1);
 
-      window.history.replaceState({}, "", "/app/outings?task=open&q=A#record-list");
+      window.history.replaceState({}, "", `/app/outings?task=open&${timezoneQuery}&q=A#record-list`);
       fireEvent.change(input, { target: { value: "AB" } });
       if (blur) fireEvent.blur(input);
       view.rerender(<LiveRecordFilters {...baseProps} search={{ ...baseProps.search, value: "A" }} />);
@@ -141,7 +143,7 @@ describe("LiveRecordFilters", () => {
       expect(mocks.replace).toHaveBeenCalledTimes(1);
       act(() => vi.advanceTimersByTime(1));
       expect(mocks.replace).toHaveBeenCalledTimes(2);
-      expect(mocks.replace).toHaveBeenLastCalledWith("/app/outings?task=open&q=AB#record-list", { scroll: false });
+      expect(mocks.replace).toHaveBeenLastCalledWith(`/app/outings?task=open&${timezoneQuery}&q=AB#record-list`, { scroll: false });
 
       view.unmount();
       mocks.replace.mockReset();
@@ -153,7 +155,7 @@ describe("LiveRecordFilters", () => {
     fireEvent.change(screen.getByLabelText("Search outings"), { target: { value: "Dinner" } });
     fireEvent.change(screen.getByLabelText("Assignment"), { target: { value: "assigned" } });
     expect(mocks.replace).toHaveBeenCalledTimes(1);
-    expect(mocks.replace).toHaveBeenCalledWith("/app/outings?task=open&q=Dinner&assignment=assigned#record-list", { scroll: false });
+    expect(mocks.replace).toHaveBeenCalledWith(`/app/outings?task=open&${timezoneQuery}&q=Dinner&assignment=assigned#record-list`, { scroll: false });
     act(() => vi.advanceTimersByTime(500));
     expect(mocks.replace).toHaveBeenCalledTimes(1);
   });
@@ -167,14 +169,14 @@ describe("LiveRecordFilters", () => {
         { name: "allocation", label: "Allocation", value: "", options: [{ value: "", label: "All" }, { value: "complete", label: "Complete" }] },
       ],
     };
-    window.history.replaceState({}, "", "/app/expenses?page=5&task=open#record-list");
+    window.history.replaceState({}, "", `/app/expenses?page=5&task=open&${timezoneQuery}#record-list`);
     render(<LiveRecordFilters {...props} />);
     fireEvent.change(screen.getByLabelText("Search outings"), { target: { value: "Dinner" } });
     fireEvent.change(screen.getByLabelText("Assignment"), { target: { value: "assigned" } });
     fireEvent.change(screen.getByLabelText("Allocation"), { target: { value: "complete" } });
     fireEvent.change(screen.getByLabelText("Month"), { target: { value: "2026-04" } });
     expect(mocks.replace).toHaveBeenCalledTimes(3);
-    expect(mocks.replace).toHaveBeenLastCalledWith("/app/expenses?task=open&q=Dinner&assignment=assigned&allocation=complete&month=2026-04#record-list", { scroll: false });
+    expect(mocks.replace).toHaveBeenLastCalledWith(`/app/expenses?task=open&${timezoneQuery}&q=Dinner&assignment=assigned&allocation=complete&month=2026-04#record-list`, { scroll: false });
   });
 
   it("keeps native names and submits direct DOM select changes", () => {
@@ -200,14 +202,14 @@ describe("LiveRecordFilters", () => {
   });
 
   it("removes inactive filters, keeps their native names, and suppresses duplicates", () => {
-    window.history.replaceState({}, "", "/app/outings?q=Dinner&assignment=assigned&page=2#record-list");
+    window.history.replaceState({}, "", `/app/outings?q=Dinner&assignment=assigned&page=2&${timezoneQuery}#record-list`);
     render(<LiveRecordFilters {...baseProps} search={{ ...baseProps.search, value: "Dinner" }} selects={[{ ...baseProps.selects[0], value: "assigned" }]} />);
     fireEvent.change(screen.getByLabelText("Assignment"), { target: { value: "" } });
-    expect(mocks.replace).toHaveBeenCalledWith("/app/outings?q=Dinner#record-list", { scroll: false });
+    expect(mocks.replace).toHaveBeenCalledWith(`/app/outings?q=Dinner&${timezoneQuery}#record-list`, { scroll: false });
     expect(mocks.replace.mock.calls[0][0]).not.toContain("assignment=");
 
     mocks.replace.mockReset();
-    window.history.replaceState({}, "", "/app/outings?q=Dinner#record-list");
+    window.history.replaceState({}, "", `/app/outings?q=Dinner&${timezoneQuery}#record-list`);
     const view = render(<LiveRecordFilters {...baseProps} search={{ ...baseProps.search, value: "Dinner" }} />);
     expect(new FormData(screen.getAllByRole("search").at(-1) as HTMLFormElement).get("assignment")).toBe("");
     fireEvent.change(screen.getAllByLabelText("Search outings").at(-1) as HTMLElement, { target: { value: "Dinner" } });
@@ -215,10 +217,10 @@ describe("LiveRecordFilters", () => {
     expect(mocks.replace).not.toHaveBeenCalled();
     view.unmount();
 
-    window.history.replaceState({}, "", "/app/repayments?q=Cash&allocation=needs&page=2#record-list");
+    window.history.replaceState({}, "", `/app/repayments?q=Cash&allocation=needs&page=2&${timezoneQuery}#record-list`);
     const allocationView = render(<LiveRecordFilters action="/app/repayments" search={{ label: "Search repayments", placeholder: "Friend", value: "Cash" }} selects={[{ name: "allocation", label: "Allocation", value: "needs", options: [{ value: "", label: "All allocation states" }, { value: "needs", label: "Needs allocation" }]}]} />);
     fireEvent.change(screen.getByLabelText("Allocation"), { target: { value: "" } });
-    expect(mocks.replace).toHaveBeenCalledWith("/app/repayments?q=Cash#record-list", { scroll: false });
+    expect(mocks.replace).toHaveBeenCalledWith(`/app/repayments?q=Cash&${timezoneQuery}#record-list`, { scroll: false });
     expect(mocks.replace.mock.calls[0][0]).not.toContain("allocation=");
     allocationView.unmount();
   });
@@ -237,5 +239,22 @@ describe("LiveRecordFilters", () => {
     act(() => vi.advanceTimersByTime(500));
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Apply filters", hidden: true })).not.toBeInTheDocument();
+  });
+
+  it("synchronizes the browser timezone once while preserving params, hash, and scroll behavior", () => {
+    const getTimezoneOffset = vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-420);
+    window.history.replaceState({}, "", "/app/outings?q=Dinner&page=2&source=ledger#record-list");
+    const view = render(<LiveRecordFilters {...baseProps} />);
+
+    expect(mocks.replace).toHaveBeenCalledTimes(1);
+    expect(mocks.replace).toHaveBeenCalledWith("/app/outings?q=Dinner&page=2&source=ledger&tz=-420#record-list", { scroll: false });
+    view.rerender(<LiveRecordFilters {...baseProps} />);
+    expect(mocks.replace).toHaveBeenCalledTimes(1);
+    getTimezoneOffset.mockRestore();
+  });
+
+  it("does not navigate when the browser timezone query is already correct", () => {
+    render(<LiveRecordFilters {...baseProps} />);
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 });

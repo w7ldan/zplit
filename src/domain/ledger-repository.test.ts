@@ -497,6 +497,26 @@ describe("ledger repository", () => {
     expect(queries[7].sql).toContain('"repayment_allocations"');
   });
 
+  it("uses the normalized browser offset for outing, expense, and repayment month bounds", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await repository.listOutingRecords({ month: "2026-07", timezoneOffsetMinutes: "-420" });
+    await repository.listExpenseRecords({ month: "2026-07", timezoneOffsetMinutes: "-420" });
+    await repository.listRepaymentRecords({ month: "2026-07", timezoneOffsetMinutes: "-420" });
+
+    expect(queries).toHaveLength(6);
+    for (const query of queries) {
+      expect(query.params).toContain("2026-06-30T17:00:00.000Z");
+      expect(query.params).toContain("2026-07-31T17:00:00.000Z");
+    }
+    await expect(repository.listOutingRecords({ month: "2026-07", timezoneOffsetMinutes: "841" })).resolves.toMatchObject({ totalItems: 0 });
+  });
+
   it("maps absent and foreign expenses to the same not-found error", async () => {
     const database = drizzle(async () => ({ rows: [] }));
     const repository = createLedgerRepository(database as unknown as Database, owner);

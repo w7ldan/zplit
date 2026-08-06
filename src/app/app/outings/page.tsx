@@ -10,7 +10,7 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
-import { groupRecordsByMonth, monthDisplayLabel, normalizeOutingFilters, recordHref } from "@/domain/record-retrieval";
+import { groupRecordsByMonth, monthDisplayLabel, normalizeOutingFilters, normalizeTimezoneOffset, recordHref } from "@/domain/record-retrieval";
 import { validateExpenseReturnTarget } from "@/domain/expense-return";
 
 export const dynamic = "force-dynamic";
@@ -31,10 +31,11 @@ export default async function OutingsPage({ searchParams = Promise.resolve({}) }
   const session = await requireSession();
   const created = first(params?.created);
   const openCreate = first(params?.create) === "1";
+  const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params?.tz));
   const filters = normalizeOutingFilters({ q: first(params?.q), month: first(params?.month), page: first(params?.page) });
   const repository = createLedgerRepository(getDatabase(), session.user.id);
-  const outingPage = await repository.listOutingRecords({ q: first(params?.q), month: first(params?.month), page: first(params?.page) });
-  const groups = groupRecordsByMonth(outingPage.items, (outing) => outing.occurredAt);
+  const outingPage = await repository.listOutingRecords({ q: first(params?.q), month: first(params?.month), page: first(params?.page), timezoneOffsetMinutes });
+  const groups = groupRecordsByMonth(outingPage.items, (outing) => outing.occurredAt, timezoneOffsetMinutes);
   const filtered = Boolean(filters.q || filters.month);
   const listHref = recordHref("/app/outings", params);
 

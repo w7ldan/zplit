@@ -9,7 +9,7 @@ import { createExpenseAction } from "./actions";
 import { TaskPanel } from "@/components/app/task-panel";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
-import { groupRecordsByMonth, monthDisplayLabel, normalizeExpenseFilters, recordHref } from "@/domain/record-retrieval";
+import { groupRecordsByMonth, monthDisplayLabel, normalizeExpenseFilters, normalizeTimezoneOffset, recordHref } from "@/domain/record-retrieval";
 import { validateExpenseReturnTarget } from "@/domain/expense-return";
 
 export const dynamic = "force-dynamic";
@@ -26,12 +26,13 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
   if (emptyParams.length) redirect(recordHref("/app/expenses", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
   const session = await requireSession();
   const openCreate = first(params?.create) === "1";
+  const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params?.tz));
   const repository = createLedgerRepository(getDatabase(), session.user.id);
   const outings = await repository.listOutings();
   const filters = normalizeExpenseFilters({ q: first(params?.q), outingId: first(params?.outing), month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page) });
   const outingId = outings.some((outing) => outing.id === filters.outingId) ? filters.outingId : undefined;
-  const expensePage = await repository.listExpenseRecords({ q: first(params?.q), outingId, month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page) });
-  const groups = groupRecordsByMonth(expensePage.items, (expense) => expense.outingOccurredAt);
+  const expensePage = await repository.listExpenseRecords({ q: first(params?.q), outingId, month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page), timezoneOffsetMinutes });
+  const groups = groupRecordsByMonth(expensePage.items, (expense) => expense.outingOccurredAt, timezoneOffsetMinutes);
   const filtered = Boolean(filters.q || filters.month || filters.outingId || filters.assignment !== "all");
   const listHref = recordHref("/app/expenses", params);
   const expenseReturnTarget = validateExpenseReturnTarget(recordHref("/app/expenses", params, { create: "1" })) ?? "/app/expenses?create=1";
@@ -63,7 +64,7 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
             <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
             {group.items.map((expense) => <ExpenseRow key={expense.id} expense={expense} />)}
           </div>) : (
-            <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? null : <Link className="text-link" href={outings.length ? "/app/expenses?create=1" : "/app/outings?create=1"} data-task-trigger={outings.length ? "expense-create" : "outing-create"}>{outings.length ? "Add an expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
+            <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? null : <Link className="text-link" href={recordHref(outings.length ? "/app/expenses" : "/app/outings", params, { create: "1" })} data-task-trigger={outings.length ? "expense-create" : "outing-create"}>{outings.length ? "Add an expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
           )}
           <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={listHref} />
         </div>

@@ -4,6 +4,7 @@ import {
   escapeLikePattern,
   groupRecordsByMonth,
   monthDisplayLabel,
+  monthKey,
   monthStart,
   nextMonthStart,
   normalizeExpenseFilters,
@@ -12,6 +13,7 @@ import {
   normalizeOutingFilters,
   normalizeRepaymentFilters,
   normalizeText,
+  normalizeTimezoneOffset,
   normalizeUuid,
   pageResult,
 } from "./record-retrieval";
@@ -25,6 +27,13 @@ describe("record retrieval", () => {
     expect(normalizeMonth("2026-00")).toBeUndefined();
     expect(normalizeMonth("2026-13")).toBeUndefined();
     expect(normalizeMonth("2026-04")).toBe("2026-04");
+    expect(normalizeTimezoneOffset(-840)).toBe(-840);
+    expect(normalizeTimezoneOffset("840")).toBe(840);
+    expect(normalizeTimezoneOffset("-0")).toBe(-0);
+    expect(normalizeTimezoneOffset("1.5")).toBeUndefined();
+    expect(normalizeTimezoneOffset(" 60")).toBeUndefined();
+    expect(normalizeTimezoneOffset(841)).toBeUndefined();
+    expect(normalizeTimezoneOffset(null)).toBeUndefined();
     expect(normalizeFriendFilters({ archived: "wrong", page: "-2" })).toEqual({ archived: false, q: undefined, page: 1 });
     expect(normalizeOutingFilters({ month: "2026-04", q: " title " })).toEqual({ month: "2026-04", q: "title", page: 1 });
     expect(normalizeExpenseFilters({ assignment: "wrong", outingId: "wrong" })).toMatchObject({ assignment: "all", outingId: undefined });
@@ -39,6 +48,21 @@ describe("record retrieval", () => {
     expect(monthStart("2026-04").toISOString()).toBe("2026-04-01T00:00:00.000Z");
     expect(nextMonthStart("2026-04").toISOString()).toBe("2026-05-01T00:00:00.000Z");
     expect(monthDisplayLabel("2026-04")).toBe("April 2026");
+  });
+
+  it("uses the browser offset for month keys and UTC filter boundaries", () => {
+    const boundary = new Date("2026-06-30T17:00:00.000Z");
+    expect(monthKey(boundary, -420)).toBe("2026-07");
+    const julyStart = monthStart("2026-07", -420);
+    const augustStart = nextMonthStart("2026-07", -420);
+    expect(julyStart.toISOString()).toBe("2026-06-30T17:00:00.000Z");
+    expect(augustStart.toISOString()).toBe("2026-07-31T17:00:00.000Z");
+    expect(boundary >= julyStart && boundary < augustStart).toBe(true);
+    expect(boundary >= monthStart("2026-06", -420) && boundary < julyStart).toBe(false);
+    expect(monthKey(new Date("2026-07-01T07:00:00.000Z"), 420)).toBe("2026-07");
+    expect(monthKey(new Date("2026-06-30T23:59:59.999Z"), 420)).toBe("2026-06");
+    expect(groupRecordsByMonth([{ date: boundary }], (item) => item.date, -420)).toEqual([{ month: "2026-07", items: [{ date: boundary }] }]);
+    expect(() => monthKey(boundary, 841)).toThrow(RangeError);
   });
 
   it("clamps pages and preserves page-one metadata for empty results", () => {

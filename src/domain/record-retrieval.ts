@@ -43,6 +43,13 @@ export function normalizeMonth(value: unknown) {
   return month >= 1 && month <= 12 ? value : undefined;
 }
 
+export function normalizeTimezoneOffset(value: unknown) {
+  const text = typeof value === "number" ? value.toString() : typeof value === "string" ? value : "";
+  if (!/^-?\d+$/.test(text)) return undefined;
+  const offset = Number(text);
+  return Number.isSafeInteger(offset) && offset >= -840 && offset <= 840 ? offset : undefined;
+}
+
 export function normalizeUuid(value: unknown) {
   if (typeof value !== "string" || !UUID_PATTERN.test(value)) return undefined;
   return value.toLowerCase();
@@ -84,22 +91,31 @@ export function normalizeRepaymentFilters(input: { q?: unknown; friendId?: unkno
   };
 }
 
-export function monthStart(month: string) {
+export function monthStart(month: string, timezoneOffsetMinutes: unknown = 0) {
   const normalized = normalizeMonth(month);
   if (!normalized) throw new RangeError("Month must be YYYY-MM");
+  const offset = normalizeTimezoneOffset(timezoneOffsetMinutes);
+  if (offset === undefined) throw new RangeError("Timezone offset must be a whole number between -840 and 840 minutes");
   const [year, monthNumber] = normalized.split("-").map(Number);
-  return new Date(Date.UTC(year, monthNumber - 1, 1));
+  return new Date(Date.UTC(year, monthNumber - 1, 1) + offset * 60_000);
 }
 
-export function nextMonthStart(month: string) {
-  const start = monthStart(month);
-  return new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
+export function nextMonthStart(month: string, timezoneOffsetMinutes: unknown = 0) {
+  const normalized = normalizeMonth(month);
+  if (!normalized) throw new RangeError("Month must be YYYY-MM");
+  const offset = normalizeTimezoneOffset(timezoneOffsetMinutes);
+  if (offset === undefined) throw new RangeError("Timezone offset must be a whole number between -840 and 840 minutes");
+  const [year, monthNumber] = normalized.split("-").map(Number);
+  return new Date(Date.UTC(year, monthNumber, 1) + offset * 60_000);
 }
 
-export function monthKey(value: Date | string) {
+export function monthKey(value: Date | string, timezoneOffsetMinutes: unknown = 0) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) throw new RangeError("Date is invalid");
-  return `${date.getUTCFullYear().toString().padStart(4, "0")}-${(date.getUTCMonth() + 1).toString().padStart(2, "0")}`;
+  const offset = normalizeTimezoneOffset(timezoneOffsetMinutes);
+  if (offset === undefined) throw new RangeError("Timezone offset must be a whole number between -840 and 840 minutes");
+  const local = new Date(date.getTime() - offset * 60_000);
+  return `${local.getUTCFullYear().toString().padStart(4, "0")}-${(local.getUTCMonth() + 1).toString().padStart(2, "0")}`;
 }
 
 export function monthDisplayLabel(value: Date | string) {
@@ -118,10 +134,10 @@ export function pageResult<T>(items: T[], totalItems: number, requestedPage: num
   return { items, page, pageSize: pageSize as typeof RECORD_PAGE_SIZE, totalItems, totalPages };
 }
 
-export function groupRecordsByMonth<T>(items: readonly T[], getDate: (item: T) => Date) {
+export function groupRecordsByMonth<T>(items: readonly T[], getDate: (item: T) => Date, timezoneOffsetMinutes: unknown = 0) {
   const groups: Array<{ month: string; items: T[] }> = [];
   for (const item of items) {
-    const month = monthKey(getDate(item));
+    const month = monthKey(getDate(item), timezoneOffsetMinutes);
     const last = groups.at(-1);
     if (last?.month === month) last.items.push(item);
     else groups.push({ month, items: [item] });

@@ -40,6 +40,18 @@ describe("/app/outings", () => {
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
+  it("groups a UTC boundary outing in the browser's July 2026", async () => {
+    const boundaryOuting = { ...outing, occurredAt: new Date("2026-06-30T17:00:00.000Z") };
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    const listOutingRecords = vi.fn().mockResolvedValue({ ...outingPage, items: [{ ...boundaryOuting, expenseCount: 0, expenseTotal: 0 }] });
+    mocks.createLedgerRepository.mockReturnValue({ listOutingRecords });
+
+    render(await OutingsPage({ searchParams: Promise.resolve({ month: "2026-07", tz: "-420" }) }));
+
+    expect(screen.getByText("JULY 2026")).toBeInTheDocument();
+    expect(listOutingRecords).toHaveBeenCalledWith({ q: undefined, month: "2026-07", page: undefined, timezoneOffsetMinutes: -420 });
+  });
+
   it("opens the outing form only with create=1", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.createLedgerRepository.mockReturnValue({ listOutingRecords: vi.fn().mockResolvedValue({ ...outingPage, items: [], totalItems: 0, totalPages: 1 }) });
