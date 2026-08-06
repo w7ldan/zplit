@@ -24,6 +24,9 @@
     "test:recent-activity": "tsx scripts/recent-activity-smoke.ts",
     "test:debtor-shares": "tsx scripts/debtor-share-smoke.ts",
     "test:history-delete": "tsx scripts/history-delete-smoke.ts",
+    "seed:scale": "tsx scripts/scale-fixture.ts seed",
+    "verify:scale": "tsx scripts/scale-fixture.ts verify",
+    "clear:scale": "tsx scripts/scale-fixture.ts clear",
     "test:deployment": "node deploy/test-deployment.mjs",
     "test:release": "tsx scripts/release-smoke.ts",
     "test:watch": "vitest"
