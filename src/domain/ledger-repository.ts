@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Database } from "../db/client";
 import {
   debtorShareLinks,
@@ -153,6 +153,7 @@ export type FriendArchiveReversalReceipt = {
 };
 export type RepaymentAllocationReversalReceipt = {
   version: 1;
+  reversalId: string;
   allocationId: string;
   repaymentId: string;
   expenseShareId: string;
@@ -412,8 +413,10 @@ function assertRepaymentAllocationReversalReceipt(value: unknown): asserts value
     value === null ||
     typeof value !== "object" ||
     Array.isArray(value) ||
-    Object.keys(value).some((key) => !["version", "allocationId", "repaymentId", "expenseShareId", "friendId", "amount"].includes(key)) ||
+    Object.keys(value).some((key) => !["version", "reversalId", "allocationId", "repaymentId", "expenseShareId", "friendId", "amount"].includes(key)) ||
     (value as RepaymentAllocationReversalReceipt).version !== 1 ||
+    typeof (value as RepaymentAllocationReversalReceipt).reversalId !== "string" ||
+    normalizeUuid((value as RepaymentAllocationReversalReceipt).reversalId) !== (value as RepaymentAllocationReversalReceipt).reversalId ||
     typeof (value as RepaymentAllocationReversalReceipt).allocationId !== "string" ||
     typeof (value as RepaymentAllocationReversalReceipt).repaymentId !== "string" ||
     typeof (value as RepaymentAllocationReversalReceipt).expenseShareId !== "string" ||
@@ -2643,6 +2646,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
 
         const reversalReceipt: RepaymentAllocationReversalReceipt = {
           version: 1,
+          reversalId: randomUUID(),
           allocationId: repaymentAllocationId(deleted.repaymentId, deleted.expenseShareId),
           repaymentId: deleted.repaymentId,
           expenseShareId: deleted.expenseShareId,

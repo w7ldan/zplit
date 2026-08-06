@@ -61,22 +61,37 @@ function RemoveAllocationButton({ pending, onRemove }: { pending: boolean; onRem
   return <button className="action-link action-link--quiet" type="button" onClick={onRemove} disabled={pending} aria-busy={pending}>{pending ? "Removing allocation…" : "Remove allocation"}</button>;
 }
 
-function RemoveAllocationForm({ action, undoAction }: { action: RepaymentAllocationRemovalAction; undoAction: (receipt: RepaymentAllocationReversalReceipt) => Promise<RepaymentAllocationUndoState> }) {
+function RemoveAllocationForm({ action, undoAction, onRemoved, onUndone }: { action: RepaymentAllocationRemovalAction; undoAction: (receipt: RepaymentAllocationReversalReceipt) => Promise<RepaymentAllocationUndoState>; onRemoved: (receipt: RepaymentAllocationReversalReceipt) => void; onUndone: (receipt: RepaymentAllocationReversalReceipt) => void }) {
   const [state, setState] = useState(emptyRemovalActionState);
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  const [removalPending, setRemovalPending] = useState(false);
+  const [refreshPending, setRefreshPending] = useState(false);
   const router = useRouter();
   const { showToast } = useToast();
   const handledReceipt = useRef<string | undefined>(undefined);
 
   const remove = () => {
-    if (pending) return;
-    startTransition(async () => setState(await action(state, new FormData())));
+    if (removalPending || refreshPending) return;
+    setRemovalPending(true);
+    startTransition(async () => {
+      try {
+        const result = await action(state, new FormData());
+        setState(result);
+        if (result.removalReceipt) {
+          onRemoved(result.removalReceipt);
+          setRefreshPending(true);
+          router.refresh();
+        }
+      } finally {
+        setRemovalPending(false);
+      }
+    });
   };
 
   useEffect(() => {
     const receipt = state.removalReceipt;
     if (!receipt) return;
-    const receiptKey = `${receipt.version}:${receipt.allocationId}:${receipt.repaymentId}:${receipt.expenseShareId}:${receipt.friendId}:${receipt.amount}`;
+    const receiptKey = `${receipt.version}:${receipt.reversalId}:${receipt.allocationId}:${receipt.repaymentId}:${receipt.expenseShareId}:${receipt.friendId}:${receipt.amount}`;
     if (handledReceipt.current === receiptKey) return;
     handledReceipt.current = receiptKey;
     showToast({
@@ -87,6 +102,8 @@ function RemoveAllocationForm({ action, undoAction }: { action: RepaymentAllocat
           try {
             const result = await undoAction(receipt);
             if (!result.ok) return result.message;
+            onUndone(receipt);
+            setRefreshPending(false);
             router.refresh();
           } catch {
             return "Undo unavailable: the allocation could not be restored.";
@@ -94,11 +111,11 @@ function RemoveAllocationForm({ action, undoAction }: { action: RepaymentAllocat
         },
       },
     });
-  }, [router, showToast, state.removalReceipt, undoAction]);
+  }, [onUndone, router, showToast, state.removalReceipt, undoAction]);
 
   return (
     <div>
-      <RemoveAllocationButton pending={pending} onRemove={remove} />
+      <RemoveAllocationButton pending={removalPending || refreshPending} onRemove={remove} />
       {state.formError ? <p className="repayment-allocation-editor__message" role="alert">{state.formError}</p> : null}
     </div>
   );
@@ -123,6 +140,8 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
   const overAllocated = allocatedAmount > plan.amount;
   const unallocatedAmount = Math.max(plan.amount - allocatedAmount, 0);
   const allocationProgress = plan.amount > 0 ? Math.min(Math.max(allocatedAmount / plan.amount, 0), 1) : 0;
+  const setRemovedDraftAmount = (receipt: RepaymentAllocationReversalReceipt) => setDraftAmounts((current) => ({ ...current, [receipt.expenseShareId]: "" }));
+  const restoreDraftAmount = (receipt: RepaymentAllocationReversalReceipt) => setDraftAmounts((current) => ({ ...current, [receipt.expenseShareId]: receipt.amount.toString() }));
 
   return (
     <div className="repayment-allocation-editor">
@@ -169,7 +188,7 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
                 />
                 <p className="repayment-allocation-editor__help" id={helpId}>Blank removes this allocation.</p>
                 <FieldError id={fieldErrorId} message={state.fieldErrors[share.expenseShareId]} />
-                {share.currentAllocation > 0 && removeAction && undoAction ? <RemoveAllocationForm action={removeAction.bind(null, plan.id, share.expenseShareId)} undoAction={undoAction} /> : null}
+                {share.currentAllocation > 0 && removeAction && undoAction ? <RemoveAllocationForm action={removeAction.bind(null, plan.id, share.expenseShareId)} undoAction={undoAction} onRemoved={setRemovedDraftAmount} onUndone={restoreDraftAmount} /> : null}
               </div>
             </div>
           );

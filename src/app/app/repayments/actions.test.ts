@@ -149,7 +149,7 @@ describe("repayment actions", () => {
   });
 
   it("removes an allocation immediately and revalidates every affected route", async () => {
-    const receipt = { version: 1 as const, allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId, amount: 40000 };
+    const receipt = { version: 1 as const, reversalId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId, amount: 40000 };
     const removeRepaymentAllocation = vi.fn().mockResolvedValue({ reversalReceipt: receipt, repaymentId: "repayment-a", expenseId: "expense-a", friendId });
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
@@ -163,7 +163,7 @@ describe("repayment actions", () => {
   });
 
   it("restores only through the authenticated owner and reports stale Undo safely", async () => {
-    const receipt = { version: 1 as const, allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId, amount: 40000 };
+    const receipt = { version: 1 as const, reversalId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId, amount: 40000 };
     const undoRepaymentAllocation = vi.fn().mockResolvedValue({ repaymentId: "repayment-a", expenseId: "expense-a", friendId });
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");

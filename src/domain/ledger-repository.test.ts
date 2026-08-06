@@ -383,6 +383,7 @@ describe("ledger repository", () => {
     expect(database.state.allocation).toBeNull();
     expect(removed.reversalReceipt).toEqual({
       version: 1,
+      reversalId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
       allocationId: "repayment-a:share-a",
       repaymentId: "repayment-a",
       expenseShareId: "share-a",
@@ -392,10 +393,19 @@ describe("ledger repository", () => {
 
     await expect(repository.undoRepaymentAllocation(removed.reversalReceipt)).resolves.toEqual({ expenseId: "expense-a", friendId: "friend-a", repaymentId: "repayment-a" });
     expect(database.state.allocation).toEqual({ repaymentId: "repayment-a", expenseShareId: "share-a", amount: 40 });
+
+    const removedAgain = await repository.removeRepaymentAllocation("repayment-a", "share-a");
+    expect(removedAgain.reversalReceipt.reversalId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(removedAgain.reversalReceipt.reversalId).not.toBe(removed.reversalReceipt.reversalId);
+  });
+
+  it("rejects malformed allocation reversal IDs", async () => {
+    const receipt = { version: 1 as const, reversalId: "not-a-uuid", allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId: "friend-a", amount: 40 };
+    await expect(createLedgerRepository(repaymentAllocationDatabase({ allocation: null }).database, owner).undoRepaymentAllocation(receipt)).rejects.toMatchObject({ code: "INVALID_INPUT" });
   });
 
   it("enforces owner isolation and rejects duplicate Undo", async () => {
-    const receipt = { version: 1 as const, allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId: "friend-a", amount: 40 };
+    const receipt = { version: 1 as const, reversalId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId: "friend-a", amount: 40 };
     const foreign = repaymentAllocationDatabase({ visible: false });
     const foreignRepository = createLedgerRepository(foreign.database, owner);
     await expect(foreignRepository.removeRepaymentAllocation("repayment-a", "share-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
@@ -411,7 +421,7 @@ describe("ledger repository", () => {
     ["repayment capacity", { repayment: { id: "repayment-a", friendId: "friend-a", amount: 100 }, repaymentOthers: [{ amount: 70 }] }, RepaymentAllocationAmountInvariantError],
     ["share capacity", { share: { id: "share-a", expenseId: "expense-a", friendId: "friend-a", amountOwed: 100 }, shareOthers: [{ amount: 70 }] }, RepaymentAllocationShareInvariantError],
   ])("rejects Undo when it conflicts with the %s", async (_label, overrides, ErrorType) => {
-    const receipt = { version: 1 as const, allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId: "friend-a", amount: 40 };
+    const receipt = { version: 1 as const, reversalId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId: "friend-a", amount: 40 };
     const database = repaymentAllocationDatabase({ allocation: null, ...overrides });
     await expect(createLedgerRepository(database.database, owner).undoRepaymentAllocation(receipt)).rejects.toBeInstanceOf(ErrorType);
     expect(database.state.allocation).toBeNull();
@@ -422,7 +432,7 @@ describe("ledger repository", () => {
     ["deleted repayment", { repayment: null }],
     ["deleted share", { share: null }],
   ])("rejects Undo safely after a %s", async (_label, overrides) => {
-    const receipt = { version: 1 as const, allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId: "friend-a", amount: 40 };
+    const receipt = { version: 1 as const, reversalId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", allocationId: "repayment-a:share-a", repaymentId: "repayment-a", expenseShareId: "share-a", friendId: "friend-a", amount: 40 };
     const database = repaymentAllocationDatabase({ allocation: null, ...overrides });
     await expect(createLedgerRepository(database.database, owner).undoRepaymentAllocation(receipt)).rejects.toBeInstanceOf(LedgerNotFoundError);
     expect(database.state.allocation).toBeNull();
