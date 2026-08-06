@@ -7,12 +7,17 @@
   z-index: 2;
   min-height: 4.75rem;
   padding-block: 1.1rem;
+  background: var(--surface);
+}
+
+.public-home .site-header-wrapper.header-shell--detached {
+  background: transparent;
 }
 
 .public-home .site-header {
   align-items: center;
   padding-block: 0.55rem;
-  background: var(--surface);
+  background: transparent;
 }
 
 .public-home .site-header__brand {

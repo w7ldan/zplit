@@ -7,6 +7,7 @@ import type { RepaymentInputValues } from "@/domain/repayment-input";
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
 import { formatRupiah } from "@/domain/rupiah";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 
 type RepaymentAction = (previousState: RepaymentActionState, formData: FormData) => Promise<RepaymentActionState>;
 
@@ -146,7 +147,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
               <div className="repayment-form__allocation" key={share.id}>
                 <div className="repayment-form__allocation-details">
                   <strong>{share.expenseDescription}</strong>
-                  <span>{share.outingTitle} · {formatDate(share.outingOccurredAt)}</span>
+                  <span>{share.outingTitle} · <LocalDateTime iso={share.outingOccurredAt.toISOString()} mode="date" /></span>
                   <span>Original share {formatRupiah(share.amountOwed)} · Previously repaid {formatRupiah(share.repaidAmount)} · Remaining {formatRupiah(share.remainingAmount)}</span>
                 </div>
                 <input type="hidden" name="expenseShareId" value={share.id} readOnly />
@@ -186,8 +187,4 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
       <SubmitButton mode={mode} />
     </form>
   );
-}
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
 }

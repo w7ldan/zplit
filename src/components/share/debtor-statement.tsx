@@ -1,9 +1,6 @@
 import { formatRupiah } from "@/domain/rupiah";
 import type { DebtorStatement } from "@/domain/debtor-statement";
-
-function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(value);
-}
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 
 export function DebtorStatementView({ statement, expiresAt, token = "" }: { statement: DebtorStatement; expiresAt: Date; token?: string }) {
   return (
@@ -28,7 +25,7 @@ export function DebtorStatementView({ statement, expiresAt, token = "" }: { stat
           <div className="debtor-statement__items-heading"><h2 id="debtor-items-heading">Expense shares</h2><span className="technical-label">{statement.items.length} items</span></div>
           {statement.items.length ? <div className="debtor-statement__list">{statement.items.map((item, index) => (
             <article className="debtor-statement__item" key={`${item.expenseDescription}-${item.outingOccurredAt.toISOString()}-${index}`}>
-              <div className="debtor-statement__item-heading"><div><h3>{item.expenseDescription}</h3><p>{item.outingTitle} · <time dateTime={item.outingOccurredAt.toISOString()}>{formatDate(item.outingOccurredAt)}</time></p></div><strong className={`debtor-statement__state debtor-statement__state--${item.state}`}>{item.state === "open" ? "OPEN" : "SETTLED"}</strong></div>
+              <div className="debtor-statement__item-heading"><div><h3>{item.expenseDescription}</h3><p>{item.outingTitle} · <LocalDateTime iso={item.outingOccurredAt.toISOString()} mode="date" /></p></div><strong className={`debtor-statement__state debtor-statement__state--${item.state}`}>{item.state === "open" ? "OPEN" : "SETTLED"}</strong></div>
               <dl className="debtor-statement__item-values">
                 <div><dt>Assigned</dt><dd>{formatRupiah(item.assignedAmount)}</dd></div>
                 <div><dt>Allocated repayments</dt><dd>{formatRupiah(item.repaidAmount)}</dd></div>
@@ -39,9 +36,9 @@ export function DebtorStatementView({ statement, expiresAt, token = "" }: { stat
           ))}</div> : <p className="debtor-statement__empty">No assigned expense shares are recorded.</p>}
         </section>
         <footer className="debtor-statement__footer">
-          <p>Link expires <time dateTime={expiresAt.toISOString()}>{formatDate(expiresAt)}</time>.</p>
+          <p>Link expires <LocalDateTime iso={expiresAt.toISOString()} mode="date" />.</p>
           <p>The ledger owner controls the records shown here. This page is read-only.</p>
-          <p className="technical-label">Generated {formatDate(statement.generatedAt)}</p>
+          <p className="technical-label">Generated <LocalDateTime iso={statement.generatedAt.toISOString()} mode="date" /></p>
         </footer>
       </div>
     </main>

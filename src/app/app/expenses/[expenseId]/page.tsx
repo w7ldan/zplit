@@ -9,7 +9,7 @@ import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
 import { formatRupiah } from "@/domain/rupiah";
 import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { listExpenseReceipts } from "@/server/expense-receipts";
-import { replaceExpenseSharesAction, searchOutingOptions, updateExpenseAction } from "../actions";
+import { replaceExpenseSharesAction, searchExpenseFriendOptions, searchOutingOptions, updateExpenseAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteExpenseAction } from "../actions";
@@ -31,24 +31,18 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
   }
   const deletionImpact = await repository.getExpenseDeletionImpact(expenseId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
-  const [outingRows, activeFriends, shares, receipts] = await Promise.all([
+  const [outingRows, friendOptionRows, shares, receipts] = await Promise.all([
     repository.searchOutings({ selectedId: expense.outingId }),
-    repository.listFriends(),
+    repository.searchFriends({ activeOnly: true }),
     repository.listExpenseShares(expense.id),
     listExpenseReceipts(database, session.user.id, expense.id),
   ]);
   const shareByFriend = new Map(shares.map((share) => [share.friendId, share]));
-  const friends = [
-    ...activeFriends.map((friend) => ({
-      id: friend.id,
-      name: friend.name,
-      archivedAt: friend.archivedAt,
-      amountOwed: shareByFriend.get(friend.id)?.amountOwed,
-    })),
-    ...shares
-      .filter((share) => share.friendArchivedAt !== null && !activeFriends.some((friend) => friend.id === share.friendId))
-      .map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, amountOwed: share.amountOwed })),
-  ];
+  const friends = shares.map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, amountOwed: share.amountOwed }));
+  const friendOptions = friendOptionRows
+    .filter((friend) => !friend.archived && !shareByFriend.has(friend.id))
+    .slice(0, 20)
+    .map((friend) => ({ id: friend.id, label: friend.name }));
   const outings = outingRows.map((outing) => ({ id: outing.id, label: outing.title }));
 
   return (
@@ -81,6 +75,8 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
             action={replaceExpenseSharesAction.bind(null, expense.id)}
             expenseAmount={expense.amount}
             friends={friends}
+            friendOptions={friendOptions}
+            searchFriends={searchExpenseFriendOptions}
           />
         </div>
         <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts} />

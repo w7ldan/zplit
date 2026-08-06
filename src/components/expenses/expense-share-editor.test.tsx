@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ExpenseShareActionState } from "@/app/app/expenses/actions";
 import { ExpenseShareEditor, type ExpenseShareEditorFriend } from "./expense-share-editor";
 
 const activeFriend: ExpenseShareEditorFriend = { id: "11111111-1111-4111-8111-111111111111", name: "Rani", archivedAt: null, amountOwed: 40000 };
 const archivedFriend: ExpenseShareEditorFriend = { id: "22222222-2222-4222-8222-222222222222", name: "Bima", archivedAt: new Date("2026-01-03T00:00:00.000Z"), amountOwed: 20000 };
+const suggestedFriend = { id: "33333333-3333-4333-8333-333333333333", label: "Siti" };
 
 describe("expense share editor", () => {
   it("shows accessible fields, archived text, and live totals", () => {
@@ -50,5 +52,57 @@ describe("expense share editor", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[]} />);
     expect(screen.getByRole("link", { name: /Go to friends/ })).toHaveAttribute("href", "/app/friends");
     expect(screen.queryByRole("button", { name: "Save split" })).not.toBeInTheDocument();
+  });
+
+  it("renders selected rows only, adds an active friend, and focuses its amount", async () => {
+    const searchFriends = vi.fn().mockResolvedValue([suggestedFriend]);
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} friendOptions={[suggestedFriend]} searchFriends={searchFriends} />);
+
+    expect(screen.getByLabelText("Rani")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Siti")).not.toBeInTheDocument();
+    fireEvent.focus(screen.getByRole("combobox", { name: "Add friend" }));
+    await waitFor(() => expect(within(screen.getByRole("listbox")).getByRole("option", { name: "Siti" })).toBeInTheDocument());
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Siti" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Siti")).toHaveFocus());
+    expect(screen.getByRole("button", { name: "Remove Siti" })).toBeInTheDocument();
+    expect(searchFriends).toHaveBeenCalledWith("", "");
+  });
+
+  it("removes a row from the submitted split", async () => {
+    const action = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: [{ friendId: archivedFriend.id, amountRupiah: "20000" }] });
+    render(<ExpenseShareEditor action={action} expenseAmount={84000} friends={[activeFriend, archivedFriend]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Remove Rani" }));
+    expect(screen.queryByLabelText("Rani")).not.toBeInTheDocument();
+    fireEvent.submit(screen.getByRole("button", { name: "Save split" }).closest("form")!);
+
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    expect(action.mock.calls[0]![1].getAll("friendId")).toEqual([archivedFriend.id]);
+  });
+
+  it("preserves archived rows and entered values after validation", async () => {
+    const action = vi.fn().mockResolvedValue({
+      fieldErrors: { [activeFriend.id]: "Enter whole rupiah." },
+      formError: "Please correct the marked fields.",
+      values: [
+        { friendId: activeFriend.id, amountRupiah: "84.00" },
+        { friendId: archivedFriend.id, amountRupiah: "20000" },
+      ],
+    });
+    render(<ExpenseShareEditor action={action} expenseAmount={84000} friends={[activeFriend, archivedFriend]} />);
+    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "84.00" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Save split" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByText("Please correct the marked fields.")).toBeInTheDocument());
+    expect(screen.getByLabelText("Rani")).toHaveValue("84.00");
+    expect(screen.getByLabelText(/^Bima/)).toHaveValue("20000");
+    expect(screen.getByText("ARCHIVED")).toBeInTheDocument();
+    expect(screen.getByText("Enter whole rupiah.")).toBeInTheDocument();
+  });
+
+  it("includes a native add-one fallback", () => {
+    const markup = renderToString(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} friendOptions={[suggestedFriend]} />);
+    expect(markup).toContain('name="additionalFriendId"');
+    expect(markup).toContain('name="additionalAmountRupiah"');
   });
 });

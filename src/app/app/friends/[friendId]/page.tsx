@@ -5,6 +5,7 @@ import { requireSession } from "@/auth/require-session";
 import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { FriendArchiveForm, FriendForm } from "@/components/friends/friend-form";
 import { FriendShareLink } from "@/components/friends/friend-share-link";
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { archiveFriendAction, restoreFriendAction, updateFriendAction } from "../actions";
 import { createDebtorShareLinkAction, revokeDebtorShareLinkAction, updateDebtorShareReceiptSelectionAction } from "./share-actions";
@@ -35,8 +36,6 @@ export default async function FriendRecordPage({ params, searchParams }: { param
   }
 
   const archived = friend.archivedAt !== null;
-  const date = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(friend.createdAt);
-
   return (
     <section className="app-page friend-record" id="top">
       <div className="editorial-grid editorial-shell friend-record__layout">
@@ -48,7 +47,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
         {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Friend changes saved." /> : null}
         <div className="friend-record__meta" aria-label="Friend metadata">
           <div><span className="technical-label">Record state</span><strong>{archived ? "ARCHIVED" : "ACTIVE"}</strong></div>
-          <div><span className="technical-label">Created</span><time dateTime={friend.createdAt.toISOString()}>{date}</time></div>
+          <div><span className="technical-label">Created</span><LocalDateTime iso={friend.createdAt.toISOString()} mode="date" /></div>
         </div>
         <div className="friend-record__form">
           <p className="technical-label">EDIT RECORD</p>

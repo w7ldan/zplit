@@ -7,7 +7,7 @@ export type SearchableOptionAction = (query: string, selectedId?: string) => Pro
 
 type SearchableComboboxProps = {
   id: string;
-  name: string;
+  name?: string;
   value: string;
   options: SearchableOption[];
   search: SearchableOptionAction;
@@ -16,6 +16,7 @@ type SearchableComboboxProps = {
   ariaInvalid?: boolean;
   ariaDescribedBy?: string;
   labelId: string;
+  placeholder?: string;
   onValueChange?: (option: SearchableOption) => void;
 };
 
@@ -39,12 +40,13 @@ export function SearchableCombobox({
   ariaInvalid = false,
   ariaDescribedBy,
   labelId,
+  placeholder,
   onValueChange,
 }: SearchableComboboxProps) {
   const [enhanced, setEnhanced] = useState(false);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(value || initialOptions[0]?.id || "");
+  const [selectedId, setSelectedId] = useState(value || (placeholder ? "" : initialOptions[0]?.id || ""));
   const [loadedOptions, setLoadedOptions] = useState<SearchableOption[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState("");
@@ -167,7 +169,7 @@ export function SearchableCombobox({
     }
   }
 
-  const displayValue = open ? query : selectedOption ? optionLabel(selectedOption) : "";
+  const displayValue = open ? query : selectedOption ? optionLabel(selectedOption) : placeholder ?? "";
   const activeOption = activeIndex >= 0 ? options[activeIndex] : undefined;
 
   return (
@@ -175,7 +177,7 @@ export function SearchableCombobox({
       <select
         id={`${id}-native`}
         className="searchable-combobox__native"
-        name={disabled ? undefined : name}
+        name={disabled || !name ? undefined : name}
         value={currentSelectedId}
         required={required}
         disabled={disabled}
@@ -187,9 +189,10 @@ export function SearchableCombobox({
           if (option) choose(option);
         }}
       >
+        {placeholder ? <option value="">{placeholder}</option> : null}
         {nativeOptions.map((option) => <option key={option.id} value={option.id}>{optionLabel(option)}</option>)}
       </select>
-      {disabled ? <input type="hidden" name={name} value={currentSelectedId} /> : null}
+      {disabled && name ? <input type="hidden" name={name} value={currentSelectedId} /> : null}
       <div className="searchable-combobox__custom">
         <input
           ref={inputRef}

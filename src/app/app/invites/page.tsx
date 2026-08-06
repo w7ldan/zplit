@@ -3,6 +3,7 @@ import { requireSession } from "@/auth/require-session";
 import { isInstallationOwner, listInvitations } from "@/auth/invitations";
 import { notFound } from "next/navigation";
 import { InviteForm } from "@/components/invites/invite-form";
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { createInviteAction, revokeInviteAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export default async function InvitesPage() {
                   return (
                     <li className="invites-list__row" key={invitation.id}>
                       <div><strong>{invitation.email}</strong>{invitation.suggestedName ? <span>{invitation.suggestedName}</span> : null}</div>
-                      <div className="invites-list__meta"><span>{status}</span><time dateTime={invitation.expiresAt.toISOString()}>Expires {invitation.expiresAt.toLocaleDateString()}</time></div>
+                      <div className="invites-list__meta"><span>{status}</span><span>Expires <LocalDateTime iso={invitation.expiresAt.toISOString()} mode="date" /></span></div>
                       {canRevoke ? <form action={revokeInviteAction.bind(null, invitation.id)}><button className="text-link invites-list__revoke" type="submit">Revoke</button></form> : null}
                     </li>
                   );

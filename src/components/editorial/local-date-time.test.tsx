@@ -20,4 +20,16 @@ describe("LocalDateTime", () => {
     render(<LocalDateTime iso="not-a-date" mode="date" />);
     expect(screen.getByRole("time")).toHaveTextContent("Invalid date");
   });
+
+  it("uses the browser timezone across a UTC date boundary", async () => {
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = "Etc/GMT-7";
+    try {
+      render(<LocalDateTime iso="2026-06-30T17:00:00Z" mode="date" />);
+      await waitFor(() => expect(screen.getByRole("time")).toHaveTextContent("01 Jul 2026"));
+    } finally {
+      if (previousTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimezone;
+    }
+  });
 });

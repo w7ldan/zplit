@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createExpenseAction, deleteExpenseAction, replaceExpenseSharesAction, updateExpenseAction, type ExpenseActionState, type ExpenseShareActionState } from "./actions";
+import { createExpenseAction, deleteExpenseAction, replaceExpenseSharesAction, searchExpenseFriendOptions, updateExpenseAction, type ExpenseActionState, type ExpenseShareActionState } from "./actions";
 import { deletionImpactRevision, ExpenseShareInvariantError, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
@@ -51,6 +51,24 @@ const values = {
 };
 
 describe("expense actions", () => {
+  it("returns only bounded active friend options for the session owner", async () => {
+    const searchFriends = vi.fn().mockResolvedValue([
+      { id: "11111111-1111-4111-8111-111111111111", name: "Active", archived: false },
+      { id: "22222222-2222-4222-8222-222222222222", name: "Archived", archived: true },
+      ...Array.from({ length: 21 }, (_, index) => ({ id: `33333333-3333-4333-8333-${String(index).padStart(12, "0")}`, name: `Friend ${index}`, archived: false })),
+    ]);
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ searchFriends });
+
+    const options = await searchExpenseFriendOptions("active", "22222222-2222-4222-8222-222222222222");
+    expect(options).toHaveLength(20);
+    expect(options.every((option) => option.id !== "22222222-2222-4222-8222-222222222222")).toBe(true);
+    expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
+    expect(searchFriends).toHaveBeenCalledWith({ q: "active", selectedId: "22222222-2222-4222-8222-222222222222", activeOnly: true });
+    mocks.createLedgerRepository.mockClear();
+  });
+
   it("returns validation errors without touching the repository", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     const state = await createExpenseAction(initialState, form({ ...values, description: "", outingId: "" }));

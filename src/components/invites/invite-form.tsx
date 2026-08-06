@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import type { InviteActionState } from "@/app/app/invites/actions";
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 
 type InviteAction = (previousState: InviteActionState, formData: FormData) => Promise<InviteActionState>;
 
@@ -45,7 +46,7 @@ export function InviteForm({ action }: { action: InviteAction }) {
           <p><strong>Invitation ready.</strong> Share this link with {state.invitation.email} before it expires.</p>
           <label htmlFor="invite-link">Temporary invitation link</label>
           <input id="invite-link" readOnly value={state.invitation.link} onFocus={(event) => event.currentTarget.select()} />
-          <p className="technical-label">Expires {new Date(state.invitation.expiresAt).toLocaleString()}</p>
+          <p className="technical-label">Expires <LocalDateTime iso={state.invitation.expiresAt} /></p>
         </section>
       ) : null}
     </>

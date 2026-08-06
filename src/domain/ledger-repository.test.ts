@@ -199,6 +199,20 @@ describe("ledger repository", () => {
     expect(friendQuery.sql).toContain("case when \"friends\".\"archived_at\" is null then 0 else 1 end");
   });
 
+  it("bounds expense friend suggestions to active friends", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    await createLedgerRepository(database as unknown as Database, owner).searchFriends({ activeOnly: true });
+
+    const query = queries[0]!.sql.replace(/\s+/g, " ").trim().toLowerCase();
+    expect(query).toContain('"friends"."archived_at" is null');
+    expect(query).toMatch(/limit \$\d+/);
+    expect(queries[0]!.params).toContain(owner);
+  });
+
   it("owner-scopes get, archived list, update, archive, and restore predicates", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

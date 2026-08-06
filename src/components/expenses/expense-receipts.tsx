@@ -2,6 +2,7 @@
 
 import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 
 export type ExpenseReceipt = {
   id: string;
@@ -22,9 +23,9 @@ function formatBytes(bytes: number) {
   return `${bytes} B`;
 }
 
-function formatDate(value: Date | string) {
+function ReceiptDate({ value }: { value: Date | string }) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Unknown date" : new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short", year: "numeric" }).format(date);
+  return Number.isNaN(date.getTime()) ? <>Unknown date</> : <LocalDateTime iso={date.toISOString()} mode="date" />;
 }
 
 export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsProps) {
@@ -125,7 +126,7 @@ export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsP
               <div className="expense-receipts__row" key={receipt.id}>
                 <div className="expense-receipts__details">
                   <strong>{receipt.originalFilename}</strong>
-                  <span>{receipt.mediaType} · {formatBytes(receipt.byteSize)} · {formatDate(receipt.createdAt)}</span>
+                  <span>{receipt.mediaType} · {formatBytes(receipt.byteSize)} · <ReceiptDate value={receipt.createdAt} /></span>
                 </div>
                 <div className="expense-receipts__actions">
                   <Link className="text-link" href={`/app/expenses/${encodeURIComponent(expenseId)}/receipts/${encodeURIComponent(receipt.id)}`} target="_blank" rel="noreferrer">View</Link>

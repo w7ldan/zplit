@@ -1,13 +1,10 @@
 import Link from "next/link";
 import type { InferSelectModel } from "drizzle-orm";
 import type { friends } from "@/db/schema";
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { formatRupiah } from "@/domain/rupiah";
 
 type Friend = InferSelectModel<typeof friends>;
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
-}
 
 type FriendBalance = { assignedAmount: number; repaidAmount: number; outstandingAmount: number };
 
@@ -24,7 +21,7 @@ export function FriendRow({ friend, balance, emphasized = false }: { friend: Fri
       </div>
       <div className="friend-row__meta">
         <span className="technical-label">{archived ? "ARCHIVED" : "ACTIVE"}</span>
-        <time dateTime={friend.createdAt.toISOString()}>{formatDate(friend.createdAt)}</time>
+        <LocalDateTime iso={friend.createdAt.toISOString()} mode="date" />
         {balance ? <span><span className="technical-label">Outstanding</span> {formatRupiah(balance.outstandingAmount)}</span> : <span />}
         <Link className="friend-row__edit" href={`/app/friends/${friend.id}`}>Edit record <span aria-hidden="true">→</span></Link>
       </div>

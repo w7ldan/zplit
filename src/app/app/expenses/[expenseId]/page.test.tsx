@@ -39,11 +39,14 @@ describe("expense record", () => {
     mocks.getDatabase.mockReturnValue("database");
     mocks.listExpenseReceipts.mockResolvedValue([]);
     const getExpenseDeletionImpact = vi.fn().mockResolvedValue(deletionImpact);
+    const searchFriends = vi.fn().mockResolvedValue([{ id: "33333333-3333-4333-8333-333333333333", name: "Rani", archived: false }]);
+    const listFriends = vi.fn();
     mocks.createLedgerRepository.mockReturnValue({
       getExpense: vi.fn().mockResolvedValue(expense),
       searchOutings: vi.fn().mockResolvedValue([{ id: expense.outingId, title: expense.outingTitle }]),
-      listFriends: vi.fn().mockResolvedValue([{ id: "33333333-3333-4333-8333-333333333333", name: "Rani", archivedAt: null }]),
-      listExpenseShares: vi.fn().mockResolvedValue([]),
+      searchFriends,
+      listFriends,
+      listExpenseShares: vi.fn().mockResolvedValue([{ id: "share-a", friendId: "33333333-3333-4333-8333-333333333333", friendName: "Rani", friendArchivedAt: null, amountOwed: 40000 }]),
       getExpenseDeletionImpact,
     });
     render(await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) }));
@@ -59,6 +62,9 @@ describe("expense record", () => {
     expect(screen.getByRole("link", { name: /Back to expenses/ })).toHaveAttribute("href", "/app/expenses");
     expect(screen.getByRole("heading", { level: 2, name: "Assign the split" })).toBeInTheDocument();
     expect(screen.getByLabelText("Rani")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Rani" })).toBeInTheDocument();
+    expect(searchFriends).toHaveBeenCalledWith({ activeOnly: true });
+    expect(listFriends).not.toHaveBeenCalled();
     expect(screen.getByText("Owner portion")).toBeInTheDocument();
     expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
     expect(screen.getByRole("heading", { name: "Delete expense" })).toBeInTheDocument();

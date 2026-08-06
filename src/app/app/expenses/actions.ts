@@ -29,6 +29,14 @@ export async function searchOutingOptions(query = "", selectedId?: string): Prom
   return (await createLedgerRepository(getDatabase(), session.user.id).searchOutings({ q: query, selectedId })).map((outing) => ({ id: outing.id, label: outing.title }));
 }
 
+export async function searchExpenseFriendOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
+  const session = await requireSession();
+  return (await createLedgerRepository(getDatabase(), session.user.id).searchFriends({ q: query, selectedId, activeOnly: true }))
+    .filter((friend) => !friend.archived && friend.id !== selectedId)
+    .slice(0, 20)
+    .map((friend) => ({ id: friend.id, label: friend.name }));
+}
+
 export async function searchOutingFilterOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
   return [{ id: "", label: "All outings" }, ...(await searchOutingOptions(query, selectedId)).slice(0, 19)];
 }
@@ -77,6 +85,15 @@ function shareValuesFromForm(formData: FormData) {
     friendId: typeof friendId === "string" ? friendId.trim() : "",
     amountRupiah: typeof amounts[index] === "string" ? amounts[index].trim() : "",
   }));
+  const additionalFriendId = formData.get("additionalFriendId");
+  const additionalAmountRupiah = formData.get("additionalAmountRupiah");
+  if (typeof additionalFriendId === "string" || typeof additionalAmountRupiah === "string") {
+    const additional = {
+      friendId: typeof additionalFriendId === "string" ? additionalFriendId.trim() : "",
+      amountRupiah: typeof additionalAmountRupiah === "string" ? additionalAmountRupiah.trim() : "",
+    };
+    if (additional.friendId || additional.amountRupiah) values.push(additional);
+  }
   return { values, result: friendIds.length === amounts.length ? validateExpenseShareInput(values) : null };
 }
 

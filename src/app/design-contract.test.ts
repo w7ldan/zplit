@@ -232,12 +232,16 @@ describe("Zplit design contract", () => {
 
   it("keeps the landing access link on the shared primary action treatment", () => {
     const header = cssRuleBody(publicSource, ".public-home .site-header");
+    const wrapper = cssRuleBody(publicSource, ".public-home .site-header-wrapper");
+    const detachedWrapper = cssRuleBody(publicSource, ".public-home .site-header-wrapper.header-shell--detached");
     const access = cssRuleBody(publicSource, ".public-home .site-header__access");
     const primary = cssRuleBody(css, ".action-link--primary");
 
     expect(siteHeaderSource).toContain("import { ActionLink } from \"@/components/editorial/action-link\";");
     expect(siteHeaderSource).toContain('actions={<ActionLink href="/app" variant="primary" className="site-header__access">Open Zplit</ActionLink>}');
-    expect(header).toContain("background: var(--surface);");
+    expect(wrapper).toContain("background: var(--surface);");
+    expect(detachedWrapper).toContain("background: transparent;");
+    expect(header).toContain("background: transparent;");
     expect(access).toContain("min-height: 2.25rem;");
     expect(access).toContain("border-radius: var(--radius-control);");
     expect(access).not.toMatch(/\b(?:background|border|color):/);

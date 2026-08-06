@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ExpenseShareActionState } from "@/app/app/expenses/actions";
 import { parseRupiah, formatRupiah } from "@/domain/rupiah";
+import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 
 export type ExpenseShareEditorFriend = {
   id: string;
@@ -22,12 +23,19 @@ type ExpenseShareEditorProps = {
   action: ExpenseShareAction;
   expenseAmount: number;
   friends: ExpenseShareEditorFriend[];
+  friendOptions?: SearchableOption[];
+  searchFriends?: SearchableOptionAction;
 };
 
 const emptyActionState: ExpenseShareActionState = { fieldErrors: {}, formError: "", values: [] };
+const emptySearch: SearchableOptionAction = async () => [];
+
+function initialValues(friends: ExpenseShareEditorFriend[]) {
+  return friends.map((friend) => ({ friendId: friend.id, amountRupiah: friend.amountOwed?.toString() ?? "" }));
+}
 
 function initialAmounts(friends: ExpenseShareEditorFriend[]) {
-  return Object.fromEntries(friends.map((friend) => [friend.id, friend.amountOwed?.toString() ?? ""]));
+  return Object.fromEntries(initialValues(friends).map((value) => [value.friendId, value.amountRupiah]));
 }
 
 function SubmitButton() {
@@ -43,12 +51,52 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="expense-share-editor__field-error" id={id} role={message ? "alert" : undefined}>{message || "\u00a0"}</p>;
 }
 
-export function ExpenseShareEditor({ action, expenseAmount, friends }: ExpenseShareEditorProps) {
-  const [state, formAction] = useActionState(action, { ...emptyActionState, values: friends.map((friend) => ({ friendId: friend.id, amountRupiah: friend.amountOwed?.toString() ?? "" })) });
-  const [draftAmounts, setDraftAmounts] = useState<Record<string, string> | null>(null);
-  const amounts = draftAmounts ?? initialAmounts(friends);
+export function ExpenseShareEditor({ action, expenseAmount, friends: initialFriends, friendOptions: initialFriendOptions = [], searchFriends = emptySearch }: ExpenseShareEditorProps) {
+  const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues(initialFriends) });
+  const [selectedFriends, setSelectedFriends] = useState(initialFriends);
+  const [draftAmounts, setDraftAmounts] = useState(() => initialAmounts(initialFriends));
+  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
+  const previousStateRef = useRef(state);
+  const amountRefs = useRef(new Map<string, HTMLInputElement>());
+  const friendLookupRef = useRef(new Map<string, ExpenseShareEditorFriend>([
+    ...initialFriends.map((friend) => [friend.id, friend] as const),
+    ...initialFriendOptions.map((option) => [option.id, { id: option.id, name: option.label, archivedAt: null }] as const),
+  ]));
+  const selectedIds = useMemo(() => new Set(selectedFriends.map((friend) => friend.id)), [selectedFriends]);
+  const friendOptions = useMemo(() => initialFriendOptions.filter((option) => !option.archived && !selectedIds.has(option.id)).slice(0, 20), [initialFriendOptions, selectedIds]);
+  const search = useCallback((query: string, selectedId?: string) => searchFriends(query, selectedId).then((options) => options.filter((option) => !option.archived && !selectedIds.has(option.id)).slice(0, 20)), [searchFriends, selectedIds]);
 
-  if (friends.length === 0) {
+  useEffect(() => {
+    if (previousStateRef.current === state) return;
+    previousStateRef.current = state;
+    const nextFriends = state.values.map((value) => friendLookupRef.current.get(value.friendId) ?? { id: value.friendId, name: value.friendId, archivedAt: null });
+    setSelectedFriends(nextFriends);
+    setDraftAmounts(Object.fromEntries(state.values.map((value) => [value.friendId, value.amountRupiah])));
+  }, [state]);
+
+  useEffect(() => {
+    if (pendingFocusId) amountRefs.current.get(pendingFocusId)?.focus();
+  }, [pendingFocusId, selectedFriends]);
+
+  function addFriend(option: SearchableOption) {
+    if (option.archived || selectedIds.has(option.id)) return;
+    const friend = { id: option.id, name: option.label, archivedAt: null };
+    friendLookupRef.current.set(friend.id, friend);
+    setSelectedFriends((current) => [...current, friend]);
+    setDraftAmounts((current) => ({ ...current, [friend.id]: "" }));
+    setPendingFocusId(friend.id);
+  }
+
+  function removeFriend(friendId: string) {
+    setSelectedFriends((current) => current.filter((friend) => friend.id !== friendId));
+    setDraftAmounts((current) => {
+      const next = { ...current };
+      delete next[friendId];
+      return next;
+    });
+  }
+
+  if (selectedFriends.length === 0 && friendOptions.length === 0) {
     return (
       <div className="expense-share-editor expense-share-editor--empty">
         <p className="technical-label">FRIEND SHARES</p>
@@ -58,10 +106,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends }: ExpenseSh
     );
   }
 
-  const totalOwed = friends.reduce((total, friend) => {
-    const amount = parseRupiah(amounts[friend.id] ?? "");
-    return total + (amount ?? 0);
-  }, 0);
+  const totalOwed = selectedFriends.reduce((total, friend) => total + (parseRupiah(draftAmounts[friend.id] ?? "") ?? 0), 0);
   const overAllocated = totalOwed > expenseAmount;
   const ownerPortion = Math.max(expenseAmount - totalOwed, 0);
   const allocationProgress = expenseAmount > 0 ? Math.min(Math.max(totalOwed / expenseAmount, 0), 1) : 0;
@@ -80,25 +125,52 @@ export function ExpenseShareEditor({ action, expenseAmount, friends }: ExpenseSh
         <span>{overAllocated ? `Over-allocated by ${formatRupiah(totalOwed - expenseAmount)}.` : `${formatRupiah(ownerPortion)} remains your portion.`}</span>
       </div>
       <form className="expense-share-editor__form" action={formAction} noValidate>
-        <p className="expense-share-editor__help">Enter a whole-rupiah amount. A blank field removes or omits that friend.</p>
-        {friends.map((friend) => {
+        <div className="expense-share-editor__add">
+          <label id="expense-share-add-label" htmlFor="expense-share-add">Add friend</label>
+          <SearchableCombobox
+            key={[...selectedIds].join(",")}
+            id="expense-share-add"
+            value=""
+            options={friendOptions}
+            search={search}
+            labelId="expense-share-add-label"
+            placeholder="Search active friends"
+            onValueChange={addFriend}
+          />
+        </div>
+        <noscript>
+          <p className="expense-share-editor__help">Without JavaScript, add one active friend per save.</p>
+          <label htmlFor="expense-share-native-friend">Friend to add</label>
+          <select id="expense-share-native-friend" name="additionalFriendId" defaultValue="">
+            <option value="">No additional friend</option>
+            {friendOptions.map((friend) => <option key={friend.id} value={friend.id}>{friend.label}</option>)}
+          </select>
+          <label htmlFor="expense-share-native-amount">Amount for friend to add</label>
+          <input id="expense-share-native-amount" name="additionalAmountRupiah" type="text" inputMode="numeric" autoComplete="off" />
+        </noscript>
+        <p className="expense-share-editor__help">Enter a whole-rupiah amount. Use Remove to omit a friend from the split.</p>
+        {selectedFriends.map((friend) => {
           const fieldErrorId = `expense-share-${friend.id}-error`;
           const helpId = `expense-share-${friend.id}-help`;
           const archived = friend.archivedAt !== null;
           return (
             <div className="expense-share-editor__field" key={friend.id}>
               <input type="hidden" name="friendId" value={friend.id} />
-              <label htmlFor={`expense-share-${friend.id}`}>
-                <span>{friend.name}</span>
-                {archived ? <span className="technical-label">ARCHIVED</span> : null}
-              </label>
+              <div className="expense-share-editor__field-heading">
+                <label htmlFor={`expense-share-${friend.id}`}>
+                  <span className="expense-share-editor__friend-name">{friend.name}</span>
+                  {archived ? <span className="technical-label">ARCHIVED</span> : null}
+                </label>
+                <button className="text-link" type="button" onClick={() => removeFriend(friend.id)} aria-label={`Remove ${friend.name}`}>Remove</button>
+              </div>
               <input
+                ref={(element) => { if (element) amountRefs.current.set(friend.id, element); else amountRefs.current.delete(friend.id); }}
                 id={`expense-share-${friend.id}`}
                 name="amountRupiah"
                 type="text"
                 inputMode="numeric"
-                value={amounts[friend.id] ?? ""}
-                onChange={(event) => setDraftAmounts((current) => ({ ...(current ?? amounts), [friend.id]: event.target.value }))}
+                value={draftAmounts[friend.id] ?? ""}
+                onChange={(event) => setDraftAmounts((current) => ({ ...current, [friend.id]: event.target.value }))}
                 aria-invalid={Boolean(state.fieldErrors[friend.id])}
                 aria-describedby={`${helpId} ${fieldErrorId}`}
                 autoComplete="off"

@@ -913,11 +913,12 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function searchFriends(options: { q?: unknown; selectedId?: unknown } = {}): Promise<FriendSelectorOption[]> {
+  async function searchFriends(options: { q?: unknown; selectedId?: unknown; activeOnly?: boolean } = {}): Promise<FriendSelectorOption[]> {
     const query = normalizeText(options.q);
     const selectedId = normalizeUuid(options.selectedId);
     const conditions = [
       eq(friends.ownerUserId, owner),
+      ...(options.activeOnly ? [isNull(friends.archivedAt)] : []),
       ...(query ? [selectedId ? or(literalContains(friends.name, query), literalContains(friends.phoneNumber, query), eq(friends.id, selectedId)) : or(literalContains(friends.name, query), literalContains(friends.phoneNumber, query))] : []),
     ];
     try {

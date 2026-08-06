@@ -18,7 +18,7 @@ function formatUtc(date: Date, mode: "date" | "date-time") {
 }
 
 function formatLocal(date: Date, mode: "date" | "date-time") {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
