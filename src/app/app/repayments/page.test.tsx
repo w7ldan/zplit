@@ -118,4 +118,20 @@ describe("/app/repayments", () => {
     render(await RepaymentsPage());
     expect(screen.getByRole("status")).toHaveTextContent("12 repayments found.");
   });
+
+  it("renders a bounded page and keeps long friend and payment method values available to the row", async () => {
+    const friendName = "friend-" + "x".repeat(240);
+    const paymentMethod = "method-" + "m".repeat(240);
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      listRepaymentRecords: vi.fn().mockResolvedValue({ items: [{ ...repayment, friendName, paymentMethod }], page: 2, pageSize: 20, totalItems: 41, totalPages: 3 }),
+      listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [{ ...activeFriend, name: friendName }])),
+    });
+
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ page: "2" }) }));
+
+    expect(screen.getByRole("link", { name: friendName })).toBeInTheDocument();
+    expect(screen.getByText(paymentMethod)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app/repayments?page=3#record-list");
+  });
 });

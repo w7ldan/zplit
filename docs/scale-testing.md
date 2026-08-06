@@ -25,4 +25,12 @@ DB_NAME=zplit_scale_test SCALE_TEST_OWNER_EMAIL=owner@example.com ZPLIT_SCALE_TE
 
 This smoke is read-only, checks the deterministic totals and eight-balance bound, and fails when either warm median exceeds 500 ms.
 
+Record-page pagination and warm-query performance can be checked with:
+
+```sh
+DB_NAME=zplit_scale_test SCALE_TEST_OWNER_EMAIL=owner@example.com ZPLIT_SCALE_TEST_CONFIRM=scale-test-only npm run test:record-pages-scale
+```
+
+This smoke is read-only, checks active and archived Friends plus Outings, Expenses, and Repayments for 20-row pages, distinct adjacent pages, fixture totals, and warm medians under 500 ms.
+
 The generated set contains 100 friends (80 active, 20 archived), 300 outings over 36 months, 2,000 expenses, 1,000 repayments, varied shares, and eight small receipts. The data includes boundary timestamps, maximum-length valid names, and paid, partial, unpaid, unallocated, and overpaid scenarios.

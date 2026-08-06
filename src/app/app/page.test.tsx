@@ -108,4 +108,19 @@ describe("/app overview", () => {
     expect(document.querySelectorAll(".balance-row")).toHaveLength(8);
     expect(screen.getByRole("link", { name: /View all friends/ })).toHaveAttribute("href", "/app/friends");
   });
+
+  it("keeps long balance and activity values in the overview data", async () => {
+    const name = "friend-" + "x".repeat(240);
+    const title = "expense-" + "z".repeat(240);
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue({ ...summary, friendBalances: [{ ...summary.friendBalances[0]!, name }] }),
+      listRecentActivity: vi.fn().mockResolvedValue([{ kind: "Expense", id: "expense-a", title, detail: "outing-" + "y".repeat(240), amount: 8_000, date: new Date("2026-01-02T10:30:00Z") }]),
+    });
+
+    render(await AppPage());
+
+    expect(screen.getByRole("link", { name: new RegExp(name) })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: new RegExp(title) })).toBeInTheDocument();
+  });
 });

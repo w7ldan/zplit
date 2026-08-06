@@ -102,4 +102,17 @@ describe("/app/outings", () => {
     expect(screen.getByRole("link", { name: "Add outing" })).toHaveAttribute("href", href);
     expect(screen.getByRole("link", { name: "Add an outing" })).toHaveAttribute("href", href);
   });
+
+  it("renders a bounded page and keeps long outing names available to the row", async () => {
+    const title = "outing-" + "y".repeat(240);
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      listOutingRecords: vi.fn().mockResolvedValue({ ...outingPage, items: [{ ...outing, title, expenseCount: 1, expenseTotal: 84_000 }], page: 2, totalItems: 41, totalPages: 3 }),
+    });
+
+    render(await OutingsPage({ searchParams: Promise.resolve({ page: "2" }) }));
+
+    expect(screen.getByRole("link", { name: title })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app/outings?page=3#record-list");
+  });
 });

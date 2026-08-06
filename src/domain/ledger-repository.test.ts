@@ -495,6 +495,29 @@ describe("ledger repository", () => {
     expect(queries[7].sql).toContain('order by "repayments"."paid_at" desc, "repayments"."created_at" desc');
     expect(queries[5].sql).toContain("exists (select 1 from \"expense_shares\"");
     expect(queries[7].sql).toContain('"repayment_allocations"');
+    expect(queries[3].sql.toLowerCase().indexOf("limit")).toBeLessThan(queries[3].sql.toLowerCase().lastIndexOf("left join"));
+    expect(queries[5].sql.toLowerCase().indexOf("limit")).toBeLessThan(queries[5].sql.toLowerCase().lastIndexOf('inner join "outings"'));
+    expect(queries[7].sql.toLowerCase().indexOf("limit")).toBeLessThan(queries[7].sql.toLowerCase().lastIndexOf('inner join "friends"'));
+  });
+
+  it("uses the fixed record page size and offset after counting multiple pages", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return sql.toLowerCase().includes("select count(*)") ? { rows: [[41]] } : { rows: [] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await repository.listFriendRecords({ page: 2 });
+    await repository.listOutingRecords({ page: 2 });
+    await repository.listExpenseRecords({ page: 2 });
+    await repository.listRepaymentRecords({ page: 2 });
+
+    for (const query of queries.filter((_query, index) => index % 2 === 1)) {
+      expect(query.sql.toLowerCase()).toContain("limit");
+      expect(query.sql.toLowerCase()).toContain("offset");
+      expect(query.params).toContain(20);
+    }
   });
 
   it("uses the normalized browser offset for outing, expense, and repayment month bounds", async () => {

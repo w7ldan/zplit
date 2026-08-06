@@ -1003,16 +1003,6 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       ...(filters.q ? [literalContains(outings.title, filters.q)] : []),
       ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
     ];
-    const expenseTotals = database
-      .select({
-        outingId: expenses.outingId,
-        expenseCount: sql<number>`count(${expenses.id})`.mapWith(Number).as("expense_count"),
-        expenseTotal: sql<number>`coalesce(sum(${expenses.amount}), 0)`.mapWith(Number).as("expense_total"),
-      })
-      .from(expenses)
-      .where(eq(expenses.ownerUserId, owner))
-      .groupBy(expenses.ownerUserId, expenses.outingId)
-      .as("outing_expense_totals");
     try {
       const [{ count = 0 } = {}] = await database
         .select({ count: sql<number>`count(*)`.mapWith(Number) })
@@ -1020,14 +1010,32 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .where(and(...conditions));
       const totalItems = safeRetrievalInteger(count, "Outing count");
       const page = clampPage(filters.page, totalItems);
-      const rows = await database
-        .select({ outing: outings, expenseCount: expenseTotals.expenseCount, expenseTotal: expenseTotals.expenseTotal })
+      const pageOutings = database
+        .select({ id: outings.id, ownerUserId: outings.ownerUserId })
         .from(outings)
-        .leftJoin(expenseTotals, eq(expenseTotals.outingId, outings.id))
         .where(and(...conditions))
         .orderBy(desc(outings.occurredAt), desc(outings.createdAt), asc(outings.id))
         .limit(RECORD_PAGE_SIZE)
-        .offset((page - 1) * RECORD_PAGE_SIZE);
+        .offset((page - 1) * RECORD_PAGE_SIZE)
+        .as("outing_page");
+      const expenseTotals = database
+        .select({
+          outingId: expenses.outingId,
+          expenseCount: sql<number>`count(${expenses.id})`.mapWith(Number).as("expense_count"),
+          expenseTotal: sql<number>`coalesce(sum(${expenses.amount}), 0)`.mapWith(Number).as("expense_total"),
+        })
+        .from(expenses)
+        .innerJoin(pageOutings, and(eq(pageOutings.id, expenses.outingId), eq(pageOutings.ownerUserId, expenses.ownerUserId)))
+        .where(eq(expenses.ownerUserId, owner))
+        .groupBy(expenses.ownerUserId, expenses.outingId)
+        .as("outing_expense_totals");
+      const rows = await database
+        .select({ outing: outings, expenseCount: expenseTotals.expenseCount, expenseTotal: expenseTotals.expenseTotal })
+        .from(outings)
+        .innerJoin(pageOutings, and(eq(pageOutings.id, outings.id), eq(pageOutings.ownerUserId, outings.ownerUserId)))
+        .leftJoin(expenseTotals, eq(expenseTotals.outingId, outings.id))
+        .where(eq(outings.ownerUserId, owner))
+        .orderBy(desc(outings.occurredAt), desc(outings.createdAt), asc(outings.id));
       const items = rows.map(({ outing, expenseCount, expenseTotal }) => ({
         ...outing,
         expenseCount: safeRetrievalInteger(expenseCount ?? 0, "Outing expense count"),
@@ -1399,14 +1407,22 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .where(and(...conditions));
       const totalItems = safeRetrievalInteger(count, "Expense count");
       const page = clampPage(filters.page, totalItems);
-      const items = await database
-        .select(expenseSelection())
+      const pageExpenses = database
+        .select({ id: expenses.id, ownerUserId: expenses.ownerUserId })
         .from(expenses)
         .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
         .where(and(...conditions))
         .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id))
         .limit(RECORD_PAGE_SIZE)
-        .offset((page - 1) * RECORD_PAGE_SIZE);
+        .offset((page - 1) * RECORD_PAGE_SIZE)
+        .as("expense_page");
+      const items = await database
+        .select(expenseSelection())
+        .from(expenses)
+        .innerJoin(pageExpenses, and(eq(pageExpenses.id, expenses.id), eq(pageExpenses.ownerUserId, expenses.ownerUserId)))
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .where(eq(expenses.ownerUserId, owner))
+        .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id));
       return pageResult(items, totalItems, page);
     } catch (error) {
       return persistenceError(error);
@@ -2227,16 +2243,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
   async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; month?: unknown; allocation?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}): Promise<RecordPage<RepaymentListRecord>> {
     const filters = normalizeRepaymentFilters(options);
     const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
-    const allocationTotals = database
-      .select({
-        repaymentId: repaymentAllocations.repaymentId,
-        allocatedAmount: sql<number>`coalesce(sum(${repaymentAllocations.amount}), 0)`.mapWith(Number).as("allocated_amount"),
-      })
-      .from(repaymentAllocations)
-      .where(eq(repaymentAllocations.ownerUserId, owner))
-      .groupBy(repaymentAllocations.ownerUserId, repaymentAllocations.repaymentId)
-      .as("repayment_allocation_totals");
-    const allocationValue = sql`coalesce(${allocationTotals.allocatedAmount}, 0)`;
+    const allocationValue = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ownerUserId} = ${owner} and ${repaymentAllocations.repaymentId} = ${repayments.id}), 0)`.mapWith(Number);
     const allocationCondition = filters.allocation === "all"
       ? undefined
       : filters.allocation === "complete"
@@ -2255,19 +2262,25 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .select({ count: sql<number>`count(*)`.mapWith(Number) })
         .from(repayments)
         .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
-        .leftJoin(allocationTotals, eq(allocationTotals.repaymentId, repayments.id))
         .where(and(...conditions));
       const totalItems = safeRetrievalInteger(count, "Repayment count");
       const page = clampPage(filters.page, totalItems);
-      const rows = await database
-        .select({ ...repaymentSelection(), allocatedAmount: allocationTotals.allocatedAmount })
+      const pageRepayments = database
+        .select({ id: repayments.id, ownerUserId: repayments.ownerUserId, allocatedAmount: allocationValue.as("allocated_amount") })
         .from(repayments)
         .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
-        .leftJoin(allocationTotals, eq(allocationTotals.repaymentId, repayments.id))
         .where(and(...conditions))
         .orderBy(desc(repayments.paidAt), desc(repayments.createdAt), asc(repayments.id))
         .limit(RECORD_PAGE_SIZE)
-        .offset((page - 1) * RECORD_PAGE_SIZE);
+        .offset((page - 1) * RECORD_PAGE_SIZE)
+        .as("repayment_page");
+      const rows = await database
+        .select({ ...repaymentSelection(), allocatedAmount: pageRepayments.allocatedAmount })
+        .from(repayments)
+        .innerJoin(pageRepayments, and(eq(pageRepayments.id, repayments.id), eq(pageRepayments.ownerUserId, repayments.ownerUserId)))
+        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
+        .where(eq(repayments.ownerUserId, owner))
+        .orderBy(desc(repayments.paidAt), desc(repayments.createdAt), asc(repayments.id));
       const items = rows.map(({ allocatedAmount, ...repayment }) => {
         const allocated = safeRetrievalInteger(allocatedAmount ?? 0, `Allocation for repayment ${repayment.id}`);
         if (!Number.isSafeInteger(repayment.amount) || repayment.amount < 0 || allocated > repayment.amount) {

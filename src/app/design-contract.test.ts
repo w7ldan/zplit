@@ -176,6 +176,16 @@ describe("Zplit design contract", () => {
     expect(cssRuleBody(css, ".repayment-form__disclosure > summary")).toContain("border-radius: var(--radius-control);");
   });
 
+  it("keeps long record values inside bounded rows while leaving detail values unclamped", () => {
+    expect(css).toMatch(/\.friend-row,[\s\S]*?\.repayment-row\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?overflow-wrap:\s*anywhere;/);
+    expect(css).toMatch(/\.friend-row__primary h2 a,[\s\S]*?\.repayment-row__primary h2 a\s*\{[\s\S]*?-webkit-line-clamp:\s*2;/);
+    expect(css).toMatch(/\.friend-row__meta > \*,[\s\S]*?\.repayment-row__meta > \*\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?overflow-wrap:\s*anywhere;/);
+    expect(css).toMatch(/\.balance-row\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto;/);
+    expect(css).toMatch(/\.activity-row small\s*\{[\s\S]*?overflow-wrap:\s*anywhere;[\s\S]*?white-space:\s*normal;/);
+    expect(css).toMatch(/\.friend-record__intro h1,[\s\S]*?\.repayment-record__intro h1\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/);
+    expect(cssRuleBody(css, ".friend-record__intro h1, .outing-record__intro h1, .expense-record__intro h1, .repayment-record__intro h1")).not.toContain("-webkit-line-clamp");
+  });
+
   it("keeps both headers on one centered three-region detached shell", () => {
     const header = cssRuleBody(css, ".header-shell");
     const panel = cssRuleBody(css, ".header-shell__panel");

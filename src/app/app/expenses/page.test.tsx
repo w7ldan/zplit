@@ -106,4 +106,18 @@ describe("/app/expenses", () => {
     expect(screen.getAllByRole("link", { name: "Clear filters" })).toHaveLength(1);
     expect(screen.getByRole("status")).toHaveTextContent("0 expenses found.");
   });
+
+  it("renders a bounded page and keeps long descriptions available to the row", async () => {
+    const description = "expense-" + "z".repeat(240);
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [{ ...expense, description }], page: 2, totalItems: 41, totalPages: 3 }),
+      listOutings: vi.fn().mockResolvedValue([outing]),
+    });
+
+    render(await ExpensesPage({ searchParams: Promise.resolve({ page: "2" }) }));
+
+    expect(screen.getByRole("link", { name: description })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app/expenses?page=3#record-list");
+  });
 });

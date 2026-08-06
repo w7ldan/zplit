@@ -105,4 +105,19 @@ describe("/app/friends", () => {
     expect(within(screen.getByRole("dialog")).queryByDisplayValue("/app/repayments?create=1")).not.toBeInTheDocument();
     expect(within(screen.getByRole("dialog")).queryByDisplayValue(/repayments/)).not.toBeInTheDocument();
   });
+
+  it("renders a bounded page and keeps long friend names available to the row", async () => {
+    const name = "friend-" + "x".repeat(240);
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({
+      listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [{ ...friend, name }], page: 2, totalItems: 41, totalPages: 3 }),
+      getFriendBalances: vi.fn().mockResolvedValue([]),
+    });
+
+    render(await FriendsPage({ searchParams: Promise.resolve({ page: "2" }) }));
+
+    expect(screen.getByRole("link", { name })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app/friends?page=3#record-list");
+  });
 });

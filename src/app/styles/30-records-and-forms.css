@@ -4,10 +4,12 @@
 .expense-row,
 .repayment-row {
   position: relative;
+  min-width: 0;
   min-height: 4.75rem;
   padding-block: 0.85rem;
   border-top: 1px solid var(--rule);
   transition: background-color var(--motion-state) var(--ease-product), transform var(--motion-state) var(--ease-product);
+  overflow-wrap: anywhere;
 }
 
 .friend-row--created,
@@ -45,6 +47,7 @@
 .repayment-row__primary {
   display: block;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .friend-row__primary h2,
@@ -62,7 +65,13 @@
 .outing-row__primary h2 a,
 .expense-row__primary h2 a,
 .repayment-row__primary h2 a {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   text-decoration: none;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .friend-row__phone,
@@ -84,6 +93,16 @@
   min-width: 0;
   color: var(--muted-ink);
   font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.friend-row__meta > *,
+.outing-row__meta > *,
+.expense-row__meta > *,
+.repayment-row__meta > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .friend-row__meta > span,
@@ -151,12 +170,14 @@
 .expense-record__intro h1,
 .repayment-record__intro h1 {
   max-width: 18ch;
+  min-width: 0;
   margin: 0.45rem 0 0;
   font-family: var(--font-display);
   font-size: clamp(2.2rem, 4.5vw, 4.25rem);
   letter-spacing: -0.07em;
   line-height: 0.94;
   animation: none;
+  overflow-wrap: anywhere;
 }
 
 .friend-record__back,
@@ -189,6 +210,16 @@
   align-content: start;
   gap: 0.25rem;
   min-width: 0;
+}
+
+.friend-record__meta div > *,
+.outing-record__meta div > *,
+.expense-record__meta div > *,
+.repayment-record__meta div > *,
+.outing-record__notes,
+.repayment-record__notes-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .friend-record__meta strong,
