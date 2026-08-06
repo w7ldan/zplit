@@ -34,11 +34,11 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
     repository.listFriends(),
     repository.listFriends({ archived: true }),
   ]);
-  let summary: Awaited<ReturnType<typeof repository.getLedgerSummary>> | undefined;
+  let balances: Awaited<ReturnType<typeof repository.getFriendBalances>> = [];
   let openExpenseSharesByFriend: Awaited<ReturnType<typeof repository.listOpenExpenseSharesByFriend>> = {};
-  if (openCreate) [summary, openExpenseSharesByFriend] = await Promise.all([repository.getLedgerSummary(), repository.listOpenExpenseSharesByFriend()]);
   const friends = [...activeFriends, ...archivedFriends];
-  const outstandingByFriend = Object.fromEntries((summary?.friendBalances ?? []).map((balance) => [balance.friendId, balance.outstandingAmount]));
+  if (openCreate) [balances, openExpenseSharesByFriend] = await Promise.all([repository.getFriendBalances(friends.map((friend) => friend.id)), repository.listOpenExpenseSharesByFriend()]);
+  const outstandingByFriend = Object.fromEntries(balances.map((balance) => [balance.friendId, balance.outstandingAmount]));
   const friendId = friends.some((friend) => friend.id === filters.friendId) ? filters.friendId : undefined;
   const groups = groupRecordsByMonth(repaymentPage.items, (repayment) => repayment.paidAt, timezoneOffsetMinutes);
   const filtered = Boolean(filters.q || filters.month || filters.friendId || filters.allocation !== "all");

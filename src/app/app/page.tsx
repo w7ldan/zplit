@@ -11,7 +11,7 @@ export default async function AppPage() {
   const session = await requireSession();
   const repository = createLedgerRepository(getDatabase(), session.user.id);
   const [summary, activity] = await Promise.all([
-    repository.getLedgerSummary(),
+    repository.getLedgerOverviewSummary(),
     repository.listRecentActivity({ limit: 6 }),
   ]);
 
@@ -37,15 +37,15 @@ export default async function AppPage() {
 
         <div className="app-page__columns">
           <section className="ledger-section" aria-labelledby="balances-heading">
-            <div className="ledger-section__heading"><h2 id="balances-heading">Friend balances</h2><span className="technical-label">{summary.friendBalances.length} with assigned shares</span></div>
+            <div className="ledger-section__heading"><h2 id="balances-heading">Friend balances</h2><span className="technical-label">{summary.totalAssignedFriendCount} with assigned shares</span></div>
             {summary.friendBalances.length === 0 ? (
               <div className="ledger-empty"><h3>No balances yet.</h3><p>Balances appear after assigning friends to an expense.</p><Link className="text-link" href="/app/friends">Add a friend <span aria-hidden="true">→</span></Link></div>
-            ) : summary.friendBalances.map((friend) => (
+            ) : <>{summary.friendBalances.map((friend) => (
               <div className="balance-row" key={friend.friendId}>
                 <Link href={`/app/friends/${friend.friendId}`}><strong>{friend.name}</strong><span aria-hidden="true">→</span></Link>
                 <span><span className="technical-label">Outstanding</span><strong>{formatRupiah(friend.outstandingAmount)}</strong></span>
               </div>
-            ))}
+            ))}{summary.totalAssignedFriendCount > summary.friendBalances.length ? <Link className="text-link" href="/app/friends">View all friends <span aria-hidden="true">→</span></Link> : null}</>}
           </section>
           <section className="ledger-section" aria-labelledby="activity-heading">
             <div className="ledger-section__heading"><h2 id="activity-heading">Recent activity</h2><span className="technical-label">Latest records</span></div>

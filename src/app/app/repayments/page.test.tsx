@@ -27,9 +27,9 @@ describe("/app/repayments", () => {
 
   it("keeps allocation state explicit and provides outstanding friend context", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    const getSummary = vi.fn().mockResolvedValue(summary);
+    const getBalances = vi.fn().mockResolvedValue(summary.friendBalances);
     const openShares = vi.fn().mockResolvedValue({});
-    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [repayment], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: getSummary, listOpenExpenseSharesByFriend: openShares });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [repayment], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getFriendBalances: getBalances, listOpenExpenseSharesByFriend: openShares });
     render(await RepaymentsPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Repayments" })).toBeInTheDocument();
@@ -44,7 +44,7 @@ describe("/app/repayments", () => {
     expect(screen.getByLabelText("Allocation")).toHaveValue("");
     expect(screen.getByLabelText("Allocation")).toHaveAttribute("name", "allocation");
     expect(screen.queryByLabelText("Amount in rupiah")).not.toBeInTheDocument();
-    expect(getSummary).not.toHaveBeenCalled();
+    expect(getBalances).not.toHaveBeenCalled();
     expect(openShares).not.toHaveBeenCalled();
   });
 
@@ -62,7 +62,7 @@ describe("/app/repayments", () => {
 
   it("opens the repayment form only with create=1 and retains archived friends", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [archivedFriend] : [activeFriend])), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1" }) }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(within(screen.getByRole("dialog")).getByRole("option", { name: "Bima (ARCHIVED)" })).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe("/app/repayments", () => {
     mocks.createLedgerRepository.mockReturnValue({
       listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 2, pageSize: 20, totalItems: 0, totalPages: 1 }),
       listFriends: vi.fn().mockResolvedValue([]),
-      getLedgerSummary: vi.fn().mockResolvedValue({ friendBalances: [] }),
+      getFriendBalances: vi.fn().mockResolvedValue([]),
       listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}),
     });
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", q: "Cash", month: "2026-04", page: "2", source: "ledger" }) }));
@@ -87,7 +87,7 @@ describe("/app/repayments", () => {
 
   it("preselects an owner friend for returned and manually opened repayment entry", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id }) }));
     expect(within(screen.getByRole("dialog")).getByLabelText("Friend")).toHaveValue(activeFriend.id);
   });
@@ -95,7 +95,7 @@ describe("/app/repayments", () => {
   it("does not preselect malformed or foreign friends", async () => {
     for (const friendId of ["not-a-uuid", "33333333-3333-4333-8333-333333333333"]) {
       mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-      mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getLedgerSummary: vi.fn().mockResolvedValue(summary), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances), listOpenExpenseSharesByFriend: vi.fn().mockResolvedValue({}) });
       const view = render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId }) }));
       expect(within(screen.getByRole("dialog")).getByLabelText("Friend")).toHaveValue(activeFriend.id);
       view.unmount();
@@ -114,7 +114,7 @@ describe("/app/repayments", () => {
 
   it("announces the total matching repayments rather than the current page", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [repayment], page: 2, pageSize: 20, totalItems: 12, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getLedgerSummary: vi.fn(), listOpenExpenseSharesByFriend: vi.fn() });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [repayment], page: 2, pageSize: 20, totalItems: 12, totalPages: 1 }), listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [activeFriend])), getFriendBalances: vi.fn(), listOpenExpenseSharesByFriend: vi.fn() });
     render(await RepaymentsPage());
     expect(screen.getByRole("status")).toHaveTextContent("12 repayments found.");
   });

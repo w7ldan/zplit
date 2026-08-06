@@ -54,7 +54,7 @@ describe("repayment record", () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
     const getRepaymentDeletionImpact = vi.fn().mockResolvedValue(deletionImpact);
-    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact, listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])), getLedgerSummary: vi.fn().mockResolvedValue({ friendBalances: [{ friendId: friend.id, name: friend.name, outstandingAmount: 44_000 }] }) });
+    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact, listFriends: vi.fn(({ archived } = {}) => Promise.resolve(archived ? [] : [friend])), getFriendBalances: vi.fn().mockResolvedValue([{ friendId: friend.id, name: friend.name, archived: false, assignedAmount: 84_000, repaidAmount: 40_000, outstandingAmount: 44_000 }]) });
 
     render(await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }) }));
 

@@ -27,7 +27,8 @@ describe("/app/friends", () => {
   it("renders search, balance context, and no permanent creation form", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue(friendPage), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    const getFriendBalances = vi.fn().mockResolvedValue(summary.friendBalances);
+    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue(friendPage), getFriendBalances });
     render(await FriendsPage({ searchParams: Promise.resolve({ view: "active", q: "Ada" }) }));
 
     expect(screen.getByRole("heading", { level: 1, name: "Friends" })).toBeInTheDocument();
@@ -44,11 +45,12 @@ describe("/app/friends", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Friends" }).closest("section")).not.toHaveAttribute("aria-live");
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
     expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(getFriendBalances).toHaveBeenCalledExactlyOnceWith([friend.id]);
   });
 
   it("only renders the creation form inside the URL-controlled panel", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], totalItems: 0, totalPages: 1 }), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], totalItems: 0, totalPages: 1 }), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances) });
     render(await FriendsPage({ searchParams: Promise.resolve({ create: "1" }) }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -63,7 +65,7 @@ describe("/app/friends", () => {
 
   it("keeps filter URLs, selection, and unrelated search parameters intact", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], totalItems: 0, totalPages: 1 }), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], totalItems: 0, totalPages: 1 }), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances) });
     render(await FriendsPage({ searchParams: Promise.resolve({ view: "archived", q: "Ada", create: "1", page: "2", task: "open" }) }));
 
     expect(screen.getByRole("link", { name: "Active" })).toHaveAttribute("href", "/app/friends?view=active&q=Ada&create=1&task=open");
@@ -74,7 +76,7 @@ describe("/app/friends", () => {
 
   it("preserves retrieval context when opening Add friend", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue(friendPage), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue(friendPage), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances) });
     render(await FriendsPage({ searchParams: Promise.resolve({ view: "archived", q: "Ada", page: "2", task: "open", source: "ledger" }) }));
 
     expect(screen.getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?view=archived&q=Ada&page=2&task=open&source=ledger&create=1");
@@ -83,7 +85,7 @@ describe("/app/friends", () => {
   it("preserves a valid repayment return target through filters, views, pagination, and Add friend", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], page: 2, totalItems: 0, totalPages: 3 }), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], page: 2, totalItems: 0, totalPages: 3 }), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances) });
     render(await FriendsPage({ searchParams: Promise.resolve({ returnTo: "/app/repayments?create=1&source=ledger", view: "archived", q: "Ada", page: "2", create: "1", task: "open" }) }));
 
     const returnTo = "%2Fapp%2Frepayments%3Fcreate%3D1%26source%3Dledger";
@@ -97,7 +99,7 @@ describe("/app/friends", () => {
   it("keeps the continuation server-bound instead of rendering it in the friend form", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], totalItems: 0, totalPages: 1 }), getLedgerSummary: vi.fn().mockResolvedValue(summary) });
+    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], totalItems: 0, totalPages: 1 }), getFriendBalances: vi.fn().mockResolvedValue(summary.friendBalances) });
     render(await FriendsPage({ searchParams: Promise.resolve({ returnTo: "/app/repayments?create=1", create: "1" }) }));
 
     expect(within(screen.getByRole("dialog")).queryByDisplayValue("/app/repayments?create=1")).not.toBeInTheDocument();

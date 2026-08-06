@@ -20,6 +20,7 @@ const summary = {
   totalUnallocatedRepaymentAmount: 5_000,
   totalOutstandingAmount: 4_000,
   ownerPortionAmount: 19_000,
+  totalAssignedFriendCount: 1,
   friendBalances: [{ friendId: "friend-a", name: "Ari", archived: false, assignedAmount: 9_000, repaidAmount: 6_000, outstandingAmount: 3_000 }],
 };
 
@@ -31,7 +32,7 @@ describe("/app overview", () => {
       { kind: "Repayment", id: "repayment-a", title: "Ari", detail: "Money received · unallocated remains open", amount: 5_000, date: new Date("2026-01-03T10:30:00Z") },
     ]);
     const repository = {
-      getLedgerSummary: vi.fn().mockResolvedValue(summary),
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue(summary),
       listRecentActivity,
     };
     mocks.createLedgerRepository.mockReturnValue(repository);
@@ -71,7 +72,7 @@ describe("/app overview", () => {
   it("keeps the empty activity and balance states", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     const repository = {
-      getLedgerSummary: vi.fn().mockResolvedValue({
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue({
         ...summary,
         totalExpenseAmount: 0,
         totalAssignedAmount: 0,
@@ -80,6 +81,7 @@ describe("/app overview", () => {
         totalUnallocatedRepaymentAmount: 0,
         totalOutstandingAmount: 0,
         ownerPortionAmount: 0,
+        totalAssignedFriendCount: 0,
         friendBalances: [],
       }),
       listRecentActivity: vi.fn().mockResolvedValue([]),
@@ -92,5 +94,18 @@ describe("/app overview", () => {
     expect(screen.getByText("No balances yet.")).toBeInTheDocument();
     expect(screen.getByText("Balances appear after assigning friends to an expense.")).toBeInTheDocument();
     expect(repository.listRecentActivity).toHaveBeenCalledExactlyOnceWith({ limit: 6 });
+  });
+
+  it("renders the bounded balance list and links to the full friend list", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue({ ...summary, totalAssignedFriendCount: 9, friendBalances: Array.from({ length: 8 }, (_, index) => ({ ...summary.friendBalances[0]!, friendId: `friend-${index}`, name: `Friend ${index}` })) }),
+      listRecentActivity: vi.fn().mockResolvedValue([]),
+    });
+
+    render(await AppPage());
+
+    expect(document.querySelectorAll(".balance-row")).toHaveLength(8);
+    expect(screen.getByRole("link", { name: /View all friends/ })).toHaveAttribute("href", "/app/friends");
   });
 });

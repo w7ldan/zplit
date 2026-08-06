@@ -28,8 +28,9 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
   }
   const deletionImpact = await repository.getRepaymentDeletionImpact(repaymentId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
-  const [activeFriends, archivedFriends, summary] = await Promise.all([repository.listFriends(), repository.listFriends({ archived: true }), repository.getLedgerSummary()]);
+  const [activeFriends, archivedFriends] = await Promise.all([repository.listFriends(), repository.listFriends({ archived: true })]);
   const friends = [...activeFriends, ...archivedFriends];
+  const balances = await repository.getFriendBalances(friends.map((friend) => friend.id));
   const repayment = plan;
 
   return (
@@ -57,7 +58,7 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
             mode="edit"
             friendLocked={repayment.allocatedAmount > 0}
             initialPaidAtUtc={repayment.paidAt.toISOString()}
-            outstandingByFriend={Object.fromEntries(summary.friendBalances.map((balance) => [balance.friendId, balance.outstandingAmount]))}
+            outstandingByFriend={Object.fromEntries(balances.map((balance) => [balance.friendId, balance.outstandingAmount]))}
             initialValues={{ friendId: repayment.friendId, amountRupiah: repayment.amount.toString(), paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: repayment.paymentMethod ?? "", notes: repayment.notes ?? "" }}
           />
         </div>

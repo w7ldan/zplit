@@ -17,4 +17,12 @@ DB_NAME=zplit_scale_test npm run clear:scale
 
 `seed:scale` replaces only the deterministic fixture rows owned by `SCALE_TEST_OWNER_EMAIL`. `clear:scale` removes those fixture rows and leaves the owner login intact. `verify:scale` is read-only. All commands require the database name and owner email guard; seed and clear also require the confirmation value.
 
+After the fixture is seeded, retest the production-mode overview repository queries with:
+
+```sh
+DB_NAME=zplit_scale_test SCALE_TEST_OWNER_EMAIL=owner@example.com ZPLIT_SCALE_TEST_CONFIRM=scale-test-only npm run test:overview-scale
+```
+
+This smoke is read-only, checks the deterministic totals and eight-balance bound, and fails when either warm median exceeds 500 ms.
+
 The generated set contains 100 friends (80 active, 20 archived), 300 outings over 36 months, 2,000 expenses, 1,000 repayments, varied shares, and eight small receipts. The data includes boundary timestamps, maximum-length valid names, and paid, partial, unpaid, unallocated, and overpaid scenarios.

@@ -49,12 +49,9 @@ export default async function FriendsPage({ searchParams = Promise.resolve({}) }
   const created = first(params?.created);
   const openCreate = first(params?.create) === "1";
   const repository = createLedgerRepository(getDatabase(), session.user.id);
-  const [friendPage, summary] = await Promise.all([
-    repository.listFriendRecords({ archived: view === "archived", q: first(params?.q), page: first(params?.page) }),
-    repository.getLedgerSummary(),
-  ]);
+  const friendPage = await repository.listFriendRecords({ archived: view === "archived", q: first(params?.q), page: first(params?.page) });
   const friends = friendPage.items;
-  const balances = new Map(summary.friendBalances.map((balance) => [balance.friendId, balance]));
+  const balances = new Map((await repository.getFriendBalances(friends.map((friend) => friend.id))).map((balance) => [balance.friendId, balance]));
   const filtered = Boolean(filters.q);
   const listHref = recordHref("/app/friends", params);
 

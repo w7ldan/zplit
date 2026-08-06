@@ -527,7 +527,7 @@ describe("ledger repository", () => {
     expect(foreign).toMatchObject({ code: "NOT_FOUND", message: "Ledger record not found" });
   });
 
-  it("builds the summary from five owner-scoped queries", async () => {
+  it("builds the summary from one owner-scoped aggregate query", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {
       queries.push({ sql, params });
@@ -545,16 +545,65 @@ describe("ledger repository", () => {
       ownerPortionAmount: 0,
       friendBalances: [],
     });
-    expect(queries).toHaveLength(5);
-    for (const query of queries) {
-      expect(query.sql).toContain("owner_user_id");
-      expect(query.params).toContain(owner);
-    }
-    expect(queries.map(({ sql }) => sql).join(" ")).toContain('"friends"');
-    expect(queries.map(({ sql }) => sql).join(" ")).toContain('"expenses"');
-    expect(queries.map(({ sql }) => sql).join(" ")).toContain('"expense_shares"');
-    expect(queries.map(({ sql }) => sql).join(" ")).toContain('"repayments"');
-    expect(queries.map(({ sql }) => sql).join(" ")).toContain('"repayment_allocations"');
+    expect(queries).toHaveLength(1);
+    expect(queries[0].sql).toContain("WITH expense_totals");
+    expect(queries[0].sql).toContain("friend_balances");
+    expect(queries[0].sql).toContain("repayment_allocations");
+    expect(queries[0].params).toContain(owner);
+  });
+
+  it("bounds overview balances and reports the full assigned-friend count", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [{
+        total_expense_amount: "100",
+        total_assigned_amount: "80",
+        total_repaid_amount: "20",
+        total_received_amount: "25",
+        owner_portion_amount: "20",
+        total_assigned_friend_count: "9",
+        invalid_cross_friend_allocations: "0",
+        invalid_repayment_allocations: "0",
+        invalid_share_allocations: "0",
+        invalid_owner_portions: "0",
+        friend_balances: Array.from({ length: 8 }, (_, index) => ({ friendId: `friend-${index}`, name: `Friend ${index}`, archived: false, assignedAmount: "10", repaidAmount: "0" })),
+      }] };
+    });
+
+    const overview = await createLedgerRepository(database as unknown as Database, owner).getLedgerOverviewSummary();
+
+    expect(overview.totalAssignedFriendCount).toBe(9);
+    expect(overview.friendBalances).toHaveLength(8);
+    expect(queries).toHaveLength(1);
+    expect(queries[0].sql).toContain("LIMIT");
+    expect(queries[0].params).toContain(owner);
+  });
+
+  it("scopes balance aggregation to the requested friends", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [{
+        total_expense_amount: "0",
+        total_assigned_amount: "0",
+        total_repaid_amount: "0",
+        total_received_amount: "0",
+        owner_portion_amount: "0",
+        total_assigned_friend_count: "0",
+        invalid_cross_friend_allocations: "0",
+        invalid_repayment_allocations: "0",
+        invalid_share_allocations: "0",
+        invalid_owner_portions: "0",
+        friend_balances: [{ friendId: "friend-a", name: "Ada", archived: false, assignedAmount: "80", repaidAmount: "20" }],
+      }] };
+    });
+
+    await expect(createLedgerRepository(database as unknown as Database, owner).getFriendBalances(["friend-a", "friend-b"])).resolves.toMatchObject([{ friendId: "friend-a", outstandingAmount: 60 }]);
+    expect(queries[0].sql).toContain("IN");
+    expect(queries[0].params).toContain(owner);
+    expect(queries[0].params).toContain("friend-a");
+    expect(queries[0].params).toContain("friend-b");
   });
 
   it("builds the export snapshot from five owner-scoped queries without private fields", async () => {
@@ -601,13 +650,20 @@ describe("ledger repository", () => {
     expect(queries[2].sql).toContain('"expense_shares"."owner_user_id"');
   });
 
-  it("preserves the typed integrity error from summary building", async () => {
-    const database = drizzle(async (sql) => {
-      if (sql.includes('"friends"')) return { rows: [] };
-      if (sql.includes('"expenses"')) return { rows: [{ id: "expense", amount: 1 }] };
-      if (sql.includes('"expense_shares"')) return { rows: [{ id: "share", expenseId: "expense", friendId: "missing", amountOwed: 1 }] };
-      return { rows: [] };
-    });
+  it("preserves the typed integrity error from aggregate summary rows", async () => {
+    const database = drizzle(async () => ({ rows: [{
+      total_expense_amount: "1",
+      total_assigned_amount: "1",
+      total_repaid_amount: "1",
+      total_received_amount: "1",
+      owner_portion_amount: "0",
+      total_assigned_friend_count: "1",
+      invalid_cross_friend_allocations: "1",
+      invalid_repayment_allocations: "0",
+      invalid_share_allocations: "0",
+      invalid_owner_portions: "0",
+      friend_balances: [],
+    }] }));
 
     await expect(createLedgerRepository(database as unknown as Database, owner).getLedgerSummary()).rejects.toBeInstanceOf(LedgerIntegrityError);
   });
