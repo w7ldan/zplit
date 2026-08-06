@@ -91,7 +91,7 @@ export type FixtureReceipt = {
   ownerUserId: string;
   expenseId: string;
   originalFilename: string;
-  mediaType: "image/jpeg";
+  mediaType: "image/png";
   byteSize: number;
   sha256: string;
   content: Buffer;
@@ -203,10 +203,8 @@ function specialShareAmounts(index: number) {
   }[index];
 }
 
-function receiptContent(index: number) {
-  const content = Buffer.alloc(48, index + 1);
-  content.set([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00], 0);
-  return content;
+function receiptContent() {
+  return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
 }
 
 export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed = SCALE_FIXTURE_SEED): ScaleFixtureData {
@@ -374,13 +372,13 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
 
   const receiptExpenseIndexes = [0, 1, 2, 3, 4, 120, 1_200, 1_999];
   const receipts = receiptExpenseIndexes.map((expenseIndex, index) => {
-    const content = receiptContent(index);
+    const content = receiptContent();
     return {
       id: fixtureId("receipt", index),
       ownerUserId,
       expenseId: expenses[expenseIndex]!.id,
-      originalFilename: `scale-receipt-${String(index + 1).padStart(2, "0")}.jpg`,
-      mediaType: "image/jpeg" as const,
+      originalFilename: `scale-receipt-${String(index + 1).padStart(2, "0")}.png`,
+      mediaType: "image/png" as const,
       byteSize: content.byteLength,
       sha256: createHash("sha256").update(content).digest("hex"),
       content,

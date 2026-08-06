@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import {
   generateScaleFixture,
@@ -31,6 +33,38 @@ describe("scale fixture data", () => {
     expect(fixture.repayments).toHaveLength(SCALE_FIXTURE_COUNTS.repayments);
     expect(fixture.repaymentAllocations).toHaveLength(SCALE_FIXTURE_COUNTS.repaymentAllocations);
     expect(fixture.receipts).toHaveLength(SCALE_FIXTURE_COUNTS.receipts);
+  });
+
+  it("contains complete PNG receipts with matching metadata", () => {
+    const fixture = generateScaleFixture("owner");
+    for (const receipt of fixture.receipts) {
+      expect(receipt.mediaType).toBe("image/png");
+      expect(receipt.originalFilename).toMatch(/\.png$/);
+      expect(receipt.byteSize).toBe(receipt.content.byteLength);
+      expect(receipt.sha256).toBe(createHash("sha256").update(receipt.content).digest("hex"));
+      expect(receipt.content.subarray(0, 8)).toEqual(Buffer.from("89504e470d0a1a0a", "hex"));
+
+      const chunks: { type: string; data: Buffer; bytes: Buffer }[] = [];
+      for (let offset = 8; offset < receipt.content.length;) {
+        const length = receipt.content.readUInt32BE(offset);
+        const end = offset + 12 + length;
+        expect(end).toBeLessThanOrEqual(receipt.content.length);
+        chunks.push({
+          type: receipt.content.toString("ascii", offset + 4, offset + 8),
+          data: receipt.content.subarray(offset + 8, offset + 8 + length),
+          bytes: receipt.content.subarray(offset, end),
+        });
+        offset = end;
+      }
+
+      expect(chunks.map(({ type }) => type)).toEqual(["IHDR", "IDAT", "IEND"]);
+      expect(chunks.map(({ bytes }) => bytes.toString("hex"))).toEqual([
+        "0000000d4948445200000001000000010804000000b51c0c02",
+        "0000000b4944415478da6364f80f00010501012718e366",
+        "0000000049454e44ae426082",
+      ]);
+      expect(inflateSync(chunks[1]!.data)).toEqual(Buffer.from([1, 0, 255]));
+    }
   });
 
   it("contains long valid names, 36 months, and timezone boundaries", () => {
