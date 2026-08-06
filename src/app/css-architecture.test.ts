@@ -124,6 +124,12 @@ describe("CSS architecture", () => {
     expect(cssBraceDepth(bundle.css)).toBe(0);
   });
 
+  it("keeps scale-sized names wrappable, clamped in rows, and the viewport gutter stable", () => {
+    expect(bundle.css).toContain("scrollbar-gutter: stable;");
+    expect(bundle.css).toMatch(/\.friend-row__primary h2 a,[\s\S]*?\.repayment-row__primary h2 a\s*\{[\s\S]*?overflow-wrap:\s*anywhere;[\s\S]*?-webkit-line-clamp:\s*2;/);
+    expect(bundle.css).toMatch(/\.friend-record__intro h1,[\s\S]*?\.repayment-record__intro h1\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/);
+  });
+
   it("keeps shared header painting in the foundation fragment", () => {
     const foundationSource = bundle.fragmentSources[0];
     const publicSource = bundle.fragmentSources[1];

@@ -53,6 +53,7 @@ async function run() {
     transactionStarted = true;
     const ownerUserId = await resolveOwner(client, ownerEmail);
     const repository = createLedgerRepository(drizzle(client, { schema }), ownerUserId);
+    const contextRepository = createLedgerRepository(drizzle(pool, { schema }), ownerUserId);
     const fixture = generateScaleFixture(ownerUserId);
     const selectedOutingId = fixture.outings.at(-1)!.id;
     const selectedFriendId = fixture.friends.at(-1)!.id;
@@ -88,7 +89,7 @@ async function run() {
     });
 
     await measure("Selected friend context", async () => {
-      const context = await repository.getRepaymentFriendContext(selectedFriendId, true);
+      const context = await contextRepository.getRepaymentFriendContext(selectedFriendId, true);
       assert(context.option.id === selectedFriendId, "selected friend context returned the wrong option");
       assert(Number.isSafeInteger(context.outstandingAmount), "selected friend context returned an invalid balance");
       return context;

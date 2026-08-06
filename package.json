@@ -25,6 +25,7 @@
     "test:overview-scale": "tsx scripts/overview-scale-smoke.ts",
     "test:record-pages-scale": "tsx scripts/record-pages-scale-smoke.ts",
     "test:selection-search-scale": "tsx scripts/selection-search-scale-smoke.ts",
+    "test:production-scale": "tsx scripts/production-scale-acceptance.ts",
     "test:debtor-shares": "tsx scripts/debtor-share-smoke.ts",
     "test:history-delete": "tsx scripts/history-delete-smoke.ts",
     "seed:scale": "tsx scripts/scale-fixture.ts seed",

@@ -7,6 +7,17 @@ const css = readCssBundle().css;
 const publicSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/10-public.css"), "utf8");
 const siteHeaderSource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/site-header.tsx"), "utf8");
 const documentation = readFileSync(path.resolve(process.cwd(), "docs/design-system.md"), "utf8");
+const scaleDocumentation = readFileSync(path.resolve(process.cwd(), "docs/scale-testing.md"), "utf8");
+const recordPageSources = [
+  "friends",
+  "outings",
+  "expenses",
+  "repayments",
+].map((name) => readFileSync(path.resolve(process.cwd(), `src/app/app/${name}/page.tsx`), "utf8"));
+const selectorActionSources = [
+  readFileSync(path.resolve(process.cwd(), "src/app/app/expenses/actions.ts"), "utf8"),
+  readFileSync(path.resolve(process.cwd(), "src/app/app/repayments/actions.ts"), "utf8"),
+];
 const taskPanelSource = readFileSync(path.resolve(process.cwd(), "src/components/app/task-panel.tsx"), "utf8");
 const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/components/app/record-confirmation.tsx"), "utf8");
 const expenseShareSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-share-editor.tsx"), "utf8");
@@ -195,6 +206,24 @@ describe("Zplit design contract", () => {
     expect(css).toMatch(/\.activity-row small\s*\{[\s\S]*?overflow-wrap:\s*anywhere;[\s\S]*?white-space:\s*normal;/);
     expect(css).toMatch(/\.friend-record__intro h1,[\s\S]*?\.repayment-record__intro h1\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/);
     expect(cssRuleBody(css, ".friend-record__intro h1, .outing-record__intro h1, .expense-record__intro h1, .repayment-record__intro h1")).not.toContain("-webkit-line-clamp");
+  });
+
+  it("keeps scale-sized server results bounded at the page and selector boundaries", () => {
+    for (const source of recordPageSources) {
+      expect(source).toMatch(/(?:friendPage|outingPage|expensePage|repaymentPage)\.items/);
+      expect(source).not.toMatch(/repository\.list(?:Friends|Outings|Expenses|Repayments)\s*\(/);
+    }
+    for (const source of selectorActionSources) {
+      expect(source).toMatch(/search(?:Outings|Friends)/);
+      expect(source).not.toMatch(/\.list(?:Outings|Friends)\s*\(/);
+    }
+    for (const budget of [
+      "overview summary: at most 500 ms",
+      "recent activity: at most 100 ms",
+      "each record page query: at most 300 ms",
+      "each selector search: at most 200 ms",
+      "selected-friend context: at most 300 ms",
+    ]) expect(scaleDocumentation).toContain(budget);
   });
 
   it("keeps both headers on one centered three-region detached shell", () => {

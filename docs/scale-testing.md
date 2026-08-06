@@ -1,44 +1,110 @@
-# Scale fixture testing
+# Production-scale acceptance
 
-The scale fixture is disposable development data for UX and performance work. It must only run against a disposable PostgreSQL database named `zplit_scale_test`; never point it at production or a shared environment.
+This workflow is disposable only. Every command must use PostgreSQL database `zplit_scale_test`; never use production, `zplit_showcase`, or another shared database. The fixture does not change authentication rows.
 
-## Workflow
+## Setup
 
-1. Create the empty `zplit_scale_test` database and apply the current migrations with `DB_NAME=zplit_scale_test npm run db:migrate`.
-2. Configure the existing owner bootstrap secrets for that database and run the owner bootstrap first. This creates the login in `zplit_scale_test`; the scale fixture never creates or changes authentication records.
-3. Set `DB_NAME=zplit_scale_test` and `SCALE_TEST_OWNER_EMAIL` to exactly that existing test owner's email.
-4. For a mutation, also set `ZPLIT_SCALE_TEST_CONFIRM=scale-test-only`.
+Configure the existing database and owner bootstrap secrets first:
 
 ```sh
-DB_NAME=zplit_scale_test npm run seed:scale
-DB_NAME=zplit_scale_test npm run verify:scale
-DB_NAME=zplit_scale_test npm run clear:scale
+export DB_HOST=127.0.0.1
+export DB_PORT=5432
+export DB_NAME=zplit_scale_test
+export DB_USER=postgres
+export DB_PASSWORD_FILE=/absolute/path/scale-db-password
+export BETTER_AUTH_SECRET_FILE=/absolute/path/auth-secret
+export BETTER_AUTH_URL=http://127.0.0.1:3001
+export OWNER_NAME_FILE=/absolute/path/scale-owner-name
+export OWNER_EMAIL_FILE=/absolute/path/scale-owner-email
+export OWNER_PASSWORD_FILE=/absolute/path/scale-owner-password
+export SCALE_TEST_OWNER_EMAIL=owner@example.com
+export ZPLIT_SCALE_TEST_CONFIRM=scale-test-only
 ```
 
-`seed:scale` replaces only the deterministic fixture rows owned by `SCALE_TEST_OWNER_EMAIL`. `clear:scale` removes those fixture rows and leaves the owner login intact. `verify:scale` is read-only. All commands require the database name and owner email guard; seed and clear also require the confirmation value.
-
-After the fixture is seeded, retest the production-mode overview repository queries with:
+Create the empty database, migrate it, and bootstrap the existing test owner:
 
 ```sh
-DB_NAME=zplit_scale_test SCALE_TEST_OWNER_EMAIL=owner@example.com ZPLIT_SCALE_TEST_CONFIRM=scale-test-only npm run test:overview-scale
+npm run db:migrate
+./node_modules/.bin/tsx scripts/bootstrap-owner.ts
 ```
 
-This smoke is read-only, checks the deterministic totals and eight-balance bound, and fails when either warm median exceeds 500 ms.
-
-Record-page pagination and warm-query performance can be checked with:
+Seed and verify the deterministic fixture:
 
 ```sh
-DB_NAME=zplit_scale_test SCALE_TEST_OWNER_EMAIL=owner@example.com ZPLIT_SCALE_TEST_CONFIRM=scale-test-only npm run test:record-pages-scale
+npm run seed:scale
+npm run verify:scale
 ```
 
-This smoke is read-only, checks active and archived Friends plus Outings, Expenses, and Repayments for 20-row pages, distinct adjacent pages, fixture totals, and warm medians under 500 ms.
+`seed:scale` and `clear:scale` are the only fixture mutations and require both the database guard and `ZPLIT_SCALE_TEST_CONFIRM=scale-test-only`. `verify:scale` and every scale smoke are read-only.
 
-Selector search can be checked against the same disposable database with:
+## Focused scale smokes
+
+Run the repository checks individually when diagnosing a failure:
 
 ```sh
-DB_NAME=zplit_scale_test SCALE_TEST_OWNER_EMAIL=owner@example.com npm run test:selection-search-scale
+npm run test:overview-scale
+npm run test:record-pages-scale
+npm run test:selection-search-scale
 ```
 
-This smoke is read-only, checks bounded owner-scoped outing and friend searches, selected-value retention, selected-friend repayment context (including open shares), active-before-archived ordering, and warm medians under 300 ms.
+They cover overview totals/activity, bounded first and adjacent record pages, empty and searched selectors, selected-value retention, selected-friend repayment context, and owner scoping. Their permanent budgets are:
 
-The generated set contains 100 friends (80 active, 20 archived), 300 outings over 36 months, 2,000 expenses, 1,000 repayments, varied shares, and eight small receipts. The data includes boundary timestamps, maximum-length valid names, and paid, partial, unpaid, unallocated, and overpaid scenarios.
+- overview summary: at most 500 ms
+- recent activity: at most 100 ms
+- each record page query: at most 300 ms
+- each selector search: at most 200 ms
+- selected-friend context: at most 300 ms
+
+The production-scale acceptance repeats those checks in one guarded run and enforces those warm-median budgets directly:
+
+```sh
+npm run test:production-scale
+```
+
+It prints deterministic fixture totals, bounded result sizes, adjacent-page duplicate checks, selector/context checks, each warm median and budget, then performs the production runtime check. A successful database phase prints:
+
+```text
+database acceptance passed: bounded pages/selectors, deterministic totals, context, adjacent-page uniqueness, and read-only transaction verified
+```
+
+## Production runtime check
+
+Before the one build, the acceptance script requires:
+
+- at least 700 MiB available memory;
+- at least 4 GiB free disk;
+- no competing `next build` or `next dev` process; and
+- no OOM event in the previous 10 minutes.
+
+It builds once with the scale-test environment, starts `next start` on `127.0.0.1:3001`, signs in through the normal HTTP auth endpoint using the test owner password, and requests these authenticated HTML pages without Chromium or Playwright:
+
+```text
+/app
+/app/friends
+/app/outings
+/app/expenses
+/app/repayments
+```
+
+Each page is warmed once and then measured. The run fails on a non-success status, a page response over 1.5 seconds after warm-up, HTML over 500 KiB, an unhealthy/exited server, or a changed domain fingerprint. It records status, response time, HTML bytes, and peak RSS for the production Next.js process tree, for example:
+
+```text
+resource gate passed: memory=834 MiB disk=6 GiB
+production build passed once against zplit_scale_test
+production /app: status=200 response=... ms html=... bytes
+production runtime passed: 5 authenticated pages, peak RSS=... MiB
+```
+
+The authenticated session is signed out during cleanup. The server is stopped even after a failed check.
+
+## Fixture contract
+
+The fixed seed contains 100 friends (80 active, 20 archived), 300 outings over 36 months, 2,000 expenses, 5,792 expense shares, 1,000 repayments, 429 repayment allocations, and eight small PNG receipts. It includes timestamp boundaries, maximum-length valid names, and paid, partial, unpaid, unallocated, and overpaid scenarios.
+
+After acceptance, remove only the disposable fixture if desired:
+
+```sh
+npm run clear:scale
+```
+
+The owner login remains in `zplit_scale_test`. Do not run the clear command against any other database.
