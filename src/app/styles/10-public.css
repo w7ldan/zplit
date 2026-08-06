@@ -12,6 +12,7 @@
 .public-home .site-header {
   align-items: center;
   padding-block: 0.55rem;
+  background: var(--surface);
 }
 
 .public-home .site-header__brand {
@@ -46,20 +47,7 @@
   min-height: 2.25rem;
   align-items: center;
   padding-inline: 0.85rem;
-  border: 1px solid var(--ink);
   border-radius: var(--radius-control);
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.public-home .site-header__access:hover,
-.public-home .site-header__access:focus-visible {
-  background: var(--pastel-blue);
-  color: var(--ink);
-}
-
-.public-home .site-header__access::after {
-  display: none;
 }
 
 .site-header__brand {
@@ -132,10 +120,6 @@
   .public-home .site-header__nav a {
     font-size: 0.64rem;
     letter-spacing: 0.06em;
-  }
-
-  .public-home .site-header__access {
-    padding-inline: 0.2rem;
   }
 
   .public-home .site-header__nav a:nth-child(1) { grid-column: 1; }
@@ -476,11 +460,6 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-.site-header__access {
-  padding-inline: 0.5rem;
-  background: var(--pastel-blue);
 }
 
 .access-page,

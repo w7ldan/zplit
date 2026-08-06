@@ -30,7 +30,10 @@ describe("SiteHeader", () => {
     expect(header).toHaveClass("header-shell--detached");
     expect(panel).toHaveClass("header-shell__panel--detached");
     expect(panel).toHaveAttribute("data-detached", "true");
-    expect(screen.getByRole("link", { name: "Open Zplit" })).toBeInTheDocument();
+    const accessLink = screen.getByRole("link", { name: "Open Zplit" });
+    expect(accessLink).toBeInTheDocument();
+    expect(accessLink).toHaveAttribute("href", "/app");
+    expect(accessLink).toHaveClass("action-link", "action-link--primary", "site-header__access");
   });
 
   it("mounts detached when scroll restoration already positioned the page", () => {

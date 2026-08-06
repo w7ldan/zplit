@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionLink } from "@/components/editorial/action-link";
 import { HeaderShell } from "@/components/navigation/header-shell";
 
 export function SiteHeader() {
@@ -24,7 +25,7 @@ export function SiteHeader() {
           <a href="#ledger">The ledger</a>
         </>
       )}
-      actions={<a className="site-header__access" href="/app">Open Zplit</a>}
+      actions={<ActionLink href="/app" variant="primary" className="site-header__access">Open Zplit</ActionLink>}
     />
   );
 }

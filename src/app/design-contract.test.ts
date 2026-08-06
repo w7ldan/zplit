@@ -5,6 +5,7 @@ import { readCssBundle } from "@/test/read-css-bundle";
 
 const css = readCssBundle().css;
 const publicSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/10-public.css"), "utf8");
+const siteHeaderSource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/site-header.tsx"), "utf8");
 const documentation = readFileSync(path.resolve(process.cwd(), "docs/design-system.md"), "utf8");
 const taskPanelSource = readFileSync(path.resolve(process.cwd(), "src/components/app/task-panel.tsx"), "utf8");
 const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/components/app/record-confirmation.tsx"), "utf8");
@@ -227,6 +228,22 @@ describe("Zplit design contract", () => {
     expect(cssRuleBody(css, ".app-shell__nav-link:hover, .app-shell__nav-link:focus-visible")).toContain("color: var(--ink);");
     expect(css).toMatch(/@media \(min-width: 1024px\)\s*\{[\s\S]*?\.header-shell__panel\s*\{[\s\S]*?display:\s*grid;/);
     expect(css).toMatch(/@media \(max-width: 1023px\)\s*\{[\s\S]*?\.app-shell__mobile-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
+  });
+
+  it("keeps the landing access link on the shared primary action treatment", () => {
+    const header = cssRuleBody(publicSource, ".public-home .site-header");
+    const access = cssRuleBody(publicSource, ".public-home .site-header__access");
+    const primary = cssRuleBody(css, ".action-link--primary");
+
+    expect(siteHeaderSource).toContain("import { ActionLink } from \"@/components/editorial/action-link\";");
+    expect(siteHeaderSource).toContain('actions={<ActionLink href="/app" variant="primary" className="site-header__access">Open Zplit</ActionLink>}');
+    expect(header).toContain("background: var(--surface);");
+    expect(access).toContain("min-height: 2.25rem;");
+    expect(access).toContain("border-radius: var(--radius-control);");
+    expect(access).not.toMatch(/\b(?:background|border|color):/);
+    expect(primary).toContain("background: var(--ink);");
+    expect(primary).toContain("color: var(--paper);");
+    expect(css).toMatch(/\.action-link--primary:hover,[\s\S]*?\.action-link--primary:focus-visible\s*\{[\s\S]*?background: var\(--pastel-blue\);[\s\S]*?color: var\(--ink\);/);
   });
 
   it("keeps the public mobile header grid in the public fragment", () => {
