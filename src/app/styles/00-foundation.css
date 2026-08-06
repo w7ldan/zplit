@@ -132,6 +132,7 @@ body {
 
 html {
   background: var(--paper);
+  scrollbar-gutter: stable;
   scroll-behavior: smooth;
 }
 

@@ -171,6 +171,7 @@ describe("Zplit design contract", () => {
 
   it("keeps navigation, showcase, focus, and row actions geometrically bounded", () => {
     expect(css).toContain("overflow-x: clip");
+    expect(cssRuleBody(css, "html")).toContain("scrollbar-gutter: stable;");
     expect(css).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)");
     expect(css).toContain(".journey-sticky--pinned");
     expect(css).toContain("height: calc(100svh - var(--journey-sticky-top) - var(--journey-bottom-clearance))");
