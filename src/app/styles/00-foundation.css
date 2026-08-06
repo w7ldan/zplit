@@ -227,6 +227,7 @@ input[type="search"]::-webkit-search-decoration {
 .header-shell__brand {
   display: flex;
   grid-column: 1;
+  justify-self: start;
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -235,6 +236,7 @@ input[type="search"]::-webkit-search-decoration {
   display: flex;
   grid-column: 2;
   justify-content: center;
+  justify-self: center;
   gap: clamp(1rem, 3vw, 3rem);
   width: max-content;
 }
@@ -243,6 +245,7 @@ input[type="search"]::-webkit-search-decoration {
   display: flex;
   grid-column: 3;
   justify-content: flex-end;
+  justify-self: end;
   align-items: center;
 }
 
