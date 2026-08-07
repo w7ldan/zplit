@@ -14,9 +14,9 @@ export function ExpenseRow({ expense, emphasized = false }: { expense: ExpenseRe
         <h2><Link href={`/app/expenses/${expense.id}`}>{expense.description}</Link></h2>
       </div>
       <div className="expense-row__meta">
-        <strong>{formatRupiah(expense.amount)}</strong>
-        <LocalDateTime iso={expense.outingOccurredAt.toISOString()} />
-        <span className="technical-label">{expense.outingTitle}</span>
+        <span className="expense-row__amount"><span className="technical-label">Amount</span><strong aria-label={`Expense amount ${formatRupiah(expense.amount)}`}>{formatRupiah(expense.amount)}</strong></span>
+        <span className="expense-row__date"><span className="technical-label">Date</span><LocalDateTime iso={expense.outingOccurredAt.toISOString()} /></span>
+        <span className="expense-row__outing"><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></span>
         <Link className="expense-row__edit" href={`/app/expenses/${expense.id}`}>Edit <span aria-hidden="true">→</span></Link>
       </div>
     </article>

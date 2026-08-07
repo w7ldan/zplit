@@ -162,8 +162,8 @@ describe("Zplit design contract", () => {
   it("keeps financial clarity editorial, bounded, and in its owning fragments", () => {
     expect(authenticatedShellSource).toContain(".overview-ledger-clarity");
     expect(recordsAndFormsSource).toContain(".friend-record__balance");
-    expect(recordsAndFormsSource).toContain(".expense-share-editor__clarity");
-    expect(recordsAndFormsSource).toContain(".repayment-allocation-editor__clarity");
+    expect(recordsAndFormsSource).not.toContain(".expense-share-editor__clarity");
+    expect(recordsAndFormsSource).not.toContain(".repayment-allocation-editor__clarity");
     expect(lateOverridesSource).not.toMatch(/overview-ledger-clarity|friend-record__balance|expense-share-editor__clarity|repayment-allocation-editor__clarity/);
 
     const financialClarityCss = [
@@ -174,16 +174,41 @@ describe("Zplit design contract", () => {
     expect(financialClarityCss).not.toMatch(/border-radius|background|box-shadow|\b(?:width|min-width):/);
 
     const mobileFinancialClarityRule = authenticatedShellSource.match(
-      /@media \(max-width: 767px\) \{\s*(\.overview-ledger-clarity__relations > section\s*\{[^{}]*\}\s*\.overview-ledger-clarity dl\s*\{[^{}]*\}\s*\.overview-ledger-clarity dd\s*\{[^{}]*\})\s*\}/,
+      /@media \(max-width: 767px\) \{\s*(\.overview-ledger-clarity__relations > section\s*\{[^{}]*\})\s*\}/,
     )?.[1] ?? "";
     expect(mobileFinancialClarityRule).toContain("grid-template-columns: 1fr;");
-    expect(mobileFinancialClarityRule).toContain("grid-column: 1;");
-    expect(mobileFinancialClarityRule).toContain("white-space: normal;");
-    expect(mobileFinancialClarityRule).toContain("overflow-wrap: anywhere;");
     expect(mobileFinancialClarityRule).not.toMatch(/overflow-x|\b(?:width|min-width|max-width):/);
     expect(cssRuleBody(css, ".overview-ledger-clarity__relations > section")).toContain("grid-template-columns: minmax(0, 0.35fr) minmax(0, 1.65fr);");
-    expect(cssRuleBody(css, ".overview-ledger-clarity dl")).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));");
+    expect(cssRuleBody(css, ".overview-ledger-clarity > summary")).toContain("list-style: none;");
+    expect(css).not.toContain(".overview-ledger-clarity dl");
     expect(lateOverridesSource).not.toContain("overview-ledger-clarity");
+  });
+
+  it("keeps authenticated geometry shared and public geometry unchanged", () => {
+    expect(cssRuleBody(css, ".editorial-shell")).toContain("width: min(calc(100% - 2rem), 90rem);");
+    expect(cssRuleBody(css, ".header-shell__panel")).toContain("max-width: 90rem;");
+    expect(cssRuleBody(css, ".header-shell__panel--detached")).toContain("max-width: 72rem;");
+    expect(authenticatedShellSource).toContain(".app-shell .editorial-shell {");
+    expect(authenticatedShellSource).toContain("width: min(calc(100% - 2rem), 76rem);");
+    expect(authenticatedShellSource).toContain("max-width: 76rem;");
+    expect(authenticatedShellSource).toContain(".app-shell .header-shell__panel,");
+    expect(authenticatedShellSource).toContain(".app-shell .header-shell__panel--detached {");
+    expect(authenticatedShellSource).toContain("width: min(calc(100% - 1.5rem), 76rem);");
+  });
+
+  it("keeps detail grids owned, stable, and mobile-safe", () => {
+    expect(recordsAndFormsSource).not.toContain("grid-column: 1 / span 6");
+    expect(recordsAndFormsSource).toContain("grid-template-columns: repeat(12, minmax(0, 1fr));");
+    expect(recordsAndFormsSource).toContain("grid-column: 1 / span 8;");
+    expect(recordsAndFormsSource).toContain("grid-column: 9 / -1;");
+    expect(recordsAndFormsSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.friend-record__form,[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?\.expense-record__tasks,[\s\S]*?grid-template-columns: 1fr;/);
+    expect(recordsAndFormsSource).not.toContain("overflow-x: clip");
+  });
+
+  it("keeps desktop record columns semantic and aligned", () => {
+    expect(recordsAndFormsSource).toMatch(/@media \(min-width: 960px\)[\s\S]*?\.expense-row__meta,[\s\S]*?\.repayment-row__meta\s*\{[\s\S]*?display: contents;/);
+    expect(recordsAndFormsSource).toContain("minmax(0, 2fr) minmax(7rem, auto) minmax(7rem, auto)");
+    expect(recordsAndFormsSource).toContain("minmax(0, 2fr) minmax(7rem, auto) minmax(8rem, auto)");
   });
 
   it("keeps the authenticated lifecycle and CSS syntax native and bounded", () => {

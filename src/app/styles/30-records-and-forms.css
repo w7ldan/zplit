@@ -21,23 +21,23 @@
 
 .friend-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.8fr);
-  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
   align-items: center;
 }
 
 .outing-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr) auto;
-  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
   align-items: center;
 }
 
 .expense-row,
 .repayment-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2.25fr);
-  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
   align-items: center;
 }
 
@@ -85,11 +85,10 @@
 .outing-row__meta,
 .expense-row__meta,
 .repayment-row__meta {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem 1.25rem;
+  gap: 0.75rem;
   min-width: 0;
   color: var(--muted-ink);
   font-size: 0.8rem;
@@ -209,10 +208,20 @@
 .repayment-record__meta {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
   padding-block: 0.9rem;
   border-block: 1px solid var(--rule);
+}
+
+.friend-record__meta,
+.outing-record__meta {
+  grid-column: 2 / span 5;
+}
+
+.expense-record__meta,
+.repayment-record__meta {
+  grid-column: 1 / -1;
 }
 
 .friend-record__balance {
@@ -224,20 +233,36 @@
 .friend-record__balance h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.55rem;
+  font-size: 0.8rem;
+  font-weight: 700;
   letter-spacing: -0.055em;
   line-height: 1;
+  text-transform: uppercase;
+}
+
+.friend-record__balance-primary {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.friend-record__balance-primary strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4vw, 3.25rem);
+  letter-spacing: -0.07em;
+  line-height: 0.95;
 }
 
 .friend-record__balance dl {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   margin: 1rem 0 0;
 }
 
 .friend-record__balance dl div {
   display: grid;
+  flex: 0 1 10rem;
   gap: 0.25rem;
   min-width: 0;
 }
@@ -252,6 +277,12 @@
   margin: 0;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.friend-record__balance--settled .friend-record__balance-primary strong,
+.friend-record__balance--empty .friend-record__balance-primary strong {
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  letter-spacing: -0.055em;
 }
 
 .friend-record__balance > p {
@@ -295,12 +326,21 @@
 .outing-record__form,
 .expense-record__form,
 .repayment-record__form {
-  grid-column: 1 / span 6;
   order: 5;
   max-width: 38rem;
   margin-top: 0.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--ink);
+}
+
+.friend-record__form,
+.outing-record__form {
+  grid-column: 2 / span 5;
+}
+
+.expense-record__form,
+.repayment-record__form {
+  grid-column: 1 / -1;
 }
 
 .friend-form,
@@ -495,11 +535,39 @@
 
 .expense-record__shares,
 .repayment-record__allocations {
-  grid-column: 1 / -1;
-  order: 4;
-  margin-top: 1rem;
+  grid-column: auto;
+  order: initial;
+  margin-top: 0;
   padding-top: 1rem;
   border-top: 1px solid var(--ink);
+}
+
+.expense-record__tasks,
+.repayment-record__tasks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.expense-record__primary-task,
+.repayment-record__primary-task,
+.expense-record__sidebar,
+.repayment-record__sidebar {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.expense-record__sidebar,
+.repayment-record__sidebar {
+  align-content: start;
+}
+
+.expense-record__sidebar .expense-record__meta,
+.repayment-record__sidebar .repayment-record__meta {
+  grid-column: 1 / -1;
 }
 
 .expense-share-editor,
@@ -574,37 +642,6 @@
   background: var(--error);
 }
 
-.expense-share-editor__clarity,
-.repayment-allocation-editor__clarity {
-  margin-top: 1rem;
-  padding-block: 0.9rem;
-  border-block: 1px solid var(--rule);
-}
-
-.expense-share-editor__clarity h3,
-.repayment-allocation-editor__clarity h3 {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.expense-share-editor__equation,
-.repayment-allocation-editor__equation {
-  margin: 0.55rem 0 0;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.expense-share-editor__clarity > p:last-child,
-.repayment-allocation-editor__clarity > p:last-child {
-  margin: 0.35rem 0 0;
-  color: var(--muted-ink);
-  font-size: 0.8rem;
-  overflow-wrap: anywhere;
-}
-
 .repayment-allocation-editor__row {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(14rem, 0.65fr);
@@ -653,6 +690,101 @@
   margin: 0;
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 960px) {
+  .friend-row {
+    grid-template-columns: minmax(0, 2fr) minmax(6rem, 0.75fr) minmax(7rem, 0.75fr) minmax(8rem, 1fr) minmax(5.5rem, auto);
+    gap: 1.25rem;
+  }
+
+  .outing-row {
+    grid-template-columns: minmax(0, 2fr) minmax(7rem, 0.8fr) minmax(10rem, 1fr) minmax(8rem, 0.8fr) minmax(11rem, auto);
+    gap: 1.25rem;
+  }
+
+  .expense-row {
+    grid-template-columns: minmax(0, 2fr) minmax(7rem, auto) minmax(7rem, auto) minmax(9rem, 1fr) minmax(5.5rem, auto);
+    gap: 1.25rem;
+  }
+
+  .repayment-row {
+    grid-template-columns: minmax(0, 2fr) minmax(7rem, auto) minmax(8rem, auto) minmax(11rem, 1fr) minmax(5.5rem, auto);
+    gap: 1.25rem;
+  }
+
+  .friend-row__meta,
+  .outing-row__meta,
+  .expense-row__meta,
+  .repayment-row__meta {
+    display: contents;
+  }
+
+  .friend-row__state,
+  .friend-row__created,
+  .friend-row__outstanding,
+  .outing-row__date,
+  .outing-row__expenses,
+  .outing-row__created,
+  .expense-row__amount,
+  .expense-row__date,
+  .expense-row__outing,
+  .repayment-row__received,
+  .repayment-row__date,
+  .repayment-row__allocation {
+    display: grid;
+    min-width: 0;
+    gap: 0.2rem;
+    align-content: center;
+    overflow-wrap: anywhere;
+  }
+
+  .friend-row__outstanding strong,
+  .expense-row__amount strong,
+  .repayment-row__received strong,
+  .repayment-row__allocation strong {
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .expense-row__outing > span:last-child,
+  .repayment-row__allocation strong {
+    display: -webkit-box;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .outing-row__meta > .outing-row__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .outing-row__actions .outing-row__add-expense {
+    min-height: 2.5rem;
+  }
+
+  .expense-record__tasks,
+  .repayment-record__tasks {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 2rem;
+  }
+
+  .expense-record__primary-task,
+  .repayment-record__primary-task {
+    grid-column: 1 / span 8;
+  }
+
+  .expense-record__sidebar,
+  .repayment-record__sidebar {
+    grid-column: 9 / -1;
+  }
 }
 
 .live-record-filters__clear {
@@ -744,7 +876,32 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   .expense-share-editor__totals,
   .repayment-allocation-editor__totals,
   .repayment-allocation-editor__details dl {
+    display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .friend-record__form,
+  .outing-record__form,
+  .expense-record__form,
+  .repayment-record__form,
+  .friend-record__meta,
+  .outing-record__meta,
+  .expense-record__meta,
+  .repayment-record__meta {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr;
+  }
+
+  .expense-record__tasks,
+  .repayment-record__tasks {
+    grid-template-columns: 1fr;
+  }
+
+  .expense-record__primary-task,
+  .repayment-record__primary-task,
+  .expense-record__sidebar,
+  .repayment-record__sidebar {
+    grid-column: 1 / -1;
   }
 
   .repayment-allocation-editor__row {

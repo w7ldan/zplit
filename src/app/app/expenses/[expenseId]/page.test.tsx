@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import ExpenseRecordPage from "./page";
 import { deletionImpactRevision } from "@/domain/ledger-repository";
+import { ToastProvider } from "@/components/feedback/toast";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -18,7 +19,7 @@ vi.mock("@/domain/ledger-repository", async () => {
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
 });
 vi.mock("@/server/expense-receipts", () => ({ listExpenseReceipts: mocks.listExpenseReceipts }));
-vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound, useRouter: () => ({ refresh: vi.fn() }) }));
 
 const expense = {
   id: "22222222-2222-4222-8222-222222222222",
@@ -49,7 +50,7 @@ describe("expense record", () => {
       listExpenseShares: vi.fn().mockResolvedValue([{ id: "share-a", friendId: "33333333-3333-4333-8333-333333333333", friendName: "Rani", friendArchivedAt: null, amountOwed: 40000 }]),
       getExpenseDeletionImpact,
     });
-    render(await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) }));
+    render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) })}</ToastProvider>);
 
     expect(screen.getByText("Expense · assign shares")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Dinner" })).toBeInTheDocument();
@@ -65,10 +66,14 @@ describe("expense record", () => {
     expect(screen.getByRole("button", { name: "Remove Rani" })).toBeInTheDocument();
     expect(searchFriends).toHaveBeenCalledWith({ activeOnly: true });
     expect(listFriends).not.toHaveBeenCalled();
-    expect(screen.getByText("Owner portion")).toBeInTheDocument();
+    expect(screen.getByText("Your portion")).toBeInTheDocument();
     expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
     expect(screen.getByRole("heading", { name: "Delete expense" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Receipts" })).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__primary-task .expense-record__shares")).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__sidebar .expense-record__meta")).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__sidebar .expense-record__form")).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__tasks + .delete-record-form")).toBeInTheDocument();
     expect(screen.queryByText(/Remove repayment allocations before deleting this expense/)).not.toBeInTheDocument();
     expect(screen.getByDisplayValue(deletionImpactRevision(deletionImpact))).toHaveAttribute("name", "impactRevision");
     expect(getExpenseDeletionImpact).toHaveBeenCalledOnce();

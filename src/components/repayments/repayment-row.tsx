@@ -21,15 +21,13 @@ export function RepaymentRow({ repayment }: { repayment: RepaymentRecord }) {
         <div>
           <h2><Link href={`/app/repayments/${repayment.id}`}>{repayment.friendName}</Link></h2>
           {repayment.friendArchivedAt ? <p className="technical-label">ARCHIVED</p> : null}
+          {repayment.paymentMethod ? <p className="repayment-row__payment-method">{repayment.paymentMethod}</p> : null}
         </div>
       </div>
       <div className="repayment-row__meta">
-        <div><span className="technical-label">Received</span><strong>{formatRupiah(repayment.amount)}</strong></div>
-        <LocalDateTime iso={repayment.paidAt.toISOString()} />
-        {repayment.paymentMethod ? <span>{repayment.paymentMethod}</span> : <span />}
-        <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(repayment.allocatedAmount)}</strong></div>
-        <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(repayment.unallocatedAmount)}</strong></div>
-        {repayment.unallocatedAmount === repayment.amount ? <span className="technical-label">NEEDS ALLOCATION</span> : <span />}
+        <div className="repayment-row__received"><span className="technical-label">Received</span><strong aria-label={`Received repayment amount ${formatRupiah(repayment.amount)}`}>{formatRupiah(repayment.amount)}</strong></div>
+        <div className="repayment-row__date"><span className="technical-label">Date</span><LocalDateTime iso={repayment.paidAt.toISOString()} /></div>
+        <div className="repayment-row__allocation"><span className="technical-label">Allocation</span><strong>{repayment.unallocatedAmount === 0 ? "Fully applied" : `${formatRupiah(repayment.unallocatedAmount)} needs allocation`}</strong></div>
         <Link className="repayment-row__edit" href={`/app/repayments/${repayment.id}`}>Edit <span aria-hidden="true">→</span></Link>
       </div>
     </article>

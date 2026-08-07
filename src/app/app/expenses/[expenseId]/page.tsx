@@ -54,32 +54,38 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
           <Link className="expense-record__back" href="/app/expenses">← Back to expenses</Link>
         </div>
         {query?.created === "1" ? <RecordConfirmation queryKey="created" message="Expense recorded. Assign shares below." /> : query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Expense changes saved." /> : null}
-        <div className="expense-record__meta" aria-label="Expense metadata">
-          <div><span className="technical-label">Amount</span><strong>{formatRupiah(expense.amount)}</strong></div>
-          <div><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></div>
-          <div><span className="technical-label">Outing date</span><LocalDateTime iso={expense.outingOccurredAt.toISOString()} /></div>
-          <div><span className="technical-label">Created</span><LocalDateTime iso={expense.createdAt.toISOString()} mode="date" /></div>
+        <div className="expense-record__tasks">
+          <div className="expense-record__primary-task">
+            <div className="expense-record__shares">
+              <ExpenseShareEditor
+                action={replaceExpenseSharesAction.bind(null, expense.id)}
+                expenseAmount={expense.amount}
+                friends={friends}
+                friendOptions={friendOptions}
+                searchFriends={searchExpenseFriendOptions}
+              />
+            </div>
+            <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts} />
+          </div>
+          <aside className="expense-record__sidebar">
+            <div className="expense-record__meta" aria-label="Expense metadata">
+              <div><span className="technical-label">Amount</span><strong>{formatRupiah(expense.amount)}</strong></div>
+              <div><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></div>
+              <div><span className="technical-label">Outing date</span><LocalDateTime iso={expense.outingOccurredAt.toISOString()} /></div>
+              <div><span className="technical-label">Created</span><LocalDateTime iso={expense.createdAt.toISOString()} mode="date" /></div>
+            </div>
+            <div className="expense-record__form">
+              <p className="technical-label">EDIT RECORD</p>
+              <ExpenseForm
+                action={updateExpenseAction.bind(null, expense.id)}
+                outings={outings}
+                searchOutings={searchOutingOptions}
+                mode="edit"
+                initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
+              />
+            </div>
+          </aside>
         </div>
-        <div className="expense-record__form">
-          <p className="technical-label">EDIT RECORD</p>
-          <ExpenseForm
-            action={updateExpenseAction.bind(null, expense.id)}
-            outings={outings}
-            searchOutings={searchOutingOptions}
-            mode="edit"
-            initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
-          />
-        </div>
-        <div className="expense-record__shares">
-          <ExpenseShareEditor
-            action={replaceExpenseSharesAction.bind(null, expense.id)}
-            expenseAmount={expense.amount}
-            friends={friends}
-            friendOptions={friendOptions}
-            searchFriends={searchExpenseFriendOptions}
-          />
-        </div>
-        <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts} />
         <DeleteRecordForm action={deleteExpenseAction.bind(null, expense.id)} recordType="expense" impact={deletionImpact} impactRevision={currentImpactRevision} />
       </div>
     </section>

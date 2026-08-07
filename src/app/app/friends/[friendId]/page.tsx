@@ -59,12 +59,15 @@ export default async function FriendRecordPage({ params, searchParams }: { param
           <div><span className="technical-label">Record state</span><strong>{archived ? "ARCHIVED" : "ACTIVE"}</strong></div>
           <div><span className="technical-label">Created</span><LocalDateTime iso={friend.createdAt.toISOString()} mode="date" /></div>
         </div>
-        <section className="friend-record__balance" aria-labelledby="friend-balance-heading">
-          <h2 id="friend-balance-heading">Balance snapshot</h2>
+        <section className={`friend-record__balance${balance.assignedAmount === 0 ? " friend-record__balance--empty" : balance.outstandingAmount === 0 ? " friend-record__balance--settled" : ""}`} aria-labelledby="friend-balance-heading">
+          <h2 id="friend-balance-heading">Balance</h2>
+          <div className="friend-record__balance-primary">
+            {balance.assignedAmount === 0 ? <strong>No balance yet</strong> : balance.outstandingAmount === 0 ? <strong>Settled</strong> : <><span className="technical-label">Still owes</span><strong>{formatRupiah(balance.outstandingAmount)}</strong></>}
+          </div>
           <dl>
-            <div><dt>Assigned to this friend</dt><dd>{formatRupiah(balance.assignedAmount)}</dd></div>
-            <div><dt>Applied to shares</dt><dd>{formatRupiah(balance.repaidAmount)}</dd></div>
-            <div><dt>Still owes</dt><dd>{formatRupiah(balance.outstandingAmount)}</dd></div>
+            <div><dt>Assigned</dt><dd>{formatRupiah(balance.assignedAmount)}</dd></div>
+            <div><dt>Applied</dt><dd>{formatRupiah(balance.repaidAmount)}</dd></div>
+            {balance.outstandingAmount === 0 ? <div><dt>Still owes</dt><dd>{formatRupiah(balance.outstandingAmount)}</dd></div> : null}
           </dl>
           <p>{balance.assignedAmount === 0 ? "No expenses have been assigned to this friend yet." : balance.outstandingAmount === 0 ? "This friend is settled." : `${formatRupiah(balance.outstandingAmount)} remains outstanding.`}</p>
         </section>

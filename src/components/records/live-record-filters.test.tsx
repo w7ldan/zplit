@@ -66,6 +66,7 @@ describe("LiveRecordFilters", () => {
     expect(status).toHaveTextContent("12 outings found.");
     expect(status).toHaveAttribute("aria-live", "polite");
     expect(status).toHaveAttribute("aria-atomic", "true");
+    expect(status).toHaveClass("sr-only");
   });
 
   it("updates visibly while typing, debounces one navigation, and has no visible Search button", () => {

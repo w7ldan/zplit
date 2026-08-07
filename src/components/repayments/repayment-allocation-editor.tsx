@@ -154,13 +154,8 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
       </div>
       <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Repayment allocation progress" role="progressbar" aria-valuemin={0} aria-valuemax={plan.amount} aria-valuenow={Math.min(allocatedAmount, plan.amount)}>
         <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>
-        <span>{overAllocated ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.` : unallocatedAmount > 0 ? `${formatRupiah(unallocatedAmount)} still needs allocation.` : "This repayment is fully applied."}</span>
+        <span>{overAllocated ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.` : unallocatedAmount > 0 ? `${formatRupiah(unallocatedAmount)} needs allocation. Only applied money reduces outstanding balances.` : "This repayment is fully applied. Applied money reduces outstanding balances."}</span>
       </div>
-      <section className="repayment-allocation-editor__clarity" aria-labelledby="repayment-allocation-equation-heading">
-        <h3 id="repayment-allocation-equation-heading">How this repayment adds up</h3>
-        <p className="repayment-allocation-editor__equation">Repayment amount − Applied to shares = Needs allocation</p>
-        <p>Only money applied to expense shares reduces outstanding balances.</p>
-      </section>
       <form className="repayment-allocation-editor__form" action={formAction} noValidate>
         <p className="repayment-allocation-editor__help">Enter a whole-rupiah amount. A blank field removes this allocation.</p>
         {plan.shares.map((share) => {

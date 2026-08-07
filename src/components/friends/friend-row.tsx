@@ -20,9 +20,9 @@ export function FriendRow({ friend, balance, emphasized = false }: { friend: Fri
         </div>
       </div>
       <div className="friend-row__meta">
-        <span className="technical-label">{archived ? "ARCHIVED" : "ACTIVE"}</span>
-        <LocalDateTime iso={friend.createdAt.toISOString()} mode="date" />
-        {balance ? <span><span className="technical-label">Outstanding</span> {formatRupiah(balance.outstandingAmount)}</span> : <span />}
+        <span className="friend-row__state"><span className="technical-label">State</span>{archived ? "ARCHIVED" : "ACTIVE"}</span>
+        <span className="friend-row__created"><span className="technical-label">Created</span><LocalDateTime iso={friend.createdAt.toISOString()} mode="date" /></span>
+        {balance ? <span className="friend-row__outstanding"><span className="technical-label">Outstanding</span><strong>{formatRupiah(balance.outstandingAmount)}</strong></span> : <span className="friend-row__outstanding" />}
         <Link className="friend-row__edit" href={`/app/friends/${friend.id}`}>Edit record <span aria-hidden="true">→</span></Link>
       </div>
     </article>

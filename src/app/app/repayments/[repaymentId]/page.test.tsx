@@ -71,12 +71,16 @@ describe("repayment record", () => {
     expect(screen.getByRole("link", { name: /Back to repayments/ })).toHaveAttribute("href", "/app/repayments");
     expect(screen.getByRole("combobox", { name: "Friend" })).toHaveValue(friend.name);
     expect(screen.getByText("Apply the received money")).toBeInTheDocument();
-    expect(screen.getByText("Repayment amount − Applied to shares = Needs allocation")).toBeInTheDocument();
-    expect(screen.getByText("Rp 44.000 still needs allocation.")).toBeInTheDocument();
+    expect(screen.queryByText("How this repayment adds up")).not.toBeInTheDocument();
+    expect(screen.getByText("Rp 44.000 needs allocation. Only applied money reduces outstanding balances.")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Friend" })).toBeDisabled();
     expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
     expect(screen.getByText("Dinner")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Delete repayment" })).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__primary-task .repayment-record__allocations")).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__sidebar .repayment-record__meta")).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__sidebar .repayment-record__form")).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__tasks + .delete-record-form")).toBeInTheDocument();
     expect(screen.queryByText(/Remove this repayment's allocations before deleting it/)).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/allocation editor|debtor|card|pill|status dot/i);
     expect(screen.getByDisplayValue(deletionImpactRevision(deletionImpact))).toHaveAttribute("name", "impactRevision");

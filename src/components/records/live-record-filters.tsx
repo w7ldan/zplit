@@ -299,7 +299,7 @@ export function LiveRecordFilters({ action, search, selects = emptySelects, mont
       </details> : discreteFilters}
       {clearHref ? <a className="live-record-filters__clear" href={clearHref}>Clear filters</a> : null}
       <button className="sr-only" type="submit">Apply filters</button>
-      <p className="live-record-filters__status" role="status" aria-live="polite" aria-atomic="true">{isPending ? "Updating results…" : resultStatus}</p>
+      <p className="live-record-filters__status sr-only" role="status" aria-live="polite" aria-atomic="true">{isPending ? "Updating results…" : resultStatus}</p>
     </form>
   );
 }

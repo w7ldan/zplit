@@ -50,23 +50,19 @@ describe("/app overview", () => {
     for (const label of ["Still owed to you", "Needs allocation", "Total spending"]) {
       expect(within(primary).getByText(label, { exact: true })).toBeInTheDocument();
     }
-    expect(screen.getByRole("heading", { name: "How the ledger adds up" })).toBeInTheDocument();
+    const clarity = document.querySelector<HTMLDetailsElement>(".overview-ledger-clarity");
+    expect(clarity).toBeInTheDocument();
+    expect(clarity).not.toHaveAttribute("open");
+    expect(within(clarity!).getByText("How totals work", { exact: true })).toBeInTheDocument();
     for (const label of ["Spending", "Friend debt", "Repayments", "Friend balances", "Recent activity"]) {
       expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
     }
-    const clarity = screen.getByRole("heading", { name: "How the ledger adds up" }).closest("section")!;
-    expect(within(clarity).getByText("Total spending = Your portion + Assigned to friends")).toBeInTheDocument();
-    expect(within(clarity).getByText("Assigned to friends = Applied to shares + Still owed")).toBeInTheDocument();
-    expect(within(clarity).getByText("Received = Applied to shares + Needs allocation")).toBeInTheDocument();
-    for (const label of ["Received", "Applied to shares", "Needs allocation"]) {
-      expect(within(clarity).getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
+    expect(within(clarity!).getByText("Total spending = Your portion + Assigned to friends")).toBeInTheDocument();
+    expect(within(clarity!).getByText("Assigned to friends = Applied to shares + Still owed")).toBeInTheDocument();
+    expect(within(clarity!).getByText("Received = Applied to shares + Needs allocation")).toBeInTheDocument();
+    for (const amount of ["Rp 30.000", "Rp 19.000", "Rp 11.000", "Rp 7.000", "Rp 4.000", "Rp 12.000"]) {
+      expect(within(clarity!).queryByText(amount, { exact: true })).not.toBeInTheDocument();
     }
-    expect(within(clarity).getAllByText("Rp 30.000", { exact: true }).length).toBeGreaterThan(0);
-    expect(within(clarity).getAllByText("Rp 19.000", { exact: true }).length).toBeGreaterThan(0);
-    expect(within(clarity).getAllByText("Rp 11.000", { exact: true }).length).toBeGreaterThan(0);
-    expect(within(clarity).getAllByText("Rp 7.000", { exact: true }).length).toBeGreaterThan(0);
-    expect(within(clarity).getAllByText("Rp 4.000", { exact: true }).length).toBeGreaterThan(0);
-    expect(within(clarity).getAllByText("Rp 12.000", { exact: true }).length).toBeGreaterThan(0);
     expect(screen.queryByText("Repaid", { exact: true })).not.toBeInTheDocument();
     expect(screen.getAllByText("Rp 4.000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Ari").length).toBeGreaterThan(0);
