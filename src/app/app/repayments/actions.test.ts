@@ -129,6 +129,19 @@ describe("repayment actions", () => {
     expect(failed).toMatchObject({ formError: "An allocation cannot exceed the share's remaining balance.", allocations: [{ expenseShareId, amountRupiah: "42000" }] });
   });
 
+  it("ignores the empty optional allocation placeholder from the native fallback", async () => {
+    const createRepaymentWithAllocations = vi.fn().mockResolvedValue({ id: "repayment-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createRepaymentWithAllocations });
+    const formData = form(values);
+    formData.append("expenseShareId", "");
+    formData.append("amountRupiah", "");
+
+    await expect(createRepaymentAction(initialState, formData)).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1");
+    expect(createRepaymentWithAllocations).toHaveBeenCalledWith(expect.objectContaining({ amount: 84_000 }), []);
+  });
+
   it("returns stable allocation field and invariant errors", async () => {
     const expenseShareId = "11111111-1111-4111-8111-111111111111";
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });

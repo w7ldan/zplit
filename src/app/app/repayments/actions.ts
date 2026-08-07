@@ -115,7 +115,7 @@ function allocationValuesFromForm(formData: FormData) {
   const values = ids.map((_, index) => ({
     expenseShareId: typeof ids[index] === "string" ? ids[index].trim() : "",
     amountRupiah: typeof amounts[index] === "string" ? amounts[index].trim() : "",
-  }));
+  })).filter((allocation) => allocation.expenseShareId);
   return validateRepaymentAllocationInput(values);
 }
 

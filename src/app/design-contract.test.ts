@@ -205,6 +205,17 @@ describe("Zplit design contract", () => {
     expect(recordsAndFormsSource).not.toContain("overflow-x: clip");
   });
 
+  it("keeps repayment allocation search and selected rows mobile-safe", () => {
+    expect(repaymentFormSource).toContain("Add outstanding expense");
+    expect(repaymentFormSource).toContain("Search outstanding expenses");
+    expect(repaymentFormSource).toContain("SearchableCombobox");
+    expect(repaymentFormSource).toContain("selectedAllocationIds");
+    expect(repaymentFormSource).toContain('type="button"');
+    expect(cssRuleBody(recordsAndFormsSource, ".repayment-form__allocations, .repayment-form__allocation-add, .repayment-form__allocation, .repayment-form__allocation-fallback")).toMatch(/min-width:\s*0;[\s\S]*gap:/);
+    expect(cssRuleBody(recordsAndFormsSource, ".repayment-form__allocation-details")).toMatch(/min-width:\s*0;[\s\S]*overflow-wrap:\s*anywhere;/);
+    expect(recordsAndFormsSource).not.toContain(".repayment-form__allocation {\n    min-width: max-content");
+  });
+
   it("keeps desktop record columns semantic and aligned", () => {
     expect(recordsAndFormsSource).toMatch(/@media \(min-width: 960px\)[\s\S]*?\.expense-row__meta,[\s\S]*?\.repayment-row__meta\s*\{[\s\S]*?display: contents;/);
     expect(recordsAndFormsSource).toContain("minmax(0, 2fr) minmax(7rem, auto) minmax(7rem, auto)");

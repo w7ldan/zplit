@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { RepaymentForm } from "./repayment-form";
 
@@ -21,6 +22,18 @@ const initialState = {
   formError: "",
   values: { friendId: "", amountRupiah: "", paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: "", notes: "" },
 };
+
+async function chooseExpense(name: RegExp | string) {
+  const picker = screen.getByRole("combobox", { name: "Add outstanding expense" });
+  fireEvent.focus(picker);
+  const listbox = () => {
+    const element = document.getElementById("repayment-add-expense-listbox");
+    if (!element) throw new Error("expense listbox is missing");
+    return within(element);
+  };
+  await waitFor(() => expect(listbox().getByRole("option", { name })).toBeInTheDocument());
+  fireEvent.click(listbox().getByRole("option", { name }));
+}
 
 describe("RepaymentForm", () => {
   it("defaults a pristine create form to the browser-local current minute", async () => {
@@ -77,7 +90,7 @@ describe("RepaymentForm", () => {
     expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
   });
 
-  it("fills only the exact outstanding amount, focuses the field, and does not submit or alter the draft", () => {
+  it("fills only the exact outstanding amount, focuses the field, and does not submit or alter the draft", async () => {
     const action = vi.fn().mockResolvedValue(initialState);
     render(
       <RepaymentForm
@@ -90,6 +103,7 @@ describe("RepaymentForm", () => {
     );
 
     fireEvent.click(screen.getByText("Allocate now"));
+    await chooseExpense(/Dinner · Bandung day out/);
     fireEvent.change(screen.getByLabelText("Allocation for Dinner"), { target: { value: "12000" } });
     fireEvent.click(screen.getByText("Optional details"));
     expect(screen.getByLabelText("Payment method")).toHaveValue("Cash");
@@ -135,9 +149,12 @@ describe("RepaymentForm", () => {
     expect(screen.queryByRole("button", { name: "Use full outstanding" })).not.toBeInTheDocument();
   });
 
-  it("submits closed disclosure controls in their existing order", async () => {
+  it("submits selected allocation controls in their existing order", async () => {
     const action = vi.fn().mockResolvedValue(initialState);
     render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share, secondShare] }} />);
+    fireEvent.click(screen.getByText("Allocate now"));
+    await chooseExpense(/Dinner · Bandung day out/);
+    await chooseExpense(/Coffee · Bandung day out/);
     fireEvent.change(screen.getByLabelText("Amount in rupiah"), { target: { value: "84000" } });
     fireEvent.change(screen.getByLabelText("Payment date and time"), { target: { value: "2026-01-02T10:30" } });
     fireEvent.change(screen.getByLabelText("Payment method"), { target: { value: "Cash" } });
@@ -185,7 +202,7 @@ describe("RepaymentForm", () => {
     expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
   });
 
-  it("opens and closes natively, and keeps Allocate now open through local rerenders", () => {
+  it("opens and closes natively, and keeps Allocate now open through local rerenders", async () => {
     render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share], [archivedFriend.id]: [otherShare] }} />);
 
     expect(screen.getByText("Allocate now").closest("details")).not.toHaveAttribute("open");
@@ -199,25 +216,131 @@ describe("RepaymentForm", () => {
     fireEvent.click(screen.getByText("Optional details"));
     expect(screen.getByText("Optional details").closest("details")).not.toHaveAttribute("open");
     fireEvent.click(screen.getByText("Allocate now"));
+    await chooseExpense(/Dinner · Bandung day out/);
     fireEvent.change(screen.getByLabelText("Allocation for Dinner"), { target: { value: "12000" } });
     expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open");
     fireEvent.change(screen.getByLabelText("Friend"), { target: { value: archivedFriend.id } });
     expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open");
-    expect(screen.queryByText("Dinner")).not.toBeInTheDocument();
-    expect(screen.getByText("Taxi")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Allocation for Dinner")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Allocation for Taxi")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Friend"), { target: { value: activeFriend.id } });
-    expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("");
+    expect(screen.queryByLabelText("Allocation for Dinner")).not.toBeInTheDocument();
   });
 
-  it("shows optional open shares and clears draft allocations when the friend changes", () => {
+  it("starts with no allocation rows and clears draft allocations when the friend changes", async () => {
     render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share], [archivedFriend.id]: [otherShare] }} />);
 
     fireEvent.click(screen.getByText("Allocate now"));
     expect(screen.getByRole("heading", { name: "Apply to outstanding expenses" })).toBeVisible();
-    expect(screen.getByText("Dinner")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add outstanding expense")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Allocation for Dinner")).not.toBeInTheDocument();
+    await chooseExpense(/Dinner · Bandung day out/);
+    fireEvent.change(screen.getByLabelText("Allocation for Dinner"), { target: { value: "12000" } });
     fireEvent.change(screen.getByLabelText("Friend"), { target: { value: archivedFriend.id } });
-    expect(screen.queryByText("Dinner")).not.toBeInTheDocument();
-    expect(screen.getByText("Taxi")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Allocation for Dinner")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Allocation for Taxi")).not.toBeInTheDocument();
+  });
+
+  it("searches descriptions and outing titles with a twenty-result cap and useful labels", async () => {
+    const shares = Array.from({ length: 21 }, (_, index) => ({
+      ...share,
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      expenseDescription: `Dinner ${index}`,
+      outingTitle: "Bandung day out",
+    }));
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: shares }} />);
+    fireEvent.click(screen.getByText("Allocate now"));
+    const picker = screen.getByRole("combobox", { name: "Add outstanding expense" });
+    fireEvent.focus(picker);
+    await waitFor(() => expect(within(screen.getByRole("listbox")).getAllByRole("option")).toHaveLength(20));
+    fireEvent.change(picker, { target: { value: "dinner 20" } });
+    await waitFor(() => expect(within(screen.getByRole("listbox")).getByRole("option", { name: /Dinner 20 · Bandung day out · Rp 64\.000 remaining/ })).toBeInTheDocument());
+    fireEvent.change(picker, { target: { value: "bandung" } });
+    await waitFor(() => expect(within(screen.getByRole("listbox")).getByRole("option", { name: /Dinner 0 · Bandung day out · Rp 64\.000 remaining/ })).toBeInTheDocument());
+  });
+
+  it("adds multiple distinct expenses, rejects duplicates, and hides selected results", async () => {
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share, secondShare] }} />);
+    fireEvent.click(screen.getByText("Allocate now"));
+    await chooseExpense(/Dinner · Bandung day out/);
+    await chooseExpense(/Coffee · Bandung day out/);
+    expect(screen.getAllByRole("textbox", { name: /Allocation for/ })).toHaveLength(2);
+    const picker = screen.getByRole("combobox", { name: "Add outstanding expense" });
+    fireEvent.change(picker, { target: { value: "dinner" } });
+    await waitFor(() => expect(within(screen.getByRole("listbox")).queryByRole("option", { name: /Dinner · Bandung day out/ })).not.toBeInTheDocument());
+    expect(screen.getAllByRole("textbox", { name: /Allocation for/ })).toHaveLength(2);
+  });
+
+  it("removes only one draft allocation and makes it searchable again", async () => {
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share, secondShare] }} />);
+    fireEvent.click(screen.getByText("Allocate now"));
+    await chooseExpense(/Dinner · Bandung day out/);
+    await chooseExpense(/Coffee · Bandung day out/);
+    fireEvent.change(screen.getByLabelText("Allocation for Dinner"), { target: { value: "12000" } });
+    fireEvent.change(screen.getByLabelText("Allocation for Coffee"), { target: { value: "30000" } });
+    const dinnerRow = screen.getByLabelText("Allocation for Dinner").closest(".repayment-form__allocation");
+    if (!dinnerRow) throw new Error("Dinner allocation row is missing");
+    fireEvent.click(within(dinnerRow as HTMLElement).getByRole("button", { name: "Remove" }));
+    expect(screen.queryByLabelText("Allocation for Dinner")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Allocation for Coffee")).toHaveValue("30000");
+    expect(screen.getByRole("button", { name: "Remove" })).toHaveAttribute("type", "button");
+    await chooseExpense(/Dinner · Bandung day out/);
+    expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("");
+  });
+
+  it("renders selected share facts and only selected paired values in submitted form data", async () => {
+    const action = vi.fn().mockResolvedValue(initialState);
+    render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share, secondShare, { ...share, id: "66666666-6666-4666-8666-666666666666", expenseDescription: "Unselected" }] }} />);
+    fireEvent.click(screen.getByText("Allocate now"));
+    await chooseExpense(/Dinner · Bandung day out/);
+    await chooseExpense(/Coffee · Bandung day out/);
+    expect(screen.getAllByText("Original share Rp 84.000 · Previously repaid Rp 20.000 · Remaining Rp 64.000")).toHaveLength(2);
+    expect(screen.getAllByText("01 Jan 2026")).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText("Allocation for Dinner"), { target: { value: "12000" } });
+    fireEvent.change(screen.getByLabelText("Allocation for Coffee"), { target: { value: "30000" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    const formData = action.mock.calls[0]![1] as FormData;
+    expect(formData.getAll("expenseShareId")).toEqual([share.id, secondShare.id]);
+    expect(formData.getAll("amountRupiah").slice(-2)).toEqual(["12000", "30000"]);
+    expect(formData.getAll("expenseShareId")).not.toContain("66666666-6666-4666-8666-666666666666");
+  });
+
+  it("restores selected allocations, exact drafts, errors, and disclosure state after validation", async () => {
+    const action = vi.fn().mockResolvedValue({
+      ...initialState,
+      values: { ...initialState.values, friendId: activeFriend.id },
+      allocations: [{ expenseShareId: share.id, amountRupiah: "84.00" }, { expenseShareId: secondShare.id, amountRupiah: "30000" }],
+      allocationFieldErrors: { [share.id]: "Allocation is invalid." },
+    });
+    render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share, secondShare] }} />);
+    fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
+    await waitFor(() => expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("84.00"));
+    expect(screen.getByLabelText("Allocation for Coffee")).toHaveValue("30000");
+    expect(screen.getByText("Allocation is invalid.")).toBeInTheDocument();
+    expect(screen.getByText("Allocate now").closest("details")).toHaveAttribute("open");
+  });
+
+  it("keeps the allocation picker disabled and old shares unavailable during a friend context load", async () => {
+    let resolveContext: (context: { option: { id: string; label: string }; outstandingAmount: number; openExpenseShares: typeof share[] }) => void = () => {};
+    const loadFriendContext = vi.fn().mockReturnValue(new Promise((resolve) => { resolveContext = resolve; }));
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]} searchFriends={vi.fn().mockResolvedValue([])} initialValues={{ friendId: activeFriend.id, amountRupiah: "12000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "", notes: "" }} initialFriendContext={{ option: { id: activeFriend.id, label: activeFriend.name }, outstandingAmount: 64_000, openExpenseShares: [share] }} loadFriendContext={loadFriendContext} />);
+    fireEvent.click(screen.getByText("Allocate now"));
+    await chooseExpense(/Dinner · Bandung day out/);
+    fireEvent.change(screen.getByLabelText("Friend"), { target: { value: archivedFriend.id } });
+    expect(screen.getByRole("combobox", { name: "Add outstanding expense" })).toBeDisabled();
+    expect(screen.queryByLabelText("Allocation for Dinner")).not.toBeInTheDocument();
+    resolveContext({ option: { id: archivedFriend.id, label: archivedFriend.name }, outstandingAmount: 22_000, openExpenseShares: [otherShare] });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Use full outstanding" })).toBeInTheDocument());
+    expect(screen.queryByLabelText("Allocation for Dinner")).not.toBeInTheDocument();
+    await chooseExpense(/Taxi · Bandung day out/);
+    expect(screen.getByLabelText("Allocation for Taxi")).toBeInTheDocument();
+  });
+
+  it("keeps a one-expense native fallback when JavaScript is unavailable", () => {
+    const markup = renderToString(<RepaymentForm action={vi.fn()} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} openExpenseSharesByFriend={{ [activeFriend.id]: [share] }} />);
+    expect(markup).toContain('name="expenseShareId"');
+    expect(markup).toContain('name="amountRupiah"');
   });
 
   it("opens disclosures when returned values or allocation errors need attention", async () => {

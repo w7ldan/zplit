@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { RepaymentActionState, RepaymentFriendContext } from "@/app/app/repayments/actions";
 import type { RepaymentInputValues } from "@/domain/repayment-input";
@@ -63,6 +63,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
   const [loadingFriendContext, setLoadingFriendContext] = useState(false);
   const contextRequestRef = useRef(0);
   const [draftAllocations, setDraftAllocations] = useState<Record<string, string>>(() => Object.fromEntries((state.allocations ?? []).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
+  const [selectedAllocationIds, setSelectedAllocationIds] = useState<string[]>(() => (state.allocations ?? []).map((allocation) => allocation.expenseShareId));
   const formRef = useRef<HTMLFormElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
@@ -71,11 +72,23 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
   const previousActionStateRef = useRef(state);
   const friendActionStateRef = useRef(state);
   const initializedRef = useRef(false);
-  const selectedShares = friendContext?.option.id === selectedFriendId ? friendContext.openExpenseShares : openExpenseSharesByFriend[selectedFriendId] ?? [];
+  const selectedShares = useMemo(() => friendContext?.option.id === selectedFriendId ? friendContext.openExpenseShares : openExpenseSharesByFriend[selectedFriendId] ?? [], [friendContext, openExpenseSharesByFriend, selectedFriendId]);
   const selectedContext = friendContext?.option.id === selectedFriendId ? friendContext : undefined;
   const friendOptionsWithSelection = selectedFriend && !friendOptions.some((friend) => friend.id === selectedFriend.id) ? [...friendOptions, selectedFriend] : friendOptions;
+  const selectedAllocationIdSet = useMemo(() => new Set(selectedAllocationIds), [selectedAllocationIds]);
+  const selectedAllocationRows = useMemo(() => selectedAllocationIds.map((id) => selectedShares.find((share) => share.id === id)).filter((share): share is OpenExpenseShare => Boolean(share)), [selectedAllocationIds, selectedShares]);
+  const availableAllocationShares = useMemo(() => selectedShares.filter((share) => !selectedAllocationIdSet.has(share.id)), [selectedAllocationIdSet, selectedShares]);
+  const allocationOptions = useMemo(() => availableAllocationShares.slice(0, 20).map((share) => ({ id: share.id, label: `${share.expenseDescription} · ${share.outingTitle} · ${formatRupiah(share.remainingAmount)} remaining` })), [availableAllocationShares]);
   const allocationDisclosureOpen = (state.allocations ?? []).some((allocation) => allocation.amountRupiah.trim() !== "") || Object.keys(state.allocationFieldErrors ?? {}).length > 0;
   const detailsDisclosureOpen = Boolean(state.values.paymentMethod || state.values.notes || state.fieldErrors.paymentMethod || state.fieldErrors.notes);
+
+  const searchOutstandingExpenses = useCallback(async (query: string) => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    return availableAllocationShares
+      .filter((share) => `${share.expenseDescription} ${share.outingTitle}`.toLocaleLowerCase().includes(normalizedQuery))
+      .slice(0, 20)
+      .map((share) => ({ id: share.id, label: `${share.expenseDescription} · ${share.outingTitle} · ${formatRupiah(share.remainingAmount)} remaining` }));
+  }, [availableAllocationShares]);
 
   const refreshFriendContext = useCallback(async (friendId: string) => {
     if (!loadFriendContext) return;
@@ -93,8 +106,16 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
     friendActionStateRef.current = state;
     // The action result is the source of truth after validation.
     setSelectedFriendId(state.values.friendId);
-    if (loadFriendContext) void refreshFriendContext(state.values.friendId);
+    if (loadFriendContext) {
+      void refreshFriendContext(state.values.friendId);
+    }
   }, [loadFriendContext, refreshFriendContext, state]);
+
+  useEffect(() => {
+    if (state === previousActionStateRef.current) return;
+    setSelectedAllocationIds((state.allocations ?? []).map((allocation) => allocation.expenseShareId));
+    setDraftAllocations(Object.fromEntries((state.allocations ?? []).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
+  }, [state]);
 
   useEffect(() => {
     if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = new Date().getTimezoneOffset().toString();
@@ -127,7 +148,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
     >
       <div className="repayment-form__field">
         <label id="repayment-friend-label" htmlFor="repayment-friend">Friend</label>
-        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setDraftAllocations({}); if (loadFriendContext) { setLoadingFriendContext(true); void refreshFriendContext(friend.id); } }} />
+        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setFriendContext(undefined); setSelectedAllocationIds([]); setDraftAllocations({}); if (loadFriendContext) { setLoadingFriendContext(true); void refreshFriendContext(friend.id); } }} />
         <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"}: {formatRupiah(friendContext?.option.id === selectedFriendId ? friendContext.outstandingAmount : outstandingByFriend[selectedFriendId] ?? 0)}</p>
         {friendLocked ? <p className="repayment-form__help">The friend is fixed while this repayment has allocations.</p> : null}
         <FieldError id="repayment-friend-error" message={state.fieldErrors.friendId} />
@@ -153,7 +174,36 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
           <section className="repayment-form__allocations" aria-labelledby="repayment-allocations-heading">
             <h2 id="repayment-allocations-heading">Apply to outstanding expenses</h2>
             <p className="repayment-form__help">Optional. Leave these blank to allocate the repayment later.</p>
-            {selectedShares.length > 0 ? selectedShares.map((share) => (
+            <div className="repayment-form__allocation-add">
+              <label id="repayment-add-expense-label" htmlFor="repayment-add-expense">Add outstanding expense</label>
+              <SearchableCombobox
+                key={`repayment-add-expense-${selectedFriendId}-${selectedAllocationIds.join("-")}`}
+                id="repayment-add-expense"
+                value=""
+                options={allocationOptions}
+                search={searchOutstandingExpenses}
+                disabled={loadingFriendContext}
+                placeholder="Search outstanding expenses"
+                labelId="repayment-add-expense-label"
+                onValueChange={(option) => {
+                  if (loadingFriendContext || selectedAllocationIdSet.has(option.id) || !selectedShares.some((share) => share.id === option.id)) return;
+                  setSelectedAllocationIds((current) => current.includes(option.id) ? current : [...current, option.id]);
+                  setDraftAllocations((current) => ({ ...current, [option.id]: "" }));
+                }}
+              />
+            </div>
+            <noscript>
+              <div className="repayment-form__allocation-fallback">
+                <label htmlFor="repayment-add-expense-fallback">Outstanding expense</label>
+                <select id="repayment-add-expense-fallback" name="expenseShareId" defaultValue="">
+                  <option value="">No expense selected</option>
+                  {selectedShares.slice(0, 20).map((share) => <option key={share.id} value={share.id}>{share.expenseDescription} · {share.outingTitle} · {formatRupiah(share.remainingAmount)} remaining</option>)}
+                </select>
+                <label htmlFor="repayment-add-expense-amount-fallback">Allocation amount</label>
+                <input id="repayment-add-expense-amount-fallback" name="amountRupiah" type="text" inputMode="numeric" placeholder="Optional" />
+              </div>
+            </noscript>
+            {selectedAllocationRows.map((share) => (
               <div className="repayment-form__allocation" key={share.id}>
                 <div className="repayment-form__allocation-details">
                   <strong>{share.expenseDescription}</strong>
@@ -164,8 +214,10 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
                 <label htmlFor={`repayment-allocation-${share.id}`}>Allocation for {share.expenseDescription}</label>
                 <input id={`repayment-allocation-${share.id}`} name="amountRupiah" type="text" inputMode="numeric" placeholder="Optional" value={draftAllocations[share.id] ?? ""} onChange={(event) => setDraftAllocations((current) => ({ ...current, [share.id]: event.target.value }))} aria-invalid={Boolean(state.allocationFieldErrors?.[share.id])} />
                 {state.allocationFieldErrors?.[share.id] ? <p className="repayment-form__field-error">{state.allocationFieldErrors[share.id]}</p> : null}
+                <button className="action-link action-link--quiet repayment-form__allocation-remove" type="button" onClick={() => { setSelectedAllocationIds((current) => current.filter((id) => id !== share.id)); setDraftAllocations((current) => { const next = { ...current }; delete next[share.id]; return next; }); }}>Remove</button>
               </div>
-            )) : <p className="repayment-form__help">No outstanding expense shares for this friend.</p>}
+            ))}
+            {selectedShares.length === 0 && !loadingFriendContext ? <p className="repayment-form__help">No outstanding expense shares for this friend.</p> : null}
           </section>
         </details>
         <details ref={detailsDisclosureRef} open={detailsDisclosureOpen || undefined} className="repayment-form__disclosure">

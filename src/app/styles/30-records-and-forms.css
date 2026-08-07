@@ -533,6 +533,58 @@
   white-space: nowrap;
 }
 
+.repayment-form__allocations,
+.repayment-form__allocation-add,
+.repayment-form__allocation,
+.repayment-form__allocation-fallback {
+  display: grid;
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.repayment-form__allocation-add label,
+.repayment-form__allocation label,
+.repayment-form__allocation-fallback label {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.repayment-form__allocation {
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+}
+
+.repayment-form__allocation-details {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.repayment-form__allocation-details > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.repayment-form__allocation-details strong {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: -0.04em;
+}
+
+.repayment-form__allocation-remove {
+  width: fit-content;
+  min-height: 2.25rem;
+  padding-inline: 0.65rem;
+  cursor: pointer;
+}
+
+.repayment-form__allocation-fallback {
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+}
+
 .expense-record__shares,
 .repayment-record__allocations {
   grid-column: auto;
