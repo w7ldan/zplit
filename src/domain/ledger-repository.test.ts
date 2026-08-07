@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "../db/client";
-import { debtorShareReceipts, expenseReceipts, expenseShares, expenses, repaymentAllocations, repayments } from "../db/schema";
+import { debtorShareReceipts, expenseReceipts, expenseShares, expenses, outings, repaymentAllocations, repayments, trips } from "../db/schema";
 import {
   createLedgerRepository,
   deletionImpactRevision,
@@ -259,6 +259,63 @@ describe("ledger repository", () => {
     }
     expect(outingQuery.sql).toContain("order by");
     expect(friendQuery.sql).toContain("case when \"friends\".\"archived_at\" is null then 0 else 1 end");
+  });
+
+  it("bounds Trip selector search and preserves a selected owner record", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => { queries.push({ sql, params }); return sql.toLowerCase().includes("select count(*)") ? { rows: [[41]] } : { rows: [] }; });
+    const selectedId = "11111111-1111-4111-8111-111111111111";
+    await createLedgerRepository(database as unknown as Database, owner).searchTrips({ q: "100%_\\", selectedId });
+    expect(queries).toHaveLength(1);
+    expect(queries[0].sql.toLowerCase()).toContain("from \"trips\"");
+    expect(queries[0].sql.toLowerCase()).toMatch(/limit \$\d+/);
+    expect(queries[0].params).toContain(owner);
+    expect(queries[0].params).toContain(selectedId);
+    expect(queries[0].params.some((value) => typeof value === "string" && value.includes("\\%") && value.includes("\\_"))).toBe(true);
+  });
+
+  it("keeps Trip page aggregates bounded to the selected page", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => { queries.push({ sql, params }); return sql.toLowerCase().includes("select count(*)") ? { rows: [[41]] } : { rows: [] }; });
+    await createLedgerRepository(database as unknown as Database, owner).listTripRecords({ q: "Bali", page: 2 });
+    expect(queries).toHaveLength(2);
+    expect(queries[0].sql.toLowerCase()).toContain("count(*)");
+    expect(queries[1].sql.toLowerCase()).toContain("trip_page");
+    expect(queries[1].sql.toLowerCase()).toContain("trip_totals");
+    expect(queries[1].sql.toLowerCase()).toContain("limit");
+    expect(queries[1].sql.toLowerCase()).toContain("offset");
+    expect(queries[1].params).toContain(20);
+    expect(queries[1].params).toContain(owner);
+  });
+
+  it("returns one owner-scoped Trip aggregate", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => { queries.push({ sql, params }); return { rows: [["trip-a", 2, 3, 84000]] }; });
+    await expect(createLedgerRepository(database as unknown as Database, owner).getTripSummary("11111111-1111-4111-8111-111111111111")).resolves.toEqual({ outingCount: 2, expenseCount: 3, expenseTotal: 84000 });
+    expect(queries).toHaveLength(1);
+    expect(queries[0].sql).toContain('"trips"."owner_user_id" = $');
+    expect(queries[0].sql).toContain('"outings"."trip_id"');
+  });
+
+  it("detaches linked outings before deleting only the Trip", async () => {
+    const updates: unknown[] = [];
+    const deletes: unknown[] = [];
+    let table: unknown;
+    const chain = {
+      from(nextTable: unknown) { table = nextTable; return chain; },
+      where() { return chain; },
+      limit() { return chain; },
+      for() { return table === trips ? Promise.resolve([{ id: "trip-a" }]) : Promise.resolve([]); },
+    };
+    const transaction = {
+      select() { return chain; },
+      update(nextTable: unknown) { return { set: (values: unknown) => { updates.push({ nextTable, values }); return { where: () => ({ returning: async () => [{ id: "outing-a" }] }) }; } }; },
+      delete(nextTable: unknown) { deletes.push(nextTable); return { where: () => ({ returning: async () => [{ id: "trip-a" }] }) }; },
+    };
+    const database = { transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction) } as unknown as Database;
+    await expect(createLedgerRepository(database, owner).deleteTrip("11111111-1111-4111-8111-111111111111")).resolves.toEqual({ detachedOutingCount: 1 });
+    expect(updates[0]).toMatchObject({ nextTable: outings, values: { tripId: null } });
+    expect(deletes).toEqual([trips]);
   });
 
   it("bounds expense friend suggestions to active friends", async () => {

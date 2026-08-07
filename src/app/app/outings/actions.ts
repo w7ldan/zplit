@@ -8,6 +8,7 @@ import { validateOutingInput, type OutingFieldErrors, type OutingInputValues } f
 import { createLedgerRepository, deletionImpactRevision, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { addOutingToExpenseReturnTarget, validateExpenseReturnTarget } from "@/domain/expense-return";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
+import type { SearchableOption } from "@/components/records/searchable-combobox";
 
 export type OutingActionState = {
   fieldErrors: OutingFieldErrors;
@@ -16,6 +17,22 @@ export type OutingActionState = {
 };
 
 export type OutingDeleteActionState = DeleteRecordActionState;
+
+export async function searchTripOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
+  const session = await requireSession();
+  return [
+    { id: "", label: "No trip" },
+    ...(await createLedgerRepository(getDatabase(), session.user.id).searchTrips({ q: query, selectedId })).map((trip) => ({ id: trip.id, label: trip.name })),
+  ].slice(0, 20);
+}
+
+export async function searchTripFilterOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
+  return [
+    { id: "", label: "All trips" },
+    { id: "unassigned", label: "No trip" },
+    ...(await searchTripOptions(query, selectedId)).filter((trip) => trip.id).slice(0, 18),
+  ];
+}
 
 function cascadeValue(formData: FormData) {
   const values = formData.getAll("confirmCascade");
@@ -33,7 +50,7 @@ function impactRevisionValue(formData: FormData) {
 const initialOutingActionState: OutingActionState = {
   fieldErrors: {},
   formError: "",
-  values: { title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "" },
+  values: { title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "", tripId: "" },
 };
 
 function valuesFromForm(formData: FormData) {
@@ -42,6 +59,7 @@ function valuesFromForm(formData: FormData) {
     occurredAtLocal: formData.get("occurredAtLocal"),
     timezoneOffsetMinutes: formData.get("timezoneOffsetMinutes"),
     notes: formData.get("notes"),
+    tripId: formData.get("tripId"),
   });
 }
 
@@ -81,6 +99,8 @@ export async function createOutingAction(
   }
   revalidatePath("/app");
   revalidatePath("/app/outings");
+  revalidatePath("/app/trips");
+  if (result.value.tripId) revalidatePath(`/app/trips/${result.value.tripId}`);
   const returnTarget = returnTo ? addOutingToExpenseReturnTarget(returnTo, outing.id) : undefined;
   if (returnTarget) redirect(addTimezoneOffset(returnTarget, result.values.timezoneOffsetMinutes));
   redirect(`/app/outings?created=${encodeURIComponent(outing.id)}&tz=${encodeURIComponent(result.values.timezoneOffsetMinutes)}`);
@@ -103,6 +123,7 @@ export async function updateOutingAction(
 
   revalidatePath("/app");
   revalidatePath("/app/outings");
+  revalidatePath("/app/trips");
   redirect(`/app/outings/${outingId}?saved=1`);
 }
 

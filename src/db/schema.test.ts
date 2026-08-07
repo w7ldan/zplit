@@ -10,6 +10,7 @@ const domainTables = [
   "outings",
   "repayment_allocations",
   "repayments",
+  "trips",
 ];
 
 const authTables = [schema.users, schema.sessions, schema.accounts, schema.verifications];
@@ -41,9 +42,9 @@ function foreignKeyShape(table: unknown) {
 }
 
 describe("database schema", () => {
-  it("exports the seven domain tables and four auth tables", () => {
+  it("exports the eight domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.outings, schema.expenses, schema.expenseShares, schema.expenseReceipts, schema.repayments, schema.repaymentAllocations]
+      [schema.friends, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseReceipts, schema.repayments, schema.repaymentAllocations]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -189,6 +190,7 @@ describe("database schema", () => {
     const domainTables = [
       schema.friends,
       schema.outings,
+      schema.trips,
       schema.expenses,
       schema.expenseShares,
       schema.expenseReceipts,
@@ -214,6 +216,7 @@ describe("database schema", () => {
       [schema.expenses, "expenses_owner_user_id_id_uidx"],
       [schema.expenseShares, "expense_shares_owner_user_id_id_uidx"],
       [schema.repayments, "repayments_owner_user_id_id_uidx"],
+      [schema.trips, "trips_owner_user_id_id_uidx"],
     ] as const) {
       expect(indexColumns(table, name)).toEqual(["owner_user_id", "id"]);
     }
@@ -222,6 +225,7 @@ describe("database schema", () => {
   it("uses owner-aware composite foreign keys for domain relationships", () => {
     const references = [
       [schema.expenseShares, ["owner_user_id", "expense_id"], "expenses", ["owner_user_id", "id"], "cascade"],
+      [schema.outings, ["owner_user_id", "trip_id"], "trips", ["owner_user_id", "id"], "restrict"],
       [schema.expenseShares, ["owner_user_id", "friend_id"], "friends", ["owner_user_id", "id"], "restrict"],
       [schema.repayments, ["owner_user_id", "friend_id"], "friends", ["owner_user_id", "id"], "restrict"],
       [schema.repaymentAllocations, ["owner_user_id", "repayment_id"], "repayments", ["owner_user_id", "id"], "cascade"],
@@ -334,6 +338,9 @@ describe("database schema", () => {
       [schema.friends, "friends_name_idx", ["owner_user_id", "name"]],
       [schema.friends, "friends_archived_at_idx", ["owner_user_id", "archived_at"]],
       [schema.outings, "outings_occurred_at_idx", ["owner_user_id", "occurred_at"]],
+      [schema.outings, "outings_owner_user_id_trip_id_idx", ["owner_user_id", "trip_id"]],
+      [schema.trips, "trips_owner_user_id_name_idx", ["owner_user_id", "name"]],
+      [schema.trips, "trips_owner_user_id_dates_idx", ["owner_user_id", "starts_on", "ends_on"]],
       [schema.expenses, "expenses_outing_id_idx", ["owner_user_id", "outing_id"]],
       [schema.expenseShares, "expense_shares_friend_id_idx", ["owner_user_id", "friend_id"]],
       [schema.repayments, "repayments_friend_id_idx", ["owner_user_id", "friend_id"]],
@@ -353,5 +360,31 @@ describe("database schema", () => {
         { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "cascade" },
       ]),
     );
+  });
+
+  it("defines Trip fields and constraints as calendar-date organizational data", () => {
+    const table = getTableConfig(schema.trips);
+    expect(table.columns.map((column) => column.name)).toEqual([
+      "id",
+      "owner_user_id",
+      "name",
+      "starts_on",
+      "ends_on",
+      "notes",
+      "created_at",
+      "updated_at",
+    ]);
+    expect(table.columns.find((column) => column.name === "name")?.columnType).toBe("PgVarchar");
+    expect((table.columns.find((column) => column.name === "name") as unknown as { config: { length: number } }).config.length).toBe(160);
+    expect(table.columns.find((column) => column.name === "starts_on")?.columnType).toBe("PgDateString");
+    expect(table.columns.find((column) => column.name === "ends_on")?.columnType).toBe("PgDateString");
+    expect(table.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["trips_name_not_blank", "trips_date_range_valid"]));
+    expect(foreignKeyShape(schema.trips)).toEqual(expect.arrayContaining([
+      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+    ]));
+    expect(foreignKeyShape(schema.outings)).toEqual(expect.arrayContaining([
+      { from: ["owner_user_id", "trip_id"], to: "trips", target: ["owner_user_id", "id"], onDelete: "restrict" },
+    ]));
+    expect(getTableConfig(schema.outings).columns.find((column) => column.name === "trip_id")?.notNull).toBe(false);
   });
 });

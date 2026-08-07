@@ -42,4 +42,11 @@ describe("outing input", () => {
       },
     });
   });
+
+  it("keeps Trip optional and rejects an untrusted Trip value", () => {
+    const withoutTrip = validateOutingInput({ title: "Dinner", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "" });
+    expect(withoutTrip).toMatchObject({ ok: true, value: { tripId: null } });
+    const invalid = validateOutingInput({ title: "Dinner", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "", tripId: "foreign" });
+    expect(invalid).toMatchObject({ ok: false, errors: { tripId: "Select a valid trip." }, values: { tripId: "foreign" } });
+  });
 });

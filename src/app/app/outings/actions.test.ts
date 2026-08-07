@@ -61,7 +61,7 @@ describe("outing actions", () => {
     }))).rejects.toThrow("redirect:/app/outings?created=outing-a&tz=-480");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
-    expect(createOuting).toHaveBeenCalledWith({ title: "Dinner", occurredAt: new Date("2026-01-02T02:30:00.000Z"), notes: "Notes" });
+    expect(createOuting).toHaveBeenCalledWith({ title: "Dinner", occurredAt: new Date("2026-01-02T02:30:00.000Z"), notes: "Notes", tripId: null });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/outings");
   });

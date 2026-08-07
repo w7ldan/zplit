@@ -4,7 +4,9 @@ import type { outings } from "@/db/schema";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { formatRupiah } from "@/domain/rupiah";
 
-export function OutingRow({ outing, expenseCount, expenseTotal, emphasized = false }: { outing: InferSelectModel<typeof outings>; expenseCount: number; expenseTotal: number; emphasized?: boolean }) {
+type OutingRowOuting = Omit<InferSelectModel<typeof outings>, "tripId"> & { tripId?: string | null; tripName?: string | null };
+
+export function OutingRow({ outing, expenseCount, expenseTotal, emphasized = false, showTripContext = true }: { outing: OutingRowOuting; expenseCount: number; expenseTotal: number; emphasized?: boolean; showTripContext?: boolean }) {
   return (
     <article className={`outing-row${emphasized ? " outing-row--created" : ""}`} data-record-id={outing.id}>
       <div className="outing-row__primary">
@@ -13,6 +15,7 @@ export function OutingRow({ outing, expenseCount, expenseTotal, emphasized = fal
       </div>
       <div className="outing-row__meta">
         <span className="outing-row__date"><span className="technical-label">Date</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></span>
+        {showTripContext ? <span className="outing-row__trip"><span className="technical-label">Trip</span>{outing.tripId && outing.tripName ? <Link href={`/app/trips/${outing.tripId}`}>{outing.tripName}</Link> : "No trip"}</span> : null}
         <span className="outing-row__expenses"><span className="technical-label">Expenses</span>{expenseCount} {expenseCount === 1 ? "expense" : "expenses"} · {formatRupiah(expenseTotal)}</span>
         <span className="outing-row__created"><span className="technical-label">Created</span><LocalDateTime iso={outing.createdAt.toISOString()} mode="date" /></span>
         <span className="outing-row__actions">

@@ -132,6 +132,7 @@ function DeleteRecordFormRevision({ state, formAction, recordType, impact, impac
 }
 
 const deletedMessages: Record<string, string> = {
+  "/app/trips": "Trip deleted.",
   "/app/outings": "Outing deleted.",
   "/app/expenses": "Expense deleted.",
   "/app/repayments": "Repayment deleted.",

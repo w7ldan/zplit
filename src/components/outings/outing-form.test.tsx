@@ -29,7 +29,7 @@ describe("OutingForm", () => {
     }
     expect(screen.getByLabelText("Date and time")).toHaveAttribute("type", "datetime-local");
     expect((container.querySelector('input[name="timezoneOffsetMinutes"]') as HTMLInputElement).value).toBe(new Date().getTimezoneOffset().toString());
-    expect(document.querySelectorAll(".outing-form__field-error")).toHaveLength(3);
+    expect(document.querySelectorAll(".outing-form__field-error")).toHaveLength(4);
     expect(document.querySelectorAll(".outing-form__message")).toHaveLength(1);
   });
 

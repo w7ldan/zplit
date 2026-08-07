@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   customType,
+  date,
   foreignKey,
   index,
   integer,
@@ -54,6 +55,29 @@ export const friends = pgTable(
   ],
 );
 
+export const trips = pgTable(
+  "trips",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    name: varchar("name", { length: 160 }).notNull(),
+    startsOn: date("starts_on", { mode: "string" }),
+    endsOn: date("ends_on", { mode: "string" }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("trips_name_not_blank", sql`btrim(${table.name}) <> ''`),
+    check("trips_date_range_valid", sql`${table.endsOn} IS NULL OR ${table.startsOn} IS NULL OR ${table.endsOn} >= ${table.startsOn}`),
+    uniqueIndex("trips_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
+    index("trips_owner_user_id_name_idx").on(table.ownerUserId, table.name),
+    index("trips_owner_user_id_dates_idx").on(table.ownerUserId, table.startsOn, table.endsOn),
+  ],
+);
+
 export const outings = pgTable(
   "outings",
   {
@@ -61,6 +85,7 @@ export const outings = pgTable(
     ownerUserId: text("owner_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    tripId: uuid("trip_id"),
     title: varchar("title", { length: 160 }).notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     notes: text("notes"),
@@ -69,8 +94,14 @@ export const outings = pgTable(
   },
   (table) => [
     check("outings_title_not_blank", sql`btrim(${table.title}) <> ''`),
+    foreignKey({
+      columns: [table.ownerUserId, table.tripId],
+      foreignColumns: [trips.ownerUserId, trips.id],
+      name: "outings_owner_trip_fk",
+    }).onDelete("restrict"),
     uniqueIndex("outings_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
     index("outings_occurred_at_idx").on(table.ownerUserId, table.occurredAt),
+    index("outings_owner_user_id_trip_id_idx").on(table.ownerUserId, table.tripId),
   ],
 );
 

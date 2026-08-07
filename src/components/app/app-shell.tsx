@@ -12,6 +12,7 @@ import { DeleteConfirmation } from "./delete-record-form";
 const destinations = [
   ["Overview", "/app"],
   ["Friends", "/app/friends"],
+  ["Trips", "/app/trips"],
   ["Outings", "/app/outings"],
   ["Expenses", "/app/expenses"],
   ["Repayments", "/app/repayments"],

@@ -15,17 +15,18 @@ beforeEach(() => {
 });
 
 describe("AppShell", () => {
-  it("keeps five primary destinations and puts History in the account menu", () => {
+  it("keeps six primary destinations and puts History in the account menu", () => {
     render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     const primary = screen.getByRole("navigation", { name: "Ledger navigation" });
     const mobile = screen.getByRole("navigation", { name: "Mobile ledger navigation" });
     expect(document.querySelector(".app-shell__brand")).toBeInTheDocument();
     expect(document.querySelector(".app-shell__actions")).toBeInTheDocument();
-    expect(within(primary).getAllByRole("link")).toHaveLength(5);
-    expect(within(mobile).getAllByRole("link")).toHaveLength(5);
+    expect(within(primary).getAllByRole("link")).toHaveLength(6);
+    expect(within(mobile).getAllByRole("link")).toHaveLength(6);
     expect(within(primary).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
       "/app",
       "/app/friends",
+      "/app/trips",
       "/app/outings",
       "/app/expenses",
       "/app/repayments",

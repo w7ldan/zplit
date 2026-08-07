@@ -5,7 +5,7 @@ import { requireSession } from "@/auth/require-session";
 import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { OutingForm } from "@/components/outings/outing-form";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
-import { updateOutingAction } from "../actions";
+import { searchTripOptions, updateOutingAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteOutingAction } from "../actions";
@@ -23,10 +23,12 @@ export default async function OutingRecordPage({ params, searchParams }: { param
   const query = await searchParams;
   let outing;
   let deletionImpact;
+  let trip: { id: string; name: string } | null = null;
   try {
     const repository = createLedgerRepository(getDatabase(), session.user.id);
     outing = await repository.getOuting(outingId);
     deletionImpact = await repository.getOutingDeletionImpact(outingId);
+    trip = outing.tripId ? await repository.getTrip(outing.tripId) : null;
   } catch (error) {
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
@@ -47,6 +49,7 @@ export default async function OutingRecordPage({ params, searchParams }: { param
         {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Outing changes saved." /> : null}
         <div className="outing-record__meta" aria-label="Outing metadata">
           <div><span className="technical-label">Occurred</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></div>
+          <div><span className="technical-label">Trip</span>{trip ? <Link href={`/app/trips/${trip.id}`}>{trip.name} →</Link> : <span>No trip</span>}</div>
           <div><span className="technical-label">Created</span><LocalDateTime iso={outing.createdAt.toISOString()} mode="date" /></div>
         </div>
         {outing.notes ? <p className="outing-record__notes">{outing.notes}</p> : null}
@@ -55,10 +58,12 @@ export default async function OutingRecordPage({ params, searchParams }: { param
           <OutingForm
             action={updateOutingAction.bind(null, outing.id)}
             mode="edit"
+            trips={[{ id: "", label: "No trip" }, ...(trip ? [{ id: trip.id, label: trip.name }] : [])]}
+            searchTrips={searchTripOptions}
             initialOccurredAtUtc={outing.occurredAt.toISOString()}
-            initialValues={{ title: outing.title, occurredAtLocal: utcDateTimeLocal(outing.occurredAt), timezoneOffsetMinutes: "0", notes: outing.notes ?? "" }}
+            initialValues={{ title: outing.title, occurredAtLocal: utcDateTimeLocal(outing.occurredAt), timezoneOffsetMinutes: "0", notes: outing.notes ?? "", tripId: trip?.id ?? "" }}
           />
-          <p className="outing-record__next">Expenses recorded under this outing inherit its date and time. Friend-share assignment arrives in the next stage.</p>
+          <p className="outing-record__next">Expenses recorded under this outing keep its occurrence timestamp. Trip grouping does not change ledger calculations.</p>
         </div>
         <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" impact={deletionImpact} impactRevision={currentImpactRevision} />
       </div>

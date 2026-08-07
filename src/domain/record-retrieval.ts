@@ -12,7 +12,8 @@ export type AssignmentFilter = "all" | "assigned" | "unassigned";
 export type AllocationFilter = "all" | "complete" | "needs";
 
 export type NormalizedFriendFilters = { archived: boolean; q?: string; page: number };
-export type NormalizedOutingFilters = { q?: string; month?: string; page: number };
+export type NormalizedOutingFilters = { q?: string; month?: string; trip?: string | "unassigned"; page: number };
+export type NormalizedTripFilters = { q?: string; page: number };
 export type NormalizedExpenseFilters = { q?: string; outingId?: string; month?: string; assignment: AssignmentFilter; page: number };
 export type NormalizedRepaymentFilters = { q?: string; friendId?: string; month?: string; allocation: AllocationFilter; page: number };
 
@@ -67,8 +68,17 @@ export function normalizeFriendFilters(input: { archived?: unknown; q?: unknown;
   return { archived: input.archived === true || input.archived === "true", q: normalizeText(input.q), page: normalizePage(input.page) };
 }
 
-export function normalizeOutingFilters(input: { q?: unknown; month?: unknown; page?: unknown } = {}): NormalizedOutingFilters {
-  return { q: normalizeText(input.q), month: normalizeMonth(input.month), page: normalizePage(input.page) };
+export function normalizeOutingFilters(input: { q?: unknown; month?: unknown; trip?: unknown; page?: unknown } = {}): NormalizedOutingFilters {
+  return {
+    q: normalizeText(input.q),
+    month: normalizeMonth(input.month),
+    trip: input.trip === "unassigned" ? "unassigned" : normalizeUuid(input.trip),
+    page: normalizePage(input.page),
+  };
+}
+
+export function normalizeTripFilters(input: { q?: unknown; page?: unknown } = {}): NormalizedTripFilters {
+  return { q: normalizeText(input.q), page: normalizePage(input.page) };
 }
 
 export function normalizeExpenseFilters(input: { q?: unknown; outingId?: unknown; month?: unknown; assignment?: unknown; page?: unknown } = {}): NormalizedExpenseFilters {

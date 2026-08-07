@@ -7,9 +7,11 @@ const domainTables = [
   "friends",
   "outings",
   "expenses",
+  "expense_receipts",
   "expense_shares",
   "repayments",
   "repayment_allocations",
+  "trips",
 ];
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -78,14 +80,28 @@ export async function runDatabaseSmoke() {
       "INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, $4)",
       [ownerUserId, "Smoke Owner", `smoke-${ownerUserId}@example.com`, true],
     );
+    const otherOwnerUserId = randomUUID();
+    await client.query(
+      "INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, $4)",
+      [otherOwnerUserId, "Other Smoke Owner", `smoke-${otherOwnerUserId}@example.com`, true],
+    );
+    const trip = await client.query<{ id: string }>(
+      "INSERT INTO trips (owner_user_id, name, starts_on, ends_on) VALUES ($1, $2, $3, $4) RETURNING id",
+      [ownerUserId, "Smoke Trip", "2026-04-12", "2026-04-16"],
+    );
+    const tripId = trip.rows[0].id;
+    const foreignTrip = await client.query<{ id: string }>(
+      "INSERT INTO trips (owner_user_id, name) VALUES ($1, $2) RETURNING id",
+      [otherOwnerUserId, "Foreign Smoke Trip"],
+    );
     const friend = await client.query<{ id: string }>(
       "INSERT INTO friends (owner_user_id, name) VALUES ($1, $2) RETURNING id",
       [ownerUserId, "Smoke Friend"],
     );
     const friendId = friend.rows[0].id;
     const outing = await client.query<{ id: string }>(
-      "INSERT INTO outings (owner_user_id, title, occurred_at) VALUES ($1, $2, $3) RETURNING id",
-      [ownerUserId, "Smoke Outing", now],
+      "INSERT INTO outings (owner_user_id, trip_id, title, occurred_at) VALUES ($1, $2, $3, $4) RETURNING id",
+      [ownerUserId, tripId, "Smoke Outing", now],
     );
     const outingId = outing.rows[0].id;
     const expense = await client.query<{ id: string }>(
@@ -127,6 +143,19 @@ export async function runDatabaseSmoke() {
     assert(relationship.rows[0].share_friend_id === friendId, "expense share friend relationship is wrong");
     assert(relationship.rows[0].repayment_friend_id === friendId, "repayment friend relationship is wrong");
     assert(relationship.rows[0].allocation_amount === 7500, "repayment allocation amount is wrong");
+
+    const unassignedOuting = await client.query(
+      "INSERT INTO outings (owner_user_id, title, occurred_at, trip_id) VALUES ($1, $2, $3, NULL)",
+      [ownerUserId, "Unassigned Smoke Outing", now],
+    );
+    assert(unassignedOuting.rowCount === 1, "nullable outing Trip is invalid");
+    await expectConstraint(
+      client,
+      "23503",
+      "INSERT INTO outings (owner_user_id, trip_id, title, occurred_at) VALUES ($1, $2, $3, $4)",
+      [ownerUserId, foreignTrip.rows[0].id, "Cross-owner Trip", now],
+      "smoke_cross_owner_trip",
+    );
 
     await expectConstraint(
       client,

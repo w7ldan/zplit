@@ -11,6 +11,7 @@ import {
   outings,
   repaymentAllocations,
   repayments,
+  trips,
 } from "../db/schema";
 import { LedgerIntegrityError, type FriendBalance, type LedgerSummary } from "./ledger-summary";
 import { buildDebtorStatement, DebtorStatementIntegrityError } from "./debtor-statement";
@@ -120,10 +121,22 @@ export type OutingMutationInput = {
   title: string;
   occurredAt: Date;
   notes: string | null;
+  tripId?: string | null;
 };
 export type CreateOutingInput = OutingMutationInput;
 export type UpdateOutingInput = OutingMutationInput;
 export type OutingSelectorOption = { id: string; title: string };
+export type TripMutationInput = {
+  name: string;
+  startsOn: string | null;
+  endsOn: string | null;
+  notes: string | null;
+};
+export type CreateTripInput = TripMutationInput;
+export type UpdateTripInput = TripMutationInput;
+export type TripSelectorOption = { id: string; name: string };
+export type TripSummary = { outingCount: number; expenseCount: number; expenseTotal: number };
+export type TripListRecord = typeof trips.$inferSelect & TripSummary;
 export type ExpenseMutationInput = {
   description: string;
   amount: number;
@@ -439,22 +452,45 @@ function assertRepaymentAllocationReversalReceipt(value: unknown): asserts value
 function assertOutingInput(input: unknown): asserts input is OutingMutationInput {
   assertInput(input);
   const keys = Object.keys(input);
-  if (keys.some((key) => !["title", "occurredAt", "notes"].includes(key))) {
+  if (keys.some((key) => !["title", "occurredAt", "notes", "tripId"].includes(key))) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Outing fields are invalid");
   }
   if (
     typeof input.title !== "string" ||
     !(input.occurredAt instanceof Date) ||
     Number.isNaN(input.occurredAt.getTime()) ||
-    (input.notes !== null && typeof input.notes !== "string")
+    (input.notes !== null && typeof input.notes !== "string") ||
+    (input.tripId !== undefined && input.tripId !== null && (typeof input.tripId !== "string" || !normalizeUuid(input.tripId)))
   ) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Outing fields are invalid");
+  }
+}
+
+function assertTripInput(input: unknown): asserts input is TripMutationInput {
+  assertInput(input);
+  if (
+    Object.keys(input).some((key) => !["name", "startsOn", "endsOn", "notes"].includes(key)) ||
+    typeof input.name !== "string" ||
+    !input.name.trim() ||
+    input.name.length > 160 ||
+    (input.startsOn !== null && (typeof input.startsOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(input.startsOn))) ||
+    (input.endsOn !== null && (typeof input.endsOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(input.endsOn))) ||
+    (input.startsOn !== null && input.endsOn !== null && input.endsOn < input.startsOn) ||
+    (input.notes !== null && (typeof input.notes !== "string" || input.notes.length > 4000))
+  ) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "Trip fields are invalid");
   }
 }
 
 function assertOutingId(outingId: string) {
   if (typeof outingId !== "string" || !outingId.trim()) {
     throw new LedgerRepositoryError("INVALID_INPUT", "An outing ID is required");
+  }
+}
+
+function assertTripId(tripId: string) {
+  if (typeof tripId !== "string" || !normalizeUuid(tripId)) {
+    throw new LedgerRepositoryError("INVALID_INPUT", "A trip ID is required");
   }
 }
 
@@ -1108,10 +1144,197 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  async function createTrip(input: CreateTripInput) {
+    assertTripInput(input);
+    try {
+      const [trip] = await database.insert(trips).values({ ...input, ownerUserId: owner }).returning();
+      if (!trip) return persistenceError(new Error("trip insert returned no row"));
+      return trip;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function getTrip(tripId: string) {
+    assertTripId(tripId);
+    try {
+      const [trip] = await database
+        .select()
+        .from(trips)
+        .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+        .limit(1);
+      if (!trip) return notFound();
+      return trip;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function searchTrips(options: { q?: unknown; selectedId?: unknown } = {}): Promise<TripSelectorOption[]> {
+    const query = normalizeText(options.q);
+    const selectedId = normalizeUuid(options.selectedId);
+    const conditions = [
+      eq(trips.ownerUserId, owner),
+      ...(query ? [selectedId ? or(literalContains(trips.name, query), eq(trips.id, selectedId)) : literalContains(trips.name, query)] : []),
+    ];
+    try {
+      return await database
+        .select({ id: trips.id, name: trips.name })
+        .from(trips)
+        .where(and(...conditions))
+        .orderBy(
+          ...(selectedId ? [sql`case when ${trips.id} = ${selectedId} then 0 else 1 end`] : []),
+          sql`${trips.startsOn} DESC NULLS LAST`,
+          desc(trips.createdAt),
+          asc(trips.name),
+          asc(trips.id),
+        )
+        .limit(20);
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listTripRecords(options: { q?: unknown; page?: unknown } = {}): Promise<RecordPage<TripListRecord>> {
+    const query = normalizeText(options.q);
+    const conditions = [eq(trips.ownerUserId, owner), ...(query ? [literalContains(trips.name, query)] : [])];
+    try {
+      const [{ count = 0 } = {}] = await database
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(trips)
+        .where(and(...conditions));
+      const totalItems = safeRetrievalInteger(count, "Trip count");
+      const page = clampPage(options.page === undefined ? 1 : Number(options.page), totalItems);
+      const pageTrips = database
+        .select({ id: trips.id, ownerUserId: trips.ownerUserId })
+        .from(trips)
+        .where(and(...conditions))
+        .orderBy(sql`${trips.startsOn} DESC NULLS LAST`, desc(trips.createdAt), asc(trips.name), asc(trips.id))
+        .limit(RECORD_PAGE_SIZE)
+        .offset((page - 1) * RECORD_PAGE_SIZE)
+        .as("trip_page");
+      const totals = database
+        .select({
+          tripId: outings.tripId,
+          outingCount: sql<number>`count(distinct ${outings.id})`.mapWith(Number).as("outing_count"),
+          expenseCount: sql<number>`count(${expenses.id})`.mapWith(Number).as("expense_count"),
+          expenseTotal: sql<number>`coalesce(sum(${expenses.amount}), 0)`.mapWith(Number).as("expense_total"),
+        })
+        .from(outings)
+        .innerJoin(pageTrips, and(eq(pageTrips.id, outings.tripId), eq(pageTrips.ownerUserId, outings.ownerUserId)))
+        .leftJoin(expenses, and(eq(expenses.ownerUserId, outings.ownerUserId), eq(expenses.outingId, outings.id)))
+        .where(eq(outings.ownerUserId, owner))
+        .groupBy(outings.ownerUserId, outings.tripId)
+        .as("trip_totals");
+      const rows = await database
+        .select({ trip: trips, outingCount: totals.outingCount, expenseCount: totals.expenseCount, expenseTotal: totals.expenseTotal })
+        .from(trips)
+        .innerJoin(pageTrips, and(eq(pageTrips.id, trips.id), eq(pageTrips.ownerUserId, trips.ownerUserId)))
+        .leftJoin(totals, and(eq(totals.tripId, trips.id)))
+        .where(eq(trips.ownerUserId, owner))
+        .orderBy(sql`${trips.startsOn} DESC NULLS LAST`, desc(trips.createdAt), asc(trips.name), asc(trips.id));
+      const items = rows.map((row) => {
+        const raw = row as unknown as Record<string, unknown>;
+        return {
+          ...row.trip,
+          outingCount: safeRetrievalInteger(raw.outing_count ?? row.outingCount ?? 0, "Trip outing count"),
+          expenseCount: safeRetrievalInteger(raw.expense_count ?? row.expenseCount ?? 0, "Trip expense count"),
+          expenseTotal: safeRetrievalInteger(raw.expense_total ?? row.expenseTotal ?? 0, "Trip expense total"),
+        };
+      });
+      return pageResult(items, totalItems, page);
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function getTripSummary(tripId: string): Promise<TripSummary> {
+    assertTripId(tripId);
+    try {
+      const [row] = await database
+        .select({
+          id: trips.id,
+          outingCount: sql<number>`count(distinct ${outings.id})`.mapWith(Number).as("outing_count"),
+          expenseCount: sql<number>`count(${expenses.id})`.mapWith(Number).as("expense_count"),
+          expenseTotal: sql<number>`coalesce(sum(${expenses.amount}), 0)`.mapWith(Number).as("expense_total"),
+        })
+        .from(trips)
+        .leftJoin(outings, and(eq(outings.ownerUserId, trips.ownerUserId), eq(outings.tripId, trips.id)))
+        .leftJoin(expenses, and(eq(expenses.ownerUserId, outings.ownerUserId), eq(expenses.outingId, outings.id)))
+        .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+        .groupBy(trips.id)
+        .limit(1);
+      if (!row) return notFound();
+      const raw = row as unknown as Record<string, unknown>;
+      return {
+        outingCount: safeRetrievalInteger(raw.outing_count ?? row.outingCount, "Trip outing count"),
+        expenseCount: safeRetrievalInteger(raw.expense_count ?? row.expenseCount, "Trip expense count"),
+        expenseTotal: safeRetrievalInteger(raw.expense_total ?? row.expenseTotal, "Trip expense total"),
+      };
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function updateTrip(tripId: string, input: UpdateTripInput) {
+    assertTripId(tripId);
+    assertTripInput(input);
+    try {
+      const [trip] = await database
+        .update(trips)
+        .set({ ...input, updatedAt: new Date() })
+        .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+        .returning();
+      if (!trip) return notFound();
+      return trip;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function deleteTrip(tripId: string) {
+    assertTripId(tripId);
+    try {
+      return await database.transaction(async (transaction) => {
+        const [trip] = await transaction
+          .select({ id: trips.id })
+          .from(trips)
+          .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+          .limit(1)
+          .for("update");
+        if (!trip) return notFound();
+        const detached = await transaction
+          .update(outings)
+          .set({ tripId: null, updatedAt: new Date() })
+          .where(and(eq(outings.ownerUserId, owner), eq(outings.tripId, tripId)))
+          .returning({ id: outings.id });
+        const deleted = await transaction
+          .delete(trips)
+          .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+          .returning({ id: trips.id });
+        if (deleted.length === 0) return notFound();
+        return { detachedOutingCount: detached.length };
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function assertOwnedTrip(databaseLike: Pick<Database, "select">, tripId: string) {
+    const [trip] = await databaseLike
+      .select({ id: trips.id })
+      .from(trips)
+      .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+      .limit(1);
+    if (!trip) return notFound();
+  }
+
   async function createOuting(input: CreateOutingInput) {
     assertOutingInput(input);
+    const requested = { ...input, tripId: input.tripId ?? null };
     try {
-      const [outing] = await database.insert(outings).values({ ...input, ownerUserId: owner }).returning();
+      if (requested.tripId) await assertOwnedTrip(database, requested.tripId);
+      const [outing] = await database.insert(outings).values({ ...requested, ownerUserId: owner }).returning();
       if (!outing) return persistenceError(new Error("outing insert returned no row"));
       return outing;
     } catch (error) {
@@ -1166,13 +1389,14 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function listOutingRecords(options: { q?: unknown; month?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}) {
+  async function listOutingRecords(options: { q?: unknown; month?: unknown; trip?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}) {
     const filters = normalizeOutingFilters(options);
     const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
     const conditions = [
       eq(outings.ownerUserId, owner),
       ...(filters.q ? [literalContains(outings.title, filters.q)] : []),
       ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
+      ...(filters.trip === "unassigned" ? [isNull(outings.tripId)] : filters.trip ? [eq(outings.tripId, filters.trip)] : []),
     ];
     try {
       const [{ count = 0 } = {}] = await database
@@ -1182,7 +1406,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       const totalItems = safeRetrievalInteger(count, "Outing count");
       const page = clampPage(filters.page, totalItems);
       const pageOutings = database
-        .select({ id: outings.id, ownerUserId: outings.ownerUserId })
+        .select({ id: outings.id, ownerUserId: outings.ownerUserId, tripId: outings.tripId })
         .from(outings)
         .where(and(...conditions))
         .orderBy(desc(outings.occurredAt), desc(outings.createdAt), asc(outings.id))
@@ -1201,14 +1425,16 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .groupBy(expenses.ownerUserId, expenses.outingId)
         .as("outing_expense_totals");
       const rows = await database
-        .select({ outing: outings, expenseCount: expenseTotals.expenseCount, expenseTotal: expenseTotals.expenseTotal })
+        .select({ outing: outings, tripName: trips.name, expenseCount: expenseTotals.expenseCount, expenseTotal: expenseTotals.expenseTotal })
         .from(outings)
         .innerJoin(pageOutings, and(eq(pageOutings.id, outings.id), eq(pageOutings.ownerUserId, outings.ownerUserId)))
         .leftJoin(expenseTotals, eq(expenseTotals.outingId, outings.id))
+        .leftJoin(trips, and(eq(trips.ownerUserId, outings.ownerUserId), eq(trips.id, outings.tripId)))
         .where(eq(outings.ownerUserId, owner))
         .orderBy(desc(outings.occurredAt), desc(outings.createdAt), asc(outings.id));
-      const items = rows.map(({ outing, expenseCount, expenseTotal }) => ({
+      const items = rows.map(({ outing, tripName, expenseCount, expenseTotal }) => ({
         ...outing,
+        tripName: tripName ?? null,
         expenseCount: safeRetrievalInteger(expenseCount ?? 0, "Outing expense count"),
         expenseTotal: safeRetrievalInteger(expenseTotal ?? 0, "Outing expense total"),
       }));
@@ -1221,10 +1447,12 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
   async function updateOuting(outingId: string, input: UpdateOutingInput) {
     assertOutingId(outingId);
     assertOutingInput(input);
+    const requested = { ...input, tripId: input.tripId ?? null };
     try {
+      if (requested.tripId) await assertOwnedTrip(database, requested.tripId);
       const [outing] = await database
         .update(outings)
-        .set({ ...input, updatedAt: new Date() })
+        .set({ ...requested, updatedAt: new Date() })
         .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
         .returning();
       if (!outing) return notFound();
@@ -2960,6 +3188,13 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     setFriendArchived,
     archiveFriend,
     undoFriendArchive,
+    createTrip,
+    getTrip,
+    searchTrips,
+    listTripRecords,
+    getTripSummary,
+    updateTrip,
+    deleteTrip,
     createOuting,
     getOuting,
     listOutings,

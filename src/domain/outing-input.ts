@@ -3,12 +3,14 @@ export type OutingInputValues = {
   occurredAtLocal: string;
   timezoneOffsetMinutes: string;
   notes: string;
+  tripId?: string;
 };
 
 export type OutingInput = {
   title: string;
   occurredAt: Date;
   notes: string | null;
+  tripId: string | null;
 };
 
 export type OutingField = keyof OutingInputValues;
@@ -55,6 +57,7 @@ export function validateOutingInput(input: unknown): OutingValidationResult {
     occurredAtLocal: readValue(input, "occurredAtLocal"),
     timezoneOffsetMinutes: readValue(input, "timezoneOffsetMinutes"),
     notes: readValue(input, "notes"),
+    tripId: readValue(input, "tripId"),
   };
   const errors: OutingFieldErrors = {};
 
@@ -82,6 +85,7 @@ export function validateOutingInput(input: unknown): OutingValidationResult {
   if (values.occurredAtLocal && !occurredAt) errors.occurredAtLocal = "Enter a valid date and time.";
 
   if (values.notes.length > 4000) errors.notes = "Notes must be 4000 characters or fewer.";
+  if (values.tripId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(values.tripId)) errors.tripId = "Select a valid trip.";
   if (Object.keys(errors).length > 0 || !occurredAt) return { ok: false, errors, values };
 
   return {
@@ -91,6 +95,7 @@ export function validateOutingInput(input: unknown): OutingValidationResult {
       title: values.title,
       occurredAt,
       notes: values.notes || null,
+      tripId: values.tripId || null,
     },
   };
 }

@@ -36,6 +36,8 @@ describe("record retrieval", () => {
     expect(normalizeTimezoneOffset(null)).toBeUndefined();
     expect(normalizeFriendFilters({ archived: "wrong", page: "-2" })).toEqual({ archived: false, q: undefined, page: 1 });
     expect(normalizeOutingFilters({ month: "2026-04", q: " title " })).toEqual({ month: "2026-04", q: "title", page: 1 });
+    expect(normalizeOutingFilters({ trip: "unassigned" })).toMatchObject({ trip: "unassigned" });
+    expect(normalizeOutingFilters({ trip: "not-a-trip" })).toMatchObject({ trip: undefined });
     expect(normalizeExpenseFilters({ assignment: "wrong", outingId: "wrong" })).toMatchObject({ assignment: "all", outingId: undefined });
     expect(normalizeRepaymentFilters({ allocation: "wrong", friendId: "wrong" })).toMatchObject({ allocation: "all", friendId: undefined });
   });

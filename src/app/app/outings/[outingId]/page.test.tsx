@@ -45,7 +45,7 @@ describe("outing record", () => {
     expect(screen.getByLabelText("Title")).toHaveValue("Jakarta dinner");
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", `/app/expenses?create=1&outing=${outing.id}`);
     expect(screen.getByRole("link", { name: /Back to outings/ })).toHaveAttribute("href", "/app/outings");
-    expect(screen.getByText(/Expenses recorded under this outing inherit its date and time/)).toBeInTheDocument();
+    expect(screen.getByText(/Expenses recorded under this outing keep its occurrence timestamp/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Delete outing" })).toBeInTheDocument();
     expect(screen.queryByText(/Move or delete this outing's expenses first/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete outing" })).toBeDisabled();
