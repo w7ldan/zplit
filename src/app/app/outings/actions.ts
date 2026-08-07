@@ -47,12 +47,6 @@ function impactRevisionValue(formData: FormData) {
   return values[0];
 }
 
-const initialOutingActionState: OutingActionState = {
-  fieldErrors: {},
-  formError: "",
-  values: { title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "", tripId: "" },
-};
-
 function valuesFromForm(formData: FormData) {
   return validateOutingInput({
     title: formData.get("title"),
@@ -73,11 +67,15 @@ function addTimezoneOffset(target: string, offset: string) {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-function errorState(error: unknown): OutingActionState {
+function unavailableTripState(values: OutingInputValues): OutingActionState {
+  return { fieldErrors: { tripId: "Selected trip is no longer available." }, formError: "Please correct the marked fields.", values };
+}
+
+function errorState(error: unknown, values: OutingInputValues): OutingActionState {
   return {
     fieldErrors: {},
     formError: error instanceof LedgerNotFoundError ? "This outing is no longer available." : "Unable to save this outing.",
-    values: initialOutingActionState.values,
+    values,
   };
 }
 
@@ -95,7 +93,7 @@ export async function createOutingAction(
   try {
     outing = await createLedgerRepository(getDatabase(), session.user.id).createOuting(result.value);
   } catch (error) {
-    return errorState(error);
+    return error instanceof LedgerNotFoundError ? unavailableTripState(result.values) : errorState(error, result.values);
   }
   revalidatePath("/app");
   revalidatePath("/app/outings");
@@ -115,10 +113,19 @@ export async function updateOutingAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
 
+  const repository = createLedgerRepository(getDatabase(), session.user.id);
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).updateOuting(outingId, result.value);
+    await repository.updateOuting(outingId, result.value);
   } catch (error) {
-    return errorState(error);
+    if (error instanceof LedgerNotFoundError && result.value.tripId) {
+      try {
+        await repository.getOuting(outingId);
+      } catch (outingError) {
+        return errorState(outingError, result.values);
+      }
+      return unavailableTripState(result.values);
+    }
+    return errorState(error, result.values);
   }
 
   revalidatePath("/app");

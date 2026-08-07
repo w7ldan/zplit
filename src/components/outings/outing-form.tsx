@@ -42,10 +42,11 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 
 export function OutingForm({ action, initialValues = emptyValues, initialOccurredAtUtc, trips = [{ id: "", label: "No trip" }], searchTrips = async () => trips, mode = "create" }: OutingFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
-  const [selectedTrip, setSelectedTrip] = useState<SearchableOption | undefined>(() => trips.find((trip) => trip.id === initialValues.tripId) ?? trips[0]);
+  const [selectedTripId, setSelectedTripId] = useState(initialValues.tripId ?? "");
   const formRef = useRef<HTMLFormElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
+  const previousActionStateRef = useRef(state);
 
   useEffect(() => {
     const offset = new Date().getTimezoneOffset().toString();
@@ -58,6 +59,23 @@ export function OutingForm({ action, initialValues = emptyValues, initialOccurre
     }
   }, [initialOccurredAtUtc, initialValues.occurredAtLocal, mode]);
 
+  useEffect(() => {
+    if (previousActionStateRef.current === state) return;
+    previousActionStateRef.current = state;
+    setSelectedTripId(state.values.tripId ?? "");
+    const form = formRef.current;
+    if (!form) return;
+    for (const [name, value] of Object.entries({
+      title: state.values.title,
+      occurredAtLocal: state.values.occurredAtLocal,
+      timezoneOffsetMinutes: state.values.timezoneOffsetMinutes,
+      notes: state.values.notes,
+    })) {
+      const field = form.elements.namedItem(name);
+      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) field.value = value;
+    }
+  }, [state]);
+
   function setCurrentTimezoneOffset() {
     if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = new Date().getTimezoneOffset().toString();
   }
@@ -65,7 +83,6 @@ export function OutingForm({ action, initialValues = emptyValues, initialOccurre
   return (
     <form
       ref={formRef}
-      key={`${state.values.title}\u0000${state.values.occurredAtLocal}\u0000${state.values.timezoneOffsetMinutes}\u0000${state.values.notes}\u0000${state.values.tripId ?? ""}`}
       className="outing-form"
       action={formAction}
       noValidate
@@ -84,7 +101,7 @@ export function OutingForm({ action, initialValues = emptyValues, initialOccurre
       <input ref={timezoneOffsetRef} type="hidden" name="timezoneOffsetMinutes" defaultValue={state.values.timezoneOffsetMinutes} />
       <div className="outing-form__field">
         <label id="outing-trip-label" htmlFor="outing-trip">Trip</label>
-        <SearchableCombobox id="outing-trip" name="tripId" value={state.values.tripId || selectedTrip?.id || ""} options={trips} search={searchTrips} labelId="outing-trip-label" ariaInvalid={Boolean(state.fieldErrors.tripId)} ariaDescribedBy="outing-trip-error" onValueChange={setSelectedTrip} />
+        <SearchableCombobox id="outing-trip" name="tripId" value={selectedTripId} options={trips} search={searchTrips} labelId="outing-trip-label" ariaInvalid={Boolean(state.fieldErrors.tripId)} ariaDescribedBy="outing-trip-error" onValueChange={(trip) => setSelectedTripId(trip.id)} />
         <FieldError id="outing-trip-error" message={state.fieldErrors.tripId} />
       </div>
       <div className="outing-form__field">

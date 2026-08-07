@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 const revision = "a".repeat(64);
+const tripA = "11111111-1111-4111-8111-111111111111";
+const tripB = "22222222-2222-4222-8222-222222222222";
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
@@ -25,7 +27,7 @@ vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 const initialState: OutingActionState = {
   fieldErrors: {},
   formError: "",
-  values: { title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "" },
+  values: { title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "", tripId: "" },
 };
 
 function form(values: Record<string, string>) {
@@ -80,6 +82,43 @@ describe("outing actions", () => {
     }))).rejects.toThrow("redirect:/app/expenses?q=Dinner&outing=outing-a&create=1&tz=-480#top");
   });
 
+  it("submits an owned Trip on create", async () => {
+    const createOuting = vi.fn().mockResolvedValue({ id: "outing-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createOuting });
+
+    await expect(createOutingAction(undefined, initialState, form({
+      title: "Dinner",
+      occurredAtLocal: "2026-01-02T10:30",
+      timezoneOffsetMinutes: "0",
+      notes: "Notes",
+      tripId: tripB,
+    }))).rejects.toThrow("redirect:/app/outings?created=outing-a&tz=0");
+    expect(createOuting).toHaveBeenCalledWith({ title: "Dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: "Notes", tripId: tripB });
+  });
+
+  it("returns a Trip field error and submitted values when create loses its Trip", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createOuting: vi.fn().mockRejectedValue(new LedgerNotFoundError()) });
+
+    const state = await createOutingAction(undefined, initialState, form({
+      title: "Dinner",
+      occurredAtLocal: "2026-01-02T10:30",
+      timezoneOffsetMinutes: "0",
+      notes: "Notes",
+      tripId: tripB,
+    }));
+
+    expect(state).toMatchObject({
+      fieldErrors: { tripId: "Selected trip is no longer available." },
+      formError: "Please correct the marked fields.",
+      values: { title: "Dinner", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "Notes", tripId: tripB },
+    });
+    expect(state.formError).not.toContain("outing");
+  });
+
   it("keeps continuation validation errors inside the outing form", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     const state = await createOutingAction("/app/expenses", initialState, form({ title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "" }));
@@ -97,6 +136,36 @@ describe("outing actions", () => {
 
     expect(state.formError).toBe("This outing is no longer available.");
     expect(state.formError).not.toContain("outing-b");
+    expect(state.values.title).toBe("Outing");
+  });
+
+  it("submits Trip changes and null Trip updates", async () => {
+    const updateOuting = vi.fn().mockResolvedValue({ id: "outing-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ updateOuting });
+
+    await expect(updateOutingAction("outing-a", initialState, form({ title: "Dinner", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "Notes", tripId: tripB }))).rejects.toThrow("redirect:/app/outings/outing-a?saved=1");
+    expect(updateOuting).toHaveBeenLastCalledWith("outing-a", { title: "Dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: "Notes", tripId: tripB });
+
+    await expect(updateOutingAction("outing-a", initialState, form({ title: "Dinner", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "Notes", tripId: "" }))).rejects.toThrow("redirect:/app/outings/outing-a?saved=1");
+    expect(updateOuting).toHaveBeenLastCalledWith("outing-a", { title: "Dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: "Notes", tripId: null });
+  });
+
+  it("distinguishes a missing selected Trip from a missing outing on update", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    const updateOuting = vi.fn().mockRejectedValue(new LedgerNotFoundError());
+    const getOuting = vi.fn().mockResolvedValue({ id: "outing-a" });
+    mocks.createLedgerRepository.mockReturnValue({ updateOuting, getOuting });
+
+    const staleTrip = await updateOutingAction("outing-a", initialState, form({ title: "Updated", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "Kept", tripId: tripA }));
+    expect(staleTrip).toMatchObject({ fieldErrors: { tripId: "Selected trip is no longer available." }, values: { title: "Updated", notes: "Kept", tripId: tripA } });
+    expect(staleTrip.formError).not.toContain("outing");
+
+    getOuting.mockRejectedValue(new LedgerNotFoundError());
+    const missingOuting = await updateOutingAction("outing-a", initialState, form({ title: "Updated", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "Kept", tripId: tripA }));
+    expect(missingOuting).toMatchObject({ fieldErrors: {}, formError: "This outing is no longer available.", values: { title: "Updated", notes: "Kept", tripId: tripA } });
   });
 
   it("requires exact deletion confirmation and uses the canonical list redirect", async () => {

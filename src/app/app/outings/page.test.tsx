@@ -5,11 +5,12 @@ import OutingsPage from "./page";
 const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }) }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
-vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
+vi.mock("@/domain/ledger-repository", async () => ({ ...(await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository")), createLedgerRepository: mocks.createLedgerRepository }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
 const outing = { id: "outing-a", ownerUserId: "owner-a", title: "Jakarta dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: null, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z") };
 const outingPage = { items: [{ ...outing, expenseCount: 1, expenseTotal: 84_000 }], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 };
+const trip = { id: "11111111-1111-4111-8111-111111111111", ownerUserId: "owner-a", name: "Bali 2026", startsOn: null, endsOn: null, notes: null, createdAt: new Date("2026-01-01T00:00:00.000Z"), updatedAt: new Date("2026-01-01T00:00:00.000Z") };
 
 describe("/app/outings", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -59,6 +60,22 @@ describe("/app/outings", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Title")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add an outing" })).toHaveAttribute("href", "/app/outings?create=1");
+  });
+
+  it("preselects a valid Trip context in Add outing", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ getTrip: vi.fn().mockResolvedValue(trip), listOutingRecords: vi.fn().mockResolvedValue({ ...outingPage, items: [], totalItems: 0, totalPages: 1 }) });
+    render(await OutingsPage({ searchParams: Promise.resolve({ create: "1", trip: trip.id }) }));
+
+    expect(screen.getByRole("dialog").querySelector("#outing-trip")).toHaveValue(trip.name);
+    expect((screen.getByRole("dialog").querySelector('select[name="tripId"]') as HTMLSelectElement).value).toBe(trip.id);
+  });
+
+  it("sanitizes an unavailable Trip context", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ getTrip: vi.fn().mockRejectedValue(new (await import("@/domain/ledger-repository")).LedgerNotFoundError()) });
+
+    await expect(OutingsPage({ searchParams: Promise.resolve({ create: "1", trip: trip.id }) })).rejects.toThrow("redirect:/app/outings?create=1");
   });
 
   it("shows a filtered empty state with a narrow clear link", async () => {

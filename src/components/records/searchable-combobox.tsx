@@ -8,7 +8,7 @@ export type SearchableOptionAction = (query: string, selectedId?: string) => Pro
 type SearchableComboboxProps = {
   id: string;
   name?: string;
-  value: string;
+  value?: string;
   options: SearchableOption[];
   search: SearchableOptionAction;
   required?: boolean;
@@ -46,7 +46,7 @@ export function SearchableCombobox({
   const [enhanced, setEnhanced] = useState(false);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(value || (placeholder ? "" : initialOptions[0]?.id || ""));
+  const [selectedId, setSelectedId] = useState(value ?? (placeholder ? "" : initialOptions[0]?.id || ""));
   const [loadedOptions, setLoadedOptions] = useState<SearchableOption[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState("");
@@ -56,7 +56,7 @@ export function SearchableCombobox({
   const requestRef = useRef(0);
   const searchTimerRef = useRef<number | null>(null);
   const listboxId = `${id}-listbox`;
-  const currentSelectedId = value || selectedId;
+  const currentSelectedId = value !== undefined ? value : selectedId;
   const options = useMemo(() => (loadedOptions ?? initialOptions).slice(0, 20), [initialOptions, loadedOptions]);
   const allOptions = useMemo(() => mergeOptions(initialOptions, loadedOptions ?? []), [initialOptions, loadedOptions]);
   const selectedOption = allOptions.find((option) => option.id === currentSelectedId);
