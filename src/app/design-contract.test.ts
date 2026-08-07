@@ -290,6 +290,10 @@ describe("Zplit design contract", () => {
     expect(journeySource).toContain('className="journey-scene__main"');
     expect(journeySource).toContain('className="journey-scene__summary"');
     expect(journeySource).toContain('data-expense={expense.description}');
+    expect(journeySource).toContain('data-layout={showExpenses ? "expanded" : "collapsed"}');
+    expect(journeySource).toContain('data-layout={showShares ? "expanded" : "collapsed"}');
+    expect(journeySource).toContain('data-layout={showRepayment ? "expanded" : "collapsed"}');
+    expect(journeySource).toContain('data-layout={showBalances ? "expanded" : "collapsed"}');
     expect(journeySource).not.toContain("journey-frame__intro");
     expect(publicSource).toMatch(/\.product-journey\s*\{[^}]*grid-column:\s*1 \/ -1;/);
     expect(publicSource).toContain(".journey-scene__section-content");
@@ -300,6 +304,15 @@ describe("Zplit design contract", () => {
     expect(publicSource).not.toMatch(/\.journey-sticky--pinned\s+\.journey-(?:stage|frame|panel|scene__body)/);
     expect(publicSource).not.toContain("max-height: 900px");
     expect(publicSource).not.toContain("max-height: 820px");
+    expect(publicSource).not.toContain("max-height: 60rem");
+    expect(publicSource).not.toContain("min-height: 30rem");
+    expect(publicSource).toMatch(/\.journey-scene__section\s*\{[^}]*grid-template-rows:\s*0fr;/);
+    expect(publicSource).toMatch(/\.journey-scene__section\[data-visible="true"\]\s*\{[^}]*grid-template-rows:\s*1fr;/);
+    expect(publicSource).toMatch(/\.journey-expense-row__shares\s*\{[^}]*grid-template-rows:\s*0fr;/);
+    expect(publicSource).toMatch(/\.journey-allocation\s*\{[^}]*grid-template-rows:\s*0fr;/);
+    expect(publicSource).toContain(".journey-scene__section-reveal");
+    expect(publicSource).toContain(".journey-expense-row__shares-reveal");
+    expect(publicSource).toContain(".journey-allocation__content");
     for (const selector of [".journey-frame", ".journey-frame__body", ".journey-panel", ".journey-scene__body", ".journey-scene__section", ".journey-scene__section-content"]) {
       expect(cssRuleBody(publicSource, selector)).not.toMatch(/overflow(?:-y)?:\s*(?:auto|hidden)/);
     }

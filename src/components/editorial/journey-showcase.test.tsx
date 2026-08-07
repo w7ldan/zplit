@@ -39,16 +39,25 @@ describe("JourneyShowcase", () => {
     expect(scene.querySelectorAll(".journey-scene__body > *")).toHaveLength(2);
     expect(scene.querySelector(".journey-scene__main")).toBeInTheDocument();
     expect(scene.querySelector(".journey-scene__summary")).toBeInTheDocument();
-    expect(scene.querySelector(".journey-scene__body > .journey-scene__expenses")).not.toBeInTheDocument();
-    expect(scene.querySelector(".journey-scene__body > .journey-scene__repayment")).not.toBeInTheDocument();
-    expect(scene.querySelector(".journey-scene__body > .journey-scene__balances")).not.toBeInTheDocument();
+    expect(scene.querySelector('[data-expense="Dinner"]')).toBeInTheDocument();
+    expect(scene.querySelector('[data-expense="Taxi"]')).toBeInTheDocument();
     expect(screen.getByText("Bandung day out", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Sunday, 12 April 2026", { exact: true })).toBeInTheDocument();
     expect(within(scene.querySelector(".journey-scene__outing")!).getByText("None yet", { exact: true })).toBeInTheDocument();
     expect(sceneSection("expenses")).toHaveAttribute("data-visible", "false");
+    expect(sceneSection("expenses")).toHaveAttribute("data-layout", "collapsed");
+    expect(sceneSection("expenses").querySelectorAll('.journey-expense-row__shares[data-layout="collapsed"]')).toHaveLength(2);
+    expect(sceneSection("expenses").querySelector(".journey-allocation")).toHaveAttribute("data-layout", "collapsed");
     expect(sceneSection("repayment")).toHaveAttribute("aria-hidden", "true");
+    expect(sceneSection("repayment")).toHaveAttribute("data-layout", "collapsed");
     expect(sceneSection("repayment").querySelector(".journey-repayment__allocation")).toHaveAttribute("data-progress", "zero");
     expect(sceneSection("repayment").querySelector("[role=progressbar]")).toHaveAttribute("aria-valuenow", "0");
+    expect(sceneSection("balances")).toHaveAttribute("aria-hidden", "true");
+    expect(sceneSection("balances")).toHaveAttribute("data-layout", "collapsed");
+    expect(scene.querySelectorAll("[data-summary-slot]")).toHaveLength(3);
+    expect(scene.querySelector('[data-summary-slot="totals"]')).toBeInTheDocument();
+    expect(scene.querySelector('[data-summary-slot="transaction"]')).toBe(sceneSection("repayment"));
+    expect(scene.querySelector('[data-summary-slot="balances"]')).toBe(sceneSection("balances"));
   });
 
   it("progressively reveals the same expenses, shares, repayment, and balances in both directions", () => {
@@ -66,6 +75,9 @@ describe("JourneyShowcase", () => {
     expect(scene.querySelector('[data-expense="Taxi"]')).toBe(taxi);
     expect(scene).toHaveAttribute("data-journey-step", "1");
     expect(sceneSection("expenses")).toHaveAttribute("data-visible", "true");
+    expect(sceneSection("expenses")).toHaveAttribute("data-layout", "expanded");
+    expect(sceneSection("expenses").querySelectorAll('.journey-expense-row__shares[data-layout="collapsed"]')).toHaveLength(2);
+    expect(sceneSection("expenses").querySelector(".journey-allocation")).toHaveAttribute("data-layout", "collapsed");
     expect(within(sceneSection("expenses")).getByText("Dinner", { exact: true })).toBeInTheDocument();
     expect(within(sceneSection("expenses")).getByText("Taxi", { exact: true })).toBeInTheDocument();
     expect(within(sceneSection("expenses")).getByText("Rp 360.000", { exact: true })).toBeInTheDocument();
@@ -75,6 +87,8 @@ describe("JourneyShowcase", () => {
     expect(sceneSection("expenses")).toHaveAttribute("data-visible", "true");
     expect(sceneSection("expenses").querySelectorAll(".journey-expense-row")).toHaveLength(2);
     expect(sceneSection("expenses").querySelectorAll(".journey-expense-row__shares[data-visible=\"true\"]")).toHaveLength(2);
+    expect(sceneSection("expenses").querySelectorAll('.journey-expense-row__shares[data-layout="expanded"]')).toHaveLength(2);
+    expect(sceneSection("expenses").querySelector(".journey-allocation")).toHaveAttribute("data-layout", "expanded");
     expect(dinner.querySelector(".journey-expense-row__shares")).toBe(dinnerShares);
     expect(taxi.querySelector(".journey-expense-row__shares")).toBe(taxiShares);
     expect(within(scene.querySelector(".journey-scene__summary")!).getByText("Assigned to friends", { exact: true })).toBeInTheDocument();
@@ -89,6 +103,7 @@ describe("JourneyShowcase", () => {
     expect(scene.querySelector('[data-expense="Dinner"]')).toBe(dinner);
     expect(scene.querySelector('[data-expense="Taxi"]')).toBe(taxi);
     expect(sceneSection("repayment")).toHaveAttribute("data-visible", "true");
+    expect(sceneSection("repayment")).toHaveAttribute("data-layout", "expanded");
     expect(dinner.querySelector(".journey-expense-row__shares")).toBe(dinnerShares);
     expect(taxi.querySelector(".journey-expense-row__shares")).toBe(taxiShares);
     expect(within(sceneSection("repayment")).getByText("Rani repayment", { exact: true })).toBeInTheDocument();
@@ -107,6 +122,7 @@ describe("JourneyShowcase", () => {
     expect(scene.querySelector('[data-expense="Dinner"]')).toBe(dinner);
     expect(scene.querySelector('[data-expense="Taxi"]')).toBe(taxi);
     expect(sceneSection("balances")).toHaveAttribute("data-visible", "true");
+    expect(sceneSection("balances")).toHaveAttribute("data-layout", "expanded");
     expect(screen.getByText("SETTLED", { exact: true })).toBeInTheDocument();
     expect(within(sceneSection("balances")).getByText("Dimas", { exact: true })).toBeInTheDocument();
     expect(screen.getAllByText("Rp 42.500", { exact: true }).length).toBeGreaterThan(0);
@@ -117,11 +133,26 @@ describe("JourneyShowcase", () => {
     expect(scene).toHaveAttribute("data-journey-step", "2");
     expect(sceneSection("repayment")).toHaveAttribute("aria-hidden", "true");
     expect(sceneSection("balances")).toHaveAttribute("aria-hidden", "true");
+    expect(sceneSection("repayment")).toHaveAttribute("data-layout", "collapsed");
+    expect(sceneSection("balances")).toHaveAttribute("data-layout", "collapsed");
     expect(within(sceneSection("expenses")).getAllByText("Outstanding · not covered", { exact: true })).toHaveLength(3);
     expect(within(sceneSection("expenses")).queryByText("Covered by repayment", { exact: true })).not.toBeInTheDocument();
     expect(sceneSection("repayment").querySelector(".journey-repayment__allocation")).toHaveAttribute("data-progress", "zero");
     expect(sceneSection("repayment").querySelector("[role=progressbar]")).toHaveAttribute("aria-valuenow", "0");
     expect(scene.querySelectorAll(".journey-scene__body > *")).toHaveLength(2);
+  });
+
+  it("keeps future mobile regions collapsed until their step", () => {
+    vi.stubGlobal("matchMedia", mediaQuery({ tall: true }));
+    render(<JourneyShowcase />);
+    expect(sceneSection("expenses")).toHaveAttribute("data-layout", "collapsed");
+    expect(sceneSection("repayment")).toHaveAttribute("data-layout", "collapsed");
+    expect(sceneSection("balances")).toHaveAttribute("data-layout", "collapsed");
+
+    fireEvent.click(screen.getByRole("tab", { name: /Friend shares/ }));
+    expect(sceneSection("expenses")).toHaveAttribute("data-layout", "expanded");
+    expect(sceneSection("repayment")).toHaveAttribute("data-layout", "collapsed");
+    expect(sceneSection("balances")).toHaveAttribute("data-layout", "collapsed");
   });
 
   it("maps scroll progress, resize reconciliation, and tab selection without replacing the scene", () => {
@@ -139,6 +170,8 @@ describe("JourneyShowcase", () => {
     Object.defineProperty(stage, "offsetHeight", { configurable: true, value: 600 });
     Object.defineProperty(runway, "offsetHeight", { configurable: true, value: 3000 });
     vi.spyOn(runway, "getBoundingClientRect").mockImplementation(() => ({ top: 100 - window.scrollY } as DOMRect));
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(stage).toHaveClass("journey-sticky--pinned");
 
     for (const step of [0, 1, 2, 3, 4]) {
       setScrollY(step * 600);
@@ -202,6 +235,43 @@ describe("JourneyShowcase", () => {
 
     act(() => window.dispatchEvent(new Event("resize")));
     expect(stage).not.toHaveClass("journey-sticky--pinned");
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: originalInnerHeight });
+  });
+
+  it("re-enables pinned mode after a short viewport and clears its runway height", () => {
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const originalInnerHeight = window.innerHeight;
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 900 });
+    setScrollY(0);
+    render(<JourneyShowcase />);
+
+    const scene = document.querySelector(".journey-panel")!;
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    Object.defineProperty(stage, "offsetHeight", { configurable: true, value: 600 });
+    Object.defineProperty(runway, "offsetHeight", { configurable: true, value: 3000 });
+    vi.spyOn(runway, "getBoundingClientRect").mockImplementation(() => ({ top: 100 - window.scrollY } as DOMRect));
+
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(stage).toHaveClass("journey-sticky--pinned");
+    expect(runway.style.height).not.toBe("");
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 500 });
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(stage).not.toHaveClass("journey-sticky--pinned");
+    expect(runway.style.height).toBe("");
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 900 });
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(stage).toHaveClass("journey-sticky--pinned");
+
+    setScrollY(1300);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(scene).toHaveAttribute("data-journey-step", "2");
     Object.defineProperty(window, "innerHeight", { configurable: true, value: originalInnerHeight });
   });
 
