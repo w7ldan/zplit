@@ -1705,21 +1705,6 @@
     column-gap: 1rem;
   }
 
-  .site-header {
-    min-height: 0;
-    row-gap: 1.25rem;
-  }
-
-  .site-header__brand,
-  .site-header__nav {
-    grid-column: 1 / -1;
-  }
-
-  .site-header__nav {
-    justify-content: space-between;
-    gap: 0.75rem;
-  }
-
   .hero {
     min-height: auto;
     padding-block: 3rem 4.5rem;
@@ -1832,11 +1817,6 @@
 
   .footer__meta {
     line-height: 1.6;
-  }
-
-  .site-header__access {
-    padding-inline: 0;
-    background: transparent;
   }
 
   .access-page__field,

@@ -344,6 +344,13 @@ describe("Zplit design contract", () => {
     expect(css).toMatch(/\.action-link--primary:hover,[\s\S]*?\.action-link--primary:focus-visible\s*\{[\s\S]*?background: var\(--pastel-blue\);[\s\S]*?color: var\(--ink\);/);
   });
 
+  it("keeps public landing header ownership out of authenticated shell CSS", () => {
+    expect(authenticatedShellSource).not.toContain(".site-header");
+    expect(authenticatedShellSource).not.toContain(".public-home");
+    expect(publicSource).toContain(".public-home .site-header__access");
+    expect(publicSource).toContain(".public-home .site-header.header-shell__panel--detached");
+  });
+
   it("keeps the public mobile header grid in the public fragment", () => {
     expect(publicSource).toMatch(/@media \(max-width: 767px\)\s*\{\s*\.public-home \.site-header\s*\{[^}]*display: grid;[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
   });

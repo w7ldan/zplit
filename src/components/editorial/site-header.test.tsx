@@ -14,6 +14,13 @@ describe("SiteHeader", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  it("renders the public access action with its primary treatment", () => {
+    render(<SiteHeader />);
+    const accessLink = screen.getByRole("link", { name: "Open Zplit" });
+    expect(accessLink).toHaveAttribute("href", "/app");
+    expect(accessLink).toHaveClass("action-link", "action-link--primary", "site-header__access");
+  });
+
   it("detaches after the shared scroll threshold while preserving navigation", () => {
     render(<SiteHeader />);
     const header = screen.getByRole("banner", { name: "Site header" });
