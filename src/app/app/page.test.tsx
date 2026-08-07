@@ -107,6 +107,8 @@ describe("/app overview", () => {
     expect(screen.getByText("No expenses or repayments yet.")).toBeInTheDocument();
     expect(screen.getByText("No balances yet.")).toBeInTheDocument();
     expect(screen.getByText("Balances appear after assigning friends to an expense.")).toBeInTheDocument();
+    expect(screen.getByText("All received money is applied to shares.")).toBeInTheDocument();
+    expect(screen.queryByText("All received money is assigned.")).not.toBeInTheDocument();
     expect(repository.listRecentActivity).toHaveBeenCalledExactlyOnceWith({ limit: 6 });
   });
 

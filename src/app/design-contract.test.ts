@@ -172,6 +172,18 @@ describe("Zplit design contract", () => {
       cssRuleBody(css, ".expense-share-editor__clarity, .repayment-allocation-editor__clarity"),
     ].join("\n");
     expect(financialClarityCss).not.toMatch(/border-radius|background|box-shadow|\b(?:width|min-width):/);
+
+    const mobileFinancialClarityRule = authenticatedShellSource.match(
+      /@media \(max-width: 767px\) \{\s*(\.overview-ledger-clarity__relations > section\s*\{[^{}]*\}\s*\.overview-ledger-clarity dl\s*\{[^{}]*\}\s*\.overview-ledger-clarity dd\s*\{[^{}]*\})\s*\}/,
+    )?.[1] ?? "";
+    expect(mobileFinancialClarityRule).toContain("grid-template-columns: 1fr;");
+    expect(mobileFinancialClarityRule).toContain("grid-column: 1;");
+    expect(mobileFinancialClarityRule).toContain("white-space: normal;");
+    expect(mobileFinancialClarityRule).toContain("overflow-wrap: anywhere;");
+    expect(mobileFinancialClarityRule).not.toMatch(/overflow-x|\b(?:width|min-width|max-width):/);
+    expect(cssRuleBody(css, ".overview-ledger-clarity__relations > section")).toContain("grid-template-columns: minmax(0, 0.35fr) minmax(0, 1.65fr);");
+    expect(cssRuleBody(css, ".overview-ledger-clarity dl")).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));");
+    expect(lateOverridesSource).not.toContain("overview-ledger-clarity");
   });
 
   it("keeps the authenticated lifecycle and CSS syntax native and bounded", () => {

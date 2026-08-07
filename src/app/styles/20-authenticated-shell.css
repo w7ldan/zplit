@@ -2580,6 +2580,25 @@
   white-space: nowrap;
 }
 
+@media (max-width: 767px) {
+  .overview-ledger-clarity__relations > section {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    align-items: start;
+  }
+
+  .overview-ledger-clarity dl {
+    grid-column: 1;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .overview-ledger-clarity dd {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
 .app-page__columns {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 0.9fr);
