@@ -260,8 +260,8 @@ describe("Zplit design contract", () => {
     expect(cssRuleBody(css, "html")).toContain("scrollbar-gutter: stable;");
     expect(css).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)");
     expect(css).toContain(".journey-sticky--pinned");
-    expect(css).toContain("height: calc(100svh - var(--journey-sticky-top) - var(--journey-bottom-clearance))");
-    expect(css).toContain(".journey-sticky--pinned .journey-stage");
+    expect(css).not.toContain("height: calc(100svh - var(--journey-sticky-top) - var(--journey-bottom-clearance))");
+    expect(css).toContain(".journey-scene__body");
     expect(css).toContain(":is(input, select, textarea):focus-visible");
     expect(css).not.toMatch(/\.friend-form__field[^{}]*:focus(?!-)/);
     expect(css).not.toMatch(/\.repayment-form__field[^{}]*:focus(?!-)/);
@@ -275,13 +275,36 @@ describe("Zplit design contract", () => {
   });
 
   it("keeps the persistent journey readable without a clipping viewport", () => {
+    const editorialHeading = journeySource.indexOf('className="section-heading"');
+    const editorialIntro = journeySource.indexOf('className="section-intro"');
+    const runwayBoundary = journeySource.indexOf('className="journey-runway"');
+    const interactiveJourney = journeySource.indexOf('className="product-journey"');
+
+    expect(editorialHeading).toBeGreaterThanOrEqual(0);
+    expect(editorialIntro).toBeGreaterThan(editorialHeading);
+    expect(runwayBoundary).toBeGreaterThan(editorialIntro);
+    expect(interactiveJourney).toBeGreaterThan(runwayBoundary);
     expect(journeySource).toContain('className="journey-panel journey-panel--active"');
+    expect(journeySource).toContain('data-journey-layout="persistent-ledger"');
     expect(journeySource).toContain('className="journey-scene__body" data-repayment-active={showRepayment}');
+    expect(journeySource).toContain('className="journey-scene__main"');
+    expect(journeySource).toContain('className="journey-scene__summary"');
+    expect(journeySource).toContain('data-expense={expense.description}');
+    expect(journeySource).not.toContain("journey-frame__intro");
+    expect(publicSource).toMatch(/\.product-journey\s*\{[^}]*grid-column:\s*1 \/ -1;/);
     expect(publicSource).toContain(".journey-scene__section-content");
-    expect(publicSource).not.toMatch(/\.journey-sticky--pinned \.journey-frame__body\s*\{[^}]*overflow:\s*hidden/);
-    expect(publicSource).toMatch(/@media \(min-width: 960px\) and \(max-height: 820px\)/);
-    expect(publicSource).toMatch(/@media \(min-width: 960px\) and \(max-height: 760px\)[\s\S]*?\.journey-sticky--pinned \.journey-stage[\s\S]*?height: auto;/);
-    expect(publicSource).toContain(".journey-sticky--pinned .journey-scene__body");
+    expect(publicSource).toMatch(/\.journey-scene__body\s*\{[^}]*grid-template-columns:\s*minmax\(0, 7fr\) minmax\(0, 5fr\);/);
+    expect(publicSource).not.toMatch(/\.journey-scene__body\s*\{[^}]*repeat\(3,/);
+    expect(publicSource).not.toMatch(/\.journey-panel\s*\{[^}]*grid-template-columns/);
+    expect(publicSource).not.toMatch(/\.journey-sticky--pinned[^{}]*\{[^}]*height:/);
+    expect(publicSource).not.toMatch(/\.journey-sticky--pinned\s+\.journey-(?:stage|frame|panel|scene__body)/);
+    expect(publicSource).not.toContain("max-height: 900px");
+    expect(publicSource).not.toContain("max-height: 820px");
+    for (const selector of [".journey-frame", ".journey-frame__body", ".journey-panel", ".journey-scene__body", ".journey-scene__section", ".journey-scene__section-content"]) {
+      expect(cssRuleBody(publicSource, selector)).not.toMatch(/overflow(?:-y)?:\s*(?:auto|hidden)/);
+    }
+    expect(publicSource).toMatch(/@media \(min-width: 960px\) and \(min-height: 720px\)[\s\S]*?\.journey-sticky--pinned\s*\{[^}]*position:\s*sticky;/);
+    expect(publicSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.journey-scene__body\s*\{[^}]*grid-template-columns:\s*1fr;/);
     expect(publicSource).toContain("transform: scaleX(var(--allocation, 0))");
     expect(publicSource).toContain(".journey-share-detail--covered");
     expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.journey-share-detail--covered/);
