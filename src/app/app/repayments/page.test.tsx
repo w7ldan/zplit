@@ -88,22 +88,42 @@ describe("/app/repayments", () => {
 
   it("preselects an owner friend for returned and manually opened repayment entry", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [] }) });
+    const listRepaymentRecords = vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords, searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [] }) });
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id }) }));
     expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveValue(activeFriend.name);
+    expect(listRepaymentRecords).toHaveBeenCalledWith({ q: undefined, friendId: activeFriend.id, month: undefined, allocation: undefined, page: undefined, timezoneOffsetMinutes: undefined });
   });
 
   it("does not preselect malformed or foreign friends", async () => {
     for (const friendId of ["not-a-uuid", "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"]) {
       mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+      const listRepaymentRecords = vi.fn().mockResolvedValue({ items: [repayment], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 });
       const getContext = vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [] });
-      mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: getContext });
+      mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords, searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: getContext });
       const view = render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId }) }));
       expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveValue(activeFriend.name);
       expect(getContext).toHaveBeenCalledWith(activeFriend.id, true);
+      expect(listRepaymentRecords).toHaveBeenCalledWith({ q: undefined, friendId: undefined, month: undefined, allocation: undefined, page: undefined, timezoneOffsetMinutes: undefined });
+      expect(screen.getByRole("status")).toHaveTextContent("1 repayment found.");
       expect(screen.queryByText("Foreign friend")).not.toBeInTheDocument();
       view.unmount();
     }
+  });
+
+  it("does not preserve an invalid friend context in filter or pagination state", async () => {
+    const invalidFriendId = "33333333-3333-4333-8333-333333333333";
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    const listRepaymentRecords = vi.fn().mockResolvedValue({ items: [repayment], page: 1, pageSize: 20, totalItems: 21, totalPages: 2 });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords, searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [] }) });
+
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: invalidFriendId, q: "Cash", page: "1", task: "open", source: "ledger" }) }));
+
+    expect(screen.getByRole("link", { name: "Add repayment" })).toHaveAttribute("href", "/app/repayments?create=1&q=Cash&page=1&task=open&source=ledger");
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/app/repayments?create=1&task=open&source=ledger");
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app/repayments?create=1&q=Cash&page=2&task=open&source=ledger#record-list");
+    expect(screen.getByText("Filters", { selector: "summary" })).toBeInTheDocument();
+    expect(screen.queryByText(invalidFriendId)).not.toBeInTheDocument();
   });
 
   it("preserves retrieval context when opening Add repayment", async () => {
