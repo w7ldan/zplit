@@ -60,9 +60,11 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
   const [selectedFriendId, setSelectedFriendId] = useState(initialValues.friendId || friendOptions[0]?.id || "");
   const [selectedFriend, setSelectedFriend] = useState<SearchableOption | undefined>(() => friendOptions.find((friend) => friend.id === initialValues.friendId) ?? friendOptions[0]);
   const [friendContext, setFriendContext] = useState(initialFriendContext);
+  const [loadingFriendContext, setLoadingFriendContext] = useState(false);
   const contextRequestRef = useRef(0);
   const [draftAllocations, setDraftAllocations] = useState<Record<string, string>>(() => Object.fromEntries((state.allocations ?? []).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
   const formRef = useRef<HTMLFormElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
   const allocationDisclosureRef = useRef<HTMLDetailsElement>(null);
   const detailsDisclosureRef = useRef<HTMLDetailsElement>(null);
@@ -70,6 +72,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
   const friendActionStateRef = useRef(state);
   const initializedRef = useRef(false);
   const selectedShares = friendContext?.option.id === selectedFriendId ? friendContext.openExpenseShares : openExpenseSharesByFriend[selectedFriendId] ?? [];
+  const selectedContext = friendContext?.option.id === selectedFriendId ? friendContext : undefined;
   const friendOptionsWithSelection = selectedFriend && !friendOptions.some((friend) => friend.id === selectedFriend.id) ? [...friendOptions, selectedFriend] : friendOptions;
   const allocationDisclosureOpen = (state.allocations ?? []).some((allocation) => allocation.amountRupiah.trim() !== "") || Object.keys(state.allocationFieldErrors ?? {}).length > 0;
   const detailsDisclosureOpen = Boolean(state.values.paymentMethod || state.values.notes || state.fieldErrors.paymentMethod || state.fieldErrors.notes);
@@ -77,8 +80,12 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
   const refreshFriendContext = useCallback(async (friendId: string) => {
     if (!loadFriendContext) return;
     const request = ++contextRequestRef.current;
-    const context = await loadFriendContext(friendId, mode === "create");
-    if (request === contextRequestRef.current) setFriendContext(context);
+    try {
+      const context = await loadFriendContext(friendId, mode === "create");
+      if (request === contextRequestRef.current) setFriendContext(context);
+    } finally {
+      if (request === contextRequestRef.current) setLoadingFriendContext(false);
+    }
   }, [loadFriendContext, mode]);
 
   useEffect(() => {
@@ -91,13 +98,13 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
 
   useEffect(() => {
     if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = new Date().getTimezoneOffset().toString();
-    if (!initializedRef.current && initialPaidAtUtc && !initialValues.paidAtLocal) {
+    if (!initializedRef.current && initialPaidAtUtc && (mode === "edit" || !initialValues.paidAtLocal)) {
       initializedRef.current = true;
       const localValue = localValueFromUtc(initialPaidAtUtc);
       const paidAtInput = formRef.current?.elements.namedItem("paidAtLocal");
       if (paidAtInput instanceof HTMLInputElement && localValue) paidAtInput.value = localValue;
     }
-  }, [initialPaidAtUtc, initialValues.paidAtLocal]);
+  }, [initialPaidAtUtc, initialValues.paidAtLocal, mode]);
 
   useEffect(() => {
     if (state === previousActionStateRef.current) return;
@@ -120,14 +127,17 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
     >
       <div className="repayment-form__field">
         <label id="repayment-friend-label" htmlFor="repayment-friend">Friend</label>
-        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setDraftAllocations({}); void refreshFriendContext(friend.id); }} />
+        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setDraftAllocations({}); if (loadFriendContext) { setLoadingFriendContext(true); void refreshFriendContext(friend.id); } }} />
         <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"}: {formatRupiah(friendContext?.option.id === selectedFriendId ? friendContext.outstandingAmount : outstandingByFriend[selectedFriendId] ?? 0)}</p>
         {friendLocked ? <p className="repayment-form__help">The friend is fixed while this repayment has allocations.</p> : null}
         <FieldError id="repayment-friend-error" message={state.fieldErrors.friendId} />
       </div>
       <div className="repayment-form__field">
         <label htmlFor="repayment-amount">Amount in rupiah</label>
-        <input key={state.values.amountRupiah} id="repayment-amount" name="amountRupiah" type="text" inputMode="numeric" required defaultValue={state.values.amountRupiah} aria-invalid={Boolean(state.fieldErrors.amountRupiah)} aria-describedby="repayment-amount-help repayment-amount-error" autoComplete="off" />
+        <div className="repayment-form__amount-row">
+          <input ref={amountRef} key={state.values.amountRupiah} id="repayment-amount" name="amountRupiah" type="text" inputMode="numeric" required defaultValue={state.values.amountRupiah} aria-invalid={Boolean(state.fieldErrors.amountRupiah)} aria-describedby="repayment-amount-help repayment-amount-error" autoComplete="off" />
+          {mode === "create" && !loadingFriendContext && selectedContext && selectedContext.outstandingAmount > 0 ? <button className="action-link action-link--quiet repayment-form__full-outstanding" type="button" onClick={() => { if (!selectedContext) return; if (amountRef.current) amountRef.current.value = selectedContext.outstandingAmount.toString(); amountRef.current?.focus(); }}>Use full outstanding</button> : null}
+        </div>
         <p className="repayment-form__help" id="repayment-amount-help">Whole rupiah only. Examples: 84000 or 84.000.</p>
         <FieldError id="repayment-amount-error" message={state.fieldErrors.amountRupiah} />
       </div>

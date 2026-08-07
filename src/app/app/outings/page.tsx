@@ -31,6 +31,7 @@ export default async function OutingsPage({ searchParams = Promise.resolve({}) }
   const session = await requireSession();
   const created = first(params?.created);
   const openCreate = first(params?.create) === "1";
+  const initialOccurredAtUtc = openCreate ? new Date().toISOString() : undefined;
   const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params?.tz));
   const filters = normalizeOutingFilters({ q: first(params?.q), month: first(params?.month), page: first(params?.page) });
   const repository = createLedgerRepository(getDatabase(), session.user.id);
@@ -63,7 +64,7 @@ export default async function OutingsPage({ searchParams = Promise.resolve({}) }
           <RecordPagination page={outingPage.page} pageSize={outingPage.pageSize} totalItems={outingPage.totalItems} totalPages={outingPage.totalPages} href={listHref} />
         </div>
       </div>
-      {openCreate ? <TaskPanel open title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create"><OutingForm action={createOutingAction.bind(null, returnTo)} /></TaskPanel> : null}
+      {openCreate ? <TaskPanel open title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create"><OutingForm action={createOutingAction.bind(null, returnTo)} initialOccurredAtUtc={initialOccurredAtUtc} /></TaskPanel> : null}
     </section>
   );
 }

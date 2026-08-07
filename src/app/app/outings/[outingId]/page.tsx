@@ -39,7 +39,10 @@ export default async function OutingRecordPage({ params, searchParams }: { param
         <div className="outing-record__intro">
           <p className="technical-label">Outing · editable record</p>
           <h1>{outing.title}</h1>
-          <Link className="outing-record__back" href="/app/outings">← Back to outings</Link>
+          <div className="outing-record__actions">
+            <Link className="action-link action-link--quiet" href={`/app/expenses?create=1&outing=${outing.id}`}>Add expense</Link>
+            <Link className="outing-record__back" href="/app/outings">← Back to outings</Link>
+          </div>
         </div>
         {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Outing changes saved." /> : null}
         <div className="outing-record__meta" aria-label="Outing metadata">

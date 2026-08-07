@@ -190,6 +190,19 @@
   font-weight: 700;
 }
 
+.friend-record__actions,
+.outing-record__actions {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 0.35rem;
+}
+
+.friend-record__actions .friend-record__back,
+.outing-record__actions .outing-record__back {
+  margin-top: 0;
+}
+
 .friend-record__meta,
 .outing-record__meta,
 .expense-record__meta,
@@ -411,6 +424,27 @@
   background: color-mix(in srgb, var(--pastel-blue) 38%, var(--surface));
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.repayment-form__amount-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 0.5rem;
+}
+
+.repayment-form__amount-row > input {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+}
+
+.repayment-form__full-outstanding {
+  flex: 0 0 auto;
+  min-height: 2.75rem;
+  padding-inline: 0.7rem;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .expense-record__shares,

@@ -94,11 +94,14 @@ describe("/app/repayments", () => {
   });
 
   it("does not preselect malformed or foreign friends", async () => {
-    for (const friendId of ["not-a-uuid", "33333333-3333-4333-8333-333333333333"]) {
+    for (const friendId of ["not-a-uuid", "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"]) {
       mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [] }) });
+      const getContext = vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [] });
+      mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: getContext });
       const view = render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId }) }));
       expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveValue(activeFriend.name);
+      expect(getContext).toHaveBeenCalledWith(activeFriend.id, true);
+      expect(screen.queryByText("Foreign friend")).not.toBeInTheDocument();
       view.unmount();
     }
   });

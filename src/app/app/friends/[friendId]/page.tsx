@@ -42,7 +42,10 @@ export default async function FriendRecordPage({ params, searchParams }: { param
         <div className="friend-record__intro">
           <p className="technical-label">Friend · editable record</p>
           <h1>{friend.name}</h1>
-          <Link className="friend-record__back" href="/app/friends">← Back to friends</Link>
+          <div className="friend-record__actions">
+            <Link className="action-link action-link--quiet" href={`/app/repayments?create=1&friendId=${friend.id}`}>Record repayment</Link>
+            <Link className="friend-record__back" href="/app/friends">← Back to friends</Link>
+          </div>
         </div>
         {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Friend changes saved." /> : null}
         <div className="friend-record__meta" aria-label="Friend metadata">

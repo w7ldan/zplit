@@ -46,13 +46,13 @@ export function OutingForm({ action, initialValues = emptyValues, initialOccurre
   useEffect(() => {
     const offset = new Date().getTimezoneOffset().toString();
     if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = offset;
-    if (!initializedRef.current && initialOccurredAtUtc) {
+    if (!initializedRef.current && initialOccurredAtUtc && (mode === "edit" || !initialValues.occurredAtLocal)) {
       initializedRef.current = true;
       const localValue = localValueFromUtc(initialOccurredAtUtc);
       const occurredAtInput = formRef.current?.elements.namedItem("occurredAtLocal");
       if (occurredAtInput instanceof HTMLInputElement && localValue) occurredAtInput.value = localValue;
     }
-  }, [initialOccurredAtUtc]);
+  }, [initialOccurredAtUtc, initialValues.occurredAtLocal, mode]);
 
   function setCurrentTimezoneOffset() {
     if (timezoneOffsetRef.current) timezoneOffsetRef.current.value = new Date().getTimezoneOffset().toString();

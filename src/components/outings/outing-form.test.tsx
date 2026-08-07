@@ -9,6 +9,17 @@ const initialState = {
 };
 
 describe("OutingForm", () => {
+  it("defaults a pristine create form to the browser-local current minute", async () => {
+    const view = render(<OutingForm action={vi.fn().mockResolvedValue(initialState)} initialOccurredAtUtc="2026-08-07T12:34:56.789Z" />);
+
+    const date = new Date("2026-08-07T12:34:56.789Z");
+    const pad = (value: number) => value.toString().padStart(2, "0");
+    const expected = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    await waitFor(() => expect(screen.getByLabelText("Date and time")).toHaveValue(expected));
+    view.rerender(<OutingForm action={vi.fn().mockResolvedValue(initialState)} initialOccurredAtUtc="2026-08-07T12:34:56.789Z" />);
+    expect(screen.getByLabelText("Date and time")).toHaveValue(expected);
+  });
+
   it("renders labels, datetime-local input, connected errors, and timezone offset", async () => {
     const { container } = render(<OutingForm action={vi.fn().mockResolvedValue(initialState)} />);
 
@@ -36,6 +47,29 @@ describe("OutingForm", () => {
     await waitFor(() => expect(screen.getByLabelText("Title")).toHaveValue("Entered outing"));
     expect(screen.getByLabelText("Date and time")).toHaveAttribute("aria-invalid", "true");
     expect(document.getElementById("outing-occurred-at-error")).toHaveTextContent("Enter a valid date and time.");
+  });
+
+  it("preserves a submitted timestamp after another validation failure", async () => {
+    const action = vi.fn().mockResolvedValue({
+      ...initialState,
+      fieldErrors: { title: "Title is required." },
+      formError: "Please correct the marked fields.",
+      values: { title: "Entered outing", occurredAtLocal: "2026-02-28T10:30", timezoneOffsetMinutes: "-480", notes: "Entered notes" },
+    });
+    render(<OutingForm action={action} />);
+    fireEvent.submit(screen.getByRole("button", { name: "Add outing" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByLabelText("Date and time")).toHaveValue("2026-02-28T10:30"));
+  });
+
+  it("keeps the persisted edit timestamp and does not regenerate it on rerender", async () => {
+    const view = render(<OutingForm action={vi.fn().mockResolvedValue(initialState)} mode="edit" initialOccurredAtUtc="2026-01-02T10:30:45.000Z" initialValues={{ title: "Dinner", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "" }} />);
+    const date = new Date("2026-01-02T10:30:45.000Z");
+    const pad = (value: number) => value.toString().padStart(2, "0");
+    const expected = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    await waitFor(() => expect(screen.getByLabelText("Date and time")).toHaveValue(expected));
+    view.rerender(<OutingForm action={vi.fn().mockResolvedValue(initialState)} mode="edit" initialOccurredAtUtc="2026-01-02T10:30:45.000Z" initialValues={{ title: "Dinner", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "" }} />);
+    expect(screen.getByLabelText("Date and time")).toHaveValue(expected);
   });
 
   it("shows pending text and prevents repeat submission", () => {

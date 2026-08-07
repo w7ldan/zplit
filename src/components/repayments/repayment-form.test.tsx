@@ -23,6 +23,23 @@ const initialState = {
 };
 
 describe("RepaymentForm", () => {
+  it("defaults a pristine create form to the browser-local current minute", async () => {
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} initialPaidAtUtc="2026-08-07T12:34:56.789Z" />);
+
+    const date = new Date("2026-08-07T12:34:56.789Z");
+    const pad = (value: number) => value.toString().padStart(2, "0");
+    const expected = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    await waitFor(() => expect(screen.getByLabelText("Payment date and time")).toHaveValue(expected));
+  });
+
+  it("keeps the persisted repayment timestamp in edit mode", async () => {
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} mode="edit" initialPaidAtUtc="2026-01-02T10:30:45.000Z" initialValues={{ friendId: activeFriend.id, amountRupiah: "64000", paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: "", notes: "" }} />);
+    const date = new Date("2026-01-02T10:30:45.000Z");
+    const pad = (value: number) => value.toString().padStart(2, "0");
+    const expected = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    await waitFor(() => expect(screen.getByLabelText("Payment date and time")).toHaveValue(expected));
+  });
+
   it("renders labelled square fields, active and archived friends, and local date controls", () => {
     const { container } = render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]} searchFriends={vi.fn().mockResolvedValue([])} />);
 
@@ -53,10 +70,69 @@ describe("RepaymentForm", () => {
 
     await waitFor(() => expect(action).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("84.00"));
+    expect(screen.getByLabelText("Payment date and time")).toHaveValue("2026-01-02T10:30");
     expect(screen.getByLabelText("Amount in rupiah")).toHaveAttribute("aria-invalid", "true");
     expect(document.getElementById("repayment-amount-error")).toHaveTextContent("Enter whole rupiah");
     expect(screen.getByRole("alert")).toHaveTextContent("Please correct the marked fields.");
     expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
+  });
+
+  it("fills only the exact outstanding amount, focuses the field, and does not submit or alter the draft", () => {
+    const action = vi.fn().mockResolvedValue(initialState);
+    render(
+      <RepaymentForm
+        action={action}
+        friends={[{ id: activeFriend.id, label: activeFriend.name }]}
+        searchFriends={vi.fn().mockResolvedValue([])}
+        initialValues={{ friendId: activeFriend.id, amountRupiah: "12000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "Cash", notes: "Received" }}
+        initialFriendContext={{ option: { id: activeFriend.id, label: activeFriend.name }, outstandingAmount: 64_000, openExpenseShares: [share] }}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Allocate now"));
+    fireEvent.change(screen.getByLabelText("Allocation for Dinner"), { target: { value: "12000" } });
+    fireEvent.click(screen.getByText("Optional details"));
+    expect(screen.getByLabelText("Payment method")).toHaveValue("Cash");
+    expect(screen.getByLabelText("Notes")).toHaveValue("Received");
+    fireEvent.click(screen.getByRole("button", { name: "Use full outstanding" }));
+
+    expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("64000");
+    expect(document.activeElement).toBe(screen.getByLabelText("Amount in rupiah"));
+    expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("12000");
+    expect(screen.getByLabelText("Payment method")).toHaveValue("Cash");
+    expect(screen.getByLabelText("Notes")).toHaveValue("Received");
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it("does not expose stale context while a friend change is loading or overwrite a manual amount", async () => {
+    let resolveContext: (context: { option: { id: string; label: string }; outstandingAmount: number; openExpenseShares: never[] }) => void = () => {};
+    const loadFriendContext = vi.fn().mockReturnValue(new Promise((resolve) => { resolveContext = resolve; }));
+    render(
+      <RepaymentForm
+        action={vi.fn().mockResolvedValue(initialState)}
+        friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]}
+        searchFriends={vi.fn().mockResolvedValue([])}
+        initialValues={{ friendId: activeFriend.id, amountRupiah: "12000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "", notes: "" }}
+        initialFriendContext={{ option: { id: activeFriend.id, label: activeFriend.name }, outstandingAmount: 64_000, openExpenseShares: [] }}
+        loadFriendContext={loadFriendContext}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Friend"), { target: { value: archivedFriend.id } });
+    expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("12000");
+    expect(screen.queryByRole("button", { name: "Use full outstanding" })).not.toBeInTheDocument();
+    resolveContext({ option: { id: archivedFriend.id, label: archivedFriend.name }, outstandingAmount: 22_000, openExpenseShares: [] });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Use full outstanding" })).toBeInTheDocument());
+    expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("12000");
+  });
+
+  it("hides the full-outstanding shortcut for zero balances and edit forms", () => {
+    const context = { option: { id: activeFriend.id, label: activeFriend.name }, outstandingAmount: 0, openExpenseShares: [] };
+    const view = render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} initialFriendContext={context} />);
+    expect(screen.queryByRole("button", { name: "Use full outstanding" })).not.toBeInTheDocument();
+    view.unmount();
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} mode="edit" initialValues={{ friendId: activeFriend.id, amountRupiah: "64000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "", notes: "" }} initialFriendContext={{ ...context, outstandingAmount: 64_000 }} />);
+    expect(screen.queryByRole("button", { name: "Use full outstanding" })).not.toBeInTheDocument();
   });
 
   it("submits closed disclosure controls in their existing order", async () => {

@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ExpensesPage from "./page";
+import { ToastProvider } from "@/components/feedback/toast";
 
 const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }) }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
@@ -57,11 +58,20 @@ describe("/app/expenses", () => {
   it("preselects an outing inside the creation panel", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
-    render(await ExpensesPage({ searchParams: Promise.resolve({ create: "1", outing: outing.id }) }));
+    render(<ToastProvider>{await ExpensesPage({ searchParams: Promise.resolve({ create: "1", outing: outing.id }) })}</ToastProvider>);
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Amount in rupiah")).toBeInTheDocument();
     expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Outing" })).toHaveValue(outing.title);
+  });
+
+  it("falls back without displaying an invalid outing context", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
+    render(<ToastProvider>{await ExpensesPage({ searchParams: Promise.resolve({ create: "1", outing: "44444444-4444-4444-8444-444444444444" }) })}</ToastProvider>);
+
+    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Outing" })).toHaveValue(outing.title);
+    expect(screen.queryByText("Foreign dinner")).not.toBeInTheDocument();
   });
 
   it("offers a continuation link when Add expense has no outing prerequisite", async () => {

@@ -26,11 +26,12 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
   if (emptyParams.length) redirect(recordHref("/app/repayments", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
   const session = await requireSession();
   const openCreate = first(params?.create) === "1";
+  const initialPaidAtUtc = openCreate ? new Date().toISOString() : undefined;
   const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params?.tz));
   const filters = normalizeRepaymentFilters({ q: first(params?.q), friendId: first(params?.friendId), month: first(params?.month), allocation: first(params?.allocation), page: first(params?.page) });
   const repository = createLedgerRepository(getDatabase(), session.user.id);
   const [repaymentPage, friendRows] = await Promise.all([
-    repository.listRepaymentRecords({ q: first(params?.q), friendId: first(params?.friendId), month: first(params?.month), allocation: first(params?.allocation), page: first(params?.page), timezoneOffsetMinutes }),
+    repository.listRepaymentRecords({ q: first(params?.q), friendId: filters.friendId, month: first(params?.month), allocation: first(params?.allocation), page: first(params?.page), timezoneOffsetMinutes }),
     repository.searchFriends({ selectedId: filters.friendId }),
   ]);
   const friendId = friendRows.some((friend) => friend.id === filters.friendId) ? filters.friendId : undefined;
@@ -76,7 +77,7 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
         </div>
       </div>
       {openCreate ? <TaskPanel open title="Add a repayment" description="Record the money received and keep its eligible shares visible for allocation." triggerId="repayment-create">
-        {friendOptions.length > 0 ? <RepaymentForm action={createRepaymentAction} friends={friendOptions} searchFriends={searchFriendOptions} initialValues={initialFriendId ? { friendId: initialFriendId, amountRupiah: "", paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: "", notes: "" } : undefined} initialFriendContext={formContext} loadFriendContext={loadRepaymentFriendContext} /> : <div className="task-panel__empty"><p>Add a friend before recording money received.</p><Link className="action-link action-link--primary" href={`/app/friends?create=1&returnTo=${encodeURIComponent(repaymentReturnTarget)}`}>Add a friend and continue</Link></div>}
+        {friendOptions.length > 0 ? <RepaymentForm action={createRepaymentAction} friends={friendOptions} searchFriends={searchFriendOptions} initialPaidAtUtc={initialPaidAtUtc} initialValues={initialFriendId ? { friendId: initialFriendId, amountRupiah: "", paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: "", notes: "" } : undefined} initialFriendContext={formContext} loadFriendContext={loadRepaymentFriendContext} /> : <div className="task-panel__empty"><p>Add a friend before recording money received.</p><Link className="action-link action-link--primary" href={`/app/friends?create=1&returnTo=${encodeURIComponent(repaymentReturnTarget)}`}>Add a friend and continue</Link></div>}
       </TaskPanel> : null}
     </section>
   );

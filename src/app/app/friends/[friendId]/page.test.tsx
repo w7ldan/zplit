@@ -49,6 +49,7 @@ describe("friend record", () => {
     expect(screen.getByRole("button", { name: "Archive friend" })).toBeInTheDocument();
     expect(screen.getByText("A private, read-only view")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create balance link" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Record repayment" })).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}`);
     expect(screen.getByRole("link", { name: /Back to friends/ })).toHaveAttribute("href", "/app/friends");
   });
 
