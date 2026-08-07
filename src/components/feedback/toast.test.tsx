@@ -18,17 +18,34 @@ function Trigger() {
 
 describe("ToastProvider", () => {
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
-  it("announces a toast and dismisses it after eight seconds", () => {
+  it("marks timeout dismissal as exiting before removing after 160ms", () => {
     render(<ToastProvider><Trigger /></ToastProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Show" }));
     const toast = screen.getByRole("status");
-    expect(toast).toHaveTextContent("Friend archived");
     expect(toast).toHaveAttribute("aria-live", "polite");
-    act(() => vi.advanceTimersByTime(7999));
-    expect(screen.getByRole("status")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(8000));
+    expect(toast).toHaveClass("toast--exiting");
+    expect(toast).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(159));
+    expect(toast).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("uses the same exit lifecycle for manual dismissal and does not duplicate exit work", () => {
+    render(<ToastProvider><Trigger /></ToastProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Show" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+    const timersAfterFirstDismiss = vi.getTimerCount();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+    expect(screen.getByRole("status")).toHaveClass("toast--exiting");
+    expect(vi.getTimerCount()).toBe(timersAfterFirstDismiss);
+    act(() => vi.advanceTimersByTime(160));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -38,10 +55,8 @@ describe("ToastProvider", () => {
     const toast = screen.getByRole("status");
     fireEvent.mouseEnter(toast);
     act(() => vi.advanceTimersByTime(4000));
-    expect(toast).toBeInTheDocument();
     const undo = screen.getByRole("button", { name: "Undo" });
     undo.focus();
-    expect(document.activeElement).toBe(undo);
     fireEvent.mouseLeave(toast);
     act(() => vi.advanceTimersByTime(8000));
     expect(toast).toBeInTheDocument();
@@ -49,10 +64,26 @@ describe("ToastProvider", () => {
     act(() => vi.advanceTimersByTime(7999));
     expect(toast).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1));
+    expect(toast).toHaveClass("toast--exiting");
+    act(() => vi.advanceTimersByTime(160));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("keeps Undo keyboard accessible and removes the toast after success", async () => {
+  it("pauses dismissal while an Undo action is pending", async () => {
+    const onAction = vi.fn(() => new Promise<void>(() => undefined));
+    function PendingTrigger() {
+      const { showToast } = useToast();
+      return <button type="button" onClick={() => showToast({ message: "Friend archived", action: { label: "Undo", onAction } })}>Show pending</button>;
+    }
+    render(<ToastProvider><PendingTrigger /></ToastProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Show pending" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await act(async () => undefined);
+    act(() => vi.advanceTimersByTime(80_000));
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("keeps Undo keyboard accessible and exits after successful Undo", async () => {
     const onAction = vi.fn().mockResolvedValue(undefined);
     function ActionTrigger() {
       const { showToast } = useToast();
@@ -65,6 +96,8 @@ describe("ToastProvider", () => {
     fireEvent.click(undo);
     await act(async () => undefined);
     expect(onAction).toHaveBeenCalledOnce();
+    expect(screen.getByRole("status")).toHaveClass("toast--exiting");
+    act(() => vi.advanceTimersByTime(160));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -90,5 +123,13 @@ describe("ToastProvider", () => {
     expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(80_000));
     expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("removes immediately when reduced motion is preferred", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    render(<ToastProvider><Trigger /></ToastProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Show" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

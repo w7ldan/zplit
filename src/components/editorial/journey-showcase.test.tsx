@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { JourneyShowcase } from "./journey-showcase";
 
@@ -16,23 +16,69 @@ function mediaQuery({ desktop = false, tall = false, reduced = false } = {}) {
   });
 }
 
+function sceneSection(name: string) {
+  return document.querySelector<HTMLElement>(`.journey-scene__${name}`)!;
+}
+
 describe("JourneyShowcase", () => {
-  it("renders exactly one complete scenario panel without a horizontal rail", () => {
+  it("mounts one persistent scene with the outing identity ready for expenses", () => {
     vi.stubGlobal("matchMedia", mediaQuery());
     render(<JourneyShowcase />);
 
     expect(document.querySelector(".journey-rail")).not.toBeInTheDocument();
     expect(document.querySelectorAll(".journey-panel")).toHaveLength(1);
-    expect(document.querySelectorAll(".journey-panel--active")).toHaveLength(1);
     expect(screen.getByText("Bandung day out", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Sunday, 12 April 2026", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("None yet", { exact: true })).toBeInTheDocument();
-
-    const frame = document.querySelector(".journey-frame")!;
-    expect(frame.getAttribute("style") ?? "").not.toMatch(/overflow-y|overflow: auto|overflow: scroll/);
+    expect(sceneSection("expenses")).toHaveAttribute("data-visible", "false");
+    expect(sceneSection("repayment")).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("maps runway progress deterministically in both directions and scrolls tabs to steps", () => {
+  it("progressively reveals the same expenses, shares, repayment, and balances in both directions", () => {
+    vi.stubGlobal("matchMedia", mediaQuery());
+    render(<JourneyShowcase />);
+    const scene = document.querySelector(".journey-panel")!;
+
+    fireEvent.click(screen.getByRole("tab", { name: /Expenses enter/ }));
+    expect(document.querySelector(".journey-panel")).toBe(scene);
+    expect(scene).toHaveAttribute("data-journey-step", "1");
+    expect(sceneSection("expenses")).toHaveAttribute("data-visible", "true");
+    expect(within(sceneSection("expenses")).getByText("Dinner", { exact: true })).toBeInTheDocument();
+    expect(within(sceneSection("expenses")).getByText("Taxi", { exact: true })).toBeInTheDocument();
+    expect(within(sceneSection("expenses")).getByText("Rp 360.000", { exact: true })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Friend shares/ }));
+    expect(document.querySelector(".journey-panel")).toBe(scene);
+    expect(sceneSection("expenses")).toHaveAttribute("data-visible", "true");
+    expect(sceneSection("expenses").querySelectorAll(".journey-expense-row")).toHaveLength(2);
+    expect(sceneSection("expenses").querySelectorAll(".journey-expense-row__shares[data-visible=\"true\"]")).toHaveLength(2);
+    expect(screen.getByText("Assigned to friends", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Your portion", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Rp 169.000", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Rp 191.000", { exact: true })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /A repayment/ }));
+    expect(document.querySelector(".journey-panel")).toBe(scene);
+    expect(sceneSection("repayment")).toHaveAttribute("data-visible", "true");
+    expect(screen.getByText("Rani pays back her shares", { exact: true })).toBeInTheDocument();
+    expect(within(sceneSection("expenses")).getAllByText("Covered by repayment", { exact: true })).toHaveLength(2);
+    expect(screen.getAllByText("Rp 126.500", { exact: true }).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("tab", { name: /balance becomes/ }));
+    expect(document.querySelector(".journey-panel")).toBe(scene);
+    expect(sceneSection("balances")).toHaveAttribute("data-visible", "true");
+    expect(screen.getByText("SETTLED", { exact: true })).toBeInTheDocument();
+    expect(within(sceneSection("balances")).getByText("Dimas", { exact: true })).toBeInTheDocument();
+    expect(screen.getAllByText("Rp 42.500", { exact: true }).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Friend shares/ }));
+    expect(document.querySelector(".journey-panel")).toBe(scene);
+    expect(scene).toHaveAttribute("data-journey-step", "2");
+    expect(sceneSection("repayment")).toHaveAttribute("aria-hidden", "true");
+    expect(sceneSection("balances")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("maps scroll progress, resize reconciliation, and tab selection without replacing the scene", () => {
     vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
     let frame: FrameRequestCallback | undefined;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
@@ -41,6 +87,7 @@ describe("JourneyShowcase", () => {
     setScrollY(0);
     render(<JourneyShowcase />);
 
+    const scene = document.querySelector(".journey-panel")!;
     const runway = document.querySelector(".journey-runway")! as HTMLElement;
     const stage = document.querySelector(".journey-sticky")! as HTMLElement;
     Object.defineProperty(stage, "offsetHeight", { configurable: true, value: 600 });
@@ -51,23 +98,19 @@ describe("JourneyShowcase", () => {
       setScrollY(step * 600);
       act(() => window.dispatchEvent(new Event("scroll")));
       act(() => frame?.(1));
-      expect(document.querySelector(".journey-panel")).toHaveAttribute("data-journey-step", String(step));
+      expect(document.querySelector(".journey-panel")).toBe(scene);
+      expect(scene).toHaveAttribute("data-journey-step", String(step));
       expect(screen.getAllByRole("tab")[step]).toHaveAttribute("aria-selected", "true");
     }
 
-    setScrollY(3 * 600);
-    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => window.dispatchEvent(new Event("resize")));
     act(() => frame?.(1));
-    expect(document.querySelector(".journey-panel")).toHaveAttribute("data-journey-step", "3");
-
     fireEvent.click(screen.getByRole("tab", { name: /Expenses enter/ }));
     expect(scrollTo).toHaveBeenCalledWith({ top: 700, behavior: "smooth" });
-    act(() => window.dispatchEvent(new Event("scroll")));
-    act(() => frame?.(1));
-    expect(document.querySelector(".journey-panel")).toHaveAttribute("data-journey-step", "1");
+    expect(scene).toHaveAttribute("data-journey-step", "1");
   });
 
-  it("keeps keyboard controls functional in fallback mode", () => {
+  it("keeps arrow-key tab controls functional in fallback mode", () => {
     vi.stubGlobal("matchMedia", mediaQuery());
     render(<JourneyShowcase />);
     const first = screen.getByRole("tab", { name: /An outing is created/ });
@@ -89,8 +132,8 @@ describe("JourneyShowcase", () => {
     fireEvent.click(screen.getByRole("tab", { name: /A repayment is recorded/ }));
     expect(document.querySelectorAll(".journey-panel")).toHaveLength(1);
     expect(document.querySelector(".journey-panel")).toHaveAttribute("data-journey-step", "3");
+    expect(sceneSection("repayment")).toHaveAttribute("aria-hidden", "false");
     expect(screen.getByText("Rani pays back her shares", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Dinner share", { exact: true })).toBeInTheDocument();
   });
 
   it("does not intercept wheel or touch scrolling", () => {

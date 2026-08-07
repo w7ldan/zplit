@@ -45,6 +45,19 @@ describe("expense share editor", () => {
     expect(document.body).not.toHaveTextContent(/-Rp|-\d/);
   });
 
+  it("emphasizes only changed live totals after the initial render", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend, archivedFriend]} />);
+    expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(0);
+
+    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "50000" } });
+    expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
+    expect(screen.getByText("Rp 70.000", { exact: true }).closest(".changed-value")).toHaveClass("changed-value--changed");
+    expect(screen.getByText("Rp 14.000", { exact: true }).closest(".changed-value")).toHaveClass("changed-value--changed");
+
+    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "50000" } });
+    expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
+  });
+
   it("disables repeated submission and shows pending copy", async () => {
     let resolveAction: (state: ExpenseShareActionState) => void = () => {};
     const action = vi.fn(() => new Promise<ExpenseShareActionState>((resolve) => { resolveAction = resolve; }));

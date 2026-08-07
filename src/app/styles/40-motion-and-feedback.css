@@ -137,6 +137,32 @@
   opacity: 0.65;
 }
 
+.toast__dismiss {
+  flex: 0 0 auto;
+  min-width: 2rem;
+  min-height: 2rem;
+  color: var(--muted-ink);
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.toast--exiting {
+  animation: toast-out 160ms var(--ease-product) both;
+}
+
+.changed-value {
+  display: inline-block;
+}
+
+.changed-value--changed {
+  animation: changed-value 200ms var(--ease-product) both;
+}
+
+.allocation-bar__message--complete {
+  animation: allocation-resolved 180ms var(--ease-product) var(--motion-state) both;
+}
+
 @keyframes row-in {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }
@@ -155,6 +181,21 @@
 @keyframes toast-in {
   from { opacity: 0; clip-path: inset(0 0 100%); transform: translateY(0.45rem); }
   to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(4px); }
+}
+
+@keyframes changed-value {
+  from { background: var(--pastel-blue); opacity: 0.72; transform: translateY(-1px); }
+  to { background: transparent; opacity: 1; transform: translateY(0); }
+}
+
+@keyframes allocation-resolved {
+  from { opacity: 0.55; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .invite-form__result,
@@ -414,6 +455,12 @@
 
   .toast {
     clip-path: none !important;
+  }
+
+  .toast--exiting,
+  .changed-value--changed,
+  .allocation-bar__message--complete {
+    animation: none !important;
   }
 
   .allocation-bar__fill {

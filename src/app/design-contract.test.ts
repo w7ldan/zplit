@@ -180,6 +180,8 @@ describe("Zplit design contract", () => {
     expect(mobileFinancialClarityRule).not.toMatch(/overflow-x|\b(?:width|min-width|max-width):/);
     expect(cssRuleBody(css, ".overview-ledger-clarity__relations > section")).toContain("grid-template-columns: minmax(0, 0.35fr) minmax(0, 1.65fr);");
     expect(cssRuleBody(css, ".overview-ledger-clarity > summary")).toContain("list-style: none;");
+    expect(cssRuleBody(css, ".overview-ledger-clarity > summary")).toContain("font-size: 0.875rem;");
+    expect(cssRuleBody(css, ".overview-ledger-clarity > summary")).toContain("font-weight: 700;");
     expect(css).not.toContain(".overview-ledger-clarity dl");
     expect(lateOverridesSource).not.toContain("overview-ledger-clarity");
   });
@@ -269,6 +271,13 @@ describe("Zplit design contract", () => {
     expect(css).not.toContain(".expense-row__edit:hover span");
     expect(cssRuleBody(css, ".repayment-form__disclosure > summary")).toContain("border-radius: var(--radius-control);");
     expect(cssRuleBody(css, ".expense-form__actions")).toMatch(/display:\s*flex;[\s\S]*gap:\s*0\.75rem;/);
+  });
+
+  it("keeps public journey ownership in the public stylesheet", () => {
+    expect(publicSource).toContain(".journey-scene__body");
+    expect(publicSource).toContain(".landing-reveal");
+    expect(lateOverridesSource).not.toContain(".journey-");
+    expect(lateOverridesSource).not.toContain(".landing-reveal");
   });
 
   it("keeps long record values inside bounded rows while leaving detail values unclamped", () => {

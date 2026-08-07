@@ -50,7 +50,7 @@ describe("friend record", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Balance" })).toBeInTheDocument();
     for (const label of ["Assigned", "Applied", "Still owes"]) expect(screen.getByText(label, { exact: true })).toBeInTheDocument();
     for (const amount of ["Rp 10.000", "Rp 4.000", "Rp 6.000"]) expect(screen.getByText(amount, { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Rp 6.000 remains outstanding.")).toBeInTheDocument();
+    expect(screen.queryByText("Rp 6.000 remains outstanding.")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("Ada Lovelace");
     expect(screen.getByRole("button", { name: "Archive friend" })).toBeInTheDocument();
     expect(screen.getByText("A private, read-only view")).toBeInTheDocument();
@@ -71,7 +71,8 @@ describe("friend record", () => {
 
     expect(getFriendBalances).toHaveBeenCalledExactlyOnceWith([friend.id]);
     expect(screen.getAllByText("Rp 0", { exact: true })).toHaveLength(3);
-    expect(screen.getByText("No expenses have been assigned to this friend yet.")).toBeInTheDocument();
+    expect(screen.getByText("No balance yet", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText("No expenses have been assigned to this friend yet.")).not.toBeInTheDocument();
     expect(screen.queryByText("This friend is settled.")).not.toBeInTheDocument();
   });
 
@@ -89,7 +90,7 @@ describe("friend record", () => {
     render(<ToastProvider>{await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) })}</ToastProvider>);
 
     expect(screen.getByText("Settled", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("This friend is settled.")).toBeInTheDocument();
+    expect(screen.queryByText("This friend is settled.")).not.toBeInTheDocument();
     expect(screen.queryByText("No expenses have been assigned to this friend yet.")).not.toBeInTheDocument();
   });
 

@@ -36,7 +36,7 @@ export default async function AppPage() {
         </section>
 
         <details className="overview-ledger-clarity">
-          <summary>How totals work</summary>
+          <summary>How are these totals calculated?</summary>
           <div className="overview-ledger-clarity__relations">
             <section aria-labelledby="spending-equation-heading">
               <h3 id="spending-equation-heading">Spending</h3>

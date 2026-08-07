@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import type { ExpenseShareActionState } from "@/app/app/expenses/actions";
 import { parseRupiah, formatRupiah } from "@/domain/rupiah";
@@ -36,6 +36,21 @@ function initialValues(friends: ExpenseShareEditorFriend[]) {
 
 function initialAmounts(friends: ExpenseShareEditorFriend[]) {
   return Object.fromEntries(initialValues(friends).map((value) => [value.friendId, value.amountRupiah]));
+}
+
+export function ChangedValue({ value, children }: { value: number; children: ReactNode }) {
+  const previousValue = useRef(value);
+  const [changed, setChanged] = useState(false);
+
+  useEffect(() => {
+    if (previousValue.current === value) return;
+    previousValue.current = value;
+    setChanged(true);
+    const timer = window.setTimeout(() => setChanged(false), 200);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+
+  return <span className={changed ? "changed-value changed-value--changed" : "changed-value"}>{children}</span>;
 }
 
 function SubmitButton() {
@@ -117,8 +132,8 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
       <h2>Assign the split</h2>
       <div className="expense-share-editor__totals" aria-live="polite">
         <div><span className="technical-label">Expense total</span><strong>{formatRupiah(expenseAmount)}</strong></div>
-        <div><span className="technical-label">Assigned to friends</span><strong>{formatRupiah(totalOwed)}</strong></div>
-        <div><span className="technical-label">Your portion</span><strong>{formatRupiah(ownerPortion)}</strong></div>
+        <div><span className="technical-label">Assigned to friends</span><strong><ChangedValue value={totalOwed}>{formatRupiah(totalOwed)}</ChangedValue></strong></div>
+        <div><span className="technical-label">Your portion</span><strong><ChangedValue value={ownerPortion}>{formatRupiah(ownerPortion)}</ChangedValue></strong></div>
       </div>
       <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Expense allocation" role="progressbar" aria-valuemin={0} aria-valuemax={expenseAmount} aria-valuenow={Math.min(totalOwed, expenseAmount)}>
         <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>

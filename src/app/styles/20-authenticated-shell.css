@@ -2517,11 +2517,10 @@
   margin: 0;
   padding-block: 0.8rem;
   cursor: pointer;
-  font-family: var(--font-display);
-  font-size: 1.55rem;
-  font-weight: 800;
-  letter-spacing: -0.055em;
-  line-height: 1;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: normal;
+  line-height: 1.4;
   list-style: none;
 }
 

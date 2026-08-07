@@ -7,6 +7,7 @@ describe("public Zplit page", () => {
     render(<HomePage />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Shared expenses without the group-chat accounting." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveAttribute("data-reveal", "hero");
     expect(screen.getByRole("heading", { level: 1 })).not.toHaveClass("landing-reveal");
     const navigation = within(screen.getByRole("navigation", { name: "Primary navigation" }));
     expect(navigation.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "#journey");
@@ -41,7 +42,9 @@ describe("public Zplit page", () => {
     expect(screen.getAllByText("Dinner", { exact: true }).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("tab", { name: /Friend shares are assigned/ }));
-    expect(screen.getByText("Rani · Dinner", { exact: true })).toBeInTheDocument();
+    expect(document.querySelectorAll(".journey-expense-row")).toHaveLength(2);
+    expect(document.querySelectorAll('.journey-expense-row__shares[data-visible="true"]')).toHaveLength(2);
+    expect(document.querySelectorAll('.journey-expense-row__shares[data-visible="true"] .journey-row__label')).toHaveLength(3);
     expect(screen.getByText("Rp 169.000", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Rp 191.000", { exact: true })).toBeInTheDocument();
     expect(screen.getByLabelText("Rp 169.000 assigned of Rp 360.000")).toBeInTheDocument();
@@ -56,5 +59,17 @@ describe("public Zplit page", () => {
     expect(screen.getByText("SETTLED", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Remaining across this illustrative outing:", { exact: false })).toBeInTheDocument();
     expect(screen.getAllByText("Rp 42.500", { exact: true }).length).toBeGreaterThan(0);
+  });
+
+  it("groups public reveals around compositions while keeping core content mounted", () => {
+    render(<HomePage />);
+
+    expect(document.querySelectorAll(".landing-reveal")).toHaveLength(7);
+    expect(document.querySelectorAll(".principle .landing-reveal, .system-areas li .landing-reveal, .footer__actions .landing-reveal")).toHaveLength(0);
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "A clear record, not another group chat." })).toBeInTheDocument();
+    expect(screen.getByText("Record the expense", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Friends", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Shared expenses, explicit friend shares, and settled balances.", { exact: true })).toBeInTheDocument();
   });
 });

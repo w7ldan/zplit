@@ -53,7 +53,7 @@ describe("/app overview", () => {
     const clarity = document.querySelector<HTMLDetailsElement>(".overview-ledger-clarity");
     expect(clarity).toBeInTheDocument();
     expect(clarity).not.toHaveAttribute("open");
-    expect(within(clarity!).getByText("How totals work", { exact: true })).toBeInTheDocument();
+    expect(within(clarity!).getByText("How are these totals calculated?", { exact: true })).toBeInTheDocument();
     for (const label of ["Spending", "Friend debt", "Repayments", "Friend balances", "Recent activity"]) {
       expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
     }

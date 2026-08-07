@@ -90,6 +90,20 @@ describe("RepaymentAllocationEditor", () => {
     expect(document.body).not.toHaveTextContent(/-Rp|automatic|distribut|delete|debtor|card|pill|status dot/i);
   });
 
+  it("emphasizes changed allocation totals and resolves back to partial state", () => {
+    render(<RepaymentAllocationEditor action={vi.fn()} plan={plan} />);
+    expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(0);
+
+    fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "84000" } });
+    expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
+    expect(screen.getByText("This repayment is fully applied. Applied money reduces outstanding balances.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "40000" } });
+    expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
+    expect(screen.getByText("Rp 44.000 needs allocation. Only applied money reduces outstanding balances.")).toBeInTheDocument();
+    expect(screen.getByText("Capacity available to this repayment")).toBeInTheDocument();
+  });
+
   it("preserves values and exposes field errors after validation failure", async () => {
     const action = vi.fn().mockResolvedValue({
       fieldErrors: { [shareA]: "Enter a valid allocation." },
@@ -149,6 +163,7 @@ describe("RepaymentAllocationEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(undoAction).toHaveBeenCalledWith(receipt));
     await waitFor(() => expect(screen.getByRole("button", { name: "Remove allocation" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Remove allocation" }));
     await waitFor(() => expect(removeAction).toHaveBeenCalledTimes(2));
@@ -158,10 +173,11 @@ describe("RepaymentAllocationEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(undoAction).toHaveBeenCalledWith(secondReceipt));
     await waitFor(() => expect(screen.getByRole("button", { name: "Remove allocation" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Remove allocation" }));
     await waitFor(() => expect(removeAction).toHaveBeenCalledTimes(3));
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
   });
 
   it("updates only the removed draft and totals before refreshing, then restores them on Undo", async () => {

@@ -69,7 +69,6 @@ export default async function FriendRecordPage({ params, searchParams }: { param
             <div><dt>Applied</dt><dd>{formatRupiah(balance.repaidAmount)}</dd></div>
             {balance.outstandingAmount === 0 ? <div><dt>Still owes</dt><dd>{formatRupiah(balance.outstandingAmount)}</dd></div> : null}
           </dl>
-          <p>{balance.assignedAmount === 0 ? "No expenses have been assigned to this friend yet." : balance.outstandingAmount === 0 ? "This friend is settled." : `${formatRupiah(balance.outstandingAmount)} remains outstanding.`}</p>
         </section>
         <div className="friend-record__form">
           <p className="technical-label">EDIT RECORD</p>

@@ -13,7 +13,7 @@ export type ToastOptions = {
   duration?: number;
 };
 
-type Toast = ToastOptions & { id: string };
+type Toast = ToastOptions & { id: string; exiting?: boolean };
 
 type ToastContextValue = {
   showToast: (options: ToastOptions) => string;
@@ -29,7 +29,7 @@ export function useToast() {
   return value;
 }
 
-function ToastItem({ toast, dismiss }: { toast: Toast; dismiss: (id: string) => void }) {
+function ToastItem({ toast, dismiss, remove }: { toast: Toast; dismiss: (id: string) => void; remove: (id: string) => void }) {
   const [message, setMessage] = useState(toast.message);
   const [action, setAction] = useState(toast.action);
   const [hovered, setHovered] = useState(false);
@@ -41,7 +41,17 @@ function ToastItem({ toast, dismiss }: { toast: Toast; dismiss: (id: string) => 
   const paused = hovered || focused || pending;
 
   useEffect(() => {
-    if (paused || persistent) return;
+    if (!toast.exiting) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      remove(toast.id);
+      return;
+    }
+    const timer = window.setTimeout(() => remove(toast.id), 160);
+    return () => window.clearTimeout(timer);
+  }, [remove, toast.exiting, toast.id]);
+
+  useEffect(() => {
+    if (paused || persistent || toast.exiting) return;
     if (remaining.current <= 0) {
       dismiss(toast.id);
       return;
@@ -54,7 +64,7 @@ function ToastItem({ toast, dismiss }: { toast: Toast; dismiss: (id: string) => 
       if (deadline.current === expiresAt) remaining.current = Math.max(0, expiresAt - Date.now());
       deadline.current = null;
     };
-  }, [dismiss, paused, persistent, toast.id]);
+  }, [dismiss, paused, persistent, toast.exiting, toast.id]);
 
   const runAction = async () => {
     if (!action || pending) return;
@@ -79,7 +89,7 @@ function ToastItem({ toast, dismiss }: { toast: Toast; dismiss: (id: string) => 
 
   return (
     <div
-      className="toast"
+      className={`toast${toast.exiting ? " toast--exiting" : ""}`}
       role="status"
       aria-live="polite"
       aria-atomic="true"
@@ -92,6 +102,7 @@ function ToastItem({ toast, dismiss }: { toast: Toast; dismiss: (id: string) => 
     >
       <span className="toast__message">{message}</span>
       {action ? <button className="toast__action" type="button" onClick={runAction} disabled={pending}>{pending ? "Undoing…" : action.label}</button> : null}
+      <button className="toast__dismiss" type="button" onClick={() => dismiss(toast.id)} aria-label="Dismiss notification">×</button>
     </div>
   );
 }
@@ -103,12 +114,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((current) => [...current, { ...options, id }].slice(-2));
     return id;
   }, []);
-  const dismissToast = useCallback((id: string) => setToasts((current) => current.filter((toast) => toast.id !== id)), []);
+  const removeToast = useCallback((id: string) => setToasts((current) => current.filter((toast) => toast.id !== id)), []);
+  const dismissToast = useCallback((id: string) => setToasts((current) => current.map((toast) => toast.id === id && !toast.exiting ? { ...toast, exiting: true } : toast)), []);
   const context = useMemo(() => ({ showToast, dismissToast }), [dismissToast, showToast]);
 
   return (
     <ToastContext.Provider value={context}>
-      <div className="toast-viewport" aria-label="Notifications">{toasts.map((toast) => <ToastItem key={toast.id} toast={toast} dismiss={dismissToast} />)}</div>
+      <div className="toast-viewport" aria-label="Notifications">{toasts.map((toast) => <ToastItem key={toast.id} toast={toast} dismiss={dismissToast} remove={removeToast} />)}</div>
       {children}
     </ToastContext.Provider>
   );

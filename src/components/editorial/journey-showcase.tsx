@@ -36,15 +36,75 @@ function ProductRow({ label, value, detail }: { label: string; value: string; de
   return <div className="journey-row"><span className="journey-row__label">{label}</span><strong>{value}</strong>{detail ? <span className="journey-row__detail">{detail}</span> : null}</div>;
 }
 
-function StepPanel({ step }: { step: number }) {
-  if (step === 0) return <div className="journey-panel__content"><p className="technical-label">Outing record</p><h3>{scenario.outing}</h3><div className="journey-record-meta"><ProductRow label="When" value="Sunday, 12 April 2026" /><ProductRow label="Expenses" value="None yet" detail="Ready for the first row" /></div></div>;
-  if (step === 1) return <div className="journey-panel__content"><p className="technical-label">Expense rows · {scenario.outing}</p><h3>Two things paid for</h3><div className="journey-list">{scenario.expenses.map((expense) => <ProductRow key={expense.description} label={expense.description} value={formatRupiah(expense.amount)} />)}</div><div className="journey-total"><span>Outing expense total</span><strong><Amount value={expenseTotal} /></strong></div></div>;
-  if (step === 2) {
-    const allocationStyle = { "--allocation": `${(assignedTotal / expenseTotal) * 100}%` } as CSSProperties;
-    return <div className="journey-panel__content"><p className="technical-label">Manual share assignment</p><h3>Each share has an owner</h3><div className="journey-list">{scenario.shares.map((share) => <ProductRow key={`${share.expense}-${share.friend}`} label={`${share.friend} · ${share.expense}`} value={formatRupiah(share.amount)} />)}</div><div className="journey-allocation" style={allocationStyle}><div className="journey-allocation__caption"><span>Assigned shares</span><strong><Amount value={assignedTotal} /></strong></div><div className="journey-allocation__track" aria-label={`${formatRupiah(assignedTotal)} assigned of ${formatRupiah(expenseTotal)}`}><span /></div><div className="journey-allocation__caption"><span>Owner portion</span><strong><Amount value={ownerPortion} /></strong></div></div></div>;
-  }
-  if (step === 3) return <div className="journey-panel__content"><p className="technical-label">Repayment record</p><h3>Rani pays back her shares</h3><div className="journey-repayment-row"><span><strong>{scenario.repayment.friend}</strong><small>Received and ready to allocate</small></span><strong><Amount value={scenario.repayment.amount} /></strong></div><div className="journey-allocation-list"><ProductRow label="Dinner share" value={formatRupiah(84000)} detail="Allocated" /><ProductRow label="Taxi share" value={formatRupiah(42500)} detail="Allocated" /><ProductRow label="Unallocated" value={formatRupiah(0)} detail="Nothing left" /></div></div>;
-  return <div className="journey-panel__content"><p className="technical-label">Friend balances</p><h3>One balance is settled; one remains</h3><div className="journey-balance-list"><div className="journey-balance journey-balance--settled"><div><strong>Rani</strong><span>Assigned {formatRupiah(raniAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={0} /></strong></div><span className="journey-state">SETTLED</span></div><div className="journey-balance journey-balance--open"><div><strong>Dimas</strong><span>Assigned {formatRupiah(dimasAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={dimasAssigned} /></strong></div><span className="journey-state">OPEN</span></div></div><p className="journey-footnote">Remaining across this illustrative outing: <strong><Amount value={dimasAssigned} /></strong>. The owner portion is already excluded from friend balances.</p></div>;
+function JourneyScene({ activeStep }: { activeStep: number }) {
+  const allocationStyle = { "--allocation": `${(assignedTotal / expenseTotal) * 100}%` } as CSSProperties;
+  const showExpenses = activeStep >= 1;
+  const showShares = activeStep >= 2;
+  const showRepayment = activeStep >= 3;
+  const showBalances = activeStep >= 4;
+
+  return (
+    <article className="journey-panel journey-panel--active" data-journey-step={activeStep}>
+      <div className="journey-frame__intro">
+        <span className="journey-step-mark">{String(activeStep + 1).padStart(2, "0")}</span>
+        <div><p className="technical-label">{steps[activeStep].label}</p><p>{steps[activeStep].copy}</p></div>
+      </div>
+      <div className="journey-scene__body">
+        <div className="journey-scene__outing">
+          <p className="technical-label">Outing record</p>
+          <h3>{scenario.outing}</h3>
+          <div className="journey-record-meta">
+            <ProductRow label="When" value="Sunday, 12 April 2026" />
+            <ProductRow label="Expenses" value={showExpenses ? "2 recorded" : "None yet"} detail={showExpenses ? "Rows attached to this outing" : "Ready for the first row"} />
+          </div>
+        </div>
+
+        <div className="journey-scene__section journey-scene__expenses" data-visible={showExpenses} aria-hidden={!showExpenses}>
+          <p className="technical-label">Expense rows · {scenario.outing}</p>
+          <h3>Two things paid for</h3>
+          <div className="journey-list">
+            {scenario.expenses.map((expense) => (
+              <div className="journey-expense-row" key={expense.description}>
+                <ProductRow label={expense.description} value={formatRupiah(expense.amount)} />
+                <div className="journey-expense-row__shares" data-visible={showShares} aria-hidden={!showShares}>
+                  {scenario.shares.filter((share) => share.expense === expense.description).map((share) => (
+                    <ProductRow key={`${share.expense}-${share.friend}`} label={share.friend} value={formatRupiah(share.amount)} detail={showRepayment && share.friend === "Rani" ? "Covered by repayment" : undefined} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="journey-total"><span>Outing expense total</span><strong><Amount value={expenseTotal} /></strong></div>
+          <div className="journey-allocation" style={allocationStyle} data-visible={showShares} aria-hidden={!showShares}>
+            <div className="journey-allocation__caption"><span>Assigned to friends</span><strong><Amount value={assignedTotal} /></strong></div>
+            <div className="journey-allocation__track" aria-label={`${formatRupiah(assignedTotal)} assigned of ${formatRupiah(expenseTotal)}`}><span /></div>
+            <div className="journey-allocation__caption"><span>Your portion</span><strong><Amount value={ownerPortion} /></strong></div>
+          </div>
+        </div>
+
+        <div className="journey-scene__section journey-scene__repayment" data-visible={showRepayment} aria-hidden={!showRepayment}>
+          <p className="technical-label">Repayment record</p>
+          <h3>Rani pays back her shares</h3>
+          <div className="journey-repayment-row"><span><strong>{scenario.repayment.friend}</strong><small>Received and ready to allocate</small></span><strong><Amount value={scenario.repayment.amount} /></strong></div>
+          <div className="journey-allocation-list">
+            <ProductRow label="Dinner" value={formatRupiah(84000)} detail="Allocated" />
+            <ProductRow label="Taxi" value={formatRupiah(42500)} detail="Allocated" />
+            <ProductRow label="Unallocated" value={formatRupiah(0)} detail="Nothing left" />
+          </div>
+        </div>
+
+        <div className="journey-scene__section journey-scene__balances" data-visible={showBalances} aria-hidden={!showBalances}>
+          <p className="technical-label">Friend balances</p>
+          <h3>One balance is settled; one remains</h3>
+          <div className="journey-balance-list">
+            <div className="journey-balance journey-balance--settled"><div><strong>Rani</strong><span>Assigned {formatRupiah(raniAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={0} /></strong></div><span className="journey-state">SETTLED</span></div>
+            <div className="journey-balance journey-balance--open"><div><strong>Dimas</strong><span>Assigned {formatRupiah(dimasAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={dimasAssigned} /></strong></div><span className="journey-state">OPEN</span></div>
+          </div>
+          <p className="journey-footnote">Remaining across this illustrative outing: <strong><Amount value={dimasAssigned} /></strong>. The owner portion is already excluded from friend balances.</p>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function clampProgress(value: number) {
@@ -58,7 +118,6 @@ function listenToMediaQuery(query: MediaQueryList, listener: () => void) {
 
 export function JourneyShowcase() {
   const [activeStep, setActiveStep] = useState(0);
-  const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const [desktopSequence, setDesktopSequence] = useState(false);
   const activeStepRef = useRef(0);
   const tabs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -66,9 +125,7 @@ export function JourneyShowcase() {
   const stage = useRef<HTMLDivElement>(null);
   const ignoredProgress = useRef<number | null>(null);
 
-  const stageHeight = useCallback(() => {
-    return Math.max(stage.current?.offsetHeight ?? 0, 1);
-  }, []);
+  const stageHeight = useCallback(() => Math.max(stage.current?.offsetHeight ?? 0, 1), []);
   const stickyTop = useCallback(() => {
     const value = Number.parseFloat(window.getComputedStyle(stage.current ?? document.body).top);
     return Number.isFinite(value) ? value : 0;
@@ -77,7 +134,6 @@ export function JourneyShowcase() {
   const updateActiveStep = useCallback((step: number, protectFromStaleProgress = false) => {
     if (protectFromStaleProgress) ignoredProgress.current = step;
     if (activeStepRef.current === step) return;
-    setDirection(step > activeStepRef.current ? "forward" : "backward");
     activeStepRef.current = step;
     setActiveStep(step);
   }, []);
@@ -89,9 +145,7 @@ export function JourneyShowcase() {
     const updateMode = () => {
       const next = Boolean(wide?.matches && tall?.matches && !reduced?.matches);
       setDesktopSequence((current) => {
-        if (current && !next) {
-          runway.current?.style.removeProperty("height");
-        }
+        if (current && !next) runway.current?.style.removeProperty("height");
         return current === next ? current : next;
       });
     };
@@ -123,8 +177,7 @@ export function JourneyShowcase() {
         ignoredProgress.current = null;
         return;
       }
-      const nextStep = Math.round(progress * (steps.length - 1));
-      updateActiveStep(nextStep);
+      updateActiveStep(Math.round(progress * (steps.length - 1)));
     };
     const scheduleUpdate = () => { if (frame === null) frame = window.requestAnimationFrame(updateProgress); };
     const onResize = () => { updateDimensions(); scheduleUpdate(); };
@@ -167,6 +220,7 @@ export function JourneyShowcase() {
         ? (step - 1 + steps.length) % steps.length
         : event.key === "Home" ? 0 : event.key === "End" ? steps.length - 1 : null;
     if (nextStep === null) return;
+    event.preventDefault();
     selectStep(nextStep, true);
   }
 
@@ -185,7 +239,7 @@ export function JourneyShowcase() {
               <p className="journey-announcement" aria-live="polite">Step {activeStep + 1} of {steps.length}: {steps[activeStep].label}</p>
               <div className="journey-frame" id="journey-panel" role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}>
                 <div className="journey-frame__header"><span className="technical-label">Zplit / illustrative scenario</span><span className="technical-label">Whole rupiah · entered by owner</span></div>
-                <div className="journey-frame__body"><article className={`journey-panel journey-panel--active journey-panel--${direction}`} data-journey-step={activeStep} key={steps[activeStep].label}><div className="journey-frame__intro"><span className="journey-step-mark">{String(activeStep + 1).padStart(2, "0")}</span><div><p className="technical-label">{steps[activeStep].label}</p><p>{steps[activeStep].copy}</p></div></div><StepPanel step={activeStep} /></article></div>
+                <div className="journey-frame__body"><JourneyScene activeStep={activeStep} /></div>
               </div>
             </div>
           </div>

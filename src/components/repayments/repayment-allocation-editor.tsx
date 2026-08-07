@@ -9,6 +9,7 @@ import type { RepaymentAllocationPlan, RepaymentAllocationReversalReceipt } from
 import { formatRupiah, parseRupiah } from "@/domain/rupiah";
 import type { RepaymentAllocationActionState, RepaymentAllocationRemovalActionState, RepaymentAllocationUndoState } from "@/app/app/repayments/actions";
 import { useToast } from "@/components/feedback/toast";
+import { ChangedValue } from "@/components/expenses/expense-share-editor";
 
 type RepaymentAllocationAction = (
   previousState: RepaymentAllocationActionState,
@@ -125,6 +126,22 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
   const values = initialValues(plan);
   const [state, formAction] = useActionState(action, { ...emptyActionState, values });
   const [draftAmounts, setDraftAmounts] = useState<Record<string, string>>(() => Object.fromEntries(values.map((value) => [value.expenseShareId, value.amountRupiah])));
+  const allocatedAmount = plan.shares.reduce((total, share) => total + (parseRupiah(draftAmounts[share.expenseShareId] ?? "") ?? 0), 0);
+  const overAllocated = allocatedAmount > plan.amount;
+  const unallocatedAmount = Math.max(plan.amount - allocatedAmount, 0);
+  const allocationProgress = plan.amount > 0 ? Math.min(Math.max(allocatedAmount / plan.amount, 0), 1) : 0;
+  const [completionTransition, setCompletionTransition] = useState(false);
+  const previousIncomplete = useRef(unallocatedAmount > 0 || overAllocated);
+
+  useEffect(() => {
+    const incomplete = unallocatedAmount > 0 || overAllocated;
+    const completed = !incomplete && previousIncomplete.current;
+    setCompletionTransition(completed);
+    previousIncomplete.current = incomplete;
+    if (!completed) return;
+    const timer = window.setTimeout(() => setCompletionTransition(false), 400);
+    return () => window.clearTimeout(timer);
+  }, [overAllocated, unallocatedAmount]);
 
   if (plan.shares.length === 0) {
     return (
@@ -136,10 +153,6 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
     );
   }
 
-  const allocatedAmount = plan.shares.reduce((total, share) => total + (parseRupiah(draftAmounts[share.expenseShareId] ?? "") ?? 0), 0);
-  const overAllocated = allocatedAmount > plan.amount;
-  const unallocatedAmount = Math.max(plan.amount - allocatedAmount, 0);
-  const allocationProgress = plan.amount > 0 ? Math.min(Math.max(allocatedAmount / plan.amount, 0), 1) : 0;
   const setRemovedDraftAmount = (receipt: RepaymentAllocationReversalReceipt) => setDraftAmounts((current) => ({ ...current, [receipt.expenseShareId]: "" }));
   const restoreDraftAmount = (receipt: RepaymentAllocationReversalReceipt) => setDraftAmounts((current) => ({ ...current, [receipt.expenseShareId]: receipt.amount.toString() }));
 
@@ -149,12 +162,12 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
       <h2>Apply the received money</h2>
       <div className="repayment-allocation-editor__totals" aria-live="polite">
         <div><span className="technical-label">Repayment amount</span><strong>{formatRupiah(plan.amount)}</strong></div>
-        <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(allocatedAmount)}</strong></div>
-        <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(unallocatedAmount)}</strong></div>
+        <div><span className="technical-label">Applied to shares</span><strong><ChangedValue value={allocatedAmount}>{formatRupiah(allocatedAmount)}</ChangedValue></strong></div>
+        <div><span className="technical-label">Needs allocation</span><strong><ChangedValue value={unallocatedAmount}>{formatRupiah(unallocatedAmount)}</ChangedValue></strong></div>
       </div>
       <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Repayment allocation progress" role="progressbar" aria-valuemin={0} aria-valuemax={plan.amount} aria-valuenow={Math.min(allocatedAmount, plan.amount)}>
         <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>
-        <span>{overAllocated ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.` : unallocatedAmount > 0 ? `${formatRupiah(unallocatedAmount)} needs allocation. Only applied money reduces outstanding balances.` : "This repayment is fully applied. Applied money reduces outstanding balances."}</span>
+        <span className={completionTransition ? "allocation-bar__message allocation-bar__message--complete" : "allocation-bar__message"}>{overAllocated ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.` : unallocatedAmount > 0 ? `${formatRupiah(unallocatedAmount)} needs allocation. Only applied money reduces outstanding balances.` : "This repayment is fully applied. Applied money reduces outstanding balances."}</span>
       </div>
       <form className="repayment-allocation-editor__form" action={formAction} noValidate>
         <p className="repayment-allocation-editor__help">Enter a whole-rupiah amount. A blank field removes this allocation.</p>
