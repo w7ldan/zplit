@@ -83,8 +83,8 @@ const forbiddenServiceFeatures = (service) => {
 };
 
 
-requireCondition((caddy.match(/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\s*\{$/gim) ?? []).length === 1, "only one public Caddy site may be declared");
-requireCondition(/^idr\.wildan\.lol\s*\{$/m.test(caddy), "Caddy must serve the exact Zplit site");
+requireCondition((caddy.match(/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?:\s*,\s*[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)*\s*\{$/gim) ?? []).length === 1, "only one public Caddy site may be declared");
+requireCondition(/^idr\.wildan\.lol,\s*showcase\.wildan\.lol\s*\{$/m.test(caddy), "Caddy must serve the exact Zplit sites");
 requireCondition((caddy.match(/^\s*bind 0\.0\.0\.0$/gm) ?? []).length === 1, "Caddy must bind to 0.0.0.0");
 requireCondition(!/^\{\s*$/m.test(caddy), "the imported route must not contain a global options block");
 for (const forbiddenOption of ["servers", "trusted_proxies", "trusted_proxies_strict", "client_ip_headers"]) {

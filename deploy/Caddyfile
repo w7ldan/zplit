@@ -1,4 +1,4 @@
-idr.wildan.lol {
+idr.wildan.lol, showcase.wildan.lol {
     bind 0.0.0.0
     header {
         -Server
