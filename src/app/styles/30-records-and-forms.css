@@ -33,6 +33,76 @@
   align-items: center;
 }
 
+.outings-trips-switch {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 0.25rem;
+}
+
+.outings-trips-switch__link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.outings-trips-switch__link--selected,
+.outings-trips-switch__link:hover,
+.outings-trips-switch__link:focus-visible {
+  color: var(--ink);
+  text-decoration-line: underline;
+}
+
+.outing-form__trip-context {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 0;
+  padding-block: 0.35rem;
+  border-block: 1px solid var(--rule);
+}
+
+.outing-form__trip-context-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.outing-form__trip-context-change {
+  min-height: 2.75rem;
+  padding-inline: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.outing-form__disclosure {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--ink);
+}
+
+.outing-form__disclosure > summary {
+  min-height: 2.75rem;
+  padding-block: 0.65rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .expense-row,
 .repayment-row {
   display: grid;
@@ -751,7 +821,7 @@
   }
 
   .outing-row {
-    grid-template-columns: minmax(0, 2fr) minmax(7rem, 0.8fr) minmax(8rem, 0.8fr) minmax(10rem, 1fr) minmax(8rem, 0.8fr) minmax(11rem, auto);
+    grid-template-columns: minmax(0, 2fr) minmax(7rem, 0.8fr) minmax(8rem, 0.8fr) minmax(10rem, 1fr) minmax(11rem, auto);
     gap: 1.25rem;
   }
 
@@ -778,7 +848,6 @@
   .outing-row__date,
   .outing-row__trip,
   .outing-row__expenses,
-  .outing-row__created,
   .expense-row__amount,
   .expense-row__date,
   .expense-row__outing,

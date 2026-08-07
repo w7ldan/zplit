@@ -405,7 +405,7 @@ describe("Zplit design contract", () => {
     expect(css).toMatch(/\.header-shell__nav a:hover::after,[\s\S]*?\.header-shell__nav a\[aria-current="page"\]::after\s*\{[\s\S]*?transform: scaleX\(1\);/);
     expect(cssRuleBody(css, ".app-shell__nav-link:hover, .app-shell__nav-link:focus-visible")).toContain("color: var(--ink);");
     expect(css).toMatch(/@media \(min-width: 1024px\)\s*\{[\s\S]*?\.header-shell__panel\s*\{[\s\S]*?display:\s*grid;/);
-    expect(css).toMatch(/@media \(max-width: 1023px\)\s*\{[\s\S]*?\.app-shell__mobile-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\);/);
+    expect(css).toMatch(/@media \(max-width: 1023px\)\s*\{[\s\S]*?\.app-shell__mobile-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
   });
 
   it("keeps the landing access link on the shared primary action treatment", () => {

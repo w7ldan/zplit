@@ -12,7 +12,6 @@ import { DeleteConfirmation } from "./delete-record-form";
 const destinations = [
   ["Overview", "/app"],
   ["Friends", "/app/friends"],
-  ["Trips", "/app/trips"],
   ["Outings", "/app/outings"],
   ["Expenses", "/app/expenses"],
   ["Repayments", "/app/repayments"],
@@ -28,6 +27,7 @@ type AppShellProps = {
 };
 
 function isCurrent(pathname: string, href: string) {
+  if (href === "/app/outings" && (pathname === "/app/trips" || pathname.startsWith("/app/trips/"))) return true;
   return href === "/app" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 

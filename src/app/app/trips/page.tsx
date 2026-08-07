@@ -11,6 +11,7 @@ import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { normalizeTripFilters, recordHref } from "@/domain/record-retrieval";
+import { OutingsTripsSwitch } from "@/components/outings/outings-trips-switch";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export default async function TripsPage({ searchParams = Promise.resolve({}) }: 
           </div>
           <Link className="action-link action-link--primary" href={recordHref("/app/trips", params, { create: "1" })} data-task-trigger="trip-create">Add trip</Link>
         </div>
+        <OutingsTripsSwitch current="trips" />
         {first(params.created) ? <RecordConfirmation queryKey="created" message="Trip added." /> : null}
         <LiveRecordFilters action="/app/trips" search={{ label: "Search trips", placeholder: "Trip name", value: filters.q ?? "" }} clearHref={filtered ? recordHref("/app/trips", params, { q: undefined, page: undefined }) : undefined} resultStatus={`${tripPage.totalItems} trip${tripPage.totalItems === 1 ? "" : "s"} found.`} preservedParams={params} />
         <div className="ledger-list" id="record-list">

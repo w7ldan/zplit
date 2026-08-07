@@ -2,7 +2,9 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/app/history", useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
+const pathState = vi.hoisted(() => ({ value: "/app/history" }));
+
+vi.mock("next/navigation", () => ({ usePathname: () => pathState.value, useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/auth/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
 
 let frameCallback: FrameRequestCallback | undefined;
@@ -10,32 +12,47 @@ let frameCallback: FrameRequestCallback | undefined;
 afterEach(() => vi.unstubAllGlobals());
 
 beforeEach(() => {
+  pathState.value = "/app/history";
   Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
   frameCallback = undefined;
 });
 
 describe("AppShell", () => {
-  it("keeps six primary destinations and puts History in the account menu", () => {
+  it("keeps five primary destinations and puts History in the account menu", () => {
     render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     const primary = screen.getByRole("navigation", { name: "Ledger navigation" });
     const mobile = screen.getByRole("navigation", { name: "Mobile ledger navigation" });
     expect(document.querySelector(".app-shell__brand")).toBeInTheDocument();
     expect(document.querySelector(".app-shell__actions")).toBeInTheDocument();
-    expect(within(primary).getAllByRole("link")).toHaveLength(6);
-    expect(within(mobile).getAllByRole("link")).toHaveLength(6);
+    expect(within(primary).getAllByRole("link")).toHaveLength(5);
+    expect(within(mobile).getAllByRole("link")).toHaveLength(5);
     expect(within(primary).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
       "/app",
       "/app/friends",
-      "/app/trips",
       "/app/outings",
       "/app/expenses",
       "/app/repayments",
     ]);
+    expect(within(primary).queryByRole("link", { name: "Trips" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
     expect(within(primary).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");
     expect(screen.getByRole("link", { name: "Exports" })).toHaveAttribute("href", "/app/exports");
     expect(document.querySelectorAll(".toast-viewport")).toHaveLength(1);
+  });
+
+  it.each(["/app/outings", "/app/outings/outing-a", "/app/trips", "/app/trips/trip-a"])("marks Outings active for %s", (pathname) => {
+    pathState.value = pathname;
+    render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
+    for (const label of ["Ledger navigation", "Mobile ledger navigation"]) {
+      expect(within(screen.getByRole("navigation", { name: label })).getByRole("link", { name: "Outings" })).toHaveAttribute("aria-current", "page");
+    }
+  });
+
+  it.each([["/app", "Overview"], ["/app/friends/friend-a", "Friends"], ["/app/expenses/expense-a", "Expenses"], ["/app/repayments/repayment-a", "Repayments"]] as const)("keeps %s active state correct", (pathname, label) => {
+    pathState.value = pathname;
+    render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
+    expect(within(screen.getByRole("navigation", { name: "Ledger navigation" })).getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
   });
 
   it("shows only the user name in the closed account control and keeps its menu", () => {

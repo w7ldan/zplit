@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import OutingsPage from "./page";
 
@@ -30,8 +30,13 @@ describe("/app/outings", () => {
     render(await OutingsPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Outings" })).toBeInTheDocument();
+    const viewSwitch = screen.getByRole("navigation", { name: "Outings and Trips views" });
+    expect(within(viewSwitch).getByRole("link", { name: "Outings" })).toHaveAttribute("aria-current", "page");
+    expect(within(viewSwitch).getByRole("link", { name: "Trips" })).toHaveAttribute("href", "/app/trips");
     expect(screen.getByText("Outings · shared events")).toBeInTheDocument();
     expect(screen.getByText("Keep related expenses together under the event where they happened.")).toBeInTheDocument();
+    expect(within(document.querySelector(".outing-row")!).getByText("Trip", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText("Created", { exact: true })).not.toBeInTheDocument();
     expect(screen.getByText("1 expense · Rp 84.000")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("1 outing found.");
     expect(screen.getByRole("status")).toHaveAttribute("aria-atomic", "true");

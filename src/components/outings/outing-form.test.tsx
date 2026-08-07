@@ -39,6 +39,8 @@ describe("OutingForm", () => {
     }
     expect(screen.getByLabelText("Date and time")).toHaveAttribute("type", "datetime-local");
     expect(screen.getByLabelText("Trip")).toHaveValue("No trip");
+    expect(screen.getByText("Optional details").closest("details")).not.toHaveAttribute("open");
+    expect(document.querySelectorAll('[name="tripId"]')).toHaveLength(1);
     expect((container.querySelector('input[name="timezoneOffsetMinutes"]') as HTMLInputElement).value).toBe(new Date().getTimezoneOffset().toString());
     expect(document.querySelectorAll(".outing-form__field-error")).toHaveLength(4);
     expect(document.querySelectorAll(".outing-form__message")).toHaveLength(1);
@@ -49,6 +51,7 @@ describe("OutingForm", () => {
     render(<OutingForm action={action} mode="edit" trips={trips} searchTrips={vi.fn().mockResolvedValue(trips)} initialValues={{ title: "Dinner", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "", tripId: tripA }} />);
 
     expect(screen.getByLabelText("Trip")).toHaveValue("Trip A");
+    expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
     await chooseTrip("Trip B");
     expect(screen.getByLabelText("Trip")).toHaveValue("Trip B");
     expect((document.querySelector('select[name="tripId"]') as HTMLSelectElement).value).toBe(tripB);
@@ -64,11 +67,36 @@ describe("OutingForm", () => {
   it("allows a contextual Trip to be overridden before submit", async () => {
     render(<OutingForm action={vi.fn().mockResolvedValue(initialState)} trips={trips} searchTrips={vi.fn().mockResolvedValue(trips)} initialValues={{ ...initialState.values, tripId: tripA }} />);
 
+    expect(screen.getByRole("button", { name: "Change" })).toBeInTheDocument();
+    expect(within(document.querySelector(".outing-form__trip-context")!).getByText("Trip A", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Optional details").closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
     expect(screen.getByLabelText("Trip")).toHaveValue("Trip A");
+    expect(document.querySelectorAll('[name="tripId"]')).toHaveLength(1);
     await chooseTrip("Trip B");
     expect(screen.getByLabelText("Trip")).toHaveValue("Trip B");
     await chooseTrip("No trip");
     expect(screen.getByLabelText("Trip")).toHaveValue("No trip");
+    expect(within(document.querySelector(".outing-form__trip-context")!).getByText("No trip", { exact: true })).toBeInTheDocument();
+  });
+
+  it("keeps Optional details closed for a generic create until opened", async () => {
+    render(<OutingForm action={vi.fn().mockResolvedValue(initialState)} trips={trips} searchTrips={vi.fn().mockResolvedValue(trips)} />);
+
+    fireEvent.click(screen.getByText("Optional details"));
+    expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
+    await chooseTrip("Trip A");
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Useful context" } });
+    expect(screen.getByLabelText("Trip")).toHaveValue("Trip A");
+    expect(screen.getByLabelText("Notes")).toHaveValue("Useful context");
+  });
+
+  it("opens Optional details for existing Notes", () => {
+    render(<OutingForm action={vi.fn().mockResolvedValue(initialState)} mode="edit" initialValues={{ ...initialState.values, notes: "Keep this visible" }} />);
+
+    expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
+    expect(screen.getByLabelText("Notes")).toHaveValue("Keep this visible");
   });
 
   it("preserves values and exposes field errors after validation failure", async () => {
@@ -133,6 +161,22 @@ describe("OutingForm", () => {
     });
     expect(screen.getByLabelText("Trip")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Trip")).toHaveValue("Trip B");
+    expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
+  });
+
+  it("opens Optional details for Trip and Notes validation errors", async () => {
+    const action = vi.fn().mockResolvedValue({
+      ...initialState,
+      fieldErrors: { tripId: "Select a valid trip.", notes: "Notes are too long." },
+      formError: "Please correct the marked fields.",
+      values: { ...initialState.values, title: "Dinner", occurredAtLocal: "2026-02-28T10:30", timezoneOffsetMinutes: "-480" },
+    });
+    render(<OutingForm action={action} trips={trips} searchTrips={vi.fn().mockResolvedValue(trips)} />);
+    fireEvent.submit(screen.getByRole("button", { name: "Add outing" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByText("Select a valid trip.")).toBeInTheDocument());
+    expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
+    expect(screen.getByText("Notes are too long.")).toBeInTheDocument();
   });
 
   it("keeps the persisted edit timestamp and does not regenerate it on rerender", async () => {

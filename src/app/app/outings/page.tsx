@@ -12,6 +12,7 @@ import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { groupRecordsByMonth, monthDisplayLabel, normalizeOutingFilters, normalizeTimezoneOffset, normalizeUuid, recordHref } from "@/domain/record-retrieval";
 import { validateExpenseReturnTarget } from "@/domain/expense-return";
+import { OutingsTripsSwitch } from "@/components/outings/outings-trips-switch";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,7 @@ export default async function OutingsPage({ searchParams = Promise.resolve({}) }
           </div>
           <Link className="action-link action-link--primary" href={recordHref("/app/outings", effectiveParams, { create: "1" })} data-task-trigger="outing-create">Add outing</Link>
         </div>
+        <OutingsTripsSwitch current="outings" />
         {created ? <RecordConfirmation queryKey="created" message="Outing added." /> : null}
         <LiveRecordFilters action="/app/outings" search={{ label: "Search outings", placeholder: "Outing title", value: filters.q ?? "" }} selects={[{ name: "trip", label: "Trip", value: tripFilter ?? "", options: outingOptions, search: searchTripFilterOptions }]} month={{ label: "Month", value: filters.month ?? "" }} mobileDisclosure={{ activeCount: [tripFilter, filters.month].filter(Boolean).length }} clearHref={filtered ? recordHref("/app/outings", effectiveParams, { q: undefined, month: undefined, trip: undefined, page: undefined }) : undefined} resultStatus={`${outingPage.totalItems} outing${outingPage.totalItems === 1 ? "" : "s"} found.`} preservedParams={effectiveParams} />
         <div className="ledger-list" id="record-list">

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TripsPage from "./page";
 
@@ -19,6 +19,9 @@ describe("/app/trips", () => {
     mocks.createLedgerRepository.mockReturnValue({ listTripRecords: vi.fn().mockResolvedValue(page) });
     render(await TripsPage({ searchParams: Promise.resolve({ create: "1" }) }));
     expect(screen.getByRole("heading", { level: 1, name: "Trips" })).toBeInTheDocument();
+    const viewSwitch = screen.getByRole("navigation", { name: "Outings and Trips views" });
+    expect(within(viewSwitch).getByRole("link", { name: "Trips" })).toHaveAttribute("aria-current", "page");
+    expect(within(viewSwitch).getByRole("link", { name: "Outings" })).toHaveAttribute("href", "/app/outings");
     expect(screen.getByText("Trips · grouped outings")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add trip" })).toHaveAttribute("href", "/app/trips?create=1");
     expect(screen.getByRole("dialog")).toBeInTheDocument();

@@ -15,9 +15,8 @@ export function OutingRow({ outing, expenseCount, expenseTotal, emphasized = fal
       </div>
       <div className="outing-row__meta">
         <span className="outing-row__date"><span className="technical-label">Date</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></span>
-        {showTripContext ? <span className="outing-row__trip"><span className="technical-label">Trip</span>{outing.tripId && outing.tripName ? <Link href={`/app/trips/${outing.tripId}`}>{outing.tripName}</Link> : "No trip"}</span> : null}
+        {showTripContext ? <span className="outing-row__trip"><span className="technical-label">Trip</span>{outing.tripId && outing.tripName ? <Link href={`/app/trips/${outing.tripId}`}>{outing.tripName}</Link> : "—"}</span> : null}
         <span className="outing-row__expenses"><span className="technical-label">Expenses</span>{expenseCount} {expenseCount === 1 ? "expense" : "expenses"} · {formatRupiah(expenseTotal)}</span>
-        <span className="outing-row__created"><span className="technical-label">Created</span><LocalDateTime iso={outing.createdAt.toISOString()} mode="date" /></span>
         <span className="outing-row__actions">
           <Link className="outing-row__edit" href={`/app/outings/${outing.id}`}>Edit <span aria-hidden="true">→</span></Link>
           <Link className="outing-row__add-expense" href={`/app/expenses?create=1&outing=${outing.id}`}>Add expense</Link>
