@@ -41,8 +41,9 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
   const showExpenses = activeStep >= 1;
   const showShares = activeStep >= 2;
   const showRepayment = activeStep >= 3;
+  const showRepaymentState = activeStep === 3;
   const showBalances = activeStep >= 4;
-  const repaymentProgress = showRepayment ? 1 : 0;
+  const repaymentProgress = showRepaymentState ? 1 : 0;
 
   return (
     <article className="journey-panel journey-panel--active" data-journey-step={activeStep} data-journey-layout="persistent-ledger">
@@ -100,40 +101,42 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
             </div>
           </div>
 
-          <div className="journey-summary__section journey-scene__section journey-scene__repayment" data-summary-slot="transaction" data-visible={showRepayment} data-layout={showRepayment ? "expanded" : "collapsed"} aria-hidden={!showRepayment}>
-            <div className="journey-scene__section-reveal">
-              <div className="journey-scene__section-content">
-              <p className="technical-label">Repayment record</p>
-              <div className="journey-repayment-row"><span><strong>Rani repayment</strong><small>Received and ready to allocate</small></span><strong><Amount value={scenario.repayment.amount} /></strong></div>
-              <div className="journey-repayment__allocation journey-allocation" data-visible={showRepayment} data-layout={showRepayment ? "expanded" : "collapsed"} data-progress={showRepayment ? "complete" : "zero"} aria-hidden={!showRepayment}>
-                <div className="journey-allocation__content">
-                  <div className="journey-allocation__caption"><span>Repayment allocation</span><strong><Amount value={showRepayment ? scenario.repayment.amount : 0} /></strong></div>
-                  <div className="journey-allocation__track" role="progressbar" aria-label="Repayment allocation" aria-valuemin={0} aria-valuemax={scenario.repayment.amount} aria-valuenow={showRepayment ? scenario.repayment.amount : 0}><span style={{ transform: `scaleX(${repaymentProgress})` }} /></div>
+          <div className="journey-summary__state-slot" data-summary-slot="state">
+            <div className="journey-summary__state journey-scene__section journey-scene__repayment" data-summary-state="repayment" data-visible={showRepaymentState} data-layout={showRepaymentState ? "expanded" : "collapsed"} aria-hidden={!showRepaymentState}>
+              <div className="journey-scene__section-reveal">
+                <div className="journey-scene__section-content">
+                <p className="technical-label">Repayment state</p>
+                <div className="journey-repayment-row"><span><strong>Rani repayment</strong><small>Received and ready to allocate</small></span><strong><Amount value={scenario.repayment.amount} /></strong></div>
+                <div className="journey-repayment__allocation journey-allocation" data-visible={showRepaymentState} data-layout={showRepaymentState ? "expanded" : "collapsed"} data-progress={showRepaymentState ? "complete" : "zero"} aria-hidden={!showRepaymentState}>
+                  <div className="journey-allocation__content">
+                    <div className="journey-allocation__caption"><span>Repayment allocation</span><strong><Amount value={showRepaymentState ? scenario.repayment.amount : 0} /></strong></div>
+                    <div className="journey-allocation__track" role="progressbar" aria-label="Repayment allocation" aria-valuemin={0} aria-valuemax={scenario.repayment.amount} aria-valuenow={showRepaymentState ? scenario.repayment.amount : 0}><span style={{ transform: `scaleX(${repaymentProgress})` }} /></div>
+                  </div>
+                </div>
+                <div className="journey-summary-list">
+                  <ProductRow label="Received" value={showRepaymentState ? formatRupiah(scenario.repayment.amount) : "—"} />
+                  <ProductRow label="Applied" value={showRepaymentState ? formatRupiah(scenario.repayment.amount) : "—"} />
+                </div>
+                <div className="journey-allocation-list">
+                  <ProductRow label="Dinner applied" value={formatRupiah(84000)} />
+                  <ProductRow label="Taxi applied" value={formatRupiah(42500)} />
+                  <ProductRow label="Needs allocation" value={formatRupiah(0)} detail="Nothing left" />
                 </div>
               </div>
-              <div className="journey-summary-list">
-                <ProductRow label="Received" value={showRepayment ? formatRupiah(scenario.repayment.amount) : "—"} />
-                <ProductRow label="Applied" value={showRepayment ? formatRupiah(scenario.repayment.amount) : "—"} />
-              </div>
-              <div className="journey-allocation-list">
-                <ProductRow label="Dinner applied" value={formatRupiah(84000)} />
-                <ProductRow label="Taxi applied" value={formatRupiah(42500)} />
-                <ProductRow label="Needs allocation" value={formatRupiah(0)} detail="Nothing left" />
               </div>
             </div>
-            </div>
-          </div>
 
-          <div className="journey-summary__section journey-scene__section journey-scene__balances" data-summary-slot="balances" data-visible={showBalances} data-layout={showBalances ? "expanded" : "collapsed"} aria-hidden={!showBalances}>
-            <div className="journey-scene__section-reveal">
-              <div className="journey-scene__section-content">
-              <p className="technical-label">Friend balances</p>
-              <div className="journey-balance-list">
-                <div className="journey-balance journey-balance--settled"><div><strong>Rani</strong><span>Assigned {formatRupiah(raniAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={0} /></strong></div><span className="journey-state">SETTLED</span></div>
-                <div className="journey-balance journey-balance--open"><div><strong>Dimas</strong><span>Assigned {formatRupiah(dimasAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={dimasAssigned} /></strong></div><span className="journey-state">OPEN</span></div>
+            <div className="journey-summary__state journey-scene__section journey-scene__balances" data-summary-state="balances" data-visible={showBalances} data-layout={showBalances ? "expanded" : "collapsed"} aria-hidden={!showBalances}>
+              <div className="journey-scene__section-reveal">
+                <div className="journey-scene__section-content">
+                <p className="technical-label">Balance state</p>
+                <div className="journey-balance-list">
+                  <div className="journey-balance journey-balance--settled"><div><strong>Rani</strong><span>Assigned {formatRupiah(raniAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={0} /></strong></div><span className="journey-state">SETTLED</span></div>
+                  <div className="journey-balance journey-balance--open"><div><strong>Dimas</strong><span>Assigned {formatRupiah(dimasAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={dimasAssigned} /></strong></div><span className="journey-state">OPEN</span></div>
+                </div>
+                <p className="journey-footnote">Rani is settled after her repayment. Remaining across this illustrative outing: <strong><Amount value={dimasAssigned} /></strong>. The owner portion is already excluded from friend balances.</p>
               </div>
-              <p className="journey-footnote">Remaining across this illustrative outing: <strong><Amount value={dimasAssigned} /></strong>. The owner portion is already excluded from friend balances.</p>
-            </div>
+              </div>
             </div>
           </div>
         </aside>
@@ -159,6 +162,8 @@ export function JourneyShowcase() {
   const runway = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const ignoredProgress = useRef<number | null>(null);
+  const pinnedStageHeight = useRef(0);
+  const pinnedViewport = useRef({ width: 0, height: 0 });
 
   const stageHeight = useCallback(() => Math.max(stage.current?.offsetHeight ?? 0, 1), []);
   const stickyTop = useCallback(() => {
@@ -178,9 +183,7 @@ export function JourneyShowcase() {
     const tall = window.matchMedia?.("(min-height: 720px)");
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const updateMode = () => {
-      const height = stage.current?.offsetHeight ?? 0;
-      const fitsNaturalStage = height === 0 || height + stickyTop() <= window.innerHeight;
-      const next = Boolean(wide?.matches && tall?.matches && !reduced?.matches && fitsNaturalStage);
+      const next = Boolean(wide?.matches && tall?.matches && !reduced?.matches);
       setDesktopSequence((current) => {
         if (current && !next) runway.current?.style.removeProperty("height");
         return current === next ? current : next;
@@ -191,20 +194,25 @@ export function JourneyShowcase() {
     const removeTall = tall ? listenToMediaQuery(tall, updateMode) : undefined;
     const removeReduced = reduced ? listenToMediaQuery(reduced, updateMode) : undefined;
     window.addEventListener("resize", updateMode);
-    const resizeObserver = typeof ResizeObserver === "undefined" || !stage.current ? undefined : new ResizeObserver(updateMode);
-    resizeObserver?.observe(stage.current!);
-    return () => { removeWide?.(); removeTall?.(); removeReduced?.(); resizeObserver?.disconnect(); window.removeEventListener("resize", updateMode); };
-  }, [stickyTop]);
+    return () => { removeWide?.(); removeTall?.(); removeReduced?.(); window.removeEventListener("resize", updateMode); };
+  }, []);
 
   useEffect(() => {
     if (!desktopSequence) return;
     let frame: number | null = null;
-    const sequenceTravel = () => Math.max(window.innerHeight, stageHeight()) * (steps.length - 1);
+    const capturePinnedHeight = (force = false) => {
+      const viewport = { width: window.innerWidth, height: window.innerHeight };
+      const viewportChanged = viewport.width !== pinnedViewport.current.width || viewport.height !== pinnedViewport.current.height;
+      if (force || pinnedStageHeight.current === 0 || viewportChanged) pinnedStageHeight.current = stage.current?.offsetHeight ?? 0;
+      pinnedViewport.current = viewport;
+    };
+    const pinnedHeight = () => Math.max(pinnedStageHeight.current || stageHeight(), 1);
+    const sequenceTravel = () => Math.max(window.innerHeight, pinnedHeight()) * (steps.length - 1);
     const updateDimensions = () => {
       const element = runway.current;
-      if (element) element.style.height = `${stageHeight() + sequenceTravel()}px`;
+      if (element) element.style.height = `${pinnedHeight() + sequenceTravel()}px`;
     };
-    const availableTravel = () => Math.max((runway.current?.offsetHeight ?? 0) - stageHeight(), 1);
+    const availableTravel = () => Math.max((runway.current?.offsetHeight ?? 0) - pinnedHeight(), 1);
     const updateProgress = () => {
       frame = null;
       const element = runway.current;
@@ -219,12 +227,11 @@ export function JourneyShowcase() {
       updateActiveStep(Math.round(progress * (steps.length - 1)));
     };
     const scheduleUpdate = () => { if (frame === null) frame = window.requestAnimationFrame(updateProgress); };
-    const onResize = () => { updateDimensions(); scheduleUpdate(); };
-    const onPageShow = () => { updateDimensions(); scheduleUpdate(); };
-    const resizeObserver = typeof ResizeObserver === "undefined" || !stage.current ? undefined : new ResizeObserver(() => { updateDimensions(); scheduleUpdate(); });
+    const onResize = () => { capturePinnedHeight(); updateDimensions(); scheduleUpdate(); };
+    const onPageShow = () => { capturePinnedHeight(true); updateDimensions(); scheduleUpdate(); };
+    capturePinnedHeight();
     updateDimensions();
     updateProgress();
-    resizeObserver?.observe(stage.current!);
     window.addEventListener("scroll", scheduleUpdate, { passive: true });
     window.addEventListener("resize", onResize);
     window.addEventListener("pageshow", onPageShow);
@@ -233,15 +240,16 @@ export function JourneyShowcase() {
       window.removeEventListener("scroll", scheduleUpdate);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("pageshow", onPageShow);
-      resizeObserver?.disconnect();
       if (frame !== null) window.cancelAnimationFrame(frame);
       runway.current?.style.removeProperty("height");
+      pinnedStageHeight.current = 0;
+      pinnedViewport.current = { width: 0, height: 0 };
     };
   }, [desktopSequence, stageHeight, stickyTop, updateActiveStep]);
 
   function scrollToStep(step: number) {
     if (!desktopSequence || !runway.current) return;
-    const travel = Math.max(runway.current.offsetHeight - stageHeight(), 1);
+    const travel = Math.max(runway.current.offsetHeight - Math.max(pinnedStageHeight.current || stageHeight(), 1), 1);
     const runwayDocumentTop = runway.current.getBoundingClientRect().top + window.scrollY;
     const top = runwayDocumentTop - stickyTop() + (step / (steps.length - 1)) * travel;
     window.scrollTo({ top, behavior: "smooth" });

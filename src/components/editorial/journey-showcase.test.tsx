@@ -8,9 +8,12 @@ function setScrollY(value: number) {
   Object.defineProperty(window, "scrollY", { configurable: true, value });
 }
 
-function mediaQuery({ desktop = false, tall = false, reduced = false } = {}) {
+function mediaQuery({ desktop = false, tall = false, reduced = false }: { desktop?: boolean; tall?: boolean | (() => boolean); reduced?: boolean } = {}) {
   return (query: string) => ({
-    matches: query === "(min-width: 960px)" ? desktop : query === "(min-height: 720px)" ? tall : reduced,
+    get matches() {
+      const value = query === "(min-width: 960px)" ? desktop : query === "(min-height: 720px)" ? tall : reduced;
+      return typeof value === "function" ? value() : value;
+    },
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   });
@@ -54,10 +57,10 @@ describe("JourneyShowcase", () => {
     expect(sceneSection("repayment").querySelector("[role=progressbar]")).toHaveAttribute("aria-valuenow", "0");
     expect(sceneSection("balances")).toHaveAttribute("aria-hidden", "true");
     expect(sceneSection("balances")).toHaveAttribute("data-layout", "collapsed");
-    expect(scene.querySelectorAll("[data-summary-slot]")).toHaveLength(3);
+    expect(scene.querySelectorAll("[data-summary-slot]")).toHaveLength(2);
     expect(scene.querySelector('[data-summary-slot="totals"]')).toBeInTheDocument();
-    expect(scene.querySelector('[data-summary-slot="transaction"]')).toBe(sceneSection("repayment"));
-    expect(scene.querySelector('[data-summary-slot="balances"]')).toBe(sceneSection("balances"));
+    expect(scene.querySelector('[data-summary-slot="state"]')).toContainElement(sceneSection("repayment"));
+    expect(scene.querySelector('[data-summary-slot="state"]')).toContainElement(sceneSection("balances"));
   });
 
   it("progressively reveals the same expenses, shares, repayment, and balances in both directions", () => {
@@ -123,7 +126,9 @@ describe("JourneyShowcase", () => {
     expect(scene.querySelector('[data-expense="Taxi"]')).toBe(taxi);
     expect(sceneSection("balances")).toHaveAttribute("data-visible", "true");
     expect(sceneSection("balances")).toHaveAttribute("data-layout", "expanded");
+    expect(sceneSection("repayment")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("SETTLED", { exact: true })).toBeInTheDocument();
+    expect(within(sceneSection("balances")).getByText("Rani", { exact: true })).toBeInTheDocument();
     expect(within(sceneSection("balances")).getByText("Dimas", { exact: true })).toBeInTheDocument();
     expect(screen.getAllByText("Rp 42.500", { exact: true }).length).toBeGreaterThan(0);
     expect(within(sceneSection("expenses")).getAllByText("Outstanding · not covered", { exact: true })).toHaveLength(1);
@@ -140,6 +145,39 @@ describe("JourneyShowcase", () => {
     expect(sceneSection("repayment").querySelector(".journey-repayment__allocation")).toHaveAttribute("data-progress", "zero");
     expect(sceneSection("repayment").querySelector("[role=progressbar]")).toHaveAttribute("aria-valuenow", "0");
     expect(scene.querySelectorAll(".journey-scene__body > *")).toHaveLength(2);
+  });
+
+  it("keeps the pinned runway through active-step growth", () => {
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    let frame: FrameRequestCallback | undefined;
+    let visibleStageHeight = 600;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    setScrollY(0);
+    render(<JourneyShowcase />);
+
+    const scene = document.querySelector(".journey-panel")!;
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    Object.defineProperty(stage, "offsetHeight", { configurable: true, get: () => visibleStageHeight });
+    Object.defineProperty(runway, "offsetHeight", { configurable: true, value: 3000 });
+    vi.spyOn(runway, "getBoundingClientRect").mockImplementation(() => ({ top: 100 - window.scrollY } as DOMRect));
+    act(() => window.dispatchEvent(new Event("resize")));
+    const runwayHeight = runway.style.height;
+    expect(stage).toHaveClass("journey-sticky--pinned");
+
+    for (const [step, growth] of [0, 1, 2, 3, 4].map((step) => [step, 600 + step * 300] as const)) {
+      visibleStageHeight = growth;
+      act(() => window.dispatchEvent(new Event("resize")));
+      setScrollY(100 + step * 600);
+      act(() => window.dispatchEvent(new Event("scroll")));
+      act(() => frame?.(1));
+      expect(stage).toHaveClass("journey-sticky--pinned");
+      expect(runway.style.height).toBe(runwayHeight);
+      expect(scene).toHaveAttribute("data-journey-step", String(step));
+    }
+
+    expect(screen.getAllByRole("tab")[4]).toHaveAttribute("aria-selected", "true");
   });
 
   it("keeps future mobile regions collapsed until their step", () => {
@@ -225,21 +263,8 @@ describe("JourneyShowcase", () => {
     }
   });
 
-  it("falls back when the natural interactive stage cannot fit", () => {
-    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
-    const originalInnerHeight = window.innerHeight;
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: 600 });
-    render(<JourneyShowcase />);
-    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
-    Object.defineProperty(stage, "offsetHeight", { configurable: true, value: 700 });
-
-    act(() => window.dispatchEvent(new Event("resize")));
-    expect(stage).not.toHaveClass("journey-sticky--pinned");
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: originalInnerHeight });
-  });
-
   it("re-enables pinned mode after a short viewport and clears its runway height", () => {
-    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: () => window.innerHeight >= 720 }));
     let frame: FrameRequestCallback | undefined;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
