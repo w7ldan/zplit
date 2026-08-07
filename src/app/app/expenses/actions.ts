@@ -10,10 +10,15 @@ import { createLedgerRepository, deletionImpactRevision, ExpenseShareInvariantEr
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 
+export type ExpenseSubmitIntent = "add" | "continue";
+export type ExpenseActionSuccess = { expenseId: string };
+
 export type ExpenseActionState = {
   fieldErrors: ExpenseFieldErrors;
   formError: string;
   values: ExpenseInputValues;
+  intent?: ExpenseSubmitIntent;
+  success?: ExpenseActionSuccess;
 };
 
 export type ExpenseShareActionState = {
@@ -62,11 +67,22 @@ function valuesFromForm(formData: FormData) {
   });
 }
 
-function invalidState(result: Extract<ReturnType<typeof validateExpenseInput>, { ok: false }>): ExpenseActionState {
-  return { fieldErrors: result.errors, formError: "Please correct the marked fields.", values: result.values };
+function expenseSubmitIntent(formData: FormData): ExpenseSubmitIntent | null {
+  const values = formData.getAll("intent");
+  if (values.length === 0) return "add";
+  if (values.length !== 1 || typeof values[0] !== "string") return null;
+  return values[0] === "add" || values[0] === "continue" ? values[0] : null;
 }
 
-function errorState(error: unknown, values: ExpenseInputValues): ExpenseActionState {
+function invalidIntentState(values: ExpenseInputValues): ExpenseActionState {
+  return { fieldErrors: {}, formError: "Invalid expense submission.", values };
+}
+
+function invalidState(result: Extract<ReturnType<typeof validateExpenseInput>, { ok: false }>, intent?: ExpenseSubmitIntent): ExpenseActionState {
+  return { fieldErrors: result.errors, formError: "Please correct the marked fields.", values: result.values, ...(intent === "continue" ? { intent } : {}) };
+}
+
+function errorState(error: unknown, values: ExpenseInputValues, intent?: ExpenseSubmitIntent): ExpenseActionState {
   return {
     fieldErrors: {},
     formError: error instanceof LedgerNotFoundError
@@ -75,6 +91,7 @@ function errorState(error: unknown, values: ExpenseInputValues): ExpenseActionSt
         ? "Expense amount cannot be lower than its assigned shares."
         : "Unable to save this expense.",
     values,
+    ...(intent === "continue" ? { intent } : {}),
   };
 }
 
@@ -102,17 +119,27 @@ export async function createExpenseAction(
   formData: FormData,
 ): Promise<ExpenseActionState> {
   const session = await requireSession();
+  const intent = expenseSubmitIntent(formData);
   const result = valuesFromForm(formData);
-  if (!result.ok) return invalidState(result);
+  if (!intent) return invalidIntentState(result.values);
+  if (!result.ok) return invalidState(result, intent);
 
   let expense;
   try {
     expense = await createLedgerRepository(getDatabase(), session.user.id).createExpense(result.value);
   } catch (error) {
-    return errorState(error, result.values);
+    return errorState(error, result.values, intent);
   }
   revalidatePath("/app");
   revalidatePath("/app/expenses");
+  if (intent === "continue") {
+    return {
+      fieldErrors: {},
+      formError: "",
+      values: { description: "", amountRupiah: "", outingId: result.value.outingId },
+      success: { expenseId: expense.id },
+    };
+  }
   redirect(`/app/expenses/${encodeURIComponent(expense.id)}?created=1`);
 }
 

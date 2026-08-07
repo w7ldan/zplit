@@ -202,6 +202,7 @@ describe("Zplit design contract", () => {
     expect(css).not.toContain(".outing-row__edit:hover span");
     expect(css).not.toContain(".expense-row__edit:hover span");
     expect(cssRuleBody(css, ".repayment-form__disclosure > summary")).toContain("border-radius: var(--radius-control);");
+    expect(cssRuleBody(css, ".expense-form__actions")).toMatch(/display:\s*flex;[\s\S]*gap:\s*0\.75rem;/);
   });
 
   it("keeps long record values inside bounded rows while leaving detail values unclamped", () => {

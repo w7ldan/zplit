@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createExpenseAction, deleteExpenseAction, replaceExpenseSharesAction, searchExpenseFriendOptions, updateExpenseAction, type ExpenseActionState, type ExpenseShareActionState } from "./actions";
 import { deletionImpactRevision, ExpenseShareInvariantError, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
 
@@ -51,6 +51,8 @@ const values = {
 };
 
 describe("expense actions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("returns only bounded active friend options for the session owner", async () => {
     const searchFriends = vi.fn().mockResolvedValue([
       { id: "11111111-1111-4111-8111-111111111111", name: "Active", archived: false },
@@ -71,10 +73,54 @@ describe("expense actions", () => {
 
   it("returns validation errors without touching the repository", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    const state = await createExpenseAction(initialState, form({ ...values, description: "", outingId: "" }));
+    const state = await createExpenseAction(initialState, form({ ...values, description: "", outingId: "", intent: "continue" }));
 
-    expect(state).toMatchObject({ formError: "Please correct the marked fields.", fieldErrors: { description: "Description is required.", outingId: "Outing is required." } });
+    expect(state).toMatchObject({ formError: "Please correct the marked fields.", fieldErrors: { description: "Description is required.", outingId: "Outing is required." }, intent: "continue", values: { description: "", amountRupiah: values.amountRupiah, outingId: "" } });
     expect(mocks.createLedgerRepository).not.toHaveBeenCalled();
+  });
+
+  it("uses normal add behavior when intent is missing", async () => {
+    const createExpense = vi.fn().mockResolvedValue({ id: "expense-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createExpense });
+
+    await expect(createExpenseAction(initialState, form(values))).rejects.toThrow("redirect:/app/expenses/expense-a?created=1");
+    expect(createExpense).toHaveBeenCalledOnce();
+  });
+
+  it("saves one expense and returns a continuation result without redirecting", async () => {
+    const createExpense = vi.fn().mockResolvedValue({ id: "expense-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createExpense });
+
+    const result = await createExpenseAction(initialState, form({ ...values, intent: "continue" }));
+
+    expect(createExpense).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      values: { description: "", amountRupiah: "", outingId: values.outingId },
+      success: { expenseId: "expense-a" },
+    });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/expenses");
+  });
+
+  it("rejects malformed and repeated intents without creating an expense", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    const repository = { createExpense: vi.fn() };
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue(repository);
+
+    const malformed = await createExpenseAction(initialState, form({ ...values, intent: "delete" }));
+    const repeated = form({ ...values, intent: "continue" });
+    repeated.append("intent", "continue");
+    const repeatedResult = await createExpenseAction(initialState, repeated);
+
+    expect(malformed).toMatchObject({ formError: "Invalid expense submission.", values: { description: "Dinner", amountRupiah: values.amountRupiah, outingId: values.outingId } });
+    expect(repeatedResult).toMatchObject({ formError: "Invalid expense submission.", values: { description: "Dinner", amountRupiah: values.amountRupiah, outingId: values.outingId } });
+    expect(repository.createExpense).not.toHaveBeenCalled();
   });
 
   it("binds mutations to the authenticated owner and passes only expense fields", async () => {
