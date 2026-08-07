@@ -40,17 +40,15 @@ function initialAmounts(friends: ExpenseShareEditorFriend[]) {
 
 export function ChangedValue({ value, children }: { value: number; children: ReactNode }) {
   const previousValue = useRef(value);
-  const [changed, setChanged] = useState(false);
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     if (previousValue.current === value) return;
     previousValue.current = value;
-    setChanged(true);
-    const timer = window.setTimeout(() => setChanged(false), 200);
-    return () => window.clearTimeout(timer);
+    setRevision((current) => current + 1);
   }, [value]);
 
-  return <span className={changed ? "changed-value changed-value--changed" : "changed-value"}>{children}</span>;
+  return <span className="changed-value" data-changed-revision={revision}><span key={revision} className={revision > 0 ? "changed-value__visual changed-value--changed" : "changed-value__visual"}>{children}</span></span>;
 }
 
 function SubmitButton() {

@@ -25,6 +25,7 @@ const taskPanelSource = readFileSync(path.resolve(process.cwd(), "src/components
 const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/components/app/record-confirmation.tsx"), "utf8");
 const expenseShareSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-share-editor.tsx"), "utf8");
 const repaymentAllocationSource = readFileSync(path.resolve(process.cwd(), "src/components/repayments/repayment-allocation-editor.tsx"), "utf8");
+const journeySource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/journey-showcase.tsx"), "utf8");
 const expenseFormSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-form.tsx"), "utf8");
 const repaymentFormSource = readFileSync(path.resolve(process.cwd(), "src/components/repayments/repayment-form.tsx"), "utf8");
 
@@ -273,6 +274,21 @@ describe("Zplit design contract", () => {
     expect(cssRuleBody(css, ".expense-form__actions")).toMatch(/display:\s*flex;[\s\S]*gap:\s*0\.75rem;/);
   });
 
+  it("keeps the persistent journey readable without a clipping viewport", () => {
+    expect(journeySource).toContain('className="journey-panel journey-panel--active"');
+    expect(journeySource).toContain('className="journey-scene__body" data-repayment-active={showRepayment}');
+    expect(publicSource).toContain(".journey-scene__section-content");
+    expect(publicSource).not.toMatch(/\.journey-sticky--pinned \.journey-frame__body\s*\{[^}]*overflow:\s*hidden/);
+    expect(publicSource).toMatch(/@media \(min-width: 960px\) and \(max-height: 820px\)/);
+    expect(publicSource).toMatch(/@media \(min-width: 960px\) and \(max-height: 760px\)[\s\S]*?\.journey-sticky--pinned \.journey-stage[\s\S]*?height: auto;/);
+    expect(publicSource).toContain(".journey-sticky--pinned .journey-scene__body");
+    expect(publicSource).toContain("transform: scaleX(var(--allocation, 0))");
+    expect(publicSource).toContain(".journey-share-detail--covered");
+    expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.journey-share-detail--covered/);
+    expect(journeySource).toContain('role="progressbar"');
+    expect(journeySource).toContain('aria-valuenow={showRepayment ? scenario.repayment.amount : 0}');
+  });
+
   it("keeps public journey ownership in the public stylesheet", () => {
     expect(publicSource).toContain(".journey-scene__body");
     expect(publicSource).toContain(".landing-reveal");
@@ -398,6 +414,9 @@ describe("Zplit design contract", () => {
     expect(recordConfirmationSource).toContain('"entering"');
     expect(recordConfirmationSource).toContain('"exiting"');
     expect(recordConfirmationSource).toContain("return null");
+    expect(expenseShareSource).toContain("data-changed-revision");
+    expect(expenseShareSource).not.toContain("setTimeout");
+    expect(css).toContain(".changed-value__visual");
   });
 
   it("uses one stable underline mechanism for friend filters", () => {

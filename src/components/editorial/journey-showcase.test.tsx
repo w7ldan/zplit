@@ -10,7 +10,7 @@ function setScrollY(value: number) {
 
 function mediaQuery({ desktop = false, tall = false, reduced = false } = {}) {
   return (query: string) => ({
-    matches: query === "(min-width: 960px)" ? desktop : query === "(min-height: 760px)" ? tall : reduced,
+    matches: query === "(min-width: 960px)" ? desktop : query === "(min-height: 761px)" ? tall : reduced,
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   });
@@ -32,6 +32,8 @@ describe("JourneyShowcase", () => {
     expect(screen.getByText("None yet", { exact: true })).toBeInTheDocument();
     expect(sceneSection("expenses")).toHaveAttribute("data-visible", "false");
     expect(sceneSection("repayment")).toHaveAttribute("aria-hidden", "true");
+    expect(sceneSection("repayment").querySelector(".journey-repayment__allocation")).toHaveAttribute("data-progress", "zero");
+    expect(sceneSection("repayment").querySelector("[role=progressbar]")).toHaveAttribute("aria-valuenow", "0");
   });
 
   it("progressively reveals the same expenses, shares, repayment, and balances in both directions", () => {
@@ -56,13 +58,22 @@ describe("JourneyShowcase", () => {
     expect(screen.getByText("Your portion", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Rp 169.000", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Rp 191.000", { exact: true })).toBeInTheDocument();
+    expect(within(sceneSection("expenses")).getAllByText("Outstanding · not covered", { exact: true })).toHaveLength(3);
+    expect(within(sceneSection("expenses")).queryByText("Covered by repayment", { exact: true })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /A repayment/ }));
     expect(document.querySelector(".journey-panel")).toBe(scene);
     expect(sceneSection("repayment")).toHaveAttribute("data-visible", "true");
     expect(screen.getByText("Rani pays back her shares", { exact: true })).toBeInTheDocument();
     expect(within(sceneSection("expenses")).getAllByText("Covered by repayment", { exact: true })).toHaveLength(2);
+    expect(within(sceneSection("expenses")).getAllByText("Outstanding · not covered", { exact: true })).toHaveLength(1);
     expect(screen.getAllByText("Rp 126.500", { exact: true }).length).toBeGreaterThan(0);
+    const repayment = sceneSection("repayment");
+    expect(within(repayment).getByText("Dinner applied", { exact: true })).toBeInTheDocument();
+    expect(within(repayment).getByText("Taxi applied", { exact: true })).toBeInTheDocument();
+    expect(within(repayment).getByText("Needs allocation", { exact: true })).toBeInTheDocument();
+    expect(within(repayment).getByRole("progressbar", { name: "Repayment allocation" })).toHaveAttribute("aria-valuenow", "126500");
+    expect(repayment.querySelector(".journey-repayment__allocation")).toHaveAttribute("data-progress", "complete");
 
     fireEvent.click(screen.getByRole("tab", { name: /balance becomes/ }));
     expect(document.querySelector(".journey-panel")).toBe(scene);
@@ -70,12 +81,17 @@ describe("JourneyShowcase", () => {
     expect(screen.getByText("SETTLED", { exact: true })).toBeInTheDocument();
     expect(within(sceneSection("balances")).getByText("Dimas", { exact: true })).toBeInTheDocument();
     expect(screen.getAllByText("Rp 42.500", { exact: true }).length).toBeGreaterThan(0);
+    expect(within(sceneSection("expenses")).getAllByText("Outstanding · not covered", { exact: true })).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("tab", { name: /Friend shares/ }));
     expect(document.querySelector(".journey-panel")).toBe(scene);
     expect(scene).toHaveAttribute("data-journey-step", "2");
     expect(sceneSection("repayment")).toHaveAttribute("aria-hidden", "true");
     expect(sceneSection("balances")).toHaveAttribute("aria-hidden", "true");
+    expect(within(sceneSection("expenses")).getAllByText("Outstanding · not covered", { exact: true })).toHaveLength(3);
+    expect(within(sceneSection("expenses")).queryByText("Covered by repayment", { exact: true })).not.toBeInTheDocument();
+    expect(sceneSection("repayment").querySelector(".journey-repayment__allocation")).toHaveAttribute("data-progress", "zero");
+    expect(sceneSection("repayment").querySelector("[role=progressbar]")).toHaveAttribute("aria-valuenow", "0");
   });
 
   it("maps scroll progress, resize reconciliation, and tab selection without replacing the scene", () => {

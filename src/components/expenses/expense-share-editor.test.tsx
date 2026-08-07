@@ -51,10 +51,25 @@ describe("expense share editor", () => {
 
     fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "50000" } });
     expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
-    expect(screen.getByText("Rp 70.000", { exact: true }).closest(".changed-value")).toHaveClass("changed-value--changed");
-    expect(screen.getByText("Rp 14.000", { exact: true }).closest(".changed-value")).toHaveClass("changed-value--changed");
+    const assigned = screen.getByText("Rp 70.000", { exact: true }).closest(".changed-value") as HTMLElement;
+    const firstVisual = assigned.querySelector(".changed-value__visual");
+    expect(assigned).toHaveAttribute("data-changed-revision", "1");
+    expect(firstVisual).toHaveClass("changed-value--changed");
+    expect(screen.getByText("Rp 14.000", { exact: true }).closest(".changed-value")).toHaveAttribute("data-changed-revision", "1");
 
-    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "50000" } });
+    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "51000" } });
+    const secondVisual = assigned.querySelector(".changed-value__visual");
+    expect(assigned).toHaveAttribute("data-changed-revision", "2");
+    expect(secondVisual).not.toBe(firstVisual);
+
+    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "52000" } });
+    const thirdVisual = assigned.querySelector(".changed-value__visual");
+    expect(assigned).toHaveAttribute("data-changed-revision", "3");
+    expect(thirdVisual).not.toBe(secondVisual);
+
+    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "52000" } });
+    expect(assigned).toHaveAttribute("data-changed-revision", "3");
+    expect(assigned.querySelector(".changed-value__visual")).toBe(thirdVisual);
     expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
   });
 

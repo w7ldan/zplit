@@ -32,16 +32,17 @@ function Amount({ value }: { value: number }) {
   return <span className="tabular-nums">{formatRupiah(value)}</span>;
 }
 
-function ProductRow({ label, value, detail }: { label: string; value: string; detail?: string }) {
-  return <div className="journey-row"><span className="journey-row__label">{label}</span><strong>{value}</strong>{detail ? <span className="journey-row__detail">{detail}</span> : null}</div>;
+function ProductRow({ label, value, detail, detailClassName }: { label: string; value: string; detail?: string; detailClassName?: string }) {
+  return <div className="journey-row"><span className="journey-row__label">{label}</span><strong>{value}</strong>{detail ? <span key={detail} className={`journey-row__detail${detailClassName ? ` ${detailClassName}` : ""}`}>{detail}</span> : null}</div>;
 }
 
 function JourneyScene({ activeStep }: { activeStep: number }) {
-  const allocationStyle = { "--allocation": `${(assignedTotal / expenseTotal) * 100}%` } as CSSProperties;
+  const allocationStyle = { "--allocation": `${assignedTotal / expenseTotal}` } as CSSProperties;
   const showExpenses = activeStep >= 1;
   const showShares = activeStep >= 2;
   const showRepayment = activeStep >= 3;
   const showBalances = activeStep >= 4;
+  const repaymentProgress = showRepayment ? 1 : 0;
 
   return (
     <article className="journey-panel journey-panel--active" data-journey-step={activeStep}>
@@ -49,7 +50,7 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
         <span className="journey-step-mark">{String(activeStep + 1).padStart(2, "0")}</span>
         <div><p className="technical-label">{steps[activeStep].label}</p><p>{steps[activeStep].copy}</p></div>
       </div>
-      <div className="journey-scene__body">
+      <div className="journey-scene__body" data-repayment-active={showRepayment}>
         <div className="journey-scene__outing">
           <p className="technical-label">Outing record</p>
           <h3>{scenario.outing}</h3>
@@ -60,47 +61,58 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
         </div>
 
         <div className="journey-scene__section journey-scene__expenses" data-visible={showExpenses} aria-hidden={!showExpenses}>
-          <p className="technical-label">Expense rows · {scenario.outing}</p>
-          <h3>Two things paid for</h3>
-          <div className="journey-list">
-            {scenario.expenses.map((expense) => (
-              <div className="journey-expense-row" key={expense.description}>
-                <ProductRow label={expense.description} value={formatRupiah(expense.amount)} />
-                <div className="journey-expense-row__shares" data-visible={showShares} aria-hidden={!showShares}>
-                  {scenario.shares.filter((share) => share.expense === expense.description).map((share) => (
-                    <ProductRow key={`${share.expense}-${share.friend}`} label={share.friend} value={formatRupiah(share.amount)} detail={showRepayment && share.friend === "Rani" ? "Covered by repayment" : undefined} />
-                  ))}
+          <div className="journey-scene__section-content">
+            <p className="technical-label">Expense rows · {scenario.outing}</p>
+            <h3>Two things paid for</h3>
+            <div className="journey-list">
+              {scenario.expenses.map((expense) => (
+                <div className="journey-expense-row" key={expense.description}>
+                  <ProductRow label={expense.description} value={formatRupiah(expense.amount)} />
+                  <div className="journey-expense-row__shares" data-visible={showShares} aria-hidden={!showShares}>
+                    {scenario.shares.filter((share) => share.expense === expense.description).map((share) => {
+                      const covered = showRepayment && share.friend === "Rani";
+                      return <ProductRow key={`${share.expense}-${share.friend}`} label={share.friend} value={formatRupiah(share.amount)} detail={showShares ? covered ? "Covered by repayment" : "Outstanding · not covered" : undefined} detailClassName={covered ? "journey-share-detail--covered" : "journey-share-detail--outstanding"} />;
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          <div className="journey-total"><span>Outing expense total</span><strong><Amount value={expenseTotal} /></strong></div>
-          <div className="journey-allocation" style={allocationStyle} data-visible={showShares} aria-hidden={!showShares}>
-            <div className="journey-allocation__caption"><span>Assigned to friends</span><strong><Amount value={assignedTotal} /></strong></div>
-            <div className="journey-allocation__track" aria-label={`${formatRupiah(assignedTotal)} assigned of ${formatRupiah(expenseTotal)}`}><span /></div>
-            <div className="journey-allocation__caption"><span>Your portion</span><strong><Amount value={ownerPortion} /></strong></div>
+              ))}
+            </div>
+            <div className="journey-total"><span>Outing expense total</span><strong><Amount value={expenseTotal} /></strong></div>
+            <div className="journey-allocation" style={allocationStyle} data-visible={showShares} aria-hidden={!showShares}>
+              <div className="journey-allocation__caption"><span>Assigned to friends</span><strong><Amount value={assignedTotal} /></strong></div>
+              <div className="journey-allocation__track" aria-label={`${formatRupiah(assignedTotal)} assigned of ${formatRupiah(expenseTotal)}`}><span /></div>
+              <div className="journey-allocation__caption"><span>Your portion</span><strong><Amount value={ownerPortion} /></strong></div>
+            </div>
           </div>
         </div>
 
         <div className="journey-scene__section journey-scene__repayment" data-visible={showRepayment} aria-hidden={!showRepayment}>
-          <p className="technical-label">Repayment record</p>
-          <h3>Rani pays back her shares</h3>
-          <div className="journey-repayment-row"><span><strong>{scenario.repayment.friend}</strong><small>Received and ready to allocate</small></span><strong><Amount value={scenario.repayment.amount} /></strong></div>
-          <div className="journey-allocation-list">
-            <ProductRow label="Dinner" value={formatRupiah(84000)} detail="Allocated" />
-            <ProductRow label="Taxi" value={formatRupiah(42500)} detail="Allocated" />
-            <ProductRow label="Unallocated" value={formatRupiah(0)} detail="Nothing left" />
+          <div className="journey-scene__section-content">
+            <p className="technical-label">Repayment record</p>
+            <h3>Rani pays back her shares</h3>
+            <div className="journey-repayment-row"><span><strong>{scenario.repayment.friend}</strong><small>Repayment amount · received and ready to allocate</small></span><strong><Amount value={scenario.repayment.amount} /></strong></div>
+            <div className="journey-repayment__allocation journey-allocation" data-visible={showRepayment} data-progress={showRepayment ? "complete" : "zero"} aria-hidden={!showRepayment}>
+              <div className="journey-allocation__caption"><span>Repayment allocation</span><strong><Amount value={showRepayment ? scenario.repayment.amount : 0} /></strong></div>
+              <div className="journey-allocation__track" role="progressbar" aria-label="Repayment allocation" aria-valuemin={0} aria-valuemax={scenario.repayment.amount} aria-valuenow={showRepayment ? scenario.repayment.amount : 0}><span style={{ transform: `scaleX(${repaymentProgress})` }} /></div>
+            </div>
+            <div className="journey-allocation-list">
+              <ProductRow label="Dinner applied" value={formatRupiah(84000)} />
+              <ProductRow label="Taxi applied" value={formatRupiah(42500)} />
+              <ProductRow label="Needs allocation" value={formatRupiah(0)} detail="Nothing left" />
+            </div>
           </div>
         </div>
 
         <div className="journey-scene__section journey-scene__balances" data-visible={showBalances} aria-hidden={!showBalances}>
-          <p className="technical-label">Friend balances</p>
-          <h3>One balance is settled; one remains</h3>
-          <div className="journey-balance-list">
-            <div className="journey-balance journey-balance--settled"><div><strong>Rani</strong><span>Assigned {formatRupiah(raniAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={0} /></strong></div><span className="journey-state">SETTLED</span></div>
-            <div className="journey-balance journey-balance--open"><div><strong>Dimas</strong><span>Assigned {formatRupiah(dimasAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={dimasAssigned} /></strong></div><span className="journey-state">OPEN</span></div>
+          <div className="journey-scene__section-content">
+            <p className="technical-label">Friend balances</p>
+            <h3>One balance is settled; one remains</h3>
+            <div className="journey-balance-list">
+              <div className="journey-balance journey-balance--settled"><div><strong>Rani</strong><span>Assigned {formatRupiah(raniAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={0} /></strong></div><span className="journey-state">SETTLED</span></div>
+              <div className="journey-balance journey-balance--open"><div><strong>Dimas</strong><span>Assigned {formatRupiah(dimasAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={dimasAssigned} /></strong></div><span className="journey-state">OPEN</span></div>
+            </div>
+            <p className="journey-footnote">Remaining across this illustrative outing: <strong><Amount value={dimasAssigned} /></strong>. The owner portion is already excluded from friend balances.</p>
           </div>
-          <p className="journey-footnote">Remaining across this illustrative outing: <strong><Amount value={dimasAssigned} /></strong>. The owner portion is already excluded from friend balances.</p>
         </div>
       </div>
     </article>
@@ -140,7 +152,7 @@ export function JourneyShowcase() {
 
   useEffect(() => {
     const wide = window.matchMedia?.("(min-width: 960px)");
-    const tall = window.matchMedia?.("(min-height: 760px)");
+    const tall = window.matchMedia?.("(min-height: 761px)");
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const updateMode = () => {
       const next = Boolean(wide?.matches && tall?.matches && !reduced?.matches);

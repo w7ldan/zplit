@@ -97,7 +97,21 @@ describe("RepaymentAllocationEditor", () => {
     fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "84000" } });
     expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
     expect(screen.getByText("This repayment is fully applied. Applied money reduces outstanding balances.")).toBeInTheDocument();
+    const applied = document.querySelector(".repayment-allocation-editor__totals .changed-value") as HTMLElement;
+    const firstVisual = applied.querySelector(".changed-value__visual");
+    expect(applied).toHaveAttribute("data-changed-revision", "1");
 
+    fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "83000" } });
+    const secondVisual = applied.querySelector(".changed-value__visual");
+    expect(applied).toHaveAttribute("data-changed-revision", "2");
+    expect(secondVisual).not.toBe(firstVisual);
+    fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "82000" } });
+    const thirdVisual = applied.querySelector(".changed-value__visual");
+    expect(applied).toHaveAttribute("data-changed-revision", "3");
+    expect(thirdVisual).not.toBe(secondVisual);
+    fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "82000" } });
+    expect(applied).toHaveAttribute("data-changed-revision", "3");
+    expect(applied.querySelector(".changed-value__visual")).toBe(thirdVisual);
     fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "40000" } });
     expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
     expect(screen.getByText("Rp 44.000 needs allocation. Only applied money reduces outstanding balances.")).toBeInTheDocument();
