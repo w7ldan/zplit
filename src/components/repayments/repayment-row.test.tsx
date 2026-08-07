@@ -10,5 +10,8 @@ describe("RepaymentRow", () => {
 
     expect(screen.getByRole("link", { name: friendName })).toBeInTheDocument();
     expect(screen.getByText(paymentMethod)).toBeInTheDocument();
+    for (const label of ["Received", "Applied to shares", "Needs allocation"]) expect(screen.getByText(label, { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText("Allocated", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Unallocated", { exact: true })).not.toBeInTheDocument();
   });
 });

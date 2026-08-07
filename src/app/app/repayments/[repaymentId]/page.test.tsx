@@ -61,6 +61,7 @@ describe("repayment record", () => {
 
     expect(screen.getByText("Repayment · allocate received money")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Ari" })).toBeInTheDocument();
+    for (const label of ["Received", "Applied to shares", "Needs allocation"]) expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Rp 84.000")).not.toHaveLength(0);
     expect(screen.getAllByText("Rp 40.000")).not.toHaveLength(0);
     expect(screen.getAllByText("Rp 44.000")).not.toHaveLength(0);
@@ -70,6 +71,8 @@ describe("repayment record", () => {
     expect(screen.getByRole("link", { name: /Back to repayments/ })).toHaveAttribute("href", "/app/repayments");
     expect(screen.getByRole("combobox", { name: "Friend" })).toHaveValue(friend.name);
     expect(screen.getByText("Apply the received money")).toBeInTheDocument();
+    expect(screen.getByText("Repayment amount − Applied to shares = Needs allocation")).toBeInTheDocument();
+    expect(screen.getByText("Rp 44.000 still needs allocation.")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Friend" })).toBeDisabled();
     expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
     expect(screen.getByText("Dinner")).toBeInTheDocument();

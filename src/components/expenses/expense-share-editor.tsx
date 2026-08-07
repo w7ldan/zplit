@@ -117,13 +117,18 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
       <h2>Assign the split</h2>
       <div className="expense-share-editor__totals" aria-live="polite">
         <div><span className="technical-label">Expense total</span><strong>{formatRupiah(expenseAmount)}</strong></div>
-        <div><span className="technical-label">Total owed by friends</span><strong>{formatRupiah(totalOwed)}</strong></div>
-        <div><span className="technical-label">Owner portion</span><strong>{formatRupiah(ownerPortion)}</strong></div>
+        <div><span className="technical-label">Assigned to friends</span><strong>{formatRupiah(totalOwed)}</strong></div>
+        <div><span className="technical-label">Your portion</span><strong>{formatRupiah(ownerPortion)}</strong></div>
       </div>
       <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Expense allocation" role="progressbar" aria-valuemin={0} aria-valuemax={expenseAmount} aria-valuenow={Math.min(totalOwed, expenseAmount)}>
         <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>
         <span>{overAllocated ? `Over-allocated by ${formatRupiah(totalOwed - expenseAmount)}.` : `${formatRupiah(ownerPortion)} remains your portion.`}</span>
       </div>
+      <section className="expense-share-editor__clarity" aria-labelledby="expense-share-equation-heading">
+        <h3 id="expense-share-equation-heading">How this split adds up</h3>
+        <p className="expense-share-editor__equation">Expense total − Assigned to friends = Your portion</p>
+        <p>Only assigned friend shares become amounts friends owe you.</p>
+      </section>
       <form className="expense-share-editor__form" action={formAction} noValidate>
         <div className="expense-share-editor__add">
           <label id="expense-share-add-label" htmlFor="expense-share-add">Add friend</label>

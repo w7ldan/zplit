@@ -215,6 +215,52 @@
   border-block: 1px solid var(--rule);
 }
 
+.friend-record__balance {
+  grid-column: 1 / -1;
+  padding-block: 1rem;
+  border-block: 1px solid var(--ink);
+}
+
+.friend-record__balance h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.friend-record__balance dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 0;
+}
+
+.friend-record__balance dl div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.friend-record__balance dt {
+  color: var(--muted-ink);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.friend-record__balance dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.friend-record__balance > p {
+  margin: 1rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
 .friend-record__meta div,
 .outing-record__meta div,
 .expense-record__meta div,
@@ -528,6 +574,37 @@
   background: var(--error);
 }
 
+.expense-share-editor__clarity,
+.repayment-allocation-editor__clarity {
+  margin-top: 1rem;
+  padding-block: 0.9rem;
+  border-block: 1px solid var(--rule);
+}
+
+.expense-share-editor__clarity h3,
+.repayment-allocation-editor__clarity h3 {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.expense-share-editor__equation,
+.repayment-allocation-editor__equation {
+  margin: 0.55rem 0 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.expense-share-editor__clarity > p:last-child,
+.repayment-allocation-editor__clarity > p:last-child {
+  margin: 0.35rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
 .repayment-allocation-editor__row {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(14rem, 0.65fr);
@@ -659,6 +736,20 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure > .live-record-filters__field,
   form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-filters__disclosure:not([open]) > .live-record-filters__field {
     display: grid;
+  }
+}
+
+@media (max-width: 767px) {
+  .friend-record__balance dl,
+  .expense-share-editor__totals,
+  .repayment-allocation-editor__totals,
+  .repayment-allocation-editor__details dl {
+    grid-template-columns: 1fr;
+  }
+
+  .repayment-allocation-editor__row {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
   }
 }
 .delete-record-form__summary {

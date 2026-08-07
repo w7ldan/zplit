@@ -7,6 +7,7 @@ import { FriendArchiveForm, FriendForm } from "@/components/friends/friend-form"
 import { FriendShareLink } from "@/components/friends/friend-share-link";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
+import { formatRupiah } from "@/domain/rupiah";
 import { archiveFriendAction, restoreFriendAction, undoFriendArchiveAction, updateFriendAction } from "../actions";
 import { createDebtorShareLinkAction, revokeDebtorShareLinkAction, updateDebtorShareReceiptSelectionAction } from "./share-actions";
 import { getDebtorShareLinkStatus, getDebtorShareReceiptSelection } from "@/server/debtor-share-links";
@@ -21,15 +22,21 @@ export default async function FriendRecordPage({ params, searchParams }: { param
   let shareStatus;
   let eligibleReceipts;
   let selectedReceiptIds;
+  let balance = { assignedAmount: 0, repaidAmount: 0, outstandingAmount: 0 };
   try {
     const database = getDatabase();
     const repository = createLedgerRepository(database, session.user.id);
     friend = await repository.getFriend(friendId);
-    [shareStatus, eligibleReceipts, selectedReceiptIds] = await Promise.all([
+    const [friendBalances, nextShareStatus, nextEligibleReceipts, nextSelectedReceiptIds] = await Promise.all([
+      repository.getFriendBalances([friend.id]),
       getDebtorShareLinkStatus(database, session.user.id, friendId),
       repository.listEligibleDebtorShareReceipts(friendId),
       getDebtorShareReceiptSelection(database, session.user.id, friendId),
     ]);
+    balance = friendBalances[0] ?? { assignedAmount: 0, repaidAmount: 0, outstandingAmount: 0 };
+    shareStatus = nextShareStatus;
+    eligibleReceipts = nextEligibleReceipts;
+    selectedReceiptIds = nextSelectedReceiptIds;
   } catch (error) {
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
@@ -52,6 +59,15 @@ export default async function FriendRecordPage({ params, searchParams }: { param
           <div><span className="technical-label">Record state</span><strong>{archived ? "ARCHIVED" : "ACTIVE"}</strong></div>
           <div><span className="technical-label">Created</span><LocalDateTime iso={friend.createdAt.toISOString()} mode="date" /></div>
         </div>
+        <section className="friend-record__balance" aria-labelledby="friend-balance-heading">
+          <h2 id="friend-balance-heading">Balance snapshot</h2>
+          <dl>
+            <div><dt>Assigned to this friend</dt><dd>{formatRupiah(balance.assignedAmount)}</dd></div>
+            <div><dt>Applied to shares</dt><dd>{formatRupiah(balance.repaidAmount)}</dd></div>
+            <div><dt>Still owes</dt><dd>{formatRupiah(balance.outstandingAmount)}</dd></div>
+          </dl>
+          <p>{balance.assignedAmount === 0 ? "No expenses have been assigned to this friend yet." : balance.outstandingAmount === 0 ? "This friend is settled." : `${formatRupiah(balance.outstandingAmount)} remains outstanding.`}</p>
+        </section>
         <div className="friend-record__form">
           <p className="technical-label">EDIT RECORD</p>
           <FriendForm

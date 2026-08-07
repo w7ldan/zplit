@@ -50,11 +50,25 @@ describe("/app overview", () => {
     for (const label of ["Still owed to you", "Needs allocation", "Total spending"]) {
       expect(within(primary).getByText(label, { exact: true })).toBeInTheDocument();
     }
-    expect(screen.getByText("Ledger totals")).toBeInTheDocument();
-    for (const label of ["Assigned", "Repaid", "Received", "Your portion", "Friend balances", "Recent activity"]) {
+    expect(screen.getByRole("heading", { name: "How the ledger adds up" })).toBeInTheDocument();
+    for (const label of ["Spending", "Friend debt", "Repayments", "Friend balances", "Recent activity"]) {
       expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
     }
-    expect(screen.getByText("Rp 4.000")).toBeInTheDocument();
+    const clarity = screen.getByRole("heading", { name: "How the ledger adds up" }).closest("section")!;
+    expect(within(clarity).getByText("Total spending = Your portion + Assigned to friends")).toBeInTheDocument();
+    expect(within(clarity).getByText("Assigned to friends = Applied to shares + Still owed")).toBeInTheDocument();
+    expect(within(clarity).getByText("Received = Applied to shares + Needs allocation")).toBeInTheDocument();
+    for (const label of ["Received", "Applied to shares", "Needs allocation"]) {
+      expect(within(clarity).getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
+    }
+    expect(within(clarity).getAllByText("Rp 30.000", { exact: true }).length).toBeGreaterThan(0);
+    expect(within(clarity).getAllByText("Rp 19.000", { exact: true }).length).toBeGreaterThan(0);
+    expect(within(clarity).getAllByText("Rp 11.000", { exact: true }).length).toBeGreaterThan(0);
+    expect(within(clarity).getAllByText("Rp 7.000", { exact: true }).length).toBeGreaterThan(0);
+    expect(within(clarity).getAllByText("Rp 4.000", { exact: true }).length).toBeGreaterThan(0);
+    expect(within(clarity).getAllByText("Rp 12.000", { exact: true }).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Repaid", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Rp 4.000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Ari").length).toBeGreaterThan(0);
     expect(screen.getByText("Received money still needs an expense.")).toBeInTheDocument();
     expect(screen.getByText(/received remains unallocated/)).toBeInTheDocument();
@@ -65,7 +79,7 @@ describe("/app overview", () => {
     ]);
     expect(screen.getByRole("link", { name: /Dinner/ })).toHaveAttribute("href", "/app/expenses/expense-a");
     expect(activityRows[1]).toHaveAttribute("href", "/app/repayments/repayment-a");
-    expect(screen.getByText("Rp 3.000")).toBeInTheDocument();
+    expect(screen.getAllByText("Rp 3.000").length).toBeGreaterThan(0);
     expect(document.body).not.toHaveTextContent(/chart|dashboard|percentage/i);
   });
 

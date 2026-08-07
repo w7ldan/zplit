@@ -43,9 +43,9 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
         </div>
         {query?.created === "1" ? <RecordConfirmation queryKey="created" message="Repayment recorded. Review eligible shares below." /> : query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Repayment changes saved." /> : null}
         <div className="repayment-record__meta" aria-label="Repayment metadata">
-          <div><span className="technical-label">Amount</span><strong>{formatRupiah(repayment.amount)}</strong></div>
-          <div><span className="technical-label">Allocated</span><strong>{formatRupiah(repayment.allocatedAmount)}</strong></div>
-          <div><span className="technical-label">Unallocated</span><strong>{formatRupiah(repayment.unallocatedAmount)}</strong></div>
+          <div><span className="technical-label">Received</span><strong>{formatRupiah(repayment.amount)}</strong></div>
+          <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(repayment.allocatedAmount)}</strong></div>
+          <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(repayment.unallocatedAmount)}</strong></div>
           <div><span className="technical-label">Payment date</span><LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" /></div>
           <div><span className="technical-label">Payment method</span><span>{repayment.paymentMethod ?? "—"}</span></div>
           <div><span className="technical-label">Notes</span><span className="repayment-record__notes-value">{repayment.notes ?? "—"}</span></div>

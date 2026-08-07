@@ -149,13 +149,18 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
       <h2>Apply the received money</h2>
       <div className="repayment-allocation-editor__totals" aria-live="polite">
         <div><span className="technical-label">Repayment amount</span><strong>{formatRupiah(plan.amount)}</strong></div>
-        <div><span className="technical-label">Allocated</span><strong>{formatRupiah(allocatedAmount)}</strong></div>
-        <div><span className="technical-label">Unallocated</span><strong>{formatRupiah(unallocatedAmount)}</strong></div>
+        <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(allocatedAmount)}</strong></div>
+        <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(unallocatedAmount)}</strong></div>
       </div>
       <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Repayment allocation progress" role="progressbar" aria-valuemin={0} aria-valuemax={plan.amount} aria-valuenow={Math.min(allocatedAmount, plan.amount)}>
         <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>
-        <span>{overAllocated ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.` : `${formatRupiah(unallocatedAmount)} remains unallocated.`}</span>
+        <span>{overAllocated ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.` : unallocatedAmount > 0 ? `${formatRupiah(unallocatedAmount)} still needs allocation.` : "This repayment is fully applied."}</span>
       </div>
+      <section className="repayment-allocation-editor__clarity" aria-labelledby="repayment-allocation-equation-heading">
+        <h3 id="repayment-allocation-equation-heading">How this repayment adds up</h3>
+        <p className="repayment-allocation-editor__equation">Repayment amount − Applied to shares = Needs allocation</p>
+        <p>Only money applied to expense shares reduces outstanding balances.</p>
+      </section>
       <form className="repayment-allocation-editor__form" action={formAction} noValidate>
         <p className="repayment-allocation-editor__help">Enter a whole-rupiah amount. A blank field removes this allocation.</p>
         {plan.shares.map((share) => {
@@ -168,7 +173,7 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
                 <p className="repayment-allocation-editor__outing">{share.outingTitle} · <LocalDateTime iso={share.outingOccurredAt.toISOString()} mode="date" /></p>
                 <dl>
                   <div><dt>Original amount owed</dt><dd>{formatRupiah(share.amountOwed)}</dd></div>
-                  <div><dt>Repaid through other repayments</dt><dd>{formatRupiah(share.allocatedByOtherRepayments)}</dd></div>
+                  <div><dt>Applied through other repayments</dt><dd>{formatRupiah(share.allocatedByOtherRepayments)}</dd></div>
                   <div><dt>Capacity available to this repayment</dt><dd>{formatRupiah(share.capacityAvailable)}</dd></div>
                 </dl>
               </div>

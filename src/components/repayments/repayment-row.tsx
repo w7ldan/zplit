@@ -24,12 +24,12 @@ export function RepaymentRow({ repayment }: { repayment: RepaymentRecord }) {
         </div>
       </div>
       <div className="repayment-row__meta">
-        <strong>{formatRupiah(repayment.amount)}</strong>
+        <div><span className="technical-label">Received</span><strong>{formatRupiah(repayment.amount)}</strong></div>
         <LocalDateTime iso={repayment.paidAt.toISOString()} />
         {repayment.paymentMethod ? <span>{repayment.paymentMethod}</span> : <span />}
-        <div><span className="technical-label">Allocated</span><strong>{formatRupiah(repayment.allocatedAmount)}</strong></div>
-        <div><span className="technical-label">Unallocated</span><strong>{formatRupiah(repayment.unallocatedAmount)}</strong></div>
-        {repayment.unallocatedAmount === repayment.amount ? <span className="technical-label">UNALLOCATED</span> : <span />}
+        <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(repayment.allocatedAmount)}</strong></div>
+        <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(repayment.unallocatedAmount)}</strong></div>
+        {repayment.unallocatedAmount === repayment.amount ? <span className="technical-label">NEEDS ALLOCATION</span> : <span />}
         <Link className="repayment-row__edit" href={`/app/repayments/${repayment.id}`}>Edit <span aria-hidden="true">→</span></Link>
       </div>
     </article>

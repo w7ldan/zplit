@@ -5,6 +5,9 @@ import { readCssBundle } from "@/test/read-css-bundle";
 
 const css = readCssBundle().css;
 const publicSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/10-public.css"), "utf8");
+const authenticatedShellSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/20-authenticated-shell.css"), "utf8");
+const recordsAndFormsSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/30-records-and-forms.css"), "utf8");
+const lateOverridesSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/90-late-overrides.css"), "utf8");
 const siteHeaderSource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/site-header.tsx"), "utf8");
 const documentation = readFileSync(path.resolve(process.cwd(), "docs/design-system.md"), "utf8");
 const scaleDocumentation = readFileSync(path.resolve(process.cwd(), "docs/scale-testing.md"), "utf8");
@@ -154,6 +157,21 @@ describe("Zplit design contract", () => {
     expect(css).toContain("clip-path: inset(0 0 100%)");
     expect(css).toContain(".toast {\n    clip-path: none !important;");
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.toast,[\s\S]*?animation: none !important;/);
+  });
+
+  it("keeps financial clarity editorial, bounded, and in its owning fragments", () => {
+    expect(authenticatedShellSource).toContain(".overview-ledger-clarity");
+    expect(recordsAndFormsSource).toContain(".friend-record__balance");
+    expect(recordsAndFormsSource).toContain(".expense-share-editor__clarity");
+    expect(recordsAndFormsSource).toContain(".repayment-allocation-editor__clarity");
+    expect(lateOverridesSource).not.toMatch(/overview-ledger-clarity|friend-record__balance|expense-share-editor__clarity|repayment-allocation-editor__clarity/);
+
+    const financialClarityCss = [
+      cssRuleBody(css, ".overview-ledger-clarity"),
+      cssRuleBody(css, ".friend-record__balance"),
+      cssRuleBody(css, ".expense-share-editor__clarity, .repayment-allocation-editor__clarity"),
+    ].join("\n");
+    expect(financialClarityCss).not.toMatch(/border-radius|background|box-shadow|\b(?:width|min-width):/);
   });
 
   it("keeps the authenticated lifecycle and CSS syntax native and bounded", () => {

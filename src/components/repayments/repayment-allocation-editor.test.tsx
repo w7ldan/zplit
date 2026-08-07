@@ -59,13 +59,24 @@ describe("RepaymentAllocationEditor", () => {
     expect(screen.getByText("Dinner")).toBeInTheDocument();
     expect(screen.getByText(/Friday night/)).toBeInTheDocument();
     expect(screen.getByText("Original amount owed")).toBeInTheDocument();
-    expect(screen.getByText("Repaid through other repayments")).toBeInTheDocument();
+    expect(screen.getByText("Applied through other repayments")).toBeInTheDocument();
     expect(screen.getByText("Capacity available to this repayment")).toBeInTheDocument();
+    expect(screen.getByText("Rp 70.000", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Rp 30.000", { exact: true })).toBeInTheDocument();
+    expect(screen.getAllByText("Rp 40.000", { exact: true }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Repayment amount", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Applied to shares", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Needs allocation", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText("Allocated", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Unallocated", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText("Repayment amount − Applied to shares = Needs allocation")).toBeInTheDocument();
+    expect(screen.getByText("Only money applied to expense shares reduces outstanding balances.")).toBeInTheDocument();
     expect(screen.getByLabelText("Amount to allocate to Dinner")).toHaveValue("40000");
     expect(screen.getByLabelText("Amount to allocate to Dinner")).toHaveAttribute("inputmode", "numeric");
     expect(screen.getByText("Rp 84.000")).toBeInTheDocument();
     expect(screen.getAllByText("Rp 40.000")).not.toHaveLength(0);
     expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
+    expect(screen.getByText("Rp 44.000 still needs allocation.")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Repayment allocation progress" })).toHaveAttribute("aria-valuenow", "40000");
     const fill = document.querySelector(".allocation-bar__fill") as HTMLElement;
     expect(fill.style.transform).toBe("scaleX(0.47619047619047616)");
@@ -73,6 +84,8 @@ describe("RepaymentAllocationEditor", () => {
 
     fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "100000" } });
     expect(screen.getAllByText("Rp 0").length).toBeGreaterThan(0);
+    expect(screen.getByText("Rp 100.000", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Repayment amount − Applied to shares = Needs allocation")).toBeInTheDocument();
     expect(screen.getByText("Over-allocated by Rp 16.000.")).toBeInTheDocument();
     expect((document.querySelector(".allocation-bar__fill") as HTMLElement).style.transform).toBe("scaleX(1)");
     expect(document.body).not.toHaveTextContent(/-Rp|automatic|distribut|delete|debtor|card|pill|status dot/i);
@@ -92,6 +105,14 @@ describe("RepaymentAllocationEditor", () => {
     await waitFor(() => expect(screen.getByLabelText("Amount to allocate to Dinner")).toHaveValue("84.00"));
     expect(screen.getByLabelText("Amount to allocate to Dinner")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByText("Please correct the marked fields.")).toHaveAttribute("role", "alert");
+  });
+
+  it("describes a fully applied repayment without a status pill", () => {
+    render(<RepaymentAllocationEditor action={vi.fn()} plan={{ ...plan, amount: 40_000, allocatedAmount: 40_000, unallocatedAmount: 0 }} />);
+
+    expect(screen.getByText("This repayment is fully applied.")).toBeInTheDocument();
+    expect(screen.queryByText(/still needs allocation/)).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/badge|pill|success indicator/i);
   });
 
   it("prevents repeat submission and shows the pending label", async () => {

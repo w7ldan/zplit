@@ -35,6 +35,39 @@ export default async function AppPage() {
           <div><span className="technical-label">Total spending</span><strong>{formatRupiah(summary.totalExpenseAmount)}</strong><span>All expenses recorded in this ledger.</span></div>
         </section>
 
+        <section className="overview-ledger-clarity" aria-labelledby="ledger-clarity-heading">
+          <h2 id="ledger-clarity-heading">How the ledger adds up</h2>
+          <div className="overview-ledger-clarity__relations">
+            <section aria-labelledby="spending-equation-heading">
+              <h3 id="spending-equation-heading">Spending</h3>
+              <p className="overview-ledger-clarity__equation">Total spending = Your portion + Assigned to friends</p>
+              <dl>
+                <div><dt>Total spending</dt><dd>{formatRupiah(summary.totalExpenseAmount)}</dd></div>
+                <div><dt>Your portion</dt><dd>{formatRupiah(summary.ownerPortionAmount)}</dd></div>
+                <div><dt>Assigned to friends</dt><dd>{formatRupiah(summary.totalAssignedAmount)}</dd></div>
+              </dl>
+            </section>
+            <section aria-labelledby="friend-debt-equation-heading">
+              <h3 id="friend-debt-equation-heading">Friend debt</h3>
+              <p className="overview-ledger-clarity__equation">Assigned to friends = Applied to shares + Still owed</p>
+              <dl>
+                <div><dt>Assigned to friends</dt><dd>{formatRupiah(summary.totalAssignedAmount)}</dd></div>
+                <div><dt>Applied to shares</dt><dd>{formatRupiah(summary.totalRepaidAmount)}</dd></div>
+                <div><dt>Still owed</dt><dd>{formatRupiah(summary.totalOutstandingAmount)}</dd></div>
+              </dl>
+            </section>
+            <section aria-labelledby="repayments-equation-heading">
+              <h3 id="repayments-equation-heading">Repayments</h3>
+              <p className="overview-ledger-clarity__equation">Received = Applied to shares + Needs allocation</p>
+              <dl>
+                <div><dt>Received</dt><dd>{formatRupiah(summary.totalReceivedAmount)}</dd></div>
+                <div><dt>Applied to shares</dt><dd>{formatRupiah(summary.totalRepaidAmount)}</dd></div>
+                <div><dt>Needs allocation</dt><dd>{formatRupiah(summary.totalUnallocatedRepaymentAmount)}</dd></div>
+              </dl>
+            </section>
+          </div>
+        </section>
+
         <div className="app-page__columns">
           <section className="ledger-section" aria-labelledby="balances-heading">
             <div className="ledger-section__heading"><h2 id="balances-heading">Friend balances</h2><span className="technical-label">{summary.totalAssignedFriendCount} with assigned shares</span></div>
@@ -58,15 +91,6 @@ export default async function AppPage() {
             ))}
           </section>
         </div>
-        <details className="overview-ledger-totals">
-          <summary>Ledger totals</summary>
-          <div className="overview-ledger-totals__grid">
-            <div><span className="technical-label">Assigned</span><strong>{formatRupiah(summary.totalAssignedAmount)}</strong></div>
-            <div><span className="technical-label">Repaid</span><strong>{formatRupiah(summary.totalRepaidAmount)}</strong></div>
-            <div><span className="technical-label">Received</span><strong>{formatRupiah(summary.totalReceivedAmount)}</strong></div>
-            <div><span className="technical-label">Your portion</span><strong>{formatRupiah(summary.ownerPortionAmount)}</strong></div>
-          </div>
-        </details>
         {summary.totalUnallocatedRepaymentAmount > 0 ? <p className="overview-attention" role="status">{formatRupiah(summary.totalUnallocatedRepaymentAmount)} received remains unallocated. Review repayments to apply it to eligible shares.</p> : null}
       </div>
     </section>

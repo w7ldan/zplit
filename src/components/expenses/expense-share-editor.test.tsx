@@ -15,6 +15,10 @@ describe("expense share editor", () => {
     expect(screen.getByLabelText("Rani")).toHaveValue("40000");
     expect(screen.getByLabelText(/^Bima/)).toHaveValue("20000");
     expect(screen.getByText("ARCHIVED")).toBeInTheDocument();
+    for (const label of ["Expense total", "Assigned to friends", "Your portion"]) expect(screen.getByText(label, { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText("Total owed by friends", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText("Expense total − Assigned to friends = Your portion")).toBeInTheDocument();
+    expect(screen.getByText("Only assigned friend shares become amounts friends owe you.")).toBeInTheDocument();
     expect(screen.getByText("Rp 84.000")).toBeInTheDocument();
     expect(screen.getByText("Rp 60.000")).toBeInTheDocument();
     expect(screen.getByText("Rp 24.000")).toBeInTheDocument();
@@ -34,6 +38,7 @@ describe("expense share editor", () => {
 
     expect(screen.getAllByText("Rp 0").length).toBeGreaterThan(0);
     expect(screen.getByText("Over-allocated by Rp 84.000.")).toBeInTheDocument();
+    expect(screen.getByText("Expense total − Assigned to friends = Your portion")).toBeInTheDocument();
     expect((document.querySelector(".allocation-bar__fill") as HTMLElement).style.transform).toBe("scaleX(1)");
     expect(document.body).not.toHaveTextContent(/-Rp|-\d/);
   });
