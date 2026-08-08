@@ -2,10 +2,29 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { JourneyShowcase } from "./journey-showcase";
 
-afterEach(() => vi.unstubAllGlobals());
+const defaultInnerHeight = window.innerHeight;
+const pinnedStageHeight = 600;
+const viewportHeight = 900;
+const stepTravel = 495;
+const runwayHeight = 2580;
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  Object.defineProperty(window, "innerHeight", { configurable: true, value: defaultInnerHeight });
+});
 
 function setScrollY(value: number) {
   Object.defineProperty(window, "scrollY", { configurable: true, value });
+}
+
+function setInnerHeight(value: number) {
+  Object.defineProperty(window, "innerHeight", { configurable: true, value });
+}
+
+function mockPinnedGeometry(runway: HTMLElement, stage: HTMLElement, height = pinnedStageHeight) {
+  Object.defineProperty(stage, "offsetHeight", { configurable: true, value: height });
+  Object.defineProperty(runway, "offsetHeight", { configurable: true, get: () => Number.parseFloat(runway.style.height) || 0 });
+  vi.spyOn(runway, "getBoundingClientRect").mockImplementation(() => ({ top: 100 - window.scrollY } as DOMRect));
 }
 
 function mediaQuery({ desktop = false, tall = false, reduced = false }: { desktop?: boolean; tall?: boolean | (() => boolean); reduced?: boolean } = {}) {
@@ -149,6 +168,7 @@ describe("JourneyShowcase", () => {
 
   it("keeps the pinned runway through active-step growth", () => {
     vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    setInnerHeight(viewportHeight);
     let frame: FrameRequestCallback | undefined;
     let visibleStageHeight = 600;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
@@ -160,20 +180,21 @@ describe("JourneyShowcase", () => {
     const runway = document.querySelector(".journey-runway")! as HTMLElement;
     const stage = document.querySelector(".journey-sticky")! as HTMLElement;
     Object.defineProperty(stage, "offsetHeight", { configurable: true, get: () => visibleStageHeight });
-    Object.defineProperty(runway, "offsetHeight", { configurable: true, value: 3000 });
+    Object.defineProperty(runway, "offsetHeight", { configurable: true, get: () => Number.parseFloat(runway.style.height) || 0 });
     vi.spyOn(runway, "getBoundingClientRect").mockImplementation(() => ({ top: 100 - window.scrollY } as DOMRect));
     act(() => window.dispatchEvent(new Event("resize")));
-    const runwayHeight = runway.style.height;
+    const capturedRunwayHeight = runway.style.height;
     expect(stage).toHaveClass("journey-sticky--pinned");
+    expect(capturedRunwayHeight).toBe(`${runwayHeight}px`);
 
     for (const [step, growth] of [0, 1, 2, 3, 4].map((step) => [step, 600 + step * 300] as const)) {
       visibleStageHeight = growth;
       act(() => window.dispatchEvent(new Event("resize")));
-      setScrollY(100 + step * 600);
+      setScrollY(100 + step * stepTravel);
       act(() => window.dispatchEvent(new Event("scroll")));
       act(() => frame?.(1));
       expect(stage).toHaveClass("journey-sticky--pinned");
-      expect(runway.style.height).toBe(runwayHeight);
+      expect(runway.style.height).toBe(capturedRunwayHeight);
       expect(scene).toHaveAttribute("data-journey-step", String(step));
     }
 
@@ -195,6 +216,7 @@ describe("JourneyShowcase", () => {
 
   it("maps scroll progress, resize reconciliation, and tab selection without replacing the scene", () => {
     vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    setInnerHeight(viewportHeight);
     let frame: FrameRequestCallback | undefined;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
@@ -205,14 +227,13 @@ describe("JourneyShowcase", () => {
     const scene = document.querySelector(".journey-panel")!;
     const runway = document.querySelector(".journey-runway")! as HTMLElement;
     const stage = document.querySelector(".journey-sticky")! as HTMLElement;
-    Object.defineProperty(stage, "offsetHeight", { configurable: true, value: 600 });
-    Object.defineProperty(runway, "offsetHeight", { configurable: true, value: 3000 });
-    vi.spyOn(runway, "getBoundingClientRect").mockImplementation(() => ({ top: 100 - window.scrollY } as DOMRect));
+    mockPinnedGeometry(runway, stage);
     act(() => window.dispatchEvent(new Event("resize")));
     expect(stage).toHaveClass("journey-sticky--pinned");
+    expect(runway.style.height).toBe(`${runwayHeight}px`);
 
     for (const step of [0, 1, 2, 3, 4]) {
-      setScrollY(step * 600);
+      setScrollY(100 + step * stepTravel);
       act(() => window.dispatchEvent(new Event("scroll")));
       act(() => frame?.(1));
       expect(document.querySelector(".journey-panel")).toBe(scene);
@@ -222,9 +243,11 @@ describe("JourneyShowcase", () => {
 
     act(() => window.dispatchEvent(new Event("resize")));
     act(() => frame?.(1));
-    fireEvent.click(screen.getByRole("tab", { name: /Expenses enter/ }));
-    expect(scrollTo).toHaveBeenCalledWith({ top: 700, behavior: "smooth" });
-    expect(scene).toHaveAttribute("data-journey-step", "1");
+    for (const step of [0, 1, 2, 3, 4]) {
+      fireEvent.click(screen.getAllByRole("tab")[step]);
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 100 + step * stepTravel, behavior: "smooth" });
+      expect(scene).toHaveAttribute("data-journey-step", String(step));
+    }
   });
 
   it("keeps arrow-key tab controls functional in fallback mode", () => {
@@ -268,21 +291,22 @@ describe("JourneyShowcase", () => {
     let frame: FrameRequestCallback | undefined;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    const originalInnerHeight = window.innerHeight;
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: 900 });
+    setInnerHeight(viewportHeight);
     setScrollY(0);
     render(<JourneyShowcase />);
 
     const scene = document.querySelector(".journey-panel")!;
     const runway = document.querySelector(".journey-runway")! as HTMLElement;
     const stage = document.querySelector(".journey-sticky")! as HTMLElement;
-    Object.defineProperty(stage, "offsetHeight", { configurable: true, value: 600 });
-    Object.defineProperty(runway, "offsetHeight", { configurable: true, value: 3000 });
-    vi.spyOn(runway, "getBoundingClientRect").mockImplementation(() => ({ top: 100 - window.scrollY } as DOMRect));
+    mockPinnedGeometry(runway, stage);
 
     act(() => window.dispatchEvent(new Event("resize")));
     expect(stage).toHaveClass("journey-sticky--pinned");
-    expect(runway.style.height).not.toBe("");
+    expect(runway.style.height).toBe(`${runwayHeight}px`);
+
+    setInnerHeight(1000);
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(runway.style.height).toBe("2800px");
 
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 500 });
     act(() => window.dispatchEvent(new Event("resize")));
@@ -292,12 +316,12 @@ describe("JourneyShowcase", () => {
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 900 });
     act(() => window.dispatchEvent(new Event("resize")));
     expect(stage).toHaveClass("journey-sticky--pinned");
+    expect(runway.style.height).toBe(`${runwayHeight}px`);
 
     setScrollY(1300);
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frame?.(1));
     expect(scene).toHaveAttribute("data-journey-step", "2");
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: originalInnerHeight });
   });
 
   it("does not intercept wheel or touch scrolling", () => {

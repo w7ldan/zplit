@@ -28,6 +28,8 @@ const steps = [
   { label: "The balance becomes settled", title: "Read what remains", copy: "A friend reaches settled when their assigned shares are fully covered by allocated repayments." },
 ];
 
+const JOURNEY_STEP_TRAVEL_RATIO = 0.55;
+
 function Amount({ value }: { value: number }) {
   return <span className="tabular-nums">{formatRupiah(value)}</span>;
 }
@@ -207,7 +209,7 @@ export function JourneyShowcase() {
       pinnedViewport.current = viewport;
     };
     const pinnedHeight = () => Math.max(pinnedStageHeight.current || stageHeight(), 1);
-    const sequenceTravel = () => Math.max(window.innerHeight, pinnedHeight()) * (steps.length - 1);
+    const sequenceTravel = () => Math.max(window.innerHeight, pinnedHeight()) * JOURNEY_STEP_TRAVEL_RATIO * (steps.length - 1);
     const updateDimensions = () => {
       const element = runway.current;
       if (element) element.style.height = `${pinnedHeight() + sequenceTravel()}px`;
