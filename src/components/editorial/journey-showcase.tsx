@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { formatRupiah } from "@/domain/rupiah";
 
 const scenario = {
@@ -28,7 +28,7 @@ const steps = [
   { label: "The balance becomes settled", title: "Read what remains", copy: "A friend reaches settled when their assigned shares are fully covered by allocated repayments." },
 ];
 
-const JOURNEY_STEP_TRAVEL_RATIO = 0.55;
+const JOURNEY_STEP_TRAVEL_RATIO = 0.32;
 
 function Amount({ value }: { value: number }) {
   return <span className="tabular-nums">{formatRupiah(value)}</span>;
@@ -112,7 +112,7 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
                 <div className="journey-repayment__allocation journey-allocation" data-visible={showRepaymentState} data-layout={showRepaymentState ? "expanded" : "collapsed"} data-progress={showRepaymentState ? "complete" : "zero"} aria-hidden={!showRepaymentState}>
                   <div className="journey-allocation__content">
                     <div className="journey-allocation__caption"><span>Repayment allocation</span><strong><Amount value={showRepaymentState ? scenario.repayment.amount : 0} /></strong></div>
-                    <div className="journey-allocation__track" role="progressbar" aria-label="Repayment allocation" aria-valuemin={0} aria-valuemax={scenario.repayment.amount} aria-valuenow={showRepaymentState ? scenario.repayment.amount : 0}><span style={{ transform: `scaleX(${repaymentProgress})` }} /></div>
+                    <div className="journey-allocation__track" role="progressbar" aria-label="Repayment allocation" aria-valuemin={0} aria-valuemax={scenario.repayment.amount} aria-valuenow={showRepaymentState ? scenario.repayment.amount : 0}><span style={{ "--repayment-allocation": repaymentProgress } as CSSProperties} /></div>
                   </div>
                 </div>
                 <div className="journey-summary-list">
@@ -180,7 +180,7 @@ export function JourneyShowcase() {
     setActiveStep(step);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const wide = window.matchMedia?.("(min-width: 960px)");
     const tall = window.matchMedia?.("(min-height: 720px)");
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
@@ -199,8 +199,10 @@ export function JourneyShowcase() {
     return () => { removeWide?.(); removeTall?.(); removeReduced?.(); window.removeEventListener("resize", updateMode); };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!desktopSequence) return;
+    const runwayElement = runway.current;
+    const stageElement = stage.current;
     let frame: number | null = null;
     const capturePinnedHeight = (force = false) => {
       const viewport = { width: window.innerWidth, height: window.innerHeight };
@@ -222,6 +224,13 @@ export function JourneyShowcase() {
       const travel = availableTravel();
       const runwayDocumentTop = element.getBoundingClientRect().top + window.scrollY;
       const progress = clampProgress((window.scrollY - (runwayDocumentTop - stickyTop())) / travel);
+      const scaled = progress * (steps.length - 1);
+      stage.current?.style.setProperty("--journey-progress", String(progress));
+      stage.current?.style.setProperty("--journey-expense-progress", String(clampProgress(scaled)));
+      stage.current?.style.setProperty("--journey-share-progress", String(clampProgress(scaled - 1)));
+      stage.current?.style.setProperty("--journey-allocation-progress", String(clampProgress(scaled - 1) * assignedTotal / expenseTotal));
+      stage.current?.style.setProperty("--journey-repayment-progress", String(clampProgress(scaled - 2)));
+      stage.current?.style.setProperty("--journey-balance-progress", String(clampProgress(scaled - 3)));
       if (ignoredProgress.current !== null) {
         ignoredProgress.current = null;
         return;
@@ -243,7 +252,13 @@ export function JourneyShowcase() {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("pageshow", onPageShow);
       if (frame !== null) window.cancelAnimationFrame(frame);
-      runway.current?.style.removeProperty("height");
+      runwayElement?.style.removeProperty("height");
+      stageElement?.style.removeProperty("--journey-progress");
+      stageElement?.style.removeProperty("--journey-expense-progress");
+      stageElement?.style.removeProperty("--journey-share-progress");
+      stageElement?.style.removeProperty("--journey-allocation-progress");
+      stageElement?.style.removeProperty("--journey-repayment-progress");
+      stageElement?.style.removeProperty("--journey-balance-progress");
       pinnedStageHeight.current = 0;
       pinnedViewport.current = { width: 0, height: 0 };
     };

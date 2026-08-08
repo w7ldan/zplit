@@ -5,8 +5,9 @@ import { JourneyShowcase } from "./journey-showcase";
 const defaultInnerHeight = window.innerHeight;
 const pinnedStageHeight = 600;
 const viewportHeight = 900;
-const stepTravel = 495;
-const runwayHeight = 2580;
+const stepTravel = 288;
+const sequenceTravel = 1152;
+const runwayHeight = 1752;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -250,6 +251,84 @@ describe("JourneyShowcase", () => {
     }
   });
 
+  it("maps continuous progress into four equal reversible transition ranges", () => {
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    setInnerHeight(viewportHeight);
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    setScrollY(0);
+    render(<JourneyShowcase />);
+
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    const scene = document.querySelector(".journey-panel")!;
+    mockPinnedGeometry(runway, stage);
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(runway.style.height).toBe(`${pinnedStageHeight + sequenceTravel}px`);
+
+    const samples = [
+      [0, [0, 0, 0, 0], 0],
+      [0.125, [0.5, 0, 0, 0], 1],
+      [0.25, [1, 0, 0, 0], 1],
+      [0.375, [1, 0.5, 0, 0], 2],
+      [0.5, [1, 1, 0, 0], 2],
+      [0.625, [1, 1, 0.5, 0], 3],
+      [0.75, [1, 1, 1, 0], 3],
+      [0.875, [1, 1, 1, 0.5], 4],
+      [1, [1, 1, 1, 1], 4],
+    ] as const;
+    const properties = ["--journey-expense-progress", "--journey-share-progress", "--journey-repayment-progress", "--journey-balance-progress"];
+
+    for (const [progress, locals, activeStep] of samples) {
+      setScrollY(100 + progress * sequenceTravel);
+      act(() => window.dispatchEvent(new Event("scroll")));
+      act(() => frame?.(1));
+      expect(Number(stage.style.getPropertyValue("--journey-progress"))).toBeCloseTo(progress);
+      properties.forEach((property, index) => expect(Number(stage.style.getPropertyValue(property))).toBeCloseTo(locals[index]));
+      expect(scene).toHaveAttribute("data-journey-step", String(activeStep));
+      expect(screen.getAllByRole("tab")[activeStep]).toHaveAttribute("aria-selected", "true");
+    }
+
+    for (const progress of [0.75, 0.5, 0.25, 0]) {
+      setScrollY(100 + progress * sequenceTravel);
+      act(() => window.dispatchEvent(new Event("scroll")));
+      act(() => frame?.(1));
+      expect(Number(stage.style.getPropertyValue("--journey-progress"))).toBeCloseTo(progress);
+    }
+  });
+
+  it("updates semantic DOM only when a chapter threshold changes", () => {
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    setInnerHeight(viewportHeight);
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    setScrollY(100);
+    render(<JourneyShowcase />);
+
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    const scene = document.querySelector(".journey-panel")!;
+    mockPinnedGeometry(runway, stage);
+    act(() => window.dispatchEvent(new Event("resize")));
+    const semanticUpdate = vi.spyOn(scene, "setAttribute");
+
+    for (const progress of [0.02, 0.05, 0.1]) {
+      setScrollY(100 + progress * sequenceTravel);
+      act(() => window.dispatchEvent(new Event("scroll")));
+      act(() => frame?.(1));
+    }
+    expect(semanticUpdate).not.toHaveBeenCalledWith("data-journey-step", expect.anything());
+    expect(screen.getByText(/Step 1 of 5/)).toBeInTheDocument();
+
+    setScrollY(100 + 0.125 * sequenceTravel);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(scene).toHaveAttribute("data-journey-step", "1");
+    expect(screen.getByText(/Step 2 of 5/)).toBeInTheDocument();
+  });
+
   it("keeps arrow-key tab controls functional in fallback mode", () => {
     vi.stubGlobal("matchMedia", mediaQuery());
     render(<JourneyShowcase />);
@@ -306,19 +385,21 @@ describe("JourneyShowcase", () => {
 
     setInnerHeight(1000);
     act(() => window.dispatchEvent(new Event("resize")));
-    expect(runway.style.height).toBe("2800px");
+    expect(runway.style.height).toBe("1880px");
 
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 500 });
     act(() => window.dispatchEvent(new Event("resize")));
     expect(stage).not.toHaveClass("journey-sticky--pinned");
     expect(runway.style.height).toBe("");
+    expect(stage.style.getPropertyValue("--journey-progress")).toBe("");
 
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 900 });
     act(() => window.dispatchEvent(new Event("resize")));
     expect(stage).toHaveClass("journey-sticky--pinned");
     expect(runway.style.height).toBe(`${runwayHeight}px`);
+    expect(stage.style.getPropertyValue("--journey-progress")).not.toBe("");
 
-    setScrollY(1300);
+    setScrollY(100 + 2 * stepTravel);
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frame?.(1));
     expect(scene).toHaveAttribute("data-journey-step", "2");
