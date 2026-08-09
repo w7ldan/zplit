@@ -206,19 +206,52 @@ describe("Zplit design contract", () => {
     const desktopStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) {");
     const mobileStart = publicSource.indexOf("@media (max-width: 959px) {");
     const desktop = publicSource.slice(desktopStart, mobileStart);
-    const journeyWidth = "width: min(calc(100% - clamp(4rem, 10vw, 10rem)), 82rem);";
+    const journeyWidth = "width: min(calc(100% - clamp(4rem, 10vw, 10rem)), 72rem);";
 
     expect(desktopStart).toBeGreaterThanOrEqual(0);
     expect(mobileStart).toBeGreaterThan(desktopStart);
     expect(desktop).toContain(`.journey-editorial, .journey-stage { ${journeyWidth} margin-inline: auto; }`);
+    expect(publicSource).not.toContain("width: min(calc(100% - clamp(4rem, 10vw, 10rem)), 82rem);");
     expect(publicSource.slice(0, desktopStart)).not.toContain(journeyWidth);
     expect(publicSource.slice(mobileStart)).not.toContain(journeyWidth);
 
+    for (const viewport of [1280, 1366, 1440, 1477, 1536, 1920]) {
+      const gutter = Math.min(10 * viewport / 100, 10 * 16);
+      const width = Math.min(viewport - gutter, 72 * 16);
+      expect(width).toBeGreaterThan(0);
+      expect(width).toBeLessThanOrEqual(1152);
+    }
     const viewport = 1477;
-    const gutter = Math.min(10 * viewport / 100, 10 * 16);
-    const width = Math.min(viewport - gutter, 82 * 16);
-    expect(width).toBeLessThanOrEqual(1312);
-    expect((viewport - width) / 2).toBeGreaterThan(80);
+    const width = Math.min(viewport - Math.min(10 * viewport / 100, 10 * 16), 72 * 16);
+    expect(width).toBe(1152);
+    expect((viewport - width) / 2).toBeCloseTo(162.5, 1);
+  });
+
+  it("keeps compact Journey density bounded to short pinned desktops", () => {
+    const desktopStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) {");
+    const compactStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) and (max-height: 850px) {");
+    const mobileStart = publicSource.indexOf("@media (max-width: 959px) {");
+    const compact = publicSource.slice(compactStart, mobileStart);
+    const normalDesktop = publicSource.slice(desktopStart, compactStart);
+
+    expect(compactStart).toBeGreaterThan(desktopStart);
+    expect(mobileStart).toBeGreaterThan(compactStart);
+    expect(compact).toContain(".journey-sticky--pinned {");
+    for (const value of [
+      "--journey-tab-height: 2.35rem",
+      "--journey-tab-number-size: 1.2rem",
+      "--journey-announcement-min-height: 2.9rem",
+      "--journey-announcement-heading-size: 1.35rem",
+      "--journey-frame-body-padding: 0.55rem 1rem",
+      "--journey-scene-gap: 1.25rem",
+      "--journey-row-height: 2.15rem",
+      "--journey-share-row-height: 1.7rem",
+    ]) expect(compact).toContain(value);
+    expect(normalDesktop).toContain("--journey-tab-height: 2.65rem");
+    expect(normalDesktop).toContain("--journey-announcement-min-height: 3.4rem");
+    expect(normalDesktop).toContain("--journey-row-height: 2.4rem");
+    expect(publicSource.slice(0, compactStart)).not.toContain("max-height: 850px");
+    expect(publicSource.slice(mobileStart)).not.toContain("max-height: 850px");
   });
 
   it("keeps detail grids owned, stable, and mobile-safe", () => {
