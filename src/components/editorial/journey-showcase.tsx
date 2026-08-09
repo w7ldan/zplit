@@ -24,12 +24,24 @@ export const JOURNEY_SCROLL_IDLE_MS = 200;
 export const JOURNEY_MAGNET_RADIUS_RATIO = 0.09;
 const JOURNEY_PROGRAMMATIC_SCROLL_IDLE_MS = 180;
 
-function Amount({ value }: { value: number }) {
-  return <span className="tabular-nums">{formatRupiah(value)}</span>;
+function Amount({ value, className = "" }: { value: number; className?: string }) {
+  return <span className={`tabular-nums${className ? ` ${className}` : ""}`}>{formatRupiah(value)}</span>;
 }
 
-function ProductRow({ label, value, detail, detailClassName }: { label: string; value: string; detail?: string; detailClassName?: string }) {
-  return <div className="journey-row"><span className="journey-row__label">{label}</span><strong>{value}</strong>{detail ? <span key={detail} className={`journey-row__detail${detailClassName ? ` ${detailClassName}` : ""}`}>{detail}</span> : null}</div>;
+function ProductRow({ label, value, detail, detailClassName, connectorNode }: { label: string; value: string; detail?: string; detailClassName?: string; connectorNode?: string }) {
+  return <div className="journey-row" data-connector-node={connectorNode}><span className="journey-row__label">{label}</span><strong>{value}</strong>{detail ? <span key={detail} className={`journey-row__detail${detailClassName ? ` ${detailClassName}` : ""}`}>{detail}</span> : null}</div>;
+}
+
+function JourneyConnectors() {
+  return (
+    <svg className="journey-connectors" data-journey-connectors="desktop" aria-hidden="true" focusable="false" preserveAspectRatio="none">
+      <path className="journey-connectors__share" data-relationship="dinner-rani" pathLength="1" />
+      <path className="journey-connectors__share" data-relationship="dinner-dimas" pathLength="1" />
+      <path className="journey-connectors__share" data-relationship="taxi-rani" pathLength="1" />
+      <path className="journey-connectors__repayment" data-relationship="repayment-dinner-rani" pathLength="1" />
+      <path className="journey-connectors__repayment" data-relationship="repayment-taxi-rani" pathLength="1" />
+    </svg>
+  );
 }
 
 function JourneyScene({ activeStep }: { activeStep: number }) {
@@ -61,12 +73,12 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
               <div className="journey-list">
                 {scenario.expenses.map((expense) => (
                   <div className="journey-expense-row" data-expense={expense.description} key={expense.description}>
-                    <ProductRow label={expense.description} value={formatRupiah(expense.amount)} />
+                    <ProductRow label={expense.description} value={formatRupiah(expense.amount)} connectorNode={`expense-${expense.description.toLowerCase()}`} />
                     <div className="journey-expense-row__shares" data-visible={showShares} data-layout={showShares ? "expanded" : "collapsed"} aria-hidden={!showShares}>
                       <div className="journey-expense-row__shares-reveal">
                         {scenario.shares.filter((share) => share.expense === expense.description).map((share) => {
                           const covered = showRepayment && share.friend === "Rani";
-                          return <ProductRow key={`${share.expense}-${share.friend}`} label={share.friend} value={formatRupiah(share.amount)} detail={showShares ? covered ? "Covered by repayment" : "Outstanding · not covered" : undefined} detailClassName={covered ? "journey-share-detail--covered" : "journey-share-detail--outstanding"} />;
+                          return <ProductRow key={`${share.expense}-${share.friend}`} label={share.friend} value={formatRupiah(share.amount)} detail={showShares ? covered ? "Covered by repayment" : "Outstanding · not covered" : undefined} detailClassName={covered ? "journey-share-detail--covered" : "journey-share-detail--outstanding"} connectorNode={`${share.expense.toLowerCase()}-${share.friend.toLowerCase()}`} />;
                         })}
                       </div>
                     </div>
@@ -101,7 +113,7 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
               <div className="journey-scene__section-reveal">
                 <div className="journey-scene__section-content">
                 <p className="technical-label">Repayment state</p>
-                <div className="journey-repayment-row"><span><strong>Rani repayment</strong><small>Received and ready to allocate</small></span><strong><Amount value={scenario.repayment.amount} /></strong></div>
+                <div className="journey-repayment-row" data-connector-node="repayment-rani"><span><strong>Rani repayment</strong><small>Received and ready to allocate</small></span><strong><Amount value={scenario.repayment.amount} /></strong></div>
                 <div className="journey-repayment__allocation journey-allocation" data-visible={showRepaymentState} data-layout={showRepaymentState ? "expanded" : "collapsed"} data-progress={showRepaymentState ? "complete" : "zero"} aria-hidden={!showRepaymentState}>
                   <div className="journey-allocation__content">
                     <div className="journey-allocation__caption"><span>Repayment allocation</span><strong><Amount value={scenario.repayment.amount} /></strong></div>
@@ -127,9 +139,9 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
                 <p className="technical-label">Balance state</p>
                 <div className="journey-balance-list">
                   <div className="journey-balance journey-balance--settled"><div><strong>Rani</strong><span>Assigned {formatRupiah(raniAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={0} /></strong></div><span className="journey-state">SETTLED</span></div>
-                  <div className="journey-balance journey-balance--open"><div><strong>Dimas</strong><span>Assigned {formatRupiah(dimasAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={dimasAssigned} /></strong></div><span className="journey-state">OPEN</span></div>
+                  <div className="journey-balance journey-balance--open"><div><strong>Dimas</strong><span>Assigned <span className="tabular-nums ledger-amount">{formatRupiah(dimasAssigned)}</span></span></div><div><span>Remaining</span><strong><Amount value={dimasAssigned} className="ledger-amount" /></strong></div><span className="journey-state">OPEN</span></div>
                 </div>
-                <p className="journey-footnote">Rani is settled after her repayment. Remaining across this illustrative outing: <strong><Amount value={dimasAssigned} /></strong>. The owner portion is already excluded from friend balances.</p>
+                <p className="journey-footnote">Rani is settled after her repayment. Remaining across this illustrative outing: <strong><Amount value={dimasAssigned} className="ledger-amount" /></strong>. The owner portion is already excluded from friend balances.</p>
               </div>
               </div>
             </div>
@@ -202,6 +214,8 @@ export function JourneyShowcase() {
     if (!desktopSequence) return;
     const runwayElement = runway.current;
     const stageElement = stage.current;
+    const frameElement = stageElement?.querySelector<HTMLElement>(".journey-frame");
+    const connectorSvg = frameElement?.querySelector<SVGSVGElement>("[data-journey-connectors]");
     let frame: number | null = null;
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
     let programmaticTimer: ReturnType<typeof setTimeout> | null = null;
@@ -217,6 +231,34 @@ export function JourneyShowcase() {
     const updateDimensions = () => {
       const element = runway.current;
       if (element) element.style.height = `${pinnedHeight() + sequenceTravel()}px`;
+    };
+    const connectorPath = (from: { x: number; y: number }, to: { x: number; y: number }) => {
+      const bend = Math.min(36, Math.max(12, Math.abs(to.x - from.x) * 0.25));
+      const direction = to.x >= from.x ? 1 : -1;
+      return `M ${from.x.toFixed(1)} ${from.y.toFixed(1)} C ${(from.x + direction * bend).toFixed(1)} ${from.y.toFixed(1)}, ${(to.x - direction * bend).toFixed(1)} ${to.y.toFixed(1)}, ${to.x.toFixed(1)} ${to.y.toFixed(1)}`;
+    };
+    const reconcileConnectors = () => {
+      if (!frameElement || !connectorSvg) return;
+      const frameRect = frameElement.getBoundingClientRect();
+      if (!frameRect.width || !frameRect.height) return;
+      connectorSvg.setAttribute("viewBox", `0 0 ${frameRect.width} ${frameRect.height}`);
+      const point = (name: string, edge: "left" | "right") => {
+        const element = frameElement.querySelector<HTMLElement>(`[data-connector-node="${name}"]`);
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        return { x: (edge === "left" ? rect.left : rect.right) - frameRect.left + (edge === "left" ? 6 : -6), y: rect.top - frameRect.top + rect.height / 2 };
+      };
+      const paths = [
+        ["dinner-rani", point("expense-dinner", "right"), point("dinner-rani", "right")],
+        ["dinner-dimas", point("expense-dinner", "right"), point("dinner-dimas", "right")],
+        ["taxi-rani", point("expense-taxi", "right"), point("taxi-rani", "right")],
+        ["repayment-dinner-rani", point("repayment-rani", "left"), point("dinner-rani", "right")],
+        ["repayment-taxi-rani", point("repayment-rani", "left"), point("taxi-rani", "right")],
+      ] as const;
+      for (const [relationship, from, to] of paths) {
+        const path = connectorSvg.querySelector<SVGPathElement>(`[data-relationship="${relationship}"]`);
+        if (path && from && to) path.setAttribute("d", connectorPath(from, to));
+      }
     };
     const geometry = () => {
       const element = runway.current;
@@ -259,6 +301,8 @@ export function JourneyShowcase() {
       stage.current?.style.setProperty("--journey-allocation-progress", String(transition(1) * assignedTotal / expenseTotal));
       stage.current?.style.setProperty("--journey-repayment-progress", String(transition(2)));
       stage.current?.style.setProperty("--journey-balance-progress", String(transition(3)));
+      stage.current?.style.setProperty("--journey-connector-share-progress", String(Math.max(0, Math.min(transition(1), 1 - transition(2)))));
+      stage.current?.style.setProperty("--journey-connector-repayment-progress", String(Math.max(0, Math.min(transition(2), 1 - transition(3)))));
       if (ignoredProgress.current !== null) {
         ignoredProgress.current = null;
         return;
@@ -276,10 +320,11 @@ export function JourneyShowcase() {
       clearTimer(idleTimer);
       idleTimer = setTimeout(settleNearestChapter, JOURNEY_SCROLL_IDLE_MS);
     };
-    const onResize = () => { capturePinnedHeight(); updateDimensions(); scheduleUpdate(); };
-    const onPageShow = () => { capturePinnedHeight(true); updateDimensions(); scheduleUpdate(); };
+    const onResize = () => { capturePinnedHeight(); updateDimensions(); reconcileConnectors(); scheduleUpdate(); };
+    const onPageShow = () => { capturePinnedHeight(true); updateDimensions(); reconcileConnectors(); scheduleUpdate(); };
     capturePinnedHeight();
     updateDimensions();
+    reconcileConnectors();
     updateProgress();
     scrollToJourneyStep.current = beginProgrammaticScroll;
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -301,6 +346,8 @@ export function JourneyShowcase() {
       stageElement?.style.removeProperty("--journey-allocation-progress");
       stageElement?.style.removeProperty("--journey-repayment-progress");
       stageElement?.style.removeProperty("--journey-balance-progress");
+      stageElement?.style.removeProperty("--journey-connector-share-progress");
+      stageElement?.style.removeProperty("--journey-connector-repayment-progress");
       pinnedStageHeight.current = 0;
       pinnedViewport.current = { width: 0, height: 0 };
     };
@@ -341,6 +388,7 @@ export function JourneyShowcase() {
               <div className="journey-frame" id="journey-panel" role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}>
                 <div className="journey-frame__header"><span className="technical-label">Bandung day out</span><span className="technical-label">Shared expense record</span></div>
                 <div className="journey-frame__body"><JourneyScene activeStep={activeStep} /></div>
+                {desktopSequence ? <JourneyConnectors /> : null}
               </div>
             </div>
           </div>

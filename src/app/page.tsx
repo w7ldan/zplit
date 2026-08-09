@@ -33,10 +33,12 @@ export default function HomePage() {
           </div>
 
           <LandingReveal as="div" className="hero__ledger" aria-label={`Illustrative ${bandungStory.outing} ledger`} delay={180}>
-            <div className="hero__ledger-header hero-story__rule"><span className="technical-label">Shared expense record</span><strong>{bandungStory.outing}</strong></div>
-            <div className="hero__ledger-row hero-story__dinner"><span>{dinner.description}</span><strong>{dinnerAmount}</strong></div>
-            <div className="hero__ledger-row hero-story__share"><span>Rani assigned</span><strong>{raniPayment}</strong></div>
-            <div className="hero__ledger-total hero-story__open"><span>Still open</span><strong>{openBalance}</strong></div>
+            <div className="hero__ledger-depth">
+              <div className="hero__ledger-header hero-story__rule"><span className="technical-label">Shared expense record</span><strong>{bandungStory.outing}</strong></div>
+              <div className="hero__ledger-row hero-story__dinner"><span>{dinner.description}</span><strong>{dinnerAmount}</strong></div>
+              <div className="hero__ledger-row hero-story__share"><span>Rani assigned</span><strong>{raniPayment}</strong></div>
+              <div className="hero__ledger-total hero-story__open"><span>Still open</span><strong className="ledger-amount tabular-nums">{openBalance}</strong></div>
+            </div>
           </LandingReveal>
         </div>
       </section>
@@ -46,7 +48,7 @@ export default function HomePage() {
           <div className="ledger-handoff__header"><span className="technical-label">Shared expense record</span><strong>{bandungStory.outing}</strong></div>
           <div className="ledger-handoff__row"><span>{dinner.description}</span><strong>{dinnerAmount}</strong></div>
           <div className="ledger-handoff__row"><span>Rani assigned</span><strong>{raniPayment}</strong></div>
-          <div className="ledger-handoff__open"><span>Still open</span><strong>{openBalance}</strong></div>
+          <div className="ledger-handoff__open"><span>Still open</span><strong className="ledger-amount tabular-nums">{openBalance}</strong></div>
         </div>
       </div>
 
@@ -95,12 +97,12 @@ export default function HomePage() {
             <h2 id="private-title">Send the balance,<br />not the spreadsheet.</h2>
           </div>
           <article className="private-ledger" aria-label={`Private read-only balance for ${bandungStory.openBalance.friend}`}>
-            <div className="private-ledger__source" aria-hidden="true"><span>{bandungStory.openBalance.friend}</span><strong>{openBalance}</strong></div>
+            <div className="private-ledger__source" aria-hidden="true"><span>{bandungStory.openBalance.friend}</span><strong className="ledger-amount tabular-nums">{openBalance}</strong></div>
             <div className="private-ledger__statement">
               <header><span>{bandungStory.openBalance.friend}</span><span>Private · Read only</span></header>
               <p>Still owes</p>
-              <strong className="private-ledger__amount">{openBalance}</strong>
-              <div className="private-ledger__row"><span>{dinner.description}<small>{bandungStory.outing}</small></span><strong>{openBalance}</strong></div>
+              <strong className="private-ledger__amount ledger-amount tabular-nums">{openBalance}</strong>
+              <div className="private-ledger__row"><span>{dinner.description}<small>{bandungStory.outing}</small></span><strong className="ledger-amount tabular-nums">{openBalance}</strong></div>
               <p className="private-ledger__proof">Receipt available</p>
             </div>
           </article>
@@ -112,8 +114,8 @@ export default function HomePage() {
           <p className="section-label technical-label">Settlement payoff</p>
           <div className="payoff">
             <span>Still open</span>
-            <strong data-payoff-state="amount">{openBalance}</strong>
-            <div className="payoff__row" data-payoff-state="row"><span>{bandungStory.openBalance.friend}</span><strong>{openBalance}</strong></div>
+            <strong className="ledger-amount tabular-nums" data-payoff-state="amount">{openBalance}</strong>
+            <div className="payoff__row" data-payoff-state="row"><span>{bandungStory.openBalance.friend}</span><strong className="ledger-amount tabular-nums">{openBalance}</strong></div>
           </div>
           <div className="story-close__cta" data-payoff-state="cta">
             <div><span className="footer__brand" id="footer-title">Zplit</span><p>Shared expenses, made explicit.</p></div>

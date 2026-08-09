@@ -102,5 +102,8 @@ describe("public Zplit page", () => {
     expect(within(payoff).getByText("Shared expenses, made explicit.", { exact: true })).toBeInTheDocument();
     expect(within(payoff).getByRole("link", { name: "Open Zplit →" })).toHaveAttribute("href", "/app");
     expect(payoff).toHaveAttribute("data-story-motion", "finale");
+    const recurringAmounts = [...document.querySelectorAll(".ledger-amount")];
+    expect(recurringAmounts.length).toBeGreaterThanOrEqual(7);
+    expect(recurringAmounts.every((amount) => amount.textContent === "Rp 42.500")).toBe(true);
   });
 });

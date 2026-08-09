@@ -1068,6 +1068,8 @@
 .public-home .hero__actions { margin-top: 1.75rem; }
 .public-home .action-link { border-radius: var(--radius-control); }
 .public-home .hero__ledger { grid-column: 8 / -1; align-self: center; min-width: 0; padding-block: 1rem; border-block: 1px solid var(--ink); }
+.public-home .hero__ledger-depth { transform-origin: center top; }
+.public-home .ledger-amount { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 .hero__ledger-header, .hero__ledger-row, .hero__ledger-total { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
 .hero__ledger-header { display: grid; gap: 0.45rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--ink); }
 .hero__ledger-header strong { font-family: var(--font-display); font-size: clamp(1.6rem, 2.4vw, 2.6rem); letter-spacing: -0.055em; line-height: 1; text-transform: uppercase; }
@@ -1116,8 +1118,9 @@
 .expense-proof__receipt figcaption { display: grid; gap: 0.35rem; }
 .expense-proof__receipt figcaption strong { font-size: 1.1rem; }
 .expense-proof__receipt figcaption span { color: var(--muted-ink); }
-.expense-proof__receipt { transition: opacity var(--motion-layout) var(--ease-product), clip-path var(--motion-layout) var(--ease-product), transform var(--motion-layout) var(--ease-product); }
-.story-motion--ready:not(.story-motion--visible) .expense-proof__receipt { opacity: 0; clip-path: inset(0 0 100%); transform: translateY(-8px); }
+.capability--receipt .expense-proof { perspective: 1200px; }
+.expense-proof__receipt { transform-origin: 50% 0; transform: translateY(0) rotateX(0.75deg) rotateZ(-0.35deg); transition: opacity var(--motion-layout) var(--ease-product), clip-path var(--motion-layout) var(--ease-product), transform var(--motion-layout) var(--ease-product); }
+.story-motion--ready:not(.story-motion--visible) .expense-proof__receipt { opacity: 0; clip-path: inset(0 0 100%); transform: translateY(-8px) rotateX(5deg) rotateZ(-1deg); }
 .capability--private .capability__copy { grid-column: 1 / span 6; }
 .private-ledger { grid-column: 7 / -1; min-width: 0; padding: clamp(1.5rem, 3vw, 2.5rem); border: 1px solid var(--ink); background: var(--pastel-blue); }
 .private-ledger__source { display: none; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; align-items: baseline; padding-block: 1rem; border-block: 1px solid var(--ink); font-size: clamp(1.1rem, 2vw, 1.7rem); }
@@ -1168,7 +1171,7 @@
 .journey-announcement > span:first-child { grid-column: 1 / -1; }
 .journey-announcement strong { color: var(--ink); font-family: var(--font-display); font-size: 1.15rem; letter-spacing: -0.04em; line-height: 1.1; }
 .journey-announcement > span:last-child { min-width: 0; overflow-wrap: anywhere; }
-.journey-frame { margin-top: 0.75rem; border: 1px solid var(--ink); border-radius: var(--radius-panel); background: var(--surface); }
+.journey-frame { position: relative; margin-top: 0.75rem; border: 1px solid var(--ink); border-radius: var(--radius-panel); background: var(--surface); }
 .journey-frame__header { display: flex; justify-content: space-between; gap: 1rem; padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--rule); }
 .journey-frame__header .technical-label:last-child { text-align: right; }
 .journey-frame__body { min-width: 0; padding: clamp(1.25rem, 3vw, 2.5rem); }
@@ -1226,6 +1229,10 @@
 .journey-footnote { margin: 1rem 0 0; }
 .journey-footnote strong { color: var(--ink); font-variant-numeric: tabular-nums; }
 .journey-noscript { max-width: 42rem; margin: 1rem 0 0; color: var(--muted-ink); font-size: 0.85rem; }
+.journey-connectors { display: none; position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; }
+.journey-connectors path { fill: none; stroke: var(--muted-ink); stroke-width: 1; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.journey-connectors__share { opacity: var(--journey-connector-share-progress, 0); stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--journey-connector-share-progress, 0)); }
+.journey-connectors__repayment { opacity: var(--journey-connector-repayment-progress, 0); stroke: var(--ink); stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--journey-connector-repayment-progress, 0)); }
 @keyframes journey-coverage-settle {
   from { opacity: 0.45; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1234,6 +1241,7 @@
 .landing-reveal--ready:not(.landing-reveal--visible) { opacity: 0; clip-path: inset(0 0 12% 0); transform: translateY(16px); }
 
 @media (min-width: 960px) and (min-height: 720px) {
+  .public-home .hero__ledger-depth { transform: perspective(1400px) rotateX(calc(var(--ledger-handoff-depth, 1) * 1.25deg)) rotateY(calc(var(--ledger-handoff-depth, 1) * -0.75deg)); }
   .ledger-handoff-runway { display: block; position: relative; height: 30vh; }
   .public-home .hero__ledger { opacity: var(--ledger-handoff-hero-opacity, 1); }
   .public-home .hero__content { opacity: var(--ledger-handoff-copy-opacity, 1); }
@@ -1300,6 +1308,7 @@
   .journey-sticky--pinned .journey-scene__balances { visibility: visible; opacity: var(--journey-balance-progress, 0); transform: translateY(calc((1 - var(--journey-balance-progress, 0)) * 4px)); transition: none; }
   .journey-sticky--pinned .journey-balance--settled { opacity: clamp(0, calc(var(--journey-balance-progress, 0) * 2), 1); }
   .journey-sticky--pinned .journey-balance--open { opacity: clamp(0, calc((var(--journey-balance-progress, 0) - 0.35) * 2), 1); }
+  .journey-connectors { display: block; }
 }
 
 @media (max-width: 959px) {
@@ -1348,6 +1357,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .public-home .hero__ledger-depth { transform: none !important; }
+  .capability--receipt .expense-proof { perspective: none; }
+  .journey-connectors { display: none !important; }
   .landing-reveal, .landing-reveal--ready:not(.landing-reveal--visible), .public-home .hero__title[data-reveal="hero"], .public-home .hero__field[data-reveal="field"] { animation: none !important; clip-path: none !important; transition: none !important; }
   .hero-story__rule, .hero-story__dinner, .hero-story__share, .hero-story__open { animation: none !important; opacity: 1 !important; clip-path: none !important; transform: none !important; }
   .ledger-handoff-runway { display: none !important; }

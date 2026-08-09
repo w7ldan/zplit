@@ -105,6 +105,7 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
       properties.forEach((property) => runway.style.removeProperty(property));
       runway.style.removeProperty("--ledger-handoff-opacity");
       heroLedger?.style.removeProperty("--ledger-handoff-hero-opacity");
+      heroLedger?.style.removeProperty("--ledger-handoff-depth");
       heroContent?.style.removeProperty("--ledger-handoff-copy-opacity");
       journeyProduct?.style.removeProperty("--ledger-handoff-journey-opacity");
     };
@@ -122,6 +123,7 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
       runway.style.setProperty("--ledger-handoff-progress", String(progress));
       runway.style.setProperty("--ledger-handoff-opacity", String(bridgeOpacity));
       heroLedger?.style.setProperty("--ledger-handoff-hero-opacity", String(heroOpacity));
+      heroLedger?.style.setProperty("--ledger-handoff-depth", String(rawProgress < 0 ? 1 : 1 - progress));
       heroContent?.style.setProperty("--ledger-handoff-copy-opacity", String(heroOpacity));
       journeyProduct?.style.setProperty("--ledger-handoff-journey-opacity", String(journeyOpacity));
       if (withinHandoff) {

@@ -353,6 +353,38 @@ describe("Zplit design contract", () => {
     expect(lateOverridesSource).not.toContain(".public-home");
   });
 
+  it("keeps ledger physicality decorative, restrained, and motion-safe", () => {
+    expect(journeySource).toContain('data-journey-connectors="desktop"');
+    expect(journeySource).toContain('aria-hidden="true"');
+    for (const relationship of ["dinner-rani", "dinner-dimas", "taxi-rani", "repayment-dinner-rani", "repayment-taxi-rani"]) expect(journeySource).toContain(`data-relationship="${relationship}"`);
+    expect(journeySource).toContain("frameElement.getBoundingClientRect()");
+    expect(journeySource).toContain("reconcileConnectors");
+    expect(journeySource).toContain("--journey-connector-share-progress");
+    expect(journeySource).toContain("--journey-connector-repayment-progress");
+    expect(publicSource).toContain("pointer-events: none");
+    expect(publicSource).toContain("stroke-dasharray: 1");
+    expect(publicSource).toContain(".journey-connectors { display: none;");
+    expect(publicSource).toMatch(/@media \(min-width: 960px\) and \(min-height: 720px\)[\s\S]*?\.journey-connectors \{ display: block; \}/);
+    expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.journey-connectors \{ display: none !important; \}/);
+    expect(publicSource).toContain("perspective: 1200px;");
+    expect(publicSource).toContain("transform: translateY(0) rotateX(0.75deg) rotateZ(-0.35deg)");
+    expect(publicSource).toContain("rotateX(5deg) rotateZ(-1deg)");
+    expect(publicSource).toContain("transform-origin: 50% 0;");
+    expect(publicSource).not.toContain(".expense-proof__receipt:hover");
+    expect(publicSource).not.toContain("mousemove");
+    expect(publicSource).not.toContain("pointermove");
+    expect(publicSource).toContain("perspective(1400px)");
+    expect(publicSource).toContain("rotateX(calc(var(--ledger-handoff-depth");
+    expect(publicSource).toContain(".public-home .hero__ledger-depth");
+    expect(landingMotionSource).toContain("--ledger-handoff-depth");
+    expect(publicPageSource).toContain("className=\"hero__ledger-depth\"");
+    expect(publicPageSource).toContain("className=\"ledger-amount tabular-nums\"");
+    expect(publicPageSource.match(/ledger-amount/g)?.length).toBeGreaterThanOrEqual(7);
+    expect(publicSource).toContain("font-feature-settings: \"tnum\"");
+    expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.public-home \.hero__ledger-depth \{ transform: none !important; \}/);
+    expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.capability--receipt \.expense-proof \{ perspective: none; \}/);
+  });
+
   it("keeps the public ledger handoff structural, coordinated, and motion-safe", () => {
     expect(publicPageSource).toContain('import { bandungStory }');
     expect(journeySource).toContain('bandungStory as scenario');
@@ -382,7 +414,7 @@ describe("Zplit design contract", () => {
   });
 
   it("keeps the payoff amount visible first and resolves later states without a blank flow box", () => {
-    expect(publicPageSource).toMatch(/className="payoff"[\s\S]*?<strong data-payoff-state="amount">\{openBalance\}<\/strong>/);
+    expect(publicPageSource).toMatch(/className="payoff"[\s\S]*?<strong[^>]*data-payoff-state="amount"[^>]*>\{openBalance\}<\/strong>/);
     expect(publicPageSource).toMatch(/data-payoff-state="amount"[\s\S]*?data-payoff-state="row"[\s\S]*?data-payoff-state="cta"/);
     expect(landingMotionSource).toContain('[data-story-motion="finale"]');
     expect(landingMotionSource).toContain("--payoff-row-progress");

@@ -107,6 +107,75 @@ describe("JourneyShowcase", () => {
     expect(scene.querySelector('[data-summary-slot="state"]')).toContainElement(sceneSection("balances"));
   });
 
+  it("adds a decorative desktop connector layer for the causal relationships", () => {
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    setInnerHeight(viewportHeight);
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    render(<JourneyShowcase />);
+
+    const svg = document.querySelector<SVGSVGElement>("[data-journey-connectors]")!;
+    expect(svg).toHaveAttribute("aria-hidden", "true");
+    expect(svg).toHaveAttribute("data-journey-connectors", "desktop");
+    expect(svg.textContent).toBe("");
+    expect([...svg.querySelectorAll("path")].map((path) => path.getAttribute("data-relationship"))).toEqual([
+      "dinner-rani",
+      "dinner-dimas",
+      "taxi-rani",
+      "repayment-dinner-rani",
+      "repayment-taxi-rani",
+    ]);
+    for (const node of ["expense-dinner", "dinner-rani", "dinner-dimas", "expense-taxi", "taxi-rani", "repayment-rani"]) {
+      expect(document.querySelector(`[data-connector-node="${node}"]`)).toBeInTheDocument();
+    }
+  });
+
+  it("reveals, reverses, and clears connectors from existing Journey progress without per-scroll geometry reads", () => {
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    setInnerHeight(viewportHeight);
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    setScrollY(100);
+    render(<JourneyShowcase />);
+
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    const frameElement = document.querySelector(".journey-frame")! as HTMLElement;
+    const scene = document.querySelector(".journey-panel")!;
+    mockPinnedGeometry(runway, stage);
+    vi.spyOn(frameElement, "getBoundingClientRect").mockReturnValue({ left: 100, top: 100, width: 1000, height: 600 } as DOMRect);
+    const nodeReads = [...document.querySelectorAll<HTMLElement>("[data-connector-node]")].map((node) => vi.spyOn(node, "getBoundingClientRect").mockReturnValue({ left: 200, right: 500, top: 200, height: 30 } as DOMRect));
+    act(() => window.dispatchEvent(new Event("resize")));
+    const readsAfterReconcile = nodeReads.map((spy) => spy.mock.calls.length);
+
+    setScrollY(100 + 0.8 * stepTravel);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(stage.style.getPropertyValue("--journey-connector-share-progress")).toBe("0");
+    expect(stage.style.getPropertyValue("--journey-connector-repayment-progress")).toBe("0");
+
+    setScrollY(100 + 1.5 * stepTravel);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(stage.style.getPropertyValue("--journey-connector-share-progress")).toBe("0.5");
+    expect(stage.style.getPropertyValue("--journey-connector-repayment-progress")).toBe("0");
+
+    setScrollY(100 + 2.5 * stepTravel);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(stage.style.getPropertyValue("--journey-connector-share-progress")).toBe("0.5");
+    expect(stage.style.getPropertyValue("--journey-connector-repayment-progress")).toBe("0.5");
+
+    setScrollY(100 + 4 * stepTravel);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(stage.style.getPropertyValue("--journey-connector-share-progress")).toBe("0");
+    expect(stage.style.getPropertyValue("--journey-connector-repayment-progress")).toBe("0");
+    expect(nodeReads.map((spy) => spy.mock.calls.length)).toEqual(readsAfterReconcile);
+    expect(scene).toHaveAttribute("data-journey-step", "4");
+  });
+
   it("progressively reveals the same expenses, shares, repayment, and balances in both directions", () => {
     vi.stubGlobal("matchMedia", mediaQuery());
     render(<JourneyShowcase />);
@@ -554,6 +623,7 @@ describe("JourneyShowcase", () => {
   ])("uses direct tab selection for %s", (_label, mode) => {
     vi.stubGlobal("matchMedia", mediaQuery(mode));
     render(<JourneyShowcase />);
+    expect(document.querySelector("[data-journey-connectors]")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: /A repayment is recorded/ }));
     expect(document.querySelectorAll(".journey-panel")).toHaveLength(1);
     expect(document.querySelector(".journey-panel")).toHaveAttribute("data-journey-step", "3");
