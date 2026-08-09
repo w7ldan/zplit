@@ -1235,8 +1235,11 @@
 
 @media (min-width: 960px) and (min-height: 720px) {
   .ledger-handoff-runway { display: block; position: relative; height: 30vh; }
-  .ledger-handoff { position: absolute; top: 0; left: 0; box-sizing: border-box; width: var(--ledger-handoff-width, 0); max-width: none; margin: 0; padding-block: 1rem; padding-inline: calc(var(--ledger-handoff-structure, 0) * 1rem); border: 1px solid transparent; border-block-color: var(--ink); background: var(--paper); transform: translate3d(var(--ledger-handoff-x, 0), var(--ledger-handoff-y, 0), 0); }
-  .ledger-handoff-runway[data-handoff-active="true"] .ledger-handoff { border-inline-color: rgb(from var(--ink) r g b / var(--ledger-handoff-structure, 0)); }
+  .public-home .hero__ledger { opacity: var(--ledger-handoff-hero-opacity, 1); }
+  .public-home .hero__content { opacity: var(--ledger-handoff-copy-opacity, 1); }
+  .ledger-handoff { position: absolute; top: 0; left: 0; box-sizing: border-box; width: var(--ledger-handoff-width, 0); max-width: none; margin: 0; padding-block: 1rem; padding-inline: calc(var(--ledger-handoff-structure, 0) * 1rem); border: 1px solid transparent; border-block-color: var(--ink); background: var(--paper); opacity: var(--ledger-handoff-opacity, 0); pointer-events: none; transform: translate3d(var(--ledger-handoff-x, 0), var(--ledger-handoff-y, 0), 0); }
+  .ledger-handoff-runway[data-handoff-active="true"] .ledger-handoff { position: fixed; z-index: 3; border-inline-color: rgb(from var(--ink) r g b / var(--ledger-handoff-structure, 0)); }
+  .product-journey[data-ledger-handoff-target="true"] { opacity: var(--ledger-handoff-journey-opacity, 1); pointer-events: none; }
   .ledger-handoff::after { position: absolute; top: 0; bottom: 0; left: 58.33%; width: 1px; background: var(--rule); content: ""; opacity: var(--ledger-handoff-structure, 0); }
   .ledger-handoff__header { display: grid; gap: 0.45rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--ink); }
   .ledger-handoff__header strong { font-family: var(--font-display); font-size: clamp(1.6rem, 2.4vw, 2.6rem); letter-spacing: -0.055em; line-height: 1; text-transform: uppercase; }

@@ -21,14 +21,16 @@ export function ledgerHandoffWindow(progress: number, start: number, end: number
 
 type LedgerEndpoint = Pick<DOMRect, "left" | "top" | "width">;
 
-export function ledgerHandoffGeometry(hero: LedgerEndpoint, journey: LedgerEndpoint, runway: Pick<DOMRect, "left" | "top">, progress: number) {
+export function ledgerHandoffStart(hero: Pick<DOMRect, "top">, scrollY: number) {
+  return hero.top + scrollY;
+}
+
+export function ledgerHandoffGeometry(hero: LedgerEndpoint, journey: LedgerEndpoint, progress: number) {
   const position = ledgerHandoffWindow(progress, 0, 1);
   const width = ledgerHandoffWindow(progress, 0.1, 0.55);
-  const startX = hero.left - runway.left;
-  const startY = hero.top - runway.top;
   return {
-    x: startX + position * (journey.left - runway.left - startX),
-    y: startY + position * (journey.top - runway.top - startY),
+    left: hero.left + position * (journey.left - hero.left),
+    top: hero.top + position * (journey.top - hero.top),
     width: hero.width + width * (journey.width - hero.width),
   };
 }
@@ -82,7 +84,9 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
     const runway = root.current?.querySelector<HTMLElement>("[data-ledger-handoff-runway]");
     if (!runway) return;
     const heroLedger = root.current?.querySelector<HTMLElement>(".hero__ledger");
+    const heroContent = root.current?.querySelector<HTMLElement>(".hero__content");
     const journeyFrame = root.current?.querySelector<HTMLElement>(".journey-frame");
+    const journeyProduct = root.current?.querySelector<HTMLElement>(".product-journey");
     const wide = window.matchMedia?.("(min-width: 960px)");
     const tall = window.matchMedia?.("(min-height: 720px)");
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
@@ -90,25 +94,46 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
     let frame: number | null = null;
     let start = 0;
     let travel = 1;
-    let heroRect: LedgerEndpoint | null = null;
-    let journeyRect: LedgerEndpoint | null = null;
-    let runwayRect: Pick<DOMRect, "left" | "top"> | null = null;
+    let heroEndpoint: LedgerEndpoint | null = null;
+    let journeyEndpoint: LedgerEndpoint | null = null;
     let active = false;
 
     const clear = () => {
       delete runway.dataset.handoffActive;
+      delete runway.dataset.handoffReady;
+      if (journeyProduct) delete journeyProduct.dataset.ledgerHandoffTarget;
       properties.forEach((property) => runway.style.removeProperty(property));
+      runway.style.removeProperty("--ledger-handoff-opacity");
+      heroLedger?.style.removeProperty("--ledger-handoff-hero-opacity");
+      heroContent?.style.removeProperty("--ledger-handoff-copy-opacity");
+      journeyProduct?.style.removeProperty("--ledger-handoff-journey-opacity");
     };
     const update = () => {
       frame = null;
       if (!active) return;
+      const rawProgress = (window.scrollY - start) / Math.max(travel, 1);
       const progress = ledgerHandoffProgress(window.scrollY, start, travel);
       const structure = ledgerHandoffWindow(progress, 0.55, 0.95);
-      const geometry = heroRect && journeyRect && runwayRect ? ledgerHandoffGeometry(heroRect, journeyRect, runwayRect, progress) : null;
+      const geometry = heroEndpoint && journeyEndpoint ? ledgerHandoffGeometry(heroEndpoint, journeyEndpoint, progress) : null;
+      const withinHandoff = rawProgress >= 0 && rawProgress <= 1;
+      const bridgeOpacity = withinHandoff ? Math.min(ledgerHandoffWindow(progress, 0, 0.1), 1 - ledgerHandoffWindow(progress, 0.9, 1)) : 0;
+      const heroOpacity = rawProgress < 0 ? 1 : 1 - ledgerHandoffWindow(progress, 0, 0.12);
+      const journeyOpacity = withinHandoff ? ledgerHandoffWindow(progress, 0.9, 1) : 1;
       runway.style.setProperty("--ledger-handoff-progress", String(progress));
+      runway.style.setProperty("--ledger-handoff-opacity", String(bridgeOpacity));
+      heroLedger?.style.setProperty("--ledger-handoff-hero-opacity", String(heroOpacity));
+      heroContent?.style.setProperty("--ledger-handoff-copy-opacity", String(heroOpacity));
+      journeyProduct?.style.setProperty("--ledger-handoff-journey-opacity", String(journeyOpacity));
+      if (withinHandoff) {
+        runway.dataset.handoffActive = "true";
+        if (journeyProduct) journeyProduct.dataset.ledgerHandoffTarget = "true";
+      } else {
+        delete runway.dataset.handoffActive;
+        if (journeyProduct) delete journeyProduct.dataset.ledgerHandoffTarget;
+      }
       if (geometry) {
-        runway.style.setProperty("--ledger-handoff-x", `${geometry.x}px`);
-        runway.style.setProperty("--ledger-handoff-y", `${geometry.y}px`);
+        runway.style.setProperty("--ledger-handoff-x", `${geometry.left}px`);
+        runway.style.setProperty("--ledger-handoff-y", `${geometry.top}px`);
         runway.style.setProperty("--ledger-handoff-width", `${geometry.width}px`);
       }
       runway.style.setProperty("--ledger-handoff-rows", String(ledgerHandoffWindow(progress, 0.25, 0.7)));
@@ -119,12 +144,14 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
     const measure = () => {
       active = Boolean(wide?.matches && tall?.matches && !reduced?.matches);
       if (!active) { clear(); return; }
-      runway.dataset.handoffActive = "true";
-      heroRect = heroLedger?.getBoundingClientRect() ?? null;
-      journeyRect = journeyFrame?.getBoundingClientRect() ?? null;
-      runwayRect = runway.getBoundingClientRect();
+      const heroRect = heroLedger?.getBoundingClientRect();
+      const journeyRect = journeyFrame?.getBoundingClientRect();
+      if (!heroRect || !journeyRect) { clear(); return; }
       travel = ledgerHandoffTravel(window.innerHeight);
-      start = runwayRect.top + window.scrollY;
+      start = ledgerHandoffStart(heroRect, window.scrollY);
+      heroEndpoint = { left: heroRect.left, top: heroRect.top + window.scrollY - start, width: heroRect.width };
+      journeyEndpoint = { left: journeyRect.left, top: journeyRect.top + window.scrollY - (start + travel), width: journeyRect.width };
+      runway.dataset.handoffReady = "true";
       update();
     };
     const onPageShow = () => measure();

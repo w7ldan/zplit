@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LEDGER_HANDOFF_TRAVEL_VH, LandingReveal, LandingStoryMotion, ledgerHandoffGeometry, ledgerHandoffProgress, ledgerHandoffTravel, ledgerHandoffWindow } from "./landing-reveal";
+import { LEDGER_HANDOFF_TRAVEL_VH, LandingReveal, LandingStoryMotion, ledgerHandoffGeometry, ledgerHandoffProgress, ledgerHandoffStart, ledgerHandoffTravel, ledgerHandoffWindow } from "./landing-reveal";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -43,61 +43,105 @@ describe("LandingStoryMotion", () => {
     expect(ledgerHandoffWindow(0.55, 0.1, 0.55)).toBe(1);
   });
 
-  it("interpolates measured Hero and Journey endpoints without handoff-child geometry", () => {
-    const hero = { left: 700, top: 100, width: 400 } as DOMRect;
-    const journey = { left: 100, top: 1000, width: 1200 } as DOMRect;
-    const runway = { left: 0, top: 800 } as DOMRect;
-    expect(ledgerHandoffGeometry(hero, journey, runway, 0)).toEqual({ x: 700, y: -700, width: 400 });
-    expect(ledgerHandoffGeometry(hero, journey, runway, 1)).toEqual({ x: 100, y: 200, width: 1200 });
-    const middle = ledgerHandoffGeometry(hero, journey, runway, 0.5);
-    expect(middle.x).toBe(400);
-    expect(middle.y).toBe(-250);
-    expect(middle.width).toBeGreaterThan(400);
-    expect(middle.width).toBeLessThan(1200);
+  it("interpolates viewport endpoints continuously and reversibly", () => {
+    const hero = { left: 820, top: 180, width: 420 } as DOMRect;
+    const journey = { left: 220, top: 630, width: 960 } as DOMRect;
+    expect(ledgerHandoffStart(hero, 900)).toBe(1080);
+    expect(ledgerHandoffGeometry(hero, journey, 0)).toEqual({ left: 820, top: 180, width: 420 });
+    expect(ledgerHandoffGeometry(hero, journey, 1)).toEqual({ left: 220, top: 630, width: 960 });
+    const middle = ledgerHandoffGeometry(hero, journey, 0.5);
+    expect(middle.left).toBe(520);
+    expect(middle.top).toBe(405);
+    expect(middle.width).toBeGreaterThan(420);
+    expect(middle.width).toBeLessThan(960);
+    for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
+      const forward = ledgerHandoffGeometry(hero, journey, progress);
+      const reverse = ledgerHandoffGeometry(journey, hero, 1 - progress);
+      expect(forward.left).toBeCloseTo(reverse.left);
+      expect(forward.top).toBeCloseTo(reverse.top);
+    }
   });
 
-  it("reconciles restored scroll, resize, pageshow, and clears progress outside desktop mode", () => {
+  it("keeps travel at 30vh regardless of the bridge child size", () => {
+    expect(LEDGER_HANDOFF_TRAVEL_VH).toBe(30);
+    expect(ledgerHandoffTravel(900)).toBe(270);
+  });
+
+  it("anchors progress to the Hero boundary, crossfades carriers, and reconciles viewport endpoints", () => {
     let desktop = true;
     let frame: FrameRequestCallback | undefined;
-    let documentTop = 1000;
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 900, writable: true });
-    Object.defineProperty(window, "scrollY", { configurable: true, value: 1189, writable: true });
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 600, writable: true });
     Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn((query: string) => ({ get matches() { return query === "(min-width: 960px)" ? desktop : query === "(min-height: 720px)"; }, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    vi.spyOn(window, "getComputedStyle").mockReturnValue({ top: "0px" } as CSSStyleDeclaration);
-    const { unmount } = render(<LandingStoryMotion><div className="hero__ledger" /><div data-ledger-handoff-runway><div data-ledger-handoff /></div><div className="journey-frame" /></LandingStoryMotion>);
+    const { unmount } = render(<LandingStoryMotion><div className="hero__content" /><div className="hero__ledger" /><div data-ledger-handoff-runway><div data-ledger-handoff /></div><div className="product-journey"><div className="journey-frame" /></div></LandingStoryMotion>);
     const runway = document.querySelector<HTMLElement>("[data-ledger-handoff-runway]")!;
     const handoff = document.querySelector<HTMLElement>("[data-ledger-handoff]")!;
     const hero = document.querySelector<HTMLElement>(".hero__ledger")!;
     const journey = document.querySelector<HTMLElement>(".journey-frame")!;
-    Object.defineProperty(handoff, "offsetHeight", { configurable: true, value: 9000 });
-    vi.spyOn(runway, "getBoundingClientRect").mockImplementation(() => ({ left: 0, top: documentTop - window.scrollY } as DOMRect));
-    vi.spyOn(hero, "getBoundingClientRect").mockImplementation(() => ({ left: 600, top: 500 - window.scrollY, width: 400 } as DOMRect));
-    vi.spyOn(journey, "getBoundingClientRect").mockImplementation(() => ({ left: 100, top: 1400 - window.scrollY, width: 1100 } as DOMRect));
+    const journeyProduct = document.querySelector<HTMLElement>(".product-journey")!;
+    Object.defineProperty(handoff, "offsetHeight", { configurable: true, get: () => { throw new Error("handoff child height must not determine travel"); } });
+    vi.spyOn(hero, "getBoundingClientRect").mockImplementation(() => ({ left: 820, top: 500 - window.scrollY, width: 420 } as DOMRect));
+    vi.spyOn(journey, "getBoundingClientRect").mockImplementation(() => ({ left: 220, top: 1400 - window.scrollY, width: 960 } as DOMRect));
 
     act(() => window.dispatchEvent(new Event("resize")));
-    expect(runway.style.getPropertyValue("--ledger-handoff-progress")).toBe("0.7");
-    expect(Number.parseFloat(runway.style.getPropertyValue("--ledger-handoff-x"))).toBeCloseTo(208);
-    expect(runway.style.getPropertyValue("--ledger-handoff-width")).toBe("1100px");
-    Object.defineProperty(window, "scrollY", { configurable: true, value: 1108, writable: true });
+    expect(Number(runway.style.getPropertyValue("--ledger-handoff-progress"))).toBeCloseTo(100 / 270);
+    expect(runway).toHaveAttribute("data-handoff-ready", "true");
+    expect(runway).toHaveAttribute("data-handoff-active", "true");
+    expect(journeyProduct).toHaveAttribute("data-ledger-handoff-target", "true");
+
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 500, writable: true });
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frame?.(1));
-    expect(runway.style.getPropertyValue("--ledger-handoff-progress")).toBe("0.4");
-    Object.defineProperty(handoff, "offsetHeight", { configurable: true, value: 1 });
-    act(() => window.dispatchEvent(new Event("resize")));
-    expect(runway.style.getPropertyValue("--ledger-handoff-progress")).toBe("0.4");
-    documentTop = 1100;
+    expect(runway.style.getPropertyValue("--ledger-handoff-progress")).toBe("0");
+    expect(runway.style.getPropertyValue("--ledger-handoff-x")).toBe("820px");
+    expect(runway.style.getPropertyValue("--ledger-handoff-y")).toBe("0px");
+    expect(runway.style.getPropertyValue("--ledger-handoff-width")).toBe("420px");
+    expect(runway.style.getPropertyValue("--ledger-handoff-opacity")).toBe("0");
+    expect(hero.style.getPropertyValue("--ledger-handoff-hero-opacity")).toBe("1");
+    expect(document.querySelector<HTMLElement>(".hero__content")?.style.getPropertyValue("--ledger-handoff-copy-opacity")).toBe("1");
+
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 513.5, writable: true });
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(runway).toHaveAttribute("data-handoff-active", "true");
+    expect(Number.parseFloat(runway.style.getPropertyValue("--ledger-handoff-opacity"))).toBeGreaterThan(0);
+    expect(Number.parseFloat(runway.style.getPropertyValue("--ledger-handoff-opacity"))).toBeLessThan(1);
+    expect(Number.parseFloat(hero.style.getPropertyValue("--ledger-handoff-hero-opacity"))).toBeGreaterThan(0);
+
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 635, writable: true });
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(Number(runway.style.getPropertyValue("--ledger-handoff-progress"))).toBeCloseTo(0.5);
+    expect(Number.parseFloat(runway.style.getPropertyValue("--ledger-handoff-x"))).toBeCloseTo(520);
+    expect(Number.parseFloat(runway.style.getPropertyValue("--ledger-handoff-y"))).toBeCloseTo(315);
+    expect(Number.parseFloat(runway.style.getPropertyValue("--ledger-handoff-opacity"))).toBe(1);
+    expect(hero.style.getPropertyValue("--ledger-handoff-hero-opacity")).toBe("0");
+    expect(document.querySelector<HTMLElement>(".hero__content")?.style.getPropertyValue("--ledger-handoff-copy-opacity")).toBe("0");
+
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 770, writable: true });
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(runway.style.getPropertyValue("--ledger-handoff-progress")).toBe("1");
+    expect(runway.style.getPropertyValue("--ledger-handoff-x")).toBe("220px");
+    expect(runway.style.getPropertyValue("--ledger-handoff-y")).toBe("630px");
+    expect(runway.style.getPropertyValue("--ledger-handoff-opacity")).toBe("0");
+    expect(journeyProduct.style.getPropertyValue("--ledger-handoff-journey-opacity")).toBe("1");
+
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 800, writable: true });
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(runway).not.toHaveAttribute("data-handoff-active");
+    expect(runway.style.getPropertyValue("--ledger-handoff-progress")).toBe("1");
+
     act(() => window.dispatchEvent(new Event("pageshow")));
-    expect(Number(runway.style.getPropertyValue("--ledger-handoff-progress"))).toBeCloseTo(0.0296, 3);
-    vi.mocked(hero.getBoundingClientRect).mockImplementation(() => ({ left: 500, top: 500 - window.scrollY, width: 500 } as DOMRect));
-    act(() => window.dispatchEvent(new Event("resize")));
-    expect(Number.parseFloat(runway.style.getPropertyValue("--ledger-handoff-x"))).toBeCloseTo(499, 0);
-    expect(runway.style.getPropertyValue("--ledger-handoff-width")).toBe("500px");
     desktop = false;
     act(() => window.dispatchEvent(new Event("resize")));
     expect(runway).not.toHaveAttribute("data-handoff-active");
+    expect(runway).not.toHaveAttribute("data-handoff-ready");
     expect(runway.style.getPropertyValue("--ledger-handoff-progress")).toBe("");
+    expect(journeyProduct).not.toHaveAttribute("data-ledger-handoff-target");
     unmount();
   });
 
