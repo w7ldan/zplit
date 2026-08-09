@@ -183,8 +183,7 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const properties = ["--payoff-row-progress", "--payoff-cta-progress"];
     let frame: number | null = null;
-    let start = 0;
-    let travel = 1;
+    let footerTop = 0;
 
     const clear = () => {
       finale.classList.remove("payoff-motion--ready");
@@ -193,7 +192,11 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
     const update = () => {
       frame = null;
       if (reduced?.matches) return;
-      const progress = ledgerHandoffProgress(window.scrollY, start, travel);
+      const maxScrollY = Math.max(document.documentElement.scrollHeight - window.innerHeight, 0);
+      const end = Math.min(footerTop, maxScrollY);
+      const start = Math.min(footerTop - window.innerHeight * 0.65, end);
+      const travel = Math.max(end - start, 1);
+      const progress = window.scrollY >= end ? 1 : ledgerHandoffProgress(window.scrollY, start, travel);
       finale.style.setProperty("--payoff-row-progress", String(ledgerHandoffWindow(progress, 0.25, 0.7)));
       finale.style.setProperty("--payoff-cta-progress", String(ledgerHandoffWindow(progress, 0.68, 0.95)));
     };
@@ -201,9 +204,7 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
     const measure = () => {
       if (reduced?.matches) { clear(); return; }
       finale.classList.add("payoff-motion--ready");
-      const top = finale.getBoundingClientRect().top + window.scrollY;
-      travel = Math.max(window.innerHeight * 0.65, 1);
-      start = top - travel;
+      footerTop = finale.getBoundingClientRect().top + window.scrollY;
       update();
     };
     const onPageShow = () => measure();

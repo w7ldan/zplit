@@ -177,6 +177,7 @@ describe("LandingStoryMotion", () => {
     let frame: FrameRequestCallback | undefined;
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 1000, writable: true });
     Object.defineProperty(window, "scrollY", { configurable: true, value: 0, writable: true });
+    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 4000 });
     Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
     const { unmount } = render(<LandingStoryMotion><footer data-story-motion="finale"><div className="payoff"><span>Still open</span><strong>Rp 42.500</strong><div className="payoff__row">Dimas</div></div><div className="story-close__cta">Open Zplit</div></footer></LandingStoryMotion>);
@@ -191,6 +192,93 @@ describe("LandingStoryMotion", () => {
     expect(Number(finale.style.getPropertyValue("--payoff-row-progress"))).toBeGreaterThan(0);
     expect(finale.style.getPropertyValue("--payoff-cta-progress")).toBe("0");
     Object.defineProperty(window, "scrollY", { configurable: true, value: 2000, writable: true });
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(finale.style.getPropertyValue("--payoff-row-progress")).toBe("1");
+    expect(finale.style.getPropertyValue("--payoff-cta-progress")).toBe("1");
+    unmount();
+  });
+
+  it("completes the payoff at the unreachable document bottom", () => {
+    let frame: FrameRequestCallback | undefined;
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 900, writable: true });
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0, writable: true });
+    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 5600 });
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    const { unmount } = render(<LandingStoryMotion><footer data-story-motion="finale"><strong>Rp 42.500</strong><div className="payoff__row">Dimas</div><div className="story-close__cta">Open Zplit</div></footer></LandingStoryMotion>);
+    const finale = screen.getByText("Rp 42.500").closest("footer")!;
+    vi.spyOn(finale, "getBoundingClientRect").mockReturnValue({ top: 5000 } as DOMRect);
+    act(() => window.dispatchEvent(new Event("resize")));
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 4700, writable: true });
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(finale.style.getPropertyValue("--payoff-row-progress")).toBe("1");
+    expect(finale.style.getPropertyValue("--payoff-cta-progress")).toBe("1");
+    unmount();
+  });
+
+  it("compresses the payoff transition before the unreachable bottom", () => {
+    let frame: FrameRequestCallback | undefined;
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 900, writable: true });
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0, writable: true });
+    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 5600 });
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    const { unmount } = render(<LandingStoryMotion><footer data-story-motion="finale"><strong>Rp 42.500</strong><div className="payoff__row">Dimas</div><div className="story-close__cta">Open Zplit</div></footer></LandingStoryMotion>);
+    const finale = screen.getByText("Rp 42.500").closest("footer")!;
+    vi.spyOn(finale, "getBoundingClientRect").mockReturnValue({ top: 5000 } as DOMRect);
+    act(() => window.dispatchEvent(new Event("resize")));
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 4557.5, writable: true });
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    const rowProgress = Number(finale.style.getPropertyValue("--payoff-row-progress"));
+    expect(rowProgress).toBeGreaterThan(0);
+    expect(rowProgress).toBeLessThan(1);
+    expect(finale.style.getPropertyValue("--payoff-cta-progress")).toBe("0");
+    unmount();
+  });
+
+  it("keeps the footer endpoint and recomputes it after resize", () => {
+    let frame: FrameRequestCallback | undefined;
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 900, writable: true });
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 4600, writable: true });
+    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 5600 });
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    const { unmount } = render(<LandingStoryMotion><footer data-story-motion="finale"><strong>Rp 42.500</strong><div className="payoff__row">Dimas</div><div className="story-close__cta">Open Zplit</div></footer></LandingStoryMotion>);
+    const finale = screen.getByText("Rp 42.500").closest("footer")!;
+    vi.spyOn(finale, "getBoundingClientRect").mockImplementation(() => ({ top: 5000 - window.scrollY } as DOMRect));
+    act(() => window.dispatchEvent(new Event("resize")));
+    const compressedRowProgress = Number(finale.style.getPropertyValue("--payoff-row-progress"));
+    expect(compressedRowProgress).toBeGreaterThan(0);
+    expect(compressedRowProgress).toBeLessThan(1);
+    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 7000 });
+    act(() => window.dispatchEvent(new Event("resize")));
+    const normalRowProgress = Number(finale.style.getPropertyValue("--payoff-row-progress"));
+    expect(normalRowProgress).toBeGreaterThan(0);
+    expect(normalRowProgress).toBeLessThan(compressedRowProgress);
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 5000, writable: true });
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => frame?.(1));
+    expect(finale.style.getPropertyValue("--payoff-row-progress")).toBe("1");
+    expect(finale.style.getPropertyValue("--payoff-cta-progress")).toBe("1");
+    unmount();
+  });
+
+  it("clamps payoff progress before its start and at its reachable end", () => {
+    let frame: FrameRequestCallback | undefined;
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 900, writable: true });
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0, writable: true });
+    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 5600 });
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    const { unmount } = render(<LandingStoryMotion><footer data-story-motion="finale"><strong>Rp 42.500</strong><div className="payoff__row">Dimas</div><div className="story-close__cta">Open Zplit</div></footer></LandingStoryMotion>);
+    const finale = screen.getByText("Rp 42.500").closest("footer")!;
+    vi.spyOn(finale, "getBoundingClientRect").mockReturnValue({ top: 5000 } as DOMRect);
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(finale.style.getPropertyValue("--payoff-row-progress")).toBe("0");
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 4900, writable: true });
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frame?.(1));
     expect(finale.style.getPropertyValue("--payoff-row-progress")).toBe("1");
