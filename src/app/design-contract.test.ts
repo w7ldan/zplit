@@ -362,16 +362,38 @@ describe("Zplit design contract", () => {
     expect(publicPageSource).not.toContain("Rani&apos;s share");
     expect(publicPageSource).not.toContain("The same ledger continues");
     expect(publicPageSource).not.toContain('data-story-motion="handoff"');
-    expect(publicSource).toContain("min-height: 30vh");
+    expect(publicSource).toContain("height: 30vh");
     expect(publicSource).not.toContain("min-height: 42vh");
     expect(publicSource).not.toContain(".story-motion--visible .ledger-handoff");
     expect(publicSource).not.toMatch(/ledger-handoff[^}]*520ms/);
     expect(publicSource).toContain("--ledger-handoff-width");
+    expect(publicSource).toContain("--ledger-handoff-x");
+    expect(publicSource).toContain("--ledger-handoff-y");
+    expect(publicSource).toMatch(/\.ledger-handoff\s*\{[^}]*position:\s*absolute;/);
     expect(landingMotionSource).toContain("ledgerHandoffProgress(window.scrollY, start, travel)");
+    expect(landingMotionSource).toContain("ledgerHandoffTravel(window.innerHeight)");
+    expect(landingMotionSource).not.toContain("runway.offsetHeight");
+    expect(landingMotionSource).toContain("heroLedger?.getBoundingClientRect()");
+    expect(landingMotionSource).toContain("journeyFrame?.getBoundingClientRect()");
     expect(landingMotionSource).toContain('window.requestAnimationFrame(update)');
     expect(landingMotionSource).toContain('window.addEventListener("pageshow", onPageShow)');
     expect(landingMotionSource).not.toMatch(/setState|set[A-Z][A-Za-z]+\(progress/);
     expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.ledger-handoff-runway \{ display: none !important; \}/);
+  });
+
+  it("keeps the payoff amount visible first and resolves later states without a blank flow box", () => {
+    expect(publicPageSource).toMatch(/className="payoff"[\s\S]*?<strong data-payoff-state="amount">\{openBalance\}<\/strong>/);
+    expect(publicPageSource).toMatch(/data-payoff-state="amount"[\s\S]*?data-payoff-state="row"[\s\S]*?data-payoff-state="cta"/);
+    expect(landingMotionSource).toContain('[data-story-motion="finale"]');
+    expect(landingMotionSource).toContain("--payoff-row-progress");
+    expect(landingMotionSource).toContain("--payoff-cta-progress");
+    expect(landingMotionSource).toContain(':not([data-story-motion="finale"])');
+    expect(publicSource).not.toContain(".story-motion--visible .payoff > strong");
+    expect(publicSource).toMatch(/\.payoff\s*\{[^}]*grid-template-rows:[^;}]*clamp\(/);
+    expect(publicSource).toMatch(/\.payoff > strong\s*\{[^}]*grid-area:\s*2 \/ 1;/);
+    expect(publicSource).toMatch(/\.payoff__row\s*\{[^}]*grid-area:\s*2 \/ 1;/);
+    expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.payoff\s*\{\s*display:\s*block;/);
+    expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.payoff__row\s*\{[^}]*margin-top:/);
   });
 
   it("scopes pinned share and repayment interpolation to persistent visual subtrees", () => {

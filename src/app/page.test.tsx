@@ -94,6 +94,10 @@ describe("public Zplit page", () => {
     expect(privateLedger.closest('[data-story-motion="private-share"]')).toBeInTheDocument();
     const payoff = document.querySelector<HTMLElement>(".story-close")!;
     expect(within(payoff).getAllByText("Rp 42.500", { exact: true })).toHaveLength(2);
+    expect(payoff.querySelector(":scope .payoff > strong")).toHaveTextContent("Rp 42.500");
+    expect(payoff.querySelector('[data-payoff-state="amount"]')).toBeInTheDocument();
+    expect(payoff.querySelector('[data-payoff-state="row"]')).toBeInTheDocument();
+    expect(payoff.querySelector('[data-payoff-state="cta"]')).toBeInTheDocument();
     expect(within(payoff.querySelector(".payoff__row")!).getByText("Dimas", { exact: true })).toBeInTheDocument();
     expect(within(payoff).getByText("Shared expenses, made explicit.", { exact: true })).toBeInTheDocument();
     expect(within(payoff).getByRole("link", { name: "Open Zplit →" })).toHaveAttribute("href", "/app");

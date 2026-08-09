@@ -10,9 +10,27 @@ export function ledgerHandoffProgress(scrollY: number, start: number, travel: nu
   return clamp((scrollY - start) / Math.max(travel, 1));
 }
 
+export function ledgerHandoffTravel(viewportHeight: number) {
+  return viewportHeight * (LEDGER_HANDOFF_TRAVEL_VH / 100);
+}
+
 export function ledgerHandoffWindow(progress: number, start: number, end: number) {
   const local = clamp((progress - start) / (end - start));
   return local * local * (3 - 2 * local);
+}
+
+type LedgerEndpoint = Pick<DOMRect, "left" | "top" | "width">;
+
+export function ledgerHandoffGeometry(hero: LedgerEndpoint, journey: LedgerEndpoint, runway: Pick<DOMRect, "left" | "top">, progress: number) {
+  const position = ledgerHandoffWindow(progress, 0, 1);
+  const width = ledgerHandoffWindow(progress, 0.1, 0.55);
+  const startX = hero.left - runway.left;
+  const startY = hero.top - runway.top;
+  return {
+    x: startX + position * (journey.left - runway.left - startX),
+    y: startY + position * (journey.top - runway.top - startY),
+    width: hero.width + width * (journey.width - hero.width),
+  };
 }
 
 type LandingRevealProps = {
@@ -63,19 +81,18 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     const runway = root.current?.querySelector<HTMLElement>("[data-ledger-handoff-runway]");
     if (!runway) return;
-    const handoff = runway.querySelector<HTMLElement>("[data-ledger-handoff]");
     const heroLedger = root.current?.querySelector<HTMLElement>(".hero__ledger");
     const journeyFrame = root.current?.querySelector<HTMLElement>(".journey-frame");
     const wide = window.matchMedia?.("(min-width: 960px)");
     const tall = window.matchMedia?.("(min-height: 720px)");
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    const properties = ["--ledger-handoff-progress", "--ledger-handoff-offset", "--ledger-handoff-width", "--ledger-handoff-rows", "--ledger-handoff-balance", "--ledger-handoff-structure"];
+    const properties = ["--ledger-handoff-progress", "--ledger-handoff-x", "--ledger-handoff-y", "--ledger-handoff-width", "--ledger-handoff-rows", "--ledger-handoff-balance", "--ledger-handoff-structure"];
     let frame: number | null = null;
     let start = 0;
     let travel = 1;
-    let startWidth = 0;
-    let endWidth = 0;
-    let entryOffset = 0;
+    let heroRect: LedgerEndpoint | null = null;
+    let journeyRect: LedgerEndpoint | null = null;
+    let runwayRect: Pick<DOMRect, "left" | "top"> | null = null;
     let active = false;
 
     const clear = () => {
@@ -86,11 +103,14 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
       frame = null;
       if (!active) return;
       const progress = ledgerHandoffProgress(window.scrollY, start, travel);
-      const width = ledgerHandoffWindow(progress, 0.1, 0.55);
       const structure = ledgerHandoffWindow(progress, 0.55, 0.95);
+      const geometry = heroRect && journeyRect && runwayRect ? ledgerHandoffGeometry(heroRect, journeyRect, runwayRect, progress) : null;
       runway.style.setProperty("--ledger-handoff-progress", String(progress));
-      runway.style.setProperty("--ledger-handoff-offset", `${progress * travel + structure * entryOffset}px`);
-      runway.style.setProperty("--ledger-handoff-width", startWidth && endWidth ? `${startWidth + width * (endWidth - startWidth)}px` : `${41.67 + width * 58.33}%`);
+      if (geometry) {
+        runway.style.setProperty("--ledger-handoff-x", `${geometry.x}px`);
+        runway.style.setProperty("--ledger-handoff-y", `${geometry.y}px`);
+        runway.style.setProperty("--ledger-handoff-width", `${geometry.width}px`);
+      }
       runway.style.setProperty("--ledger-handoff-rows", String(ledgerHandoffWindow(progress, 0.25, 0.7)));
       runway.style.setProperty("--ledger-handoff-balance", String(ledgerHandoffWindow(progress, 0.35, 0.8)));
       runway.style.setProperty("--ledger-handoff-structure", String(structure));
@@ -100,12 +120,11 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
       active = Boolean(wide?.matches && tall?.matches && !reduced?.matches);
       if (!active) { clear(); return; }
       runway.dataset.handoffActive = "true";
-      travel = Math.max(runway.offsetHeight, 1);
-      start = runway.getBoundingClientRect().top + window.scrollY;
-      startWidth = heroLedger?.getBoundingClientRect().width ?? 0;
-      endWidth = journeyFrame?.getBoundingClientRect().width ?? 0;
-      const handoffTop = Number.parseFloat(getComputedStyle(handoff ?? runway).top) || 0;
-      entryOffset = journeyFrame ? journeyFrame.getBoundingClientRect().top + window.scrollY - (start + travel + handoffTop) : 0;
+      heroRect = heroLedger?.getBoundingClientRect() ?? null;
+      journeyRect = journeyFrame?.getBoundingClientRect() ?? null;
+      runwayRect = runway.getBoundingClientRect();
+      travel = ledgerHandoffTravel(window.innerHeight);
+      start = runwayRect.top + window.scrollY;
       update();
     };
     const onPageShow = () => measure();
@@ -131,8 +150,54 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useLayoutEffect(() => {
+    const finale = root.current?.querySelector<HTMLElement>('[data-story-motion="finale"]');
+    if (!finale) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const properties = ["--payoff-row-progress", "--payoff-cta-progress"];
+    let frame: number | null = null;
+    let start = 0;
+    let travel = 1;
+
+    const clear = () => {
+      finale.classList.remove("payoff-motion--ready");
+      properties.forEach((property) => finale.style.removeProperty(property));
+    };
+    const update = () => {
+      frame = null;
+      if (reduced?.matches) return;
+      const progress = ledgerHandoffProgress(window.scrollY, start, travel);
+      finale.style.setProperty("--payoff-row-progress", String(ledgerHandoffWindow(progress, 0.25, 0.7)));
+      finale.style.setProperty("--payoff-cta-progress", String(ledgerHandoffWindow(progress, 0.68, 0.95)));
+    };
+    const schedule = () => { if (frame === null) frame = window.requestAnimationFrame(update); };
+    const measure = () => {
+      if (reduced?.matches) { clear(); return; }
+      finale.classList.add("payoff-motion--ready");
+      const top = finale.getBoundingClientRect().top + window.scrollY;
+      travel = Math.max(window.innerHeight * 0.65, 1);
+      start = top - travel;
+      update();
+    };
+    const onPageShow = () => measure();
+    reduced?.addEventListener?.("change", measure);
+    measure();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", measure);
+    window.addEventListener("pageshow", onPageShow);
+    void document.fonts?.ready.then(measure);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("pageshow", onPageShow);
+      reduced?.removeEventListener?.("change", measure);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      clear();
+    };
+  }, []);
+
   useEffect(() => {
-    const targets = [...(root.current?.querySelectorAll<HTMLElement>("[data-story-motion]") ?? [])];
+    const targets = [...(root.current?.querySelectorAll<HTMLElement>('[data-story-motion]:not([data-story-motion="finale"])') ?? [])];
     targets.forEach((target) => target.classList.add("story-motion--ready"));
     const reveal = (target: HTMLElement) => target.classList.add("story-motion--visible");
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {

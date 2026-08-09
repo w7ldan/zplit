@@ -112,10 +112,10 @@ export default function HomePage() {
           <p className="section-label technical-label">Settlement payoff</p>
           <div className="payoff">
             <span>Still open</span>
-            <strong>{openBalance}</strong>
-            <div className="payoff__row"><span>{bandungStory.openBalance.friend}</span><strong>{openBalance}</strong></div>
+            <strong data-payoff-state="amount">{openBalance}</strong>
+            <div className="payoff__row" data-payoff-state="row"><span>{bandungStory.openBalance.friend}</span><strong>{openBalance}</strong></div>
           </div>
-          <div className="story-close__cta">
+          <div className="story-close__cta" data-payoff-state="cta">
             <div><span className="footer__brand" id="footer-title">Zplit</span><p>Shared expenses, made explicit.</p></div>
             <ActionLink href="/app" variant="primary">Open Zplit →</ActionLink>
           </div>
