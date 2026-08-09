@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import HomePage from "./page";
 
 describe("public Zplit page", () => {
-  it("explains the product and keeps direct actions visible", () => {
+  it("opens with the Bandung balance and keeps every public anchor valid", () => {
     render(<HomePage />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Shared expenses without the group-chat accounting." })).toBeInTheDocument();
@@ -13,12 +13,13 @@ describe("public Zplit page", () => {
     expect(navigation.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "#journey");
     expect(navigation.getByRole("link", { name: "The ledger" })).toHaveAttribute("href", "#ledger");
     expect(within(document.querySelector(".site-header__actions")!).getByRole("link", { name: "Open Zplit" })).toHaveAttribute("href", "/app");
-    expect(screen.getAllByRole("link", { name: "Open Zplit" })).toHaveLength(3);
+    expect(screen.getAllByRole("link", { name: /Open Zplit/ })).toHaveLength(3);
+    for (const link of navigation.getAllByRole("link")) expect(document.querySelector(link.getAttribute("href")!)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "See how it works" })).toHaveAttribute("href", "#journey");
-    expect(screen.getByText(/record an outing, add the expenses/i)).toBeInTheDocument();
-    expect(screen.getByText(/Rani's shares/i)).toBeInTheDocument();
-    expect(screen.getAllByText("Rp 42.500", { exact: true }).length).toBeGreaterThan(0);
-    expect(document.body).not.toHaveTextContent(/future application|single owner|fake chart|receipt scanning|notifications/i);
+    const heroLedger = document.querySelector<HTMLElement>(".hero__ledger")!;
+    expect(within(heroLedger).getByText("Bandung day out", { exact: true })).toBeInTheDocument();
+    expect(within(heroLedger).getByText("Rani's share", { exact: true })).toBeInTheDocument();
+    expect(within(heroLedger).getByText("Rp 42.500", { exact: true })).toBeInTheDocument();
   });
 
   it("shows one truthful five-step journey with keyboard-operable controls", () => {
@@ -45,12 +46,12 @@ describe("public Zplit page", () => {
     expect(document.querySelectorAll(".journey-expense-row")).toHaveLength(2);
     expect(document.querySelectorAll('.journey-expense-row__shares[data-visible="true"]')).toHaveLength(2);
     expect(document.querySelectorAll('.journey-expense-row__shares[data-visible="true"] .journey-row__label')).toHaveLength(3);
-    expect(screen.getByText("Rp 169.000", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Rp 191.000", { exact: true })).toBeInTheDocument();
+    expect(screen.getAllByText("Rp 169.000", { exact: true }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Rp 191.000", { exact: true }).length).toBeGreaterThan(0);
     expect(screen.getByLabelText("Rp 169.000 assigned of Rp 360.000")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /A repayment is recorded/ }));
-    expect(screen.getByText("Rani pays back her shares", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Show money received.", { exact: true })).toBeInTheDocument();
     expect(screen.getAllByText("Rp 126.500", { exact: true }).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("tab", { name: /The balance becomes settled/ }));
@@ -61,15 +62,26 @@ describe("public Zplit page", () => {
     expect(screen.getAllByText("Rp 42.500", { exact: true }).length).toBeGreaterThan(0);
   });
 
-  it("groups public reveals around compositions while keeping core content mounted", () => {
+  it("continues the same story through search, receipt, private share, and payoff", () => {
     render(<HomePage />);
 
-    expect(document.querySelectorAll(".landing-reveal")).toHaveLength(7);
-    expect(document.querySelectorAll(".principle .landing-reveal, .system-areas li .landing-reveal, .footer__actions .landing-reveal")).toHaveLength(0);
-    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "A clear record, not another group chat." })).toBeInTheDocument();
-    expect(screen.getByText("Record the expense", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Friends", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Shared expenses, explicit friend shares, and settled balances.", { exact: true })).toBeInTheDocument();
+    expect(document.querySelectorAll(".landing-reveal")).toHaveLength(4);
+    expect(screen.queryByText("A clear record, not another group chat.", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("The working parts stay connected.", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Record the expense", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: /2,000 records.*Still one search away/i })).toBeInTheDocument();
+    expect(screen.getByRole("search", { name: "Illustrative expense search" })).toHaveTextContent("Dinner");
+    expect(screen.getByRole("heading", { level: 2, name: "The receipt stays with the expense." })).toBeInTheDocument();
+    expect(screen.getByText("receipt.jpg", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Attached to this expense", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: /Send the balance.*not the spreadsheet/i })).toBeInTheDocument();
+    const privateLedger = document.querySelector<HTMLElement>(".private-ledger")!;
+    expect(within(privateLedger).getByText("Dimas", { exact: true })).toBeInTheDocument();
+    expect(within(privateLedger).getAllByText("Rp 42.500", { exact: true })).toHaveLength(2);
+    expect(within(privateLedger).getByText("Private · Read only", { exact: true })).toBeInTheDocument();
+    const payoff = document.querySelector<HTMLElement>(".story-close")!;
+    expect(within(payoff).getAllByText("Rp 42.500", { exact: true })).toHaveLength(2);
+    expect(within(payoff).getByText("Shared expenses, made explicit.", { exact: true })).toBeInTheDocument();
+    expect(within(payoff).getByRole("link", { name: "Open Zplit →" })).toHaveAttribute("href", "/app");
   });
 });

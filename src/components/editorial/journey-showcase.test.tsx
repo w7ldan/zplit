@@ -1,13 +1,13 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { JourneyShowcase } from "./journey-showcase";
+import { JOURNEY_STEP_TRAVEL_RATIO, JourneyShowcase, journeyTransitionProgress } from "./journey-showcase";
 
 const defaultInnerHeight = window.innerHeight;
 const pinnedStageHeight = 600;
 const viewportHeight = 900;
-const stepTravel = 288;
-const sequenceTravel = 1152;
-const runwayHeight = 1752;
+const stepTravel = 378;
+const sequenceTravel = 1512;
+const runwayHeight = 2112;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -44,6 +44,20 @@ function sceneSection(name: string) {
 }
 
 describe("JourneyShowcase", () => {
+  it("uses a 0.42 runway with symmetric chapter dwell zones", () => {
+    expect(JOURNEY_STEP_TRAVEL_RATIO).toBe(0.42);
+    expect(viewportHeight * JOURNEY_STEP_TRAVEL_RATIO).toBe(stepTravel);
+    expect(stepTravel * 4).toBe(sequenceTravel);
+    expect(journeyTransitionProgress(0)).toBe(0);
+    expect(journeyTransitionProgress(0.18)).toBe(0);
+    expect(journeyTransitionProgress(0.5)).toBe(0.5);
+    expect(journeyTransitionProgress(0.82)).toBe(1);
+    expect(journeyTransitionProgress(1)).toBe(1);
+    for (const progress of [0.2, 0.35, 0.65, 0.8]) {
+      expect(journeyTransitionProgress(progress) + journeyTransitionProgress(1 - progress)).toBeCloseTo(1);
+    }
+  });
+
   it("mounts one persistent scene with the outing identity ready for expenses", () => {
     vi.stubGlobal("matchMedia", mediaQuery());
     render(<JourneyShowcase />);
@@ -64,7 +78,7 @@ describe("JourneyShowcase", () => {
     expect(scene.querySelector(".journey-scene__summary")).toBeInTheDocument();
     expect(scene.querySelector('[data-expense="Dinner"]')).toBeInTheDocument();
     expect(scene.querySelector('[data-expense="Taxi"]')).toBeInTheDocument();
-    expect(screen.getByText("Bandung day out", { exact: true })).toBeInTheDocument();
+    expect(within(scene.querySelector(".journey-scene__outing")!).getByText("Bandung day out", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Sunday, 12 April 2026", { exact: true })).toBeInTheDocument();
     expect(within(scene.querySelector(".journey-scene__outing")!).getByText("None yet", { exact: true })).toBeInTheDocument();
     expect(sceneSection("expenses")).toHaveAttribute("data-visible", "false");
@@ -326,7 +340,7 @@ describe("JourneyShowcase", () => {
       setScrollY(100 + (0.5 + localProgress / 4) * sequenceTravel);
       act(() => window.dispatchEvent(new Event("scroll")));
       act(() => frame?.(1));
-      expect(Number(stage.style.getPropertyValue("--journey-repayment-progress"))).toBeCloseTo(localProgress);
+      expect(Number(stage.style.getPropertyValue("--journey-repayment-progress"))).toBeCloseTo(journeyTransitionProgress(localProgress));
       expect(sceneSection("repayment")).toBe(repayment);
       expect(repayment.querySelector(".journey-repayment__allocation")).toBe(allocation);
       expect(allocation.querySelector(".journey-allocation__track span")).toBe(allocationBar);
@@ -367,6 +381,7 @@ describe("JourneyShowcase", () => {
       expect(balances).toHaveTextContent("Dimas");
       expect(balances).toHaveTextContent("RemainingRp 42.500");
       expect(slot.querySelectorAll('[data-summary-state][aria-hidden="false"]')).toHaveLength(1);
+      expect(Number(stage.style.getPropertyValue("--journey-balance-progress"))).toBeCloseTo(journeyTransitionProgress(localProgress));
       const balanceIsSemantic = localProgress >= 0.5;
       expect(repayment).toHaveAttribute("aria-hidden", String(balanceIsSemantic));
       expect(balances).toHaveAttribute("aria-hidden", String(!balanceIsSemantic));
@@ -395,13 +410,13 @@ describe("JourneyShowcase", () => {
       act(() => frame?.(1));
     }
     expect(semanticUpdate).not.toHaveBeenCalledWith("data-journey-step", expect.anything());
-    expect(screen.getByText(/Step 1 of 5/)).toBeInTheDocument();
+    expect(screen.getByText(/01 \/ 05/)).toBeInTheDocument();
 
     setScrollY(100 + 0.125 * sequenceTravel);
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => frame?.(1));
     expect(scene).toHaveAttribute("data-journey-step", "1");
-    expect(screen.getByText(/Step 2 of 5/)).toBeInTheDocument();
+    expect(screen.getByText(/02 \/ 05/)).toBeInTheDocument();
   });
 
   it("keeps arrow-key tab controls functional in fallback mode", () => {
@@ -460,7 +475,7 @@ describe("JourneyShowcase", () => {
 
     setInnerHeight(1000);
     act(() => window.dispatchEvent(new Event("resize")));
-    expect(runway.style.height).toBe("1880px");
+    expect(runway.style.height).toBe("2280px");
 
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 500 });
     act(() => window.dispatchEvent(new Event("resize")));

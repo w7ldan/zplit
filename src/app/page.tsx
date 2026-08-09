@@ -1,32 +1,14 @@
 import { ActionLink } from "@/components/editorial/action-link";
-import { LandingReveal } from "@/components/editorial/landing-reveal";
 import { JourneyShowcase } from "@/components/editorial/journey-showcase";
+import { LandingReveal } from "@/components/editorial/landing-reveal";
+import { bandungStory } from "@/components/editorial/public-scenario";
 import { SiteHeader } from "@/components/editorial/site-header";
+import { formatRupiah } from "@/domain/rupiah";
 
-const principles = [
-  {
-    number: "01",
-    title: "Record the expense",
-    description: "Name the moment, the amount, and the people involved while the detail is still clear.",
-  },
-  {
-    number: "02",
-    title: "Assign every share",
-    description: "Give each person an explicit share so an open balance has an owner and a reason.",
-  },
-  {
-    number: "03",
-    title: "Close the balance",
-    description: "Keep repayment visible until the record is settled, then leave a clean trace behind.",
-  },
-];
-
-const productAreas = [
-  ["Friends", "Keep the people who recur in your shared spending in one place."],
-  ["Outings", "Group expenses by the occasion that gave them context."],
-  ["Expenses", "Record each amount and choose the outing it belongs to."],
-  ["Repayments", "Record money received and allocate it to eligible shares."],
-];
+const dinner = bandungStory.expenses[0];
+const dinnerAmount = formatRupiah(dinner.amount);
+const openBalance = formatRupiah(bandungStory.openBalance.amount);
+const raniPayment = formatRupiah(bandungStory.repayment.amount);
 
 export default function HomePage() {
   return (
@@ -38,79 +20,98 @@ export default function HomePage() {
         <div className="hero__layout editorial-grid editorial-shell">
           <div className="hero__content">
             <LandingReveal as="div" className="hero__prelude" delay={0} aria-label="Page metadata">
-              <div className="hero__metadata technical-label"><span>SHARED EXPENSE LEDGER</span><span>IDR</span><span>2026</span></div>
               <p className="hero__kicker">Zplit / shared expense record</p>
             </LandingReveal>
             <h1 className="hero__title" id="page-title" data-reveal="hero">Shared expenses without the group-chat accounting.</h1>
             <LandingReveal as="p" className="hero__lede" delay={100}>
-              Record an outing, add the expenses, enter what each friend owes, and record repayments until the balance is clear. Zplit keeps the numbers in rupiah and the next action visible.
+              One outing. Every expense, share, payment, and remaining balance kept in the same explicit record.
             </LandingReveal>
             <LandingReveal as="div" className="hero__actions" delay={160}>
-              <ActionLink href="/app" variant="primary">
-                Open Zplit
-              </ActionLink>
-              <ActionLink href="#journey" variant="quiet">
-                See how it works
-              </ActionLink>
+              <ActionLink href="/app" variant="primary">Open Zplit</ActionLink>
+              <ActionLink href="#journey" variant="quiet">See how it works</ActionLink>
             </LandingReveal>
           </div>
-          <LandingReveal as="div" className="hero__ledger" aria-label="Illustrative ledger summary" delay={180}>
-            <div className="hero__ledger-header"><span className="technical-label">Outing</span><strong>Bandung day out</strong></div>
-            <div className="hero__ledger-row"><span>Dinner</span><strong className="tabular-nums">Rp 240.000</strong></div>
-            <div className="hero__ledger-row"><span>Rani&apos;s shares</span><strong className="tabular-nums">Rp 126.500</strong></div>
-            <div className="hero__ledger-total"><span>Still open</span><strong className="tabular-nums">Rp 42.500</strong></div>
-            <p>Illustrative values. Shares are entered by the owner; repayments are allocated to them.</p>
+
+          <LandingReveal as="div" className="hero__ledger" aria-label={`Illustrative ${bandungStory.outing} ledger`} delay={180}>
+            <div className="hero__ledger-header hero-story__rule"><span className="technical-label">Shared expense record</span><strong>{bandungStory.outing}</strong></div>
+            <div className="hero__ledger-row hero-story__dinner"><span>{dinner.description}</span><strong>{dinnerAmount}</strong></div>
+            <div className="hero__ledger-row hero-story__share"><span>Rani&apos;s share</span><strong>{raniPayment}</strong></div>
+            <div className="hero__ledger-total hero-story__open"><span>Still open</span><strong>{openBalance}</strong></div>
           </LandingReveal>
         </div>
       </section>
 
+      <div className="ledger-handoff editorial-shell" aria-hidden="true">
+        <span>Bandung day out</span><span>The same ledger continues</span>
+      </div>
+
       <JourneyShowcase />
 
-      <section className="editorial-section" id="ledger" aria-labelledby="ledger-title">
-        <LandingReveal as="div" className="section-layout editorial-grid editorial-shell" aria-label="The ledger">
-          <p className="section-label technical-label">02 / The ledger</p>
-          <h2 className="section-heading" id="ledger-title">A clear record, not another group chat.</h2>
-          <p className="section-intro">
-            Three small habits make the balance trustworthy: record the event, assign the shares, and keep repayments attached to what they settle.
-          </p>
-          <ol className="principles">
-            {principles.map((principle) => (
-              <li className="principle" key={principle.number}>
-                <span className="principle__number">{principle.number} /</span>
-                <h3>{principle.title}</h3>
-                <p>{principle.description}</p>
-              </li>
-            ))}
-          </ol>
-        </LandingReveal>
+      <section className="editorial-section capability capability--search" id="ledger" aria-labelledby="search-title">
+        <div className="capability__layout editorial-grid editorial-shell">
+          <div className="capability__copy">
+            <p className="section-label technical-label">Find the record</p>
+            <h2 id="search-title">2,000 records.<br />Still one search away.</h2>
+          </div>
+          <div className="search-ledger" role="search" aria-label="Illustrative expense search">
+            <label htmlFor="public-search">Search expenses</label>
+            <div className="search-ledger__query"><span aria-hidden="true">Search /</span><input id="public-search" value="Dinner" readOnly /></div>
+            <p className="technical-label">1 matching expense</p>
+            <div className="search-ledger__result">
+              <span><strong>{dinner.description}</strong><small>{bandungStory.outing}</small></span>
+              <strong>{dinnerAmount}</strong>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <section className="editorial-section product-areas-section" aria-labelledby="system-title">
-        <LandingReveal as="div" className="section-layout editorial-grid editorial-shell" aria-label="Product areas">
-          <p className="section-label technical-label">03 / Product areas</p>
-          <h2 className="section-heading" id="system-title">The working parts stay connected.</h2>
-          <p className="section-intro">
-            Friends, outings, expenses, and repayments are the records behind a useful open balance.
-          </p>
-          <ul className="system-areas">
-            {productAreas.map(([title, description]) => (
-              <li key={title}>
-                <span className="system-areas__title">{title}</span>
-                <span className="system-areas__description">{description}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="system-note">Open Zplit to work with your own records. The public journey is illustrative; it never writes to your ledger.</p>
-        </LandingReveal>
+      <section className="editorial-section capability capability--receipt" aria-labelledby="receipt-title">
+        <div className="capability__layout editorial-grid editorial-shell">
+          <div className="expense-proof">
+            <p className="technical-label">Expense / {bandungStory.outing}</p>
+            <div className="expense-proof__amount"><span>{dinner.description}</span><strong>{dinnerAmount}</strong></div>
+            <figure className="expense-proof__receipt">
+              <div aria-hidden="true"><span>RECEIPT</span><span>{dinner.description.toUpperCase()}</span><span>{dinnerAmount.slice(3)}</span></div>
+              <figcaption><strong>receipt.jpg</strong><span>Attached to this expense</span></figcaption>
+            </figure>
+          </div>
+          <div className="capability__copy">
+            <p className="section-label technical-label">Keep the proof</p>
+            <h2 id="receipt-title">The receipt stays with the expense.</h2>
+            <p>Dinner has one amount, one outing, and its supporting document in the same record.</p>
+          </div>
+        </div>
       </section>
 
-      <footer className="site-footer" aria-labelledby="footer-title">
-        <LandingReveal as="div" className="footer-layout editorial-grid editorial-shell" aria-label="Close">
-          <p className="section-label technical-label">04 / Close</p>
-          <span className="footer__brand" id="footer-title">Zplit</span>
-          <p className="footer__description">Shared expenses, explicit friend shares, and settled balances.</p>
-          <div className="footer__actions"><ActionLink href="/app" variant="primary">Open Zplit</ActionLink><a className="footer__top" href="#top">Return to top ↑</a></div>
-        </LandingReveal>
+      <section className="editorial-section capability capability--private" aria-labelledby="private-title">
+        <div className="capability__layout editorial-grid editorial-shell">
+          <div className="capability__copy">
+            <p className="section-label technical-label">Private share</p>
+            <h2 id="private-title">Send the balance,<br />not the spreadsheet.</h2>
+          </div>
+          <article className="private-ledger" aria-label={`Private read-only balance for ${bandungStory.openBalance.friend}`}>
+            <header><span>{bandungStory.openBalance.friend}</span><span>Private · Read only</span></header>
+            <p>Still owes</p>
+            <strong className="private-ledger__amount">{openBalance}</strong>
+            <div className="private-ledger__row"><span>{dinner.description}<small>{bandungStory.outing}</small></span><strong>{openBalance}</strong></div>
+            <p className="private-ledger__proof">Receipt available</p>
+          </article>
+        </div>
+      </section>
+
+      <footer className="story-close" aria-labelledby="footer-title">
+        <div className="editorial-shell">
+          <p className="section-label technical-label">Settlement payoff</p>
+          <div className="payoff">
+            <span>Still open</span>
+            <strong>{openBalance}</strong>
+            <div className="payoff__row"><span>{bandungStory.openBalance.friend}</span><strong>{openBalance}</strong></div>
+          </div>
+          <div className="story-close__cta">
+            <div><span className="footer__brand" id="footer-title">Zplit</span><p>Shared expenses, made explicit.</p></div>
+            <ActionLink href="/app" variant="primary">Open Zplit →</ActionLink>
+          </div>
+        </div>
       </footer>
     </main>
   );

@@ -2,17 +2,7 @@
 
 import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { formatRupiah } from "@/domain/rupiah";
-
-const scenario = {
-  outing: "Bandung day out",
-  expenses: [{ description: "Dinner", amount: 240000 }, { description: "Taxi", amount: 120000 }],
-  shares: [
-    { expense: "Dinner", friend: "Rani", amount: 84000 },
-    { expense: "Dinner", friend: "Dimas", amount: 42500 },
-    { expense: "Taxi", friend: "Rani", amount: 42500 },
-  ],
-  repayment: { friend: "Rani", amount: 126500 },
-};
+import { bandungStory as scenario } from "./public-scenario";
 
 const expenseTotal = scenario.expenses.reduce((total, expense) => total + expense.amount, 0);
 const assignedTotal = scenario.shares.reduce((total, share) => total + share.amount, 0);
@@ -28,7 +18,8 @@ const steps = [
   { label: "The balance becomes settled", title: "Read what remains", copy: "A friend reaches settled when their assigned shares are fully covered by allocated repayments." },
 ];
 
-const JOURNEY_STEP_TRAVEL_RATIO = 0.32;
+export const JOURNEY_STEP_TRAVEL_RATIO = 0.42;
+const JOURNEY_TRANSITION_HOLD = 0.19;
 
 function Amount({ value }: { value: number }) {
   return <span className="tabular-nums">{formatRupiah(value)}</span>;
@@ -150,6 +141,11 @@ function clampProgress(value: number) {
   return Math.min(1, Math.max(0, value));
 }
 
+export function journeyTransitionProgress(rawProgress: number) {
+  const progress = clampProgress((rawProgress - JOURNEY_TRANSITION_HOLD) / (1 - 2 * JOURNEY_TRANSITION_HOLD));
+  return progress * progress * (3 - 2 * progress);
+}
+
 function listenToMediaQuery(query: MediaQueryList, listener: () => void) {
   query.addEventListener?.("change", listener);
   return () => query.removeEventListener?.("change", listener);
@@ -224,12 +220,13 @@ export function JourneyShowcase() {
       const runwayDocumentTop = element.getBoundingClientRect().top + window.scrollY;
       const progress = clampProgress((window.scrollY - (runwayDocumentTop - stickyTop())) / travel);
       const scaled = progress * (steps.length - 1);
+      const transition = (offset: number) => journeyTransitionProgress(scaled - offset);
       stage.current?.style.setProperty("--journey-progress", String(progress));
-      stage.current?.style.setProperty("--journey-expense-progress", String(clampProgress(scaled)));
-      stage.current?.style.setProperty("--journey-share-progress", String(clampProgress(scaled - 1)));
-      stage.current?.style.setProperty("--journey-allocation-progress", String(clampProgress(scaled - 1) * assignedTotal / expenseTotal));
-      stage.current?.style.setProperty("--journey-repayment-progress", String(clampProgress(scaled - 2)));
-      stage.current?.style.setProperty("--journey-balance-progress", String(clampProgress(scaled - 3)));
+      stage.current?.style.setProperty("--journey-expense-progress", String(transition(0)));
+      stage.current?.style.setProperty("--journey-share-progress", String(transition(1)));
+      stage.current?.style.setProperty("--journey-allocation-progress", String(transition(1) * assignedTotal / expenseTotal));
+      stage.current?.style.setProperty("--journey-repayment-progress", String(transition(2)));
+      stage.current?.style.setProperty("--journey-balance-progress", String(transition(3)));
       if (ignoredProgress.current !== null) {
         ignoredProgress.current = null;
         return;
@@ -293,7 +290,7 @@ export function JourneyShowcase() {
       <div className="section-layout editorial-grid editorial-shell journey-editorial">
         <p className="section-label technical-label">01 / How it works</p>
         <h2 className="section-heading" id="journey-title">From one outing to a balance you can settle.</h2>
-        <p className="section-intro">Follow one illustrative scenario through the same records Zplit uses in the app. Select a step or use the arrow keys; every amount is an explicit whole-rupiah example.</p>
+        <p className="section-intro">The Bandung ledger gains detail, receives Rani&apos;s payment, and leaves one explicit balance.</p>
       </div>
       <div className="journey-runway" ref={runway}>
         <div className={`journey-sticky${desktopSequence ? " journey-sticky--pinned" : ""}`} ref={stage}>
@@ -302,9 +299,9 @@ export function JourneyShowcase() {
               <div className="journey-tabs" role="tablist" aria-label="Zplit journey steps">
                 {steps.map((item, index) => <button aria-controls="journey-panel" aria-selected={activeStep === index} className={`journey-tab${activeStep === index ? " journey-tab--active" : ""}`} id={`journey-tab-${index}`} key={item.label} onClick={() => selectStep(index)} onKeyDown={(event) => handleKeyDown(event, index)} ref={(element) => { tabs.current[index] = element; }} role="tab" tabIndex={activeStep === index ? 0 : -1} type="button"><span>{String(index + 1).padStart(2, "0")}</span>{item.label}</button>)}
               </div>
-              <p className="journey-announcement" aria-live="polite"><span>Step {activeStep + 1} of {steps.length} · {steps[activeStep].label}</span><strong>{steps[activeStep].title}</strong><span>{steps[activeStep].copy}</span></p>
+              <p className="journey-announcement" aria-live="polite"><span>{String(activeStep + 1).padStart(2, "0")} / {String(steps.length).padStart(2, "0")} · {steps[activeStep].label}</span><strong>{steps[activeStep].title}.</strong><span>{steps[activeStep].copy}</span></p>
               <div className="journey-frame" id="journey-panel" role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}>
-                <div className="journey-frame__header"><span className="technical-label">Zplit / illustrative scenario</span><span className="technical-label">Whole rupiah · entered by owner</span></div>
+                <div className="journey-frame__header"><span className="technical-label">Bandung day out</span><span className="technical-label">Shared expense record</span></div>
                 <div className="journey-frame__body"><JourneyScene activeStep={activeStep} /></div>
               </div>
             </div>

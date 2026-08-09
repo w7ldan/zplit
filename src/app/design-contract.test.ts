@@ -249,7 +249,7 @@ describe("Zplit design contract", () => {
     expect(linkBaseline).not.toMatch(/text-decoration:\s*(?:none|underline)/);
 
     expect(cssRuleBody(css, ".app-page__header h1")).toMatch(/font-size:[\s\S]*font-weight: 800;/);
-    expect(cssRuleBody(css, ".principle h3")).toMatch(/font-size:[\s\S]*font-weight: 800;/);
+    expect(cssRuleBody(css, ".capability__copy h2")).toMatch(/font-size:[\s\S]*font-weight: 800;/);
     expect(cssRuleBody(css, ".text-link")).toContain("text-decoration: underline;");
     expect(cssRuleBody(css, ".header-shell__nav a")).toContain("text-decoration: none;");
     expect(cssRuleBody(css, ".friends-page__view")).toContain("text-decoration: none;");
@@ -342,8 +342,13 @@ describe("Zplit design contract", () => {
   it("keeps public journey ownership in the public stylesheet", () => {
     expect(publicSource).toContain(".journey-scene__body");
     expect(publicSource).toContain(".landing-reveal");
+    expect(publicSource).toContain(".capability--search");
+    expect(publicSource).toContain(".capability--receipt");
+    expect(publicSource).toContain(".capability--private");
+    expect(publicSource).toContain(".story-close");
     expect(lateOverridesSource).not.toContain(".journey-");
     expect(lateOverridesSource).not.toContain(".landing-reveal");
+    expect(lateOverridesSource).not.toContain(".public-home");
   });
 
   it("scopes pinned share and repayment interpolation to persistent visual subtrees", () => {
