@@ -24,6 +24,7 @@ describe("public Zplit page", () => {
     const handoff = document.querySelector<HTMLElement>("[data-ledger-handoff]")!;
     expect(within(handoff).getByText("Bandung day out", { exact: true })).toBeInTheDocument();
     expect(within(handoff).getByText("Rani assigned", { exact: true })).toBeInTheDocument();
+    expect(handoff.querySelector(".ledger-handoff__depth")).toBeInTheDocument();
   });
 
   it("shows one truthful five-step journey with keyboard-operable controls", () => {

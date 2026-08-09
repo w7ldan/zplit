@@ -24,20 +24,29 @@ export const JOURNEY_SCROLL_IDLE_MS = 200;
 export const JOURNEY_MAGNET_RADIUS_RATIO = 0.09;
 const JOURNEY_PROGRAMMATIC_SCROLL_IDLE_MS = 180;
 
+type ConnectorPoint = { x: number; y: number };
+
+export function ledgerBranchPath(source: ConnectorPoint, destinations: ConnectorPoint[]) {
+  const points = [source, ...destinations];
+  if (!destinations.length || points.some(({ x, y }) => !Number.isFinite(x) || !Number.isFinite(y))) return "";
+  const stemEnd = Math.max(...destinations.map(({ y }) => y));
+  const format = (value: number) => value.toFixed(1);
+  return [`M ${format(source.x)} ${format(source.y)}`, `V ${format(stemEnd)}`, ...destinations.map(({ x, y }) => `M ${format(source.x)} ${format(y)} H ${format(x)}`)].join(" ");
+}
+
 function Amount({ value, className = "" }: { value: number; className?: string }) {
   return <span className={`tabular-nums${className ? ` ${className}` : ""}`}>{formatRupiah(value)}</span>;
 }
 
 function ProductRow({ label, value, detail, detailClassName, connectorNode }: { label: string; value: string; detail?: string; detailClassName?: string; connectorNode?: string }) {
-  return <div className="journey-row" data-connector-node={connectorNode}><span className="journey-row__label">{label}</span><strong>{value}</strong>{detail ? <span key={detail} className={`journey-row__detail${detailClassName ? ` ${detailClassName}` : ""}`}>{detail}</span> : null}</div>;
+  return <div className="journey-row" data-connector-node={connectorNode}><span className="journey-row__label" data-connector-anchor={connectorNode}>{label}</span><strong>{value}</strong>{detail ? <span key={detail} className={`journey-row__detail${detailClassName ? ` ${detailClassName}` : ""}`}>{detail}</span> : null}</div>;
 }
 
 function JourneyConnectors() {
   return (
     <svg className="journey-connectors" data-journey-connectors="desktop" aria-hidden="true" focusable="false" preserveAspectRatio="none">
-      <path className="journey-connectors__share" data-relationship="dinner-rani" pathLength="1" />
-      <path className="journey-connectors__share" data-relationship="dinner-dimas" pathLength="1" />
-      <path className="journey-connectors__share" data-relationship="taxi-rani" pathLength="1" />
+      <path className="journey-connectors__share" data-relationship="dinner-share" pathLength="1" />
+      <path className="journey-connectors__share" data-relationship="taxi-share" pathLength="1" />
       <path className="journey-connectors__repayment" data-relationship="repayment-dinner-rani" pathLength="1" />
       <path className="journey-connectors__repayment" data-relationship="repayment-taxi-rani" pathLength="1" />
     </svg>
@@ -248,16 +257,35 @@ export function JourneyShowcase() {
         const rect = element.getBoundingClientRect();
         return { x: (edge === "left" ? rect.left : rect.right) - frameRect.left + (edge === "left" ? 6 : -6), y: rect.top - frameRect.top + rect.height / 2 };
       };
+      const labelPoint = (name: string) => {
+        const element = frameElement.querySelector<HTMLElement>(`[data-connector-anchor="${name}"]`);
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        return { x: rect.left - frameRect.left, y: rect.top - frameRect.top, height: rect.height };
+      };
+      const shareBranch = (sourceName: string, destinationNames: string[]) => {
+        const source = labelPoint(sourceName);
+        const destinations = destinationNames.map(labelPoint);
+        if (!source || destinations.some((destination) => !destination)) return "";
+        return ledgerBranchPath(
+          { x: source.x + 4, y: source.y + source.height + 2 },
+          destinations.map((destination) => ({ x: destination!.x - 4, y: destination!.y + destination!.height / 2 })),
+        );
+      };
+      const repaymentPath = (sourceName: string, targetName: string) => {
+        const from = point(sourceName, "left");
+        const to = point(targetName, "right");
+        return from && to ? connectorPath(from, to) : "";
+      };
       const paths = [
-        ["dinner-rani", point("expense-dinner", "right"), point("dinner-rani", "right")],
-        ["dinner-dimas", point("expense-dinner", "right"), point("dinner-dimas", "right")],
-        ["taxi-rani", point("expense-taxi", "right"), point("taxi-rani", "right")],
-        ["repayment-dinner-rani", point("repayment-rani", "left"), point("dinner-rani", "right")],
-        ["repayment-taxi-rani", point("repayment-rani", "left"), point("taxi-rani", "right")],
+        ["dinner-share", shareBranch("expense-dinner", ["dinner-rani", "dinner-dimas"])],
+        ["taxi-share", shareBranch("expense-taxi", ["taxi-rani"])],
+        ["repayment-dinner-rani", repaymentPath("repayment-rani", "dinner-rani")],
+        ["repayment-taxi-rani", repaymentPath("repayment-rani", "taxi-rani")],
       ] as const;
-      for (const [relationship, from, to] of paths) {
+      for (const [relationship, pathData] of paths) {
         const path = connectorSvg.querySelector<SVGPathElement>(`[data-relationship="${relationship}"]`);
-        if (path && from && to) path.setAttribute("d", connectorPath(from, to));
+        if (path && pathData) path.setAttribute("d", pathData);
       }
     };
     const geometry = () => {

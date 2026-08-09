@@ -75,9 +75,10 @@ describe("LandingStoryMotion", () => {
     Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn((query: string) => ({ get matches() { return query === "(min-width: 960px)" ? desktop : query === "(min-height: 720px)"; }, addEventListener: vi.fn(), removeEventListener: vi.fn() })) });
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    const { unmount } = render(<LandingStoryMotion><div className="hero__content" /><div className="hero__ledger"><div className="hero__ledger-depth" /></div><div data-ledger-handoff-runway><div data-ledger-handoff /></div><div className="product-journey"><div className="journey-frame" /></div></LandingStoryMotion>);
+    const { unmount } = render(<LandingStoryMotion><div className="hero__content" /><div className="hero__ledger"><div className="hero__ledger-depth" /></div><div data-ledger-handoff-runway><div data-ledger-handoff><div className="ledger-handoff__depth" /></div></div><div className="product-journey"><div className="journey-frame" /></div></LandingStoryMotion>);
     const runway = document.querySelector<HTMLElement>("[data-ledger-handoff-runway]")!;
     const handoff = document.querySelector<HTMLElement>("[data-ledger-handoff]")!;
+    expect(handoff.querySelector(".ledger-handoff__depth")).toBeInTheDocument();
     const hero = document.querySelector<HTMLElement>(".hero__ledger")!;
     const journey = document.querySelector<HTMLElement>(".journey-frame")!;
     const journeyProduct = document.querySelector<HTMLElement>(".product-journey")!;
@@ -99,6 +100,7 @@ describe("LandingStoryMotion", () => {
     expect(runway.style.getPropertyValue("--ledger-handoff-y")).toBe("0px");
     expect(runway.style.getPropertyValue("--ledger-handoff-width")).toBe("420px");
     expect(runway.style.getPropertyValue("--ledger-handoff-opacity")).toBe("0");
+    expect(runway.style.getPropertyValue("--ledger-handoff-depth")).toBe("1");
     expect(hero.style.getPropertyValue("--ledger-handoff-hero-opacity")).toBe("1");
     expect(hero.style.getPropertyValue("--ledger-handoff-depth")).toBe("1");
     expect(document.querySelector<HTMLElement>(".hero__content")?.style.getPropertyValue("--ledger-handoff-copy-opacity")).toBe("1");
@@ -118,6 +120,7 @@ describe("LandingStoryMotion", () => {
     expect(Number.parseFloat(runway.style.getPropertyValue("--ledger-handoff-x"))).toBeCloseTo(520);
     expect(Number.parseFloat(runway.style.getPropertyValue("--ledger-handoff-y"))).toBeCloseTo(315);
     expect(Number.parseFloat(runway.style.getPropertyValue("--ledger-handoff-opacity"))).toBe(1);
+    expect(runway.style.getPropertyValue("--ledger-handoff-depth")).toBe("0.5");
     expect(hero.style.getPropertyValue("--ledger-handoff-hero-opacity")).toBe("0");
     expect(hero.style.getPropertyValue("--ledger-handoff-depth")).toBe("0.5");
     expect(document.querySelector<HTMLElement>(".hero__content")?.style.getPropertyValue("--ledger-handoff-copy-opacity")).toBe("0");
@@ -129,6 +132,7 @@ describe("LandingStoryMotion", () => {
     expect(runway.style.getPropertyValue("--ledger-handoff-x")).toBe("220px");
     expect(runway.style.getPropertyValue("--ledger-handoff-y")).toBe("630px");
     expect(runway.style.getPropertyValue("--ledger-handoff-opacity")).toBe("0");
+    expect(runway.style.getPropertyValue("--ledger-handoff-depth")).toBe("0");
     expect(hero.style.getPropertyValue("--ledger-handoff-depth")).toBe("0");
     expect(journeyProduct.style.getPropertyValue("--ledger-handoff-journey-opacity")).toBe("1");
 
@@ -144,6 +148,7 @@ describe("LandingStoryMotion", () => {
     expect(runway).not.toHaveAttribute("data-handoff-active");
     expect(runway).not.toHaveAttribute("data-handoff-ready");
     expect(runway.style.getPropertyValue("--ledger-handoff-progress")).toBe("");
+    expect(runway.style.getPropertyValue("--ledger-handoff-depth")).toBe("");
     expect(journeyProduct).not.toHaveAttribute("data-ledger-handoff-target");
     expect(hero.style.getPropertyValue("--ledger-handoff-depth")).toBe("");
     unmount();

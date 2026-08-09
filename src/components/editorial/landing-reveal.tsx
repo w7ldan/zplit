@@ -90,7 +90,7 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
     const wide = window.matchMedia?.("(min-width: 960px)");
     const tall = window.matchMedia?.("(min-height: 720px)");
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    const properties = ["--ledger-handoff-progress", "--ledger-handoff-x", "--ledger-handoff-y", "--ledger-handoff-width", "--ledger-handoff-rows", "--ledger-handoff-balance", "--ledger-handoff-structure"];
+    const properties = ["--ledger-handoff-progress", "--ledger-handoff-x", "--ledger-handoff-y", "--ledger-handoff-width", "--ledger-handoff-rows", "--ledger-handoff-balance", "--ledger-handoff-structure", "--ledger-handoff-depth"];
     let frame: number | null = null;
     let start = 0;
     let travel = 1;
@@ -120,10 +120,12 @@ export function LandingStoryMotion({ children }: { children: ReactNode }) {
       const bridgeOpacity = withinHandoff ? Math.min(ledgerHandoffWindow(progress, 0, 0.1), 1 - ledgerHandoffWindow(progress, 0.9, 1)) : 0;
       const heroOpacity = rawProgress < 0 ? 1 : 1 - ledgerHandoffWindow(progress, 0, 0.12);
       const journeyOpacity = withinHandoff ? ledgerHandoffWindow(progress, 0.9, 1) : 1;
+      const depth = rawProgress < 0 ? 1 : 1 - progress;
       runway.style.setProperty("--ledger-handoff-progress", String(progress));
       runway.style.setProperty("--ledger-handoff-opacity", String(bridgeOpacity));
+      runway.style.setProperty("--ledger-handoff-depth", String(depth));
       heroLedger?.style.setProperty("--ledger-handoff-hero-opacity", String(heroOpacity));
-      heroLedger?.style.setProperty("--ledger-handoff-depth", String(rawProgress < 0 ? 1 : 1 - progress));
+      heroLedger?.style.setProperty("--ledger-handoff-depth", String(depth));
       heroContent?.style.setProperty("--ledger-handoff-copy-opacity", String(heroOpacity));
       journeyProduct?.style.setProperty("--ledger-handoff-journey-opacity", String(journeyOpacity));
       if (withinHandoff) {

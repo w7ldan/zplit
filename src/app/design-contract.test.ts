@@ -356,7 +356,9 @@ describe("Zplit design contract", () => {
   it("keeps ledger physicality decorative, restrained, and motion-safe", () => {
     expect(journeySource).toContain('data-journey-connectors="desktop"');
     expect(journeySource).toContain('aria-hidden="true"');
-    for (const relationship of ["dinner-rani", "dinner-dimas", "taxi-rani", "repayment-dinner-rani", "repayment-taxi-rani"]) expect(journeySource).toContain(`data-relationship="${relationship}"`);
+    for (const relationship of ["dinner-share", "taxi-share", "repayment-dinner-rani", "repayment-taxi-rani"]) expect(journeySource).toContain(`data-relationship="${relationship}"`);
+    expect(journeySource).toContain("ledgerBranchPath");
+    expect(journeySource).toContain("data-connector-anchor");
     expect(journeySource).toContain("frameElement.getBoundingClientRect()");
     expect(journeySource).toContain("reconcileConnectors");
     expect(journeySource).toContain("--journey-connector-share-progress");
@@ -376,12 +378,15 @@ describe("Zplit design contract", () => {
     expect(publicSource).toContain("perspective(1400px)");
     expect(publicSource).toContain("rotateX(calc(var(--ledger-handoff-depth");
     expect(publicSource).toContain(".public-home .hero__ledger-depth");
+    expect(publicSource).toContain(".ledger-handoff__depth");
+    expect(publicSource).toMatch(/\.ledger-handoff\s*\{[^}]*transform:\s*translate3d\([^}]+\);/);
+    expect(publicSource).toMatch(/\.ledger-handoff__depth\s*\{[^}]*transform:\s*perspective\(1400px\)/);
     expect(landingMotionSource).toContain("--ledger-handoff-depth");
     expect(publicPageSource).toContain("className=\"hero__ledger-depth\"");
     expect(publicPageSource).toContain("className=\"ledger-amount tabular-nums\"");
     expect(publicPageSource.match(/ledger-amount/g)?.length).toBeGreaterThanOrEqual(7);
     expect(publicSource).toContain("font-feature-settings: \"tnum\"");
-    expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.public-home \.hero__ledger-depth \{ transform: none !important; \}/);
+    expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.public-home \.hero__ledger-depth, \.ledger-handoff__depth \{ transform: none !important; \}/);
     expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.capability--receipt \.expense-proof \{ perspective: none; \}/);
   });
 

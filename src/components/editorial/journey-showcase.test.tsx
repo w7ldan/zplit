@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { JOURNEY_MAGNET_RADIUS_RATIO, JOURNEY_SCROLL_IDLE_MS, JOURNEY_STEP_TRAVEL_RATIO, JOURNEY_TRANSITION_HOLD, JourneyShowcase, journeyTransitionProgress } from "./journey-showcase";
+import { JOURNEY_MAGNET_RADIUS_RATIO, JOURNEY_SCROLL_IDLE_MS, JOURNEY_STEP_TRAVEL_RATIO, JOURNEY_TRANSITION_HOLD, JourneyShowcase, journeyTransitionProgress, ledgerBranchPath } from "./journey-showcase";
 
 const defaultInnerHeight = window.innerHeight;
 const pinnedStageHeight = 600;
@@ -119,15 +119,68 @@ describe("JourneyShowcase", () => {
     expect(svg).toHaveAttribute("data-journey-connectors", "desktop");
     expect(svg.textContent).toBe("");
     expect([...svg.querySelectorAll("path")].map((path) => path.getAttribute("data-relationship"))).toEqual([
-      "dinner-rani",
-      "dinner-dimas",
-      "taxi-rani",
+      "dinner-share",
+      "taxi-share",
       "repayment-dinner-rani",
       "repayment-taxi-rani",
     ]);
     for (const node of ["expense-dinner", "dinner-rani", "dinner-dimas", "expense-taxi", "taxi-rani", "repayment-rani"]) {
       expect(document.querySelector(`[data-connector-node="${node}"]`)).toBeInTheDocument();
     }
+  });
+
+  it("draws label-side accounting branches instead of amount-edge curves", () => {
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    setInnerHeight(viewportHeight);
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    render(<JourneyShowcase />);
+
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    const frameElement = document.querySelector(".journey-frame")! as HTMLElement;
+    mockPinnedGeometry(runway, stage);
+    const frameLeft = 100;
+    vi.spyOn(frameElement, "getBoundingClientRect").mockReturnValue({ left: frameLeft, top: 100, width: 1000, height: 600 } as DOMRect);
+    const box = (left: number, top: number, width = 24, height = 20) => ({ left, right: left + width, top, bottom: top + height, width, height } as DOMRect);
+    const anchorBoxes: Record<string, DOMRect> = {
+      "expense-dinner": box(260, 180),
+      "dinner-rani": box(300, 220),
+      "dinner-dimas": box(300, 260),
+      "expense-taxi": box(260, 340),
+      "taxi-rani": box(300, 380),
+    };
+    for (const anchor of document.querySelectorAll<HTMLElement>("[data-connector-anchor]")) {
+      const name = anchor.dataset.connectorAnchor!;
+      vi.spyOn(anchor, "getBoundingClientRect").mockReturnValue(anchorBoxes[name] ?? box(260, 180));
+    }
+    const nodeBoxes: Record<string, DOMRect> = {
+      "repayment-rani": box(180, 500, 100),
+      "dinner-rani": box(260, 220, 640),
+      "taxi-rani": box(260, 380, 640),
+    };
+    for (const node of document.querySelectorAll<HTMLElement>("[data-connector-node]")) vi.spyOn(node, "getBoundingClientRect").mockReturnValue(nodeBoxes[node.dataset.connectorNode!] ?? box(260, 180, 640));
+    act(() => window.dispatchEvent(new Event("resize")));
+
+    const dinnerPath = document.querySelector<SVGPathElement>('[data-relationship="dinner-share"]')!.getAttribute("d")!;
+    const taxiPath = document.querySelector<SVGPathElement>('[data-relationship="taxi-share"]')!.getAttribute("d")!;
+    const xValues = (path: string) => [...path.matchAll(/(?:M|H) (-?\d+\.\d+)/g)].map((match) => Number(match[1]));
+    expect(ledgerBranchPath({ x: 12, y: 20 }, [{ x: 28, y: 40 }, { x: 28, y: 60 }])).toBe("M 12.0 20.0 V 60.0 M 12.0 40.0 H 28.0 M 12.0 60.0 H 28.0");
+    expect(dinnerPath.match(/\bM\b/g)).toHaveLength(3);
+    expect(dinnerPath.match(/\bH\b/g)).toHaveLength(2);
+    expect(taxiPath.match(/\bM\b/g)).toHaveLength(2);
+    expect(taxiPath.match(/\bH\b/g)).toHaveLength(1);
+    expect(new Set(xValues(dinnerPath))).toEqual(new Set([164, 196]));
+    expect(new Set(xValues(taxiPath))).toEqual(new Set([164, 196]));
+    expect(Math.max(...xValues(dinnerPath), ...xValues(taxiPath))).toBeLessThan(794);
+    expect(dinnerPath).not.toContain("794.0");
+    expect(taxiPath).not.toContain("794.0");
+    expect(dinnerPath).toMatch(/\bV\b/);
+    expect(taxiPath).toMatch(/\bV\b/);
+    const repaymentEndpoint = (relationship: string) => document.querySelector<SVGPathElement>(`[data-relationship="${relationship}"]`)!.getAttribute("d")!.match(/(-?\d+\.\d+) (-?\d+\.\d+)$/)?.slice(1).map(Number);
+    const targetPoint = (name: string) => [nodeBoxes[name].right - frameLeft - 6, nodeBoxes[name].top + nodeBoxes[name].height / 2 - 100];
+    expect(repaymentEndpoint("repayment-dinner-rani")).toEqual(targetPoint("dinner-rani"));
+    expect(repaymentEndpoint("repayment-taxi-rani")).toEqual(targetPoint("taxi-rani"));
   });
 
   it("reveals, reverses, and clears connectors from existing Journey progress without per-scroll geometry reads", () => {
