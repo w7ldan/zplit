@@ -1,6 +1,6 @@
 import { ActionLink } from "@/components/editorial/action-link";
 import { JourneyShowcase } from "@/components/editorial/journey-showcase";
-import { LandingReveal } from "@/components/editorial/landing-reveal";
+import { LandingReveal, LandingStoryMotion } from "@/components/editorial/landing-reveal";
 import { bandungStory } from "@/components/editorial/public-scenario";
 import { SiteHeader } from "@/components/editorial/site-header";
 import { formatRupiah } from "@/domain/rupiah";
@@ -12,7 +12,7 @@ const raniPayment = formatRupiah(bandungStory.repayment.amount);
 
 export default function HomePage() {
   return (
-    <main className="public-home" id="top">
+    <LandingStoryMotion>
       <SiteHeader />
 
       <section className="hero editorial-section" aria-labelledby="page-title">
@@ -35,19 +35,24 @@ export default function HomePage() {
           <LandingReveal as="div" className="hero__ledger" aria-label={`Illustrative ${bandungStory.outing} ledger`} delay={180}>
             <div className="hero__ledger-header hero-story__rule"><span className="technical-label">Shared expense record</span><strong>{bandungStory.outing}</strong></div>
             <div className="hero__ledger-row hero-story__dinner"><span>{dinner.description}</span><strong>{dinnerAmount}</strong></div>
-            <div className="hero__ledger-row hero-story__share"><span>Rani&apos;s share</span><strong>{raniPayment}</strong></div>
+            <div className="hero__ledger-row hero-story__share"><span>Rani assigned</span><strong>{raniPayment}</strong></div>
             <div className="hero__ledger-total hero-story__open"><span>Still open</span><strong>{openBalance}</strong></div>
           </LandingReveal>
         </div>
       </section>
 
-      <div className="ledger-handoff editorial-shell" aria-hidden="true">
-        <span>Bandung day out</span><span>The same ledger continues</span>
+      <div className="ledger-handoff-runway" data-story-motion="handoff" aria-hidden="true">
+        <div className="ledger-handoff editorial-shell" data-ledger-handoff>
+          <div className="ledger-handoff__header"><span className="technical-label">Shared expense record</span><strong>{bandungStory.outing}</strong></div>
+          <div className="ledger-handoff__row"><span>{dinner.description}</span><strong>{dinnerAmount}</strong></div>
+          <div className="ledger-handoff__row"><span>Rani assigned</span><strong>{raniPayment}</strong></div>
+          <div className="ledger-handoff__open"><span>Still open</span><strong>{openBalance}</strong></div>
+        </div>
       </div>
 
       <JourneyShowcase />
 
-      <section className="editorial-section capability capability--search" id="ledger" aria-labelledby="search-title">
+      <section className="editorial-section capability capability--search" id="ledger" aria-labelledby="search-title" data-story-motion="search">
         <div className="capability__layout editorial-grid editorial-shell">
           <div className="capability__copy">
             <p className="section-label technical-label">Find the record</p>
@@ -65,7 +70,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="editorial-section capability capability--receipt" aria-labelledby="receipt-title">
+      <section className="editorial-section capability capability--receipt" aria-labelledby="receipt-title" data-story-motion="receipt">
         <div className="capability__layout editorial-grid editorial-shell">
           <div className="expense-proof">
             <p className="technical-label">Expense / {bandungStory.outing}</p>
@@ -83,23 +88,26 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="editorial-section capability capability--private" aria-labelledby="private-title">
+      <section className="editorial-section capability capability--private" aria-labelledby="private-title" data-story-motion="private-share">
         <div className="capability__layout editorial-grid editorial-shell">
           <div className="capability__copy">
             <p className="section-label technical-label">Private share</p>
             <h2 id="private-title">Send the balance,<br />not the spreadsheet.</h2>
           </div>
           <article className="private-ledger" aria-label={`Private read-only balance for ${bandungStory.openBalance.friend}`}>
-            <header><span>{bandungStory.openBalance.friend}</span><span>Private · Read only</span></header>
-            <p>Still owes</p>
-            <strong className="private-ledger__amount">{openBalance}</strong>
-            <div className="private-ledger__row"><span>{dinner.description}<small>{bandungStory.outing}</small></span><strong>{openBalance}</strong></div>
-            <p className="private-ledger__proof">Receipt available</p>
+            <div className="private-ledger__source" aria-hidden="true"><span>{bandungStory.openBalance.friend}</span><strong>{openBalance}</strong></div>
+            <div className="private-ledger__statement">
+              <header><span>{bandungStory.openBalance.friend}</span><span>Private · Read only</span></header>
+              <p>Still owes</p>
+              <strong className="private-ledger__amount">{openBalance}</strong>
+              <div className="private-ledger__row"><span>{dinner.description}<small>{bandungStory.outing}</small></span><strong>{openBalance}</strong></div>
+              <p className="private-ledger__proof">Receipt available</p>
+            </div>
           </article>
         </div>
       </section>
 
-      <footer className="story-close" aria-labelledby="footer-title">
+      <footer className="story-close" aria-labelledby="footer-title" data-story-motion="finale">
         <div className="editorial-shell">
           <p className="section-label technical-label">Settlement payoff</p>
           <div className="payoff">
@@ -113,6 +121,6 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
-    </main>
+    </LandingStoryMotion>
   );
 }

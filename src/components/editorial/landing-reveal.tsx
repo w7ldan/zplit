@@ -43,3 +43,26 @@ export function LandingReveal({ children, className = "", as = "div", delay = 0,
   const Element = as as "div";
   return <Element ref={(node) => { element.current = node; }} id={id} aria-label={ariaLabel} className={`landing-reveal${className ? ` ${className}` : ""}`} style={{ "--reveal-delay": `${delay}ms` } as CSSProperties}>{children}</Element>;
 }
+
+export function LandingStoryMotion({ children }: { children: ReactNode }) {
+  const root = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const targets = [...(root.current?.querySelectorAll<HTMLElement>("[data-story-motion]") ?? [])];
+    targets.forEach((target) => target.classList.add("story-motion--ready"));
+    const reveal = (target: HTMLElement) => target.classList.add("story-motion--visible");
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {
+      targets.forEach(reveal);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      reveal(entry.target as HTMLElement);
+      observer.unobserve(entry.target);
+    }), { threshold: 0.25 });
+    targets.forEach((target) => observer.observe(target));
+    return () => observer.disconnect();
+  }, []);
+
+  return <main className="public-home" id="top" ref={root}>{children}</main>;
+}

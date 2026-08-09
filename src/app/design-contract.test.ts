@@ -27,6 +27,7 @@ const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/c
 const expenseShareSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-share-editor.tsx"), "utf8");
 const repaymentAllocationSource = readFileSync(path.resolve(process.cwd(), "src/components/repayments/repayment-allocation-editor.tsx"), "utf8");
 const journeySource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/journey-showcase.tsx"), "utf8");
+const publicPageSource = readFileSync(path.resolve(process.cwd(), "src/app/page.tsx"), "utf8");
 const expenseFormSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-form.tsx"), "utf8");
 const repaymentFormSource = readFileSync(path.resolve(process.cwd(), "src/components/repayments/repayment-form.tsx"), "utf8");
 
@@ -349,6 +350,19 @@ describe("Zplit design contract", () => {
     expect(lateOverridesSource).not.toContain(".journey-");
     expect(lateOverridesSource).not.toContain(".landing-reveal");
     expect(lateOverridesSource).not.toContain(".public-home");
+  });
+
+  it("keeps the public ledger handoff structural, coordinated, and motion-safe", () => {
+    expect(publicPageSource).toContain('import { bandungStory }');
+    expect(journeySource).toContain('bandungStory as scenario');
+    expect(journeySource).toContain('from "./public-scenario"');
+    expect(publicPageSource).toContain('data-ledger-handoff');
+    expect(publicPageSource).toContain('Rani assigned');
+    expect(publicPageSource).not.toContain("Rani&apos;s share");
+    expect(publicPageSource).not.toContain("The same ledger continues");
+    expect(publicSource).toContain(".story-motion--visible .ledger-handoff");
+    expect(publicSource).toContain("width: min(calc(100% - 2rem), 90rem)");
+    expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.ledger-handoff-runway \{ display: none !important; \}/);
   });
 
   it("scopes pinned share and repayment interpolation to persistent visual subtrees", () => {

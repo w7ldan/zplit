@@ -18,8 +18,12 @@ describe("public Zplit page", () => {
     expect(screen.getByRole("link", { name: "See how it works" })).toHaveAttribute("href", "#journey");
     const heroLedger = document.querySelector<HTMLElement>(".hero__ledger")!;
     expect(within(heroLedger).getByText("Bandung day out", { exact: true })).toBeInTheDocument();
-    expect(within(heroLedger).getByText("Rani's share", { exact: true })).toBeInTheDocument();
+    expect(within(heroLedger).getByText("Rani assigned", { exact: true })).toBeInTheDocument();
     expect(within(heroLedger).getByText("Rp 42.500", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText("The same ledger continues", { exact: true })).not.toBeInTheDocument();
+    const handoff = document.querySelector<HTMLElement>("[data-ledger-handoff]")!;
+    expect(within(handoff).getByText("Bandung day out", { exact: true })).toBeInTheDocument();
+    expect(within(handoff).getByText("Rani assigned", { exact: true })).toBeInTheDocument();
   });
 
   it("shows one truthful five-step journey with keyboard-operable controls", () => {
@@ -70,18 +74,29 @@ describe("public Zplit page", () => {
     expect(screen.queryByText("The working parts stay connected.", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText("Record the expense", { exact: true })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: /2,000 records.*Still one search away/i })).toBeInTheDocument();
-    expect(screen.getByRole("search", { name: "Illustrative expense search" })).toHaveTextContent("Dinner");
+    const search = screen.getByRole("search", { name: "Illustrative expense search" });
+    expect(search.querySelector("input")).toHaveValue("Dinner");
+    expect(within(search).getByText("Dinner", { exact: true })).toBeInTheDocument();
+    expect(search.closest('[data-story-motion="search"]')).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "The receipt stays with the expense." })).toBeInTheDocument();
     expect(screen.getByText("receipt.jpg", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Attached to this expense", { exact: true })).toBeInTheDocument();
+    const receipt = document.querySelector<HTMLElement>(".expense-proof__receipt")!;
+    expect(receipt.closest(".expense-proof")).toHaveTextContent("Dinner");
+    expect(receipt.closest('[data-story-motion="receipt"]')).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: /Send the balance.*not the spreadsheet/i })).toBeInTheDocument();
     const privateLedger = document.querySelector<HTMLElement>(".private-ledger")!;
-    expect(within(privateLedger).getByText("Dimas", { exact: true })).toBeInTheDocument();
-    expect(within(privateLedger).getAllByText("Rp 42.500", { exact: true })).toHaveLength(2);
+    expect(within(privateLedger).getAllByText("Dimas", { exact: true })).toHaveLength(2);
+    expect(within(privateLedger.querySelector(".private-ledger__source")!).getByText("Dimas", { exact: true })).toBeInTheDocument();
+    expect(within(privateLedger.querySelector(".private-ledger__source")!).getByText("Rp 42.500", { exact: true })).toBeInTheDocument();
+    expect(within(privateLedger.querySelector(".private-ledger__statement")!).getAllByText("Rp 42.500", { exact: true })).toHaveLength(2);
     expect(within(privateLedger).getByText("Private · Read only", { exact: true })).toBeInTheDocument();
+    expect(privateLedger.closest('[data-story-motion="private-share"]')).toBeInTheDocument();
     const payoff = document.querySelector<HTMLElement>(".story-close")!;
     expect(within(payoff).getAllByText("Rp 42.500", { exact: true })).toHaveLength(2);
+    expect(within(payoff.querySelector(".payoff__row")!).getByText("Dimas", { exact: true })).toBeInTheDocument();
     expect(within(payoff).getByText("Shared expenses, made explicit.", { exact: true })).toBeInTheDocument();
     expect(within(payoff).getByRole("link", { name: "Open Zplit →" })).toHaveAttribute("href", "/app");
+    expect(payoff).toHaveAttribute("data-story-motion", "finale");
   });
 });

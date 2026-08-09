@@ -19,7 +19,10 @@ const steps = [
 ];
 
 export const JOURNEY_STEP_TRAVEL_RATIO = 0.42;
-const JOURNEY_TRANSITION_HOLD = 0.19;
+export const JOURNEY_TRANSITION_HOLD = 0.10;
+export const JOURNEY_SCROLL_IDLE_MS = 130;
+export const JOURNEY_MAGNET_RADIUS_RATIO = 0.14;
+const JOURNEY_PROGRAMMATIC_SCROLL_IDLE_MS = 180;
 
 function Amount({ value }: { value: number }) {
   return <span className="tabular-nums">{formatRupiah(value)}</span>;
@@ -159,6 +162,7 @@ export function JourneyShowcase() {
   const runway = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const ignoredProgress = useRef<number | null>(null);
+  const scrollToJourneyStep = useRef<(step: number) => void>(() => {});
   const pinnedStageHeight = useRef(0);
   const pinnedViewport = useRef({ width: 0, height: 0 });
 
@@ -199,6 +203,9 @@ export function JourneyShowcase() {
     const runwayElement = runway.current;
     const stageElement = stage.current;
     let frame: number | null = null;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    let programmaticTimer: ReturnType<typeof setTimeout> | null = null;
+    let programmaticScroll = false;
     const capturePinnedHeight = (force = false) => {
       const viewport = { width: window.innerWidth, height: window.innerHeight };
       const viewportChanged = viewport.width !== pinnedViewport.current.width || viewport.height !== pinnedViewport.current.height;
@@ -211,14 +218,38 @@ export function JourneyShowcase() {
       const element = runway.current;
       if (element) element.style.height = `${pinnedHeight() + sequenceTravel()}px`;
     };
-    const availableTravel = () => Math.max((runway.current?.offsetHeight ?? 0) - pinnedHeight(), 1);
+    const geometry = () => {
+      const element = runway.current;
+      const travel = Math.max((element?.offsetHeight ?? 0) - pinnedHeight(), 1);
+      const start = (element?.getBoundingClientRect().top ?? 0) + window.scrollY - stickyTop();
+      return { start, travel, stepTravel: travel / (steps.length - 1) };
+    };
+    const clearTimer = (timer: ReturnType<typeof setTimeout> | null) => { if (timer !== null) clearTimeout(timer); };
+    const finishProgrammaticScroll = () => { programmaticScroll = false; programmaticTimer = null; };
+    const beginProgrammaticScroll = (step: number) => {
+      const { start, stepTravel } = geometry();
+      programmaticScroll = true;
+      clearTimer(idleTimer);
+      clearTimer(programmaticTimer);
+      idleTimer = null;
+      programmaticTimer = setTimeout(finishProgrammaticScroll, JOURNEY_PROGRAMMATIC_SCROLL_IDLE_MS);
+      window.scrollTo({ top: start + step * stepTravel, behavior: "smooth" });
+    };
+    const settleNearestChapter = () => {
+      idleTimer = null;
+      if (programmaticScroll) return;
+      const { start, travel, stepTravel } = geometry();
+      const step = Math.round(clampProgress((window.scrollY - start) / travel) * (steps.length - 1));
+      const target = start + step * stepTravel;
+      const distance = Math.abs(window.scrollY - target);
+      if (distance > 0.5 && distance <= stepTravel * JOURNEY_MAGNET_RADIUS_RATIO) beginProgrammaticScroll(step);
+    };
     const updateProgress = () => {
       frame = null;
       const element = runway.current;
       if (!element) return;
-      const travel = availableTravel();
-      const runwayDocumentTop = element.getBoundingClientRect().top + window.scrollY;
-      const progress = clampProgress((window.scrollY - (runwayDocumentTop - stickyTop())) / travel);
+      const { start, travel } = geometry();
+      const progress = clampProgress((window.scrollY - start) / travel);
       const scaled = progress * (steps.length - 1);
       const transition = (offset: number) => journeyTransitionProgress(scaled - offset);
       stage.current?.style.setProperty("--journey-progress", String(progress));
@@ -234,20 +265,34 @@ export function JourneyShowcase() {
       updateActiveStep(Math.round(progress * (steps.length - 1)));
     };
     const scheduleUpdate = () => { if (frame === null) frame = window.requestAnimationFrame(updateProgress); };
+    const onScroll = () => {
+      scheduleUpdate();
+      if (programmaticScroll) {
+        clearTimer(programmaticTimer);
+        programmaticTimer = setTimeout(finishProgrammaticScroll, JOURNEY_PROGRAMMATIC_SCROLL_IDLE_MS);
+        return;
+      }
+      clearTimer(idleTimer);
+      idleTimer = setTimeout(settleNearestChapter, JOURNEY_SCROLL_IDLE_MS);
+    };
     const onResize = () => { capturePinnedHeight(); updateDimensions(); scheduleUpdate(); };
     const onPageShow = () => { capturePinnedHeight(true); updateDimensions(); scheduleUpdate(); };
     capturePinnedHeight();
     updateDimensions();
     updateProgress();
-    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    scrollToJourneyStep.current = beginProgrammaticScroll;
+    window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
     window.addEventListener("pageshow", onPageShow);
     void document.fonts?.ready.then(onPageShow);
     return () => {
-      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("pageshow", onPageShow);
       if (frame !== null) window.cancelAnimationFrame(frame);
+      clearTimer(idleTimer);
+      clearTimer(programmaticTimer);
+      scrollToJourneyStep.current = () => {};
       runwayElement?.style.removeProperty("height");
       stageElement?.style.removeProperty("--journey-progress");
       stageElement?.style.removeProperty("--journey-expense-progress");
@@ -260,17 +305,9 @@ export function JourneyShowcase() {
     };
   }, [desktopSequence, stageHeight, stickyTop, updateActiveStep]);
 
-  function scrollToStep(step: number) {
-    if (!desktopSequence || !runway.current) return;
-    const travel = Math.max(runway.current.offsetHeight - Math.max(pinnedStageHeight.current || stageHeight(), 1), 1);
-    const runwayDocumentTop = runway.current.getBoundingClientRect().top + window.scrollY;
-    const top = runwayDocumentTop - stickyTop() + (step / (steps.length - 1)) * travel;
-    window.scrollTo({ top, behavior: "smooth" });
-  }
-
   function selectStep(step: number, moveFocus = false) {
     updateActiveStep(step, desktopSequence);
-    scrollToStep(step);
+    if (desktopSequence) scrollToJourneyStep.current(step);
     if (moveFocus) window.requestAnimationFrame(() => tabs.current[step]?.focus());
   }
 

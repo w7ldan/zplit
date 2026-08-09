@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { JOURNEY_STEP_TRAVEL_RATIO, JourneyShowcase, journeyTransitionProgress } from "./journey-showcase";
+import { JOURNEY_MAGNET_RADIUS_RATIO, JOURNEY_SCROLL_IDLE_MS, JOURNEY_STEP_TRAVEL_RATIO, JOURNEY_TRANSITION_HOLD, JourneyShowcase, journeyTransitionProgress } from "./journey-showcase";
 
 const defaultInnerHeight = window.innerHeight;
 const pinnedStageHeight = 600;
@@ -10,6 +10,8 @@ const sequenceTravel = 1512;
 const runwayHeight = 2112;
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   Object.defineProperty(window, "innerHeight", { configurable: true, value: defaultInnerHeight });
 });
@@ -44,14 +46,15 @@ function sceneSection(name: string) {
 }
 
 describe("JourneyShowcase", () => {
-  it("uses a 0.42 runway with symmetric chapter dwell zones", () => {
+  it("uses a 0.42 runway with a 0.10 symmetric visual hold", () => {
     expect(JOURNEY_STEP_TRAVEL_RATIO).toBe(0.42);
+    expect(JOURNEY_TRANSITION_HOLD).toBe(0.1);
     expect(viewportHeight * JOURNEY_STEP_TRAVEL_RATIO).toBe(stepTravel);
     expect(stepTravel * 4).toBe(sequenceTravel);
     expect(journeyTransitionProgress(0)).toBe(0);
-    expect(journeyTransitionProgress(0.18)).toBe(0);
+    expect(journeyTransitionProgress(0.1)).toBe(0);
     expect(journeyTransitionProgress(0.5)).toBe(0.5);
-    expect(journeyTransitionProgress(0.82)).toBe(1);
+    expect(journeyTransitionProgress(0.9)).toBe(1);
     expect(journeyTransitionProgress(1)).toBe(1);
     for (const progress of [0.2, 0.35, 0.65, 0.8]) {
       expect(journeyTransitionProgress(progress) + journeyTransitionProgress(1 - progress)).toBeCloseTo(1);
@@ -270,6 +273,113 @@ describe("JourneyShowcase", () => {
       expect(scrollTo).toHaveBeenLastCalledWith({ top: 100 + step * stepTravel, behavior: "smooth" });
       expect(scene).toHaveAttribute("data-journey-step", String(step));
     }
+  });
+
+  it("settles near exact early and later chapters only after scroll becomes idle", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+    setInnerHeight(viewportHeight);
+    setScrollY(0);
+    render(<JourneyShowcase />);
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    mockPinnedGeometry(runway, stage);
+    act(() => window.dispatchEvent(new Event("resize")));
+
+    setScrollY(100 + stepTravel + 40);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS - 20));
+    setScrollY(100 + stepTravel + 45);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS - 1));
+    expect(scrollTo).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 100 + stepTravel, behavior: "smooth" });
+
+    act(() => vi.advanceTimersByTime(180));
+    scrollTo.mockClear();
+    setScrollY(100 + 3 * stepTravel - 50);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 100 + 3 * stepTravel, behavior: "smooth" });
+  });
+
+  it("does not magnetize outside the radius or interrupt a continuing fast progression", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+    setInnerHeight(viewportHeight);
+    setScrollY(0);
+    render(<JourneyShowcase />);
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    mockPinnedGeometry(runway, stage);
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(stepTravel * JOURNEY_MAGNET_RADIUS_RATIO).toBeCloseTo(52.92);
+
+    for (const position of [100 + stepTravel + 30, 100 + 2 * stepTravel + 25, 100 + 3 * stepTravel + 20]) {
+      setScrollY(position);
+      act(() => window.dispatchEvent(new Event("scroll")));
+      act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS - 1));
+      expect(scrollTo).not.toHaveBeenCalled();
+    }
+    setScrollY(100 + 3 * stepTravel + 60);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS));
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("guards tab scrolling from magnetic feedback and cancels pending settlement on fallback", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: () => window.innerHeight >= 720 }));
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+    setInnerHeight(viewportHeight);
+    setScrollY(0);
+    render(<JourneyShowcase />);
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    mockPinnedGeometry(runway, stage);
+    act(() => window.dispatchEvent(new Event("resize")));
+
+    fireEvent.click(screen.getAllByRole("tab")[3]);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS + 180));
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+
+    scrollTo.mockClear();
+    setScrollY(100 + stepTravel + 40);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    setInnerHeight(500);
+    act(() => window.dispatchEvent(new Event("resize")));
+    act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS));
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("cancels a pending magnetic settlement on cleanup", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+    setInnerHeight(viewportHeight);
+    setScrollY(0);
+    const { unmount } = render(<JourneyShowcase />);
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    mockPinnedGeometry(runway, stage);
+    act(() => window.dispatchEvent(new Event("resize")));
+    setScrollY(100 + stepTravel + 40);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    unmount();
+    act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS));
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
   it("maps continuous progress into four equal reversible transition ranges", () => {
