@@ -202,6 +202,25 @@ describe("Zplit design contract", () => {
     expect(authenticatedShellSource).toContain("width: min(calc(100% - 1.5rem), 76rem);");
   });
 
+  it("keeps the desktop Journey on a centered narrower working canvas", () => {
+    const desktopStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) {");
+    const mobileStart = publicSource.indexOf("@media (max-width: 959px) {");
+    const desktop = publicSource.slice(desktopStart, mobileStart);
+    const journeyWidth = "width: min(calc(100% - clamp(4rem, 10vw, 10rem)), 82rem);";
+
+    expect(desktopStart).toBeGreaterThanOrEqual(0);
+    expect(mobileStart).toBeGreaterThan(desktopStart);
+    expect(desktop).toContain(`.journey-editorial, .journey-stage { ${journeyWidth} margin-inline: auto; }`);
+    expect(publicSource.slice(0, desktopStart)).not.toContain(journeyWidth);
+    expect(publicSource.slice(mobileStart)).not.toContain(journeyWidth);
+
+    const viewport = 1477;
+    const gutter = Math.min(10 * viewport / 100, 10 * 16);
+    const width = Math.min(viewport - gutter, 82 * 16);
+    expect(width).toBeLessThanOrEqual(1312);
+    expect((viewport - width) / 2).toBeGreaterThan(80);
+  });
+
   it("keeps detail grids owned, stable, and mobile-safe", () => {
     expect(recordsAndFormsSource).not.toContain("grid-column: 1 / span 6");
     expect(recordsAndFormsSource).toContain("grid-template-columns: repeat(12, minmax(0, 1fr));");

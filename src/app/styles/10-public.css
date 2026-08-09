@@ -1241,6 +1241,7 @@
 .landing-reveal--ready:not(.landing-reveal--visible) { opacity: 0; clip-path: inset(0 0 12% 0); transform: translateY(16px); }
 
 @media (min-width: 960px) and (min-height: 720px) {
+  .journey-editorial, .journey-stage { width: min(calc(100% - clamp(4rem, 10vw, 10rem)), 82rem); margin-inline: auto; }
   .public-home .hero__ledger-depth, .ledger-handoff__depth { transform: perspective(1400px) rotateX(calc(var(--ledger-handoff-depth, 1) * 1.25deg)) rotateY(calc(var(--ledger-handoff-depth, 1) * -0.75deg)); }
   .ledger-handoff-runway { display: block; position: relative; height: 30vh; }
   .public-home .hero__ledger { opacity: var(--ledger-handoff-hero-opacity, 1); }
