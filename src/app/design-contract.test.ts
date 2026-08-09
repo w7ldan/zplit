@@ -27,6 +27,7 @@ const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/c
 const expenseShareSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-share-editor.tsx"), "utf8");
 const repaymentAllocationSource = readFileSync(path.resolve(process.cwd(), "src/components/repayments/repayment-allocation-editor.tsx"), "utf8");
 const journeySource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/journey-showcase.tsx"), "utf8");
+const landingMotionSource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/landing-reveal.tsx"), "utf8");
 const publicPageSource = readFileSync(path.resolve(process.cwd(), "src/app/page.tsx"), "utf8");
 const expenseFormSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-form.tsx"), "utf8");
 const repaymentFormSource = readFileSync(path.resolve(process.cwd(), "src/components/repayments/repayment-form.tsx"), "utf8");
@@ -360,8 +361,16 @@ describe("Zplit design contract", () => {
     expect(publicPageSource).toContain('Rani assigned');
     expect(publicPageSource).not.toContain("Rani&apos;s share");
     expect(publicPageSource).not.toContain("The same ledger continues");
-    expect(publicSource).toContain(".story-motion--visible .ledger-handoff");
-    expect(publicSource).toContain("width: min(calc(100% - 2rem), 90rem)");
+    expect(publicPageSource).not.toContain('data-story-motion="handoff"');
+    expect(publicSource).toContain("min-height: 30vh");
+    expect(publicSource).not.toContain("min-height: 42vh");
+    expect(publicSource).not.toContain(".story-motion--visible .ledger-handoff");
+    expect(publicSource).not.toMatch(/ledger-handoff[^}]*520ms/);
+    expect(publicSource).toContain("--ledger-handoff-width");
+    expect(landingMotionSource).toContain("ledgerHandoffProgress(window.scrollY, start, travel)");
+    expect(landingMotionSource).toContain('window.requestAnimationFrame(update)');
+    expect(landingMotionSource).toContain('window.addEventListener("pageshow", onPageShow)');
+    expect(landingMotionSource).not.toMatch(/setState|set[A-Z][A-Za-z]+\(progress/);
     expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.ledger-handoff-runway \{ display: none !important; \}/);
   });
 

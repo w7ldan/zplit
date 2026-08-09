@@ -289,10 +289,10 @@ describe("JourneyShowcase", () => {
     mockPinnedGeometry(runway, stage);
     act(() => window.dispatchEvent(new Event("resize")));
 
-    setScrollY(100 + stepTravel + 40);
+    setScrollY(100 + stepTravel + 25);
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS - 20));
-    setScrollY(100 + stepTravel + 45);
+    setScrollY(100 + stepTravel + 30);
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS - 1));
     expect(scrollTo).not.toHaveBeenCalled();
@@ -301,7 +301,7 @@ describe("JourneyShowcase", () => {
 
     act(() => vi.advanceTimersByTime(180));
     scrollTo.mockClear();
-    setScrollY(100 + 3 * stepTravel - 50);
+    setScrollY(100 + 3 * stepTravel - 30);
     act(() => window.dispatchEvent(new Event("scroll")));
     act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS));
     expect(scrollTo).toHaveBeenCalledWith({ top: 100 + 3 * stepTravel, behavior: "smooth" });
@@ -320,7 +320,13 @@ describe("JourneyShowcase", () => {
     const stage = document.querySelector(".journey-sticky")! as HTMLElement;
     mockPinnedGeometry(runway, stage);
     act(() => window.dispatchEvent(new Event("resize")));
-    expect(stepTravel * JOURNEY_MAGNET_RADIUS_RATIO).toBeCloseTo(52.92);
+    expect(JOURNEY_SCROLL_IDLE_MS).toBe(200);
+    expect(stepTravel * JOURNEY_MAGNET_RADIUS_RATIO).toBeCloseTo(34.02);
+
+    setScrollY(70);
+    act(() => window.dispatchEvent(new Event("scroll")));
+    act(() => vi.advanceTimersByTime(JOURNEY_SCROLL_IDLE_MS));
+    expect(scrollTo).not.toHaveBeenCalled();
 
     for (const position of [100 + stepTravel + 30, 100 + 2 * stepTravel + 25, 100 + 3 * stepTravel + 20]) {
       setScrollY(position);

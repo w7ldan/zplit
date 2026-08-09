@@ -41,7 +41,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <div className="ledger-handoff-runway" data-story-motion="handoff" aria-hidden="true">
+      <div className="ledger-handoff-runway" data-ledger-handoff-runway aria-hidden="true">
         <div className="ledger-handoff editorial-shell" data-ledger-handoff>
           <div className="ledger-handoff__header"><span className="technical-label">Shared expense record</span><strong>{bandungStory.outing}</strong></div>
           <div className="ledger-handoff__row"><span>{dinner.description}</span><strong>{dinnerAmount}</strong></div>

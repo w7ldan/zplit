@@ -20,8 +20,8 @@ const steps = [
 
 export const JOURNEY_STEP_TRAVEL_RATIO = 0.42;
 export const JOURNEY_TRANSITION_HOLD = 0.10;
-export const JOURNEY_SCROLL_IDLE_MS = 130;
-export const JOURNEY_MAGNET_RADIUS_RATIO = 0.14;
+export const JOURNEY_SCROLL_IDLE_MS = 200;
+export const JOURNEY_MAGNET_RADIUS_RATIO = 0.09;
 const JOURNEY_PROGRAMMATIC_SCROLL_IDLE_MS = 180;
 
 function Amount({ value }: { value: number }) {
@@ -239,6 +239,7 @@ export function JourneyShowcase() {
       idleTimer = null;
       if (programmaticScroll) return;
       const { start, travel, stepTravel } = geometry();
+      if (window.scrollY < start || window.scrollY > start + travel) return;
       const step = Math.round(clampProgress((window.scrollY - start) / travel) * (steps.length - 1));
       const target = start + step * stepTravel;
       const distance = Math.abs(window.scrollY - target);

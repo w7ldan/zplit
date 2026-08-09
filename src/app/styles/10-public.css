@@ -1236,17 +1236,16 @@
 .landing-reveal--ready:not(.landing-reveal--visible) { opacity: 0; clip-path: inset(0 0 12% 0); transform: translateY(16px); }
 
 @media (min-width: 960px) and (min-height: 720px) {
-  .ledger-handoff-runway { display: block; min-height: 42vh; }
-  .ledger-handoff { position: sticky; top: clamp(5rem, 11vh, 7rem); width: min(calc((100% - 2rem) * 0.4167), 37.5rem); margin-right: max(1rem, calc((100% - 90rem) / 2)); margin-left: auto; padding-block: 1rem; border-block: 1px solid var(--ink); background: var(--paper); transition: width 520ms var(--ease-emphasized), margin-right 520ms var(--ease-emphasized), padding-inline 520ms var(--ease-emphasized); }
-  .story-motion--visible .ledger-handoff { width: min(calc(100% - 2rem), 90rem); margin-right: auto; padding-inline: 1rem; }
+  .ledger-handoff-runway { --ledger-handoff-top: clamp(5rem, 11vh, 7rem); display: block; position: relative; min-height: 30vh; }
+  .ledger-handoff { position: relative; top: var(--ledger-handoff-top); width: min(var(--ledger-handoff-width, 41.67%), calc(100% - 2rem), 90rem); margin-right: max(1rem, calc((100% - 90rem) / 2)); margin-left: auto; padding-block: 1rem; padding-inline: calc(var(--ledger-handoff-structure, 0) * 1rem); border: 1px solid transparent; border-block-color: var(--ink); background: var(--paper); transform: translateY(var(--ledger-handoff-offset, 0)); }
+  .ledger-handoff-runway[data-handoff-active="true"] .ledger-handoff { border-inline-color: rgb(from var(--ink) r g b / var(--ledger-handoff-structure, 0)); }
+  .ledger-handoff::after { position: absolute; top: 0; bottom: 0; left: 58.33%; width: 1px; background: var(--rule); content: ""; opacity: var(--ledger-handoff-structure, 0); }
   .ledger-handoff__header { display: grid; gap: 0.45rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--ink); }
   .ledger-handoff__header strong { font-family: var(--font-display); font-size: clamp(1.6rem, 2.4vw, 2.6rem); letter-spacing: -0.055em; line-height: 1; text-transform: uppercase; }
-  .ledger-handoff__row { display: flex; min-height: 4rem; align-items: baseline; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--rule); font-size: 0.92rem; transition: min-height 520ms var(--ease-emphasized), opacity 260ms var(--ease-product); }
+  .ledger-handoff__row { display: flex; min-height: calc(4rem - var(--ledger-handoff-rows, 0) * 1.6rem); align-items: baseline; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--rule); font-size: 0.92rem; opacity: calc(1 - var(--ledger-handoff-rows, 0) * 0.62); }
   .ledger-handoff__row strong, .ledger-handoff__open strong { font-variant-numeric: tabular-nums; }
-  .ledger-handoff__open { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding-top: 1.25rem; font-weight: 700; text-transform: uppercase; }
-  .ledger-handoff__open strong { font-family: var(--font-display); font-size: clamp(3.4rem, 6vw, 6.8rem); letter-spacing: -0.08em; line-height: 0.84; }
-  .story-motion--visible .ledger-handoff__row { min-height: 2.75rem; opacity: 0.38; }
-  .story-motion--visible .ledger-handoff__open { border-bottom: 1px solid var(--ink); }
+  .ledger-handoff__open { display: grid; gap: 0.5rem; padding-top: calc(1.25rem - var(--ledger-handoff-balance, 0) * 0.6rem); border-bottom: 1px solid rgb(from var(--ink) r g b / var(--ledger-handoff-structure, 0)); font-weight: 700; text-transform: uppercase; }
+  .ledger-handoff__open strong { font-family: var(--font-display); font-size: clamp(1.55rem, calc(6vw - var(--ledger-handoff-balance, 0) * 4.45vw), 6.8rem); font-variant-numeric: tabular-nums; letter-spacing: calc(-0.08em + var(--ledger-handoff-balance, 0) * 0.025em); line-height: 0.84; text-align: right; transform: translateY(calc(var(--ledger-handoff-balance, 0) * -0.25rem)); }
   .journey-editorial .section-heading, .journey-editorial .section-intro { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
   .journey-editorial .section-label { grid-column: 1 / -1; }
   .journey-sticky--pinned { position: sticky; }
