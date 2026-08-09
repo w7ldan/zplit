@@ -75,6 +75,13 @@ describe("JourneyShowcase", () => {
     expect(sceneSection("repayment")).toHaveAttribute("data-layout", "collapsed");
     expect(sceneSection("repayment").querySelector(".journey-repayment__allocation")).toHaveAttribute("data-progress", "zero");
     expect(sceneSection("repayment").querySelector("[role=progressbar]")).toHaveAttribute("aria-valuenow", "0");
+    expect(sceneSection("repayment")).toHaveTextContent("Rani repaymentReceived and ready to allocateRp 126.500");
+    expect(sceneSection("repayment")).toHaveTextContent("Repayment allocationRp 126.500");
+    expect(sceneSection("repayment")).toHaveTextContent("ReceivedRp 126.500");
+    expect(sceneSection("repayment")).toHaveTextContent("AppliedRp 126.500");
+    expect(sceneSection("repayment")).toHaveTextContent("Dinner appliedRp 84.000");
+    expect(sceneSection("repayment")).toHaveTextContent("Taxi appliedRp 42.500");
+    expect(sceneSection("repayment")).toHaveTextContent("Needs allocationRp 0");
     expect(sceneSection("balances")).toHaveAttribute("aria-hidden", "true");
     expect(sceneSection("balances")).toHaveAttribute("data-layout", "collapsed");
     expect(scene.querySelectorAll("[data-summary-slot]")).toHaveLength(2);
@@ -295,6 +302,74 @@ describe("JourneyShowcase", () => {
       act(() => window.dispatchEvent(new Event("scroll")));
       act(() => frame?.(1));
       expect(Number(stage.style.getPropertyValue("--journey-progress"))).toBeCloseTo(progress);
+    }
+  });
+
+  it("keeps the complete repayment visual available through continuous 03 to 04 progress", () => {
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    setInnerHeight(viewportHeight);
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    setScrollY(0);
+    render(<JourneyShowcase />);
+
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    const repayment = sceneSection("repayment");
+    const allocation = repayment.querySelector(".journey-repayment__allocation")!;
+    const allocationBar = allocation.querySelector(".journey-allocation__track span")!;
+    mockPinnedGeometry(runway, stage);
+    act(() => window.dispatchEvent(new Event("resize")));
+
+    for (const localProgress of [0, 0.25, 0.5, 0.75, 1]) {
+      setScrollY(100 + (0.5 + localProgress / 4) * sequenceTravel);
+      act(() => window.dispatchEvent(new Event("scroll")));
+      act(() => frame?.(1));
+      expect(Number(stage.style.getPropertyValue("--journey-repayment-progress"))).toBeCloseTo(localProgress);
+      expect(sceneSection("repayment")).toBe(repayment);
+      expect(repayment.querySelector(".journey-repayment__allocation")).toBe(allocation);
+      expect(allocation.querySelector(".journey-allocation__track span")).toBe(allocationBar);
+      expect(allocationBar).toHaveStyle({ "--repayment-allocation": "1" });
+      expect(repayment).toHaveTextContent("ReceivedRp 126.500");
+      expect(repayment).toHaveTextContent("AppliedRp 126.500");
+    }
+  });
+
+  it("keeps one intact visual state slot while semantics switch from repayment to balances", () => {
+    vi.stubGlobal("matchMedia", mediaQuery({ desktop: true, tall: true }));
+    setInnerHeight(viewportHeight);
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    setScrollY(0);
+    render(<JourneyShowcase />);
+
+    const runway = document.querySelector(".journey-runway")! as HTMLElement;
+    const stage = document.querySelector(".journey-sticky")! as HTMLElement;
+    const slot = document.querySelector('[data-summary-slot="state"]')!;
+    const repayment = sceneSection("repayment");
+    const balances = sceneSection("balances");
+    mockPinnedGeometry(runway, stage);
+    act(() => window.dispatchEvent(new Event("resize")));
+
+    for (const localProgress of [0, 0.25, 0.5, 0.75, 1]) {
+      setScrollY(100 + (0.75 + localProgress / 4) * sequenceTravel);
+      act(() => window.dispatchEvent(new Event("scroll")));
+      act(() => frame?.(1));
+      expect(slot).toContainElement(repayment);
+      expect(slot).toContainElement(balances);
+      expect(sceneSection("repayment")).toBe(repayment);
+      expect(sceneSection("balances")).toBe(balances);
+      expect(repayment).toHaveTextContent("Needs allocationRp 0");
+      expect(balances).toHaveTextContent("Rani");
+      expect(balances).toHaveTextContent("RemainingRp 0");
+      expect(balances).toHaveTextContent("Dimas");
+      expect(balances).toHaveTextContent("RemainingRp 42.500");
+      expect(slot.querySelectorAll('[data-summary-state][aria-hidden="false"]')).toHaveLength(1);
+      const balanceIsSemantic = localProgress >= 0.5;
+      expect(repayment).toHaveAttribute("aria-hidden", String(balanceIsSemantic));
+      expect(balances).toHaveAttribute("aria-hidden", String(!balanceIsSemantic));
     }
   });
 

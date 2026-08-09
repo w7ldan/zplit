@@ -45,7 +45,6 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
   const showRepayment = activeStep >= 3;
   const showRepaymentState = activeStep === 3;
   const showBalances = activeStep >= 4;
-  const repaymentProgress = showRepaymentState ? 1 : 0;
 
   return (
     <article className="journey-panel journey-panel--active" data-journey-step={activeStep} data-journey-layout="persistent-ledger">
@@ -111,13 +110,13 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
                 <div className="journey-repayment-row"><span><strong>Rani repayment</strong><small>Received and ready to allocate</small></span><strong><Amount value={scenario.repayment.amount} /></strong></div>
                 <div className="journey-repayment__allocation journey-allocation" data-visible={showRepaymentState} data-layout={showRepaymentState ? "expanded" : "collapsed"} data-progress={showRepaymentState ? "complete" : "zero"} aria-hidden={!showRepaymentState}>
                   <div className="journey-allocation__content">
-                    <div className="journey-allocation__caption"><span>Repayment allocation</span><strong><Amount value={showRepaymentState ? scenario.repayment.amount : 0} /></strong></div>
-                    <div className="journey-allocation__track" role="progressbar" aria-label="Repayment allocation" aria-valuemin={0} aria-valuemax={scenario.repayment.amount} aria-valuenow={showRepaymentState ? scenario.repayment.amount : 0}><span style={{ "--repayment-allocation": repaymentProgress } as CSSProperties} /></div>
+                    <div className="journey-allocation__caption"><span>Repayment allocation</span><strong><Amount value={scenario.repayment.amount} /></strong></div>
+                    <div className="journey-allocation__track" role="progressbar" aria-label="Repayment allocation" aria-valuemin={0} aria-valuemax={scenario.repayment.amount} aria-valuenow={showRepaymentState ? scenario.repayment.amount : 0}><span style={{ "--repayment-allocation": 1 } as CSSProperties} /></div>
                   </div>
                 </div>
                 <div className="journey-summary-list">
-                  <ProductRow label="Received" value={showRepaymentState ? formatRupiah(scenario.repayment.amount) : "—"} />
-                  <ProductRow label="Applied" value={showRepaymentState ? formatRupiah(scenario.repayment.amount) : "—"} />
+                  <ProductRow label="Received" value={formatRupiah(scenario.repayment.amount)} />
+                  <ProductRow label="Applied" value={formatRupiah(scenario.repayment.amount)} />
                 </div>
                 <div className="journey-allocation-list">
                   <ProductRow label="Dinner applied" value={formatRupiah(84000)} />

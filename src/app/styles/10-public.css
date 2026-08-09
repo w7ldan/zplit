@@ -1369,12 +1369,13 @@
   .journey-sticky--pinned .journey-expense-row:nth-child(2) { opacity: clamp(0, calc((var(--journey-expense-progress, 0) - 0.32) * 4), 1); }
   .journey-sticky--pinned .journey-total { opacity: clamp(0, calc((var(--journey-expense-progress, 0) - 0.68) * 4), 1); }
   .journey-sticky--pinned .journey-expense-row__shares { visibility: visible; opacity: 1; transform: translateY(calc((1 - var(--journey-share-progress, 0)) * 4px)); transition: none; }
-  .journey-sticky--pinned .journey-expense-row:first-child .journey-row:first-child { opacity: clamp(0, calc((var(--journey-share-progress, 0) - 0.04) * 4), 1); }
-  .journey-sticky--pinned .journey-expense-row:first-child .journey-row:nth-child(2) { opacity: clamp(0, calc((var(--journey-share-progress, 0) - 0.28) * 4), 1); }
-  .journey-sticky--pinned .journey-expense-row:nth-child(2) .journey-row { opacity: clamp(0, calc((var(--journey-share-progress, 0) - 0.52) * 4), 1); }
+  .journey-sticky--pinned .journey-expense-row:first-child .journey-expense-row__shares-reveal > .journey-row:first-child { opacity: clamp(0, calc((var(--journey-share-progress, 0) - 0.04) * 4), 1); }
+  .journey-sticky--pinned .journey-expense-row:first-child .journey-expense-row__shares-reveal > .journey-row:nth-child(2) { opacity: clamp(0, calc((var(--journey-share-progress, 0) - 0.28) * 4), 1); }
+  .journey-sticky--pinned .journey-expense-row:nth-child(2) .journey-expense-row__shares-reveal > .journey-row { opacity: clamp(0, calc((var(--journey-share-progress, 0) - 0.52) * 4), 1); }
   .journey-sticky--pinned .journey-scene__expenses > .journey-scene__section-reveal > .journey-scene__section-content > .journey-allocation { visibility: visible; opacity: clamp(0, calc((var(--journey-share-progress, 0) - 0.7) * 3.34), 1); transform: translateY(calc((1 - var(--journey-share-progress, 0)) * 4px)); }
   .journey-sticky--pinned .journey-scene__expenses > .journey-scene__section-reveal > .journey-scene__section-content > .journey-allocation .journey-allocation__track span { transform: scaleX(var(--journey-allocation-progress, 0)); transition: none; }
   .journey-sticky--pinned .journey-scene__repayment { visibility: visible; opacity: min(var(--journey-repayment-progress, 0), calc(1 - var(--journey-balance-progress, 0))); transform: translateY(calc((1 - var(--journey-repayment-progress, 0)) * 4px)); transition: none; }
+  .journey-sticky--pinned .journey-repayment__allocation { visibility: visible; opacity: 1; transform: none; }
   .journey-sticky--pinned .journey-repayment__allocation .journey-allocation__track span { transform: scaleX(var(--journey-repayment-progress, 0)); transition: none; }
   .journey-sticky--pinned .journey-allocation-list .journey-row:first-child { opacity: clamp(0, calc((var(--journey-repayment-progress, 0) - 0.2) * 4), 1); }
   .journey-sticky--pinned .journey-allocation-list .journey-row:nth-child(2) { opacity: clamp(0, calc((var(--journey-repayment-progress, 0) - 0.45) * 4), 1); }

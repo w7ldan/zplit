@@ -346,6 +346,16 @@ describe("Zplit design contract", () => {
     expect(lateOverridesSource).not.toContain(".landing-reveal");
   });
 
+  it("scopes pinned share and repayment interpolation to persistent visual subtrees", () => {
+    expect(publicSource).not.toMatch(/\.journey-sticky--pinned \.journey-expense-row:first-child \.journey-row/);
+    expect(publicSource).not.toMatch(/\.journey-sticky--pinned \.journey-expense-row:nth-child\(2\) \.journey-row/);
+    expect(publicSource).toContain(".journey-sticky--pinned .journey-expense-row:first-child .journey-expense-row__shares-reveal > .journey-row:first-child");
+    expect(publicSource).toContain(".journey-sticky--pinned .journey-expense-row:first-child .journey-expense-row__shares-reveal > .journey-row:nth-child(2)");
+    expect(publicSource).toContain(".journey-sticky--pinned .journey-expense-row:nth-child(2) .journey-expense-row__shares-reveal > .journey-row");
+    expect(cssRuleBody(publicSource, ".journey-sticky--pinned .journey-repayment__allocation")).toMatch(/visibility:\s*visible;[\s\S]*opacity:\s*1;[\s\S]*transform:\s*none;/);
+    expect(cssRuleBody(publicSource, ".journey-sticky--pinned .journey-repayment__allocation .journey-allocation__track span")).toContain("transform: scaleX(var(--journey-repayment-progress, 0));");
+  });
+
   it("keeps long record values inside bounded rows while leaving detail values unclamped", () => {
     expect(css).toMatch(/\.friend-row,[\s\S]*?\.repayment-row\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?overflow-wrap:\s*anywhere;/);
     expect(css).toMatch(/\.friend-row__primary h2 a,[\s\S]*?\.repayment-row__primary h2 a\s*\{[\s\S]*?-webkit-line-clamp:\s*2;/);
