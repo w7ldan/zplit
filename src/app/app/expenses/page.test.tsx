@@ -62,7 +62,7 @@ describe("/app/expenses", () => {
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Amount in rupiah")).toBeInTheDocument();
-    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Outing" })).toHaveValue(outing.title);
+    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Outing" })).toHaveTextContent(outing.title);
   });
 
   it("falls back without displaying an invalid outing context", async () => {
@@ -70,7 +70,7 @@ describe("/app/expenses", () => {
     mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
     render(<ToastProvider>{await ExpensesPage({ searchParams: Promise.resolve({ create: "1", outing: "44444444-4444-4444-8444-444444444444" }) })}</ToastProvider>);
 
-    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Outing" })).toHaveValue(outing.title);
+    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Outing" })).toHaveTextContent(outing.title);
     expect(screen.queryByText("Foreign dinner")).not.toBeInTheDocument();
   });
 

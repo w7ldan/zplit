@@ -47,13 +47,22 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 
 export function ExpenseForm({ action, outings: outingOptions, searchOutings, initialValues = emptyValues, mode = "create" }: ExpenseFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
+  const [selectedOutingId, setSelectedOutingId] = useState(initialValues.outingId || outingOptions[0]?.id || "");
   const [selectedOuting, setSelectedOuting] = useState<SearchableOption | undefined>(() => outingOptions.find((outing) => outing.id === initialValues.outingId) ?? outingOptions[0]);
   const router = useRouter();
   const { showToast } = useToast();
   const descriptionRef = useRef<HTMLInputElement>(null);
   const handledExpenseId = useRef<string | undefined>(undefined);
-  const outingId = state.values.outingId || selectedOuting?.id || outingOptions[0]?.id || "";
+  const previousActionStateRef = useRef(state);
   const options = selectedOuting && !outingOptions.some((outing) => outing.id === selectedOuting.id) ? [...outingOptions, selectedOuting] : outingOptions;
+
+  useEffect(() => {
+    if (previousActionStateRef.current === state) return;
+    previousActionStateRef.current = state;
+    const nextOutingId = state.values.outingId || outingOptions[0]?.id || "";
+    setSelectedOutingId(nextOutingId);
+    setSelectedOuting((current) => outingOptions.find((outing) => outing.id === nextOutingId) ?? (current?.id === nextOutingId ? current : undefined));
+  }, [outingOptions, state]);
 
   useEffect(() => {
     if (mode !== "create" || !state.success || handledExpenseId.current === state.success.expenseId) return;
@@ -82,7 +91,7 @@ export function ExpenseForm({ action, outings: outingOptions, searchOutings, ini
       </div>
       <div className="expense-form__field">
         <label id="expense-outing-label" htmlFor="expense-outing">Outing</label>
-        <SearchableCombobox id="expense-outing" name="outingId" value={outingId} options={options} search={searchOutings} required ariaInvalid={Boolean(state.fieldErrors.outingId)} ariaDescribedBy="expense-outing-error" labelId="expense-outing-label" onValueChange={setSelectedOuting} />
+        <SearchableCombobox id="expense-outing" name="outingId" value={selectedOutingId} options={options} search={searchOutings} required searchLabel="Search outings" placeholder="Choose outing" ariaInvalid={Boolean(state.fieldErrors.outingId)} ariaDescribedBy="expense-outing-error" labelId="expense-outing-label" onValueChange={(outing) => { setSelectedOutingId(outing.id); setSelectedOuting(outing); }} />
         <FieldError id="expense-outing-error" message={state.fieldErrors.outingId} />
       </div>
       <p className="expense-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>

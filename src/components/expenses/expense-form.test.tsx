@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ExpenseForm } from "./expense-form";
 import { ToastProvider } from "@/components/feedback/toast";
@@ -21,16 +21,27 @@ const initialState = {
   formError: "",
   values: { description: "", amountRupiah: "", outingId: "" },
 };
+const outingOption = { id: outing.id, label: outing.title };
+const secondOuting = { id: "22222222-2222-4222-8222-222222222222", label: "Bandung day out" };
 
 describe("ExpenseForm", () => {
   beforeEach(() => router.refresh.mockClear());
 
-  function renderForm(action = vi.fn().mockResolvedValue(initialState), mode: "create" | "edit" = "create", initialValues = initialState.values) {
+  function renderForm(action = vi.fn().mockResolvedValue(initialState), mode: "create" | "edit" = "create", initialValues = initialState.values, outings = [outingOption], searchOutings = vi.fn().mockResolvedValue(outings)) {
     return render(
       <ToastProvider>
-        <ExpenseForm action={action} outings={[{ id: outing.id, label: outing.title }]} searchOutings={vi.fn().mockResolvedValue([])} mode={mode} initialValues={initialValues} />
+        <ExpenseForm action={action} outings={outings} searchOutings={searchOutings} mode={mode} initialValues={initialValues} />
       </ToastProvider>,
     );
+  }
+
+  async function chooseOuting(label: string, query = label) {
+    fireEvent.click(screen.getByRole("combobox", { name: "Outing" }));
+    const searchInput = await screen.findByRole("searchbox", { name: "Search outings" });
+    fireEvent.change(searchInput, { target: { value: query } });
+    const listbox = screen.getByRole("listbox");
+    await waitFor(() => expect(within(listbox).getByRole("option", { name: label })).toBeInTheDocument());
+    fireEvent.click(within(listbox).getByRole("option", { name: label }));
   }
 
   it("renders accessible owner-owned outing fields without independent date controls", () => {
@@ -74,7 +85,7 @@ describe("ExpenseForm", () => {
     const form = screen.getByRole("button", { name: "Add expense" }).closest("form");
     if (!form) throw new Error("expense form is missing");
 
-    expect(form.querySelector("button")).toHaveTextContent("Add expense");
+    expect(screen.getByRole("button", { name: "Add expense" })).toBeInTheDocument();
     fireEvent.submit(form);
     fireEvent.submit(form);
     expect(action).toHaveBeenCalledOnce();
@@ -109,7 +120,7 @@ describe("ExpenseForm", () => {
     await waitFor(() => expect(action).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.getByLabelText("Description")).toHaveValue(""));
     expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("");
-    expect(screen.getByRole("combobox", { name: "Outing" })).toHaveValue(outing.title);
+    expect(screen.getByRole("combobox", { name: "Outing" })).toHaveTextContent(outing.title);
     expect(action.mock.calls[0]?.[1].get("intent")).toBe("continue");
     expect(router.refresh).toHaveBeenCalledOnce();
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Expense added"));
@@ -145,5 +156,65 @@ describe("ExpenseForm", () => {
     renderForm(vi.fn().mockResolvedValue(initialState), "edit", { description: "Dinner", amountRupiah: "84000", outingId: outing.id });
     expect(screen.queryByRole("button", { name: "Save & add another" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+  });
+
+  it("changes an existing outing from A to B in edit mode", async () => {
+    const action = vi.fn().mockResolvedValue({ ...initialState, values: { ...initialState.values, outingId: secondOuting.id }, fieldErrors: { description: "Enter a description." } });
+    renderForm(action, "edit", { description: "Dinner", amountRupiah: "84000", outingId: outing.id }, [outingOption, secondOuting]);
+
+    await chooseOuting(secondOuting.label, "Bandung");
+    expect(screen.getByRole("combobox", { name: "Outing" })).toHaveTextContent(secondOuting.label);
+    expect((document.querySelector('select[name="outingId"]') as HTMLSelectElement).value).toBe(secondOuting.id);
+    fireEvent.submit(screen.getByRole("button", { name: "Save changes" }).closest("form")!);
+
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    expect(action.mock.calls[0][1].get("outingId")).toBe(secondOuting.id);
+  });
+
+  it("lets a contextual create outing change from A to B before submit", async () => {
+    const action = vi.fn().mockResolvedValue(initialState);
+    renderForm(action, "create", { ...initialState.values, outingId: outing.id }, [outingOption, secondOuting]);
+
+    await chooseOuting(secondOuting.label);
+    fireEvent.submit(screen.getByRole("button", { name: "Add expense" }).closest("form")!);
+
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    expect(action.mock.calls[0][1].get("outingId")).toBe(secondOuting.id);
+  });
+
+  it("keeps the sensible first outing default while allowing create to choose another", async () => {
+    const action = vi.fn().mockResolvedValue(initialState);
+    renderForm(action, "create", initialState.values, [outingOption, secondOuting]);
+
+    expect(screen.getByRole("combobox", { name: "Outing" })).toHaveTextContent(outing.title);
+    await chooseOuting(secondOuting.label);
+    fireEvent.submit(screen.getByRole("button", { name: "Add expense" }).closest("form")!);
+
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    expect(action.mock.calls[0][1].get("outingId")).toBe(secondOuting.id);
+  });
+
+  it("preserves B after an outing validation failure", async () => {
+    const action = vi.fn().mockResolvedValue({ ...initialState, fieldErrors: { amountRupiah: "Enter an amount." }, values: { description: "Dinner", amountRupiah: "bad", outingId: secondOuting.id } });
+    renderForm(action, "create", initialState.values, [outingOption, secondOuting]);
+
+    await chooseOuting(secondOuting.label);
+    fireEvent.submit(screen.getByRole("button", { name: "Add expense" }).closest("form")!);
+    await waitFor(() => expect(screen.getByText("Enter an amount.")).toBeInTheDocument());
+
+    expect(screen.getByRole("combobox", { name: "Outing" })).toHaveTextContent(secondOuting.label);
+    expect((document.querySelector('select[name="outingId"]') as HTMLSelectElement).value).toBe(secondOuting.id);
+    expect(action.mock.calls[0][1].get("outingId")).toBe(secondOuting.id);
+  });
+
+  it("keeps the selected outing after Save & add another", async () => {
+    const action = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: { description: "", amountRupiah: "", outingId: secondOuting.id }, success: { expenseId: "expense-b" } });
+    renderForm(action, "create", initialState.values, [outingOption, secondOuting]);
+
+    await chooseOuting(secondOuting.label);
+    fireEvent.click(screen.getByRole("button", { name: "Save & add another" }));
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Outing" })).toHaveTextContent(secondOuting.label));
+    expect((document.querySelector('select[name="outingId"]') as HTMLSelectElement).value).toBe(secondOuting.id);
   });
 });

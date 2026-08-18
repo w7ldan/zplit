@@ -147,7 +147,8 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
             options={friendOptions}
             search={search}
             labelId="expense-share-add-label"
-            placeholder="Search active friends"
+            placeholder="Choose active friend"
+            searchLabel="Search active friends"
             onValueChange={addFriend}
           />
         </div>

@@ -12,10 +12,12 @@ const tripB = "22222222-2222-4222-8222-222222222222";
 const trips = [{ id: "", label: "No trip" }, { id: tripA, label: "Trip A" }, { id: tripB, label: "Trip B" }];
 
 async function chooseTrip(label: string) {
-  const input = screen.getByLabelText("Trip");
-  fireEvent.focus(input);
-  await waitFor(() => expect(screen.getByRole("listbox")).toBeInTheDocument());
-  fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: label }));
+  fireEvent.click(screen.getByRole("combobox", { name: "Trip" }));
+  const searchInput = await screen.findByRole("searchbox", { name: "Search trips" });
+  fireEvent.change(searchInput, { target: { value: label } });
+  const listbox = screen.getByRole("listbox");
+  await waitFor(() => expect(within(listbox).getByRole("option", { name: label })).toBeInTheDocument());
+  fireEvent.click(within(listbox).getByRole("option", { name: label }));
 }
 
 describe("OutingForm", () => {
@@ -38,7 +40,7 @@ describe("OutingForm", () => {
       expect(field).toHaveAttribute("aria-describedby", expect.stringContaining("outing-"));
     }
     expect(screen.getByLabelText("Date and time")).toHaveAttribute("type", "datetime-local");
-    expect(screen.getByLabelText("Trip")).toHaveValue("No trip");
+    expect(screen.getByLabelText("Trip")).toHaveTextContent("No trip");
     expect(screen.getByText("Optional details").closest("details")).not.toHaveAttribute("open");
     expect(document.querySelectorAll('[name="tripId"]')).toHaveLength(1);
     expect((container.querySelector('input[name="timezoneOffsetMinutes"]') as HTMLInputElement).value).toBe(new Date().getTimezoneOffset().toString());
@@ -50,17 +52,17 @@ describe("OutingForm", () => {
     const action = vi.fn().mockResolvedValue({ ...initialState, values: { ...initialState.values, tripId: tripB } });
     render(<OutingForm action={action} mode="edit" trips={trips} searchTrips={vi.fn().mockResolvedValue(trips)} initialValues={{ title: "Dinner", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "", tripId: tripA }} />);
 
-    expect(screen.getByLabelText("Trip")).toHaveValue("Trip A");
+    expect(screen.getByLabelText("Trip")).toHaveTextContent("Trip A");
     expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
     await chooseTrip("Trip B");
-    expect(screen.getByLabelText("Trip")).toHaveValue("Trip B");
+    expect(screen.getByLabelText("Trip")).toHaveTextContent("Trip B");
     expect((document.querySelector('select[name="tripId"]') as HTMLSelectElement).value).toBe(tripB);
     fireEvent.submit(screen.getByRole("button", { name: "Save changes" }).closest("form")!);
     await waitFor(() => expect(action).toHaveBeenCalledOnce());
     expect(action.mock.calls[0][1].get("tripId")).toBe(tripB);
 
     await chooseTrip("No trip");
-    expect(screen.getByLabelText("Trip")).toHaveValue("No trip");
+    expect(screen.getByLabelText("Trip")).toHaveTextContent("No trip");
     expect((document.querySelector('select[name="tripId"]') as HTMLSelectElement).value).toBe("");
   });
 
@@ -72,12 +74,12 @@ describe("OutingForm", () => {
     expect(screen.getByText("Optional details").closest("details")).not.toHaveAttribute("open");
     fireEvent.click(screen.getByRole("button", { name: "Change" }));
     expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
-    expect(screen.getByLabelText("Trip")).toHaveValue("Trip A");
+    expect(screen.getByLabelText("Trip")).toHaveTextContent("Trip A");
     expect(document.querySelectorAll('[name="tripId"]')).toHaveLength(1);
     await chooseTrip("Trip B");
-    expect(screen.getByLabelText("Trip")).toHaveValue("Trip B");
+    expect(screen.getByLabelText("Trip")).toHaveTextContent("Trip B");
     await chooseTrip("No trip");
-    expect(screen.getByLabelText("Trip")).toHaveValue("No trip");
+    expect(screen.getByLabelText("Trip")).toHaveTextContent("No trip");
     expect(within(document.querySelector(".outing-form__trip-context")!).getByText("No trip", { exact: true })).toBeInTheDocument();
   });
 
@@ -88,7 +90,7 @@ describe("OutingForm", () => {
     expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
     await chooseTrip("Trip A");
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Useful context" } });
-    expect(screen.getByLabelText("Trip")).toHaveValue("Trip A");
+    expect(screen.getByLabelText("Trip")).toHaveTextContent("Trip A");
     expect(screen.getByLabelText("Notes")).toHaveValue("Useful context");
   });
 
@@ -142,7 +144,7 @@ describe("OutingForm", () => {
     await waitFor(() => expect(screen.getByLabelText("Title")).toHaveValue("Entered outing"));
     expect(screen.getByLabelText("Date and time")).toHaveValue("2026-02-28T10:30");
     expect(screen.getByLabelText("Notes")).toHaveValue("Entered notes");
-    expect(screen.getByLabelText("Trip")).toHaveValue("Trip B");
+    expect(screen.getByLabelText("Trip")).toHaveTextContent("Trip B");
   });
 
   it("renders a Trip field error with its submitted selection", async () => {
@@ -157,10 +159,10 @@ describe("OutingForm", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Selected trip is no longer available.")).toBeInTheDocument();
-      expect(screen.getByLabelText("Trip")).toHaveValue("Trip B");
+      expect(screen.getByLabelText("Trip")).toHaveTextContent("Trip B");
     });
     expect(screen.getByLabelText("Trip")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByLabelText("Trip")).toHaveValue("Trip B");
+      expect(screen.getByLabelText("Trip")).toHaveTextContent("Trip B");
     expect(screen.getByText("Optional details").closest("details")).toHaveAttribute("open");
   });
 

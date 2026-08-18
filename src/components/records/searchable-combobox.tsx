@@ -17,6 +17,7 @@ type SearchableComboboxProps = {
   ariaDescribedBy?: string;
   labelId: string;
   placeholder?: string;
+  searchLabel?: string;
   onValueChange?: (option: SearchableOption) => void;
 };
 
@@ -41,25 +42,28 @@ export function SearchableCombobox({
   ariaDescribedBy,
   labelId,
   placeholder,
+  searchLabel = "Search options",
   onValueChange,
 }: SearchableComboboxProps) {
   const [enhanced, setEnhanced] = useState(false);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(value ?? (placeholder ? "" : initialOptions[0]?.id || ""));
+  const [selectedOptionState, setSelectedOptionState] = useState<SearchableOption | undefined>(() => initialOptions.find((option) => option.id === (value ?? (placeholder ? "" : initialOptions[0]?.id || ""))));
   const [loadedOptions, setLoadedOptions] = useState<SearchableOption[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef(0);
   const searchTimerRef = useRef<number | null>(null);
   const listboxId = `${id}-listbox`;
   const currentSelectedId = value !== undefined ? value : selectedId;
-  const options = useMemo(() => (loadedOptions ?? initialOptions).slice(0, 20), [initialOptions, loadedOptions]);
-  const allOptions = useMemo(() => mergeOptions(initialOptions, loadedOptions ?? []), [initialOptions, loadedOptions]);
+  const allOptions = useMemo(() => mergeOptions(initialOptions, loadedOptions ?? [], selectedOptionState ? [selectedOptionState] : []), [initialOptions, loadedOptions, selectedOptionState]);
   const selectedOption = allOptions.find((option) => option.id === currentSelectedId);
+  const options = useMemo(() => (loadedOptions ?? initialOptions).slice(0, 20), [initialOptions, loadedOptions]);
   const nativeOptions = useMemo(() => mergeOptions(selectedOption ? [selectedOption] : [], options).slice(0, 20), [options, selectedOption]);
 
   // Progressive enhancement toggles the native fallback after hydration.
@@ -73,13 +77,16 @@ export function SearchableCombobox({
   useEffect(() => {
     function closeOnOutsideInteraction(event: PointerEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-        setQuery("");
+        closeMenu();
       }
     }
     document.addEventListener("pointerdown", closeOnOutsideInteraction, true);
     return () => document.removeEventListener("pointerdown", closeOnOutsideInteraction, true);
   }, []);
+
+  useEffect(() => {
+    if (open) searchInputRef.current?.focus();
+  }, [open]);
 
   const loadOptions = useCallback((nextQuery: string) => {
     const request = ++requestRef.current;
@@ -104,10 +111,22 @@ export function SearchableCombobox({
     return () => window.clearTimeout(timer);
   }, [allOptions, currentSelectedId, loadOptions]);
 
-  function openMenu() {
+  function closeMenu(focusTrigger = false) {
+    if (searchTimerRef.current !== null) window.clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = null;
+    setOpen(false);
+    setQuery("");
+    setActiveIndex(-1);
+    if (focusTrigger) triggerRef.current?.focus();
+  }
+
+  function openMenu(direction: "down" | "up" = "down") {
     if (disabled) return;
     setOpen(true);
     setQuery("");
+    setLoadedOptions(null);
+    setError("");
+    setActiveIndex(direction === "up" ? Math.max(options.length - 1, 0) : 0);
     loadOptions("");
   }
 
@@ -123,12 +142,13 @@ export function SearchableCombobox({
 
   function choose(option: SearchableOption) {
     setSelectedId(option.id);
+    setSelectedOptionState(option);
     setLoadedOptions((current) => mergeOptions([option], current ?? []));
     setQuery("");
     setOpen(false);
     setActiveIndex(-1);
     onValueChange?.(option);
-    inputRef.current?.focus();
+    triggerRef.current?.focus();
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -149,36 +169,50 @@ export function SearchableCombobox({
       return;
     }
     if (event.key === "Enter") {
+      event.preventDefault();
       if (!open) {
-        event.preventDefault();
         openMenu();
         return;
       }
       const option = options[activeIndex] ?? options[0];
       if (option) {
-        event.preventDefault();
         choose(option);
       }
       return;
     }
     if (event.key === "Escape" && open) {
       event.preventDefault();
-      setOpen(false);
-      setQuery("");
-      inputRef.current?.focus();
+      closeMenu(true);
     }
   }
 
-  const displayValue = open ? query : selectedOption ? optionLabel(selectedOption) : placeholder ?? "";
+  function onTriggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!open) openMenu(event.key === "ArrowUp" ? "up" : "down");
+      return;
+    }
+    if ((event.key === "Enter" || event.key === " ") && !open) {
+      event.preventDefault();
+      openMenu();
+      return;
+    }
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      closeMenu(true);
+    }
+  }
+
   const activeOption = activeIndex >= 0 ? options[activeIndex] : undefined;
 
   return (
     <div ref={rootRef} className="searchable-combobox" data-enhanced={enhanced ? "true" : undefined}>
       <select
+        key={currentSelectedId}
         id={`${id}-native`}
         className="searchable-combobox__native"
         name={disabled || !name ? undefined : name}
-        value={currentSelectedId}
+        defaultValue={currentSelectedId}
         required={required}
         disabled={disabled}
         aria-labelledby={enhanced ? undefined : labelId}
@@ -194,56 +228,68 @@ export function SearchableCombobox({
       </select>
       {disabled && name ? <input type="hidden" name={name} value={currentSelectedId} /> : null}
       <div className="searchable-combobox__custom">
-        <input
-          ref={inputRef}
+        <button
+          ref={triggerRef}
           id={id}
-          type="text"
+          type="button"
           role="combobox"
-          value={displayValue}
           disabled={disabled}
-          autoComplete="off"
           aria-haspopup="listbox"
-          aria-autocomplete="list"
           aria-labelledby={labelId}
           aria-controls={listboxId}
           aria-expanded={open}
           aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
+          aria-required={required || undefined}
           aria-invalid={ariaInvalid}
           aria-describedby={ariaDescribedBy}
           aria-busy={loading}
-          onFocus={() => { if (!open) openMenu(); }}
-          onChange={(event) => {
-            const option = allOptions.find((candidate) => candidate.id === event.target.value);
-            if (option) choose(option); else scheduleSearch(event.target.value);
-          }}
-          onKeyDown={onKeyDown}
-          onClick={() => { if (!open) openMenu(); }}
-          onBlur={(event) => {
-            if (!event.relatedTarget || !rootRef.current?.contains(event.relatedTarget)) {
-              setOpen(false);
-              setQuery("");
-            }
-          }}
-        />
-        {open ? <ul id={listboxId} className="searchable-combobox__listbox" role="listbox" aria-label="Matching options">
-          {options.map((option, index) => (
-            <Fragment key={option.id}>
-              {options.some((candidate) => !candidate.archived) && options.some((candidate) => candidate.archived) && (index === 0 || Boolean(options[index - 1]?.archived) !== Boolean(option.archived)) ? <li className="searchable-combobox__group" role="presentation">{option.archived ? "Archived friends" : "Active friends"}</li> : null}
-              <li
-                id={`${listboxId}-${option.id}`}
-                role="option"
-                aria-selected={option.id === currentSelectedId}
-                className={index === activeIndex ? "searchable-combobox__option searchable-combobox__option--active" : "searchable-combobox__option"}
-                onPointerDown={(event) => event.preventDefault()}
-                onClick={() => choose(option)}
-              >
-                <span>{optionLabel(option)}</span>
-              </li>
-            </Fragment>
-          ))}
-          {options.length === 0 ? <li className="searchable-combobox__empty" role="presentation">No matching options.</li> : null}
-          {error ? <li className="searchable-combobox__error" role="alert">{error}</li> : null}
-        </ul> : null}
+          onKeyDown={onTriggerKeyDown}
+          onClick={() => { if (open) closeMenu(); else openMenu(); }}
+        >
+          <span className="searchable-combobox__trigger-label">{selectedOption ? optionLabel(selectedOption) : placeholder ?? ""}</span>
+          <span className="searchable-combobox__trigger-icon" aria-hidden="true">▾</span>
+        </button>
+        {open ? <div className="searchable-combobox__panel">
+          <div className="searchable-combobox__search">
+            <label className="sr-only" htmlFor={`${id}-search`}>{searchLabel}</label>
+            <input
+              ref={searchInputRef}
+              id={`${id}-search`}
+              type="search"
+              value={query}
+              placeholder={searchLabel}
+              autoComplete="off"
+              aria-label={searchLabel}
+              aria-controls={listboxId}
+              aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
+              aria-busy={loading}
+              onChange={(event) => scheduleSearch(event.target.value)}
+              onKeyDown={onKeyDown}
+              onBlur={(event) => {
+                if (!event.relatedTarget || !rootRef.current?.contains(event.relatedTarget)) closeMenu();
+              }}
+            />
+          </div>
+          <ul id={listboxId} className="searchable-combobox__listbox" role="listbox" aria-label="Matching options">
+            {options.map((option, index) => (
+              <Fragment key={option.id}>
+                {options.some((candidate) => !candidate.archived) && options.some((candidate) => candidate.archived) && (index === 0 || Boolean(options[index - 1]?.archived) !== Boolean(option.archived)) ? <li className="searchable-combobox__group" role="presentation">{option.archived ? "Archived friends" : "Active friends"}</li> : null}
+                <li
+                  id={`${listboxId}-${option.id}`}
+                  role="option"
+                  aria-selected={option.id === currentSelectedId}
+                  className={index === activeIndex ? "searchable-combobox__option searchable-combobox__option--active" : "searchable-combobox__option"}
+                  onPointerDown={(event) => event.preventDefault()}
+                  onClick={() => choose(option)}
+                >
+                  <span>{optionLabel(option)}</span>
+                </li>
+              </Fragment>
+            ))}
+            {options.length === 0 ? <li className="searchable-combobox__empty" role="presentation">No matching options.</li> : null}
+            {error ? <li className="searchable-combobox__error" role="alert">{error}</li> : null}
+          </ul>
+        </div> : null}
       </div>
     </div>
   );

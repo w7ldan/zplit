@@ -35,7 +35,7 @@ describe("/app/repayments", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Repayments" })).toBeInTheDocument();
     expect(screen.getByText("Repayments · money returned")).toBeInTheDocument();
     expect(screen.getByText("Record money received and apply it to outstanding expense shares.")).toBeInTheDocument();
-    expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
+    expect(screen.getByText("Rp 44.000 needs allocation")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("1 repayment found.");
     expect(screen.getByText("Filters", { selector: "summary" })).toBeInTheDocument();
     expect((screen.getByText("Filters", { selector: "summary" }).parentElement as HTMLDetailsElement).open).toBe(false);
@@ -91,7 +91,7 @@ describe("/app/repayments", () => {
     const listRepaymentRecords = vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 });
     mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords, searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [] }) });
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id }) }));
-    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveValue(activeFriend.name);
+    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveTextContent(activeFriend.name);
     expect(listRepaymentRecords).toHaveBeenCalledWith({ q: undefined, friendId: activeFriend.id, month: undefined, allocation: undefined, page: undefined, timezoneOffsetMinutes: undefined });
   });
 
@@ -102,7 +102,7 @@ describe("/app/repayments", () => {
       const getContext = vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [] });
       mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords, searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: getContext });
       const view = render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId }) }));
-      expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveValue(activeFriend.name);
+      expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveTextContent(activeFriend.name);
       expect(getContext).toHaveBeenCalledWith(activeFriend.id, true);
       expect(listRepaymentRecords).toHaveBeenCalledWith({ q: undefined, friendId: undefined, month: undefined, allocation: undefined, page: undefined, timezoneOffsetMinutes: undefined });
       expect(screen.getByRole("status")).toHaveTextContent("1 repayment found.");

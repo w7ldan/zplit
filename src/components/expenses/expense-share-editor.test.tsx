@@ -95,12 +95,16 @@ describe("expense share editor", () => {
 
     expect(screen.getByLabelText("Rani")).toBeInTheDocument();
     expect(screen.queryByLabelText("Siti")).not.toBeInTheDocument();
-    fireEvent.focus(screen.getByRole("combobox", { name: "Add friend" }));
-    await waitFor(() => expect(within(screen.getByRole("listbox")).getByRole("option", { name: "Siti" })).toBeInTheDocument());
-    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Siti" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Add friend" }));
+    const searchInput = await screen.findByRole("searchbox", { name: "Search active friends" });
+    fireEvent.change(searchInput, { target: { value: "Siti" } });
+    const listbox = screen.getByRole("listbox");
+    await waitFor(() => expect(within(listbox).getByRole("option", { name: "Siti" })).toBeInTheDocument());
+    fireEvent.click(within(listbox).getByRole("option", { name: "Siti" }));
 
     await waitFor(() => expect(screen.getByLabelText("Siti")).toHaveFocus());
     expect(screen.getByRole("button", { name: "Remove Siti" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Add friend" })).toHaveTextContent("Choose active friend");
     expect(searchFriends).toHaveBeenCalledWith("", "");
   });
 

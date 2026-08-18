@@ -148,7 +148,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
     >
       <div className="repayment-form__field">
         <label id="repayment-friend-label" htmlFor="repayment-friend">Friend</label>
-        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setFriendContext(undefined); setSelectedAllocationIds([]); setDraftAllocations({}); if (loadFriendContext) { setLoadingFriendContext(true); void refreshFriendContext(friend.id); } }} />
+        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} placeholder="Choose friend" searchLabel="Search friends" ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setFriendContext(undefined); setSelectedAllocationIds([]); setDraftAllocations({}); if (loadFriendContext) { setLoadingFriendContext(true); void refreshFriendContext(friend.id); } }} />
         <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"}: {formatRupiah(friendContext?.option.id === selectedFriendId ? friendContext.outstandingAmount : outstandingByFriend[selectedFriendId] ?? 0)}</p>
         {friendLocked ? <p className="repayment-form__help">The friend is fixed while this repayment has allocations.</p> : null}
         <FieldError id="repayment-friend-error" message={state.fieldErrors.friendId} />
@@ -183,7 +183,8 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
                 options={allocationOptions}
                 search={searchOutstandingExpenses}
                 disabled={loadingFriendContext}
-                placeholder="Search outstanding expenses"
+                placeholder="Choose outstanding expense"
+                searchLabel="Search outstanding expenses"
                 labelId="repayment-add-expense-label"
                 onValueChange={(option) => {
                   if (loadingFriendContext || selectedAllocationIdSet.has(option.id) || !selectedShares.some((share) => share.id === option.id)) return;

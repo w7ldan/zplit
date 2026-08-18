@@ -72,7 +72,7 @@ describe("/app/outings", () => {
     mocks.createLedgerRepository.mockReturnValue({ getTrip: vi.fn().mockResolvedValue(trip), listOutingRecords: vi.fn().mockResolvedValue({ ...outingPage, items: [], totalItems: 0, totalPages: 1 }) });
     render(await OutingsPage({ searchParams: Promise.resolve({ create: "1", trip: trip.id }) }));
 
-    expect(screen.getByRole("dialog").querySelector("#outing-trip")).toHaveValue(trip.name);
+    expect(screen.getByRole("dialog").querySelector("#outing-trip")).toHaveTextContent(trip.name);
     expect((screen.getByRole("dialog").querySelector('select[name="tripId"]') as HTMLSelectElement).value).toBe(trip.id);
   });
 

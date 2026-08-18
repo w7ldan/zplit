@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveRecordFilters } from "./live-record-filters";
 
@@ -200,6 +200,26 @@ describe("LiveRecordFilters", () => {
       select.value = value;
       expect(new FormData(form).get(name)).toBe(value);
     }
+  });
+
+  it("keeps searchable filter queries local until an option is chosen", async () => {
+    const props = {
+      ...baseProps,
+      selects: [{ name: "outing", label: "Outing", value: "", options: [{ value: "", label: "All outings" }, { value: "outing-a", label: "Dinner" }], search: vi.fn().mockResolvedValue([{ id: "", label: "All outings" }, { id: "outing-a", label: "Dinner" }]) }],
+    };
+    render(<LiveRecordFilters {...props} />);
+    fireEvent.click(screen.getByRole("combobox", { name: "Outing" }));
+    const searchInput = document.getElementById("record-filter-outing-search") as HTMLInputElement;
+    fireEvent.change(searchInput, { target: { value: "dinner" } });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(within(screen.getByRole("listbox")).getByRole("option", { name: "Dinner" })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Dinner" }));
+    expect(mocks.replace).toHaveBeenCalledWith(`/app/outings?task=open&${timezoneQuery}&outing=outing-a#record-list`, { scroll: false });
+    expect(document.getElementById("record-filter-outing-search")).not.toBeInTheDocument();
   });
 
   it("removes inactive filters, keeps their native names, and suppresses duplicates", () => {

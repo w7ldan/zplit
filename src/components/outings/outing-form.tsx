@@ -114,7 +114,7 @@ export function OutingForm({ action, initialValues = emptyValues, initialOccurre
         <summary>Optional details</summary>
         <div className="outing-form__field">
           <label id="outing-trip-label" htmlFor="outing-trip">Trip</label>
-          <SearchableCombobox id="outing-trip" name="tripId" value={selectedTripId} options={trips} search={searchTrips} labelId="outing-trip-label" ariaInvalid={Boolean(state.fieldErrors.tripId)} ariaDescribedBy="outing-trip-error" onValueChange={(trip) => { setSelectedTripId(trip.id); setSelectedTrip(trip); }} />
+          <SearchableCombobox id="outing-trip" name="tripId" value={selectedTripId} options={trips} search={searchTrips} searchLabel="Search trips" placeholder="No trip" labelId="outing-trip-label" ariaInvalid={Boolean(state.fieldErrors.tripId)} ariaDescribedBy="outing-trip-error" onValueChange={(trip) => { setSelectedTripId(trip.id); setSelectedTrip(trip); }} />
           <FieldError id="outing-trip-error" message={state.fieldErrors.tripId} />
         </div>
         <div className="outing-form__field">

@@ -11,6 +11,7 @@ export type LiveRecordSelect = {
   value: string;
   options: Array<{ value: string; label: string }>;
   search?: SearchableOptionAction;
+  searchLabel?: string;
 };
 
 export type LiveRecordFiltersProps = {
@@ -215,6 +216,7 @@ export function LiveRecordFilters({ action, search, selects = emptySelects, mont
             value={selectValues[select.name] ?? select.value}
             options={select.options.map((option) => ({ id: option.value, label: option.label }))}
             search={select.search}
+            searchLabel={select.searchLabel ?? `Search ${select.label.toLowerCase()}s`}
             labelId={`record-filter-${select.name}-label`}
             onValueChange={(option) => {
               editRevisionRef.current += 1;
