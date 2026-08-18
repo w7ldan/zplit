@@ -952,6 +952,33 @@ describe("ledger repository", () => {
     expect(queries[2].sql).toContain('"expense_shares"."owner_user_id"');
   });
 
+  it("pages the public debtor statement in SQL and clamps both page parameters", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return queries.length === 1
+        ? { rows: [["friend-a", "Ada", "300", "120", "25", "23", "0", "0"]] }
+        : { rows: [] };
+    });
+    const statement = await createLedgerRepository(database as unknown as Database, owner).getPublicFriendDebtorStatement(
+      "friend-a",
+      new Date("2026-08-04T00:00:00.000Z"),
+      "link-a",
+      { expensePage: "999", repaymentPage: "invalid" },
+    );
+
+    expect(statement).toMatchObject({ assignedAmount: 300, repaidAmount: 120, outstandingAmount: 180 });
+    expect(statement.expensePage).toMatchObject({ page: 3, pageSize: 10, totalItems: 25, totalPages: 3, items: [] });
+    expect(statement.repaymentPage).toMatchObject({ page: 1, pageSize: 10, totalItems: 23, totalPages: 3, items: [] });
+    expect(queries).toHaveLength(3);
+    expect(queries[1]?.sql).toMatch(/limit.*offset/i);
+    expect(queries[2]?.sql).toMatch(/limit/i);
+    for (const query of queries) {
+      expect(query.params).toContain(owner);
+      expect(query.sql).not.toMatch(/phone_number|notes|payment_method|token_hash/);
+    }
+  });
+
   it("preserves the typed integrity error from aggregate summary rows", async () => {
     const database = drizzle(async () => ({ rows: [{
       total_expense_amount: "1",

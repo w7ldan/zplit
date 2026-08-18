@@ -31,7 +31,7 @@ export function normalizePage(value: unknown) {
   return /^[1-9]\d*$/.test(text) ? Number(text) : 1;
 }
 
-export function clampPage(page: number, totalItems: number, pageSize = RECORD_PAGE_SIZE) {
+export function clampPage(page: number, totalItems: number, pageSize: number = RECORD_PAGE_SIZE) {
   const totalPages = Math.max(1, Math.ceil(Math.max(0, totalItems) / pageSize));
   return Math.min(Math.max(1, normalizePage(page)), totalPages);
 }

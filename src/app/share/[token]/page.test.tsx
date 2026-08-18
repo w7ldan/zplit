@@ -32,6 +32,16 @@ describe("/share/[token]", () => {
     expect(screen.queryByText(/owner@example.com|owner name|phone number|private notes|log in|payment method/i)).not.toBeInTheDocument();
   });
 
+  it("forwards independent history pages to the server resolver", async () => {
+    mocks.resolve.mockResolvedValue(null);
+    const token = "11111111-1111-4111-8111-111111111111";
+    await DebtorSharePage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({ expensePage: "2", repaymentPage: "3" }),
+    });
+    expect(mocks.resolve).toHaveBeenLastCalledWith(mocks.getDatabase(), token, expect.any(Date), { expensePage: "2", repaymentPage: "3" });
+  });
+
   it.each(["malformed", "missing", "expired", "revoked"])("uses one generic unavailable state for %s links", async (token) => {
     mocks.resolve.mockResolvedValue(null);
     render(await DebtorSharePage({ params: Promise.resolve({ token }) }));

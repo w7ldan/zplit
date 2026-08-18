@@ -26,6 +26,16 @@ export type DebtorStatementAllocation = {
   amount: number;
 };
 
+export const DEBTOR_STATEMENT_PAGE_SIZE = 10 as const;
+
+export type DebtorStatementPage<T> = {
+  items: T[];
+  page: number;
+  pageSize: typeof DEBTOR_STATEMENT_PAGE_SIZE;
+  totalItems: number;
+  totalPages: number;
+};
+
 export type DebtorStatementInput = {
   friend: { id: string; name: string };
   shares: DebtorStatementShare[];
@@ -46,6 +56,20 @@ export type DebtorStatementItem = {
   sharedReceipts?: Array<{ publicId: string; label: "Receipt image"; mediaType: string }>;
 };
 
+export type DebtorStatementRepaymentAllocation = {
+  expenseDescription: string;
+  outingTitle: string;
+  amount: number;
+};
+
+export type DebtorStatementRepaymentItem = {
+  paidAt: Date;
+  amount: number;
+  allocatedAmount: number;
+  unallocatedAmount: number;
+  allocations: DebtorStatementRepaymentAllocation[];
+};
+
 export type DebtorStatement = {
   friendName: string;
   generatedAt: Date;
@@ -53,7 +77,120 @@ export type DebtorStatement = {
   repaidAmount: number;
   outstandingAmount: number;
   items: DebtorStatementItem[];
+  expensePage?: DebtorStatementPage<DebtorStatementItem>;
+  repayments?: DebtorStatementRepaymentItem[];
+  repaymentPage?: DebtorStatementPage<DebtorStatementRepaymentItem>;
 };
+
+type PagedShare = DebtorStatementShare & { repaidAmount: number };
+type PagedRepayment = DebtorStatementRepayment & {
+  paidAt: Date;
+  allocatedAmount: number;
+  allocations: Array<DebtorStatementAllocation & DebtorStatementRepaymentAllocation>;
+};
+
+function pagedResult<T>(items: T[], page: number, totalItems: number): DebtorStatementPage<T> {
+  const totalPages = Math.max(1, Math.ceil(totalItems / DEBTOR_STATEMENT_PAGE_SIZE));
+  if (!Number.isSafeInteger(page) || page < 1 || page > totalPages || !Number.isSafeInteger(totalItems) || totalItems < 0) {
+    throw new DebtorStatementIntegrityError("Statement pagination is invalid.");
+  }
+  return { items, page, pageSize: DEBTOR_STATEMENT_PAGE_SIZE, totalItems, totalPages };
+}
+
+export function buildPagedDebtorStatement(input: {
+  friend: { id: string; name: string };
+  shares: PagedShare[];
+  repayments: PagedRepayment[];
+  publicReceipts?: DebtorStatementPublicReceipt[];
+  assignedAmount: number;
+  repaidAmount: number;
+  expensePage: { page: number; totalItems: number };
+  repaymentPage: { page: number; totalItems: number };
+  asOf?: Date;
+}): DebtorStatement {
+  if (!input.friend.id || typeof input.friend.name !== "string") {
+    throw new DebtorStatementIntegrityError("Friend is invalid.");
+  }
+  const generatedAt = input.asOf ? new Date(input.asOf) : new Date();
+  date(generatedAt, "Statement time");
+  amount(input.assignedAmount, "Assigned amount");
+  amount(input.repaidAmount, "Repaid amount");
+  if (input.repaidAmount > input.assignedAmount) throw new DebtorStatementIntegrityError("Repaid amount exceeds assigned amount.");
+
+  const shares = new Set<string>();
+  const receiptsByExpense = new Map<string, DebtorStatementPublicReceipt[]>();
+  for (const share of input.shares) {
+    if (shares.has(share.id) || share.friendId !== input.friend.id) throw new DebtorStatementIntegrityError(`Expense share ${share.id} is invalid.`);
+    amount(share.amountOwed, `Expense share ${share.id}`, false);
+    amount(share.repaidAmount, `Expense share ${share.id} allocation`);
+    date(share.outingOccurredAt, `Outing for expense share ${share.id}`);
+    if (share.repaidAmount > share.amountOwed) throw new DebtorStatementIntegrityError(`Allocations exceed expense share ${share.id}.`);
+    shares.add(share.id);
+  }
+  for (const receipt of input.publicReceipts ?? []) {
+    if (!receipt.expenseId || !receipt.publicId || !receipt.mediaType || !input.shares.some((share) => share.expenseId === receipt.expenseId)) {
+      throw new DebtorStatementIntegrityError("Public receipt is invalid.");
+    }
+    const receipts = receiptsByExpense.get(receipt.expenseId) ?? [];
+    receipts.push(receipt);
+    receiptsByExpense.set(receipt.expenseId, receipts);
+  }
+
+  const repayments = new Set<string>();
+  const repaymentItems = input.repayments.map((repayment) => {
+    if (repayments.has(repayment.id) || repayment.friendId !== input.friend.id) throw new DebtorStatementIntegrityError(`Repayment ${repayment.id} is invalid.`);
+    amount(repayment.amount, `Repayment ${repayment.id}`);
+    amount(repayment.allocatedAmount, `Repayment ${repayment.id} allocation`);
+    date(repayment.paidAt, `Repayment ${repayment.id} date`);
+    if (repayment.allocatedAmount > repayment.amount) throw new DebtorStatementIntegrityError(`Allocations exceed repayment ${repayment.id}.`);
+    const seenAllocations = new Set<string>();
+    let allocationTotal = 0;
+    const allocations = repayment.allocations.map((allocation) => {
+      if (seenAllocations.has(allocation.expenseShareId)) throw new DebtorStatementIntegrityError("Duplicate repayment allocation.");
+      seenAllocations.add(allocation.expenseShareId);
+      amount(allocation.amount, `Allocation ${repayment.id}/${allocation.expenseShareId}`, false);
+      allocationTotal = add(allocationTotal, allocation.amount, `Repayment ${repayment.id} allocation`);
+      if (!allocation.expenseDescription || !allocation.outingTitle) throw new DebtorStatementIntegrityError("Repayment allocation target is invalid.");
+      return { expenseDescription: allocation.expenseDescription, outingTitle: allocation.outingTitle, amount: allocation.amount };
+    });
+    if (allocationTotal !== repayment.allocatedAmount) throw new DebtorStatementIntegrityError(`Repayment ${repayment.id} allocation total is invalid.`);
+    repayments.add(repayment.id);
+    return {
+      paidAt: new Date(repayment.paidAt),
+      amount: repayment.amount,
+      allocatedAmount: repayment.allocatedAmount,
+      unallocatedAmount: repayment.amount - repayment.allocatedAmount,
+      allocations,
+    };
+  });
+
+  const items = input.shares.map((share) => {
+    const sharedReceipts = share.expenseId ? receiptsByExpense.get(share.expenseId) : undefined;
+    return {
+      expenseDescription: share.expenseDescription,
+      outingTitle: share.outingTitle,
+      outingOccurredAt: new Date(share.outingOccurredAt),
+      assignedAmount: share.amountOwed,
+      repaidAmount: share.repaidAmount,
+      remainingAmount: share.amountOwed - share.repaidAmount,
+      state: share.amountOwed === share.repaidAmount ? "settled" as const : "open" as const,
+      ...(sharedReceipts?.length ? { sharedReceipts: sharedReceipts.map((receipt) => ({ publicId: receipt.publicId, label: "Receipt image" as const, mediaType: receipt.mediaType })) } : {}),
+    };
+  });
+  const expensePage = pagedResult(items, input.expensePage.page, input.expensePage.totalItems);
+  const repaymentPage = pagedResult(repaymentItems, input.repaymentPage.page, input.repaymentPage.totalItems);
+  return {
+    friendName: input.friend.name,
+    generatedAt,
+    assignedAmount: input.assignedAmount,
+    repaidAmount: input.repaidAmount,
+    outstandingAmount: input.assignedAmount - input.repaidAmount,
+    items,
+    expensePage,
+    repayments: repaymentItems,
+    repaymentPage,
+  };
+}
 
 export class DebtorStatementIntegrityError extends Error {
   constructor(message: string) {

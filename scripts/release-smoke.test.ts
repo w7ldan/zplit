@@ -276,7 +276,8 @@ describe("service-worker response assertions", () => {
 
 describe("public Server header assertion", () => {
   it.each([undefined, "", "cloudflare", "CloudFlare", "CLOUDFLARE"])("accepts %s", (server) => {
-    const headers = server === undefined ? {} : { server };
+    const headers: Record<string, string> = {};
+    if (server !== undefined) headers.server = server;
     expect(() => requirePublicServerHeader(response(200, headers))).not.toThrow();
   });
 

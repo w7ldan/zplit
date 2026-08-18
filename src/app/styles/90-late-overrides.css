@@ -472,6 +472,86 @@
   padding-left: 1.2rem;
 }
 
+.debtor-statement__repayments {
+  margin-top: 4rem;
+}
+
+.debtor-statement__repayment {
+  padding-block: 1.15rem;
+  border-top: 1px solid var(--rule);
+}
+
+.debtor-statement__repayment h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.debtor-statement__allocations {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.debtor-statement__allocations h4 {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.debtor-statement__allocations ul {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.debtor-statement__allocations li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.debtor-statement__allocations li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.debtor-statement__allocations li strong {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.debtor-statement__pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding-block: 0.85rem;
+  border-top: 1px solid var(--rule);
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.debtor-statement__pagination-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.debtor-statement__pagination a {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.debtor-statement__pagination [aria-disabled="true"] {
+  color: var(--rule);
+}
+
 .debtor-statement__footer {
   display: grid;
   gap: 0.5rem;
@@ -524,6 +604,10 @@
 
   .debtor-statement__item-values {
     grid-template-columns: 1fr;
+  }
+
+  .debtor-statement__allocations li {
+    align-items: start;
   }
 }
 

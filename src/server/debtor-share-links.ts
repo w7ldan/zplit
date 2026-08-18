@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { Database } from "../db/client";
 import { debtorShareLinks, debtorShareReceipts, expenseReceipts, expenseShares, expenses, friends } from "../db/schema";
-import { createLedgerRepository, LedgerNotFoundError } from "../domain/ledger-repository";
+import { createLedgerRepository, LedgerNotFoundError, type DebtorStatementPageOptions } from "../domain/ledger-repository";
 
 export const DEBTOR_SHARE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const DEBTOR_SHARE_UNAVAILABLE = "This balance link is unavailable.";
@@ -269,7 +269,7 @@ export async function getDebtorShareReceiptSelection(database: Database, ownerUs
   return rows.map((row) => row.id);
 }
 
-export async function resolveDebtorShareLink(database: Database, token: string, now = new Date()) {
+export async function resolveDebtorShareLink(database: Database, token: string, now = new Date(), options: DebtorStatementPageOptions = {}) {
   if (!isCanonicalDebtorShareToken(token)) return null;
   const [link] = await database
     .select({ id: debtorShareLinks.id, ownerUserId: debtorShareLinks.ownerUserId, friendId: debtorShareLinks.friendId, expiresAt: debtorShareLinks.expiresAt })
@@ -286,7 +286,7 @@ export async function resolveDebtorShareLink(database: Database, token: string, 
 
   try {
     return {
-      statement: await createLedgerRepository(database, link.ownerUserId).getFriendDebtorStatement(link.friendId, now, link.id),
+      statement: await createLedgerRepository(database, link.ownerUserId).getPublicFriendDebtorStatement(link.friendId, now, link.id, options),
       expiresAt: link.expiresAt,
     };
   } catch (error) {

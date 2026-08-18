@@ -25,12 +25,24 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function DebtorSharePage({ params }: { params: Promise<{ token: string }> }) {
+type ShareSearchParams = Record<string, string | string[] | undefined>;
+
+export default async function DebtorSharePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams?: Promise<ShareSearchParams>;
+}) {
   unstable_noStore();
   const { token } = await params;
+  const query = searchParams ? await searchParams : {};
   let resolved: Awaited<ReturnType<typeof resolveDebtorShareLink>> = null;
   try {
-    resolved = await resolveDebtorShareLink(getDatabase(), token);
+    resolved = await resolveDebtorShareLink(getDatabase(), token, new Date(), {
+      expensePage: query.expensePage,
+      repaymentPage: query.repaymentPage,
+    });
   } catch {
     // Public resolution has one safe failure state.
   }
