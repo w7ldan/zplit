@@ -2294,6 +2294,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           friendId: repayments.friendId,
           amount: repayments.amount,
           paidAt: repayments.paidAt,
+          paymentMethod: repayments.paymentMethod,
           allocatedAmount: repaymentAllocatedAmount,
         })
         .from(repayments)

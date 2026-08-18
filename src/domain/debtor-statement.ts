@@ -65,6 +65,7 @@ export type DebtorStatementRepaymentAllocation = {
 export type DebtorStatementRepaymentItem = {
   paidAt: Date;
   amount: number;
+  paymentMethod: string | null;
   allocatedAmount: number;
   unallocatedAmount: number;
   allocations: DebtorStatementRepaymentAllocation[];
@@ -85,6 +86,7 @@ export type DebtorStatement = {
 type PagedShare = DebtorStatementShare & { repaidAmount: number };
 type PagedRepayment = DebtorStatementRepayment & {
   paidAt: Date;
+  paymentMethod: string | null;
   allocatedAmount: number;
   allocations: Array<DebtorStatementAllocation & DebtorStatementRepaymentAllocation>;
 };
@@ -158,6 +160,7 @@ export function buildPagedDebtorStatement(input: {
     return {
       paidAt: new Date(repayment.paidAt),
       amount: repayment.amount,
+      paymentMethod: repayment.paymentMethod,
       allocatedAmount: repayment.allocatedAmount,
       unallocatedAmount: repayment.amount - repayment.allocatedAmount,
       allocations,

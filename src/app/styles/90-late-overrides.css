@@ -486,6 +486,10 @@
   font-size: 1.15rem;
 }
 
+.debtor-statement__repayment-values {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 .debtor-statement__allocations {
   margin-top: 1.25rem;
   padding-top: 1rem;

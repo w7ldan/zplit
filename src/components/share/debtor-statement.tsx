@@ -103,10 +103,11 @@ export function DebtorStatementView({ statement, expiresAt, token = "" }: { stat
           {repaymentPage.items.length ? <div className="debtor-statement__list">{repaymentPage.items.map((repayment, index) => (
             <article className="debtor-statement__repayment" key={`${repayment.paidAt.toISOString()}-${index}`}>
               <h3>Paid <LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" /></h3>
-              <dl className="debtor-statement__item-values">
+              <dl className="debtor-statement__item-values debtor-statement__repayment-values">
                 <div><dt>Repayment amount</dt><dd>{formatRupiah(repayment.amount)}</dd></div>
                 <div><dt>Allocated</dt><dd>{formatRupiah(repayment.allocatedAmount)}</dd></div>
                 <div><dt>Unallocated</dt><dd>{formatRupiah(repayment.unallocatedAmount)}</dd></div>
+                <div><dt>Payment method</dt><dd>{repayment.paymentMethod ?? "—"}</dd></div>
               </dl>
               {repayment.allocations.length ? <section className="debtor-statement__allocations" aria-label="Allocation targets"><h4>Allocated to</h4><ul>{repayment.allocations.map((allocation, allocationIndex) => <li key={`${allocation.expenseDescription}-${allocationIndex}`}><span>{allocation.expenseDescription} · {allocation.outingTitle}</span><strong>{formatRupiah(allocation.amount)}</strong></li>)}</ul></section> : null}
             </article>

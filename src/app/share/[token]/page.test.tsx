@@ -29,7 +29,7 @@ describe("/share/[token]", () => {
     render(await DebtorSharePage({ params: Promise.resolve({ token: "11111111-1111-4111-8111-111111111111" }) }));
     expect(screen.getByText("Ada")).toBeInTheDocument();
     expect(screen.getByText("Rp 8.000")).toBeInTheDocument();
-    expect(screen.queryByText(/owner@example.com|owner name|phone number|private notes|log in|payment method/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/owner@example.com|owner name|phone number|private notes|log in/i)).not.toBeInTheDocument();
   });
 
   it("forwards independent history pages to the server resolver", async () => {

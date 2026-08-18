@@ -31,34 +31,38 @@ describe("DebtorStatementView", () => {
     expect(screen.getByText(/The ledger owner controls the records shown here/)).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    expect(screen.queryByText(/owner@example.com|phone|notes|payment method/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/owner@example.com|phone|notes/i)).not.toBeInTheDocument();
   });
 
   it("renders complete totals, repayment details, and independent anchored pagers", () => {
     const repayment = {
       paidAt: new Date("2026-08-05T00:00:00Z"),
       amount: 50_000,
+      paymentMethod: "Bank transfer",
       allocatedAmount: 30_000,
       unallocatedAmount: 20_000,
       allocations: [{ expenseDescription: "Dinner", outingTitle: "Sunday outing", amount: 30_000 }],
     };
+    const noMethodRepayment = { ...repayment, paidAt: new Date("2026-08-04T00:00:00Z"), paymentMethod: null };
     render(<DebtorStatementView
       token="11111111-1111-4111-8111-111111111111"
       statement={{
         ...statement,
         items: [statement.items[0]!],
         expensePage: { items: [statement.items[0]!], page: 2, pageSize: 10, totalItems: 25, totalPages: 3 },
-        repayments: [repayment],
-        repaymentPage: { items: [repayment], page: 3, pageSize: 10, totalItems: 23, totalPages: 3 },
+        repayments: [repayment, noMethodRepayment],
+        repaymentPage: { items: [repayment, noMethodRepayment], page: 3, pageSize: 10, totalItems: 23, totalPages: 3 },
       }}
       expiresAt={new Date("2026-08-11T00:00:00Z")}
     />);
 
     expect(screen.getByText("25 items")).toBeInTheDocument();
     expect(screen.getByText("23 items")).toBeInTheDocument();
-    expect(screen.getByText("Repayment amount")).toBeInTheDocument();
-    expect(screen.getByText("Rp 20.000")).toBeInTheDocument();
-    expect(screen.getByText(/Dinner · Sunday outing/)).toBeInTheDocument();
+    expect(screen.getAllByText("Repayment amount")).toHaveLength(2);
+    expect(screen.getByText("Bank transfer")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getAllByText("Rp 20.000")).toHaveLength(2);
+    expect(screen.getAllByText(/Dinner · Sunday outing/)).toHaveLength(2);
 
     const expensePagination = screen.getByRole("navigation", { name: "Expense shares pagination" });
     expect(within(expensePagination).getByText("Page 2 of 3")).toBeInTheDocument();

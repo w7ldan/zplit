@@ -973,9 +973,10 @@ describe("ledger repository", () => {
     expect(queries).toHaveLength(3);
     expect(queries[1]?.sql).toMatch(/limit.*offset/i);
     expect(queries[2]?.sql).toMatch(/limit/i);
+    expect(queries[2]?.sql).toContain('"repayments"."payment_method"');
     for (const query of queries) {
       expect(query.params).toContain(owner);
-      expect(query.sql).not.toMatch(/phone_number|notes|payment_method|token_hash/);
+      expect(query.sql).not.toMatch(/phone_number|notes|token_hash/);
     }
   });
 

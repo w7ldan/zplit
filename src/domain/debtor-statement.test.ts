@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDebtorStatement,
+  buildPagedDebtorStatement,
   DebtorStatementIntegrityError,
   type DebtorStatementInput,
 } from "./debtor-statement";
@@ -56,5 +57,25 @@ describe("debtor statement", () => {
     expect(statement.items[0]?.sharedReceipts).toEqual([{ publicId: "receipt-public", label: "Receipt image", mediaType: "image/png" }]);
     expect(statement.items[1]).not.toHaveProperty("sharedReceipts");
     expect(() => buildDebtorStatement({ ...base, publicReceipts: [{ expenseId: "foreign-expense", publicId: "receipt-public", mediaType: "image/png" }] })).toThrow(DebtorStatementIntegrityError);
+  });
+
+  it("threads public payment methods through paged repayment items", () => {
+    const statement = buildPagedDebtorStatement({
+      friend: base.friend,
+      shares: [],
+      repayments: [
+        { id: "repayment-a", friendId: "friend-a", amount: 50_000, paidAt: new Date("2026-01-03T00:00:00Z"), paymentMethod: "Bank transfer", allocatedAmount: 0, allocations: [] },
+        { id: "repayment-b", friendId: "friend-a", amount: 25_000, paidAt: new Date("2026-01-02T00:00:00Z"), paymentMethod: null, allocatedAmount: 0, allocations: [] },
+      ],
+      assignedAmount: 0,
+      repaidAmount: 0,
+      expensePage: { page: 1, totalItems: 0 },
+      repaymentPage: { page: 1, totalItems: 2 },
+      asOf: new Date("2026-01-04T00:00:00Z"),
+    });
+    expect(statement.repaymentPage?.items).toEqual([
+      expect.objectContaining({ paymentMethod: "Bank transfer" }),
+      expect.objectContaining({ paymentMethod: null }),
+    ]);
   });
 });
