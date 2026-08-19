@@ -147,7 +147,7 @@ export type OutingMutationInput = {
 };
 export type CreateOutingInput = OutingMutationInput;
 export type UpdateOutingInput = OutingMutationInput;
-export type OutingSelectorOption = { id: string; title: string };
+export type OutingSelectorOption = { id: string; title: string; recent?: boolean };
 export type TripMutationInput = {
   name: string;
   startsOn: string | null;
@@ -1102,6 +1102,10 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
   async function searchFriends(options: { q?: unknown; selectedId?: unknown; activeOnly?: boolean } = {}): Promise<FriendSelectorOption[]> {
     const query = normalizeText(options.q);
     const selectedId = normalizeUuid(options.selectedId);
+    const recentFriendUsage = sql`greatest(
+      (select max(${expenseShares.createdAt}) from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.friendId} = ${friends.id}),
+      (select max(${repayments.createdAt}) from ${repayments} where ${repayments.ownerUserId} = ${owner} and ${repayments.friendId} = ${friends.id})
+    )`;
     const conditions = [
       eq(friends.ownerUserId, owner),
       ...(options.activeOnly ? [isNull(friends.archivedAt)] : []),
@@ -1114,6 +1118,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .where(and(...conditions))
         .orderBy(
           ...(selectedId ? [sql`case when ${friends.id} = ${selectedId} then 0 else 1 end`] : []),
+          ...(!query ? [sql`${recentFriendUsage} desc nulls last`] : []),
           sql`case when ${friends.archivedAt} is null then 0 else 1 end`,
           asc(friends.name),
           asc(friends.id),
@@ -1457,7 +1462,34 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       ...(query && selectedId ? [or(literalContains(outings.title, query), eq(outings.id, selectedId))] : query ? [literalContains(outings.title, query)] : []),
     ];
     try {
-      return await database
+      if (query) {
+        return await database
+          .select({ id: outings.id, title: outings.title })
+          .from(outings)
+          .where(and(...conditions))
+          .orderBy(
+            ...(selectedId ? [sql`case when ${outings.id} = ${selectedId} then 0 else 1 end`] : []),
+            desc(outings.occurredAt),
+            desc(outings.createdAt),
+            asc(outings.id),
+          )
+          .limit(20);
+      }
+
+      const recentRows = await database
+        .select({ id: outings.id, title: outings.title })
+        .from(expenses)
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .where(eq(expenses.ownerUserId, owner))
+        .orderBy(desc(expenses.updatedAt), desc(expenses.createdAt), desc(expenses.id))
+        .limit(40);
+      const recentIds = new Set<string>();
+      const recent = recentRows.filter((outing) => {
+        if (recentIds.has(outing.id) || recentIds.size >= 5) return false;
+        recentIds.add(outing.id);
+        return true;
+      });
+      const normal = await database
         .select({ id: outings.id, title: outings.title })
         .from(outings)
         .where(and(...conditions))
@@ -1468,6 +1500,31 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           asc(outings.id),
         )
         .limit(20);
+      return [...recent.map((outing) => ({ ...outing, recent: true })), ...normal]
+        .filter((outing, index, all) => all.findIndex((candidate) => candidate.id === outing.id) === index)
+        .slice(0, 20);
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listRecentPaymentMethods(): Promise<string[]> {
+    try {
+      const rows = await database
+        .select({ paymentMethod: repayments.paymentMethod })
+        .from(repayments)
+        .where(and(eq(repayments.ownerUserId, owner), isNotNull(repayments.paymentMethod)))
+        .orderBy(desc(repayments.createdAt), desc(repayments.id))
+        .limit(40);
+      const seen = new Set<string>();
+      return rows.flatMap(({ paymentMethod }) => {
+        if (!paymentMethod?.trim()) return [];
+        const value = paymentMethod.trim();
+        const key = value.replace(/\s+/g, " ").toLocaleLowerCase();
+        if (seen.has(key)) return [];
+        seen.add(key);
+        return [value];
+      }).slice(0, 8);
     } catch (error) {
       return persistenceError(error);
     }
@@ -3684,6 +3741,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     getOuting,
     listOutings,
     searchOutings,
+    listRecentPaymentMethods,
     listOutingRecords,
     updateOuting,
     getOutingDeletionImpact,

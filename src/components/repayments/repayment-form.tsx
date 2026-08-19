@@ -6,7 +6,7 @@ import type { RepaymentActionState, RepaymentFriendContext } from "@/app/app/rep
 import type { RepaymentInputValues } from "@/domain/repayment-input";
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
 import { calculateRepaymentAllocations, type RepaymentAllocationStrategy } from "@/domain/repayment-allocation-strategy";
-import { PAYMENT_METHOD_OPTIONS, PAYMENT_METHOD_OTHER, paymentMethodFormState, type PaymentMethodChoice } from "@/domain/payment-method";
+import { PAYMENT_METHOD_OPTIONS, PAYMENT_METHOD_OTHER, canonicalPaymentMethod, paymentMethodFormState, recentPaymentMethodValues, type PaymentMethodChoice } from "@/domain/payment-method";
 import { formatRupiah, parseRupiah } from "@/domain/rupiah";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
@@ -17,6 +17,7 @@ type RepaymentFormProps = {
   action: RepaymentAction;
   friends: SearchableOption[];
   searchFriends: SearchableOptionAction;
+  recentPaymentMethods?: string[];
   initialValues?: RepaymentInputValues;
   initialPaidAtUtc?: string;
   mode?: "create" | "edit";
@@ -61,12 +62,24 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="repayment-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
-function PaymentMethodFields({ choice, other, error, onChoiceChange, onOtherChange }: { choice: PaymentMethodChoice; other: string; error?: string; onChoiceChange: (choice: PaymentMethodChoice) => void; onOtherChange: (other: string) => void }) {
+function PaymentMethodFields({ choice, other, recentMethods = [], error, onChoiceChange, onOtherChange }: { choice: PaymentMethodChoice; other: string; recentMethods?: string[]; error?: string; onChoiceChange: (choice: PaymentMethodChoice) => void; onOtherChange: (other: string) => void }) {
+  const recent = recentPaymentMethodValues(recentMethods).map((value, index) => ({ value, canonical: canonicalPaymentMethod(value), customValue: `recent-custom-${index}` }));
+  const recentByValue = new Map(recent.map((method) => [method.customValue, method.value]));
+  const recentCanonical = new Set(recent.flatMap((method) => method.canonical ? [method.canonical] : []));
   return <>
     <label htmlFor="repayment-payment-method">Payment method</label>
-    <select id="repayment-payment-method" name="paymentMethodChoice" value={choice} onChange={(event) => onChoiceChange(event.target.value as PaymentMethodChoice)} aria-invalid={Boolean(error)} aria-describedby="repayment-payment-method-error">
+    <select id="repayment-payment-method" name="paymentMethodChoice" value={choice} onChange={(event) => {
+      const custom = recentByValue.get(event.target.value);
+      if (custom && !canonicalPaymentMethod(custom)) {
+        onChoiceChange(PAYMENT_METHOD_OTHER);
+        onOtherChange(custom);
+      } else onChoiceChange(event.target.value as PaymentMethodChoice);
+    }} aria-invalid={Boolean(error)} aria-describedby="repayment-payment-method-error">
       <option value="">Not specified</option>
-      {PAYMENT_METHOD_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+      {choice === "" && recent.length > 0 ? <optgroup label="Recent">
+        {recent.map((method) => <option key={method.customValue} value={method.canonical ?? method.customValue}>{method.canonical ?? method.value}</option>)}
+      </optgroup> : null}
+      {PAYMENT_METHOD_OPTIONS.filter((option) => choice !== "" || !recentCanonical.has(option)).map((option) => <option key={option} value={option}>{option}</option>)}
       <option value={PAYMENT_METHOD_OTHER}>{PAYMENT_METHOD_OTHER}</option>
     </select>
     {choice === PAYMENT_METHOD_OTHER ? <input id="repayment-payment-method-other" name="paymentMethodOther" type="text" maxLength={40} value={other} onChange={(event) => onOtherChange(event.target.value)} placeholder="Custom payment method" aria-label="Custom payment method" aria-invalid={Boolean(error)} aria-describedby="repayment-payment-method-error" autoComplete="off" /> : null}
@@ -74,7 +87,7 @@ function PaymentMethodFields({ choice, other, error, onChoiceChange, onOtherChan
   </>;
 }
 
-export function RepaymentForm({ action, friends: friendOptions, searchFriends, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, initialAllocationIds = [], initialAllocationStrategy = "manual", initialFriendContext, loadFriendContext, outstandingByFriend = {}, openExpenseSharesByFriend = emptyOpenExpenseSharesByFriend }: RepaymentFormProps) {
+export function RepaymentForm({ action, friends: friendOptions, searchFriends, recentPaymentMethods = [], initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, initialAllocationIds = [], initialAllocationStrategy = "manual", initialFriendContext, loadFriendContext, outstandingByFriend = {}, openExpenseSharesByFriend = emptyOpenExpenseSharesByFriend }: RepaymentFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
   const [selectedFriendId, setSelectedFriendId] = useState(initialValues.friendId || friendOptions[0]?.id || "");
   const [selectedFriend, setSelectedFriend] = useState<SearchableOption | undefined>(() => friendOptions.find((friend) => friend.id === initialValues.friendId) ?? friendOptions[0]);
@@ -282,7 +295,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
         <details ref={detailsDisclosureRef} open={detailsDisclosureOpen || undefined} className="repayment-form__disclosure">
           <summary>Optional details</summary>
           <div className="repayment-form__field">
-            <PaymentMethodFields choice={paymentMethodChoice} other={paymentMethodOther} error={state.fieldErrors.paymentMethod} onChoiceChange={setPaymentMethodChoice} onOtherChange={setPaymentMethodOther} />
+            <PaymentMethodFields choice={paymentMethodChoice} other={paymentMethodOther} recentMethods={recentPaymentMethods} error={state.fieldErrors.paymentMethod} onChoiceChange={setPaymentMethodChoice} onOtherChange={setPaymentMethodOther} />
           </div>
           <div className="repayment-form__field">
             <label htmlFor="repayment-notes">Notes</label>
@@ -292,7 +305,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
         </details>
       </> : <>
         <div className="repayment-form__field">
-          <PaymentMethodFields choice={paymentMethodChoice} other={paymentMethodOther} error={state.fieldErrors.paymentMethod} onChoiceChange={setPaymentMethodChoice} onOtherChange={setPaymentMethodOther} />
+          <PaymentMethodFields choice={paymentMethodChoice} other={paymentMethodOther} recentMethods={recentPaymentMethods} error={state.fieldErrors.paymentMethod} onChoiceChange={setPaymentMethodChoice} onOtherChange={setPaymentMethodOther} />
         </div>
         <div className="repayment-form__field">
           <label htmlFor="repayment-notes">Notes</label>

@@ -28,7 +28,7 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
   }
   const deletionImpact = await repository.getRepaymentDeletionImpact(repaymentId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
-  const [friendOptionRows, friendContext] = await Promise.all([repository.searchFriends({ selectedId: plan.friendId }), repository.getRepaymentFriendContext(plan.friendId)]);
+  const [friendOptionRows, friendContext, recentPaymentMethods] = await Promise.all([repository.searchFriends({ selectedId: plan.friendId }), repository.getRepaymentFriendContext(plan.friendId), repository.listRecentPaymentMethods()]);
   const friendOptions = friendOptionRows.map((friend) => ({ id: friend.id, label: friend.name, archived: friend.archived }));
   const formContext = { ...friendContext, option: { id: friendContext.option.id, label: friendContext.option.name, archived: friendContext.option.archived } };
   const repayment = plan;
@@ -63,6 +63,7 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
                 action={updateRepaymentAction.bind(null, repayment.id)}
                 friends={friendOptions}
                 searchFriends={searchFriendOptions}
+                recentPaymentMethods={recentPaymentMethods}
                 mode="edit"
                 friendLocked={repayment.allocatedAmount > 0}
                 initialFriendContext={formContext}

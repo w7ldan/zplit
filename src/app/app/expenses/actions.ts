@@ -32,7 +32,7 @@ export type ExpenseDeleteActionState = DeleteRecordActionState;
 
 export async function searchOutingOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
   const session = await requireSession();
-  return (await createLedgerRepository(getDatabase(), session.user.id).searchOutings({ q: query, selectedId })).map((outing) => ({ id: outing.id, label: outing.title }));
+  return (await createLedgerRepository(getDatabase(), session.user.id).searchOutings({ q: query, selectedId })).map((outing) => ({ id: outing.id, label: outing.title, group: outing.recent ? "Recent" : undefined }));
 }
 
 export async function searchExpenseFriendOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {

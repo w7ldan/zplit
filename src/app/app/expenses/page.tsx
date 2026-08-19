@@ -31,7 +31,7 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
   const filters = normalizeExpenseFilters({ q: first(params?.q), outingId: first(params?.outing), month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page) });
   const outingRows = await repository.searchOutings({ selectedId: filters.outingId });
   const outingId = outingRows.some((outing) => outing.id === filters.outingId) ? filters.outingId : undefined;
-  const outingOptions = outingRows.map((outing) => ({ id: outing.id, label: outing.title }));
+  const outingOptions = outingRows.map((outing) => ({ id: outing.id, label: outing.title, group: outing.recent ? "Recent" : undefined }));
   const expensePage = await repository.listExpenseRecords({ q: first(params?.q), outingId, month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page), timezoneOffsetMinutes });
   const groups = groupRecordsByMonth(expensePage.items, (expense) => expense.outingOccurredAt, timezoneOffsetMinutes);
   const filtered = Boolean(filters.q || filters.month || filters.outingId || filters.assignment !== "all");

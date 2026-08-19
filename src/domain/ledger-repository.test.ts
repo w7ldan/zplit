@@ -280,6 +280,36 @@ describe("ledger repository", () => {
     expect(friendQuery.sql).toContain("case when \"friends\".\"archived_at\" is null then 0 else 1 end");
   });
 
+  it("orders empty friend selectors by latest owner-created share or repayment activity", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => { queries.push({ sql, params }); return { rows: [] }; });
+    await createLedgerRepository(database as unknown as Database, owner).searchFriends();
+    const query = queries[0]!.sql.replace(/\s+/g, " ").trim().toLowerCase();
+    expect(query).toContain("greatest");
+    expect(query).toContain('"expense_shares"."created_at"');
+    expect(query).toContain('"repayments"."created_at"');
+    expect(query).toContain("desc nulls last");
+    expect(queries[0]!.params.filter((value) => value === owner)).toHaveLength(3);
+  });
+
+  it("returns bounded, deduplicated recent outings before normal empty-query results", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return sql.toLowerCase().includes('from "expenses"')
+        ? { rows: [["out-a", "Dinner"], ["out-a", "Dinner"], ["out-b", "Coffee"]] }
+        : { rows: [["out-b", "Coffee"], ["out-c", "Walk"]] };
+    });
+    await expect(createLedgerRepository(database as unknown as Database, owner).searchOutings()).resolves.toEqual([
+      { id: "out-a", title: "Dinner", recent: true },
+      { id: "out-b", title: "Coffee", recent: true },
+      { id: "out-c", title: "Walk" },
+    ]);
+    expect(queries).toHaveLength(2);
+    expect(queries[0]!.sql.toLowerCase()).toMatch(/limit \$\d+/);
+    expect(queries[0]!.params).toContain(owner);
+  });
+
   it("bounds Trip selector search and preserves a selected owner record", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => { queries.push({ sql, params }); return sql.toLowerCase().includes("select count(*)") ? { rows: [[41]] } : { rows: [] }; });

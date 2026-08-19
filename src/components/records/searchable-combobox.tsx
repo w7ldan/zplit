@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-export type SearchableOption = { id: string; label: string; archived?: boolean };
+export type SearchableOption = { id: string; label: string; archived?: boolean; group?: string };
 export type SearchableOptionAction = (query: string, selectedId?: string) => Promise<SearchableOption[]>;
 export type SearchableComboboxPlacement = {
   direction: "down" | "up";
@@ -42,6 +42,12 @@ function mergeOptions(...groups: SearchableOption[][]) {
 
 function optionLabel(option: SearchableOption) {
   return option.archived ? `${option.label} (ARCHIVED)` : option.label;
+}
+
+function optionGroup(options: SearchableOption[], option: SearchableOption) {
+  if (option.group) return option.group;
+  if (!options.some((candidate) => !candidate.archived) || !options.some((candidate) => candidate.archived)) return undefined;
+  return option.archived ? "Archived friends" : "Active friends";
 }
 
 export function calculateSearchableComboboxPlacement(triggerRect: TriggerRect, boundaryRect: PlacementRect, naturalHeight: number, gap = 4): SearchableComboboxPlacement {
@@ -381,7 +387,7 @@ export function SearchableCombobox({
     <ul id={listboxId} className="searchable-combobox__listbox" role="listbox" aria-label="Matching options">
       {options.map((option, index) => (
         <Fragment key={option.id}>
-          {options.some((candidate) => !candidate.archived) && options.some((candidate) => candidate.archived) && (index === 0 || Boolean(options[index - 1]?.archived) !== Boolean(option.archived)) ? <li className="searchable-combobox__group" role="presentation">{option.archived ? "Archived friends" : "Active friends"}</li> : null}
+          {optionGroup(options, option) && (index === 0 || optionGroup(options, options[index - 1]!) !== optionGroup(options, option)) ? <li className="searchable-combobox__group" role="presentation">{optionGroup(options, option)}</li> : null}
           <li
             id={`${listboxId}-${option.id}`}
             role="option"

@@ -87,6 +87,16 @@ describe("RepaymentForm", () => {
     for (const option of ["Bank transfer", "GoPay", "ShopeePay", "Cash", "Other"]) expect(screen.getByRole("option", { name: option })).toBeInTheDocument();
   });
 
+  it("shows recent canonical choices and routes custom choices through Other", () => {
+    render(<RepaymentForm action={vi.fn()} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} recentPaymentMethods={["gOpAy", "Wallet"]} />);
+    fireEvent.click(screen.getByText("Optional details"));
+    expect(screen.getByRole("group", { name: "Recent" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "GoPay" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Payment method"), { target: { value: "recent-custom-1" } });
+    expect(screen.getByLabelText("Payment method")).toHaveValue("Other");
+    expect(screen.getByLabelText("Custom payment method")).toHaveValue("Wallet");
+  });
+
   it("preserves Other and its custom value through validation failure", async () => {
     const action = vi.fn().mockResolvedValue({ ...initialState, fieldErrors: { paymentMethod: "Enter a custom payment method." }, formError: "Please correct the marked fields.", values: { ...initialState.values, friendId: activeFriend.id }, paymentMethodForm: { choice: "Other", other: "Wallet" } });
     render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} />);

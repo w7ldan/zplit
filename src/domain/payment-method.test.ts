@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PAYMENT_METHOD_OPTIONS, PAYMENT_METHOD_OTHER, parsePaymentMethodFields, paymentMethodFormState } from "./payment-method";
+import { PAYMENT_METHOD_OPTIONS, PAYMENT_METHOD_OTHER, canonicalPaymentMethod, parsePaymentMethodFields, paymentMethodFormState, recentPaymentMethodValues } from "./payment-method";
 
 describe("payment methods", () => {
   it("keeps the canonical choices centralized", () => {
@@ -17,5 +17,10 @@ describe("payment methods", () => {
 
   it("reopens legacy arbitrary values as Other without rewriting them", () => {
     expect(paymentMethodFormState("Legacy wallet")).toEqual({ choice: PAYMENT_METHOD_OTHER, other: "Legacy wallet" });
+  });
+
+  it("deduplicates recent values and maps canonical spelling", () => {
+    expect(recentPaymentMethodValues([" Bank  transfer ", "bank transfer", " Wallet ", null])).toEqual(["Bank  transfer", "Wallet"]);
+    expect(canonicalPaymentMethod(" gOpAy ")).toBe("GoPay");
   });
 });
