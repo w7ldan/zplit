@@ -122,6 +122,20 @@ describe("/app/repayments", () => {
     expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("64.000");
   });
 
+  it("keeps a contextual share shortcut Manual and accepts Oldest first for settle", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    const getContext = vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [contextShare] });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: getContext });
+
+    const contextual = render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id, expenseShareId: contextShare.id, strategy: "oldest" }) }));
+    expect(within(screen.getByRole("dialog")).getByLabelText("Allocation strategy")).toHaveValue("manual");
+    contextual.unmount();
+
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [contextShare] }) });
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id, strategy: "oldest" }) }));
+    expect(within(screen.getByRole("dialog")).getByLabelText("Allocation strategy")).toHaveValue("oldest");
+  });
+
   it("does not preselect malformed or foreign friends", async () => {
     for (const friendId of ["not-a-uuid", "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"]) {
       mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });

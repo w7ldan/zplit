@@ -66,7 +66,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
           <h1>{friend.name}</h1>
           <div className="friend-record__actions">
             <Link className="action-link action-link--quiet" href={`/app/repayments?create=1&friendId=${friend.id}`}>Record repayment</Link>
-            {balance.outstandingAmount > 0 ? <Link className="action-link action-link--quiet" href={`/app/repayments?create=1&friendId=${friend.id}&amount=${balance.outstandingAmount}`}>Settle {formatRupiah(balance.outstandingAmount)}</Link> : null}
+            {balance.outstandingAmount > 0 ? <Link className="action-link action-link--quiet" href={`/app/repayments?create=1&friendId=${friend.id}&amount=${balance.outstandingAmount}&strategy=oldest`}>Settle {formatRupiah(balance.outstandingAmount)}</Link> : null}
             <Link className="friend-record__back" href="/app/friends">← Back to friends</Link>
           </div>
         </div>

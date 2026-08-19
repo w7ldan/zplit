@@ -74,7 +74,7 @@ describe("friend record", () => {
     expect(screen.getByRole("button", { name: "Create balance link" })).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Record repayment" })[0]).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}`);
     expect(screen.getAllByRole("link", { name: "Record repayment" })[1]).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}&expenseShareId=${expenseShare.id}`);
-    expect(screen.getByRole("link", { name: "Settle Rp 6.000" })).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}&amount=6000`);
+    expect(screen.getByRole("link", { name: "Settle Rp 6.000" })).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}&amount=6000&strategy=oldest`);
     expect(screen.getByRole("link", { name: /Back to friends/ })).toHaveAttribute("href", "/app/friends");
   });
 

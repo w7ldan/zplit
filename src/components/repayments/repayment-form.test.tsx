@@ -125,6 +125,61 @@ describe("RepaymentForm", () => {
     expect(action).not.toHaveBeenCalled();
   });
 
+  it("generates oldest and newest allocations, recalculates amounts, and leaves excess unallocated", async () => {
+    render(
+      <RepaymentForm
+        action={vi.fn().mockResolvedValue(initialState)}
+        friends={[{ id: activeFriend.id, label: activeFriend.name }]}
+        searchFriends={vi.fn().mockResolvedValue([])}
+        initialValues={{ friendId: activeFriend.id, amountRupiah: "70000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "", notes: "" }}
+        initialAllocationStrategy="oldest"
+        initialFriendContext={{ option: { id: activeFriend.id, label: activeFriend.name }, outstandingAmount: 128_000, openExpenseShares: [share, secondShare] }}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("64000"));
+    expect(screen.getByLabelText("Allocation for Coffee")).toHaveValue("6000");
+    fireEvent.change(screen.getByLabelText("Amount in rupiah"), { target: { value: "12000" } });
+    expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("12000");
+    expect(screen.queryByLabelText("Allocation for Coffee")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Allocation strategy"), { target: { value: "newest" } });
+    expect(screen.getByLabelText("Allocation for Coffee")).toHaveValue("12000");
+    expect(screen.queryByLabelText("Allocation for Dinner")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Amount in rupiah"), { target: { value: "" } });
+    expect(screen.queryByLabelText("Allocation for Coffee")).not.toBeInTheDocument();
+  });
+
+  it("preserves generated values when switching to Manual and recalculates for a new friend", async () => {
+    let resolveContext: (context: { option: { id: string; label: string }; outstandingAmount: number; openExpenseShares: typeof share[] }) => void = () => {};
+    const loadFriendContext = vi.fn().mockReturnValue(new Promise((resolve) => { resolveContext = resolve; }));
+    render(
+      <RepaymentForm
+        action={vi.fn().mockResolvedValue(initialState)}
+        friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]}
+        searchFriends={vi.fn().mockResolvedValue(searchableFriends)}
+        initialValues={{ friendId: activeFriend.id, amountRupiah: "70000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "", notes: "" }}
+        initialAllocationStrategy="oldest"
+        initialFriendContext={{ option: { id: activeFriend.id, label: activeFriend.name }, outstandingAmount: 128_000, openExpenseShares: [share, secondShare] }}
+        loadFriendContext={loadFriendContext}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("64000"));
+    fireEvent.change(screen.getByLabelText("Allocation strategy"), { target: { value: "manual" } });
+    fireEvent.change(screen.getByLabelText("Allocation for Dinner"), { target: { value: "12000" } });
+    fireEvent.change(screen.getByLabelText("Amount in rupiah"), { target: { value: "10000" } });
+    expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("12000");
+
+    fireEvent.change(screen.getByLabelText("Allocation strategy"), { target: { value: "oldest" } });
+    await waitFor(() => expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("10000"));
+    await chooseFriend("Bima (ARCHIVED)");
+    resolveContext({ option: { id: archivedFriend.id, label: archivedFriend.name }, outstandingAmount: 64_000, openExpenseShares: [otherShare] });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Use full outstanding" })).toBeInTheDocument());
+    expect(screen.queryByLabelText("Allocation for Dinner")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Allocation for Taxi")).toHaveValue("10000");
+  });
+
   it("does not expose stale context while a friend change is loading or overwrite a manual amount", async () => {
     let resolveContext: (context: { option: { id: string; label: string }; outstandingAmount: number; openExpenseShares: never[] }) => void = () => {};
     const loadFriendContext = vi.fn().mockReturnValue(new Promise((resolve) => { resolveContext = resolve; }));
