@@ -148,6 +148,50 @@ describe("RepaymentForm", () => {
     expect(action).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { strategy: "oldest" as const, expectedIds: [share.id, secondShare.id] },
+    { strategy: "newest" as const, expectedIds: [secondShare.id, share.id] },
+  ])("recalculates all allocations immediately when using full outstanding with $strategy first", async ({ strategy, expectedIds }) => {
+    render(
+      <RepaymentForm
+        action={vi.fn().mockResolvedValue(initialState)}
+        friends={[{ id: activeFriend.id, label: activeFriend.name }]}
+        searchFriends={vi.fn().mockResolvedValue([])}
+        initialValues={{ friendId: activeFriend.id, amountRupiah: "12000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "", notes: "" }}
+        initialAllocationStrategy={strategy}
+        initialFriendContext={{ option: { id: activeFriend.id, label: activeFriend.name }, outstandingAmount: 128_000, openExpenseShares: [share, secondShare] }}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getAllByRole("textbox", { name: /Allocation for/ })).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "Use full outstanding" }));
+
+    expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("128000");
+    expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("64000");
+    expect(screen.getByLabelText("Allocation for Coffee")).toHaveValue("64000");
+    expect(screen.getAllByRole("textbox", { name: /Allocation for/ }).map((input) => input.id)).toEqual(expectedIds.map((id) => `repayment-allocation-${id}`));
+  });
+
+  it("caps full-outstanding automatic allocations at the available share balances", async () => {
+    render(
+      <RepaymentForm
+        action={vi.fn().mockResolvedValue(initialState)}
+        friends={[{ id: activeFriend.id, label: activeFriend.name }]}
+        searchFriends={vi.fn().mockResolvedValue([])}
+        initialValues={{ friendId: activeFriend.id, amountRupiah: "12000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "", notes: "" }}
+        initialAllocationStrategy="oldest"
+        initialFriendContext={{ option: { id: activeFriend.id, label: activeFriend.name }, outstandingAmount: 128_000, openExpenseShares: [share] }}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("12000"));
+    fireEvent.click(screen.getByRole("button", { name: "Use full outstanding" }));
+
+    expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("128000");
+    expect(screen.getByLabelText("Allocation for Dinner")).toHaveValue("64000");
+    expect(screen.queryByLabelText("Allocation for Coffee")).not.toBeInTheDocument();
+  });
+
   it("generates oldest and newest allocations, recalculates amounts, and leaves excess unallocated", async () => {
     render(
       <RepaymentForm

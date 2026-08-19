@@ -113,6 +113,11 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
     setDraftAllocations(Object.fromEntries(generated.map((allocation) => [allocation.expenseShareId, allocation.amount.toString()])));
   }, []);
 
+  const handleAmountChange = useCallback((amountRupiah: string) => {
+    if (amountRef.current) amountRef.current.value = amountRupiah;
+    if (allocationStrategy !== "manual") recalculateAutomaticAllocations(allocationStrategy, amountRupiah, selectedShares);
+  }, [allocationStrategy, recalculateAutomaticAllocations, selectedShares]);
+
   useEffect(() => {
     if (allocationStrategy !== "manual") recalculateAutomaticAllocations(allocationStrategy, amountRef.current?.value ?? initialValues.amountRupiah, selectedShares);
   }, [allocationStrategy, initialValues.amountRupiah, recalculateAutomaticAllocations, selectedFriendId, selectedShares]);
@@ -201,8 +206,8 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
       <div className="repayment-form__field">
         <label htmlFor="repayment-amount">Amount in rupiah</label>
         <div className="repayment-form__amount-row">
-        <input ref={amountRef} key={state.values.amountRupiah} id="repayment-amount" name="amountRupiah" type="text" inputMode="numeric" required defaultValue={state.values.amountRupiah} onChange={(event) => { if (allocationStrategy !== "manual") recalculateAutomaticAllocations(allocationStrategy, event.target.value, selectedShares); }} aria-invalid={Boolean(state.fieldErrors.amountRupiah)} aria-describedby="repayment-amount-help repayment-amount-error" autoComplete="off" />
-          {mode === "create" && !loadingFriendContext && selectedContext && selectedContext.outstandingAmount > 0 ? <button className="action-link action-link--quiet repayment-form__full-outstanding" type="button" onClick={() => { if (!selectedContext) return; if (amountRef.current) amountRef.current.value = selectedContext.outstandingAmount.toString(); amountRef.current?.focus(); }}>Use full outstanding</button> : null}
+        <input ref={amountRef} key={state.values.amountRupiah} id="repayment-amount" name="amountRupiah" type="text" inputMode="numeric" required defaultValue={state.values.amountRupiah} onChange={(event) => handleAmountChange(event.target.value)} aria-invalid={Boolean(state.fieldErrors.amountRupiah)} aria-describedby="repayment-amount-help repayment-amount-error" autoComplete="off" />
+          {mode === "create" && !loadingFriendContext && selectedContext && selectedContext.outstandingAmount > 0 ? <button className="action-link action-link--quiet repayment-form__full-outstanding" type="button" onClick={() => { if (!selectedContext) return; handleAmountChange(selectedContext.outstandingAmount.toString()); amountRef.current?.focus(); }}>Use full outstanding</button> : null}
         </div>
         <p className="repayment-form__help" id="repayment-amount-help">Whole rupiah only. Examples: 84000 or 84.000.</p>
         <FieldError id="repayment-amount-error" message={state.fieldErrors.amountRupiah} />
