@@ -48,9 +48,14 @@ export default async function TripRecordPage({ params, searchParams }: { params:
             <div><span className="technical-label">Dates</span><CalendarDateRange startsOn={trip.startsOn} endsOn={trip.endsOn} /></div>
             <div><span className="technical-label">Outings</span><strong>{summary.outingCount}</strong></div>
             <div><span className="technical-label">Expenses</span><strong>{summary.expenseCount}</strong></div>
-            <div><span className="technical-label">Total</span><strong>{formatRupiah(summary.expenseTotal)}</strong></div>
           </div>
           {trip.notes ? <p className="trip-record__notes">{trip.notes}</p> : null}
+          <section className="trip-record__financials" aria-label="Trip financial summary">
+            <div><span className="technical-label">Total spending</span><strong>{formatRupiah(summary.expenseTotal)}</strong></div>
+            <div><span className="technical-label">Assigned to friends</span><strong>{formatRupiah(summary.totalAssignedAmount)}</strong></div>
+            <div><span className="technical-label">Your portion</span><strong>{formatRupiah(summary.ownerPortionAmount)}</strong></div>
+            <div><span className="technical-label">Outstanding</span><strong>{formatRupiah(summary.totalOutstandingAmount)}</strong></div>
+          </section>
           <section className="trip-record__outings" aria-labelledby="trip-outings-heading">
             <div className="trip-record__section-heading"><div><p className="technical-label">GROUPED OUTINGS</p><h2 id="trip-outings-heading">Outings</h2></div><span className="technical-label">{outingPage.totalItems} entries</span></div>
             {outingPage.items.length > 0 ? outingPage.items.map((outing) => <OutingRow key={outing.id} outing={outing} expenseCount={outing.expenseCount} expenseTotal={outing.expenseTotal} showTripContext={false} />) : <div className="ledger-empty"><h3>No outings in this Trip yet.</h3><p>Add an outing to start grouping records.</p><Link className="text-link" href={`/app/outings?create=1&trip=${trip.id}`}>Add an outing <span aria-hidden="true">→</span></Link></div>}

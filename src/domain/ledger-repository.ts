@@ -158,7 +158,16 @@ export type TripMutationInput = {
 export type CreateTripInput = TripMutationInput;
 export type UpdateTripInput = TripMutationInput;
 export type TripSelectorOption = { id: string; name: string };
-export type TripSummary = { outingCount: number; expenseCount: number; expenseTotal: number };
+export type TripSummary = {
+  outingCount: number;
+  expenseCount: number;
+  expenseTotal: number;
+};
+export type TripFinancialSummary = TripSummary & {
+  totalAssignedAmount: number;
+  ownerPortionAmount: number;
+  totalOutstandingAmount: number;
+};
 export type TripListRecord = typeof trips.$inferSelect & TripSummary;
 export type ExpenseMutationInput = {
   description: string;
@@ -1078,6 +1087,135 @@ function friendBalancesQuery(owner: string, friendIds: string[]) {
   `;
 }
 
+type TripAggregateRow = {
+  trip_id: unknown;
+  outing_count: unknown;
+  expense_count: unknown;
+  total_spending_amount: unknown;
+  total_assigned_amount: unknown;
+  total_repaid_amount: unknown;
+  owner_portion_amount: unknown;
+  total_outstanding_amount: unknown;
+  invalid_cross_friend_allocations: unknown;
+  invalid_repayment_allocations: unknown;
+  invalid_share_allocations: unknown;
+  invalid_owner_portions: unknown;
+};
+
+function tripAggregateQuery(owner: string, tripId: string) {
+  return sql<TripAggregateRow>`
+    WITH trip_outings AS (
+      SELECT o.id
+      FROM outings o
+      INNER JOIN trips t
+        ON t.owner_user_id = o.owner_user_id
+        AND t.id = o.trip_id
+      WHERE o.owner_user_id = ${owner}
+        AND t.owner_user_id = ${owner}
+        AND t.id = ${tripId}
+    ),
+    trip_expenses AS (
+      SELECT e.id, e.amount::numeric AS amount, COALESCE(SUM(s.amount_owed::numeric), 0) AS assigned_amount
+      FROM expenses e
+      INNER JOIN trip_outings o ON o.id = e.outing_id
+      LEFT JOIN expense_shares s
+        ON s.owner_user_id = e.owner_user_id
+        AND s.expense_id = e.id
+      WHERE e.owner_user_id = ${owner}
+      GROUP BY e.id, e.amount
+    ),
+    share_allocation_totals AS (
+      SELECT s.id, s.friend_id, s.amount_owed::numeric AS amount_owed, COALESCE(SUM(a.amount::numeric), 0) AS allocated_amount
+      FROM expense_shares s
+      INNER JOIN trip_expenses e ON e.id = s.expense_id
+      LEFT JOIN repayment_allocations a
+        ON a.owner_user_id = s.owner_user_id
+        AND a.expense_share_id = s.id
+      WHERE s.owner_user_id = ${owner}
+      GROUP BY s.id, s.friend_id, s.amount_owed
+    ),
+    trip_repayment_ids AS (
+      SELECT DISTINCT a.repayment_id
+      FROM repayment_allocations a
+      INNER JOIN share_allocation_totals s ON s.id = a.expense_share_id
+      WHERE a.owner_user_id = ${owner}
+    ),
+    repayment_allocation_totals AS (
+      SELECT r.id, r.amount::numeric AS amount, COALESCE(SUM(a.amount::numeric), 0) AS allocated_amount
+      FROM repayments r
+      INNER JOIN trip_repayment_ids ids ON ids.repayment_id = r.id
+      LEFT JOIN repayment_allocations a
+        ON a.owner_user_id = r.owner_user_id
+        AND a.repayment_id = r.id
+      WHERE r.owner_user_id = ${owner}
+      GROUP BY r.id, r.amount
+    ),
+    allocation_links AS (
+      SELECT a.repayment_id, a.expense_share_id, r.friend_id AS repayment_friend_id, s.friend_id AS share_friend_id
+      FROM repayment_allocations a
+      INNER JOIN trip_repayment_ids ids ON ids.repayment_id = a.repayment_id
+      LEFT JOIN repayments r
+        ON r.owner_user_id = a.owner_user_id
+        AND r.id = a.repayment_id
+      LEFT JOIN expense_shares s
+        ON s.owner_user_id = a.owner_user_id
+        AND s.id = a.expense_share_id
+      WHERE a.owner_user_id = ${owner}
+    ),
+    totals AS (
+      SELECT
+        (SELECT COUNT(*) FROM trip_outings)::text AS outing_count,
+        (SELECT COUNT(*) FROM trip_expenses)::text AS expense_count,
+        COALESCE((SELECT SUM(amount) FROM trip_expenses), 0)::text AS total_spending_amount,
+        COALESCE((SELECT SUM(assigned_amount) FROM trip_expenses), 0)::text AS total_assigned_amount,
+        COALESCE((SELECT SUM(allocated_amount) FROM share_allocation_totals), 0)::text AS total_repaid_amount,
+        COALESCE((SELECT SUM(amount - assigned_amount) FROM trip_expenses), 0)::text AS owner_portion_amount,
+        COALESCE((SELECT SUM(amount_owed - allocated_amount) FROM share_allocation_totals), 0)::text AS total_outstanding_amount,
+        (SELECT COUNT(*) FROM allocation_links WHERE repayment_friend_id IS NULL OR share_friend_id IS NULL OR repayment_friend_id <> share_friend_id)::text AS invalid_cross_friend_allocations,
+        (SELECT COUNT(*) FROM repayment_allocation_totals WHERE allocated_amount > amount)::text AS invalid_repayment_allocations,
+        (SELECT COUNT(*) FROM share_allocation_totals WHERE allocated_amount > amount_owed)::text AS invalid_share_allocations,
+        (SELECT COUNT(*) FROM trip_expenses WHERE assigned_amount > amount)::text AS invalid_owner_portions
+    )
+    SELECT t.id AS trip_id, totals.*
+    FROM trips t
+    CROSS JOIN totals
+    WHERE t.owner_user_id = ${owner}
+      AND t.id = ${tripId}
+  `;
+}
+
+function parseTripAggregate(row: TripAggregateRow): TripFinancialSummary {
+  for (const [value, label] of [
+    [row.invalid_cross_friend_allocations, "Cross-friend allocations"],
+    [row.invalid_repayment_allocations, "Repayment allocations"],
+    [row.invalid_share_allocations, "Expense share allocations"],
+    [row.invalid_owner_portions, "Owner portions"],
+  ] as const) {
+    if (ledgerInteger(value, label) > 0) throw new LedgerIntegrityError(`${label} violate ledger integrity.`);
+  }
+
+  const totalSpendingAmount = ledgerInteger(row.total_spending_amount, "Trip total spending amount");
+  const totalAssignedAmount = ledgerInteger(row.total_assigned_amount, "Trip assigned amount");
+  const totalRepaidAmount = ledgerInteger(row.total_repaid_amount, "Trip repaid amount");
+  const ownerPortionAmount = ledgerInteger(row.owner_portion_amount, "Trip owner portion amount");
+  const totalOutstandingAmount = ledgerInteger(row.total_outstanding_amount, "Trip outstanding amount");
+  if (ownerPortionAmount !== ledgerDifference(totalSpendingAmount, totalAssignedAmount, "Trip owner portion amount")) {
+    throw new LedgerIntegrityError("Trip owner portion is inconsistent.");
+  }
+  if (totalOutstandingAmount !== ledgerDifference(totalAssignedAmount, totalRepaidAmount, "Trip outstanding amount")) {
+    throw new LedgerIntegrityError("Trip outstanding amount is inconsistent.");
+  }
+
+  return {
+    outingCount: ledgerInteger(row.outing_count, "Trip outing count"),
+    expenseCount: ledgerInteger(row.expense_count, "Trip expense count"),
+    expenseTotal: totalSpendingAmount,
+    totalAssignedAmount,
+    ownerPortionAmount,
+    totalOutstandingAmount,
+  };
+}
+
 export function createLedgerRepository(database: Database, ownerUserId: string) {
   const owner = ownerUserId.trim();
   if (!owner) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger owner is required");
@@ -1358,29 +1496,13 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function getTripSummary(tripId: string): Promise<TripSummary> {
+  async function getTripSummary(tripId: string): Promise<TripFinancialSummary> {
     assertTripId(tripId);
     try {
-      const [row] = await database
-        .select({
-          id: trips.id,
-          outingCount: sql<number>`count(distinct ${outings.id})`.mapWith(Number).as("outing_count"),
-          expenseCount: sql<number>`count(${expenses.id})`.mapWith(Number).as("expense_count"),
-          expenseTotal: sql<number>`coalesce(sum(${expenses.amount}), 0)`.mapWith(Number).as("expense_total"),
-        })
-        .from(trips)
-        .leftJoin(outings, and(eq(outings.ownerUserId, trips.ownerUserId), eq(outings.tripId, trips.id)))
-        .leftJoin(expenses, and(eq(expenses.ownerUserId, outings.ownerUserId), eq(expenses.outingId, outings.id)))
-        .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
-        .groupBy(trips.id)
-        .limit(1);
+      const result = await database.execute(tripAggregateQuery(owner, tripId));
+      const [row] = (Array.isArray(result) ? result : result.rows) as TripAggregateRow[];
       if (!row) return notFound();
-      const raw = row as unknown as Record<string, unknown>;
-      return {
-        outingCount: safeRetrievalInteger(raw.outing_count ?? row.outingCount, "Trip outing count"),
-        expenseCount: safeRetrievalInteger(raw.expense_count ?? row.expenseCount, "Trip expense count"),
-        expenseTotal: safeRetrievalInteger(raw.expense_total ?? row.expenseTotal, "Trip expense total"),
-      };
+      return parseTripAggregate(row);
     } catch (error) {
       return persistenceError(error);
     }

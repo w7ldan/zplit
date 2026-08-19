@@ -1491,7 +1491,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 .trip-record__meta {
   grid-column: 2 / span 5;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   padding-block: 0.9rem;
   border-block: 1px solid var(--rule);
@@ -1511,7 +1511,29 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   font-variant-numeric: tabular-nums;
 }
 
+.trip-record__financials {
+  grid-column: 2 / span 5;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  padding-block: 0.9rem;
+  border-block: 1px solid var(--rule);
+}
+
+.trip-record__financials > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.trip-record__financials strong {
+  font-size: 0.98rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .trip-record__notes,
+.trip-record__financials,
 .trip-record__outings,
 .trip-record__form,
 .trip-delete-form {
@@ -1646,6 +1668,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 @media (max-width: 959px) {
   .trip-record__meta,
+  .trip-record__financials,
   .trip-record__notes,
   .trip-record__outings,
   .trip-record__form,
@@ -1654,6 +1677,10 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   }
 
   .trip-record__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .trip-record__financials {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

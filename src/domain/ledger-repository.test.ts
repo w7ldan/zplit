@@ -372,13 +372,84 @@ describe("ledger repository", () => {
     expect(queries[1].params).toContain(owner);
   });
 
-  it("returns one owner-scoped Trip aggregate", async () => {
+  it("returns one owner-scoped Trip financial aggregate without double-counting allocations", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
-    const database = drizzle(async (sql, params) => { queries.push({ sql, params }); return { rows: [["trip-a", 2, 3, 84000]] }; });
-    await expect(createLedgerRepository(database as unknown as Database, owner).getTripSummary("11111111-1111-4111-8111-111111111111")).resolves.toEqual({ outingCount: 2, expenseCount: 3, expenseTotal: 84000 });
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [{
+        trip_id: "trip-a",
+        outing_count: "2",
+        expense_count: "3",
+        total_spending_amount: "184000",
+        total_assigned_amount: "126500",
+        total_repaid_amount: "100000",
+        owner_portion_amount: "57500",
+        total_outstanding_amount: "26500",
+        invalid_cross_friend_allocations: "0",
+        invalid_repayment_allocations: "0",
+        invalid_share_allocations: "0",
+        invalid_owner_portions: "0",
+      }] };
+    });
+    await expect(createLedgerRepository(database as unknown as Database, owner).getTripSummary("11111111-1111-4111-8111-111111111111")).resolves.toEqual({
+      outingCount: 2,
+      expenseCount: 3,
+      expenseTotal: 184000,
+      totalAssignedAmount: 126500,
+      ownerPortionAmount: 57500,
+      totalOutstandingAmount: 26500,
+    });
     expect(queries).toHaveLength(1);
-    expect(queries[0].sql).toContain('"trips"."owner_user_id" = $');
-    expect(queries[0].sql).toContain('"outings"."trip_id"');
+    expect(queries[0].sql).toContain("trip_outings");
+    expect(queries[0].sql).toContain("trip_expenses");
+    expect(queries[0].sql).toContain("share_allocation_totals");
+    expect(queries[0].sql).toContain("repayment_allocations");
+    expect(queries[0].sql).toContain("t.owner_user_id = $");
+    expect(queries[0].params.filter((value) => value === owner)).toHaveLength(8);
+    expect(queries[0].params).toContain("11111111-1111-4111-8111-111111111111");
+  });
+
+  it("returns zero financial totals for an empty Trip", async () => {
+    const database = drizzle(async () => ({ rows: [{
+      trip_id: "trip-a",
+      outing_count: "0",
+      expense_count: "0",
+      total_spending_amount: "0",
+      total_assigned_amount: "0",
+      total_repaid_amount: "0",
+      owner_portion_amount: "0",
+      total_outstanding_amount: "0",
+      invalid_cross_friend_allocations: "0",
+      invalid_repayment_allocations: "0",
+      invalid_share_allocations: "0",
+      invalid_owner_portions: "0",
+    }] }));
+    await expect(createLedgerRepository(database as unknown as Database, owner).getTripSummary("11111111-1111-4111-8111-111111111111")).resolves.toEqual({
+      outingCount: 0,
+      expenseCount: 0,
+      expenseTotal: 0,
+      totalAssignedAmount: 0,
+      ownerPortionAmount: 0,
+      totalOutstandingAmount: 0,
+    });
+  });
+
+  it("rejects an invalid Trip repayment or share aggregate", async () => {
+    const database = drizzle(async () => ({ rows: [{
+      trip_id: "trip-a",
+      outing_count: "1",
+      expense_count: "1",
+      total_spending_amount: "100",
+      total_assigned_amount: "100",
+      total_repaid_amount: "100",
+      owner_portion_amount: "0",
+      total_outstanding_amount: "0",
+      invalid_cross_friend_allocations: "0",
+      invalid_repayment_allocations: "1",
+      invalid_share_allocations: "0",
+      invalid_owner_portions: "0",
+    }] }));
+    await expect(createLedgerRepository(database as unknown as Database, owner).getTripSummary("11111111-1111-4111-8111-111111111111")).rejects.toThrow("Repayment allocations violate ledger integrity.");
   });
 
   it("detaches linked outings before deleting only the Trip", async () => {
