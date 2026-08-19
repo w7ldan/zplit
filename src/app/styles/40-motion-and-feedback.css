@@ -33,7 +33,7 @@
   display: flex;
   height: 100%;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden;
   padding: 1.25rem clamp(1.25rem, 3vw, 2rem) 2rem;
   border-radius: inherit;
   background: var(--surface);
@@ -75,6 +75,7 @@
 }
 
 .task-panel__body {
+  min-height: 0;
   overflow: auto;
   padding-top: 0.25rem;
 }

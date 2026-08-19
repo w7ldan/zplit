@@ -1,9 +1,20 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type SearchableOption = { id: string; label: string; archived?: boolean };
 export type SearchableOptionAction = (query: string, selectedId?: string) => Promise<SearchableOption[]>;
+export type SearchableComboboxPlacement = {
+  direction: "down" | "up";
+  top: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+};
+
+type PlacementRect = Pick<DOMRect, "top" | "right" | "bottom" | "left">;
+type TriggerRect = PlacementRect & Pick<DOMRect, "width">;
 
 type SearchableComboboxProps = {
   id: string;
@@ -30,6 +41,60 @@ function optionLabel(option: SearchableOption) {
   return option.archived ? `${option.label} (ARCHIVED)` : option.label;
 }
 
+export function calculateSearchableComboboxPlacement(triggerRect: TriggerRect, boundaryRect: PlacementRect, naturalHeight: number, gap = 4): SearchableComboboxPlacement {
+  const boundaryWidth = Math.max(boundaryRect.right - boundaryRect.left, 0);
+  const width = Math.min(Math.max(triggerRect.width, 0), boundaryWidth);
+  const left = Math.min(Math.max(triggerRect.left, boundaryRect.left), boundaryRect.right - width);
+  const below = Math.max(boundaryRect.bottom - triggerRect.bottom - gap, 0);
+  const above = Math.max(triggerRect.top - boundaryRect.top - gap, 0);
+  const height = Math.max(naturalHeight, 0);
+  const direction = below >= height || below >= above ? "down" : "up";
+  const available = direction === "down" ? below : above;
+  const maxHeight = Math.min(height, available);
+
+  return {
+    direction,
+    top: direction === "down" ? triggerRect.bottom + gap : triggerRect.top - gap - maxHeight,
+    left,
+    width,
+    maxHeight,
+  };
+}
+
+function isClippingOverflow(value: string) {
+  return value === "auto" || value === "clip" || value === "hidden" || value === "scroll";
+}
+
+function getClippingRect(element: HTMLElement) {
+  const visualViewport = window.visualViewport;
+  const viewportLeft = visualViewport?.offsetLeft ?? 0;
+  const viewportTop = visualViewport?.offsetTop ?? 0;
+  const boundary = {
+    top: viewportTop,
+    right: viewportLeft + (visualViewport?.width ?? window.innerWidth),
+    bottom: viewportTop + (visualViewport?.height ?? window.innerHeight),
+    left: viewportLeft,
+  };
+
+  for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    const style = window.getComputedStyle(ancestor);
+    const clipX = isClippingOverflow(style.overflowX || style.overflow);
+    const clipY = isClippingOverflow(style.overflowY || style.overflow);
+    if (!clipX && !clipY) continue;
+    const rect = ancestor.getBoundingClientRect();
+    if (clipX) {
+      boundary.left = Math.max(boundary.left, rect.left);
+      boundary.right = Math.min(boundary.right, rect.right);
+    }
+    if (clipY) {
+      boundary.top = Math.max(boundary.top, rect.top);
+      boundary.bottom = Math.min(boundary.bottom, rect.bottom);
+    }
+  }
+
+  return boundary;
+}
+
 export function SearchableCombobox({
   id,
   name,
@@ -54,9 +119,12 @@ export function SearchableCombobox({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [placement, setPlacement] = useState<SearchableComboboxPlacement | null>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef(0);
   const searchTimerRef = useRef<number | null>(null);
   const listboxId = `${id}-listbox`;
@@ -70,13 +138,17 @@ export function SearchableCombobox({
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setEnhanced(true), []);
 
+  useEffect(() => {
+    setPortalTarget(rootRef.current?.closest("dialog") ?? document.body);
+  }, []);
+
   useEffect(() => () => {
     if (searchTimerRef.current !== null) window.clearTimeout(searchTimerRef.current);
   }, []);
 
   useEffect(() => {
     function closeOnOutsideInteraction(event: PointerEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node) && !panelRef.current?.contains(event.target as Node)) {
         closeMenu();
       }
     }
@@ -87,6 +159,40 @@ export function SearchableCombobox({
   useEffect(() => {
     if (open) searchInputRef.current?.focus();
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !portalTarget) return;
+
+    let frame: number | null = null;
+    const schedulePlacement = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        const trigger = triggerRef.current;
+        const panel = panelRef.current;
+        if (!trigger || !panel) return;
+        const triggerRect = trigger.getBoundingClientRect();
+        const boundaryRect = getClippingRect(rootRef.current ?? trigger);
+        const width = Math.min(Math.max(triggerRect.width, 0), Math.max(boundaryRect.right - boundaryRect.left, 0));
+        panel.style.width = `${width}px`;
+        panel.style.maxHeight = "none";
+        setPlacement(calculateSearchableComboboxPlacement(triggerRect, boundaryRect, panel.scrollHeight));
+      });
+    };
+
+    schedulePlacement();
+    window.addEventListener("resize", schedulePlacement);
+    window.addEventListener("scroll", schedulePlacement, true);
+    window.visualViewport?.addEventListener("resize", schedulePlacement);
+    window.visualViewport?.addEventListener("scroll", schedulePlacement);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedulePlacement);
+      window.removeEventListener("scroll", schedulePlacement, true);
+      window.visualViewport?.removeEventListener("resize", schedulePlacement);
+      window.visualViewport?.removeEventListener("scroll", schedulePlacement);
+    };
+  }, [error, loading, open, options, portalTarget]);
 
   const loadOptions = useCallback((nextQuery: string) => {
     const request = ++requestRef.current;
@@ -115,6 +221,7 @@ export function SearchableCombobox({
     if (searchTimerRef.current !== null) window.clearTimeout(searchTimerRef.current);
     searchTimerRef.current = null;
     setOpen(false);
+    setPlacement(null);
     setQuery("");
     setActiveIndex(-1);
     if (focusTrigger) triggerRef.current?.focus();
@@ -123,6 +230,7 @@ export function SearchableCombobox({
   function openMenu(direction: "down" | "up" = "down") {
     if (disabled) return;
     setOpen(true);
+    setPlacement(null);
     setQuery("");
     setLoadedOptions(null);
     setError("");
@@ -146,6 +254,7 @@ export function SearchableCombobox({
     setLoadedOptions((current) => mergeOptions([option], current ?? []));
     setQuery("");
     setOpen(false);
+    setPlacement(null);
     setActiveIndex(-1);
     onValueChange?.(option);
     triggerRef.current?.focus();
@@ -204,6 +313,58 @@ export function SearchableCombobox({
   }
 
   const activeOption = activeIndex >= 0 ? options[activeIndex] : undefined;
+  const panel = open ? <div
+    ref={panelRef}
+    className="searchable-combobox__panel"
+    data-portal={portalTarget instanceof HTMLDialogElement ? "dialog" : "body"}
+    data-placement={placement?.direction}
+    style={placement ? {
+      top: `${placement.top - (portalTarget && portalTarget !== document.body ? portalTarget.getBoundingClientRect().top : 0)}px`,
+      left: `${placement.left - (portalTarget && portalTarget !== document.body ? portalTarget.getBoundingClientRect().left : 0)}px`,
+      width: `${placement.width}px`,
+      maxHeight: `${placement.maxHeight}px`,
+    } : { visibility: "hidden" }}
+  >
+    <div className="searchable-combobox__search">
+      <label className="sr-only" htmlFor={`${id}-search`}>{searchLabel}</label>
+      <input
+        ref={searchInputRef}
+        id={`${id}-search`}
+        type="search"
+        value={query}
+        placeholder={searchLabel}
+        autoComplete="off"
+        aria-label={searchLabel}
+        aria-controls={listboxId}
+        aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
+        aria-busy={loading}
+        onChange={(event) => scheduleSearch(event.target.value)}
+        onKeyDown={onKeyDown}
+        onBlur={(event) => {
+          if (!event.relatedTarget || (!rootRef.current?.contains(event.relatedTarget) && !panelRef.current?.contains(event.relatedTarget))) closeMenu();
+        }}
+      />
+    </div>
+    <ul id={listboxId} className="searchable-combobox__listbox" role="listbox" aria-label="Matching options">
+      {options.map((option, index) => (
+        <Fragment key={option.id}>
+          {options.some((candidate) => !candidate.archived) && options.some((candidate) => candidate.archived) && (index === 0 || Boolean(options[index - 1]?.archived) !== Boolean(option.archived)) ? <li className="searchable-combobox__group" role="presentation">{option.archived ? "Archived friends" : "Active friends"}</li> : null}
+          <li
+            id={`${listboxId}-${option.id}`}
+            role="option"
+            aria-selected={option.id === currentSelectedId}
+            className={index === activeIndex ? "searchable-combobox__option searchable-combobox__option--active" : "searchable-combobox__option"}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() => choose(option)}
+          >
+            <span>{optionLabel(option)}</span>
+          </li>
+        </Fragment>
+      ))}
+      {options.length === 0 ? <li className="searchable-combobox__empty" role="presentation">No matching options.</li> : null}
+      {error ? <li className="searchable-combobox__error" role="alert">{error}</li> : null}
+    </ul>
+  </div> : null;
 
   return (
     <div ref={rootRef} className="searchable-combobox" data-enhanced={enhanced ? "true" : undefined}>
@@ -249,48 +410,8 @@ export function SearchableCombobox({
           <span className="searchable-combobox__trigger-label">{selectedOption ? optionLabel(selectedOption) : placeholder ?? ""}</span>
           <span className="searchable-combobox__trigger-icon" aria-hidden="true">▾</span>
         </button>
-        {open ? <div className="searchable-combobox__panel">
-          <div className="searchable-combobox__search">
-            <label className="sr-only" htmlFor={`${id}-search`}>{searchLabel}</label>
-            <input
-              ref={searchInputRef}
-              id={`${id}-search`}
-              type="search"
-              value={query}
-              placeholder={searchLabel}
-              autoComplete="off"
-              aria-label={searchLabel}
-              aria-controls={listboxId}
-              aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
-              aria-busy={loading}
-              onChange={(event) => scheduleSearch(event.target.value)}
-              onKeyDown={onKeyDown}
-              onBlur={(event) => {
-                if (!event.relatedTarget || !rootRef.current?.contains(event.relatedTarget)) closeMenu();
-              }}
-            />
-          </div>
-          <ul id={listboxId} className="searchable-combobox__listbox" role="listbox" aria-label="Matching options">
-            {options.map((option, index) => (
-              <Fragment key={option.id}>
-                {options.some((candidate) => !candidate.archived) && options.some((candidate) => candidate.archived) && (index === 0 || Boolean(options[index - 1]?.archived) !== Boolean(option.archived)) ? <li className="searchable-combobox__group" role="presentation">{option.archived ? "Archived friends" : "Active friends"}</li> : null}
-                <li
-                  id={`${listboxId}-${option.id}`}
-                  role="option"
-                  aria-selected={option.id === currentSelectedId}
-                  className={index === activeIndex ? "searchable-combobox__option searchable-combobox__option--active" : "searchable-combobox__option"}
-                  onPointerDown={(event) => event.preventDefault()}
-                  onClick={() => choose(option)}
-                >
-                  <span>{optionLabel(option)}</span>
-                </li>
-              </Fragment>
-            ))}
-            {options.length === 0 ? <li className="searchable-combobox__empty" role="presentation">No matching options.</li> : null}
-            {error ? <li className="searchable-combobox__error" role="alert">{error}</li> : null}
-          </ul>
-        </div> : null}
       </div>
+      {portalTarget && panel ? createPortal(panel, portalTarget) : panel}
     </div>
   );
 }

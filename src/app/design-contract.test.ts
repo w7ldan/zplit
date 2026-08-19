@@ -23,6 +23,7 @@ const selectorActionSources = [
   readFileSync(path.resolve(process.cwd(), "src/app/app/repayments/actions.ts"), "utf8"),
 ];
 const taskPanelSource = readFileSync(path.resolve(process.cwd(), "src/components/app/task-panel.tsx"), "utf8");
+const searchableComboboxSource = readFileSync(path.resolve(process.cwd(), "src/components/records/searchable-combobox.tsx"), "utf8");
 const taskPanelRule = cssRuleBody(css, ".task-panel");
 const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/components/app/record-confirmation.tsx"), "utf8");
 const expenseShareSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-share-editor.tsx"), "utf8");
@@ -624,6 +625,15 @@ describe("Zplit design contract", () => {
     expect(taskPanelRule).toContain("inset: 0 0 0 auto;");
     expect(taskPanelRule).toContain("margin: 0;");
     expect(css).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.task-panel\s*\{[\s\S]*?inset:\s*auto 0 0;/);
+  });
+
+  it("keeps searchable popups outside task-panel scroll clipping", () => {
+    expect(searchableComboboxSource).toContain("createPortal");
+    expect(searchableComboboxSource).toContain("calculateSearchableComboboxPlacement");
+    expect(css).toMatch(/\.searchable-combobox__panel\s*\{[^}]*position:\s*fixed;[^}]*overflow:\s*hidden;/);
+    expect(css).toMatch(/\.searchable-combobox__panel\[data-portal="dialog"\]\s*\{[^}]*position:\s*absolute;/);
+    expect(css).toMatch(/\.task-panel__surface\s*\{[^}]*overflow:\s*hidden;/);
+    expect(css).toMatch(/\.task-panel__body\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*auto;/);
   });
 
   it("uses one stable underline mechanism for friend filters", () => {
