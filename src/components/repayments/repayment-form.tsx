@@ -19,6 +19,7 @@ type RepaymentFormProps = {
   initialPaidAtUtc?: string;
   mode?: "create" | "edit";
   friendLocked?: boolean;
+  initialAllocationIds?: string[];
   initialFriendContext?: RepaymentFriendContext;
   loadFriendContext?: (friendId: string, includeOpenExpenseShares?: boolean) => Promise<RepaymentFriendContext>;
   outstandingByFriend?: Record<string, number>;
@@ -55,15 +56,15 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="repayment-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
-export function RepaymentForm({ action, friends: friendOptions, searchFriends, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, initialFriendContext, loadFriendContext, outstandingByFriend = {}, openExpenseSharesByFriend = {} }: RepaymentFormProps) {
+export function RepaymentForm({ action, friends: friendOptions, searchFriends, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, initialAllocationIds = [], initialFriendContext, loadFriendContext, outstandingByFriend = {}, openExpenseSharesByFriend = {} }: RepaymentFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
   const [selectedFriendId, setSelectedFriendId] = useState(initialValues.friendId || friendOptions[0]?.id || "");
   const [selectedFriend, setSelectedFriend] = useState<SearchableOption | undefined>(() => friendOptions.find((friend) => friend.id === initialValues.friendId) ?? friendOptions[0]);
   const [friendContext, setFriendContext] = useState(initialFriendContext);
   const [loadingFriendContext, setLoadingFriendContext] = useState(false);
   const contextRequestRef = useRef(0);
-  const [draftAllocations, setDraftAllocations] = useState<Record<string, string>>(() => Object.fromEntries((state.allocations ?? []).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
-  const [selectedAllocationIds, setSelectedAllocationIds] = useState<string[]>(() => (state.allocations ?? []).map((allocation) => allocation.expenseShareId));
+  const [draftAllocations, setDraftAllocations] = useState<Record<string, string>>(() => Object.fromEntries((state.allocations?.length ? state.allocations : initialAllocationIds.map((expenseShareId) => ({ expenseShareId, amountRupiah: "" }))).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
+  const [selectedAllocationIds, setSelectedAllocationIds] = useState<string[]>(() => state.allocations?.length ? state.allocations.map((allocation) => allocation.expenseShareId) : initialAllocationIds);
   const formRef = useRef<HTMLFormElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
@@ -79,7 +80,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
   const selectedAllocationRows = useMemo(() => selectedAllocationIds.map((id) => selectedShares.find((share) => share.id === id)).filter((share): share is OpenExpenseShare => Boolean(share)), [selectedAllocationIds, selectedShares]);
   const availableAllocationShares = useMemo(() => selectedShares.filter((share) => !selectedAllocationIdSet.has(share.id)), [selectedAllocationIdSet, selectedShares]);
   const allocationOptions = useMemo(() => availableAllocationShares.slice(0, 20).map((share) => ({ id: share.id, label: `${share.expenseDescription} · ${share.outingTitle} · ${formatRupiah(share.remainingAmount)} remaining` })), [availableAllocationShares]);
-  const allocationDisclosureOpen = (state.allocations ?? []).some((allocation) => allocation.amountRupiah.trim() !== "") || Object.keys(state.allocationFieldErrors ?? {}).length > 0;
+  const allocationDisclosureOpen = initialAllocationIds.length > 0 || (state.allocations ?? []).some((allocation) => allocation.amountRupiah.trim() !== "") || Object.keys(state.allocationFieldErrors ?? {}).length > 0;
   const detailsDisclosureOpen = Boolean(state.values.paymentMethod || state.values.notes || state.fieldErrors.paymentMethod || state.fieldErrors.notes);
 
   const searchOutstandingExpenses = useCallback(async (query: string) => {

@@ -176,6 +176,9 @@ export type ExpenseShareRecord = {
   friendArchivedAt: Date | null;
   baseAmount: number;
   amountOwed: number;
+  appliedAmount: number;
+  remainingAmount: number;
+  settled: boolean;
 };
 export type RepaymentMutationInput = {
   friendId: string;
@@ -221,6 +224,7 @@ export type RepaymentListRecord = RepaymentRecord & {
 };
 
 export type FriendExpenseShareRecord = {
+  id: string;
   expenseId: string;
   expenseDescription: string;
   outingTitle: string;
@@ -1939,6 +1943,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       const appliedAmount = sql<number>`coalesce(${allocationTotals.appliedAmount}, 0)`.mapWith(Number);
       const rows = await database
         .select({
+          id: expenseShares.id,
           expenseId: expenses.id,
           expenseDescription: expenses.description,
           outingTitle: outings.title,
@@ -2678,12 +2683,28 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
   }
 
   async function listExpenseSharesFor(transaction: Pick<Database, "select">, expenseId: string) {
-    return transaction
-      .select(shareSelection())
+    const allocationTotals = transaction
+      .select({
+        ownerUserId: repaymentAllocations.ownerUserId,
+        expenseShareId: repaymentAllocations.expenseShareId,
+        appliedAmount: sql<number>`sum(${repaymentAllocations.amount})`.mapWith(Number).as("applied_amount"),
+      })
+      .from(repaymentAllocations)
+      .where(eq(repaymentAllocations.ownerUserId, owner))
+      .groupBy(repaymentAllocations.ownerUserId, repaymentAllocations.expenseShareId)
+      .as("expense_share_allocations");
+    const appliedAmount = sql<number>`coalesce(${allocationTotals.appliedAmount}, 0)`.mapWith(Number);
+    const rows = await transaction
+      .select({ ...shareSelection(), appliedAmount })
       .from(expenseShares)
       .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
+      .leftJoin(allocationTotals, and(eq(allocationTotals.ownerUserId, owner), eq(allocationTotals.expenseShareId, expenseShares.id)))
       .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)))
       .orderBy(asc(friends.name), asc(expenseShares.id));
+    return rows.map((share) => {
+      if (share.appliedAmount > share.amountOwed) throw new LedgerIntegrityError(`Allocations exceed expense share ${share.id}.`);
+      return { ...share, remainingAmount: share.amountOwed - share.appliedAmount, settled: share.appliedAmount === share.amountOwed };
+    });
   }
 
   async function listExpenseShares(expenseId: string) {

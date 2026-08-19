@@ -66,6 +66,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
           <h1>{friend.name}</h1>
           <div className="friend-record__actions">
             <Link className="action-link action-link--quiet" href={`/app/repayments?create=1&friendId=${friend.id}`}>Record repayment</Link>
+            {balance.outstandingAmount > 0 ? <Link className="action-link action-link--quiet" href={`/app/repayments?create=1&friendId=${friend.id}&amount=${balance.outstandingAmount}`}>Settle {formatRupiah(balance.outstandingAmount)}</Link> : null}
             <Link className="friend-record__back" href="/app/friends">← Back to friends</Link>
           </div>
         </div>
@@ -105,11 +106,11 @@ export default async function FriendRecordPage({ params, searchParams }: { param
         />
         <section className="record-history ledger-section" id="friend-expense-shares" aria-labelledby="friend-expense-shares-heading">
           <div className="ledger-section__heading"><div><p className="technical-label">SHARE HISTORY</p><h2 id="friend-expense-shares-heading">Expense shares</h2></div><span className="technical-label">{expenseSharePage.totalItems} entries</span></div>
-          {expenseSharePage.items.length > 0 ? <div className="record-history__rows">{expenseSharePage.items.map((share) => <article className="record-history__row record-history__row--share" key={share.expenseId}>
+          {expenseSharePage.items.length > 0 ? <div className="record-history__rows">{expenseSharePage.items.map((share) => <article className="record-history__row record-history__row--share" key={share.id}>
             <div className="record-history__primary"><span className="technical-label">EXPENSE SHARE</span><h3><Link href={`/app/expenses/${share.expenseId}`}>{share.expenseDescription}</Link></h3><p>{share.outingTitle} · <LocalDateTime iso={share.outingOccurredAt.toISOString()} mode="date" /></p></div>
             <div className="record-history__values"><span><span className="technical-label">Assigned</span><strong>{formatRupiah(share.amountOwed)}</strong></span><span><span className="technical-label">Applied</span><strong>{formatRupiah(share.appliedAmount)}</strong></span><span><span className="technical-label">Remaining</span><strong>{formatRupiah(share.remainingAmount)}</strong></span></div>
             <span className={`record-history__state${share.settled ? " record-history__state--settled" : ""}`}>{share.settled ? "SETTLED" : "OPEN"}</span>
-            <Link className="record-history__link" href={`/app/expenses/${share.expenseId}`}>Open expense <span aria-hidden="true">→</span></Link>
+            <div className="record-history__links"><Link className="record-history__link" href={`/app/expenses/${share.expenseId}`}>Open expense <span aria-hidden="true">→</span></Link>{!share.settled && share.id ? <Link className="record-history__link" href={`/app/repayments?create=1&friendId=${friend.id}&expenseShareId=${share.id}`}>Record repayment <span aria-hidden="true">→</span></Link> : null}</div>
           </article>)}</div> : <div className="ledger-empty"><h3>No expense shares recorded for this friend yet.</h3></div>}
           <RecordPagination page={expenseSharePage.page} pageSize={expenseSharePage.pageSize} totalItems={expenseSharePage.totalItems} totalPages={expenseSharePage.totalPages} href={historyHref} anchor="friend-expense-shares" pageParam="expensePage" />
         </section>

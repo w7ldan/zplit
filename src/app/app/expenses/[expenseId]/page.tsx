@@ -39,7 +39,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
     listExpenseReceipts(database, session.user.id, expense.id),
   ]);
   const shareByFriend = new Map(shares.map((share) => [share.friendId, share]));
-  const friends = shares.map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, baseAmount: share.baseAmount, amountOwed: share.amountOwed }));
+  const friends = shares.map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, baseAmount: share.baseAmount, amountOwed: share.amountOwed, expenseShareId: share.id, remainingAmount: share.remainingAmount, settled: share.settled }));
   const friendOptions = friendOptionRows
     .filter((friend) => !friend.archived && !shareByFriend.has(friend.id))
     .slice(0, 20)

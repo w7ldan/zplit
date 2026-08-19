@@ -31,7 +31,7 @@ const friend = {
   createdAt: new Date("2026-01-02T00:00:00.000Z"),
   updatedAt: new Date("2026-01-02T00:00:00.000Z"),
 };
-const expenseShare = { expenseId: "22222222-2222-4222-8222-222222222222", expenseDescription: "Dinner", outingTitle: "Jakarta dinner", outingOccurredAt: new Date("2026-01-02T10:30:00.000Z"), amountOwed: 8_000, appliedAmount: 3_000, remainingAmount: 5_000, settled: false };
+const expenseShare = { id: "44444444-4444-4444-8444-444444444444", expenseId: "22222222-2222-4222-8222-222222222222", expenseDescription: "Dinner", outingTitle: "Jakarta dinner", outingOccurredAt: new Date("2026-01-02T10:30:00.000Z"), amountOwed: 8_000, appliedAmount: 3_000, remainingAmount: 5_000, settled: false };
 const expenseSharePage = { items: [expenseShare], page: 1, pageSize: 20 as const, totalItems: 1, totalPages: 1 };
 const repayment = { id: "33333333-3333-4333-8333-333333333333", ownerUserId: "owner-a", friendId: friend.id, amount: 4_000, paidAt: new Date("2026-01-03T10:30:00.000Z"), paymentMethod: null, notes: null, createdAt: new Date("2026-01-03T10:30:00.000Z"), friendName: friend.name, friendArchivedAt: null, allocatedAmount: 3_000, unallocatedAmount: 1_000 };
 const repaymentPage = { items: [repayment], page: 1, pageSize: 20 as const, totalItems: 1, totalPages: 1 };
@@ -72,7 +72,9 @@ describe("friend record", () => {
     expect(screen.getByRole("button", { name: "Archive friend" })).toBeInTheDocument();
     expect(screen.getByText("A private, read-only view")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create balance link" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Record repayment" })).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}`);
+    expect(screen.getAllByRole("link", { name: "Record repayment" })[0]).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}`);
+    expect(screen.getAllByRole("link", { name: "Record repayment" })[1]).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}&expenseShareId=${expenseShare.id}`);
+    expect(screen.getByRole("link", { name: "Settle Rp 6.000" })).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}&amount=6000`);
     expect(screen.getByRole("link", { name: /Back to friends/ })).toHaveAttribute("href", "/app/friends");
   });
 

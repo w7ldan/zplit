@@ -9,6 +9,13 @@ const archivedFriend: ExpenseShareEditorFriend = { id: "22222222-2222-4222-8222-
 const suggestedFriend = { id: "33333333-3333-4333-8333-333333333333", label: "Siti" };
 
 describe("expense share editor", () => {
+  it("offers repayment only for an open persisted share", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[{ ...activeFriend, expenseShareId: "33333333-3333-4333-8333-333333333333", remainingAmount: 5000 }, { ...archivedFriend, expenseShareId: "44444444-4444-4444-8444-444444444444", remainingAmount: 0, settled: true }]} />);
+
+    expect(screen.getByRole("link", { name: "Record repayment" })).toHaveAttribute("href", "/app/repayments?create=1&friendId=11111111-1111-4111-8111-111111111111&expenseShareId=33333333-3333-4333-8333-333333333333");
+    expect(screen.getAllByRole("link", { name: "Record repayment" })).toHaveLength(1);
+  });
+
   it("shows accessible fields, archived text, and live totals", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend, archivedFriend]} />);
 

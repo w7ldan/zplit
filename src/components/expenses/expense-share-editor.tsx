@@ -14,6 +14,9 @@ export type ExpenseShareEditorFriend = {
   archivedAt: Date | null;
   baseAmount?: number;
   amountOwed?: number;
+  expenseShareId?: string;
+  remainingAmount?: number;
+  settled?: boolean;
 };
 
 export type ExpenseShareEditorCharge = Omit<ExpenseShareChargeValues, "percentage"> & { percentageBasisPoints: number };
@@ -257,6 +260,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
                 </label>
                 <button className="text-link" type="button" onClick={() => removeFriend(friend.id)} aria-label={`Remove ${friend.name}`}>Remove</button>
               </div>
+              {friend.expenseShareId && (friend.remainingAmount ?? 0) > 0 ? <Link className="text-link" href={`/app/repayments?create=1&friendId=${encodeURIComponent(friend.id)}&expenseShareId=${encodeURIComponent(friend.expenseShareId)}`}>Record repayment</Link> : null}
               <input
                 ref={(element) => { if (element) amountRefs.current.set(friend.id, element); else amountRefs.current.delete(friend.id); }}
                 id={`expense-share-${friend.id}`}

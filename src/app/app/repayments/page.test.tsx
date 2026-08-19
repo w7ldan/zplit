@@ -12,6 +12,7 @@ const activeFriend = { id: "11111111-1111-4111-8111-111111111111", name: "Ari", 
 const archivedFriend = { id: "22222222-2222-4222-8222-222222222222", name: "Bima", archivedAt: new Date("2026-01-01T00:00:00.000Z") };
 const summary = { friendBalances: [{ friendId: activeFriend.id, name: "Ari", archived: false, assignedAmount: 84_000, repaidAmount: 20_000, outstandingAmount: 64_000 }] };
 const repayment = { id: "repayment-a", friendName: "Ari", friendArchivedAt: null, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", allocatedAmount: 40_000, unallocatedAmount: 44_000 };
+const contextShare = { id: "33333333-3333-4333-8333-333333333333", friendId: activeFriend.id, friendName: activeFriend.name, expenseDescription: "Dinner", outingTitle: "Bandung day out", outingOccurredAt: new Date("2026-01-01T00:00:00.000Z"), amountOwed: 84_000, repaidAmount: 20_000, remainingAmount: 64_000 };
 
 describe("/app/repayments", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -93,6 +94,32 @@ describe("/app/repayments", () => {
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id }) }));
     expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveTextContent(activeFriend.name);
     expect(listRepaymentRecords).toHaveBeenCalledWith({ q: undefined, friendId: activeFriend.id, month: undefined, allocation: undefined, page: undefined, timezoneOffsetMinutes: undefined });
+  });
+
+  it.each([
+    ["valid open share", [contextShare], true],
+    ["mismatched friend share", [{ ...contextShare, friendId: archivedFriend.id }], false],
+    ["other-owner share", [], false],
+    ["settled or stale share", [], false],
+  ])("%s is ignored unless it is the selected friend's open share", async (_label, openExpenseShares, selected) => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    const getContext = vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: getContext });
+
+    const view = render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id, expenseShareId: contextShare.id }) }));
+    expect(getContext).toHaveBeenCalledWith(activeFriend.id, true);
+    expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveTextContent(activeFriend.name);
+    if (selected) expect(screen.getByLabelText("Allocation for Dinner")).toBeInTheDocument();
+    else expect(screen.queryByLabelText("Allocation for Dinner")).not.toBeInTheDocument();
+    view.unmount();
+  });
+
+  it("keeps a settle amount candidate in the normal repayment input", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [] }) });
+
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id, amount: "64.000" }) }));
+    expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("64.000");
   });
 
   it("does not preselect malformed or foreign friends", async () => {

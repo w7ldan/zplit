@@ -770,8 +770,8 @@ describe("ledger repository", () => {
       queries.push({ sql, params });
       if (sql.toLowerCase().includes("select count(*)")) return { rows: [[41]] };
       return { rows: [
-        ["expense-open", "Open dinner", "Later outing", new Date("2026-04-02T00:00:00.000Z"), 5000, 2000],
-        ["expense-settled", "Settled lunch", "Earlier outing", new Date("2026-04-01T00:00:00.000Z"), 7000, 7000],
+        ["share-open", "expense-open", "Open dinner", "Later outing", new Date("2026-04-02T00:00:00.000Z"), 5000, 2000],
+        ["share-settled", "expense-settled", "Settled lunch", "Earlier outing", new Date("2026-04-01T00:00:00.000Z"), 7000, 7000],
       ] };
     });
 
