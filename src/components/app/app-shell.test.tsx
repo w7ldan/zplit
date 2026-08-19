@@ -6,6 +6,7 @@ const pathState = vi.hoisted(() => ({ value: "/app/history" }));
 
 vi.mock("next/navigation", () => ({ usePathname: () => pathState.value, useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/auth/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
+vi.mock("@/app/app/search/actions", () => ({ searchGlobalRecords: vi.fn() }));
 
 let frameCallback: FrameRequestCallback | undefined;
 

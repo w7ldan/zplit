@@ -310,6 +310,41 @@ describe("ledger repository", () => {
     expect(queries[0]!.params).toContain(owner);
   });
 
+  it("searches all five record types in one bounded owner-scoped query", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [
+        { record_kind: "friend", record_id: "friend-a", title_source: "Ari", detail_source: null, context_source: null, amount: null, occurred_at: null },
+        { record_kind: "trip", record_id: "trip-a", title_source: "Bali", detail_source: "2026-08-01", context_source: null, amount: null, occurred_at: null },
+        { record_kind: "outing", record_id: "outing-a", title_source: "Dinner", detail_source: null, context_source: "Bali", amount: null, occurred_at: new Date("2026-08-02T00:00:00.000Z") },
+        { record_kind: "expense", record_id: "expense-a", title_source: "Nasi", detail_source: "Dinner", context_source: null, amount: 42500, occurred_at: null },
+        { record_kind: "repayment", record_id: "repayment-a", title_source: "Ari", detail_source: null, context_source: null, amount: 42500, occurred_at: new Date("2026-08-03T00:00:00.000Z") },
+      ] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await expect(repository.searchGlobalRecords("Rp 42.500")).resolves.toMatchObject([
+      { kind: "friend", id: "friend-a", title: "Ari" },
+      { kind: "trip", id: "trip-a", detail: "2026-08-01" },
+      { kind: "outing", id: "outing-a", context: "Bali", date: "2026-08-02T00:00:00.000Z" },
+      { kind: "expense", id: "expense-a", amount: 42500, detail: "Dinner" },
+      { kind: "repayment", id: "repayment-a", amount: 42500, date: "2026-08-03T00:00:00.000Z" },
+    ]);
+    await expect(repository.searchGlobalRecords(" ")).resolves.toEqual([]);
+
+    expect(queries).toHaveLength(1);
+    const query = queries[0]!.sql.replace(/\s+/g, " ").trim().toLowerCase();
+    for (const table of ["friends", "trips", "outings", "expenses", "repayments"]) expect(query).toContain(`from ${table}`);
+    expect(query).toContain("union all");
+    expect(query).toContain("limit 5");
+    expect(query).toContain("limit 20");
+    expect(query).toContain("e.amount =");
+    expect(query).toContain("r.amount =");
+    expect(queries[0]!.params.filter((value) => value === owner).length).toBeGreaterThanOrEqual(5);
+    expect(queries[0]!.params).toContain(42500);
+  });
+
   it("bounds Trip selector search and preserves a selected owner record", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => { queries.push({ sql, params }); return sql.toLowerCase().includes("select count(*)") ? { rows: [[41]] } : { rows: [] }; });

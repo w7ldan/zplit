@@ -2235,6 +2235,208 @@
   gap: 0.75rem;
 }
 
+body.global-search-open {
+  overflow: hidden;
+}
+
+.global-search-trigger {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted-ink);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.global-search-trigger:hover,
+.global-search-trigger:focus-visible {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.global-search-trigger kbd {
+  min-width: 1.25rem;
+  padding: 0.1rem 0.25rem;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.global-search__backdrop {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  display: grid;
+  align-items: start;
+  overflow: auto;
+  padding: min(10vh, 6rem) 1rem 2rem;
+  background: rgb(17 19 21 / 42%);
+}
+
+.global-search__dialog {
+  display: grid;
+  width: min(42rem, 100%);
+  max-height: min(72svh, 42rem);
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  background: var(--surface);
+  box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
+}
+
+.global-search__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.global-search__header h2 {
+  margin: 0.35rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+.global-search__header p:last-child {
+  margin: 0.5rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+}
+
+.global-search__close {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--muted-ink);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.global-search__close:hover,
+.global-search__close:focus-visible {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.global-search__input-wrap {
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.global-search__input-wrap input {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.global-search__results {
+  min-height: 8rem;
+  overflow: auto;
+  padding: 0.25rem 0 0.75rem;
+}
+
+.global-search__prompt,
+.global-search__error {
+  margin: 0;
+  padding: 1.1rem 1.25rem;
+  color: var(--muted-ink);
+  font-size: 0.88rem;
+}
+
+.global-search__error {
+  color: var(--error);
+}
+
+.global-search__group-label {
+  margin: 0;
+  padding: 0.7rem 1.25rem 0.35rem;
+  color: var(--muted-ink);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.global-search__result {
+  display: grid;
+  width: 100%;
+  gap: 0.18rem;
+  padding: 0.7rem 1.25rem;
+  border: 0;
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.global-search__result:hover,
+.global-search__result:focus-visible,
+.global-search__result--active {
+  border-color: var(--rule);
+  background: var(--pastel-blue);
+}
+
+.global-search__result-title {
+  overflow-wrap: anywhere;
+  font-size: 0.92rem;
+  font-weight: 750;
+}
+
+.global-search__result-detail {
+  overflow-wrap: anywhere;
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 767px) {
+  .global-search-trigger span {
+    display: none;
+  }
+
+  .global-search__backdrop {
+    align-items: start;
+    padding: 0.75rem;
+  }
+
+  .global-search__dialog {
+    max-height: calc(100svh - 1.5rem);
+  }
+
+  .global-search__header,
+  .global-search__input-wrap,
+  .global-search__result,
+  .global-search__prompt,
+  .global-search__error {
+    padding-inline: 0.9rem;
+  }
+
+  .global-search__group-label {
+    padding-inline: 0.9rem;
+  }
+}
+
 .app-shell__wordmark {
   font-family: var(--font-display);
   font-size: 1.5rem;

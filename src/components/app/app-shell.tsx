@@ -9,6 +9,7 @@ import { HeaderShell } from "@/components/navigation/header-shell";
 import { ToastProvider } from "@/components/feedback/toast";
 import { DeleteConfirmation } from "./delete-record-form";
 import { UnsavedChangesProvider } from "@/components/navigation/unsaved-changes";
+import { GlobalSearch } from "./global-search";
 
 const destinations = [
   ["Overview", "/app"],
@@ -69,6 +70,7 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
         )}
         actions={(
           <>
+            <GlobalSearch />
             <Link className="action-link action-link--primary app-shell__add-expense" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
             <details className="account-menu">
               <summary aria-label={`Open account menu for ${user.name}`}><span className="account-menu__name">{user.name}</span></summary>
