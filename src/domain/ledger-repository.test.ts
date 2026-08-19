@@ -904,6 +904,31 @@ describe("ledger repository", () => {
     expect(queries[7].sql.toLowerCase().indexOf("limit")).toBeLessThan(queries[7].sql.toLowerCase().lastIndexOf('inner join "friends"'));
   });
 
+  it("combines exact amount predicates with text search in both count and page queries", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => { queries.push({ sql, params }); return { rows: [] }; });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await expect(repository.listExpenseRecords({ q: "Rp 42.500", page: 2 })).resolves.toMatchObject({ totalItems: 0, page: 1 });
+    await expect(repository.listRepaymentRecords({ q: "42.500", page: 2 })).resolves.toMatchObject({ totalItems: 0, page: 1 });
+
+    expect(queries).toHaveLength(4);
+    for (const query of queries) {
+      const sql = query.sql.replace(/\s+/g, " ").trim().toLowerCase();
+      expect(sql).toContain(" or ");
+      expect(sql).toContain(" = $");
+      expect(query.params).toContain(42500);
+      expect(query.params).toContain(owner);
+    }
+    expect(queries[0]!.sql).toContain('"expenses"."amount" = $');
+    expect(queries[2]!.sql).toContain('"repayments"."amount" = $');
+
+    queries.length = 0;
+    await expect(repository.listExpenseRecords({ q: "42.50" })).resolves.toMatchObject({ totalItems: 0 });
+    expect(queries.every((query) => !query.params.includes(42500))).toBe(true);
+    expect(queries.every((query) => !query.sql.includes('"expenses"."amount" = $'))).toBe(true);
+  });
+
   it("lists one owner's friend shares with batched allocation totals and clamped pages", async () => {
     const friendId = "550e8400-e29b-41d4-a716-446655440000";
     const queries: Array<{ sql: string; params: unknown[] }> = [];

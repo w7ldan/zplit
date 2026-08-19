@@ -1,3 +1,5 @@
+import { parseRupiah } from "./rupiah";
+
 export const RECORD_PAGE_SIZE = 20 as const;
 
 export type RecordPage<T> = {
@@ -24,6 +26,12 @@ export function normalizeText(value: unknown) {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim().replace(/\s+/g, " ").slice(0, 100).trim();
   return normalized || undefined;
+}
+
+export function parseAmountSearch(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim().replace(/^rp\s*/i, "");
+  return parseRupiah(text) ?? undefined;
 }
 
 export function normalizePage(value: unknown) {

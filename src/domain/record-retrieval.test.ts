@@ -11,6 +11,7 @@ import {
   normalizeFriendFilters,
   normalizeMonth,
   normalizeOutingFilters,
+  parseAmountSearch,
   normalizeRepaymentFilters,
   normalizeText,
   normalizeTimezoneOffset,
@@ -19,6 +20,11 @@ import {
 } from "./record-retrieval";
 
 describe("record retrieval", () => {
+  it("parses exact Rupiah amount searches without floating point", () => {
+    for (const value of ["42500", "42.500", "Rp 42.500", "  Rp 42.500  "]) expect(parseAmountSearch(value)).toBe(42500);
+    for (const value of ["42.50", "42,500", "Rp nope", "0", "-42500"]) expect(parseAmountSearch(value)).toBeUndefined();
+  });
+
   it("normalizes text, UUID, month, enum, and page filters", () => {
     expect(normalizeText("  Ada   Lovelace  ")).toBe("Ada Lovelace");
     expect(normalizeText("x".repeat(101))).toHaveLength(100);

@@ -50,6 +50,7 @@ import {
   normalizeFriendFilters,
   normalizeOutingFilters,
   normalizePage,
+  parseAmountSearch,
   normalizeRepaymentFilters,
   normalizeText,
   normalizeTimezoneOffset,
@@ -1931,10 +1932,16 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       : filters.assignment === "assigned"
         ? sql`exists (select 1 from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.expenseId} = ${expenses.id})`
         : sql`not exists (select 1 from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.expenseId} = ${expenses.id})`;
+    const amount = parseAmountSearch(filters.q);
+    const queryCondition = filters.q
+      ? amount === undefined
+        ? sql`(${literalContains(expenses.description, filters.q)} OR ${literalContains(outings.title, filters.q)})`
+        : sql`(${literalContains(expenses.description, filters.q)} OR ${literalContains(outings.title, filters.q)} OR ${eq(expenses.amount, amount)})`
+      : undefined;
     const conditions = [
       eq(expenses.ownerUserId, owner),
       eq(outings.ownerUserId, owner),
-      ...(filters.q ? [sql`(${literalContains(expenses.description, filters.q)} OR ${literalContains(outings.title, filters.q)})`] : []),
+      ...(queryCondition ? [queryCondition] : []),
       ...(filters.outingId ? [eq(expenses.outingId, filters.outingId)] : []),
       ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
       ...(assignmentCondition ? [assignmentCondition] : []),
@@ -3205,10 +3212,16 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       : filters.allocation === "complete"
         ? sql`${allocationValue} >= ${repayments.amount}`
         : sql`${allocationValue} < ${repayments.amount}`;
+    const amount = parseAmountSearch(filters.q);
+    const queryCondition = filters.q
+      ? amount === undefined
+        ? sql`(${literalContains(friends.name, filters.q)} OR ${literalContains(repayments.paymentMethod, filters.q)})`
+        : sql`(${literalContains(friends.name, filters.q)} OR ${literalContains(repayments.paymentMethod, filters.q)} OR ${eq(repayments.amount, amount)})`
+      : undefined;
     const conditions = [
       eq(repayments.ownerUserId, owner),
       eq(friends.ownerUserId, owner),
-      ...(filters.q ? [sql`(${literalContains(friends.name, filters.q)} OR ${literalContains(repayments.paymentMethod, filters.q)})`] : []),
+      ...(queryCondition ? [queryCondition] : []),
       ...(filters.friendId ? [eq(repayments.friendId, filters.friendId)] : []),
       ...(filters.month ? [gte(repayments.paidAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(repayments.paidAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
       ...(allocationCondition ? [allocationCondition] : []),
