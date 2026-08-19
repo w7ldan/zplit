@@ -197,6 +197,17 @@ export type RepaymentListRecord = RepaymentRecord & {
   unallocatedAmount: number;
 };
 
+export type FriendExpenseShareRecord = {
+  expenseId: string;
+  expenseDescription: string;
+  outingTitle: string;
+  outingOccurredAt: Date;
+  amountOwed: number;
+  appliedAmount: number;
+  remainingAmount: number;
+  settled: boolean;
+};
+
 export type LedgerOverviewSummary = Omit<LedgerSummary, "friendBalances"> & {
   totalAssignedFriendCount: number;
   friendBalances: FriendBalance[];
@@ -1839,6 +1850,79 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  async function listFriendExpenseShareRecords(friendId: string, options: { page?: unknown } = {}): Promise<RecordPage<FriendExpenseShareRecord>> {
+    assertFriendId(friendId);
+    const page = normalizePage(options.page);
+    const allocationTotals = database
+      .select({
+        ownerUserId: repaymentAllocations.ownerUserId,
+        expenseShareId: repaymentAllocations.expenseShareId,
+        appliedAmount: sql<number>`sum(${repaymentAllocations.amount})`.mapWith(Number).as("applied_amount"),
+      })
+      .from(repaymentAllocations)
+      .where(eq(repaymentAllocations.ownerUserId, owner))
+      .groupBy(repaymentAllocations.ownerUserId, repaymentAllocations.expenseShareId)
+      .as("friend_expense_share_allocations");
+    const conditions = [
+      eq(expenseShares.ownerUserId, owner),
+      eq(expenseShares.friendId, friendId.trim().toLowerCase()),
+      eq(expenses.ownerUserId, owner),
+      eq(outings.ownerUserId, owner),
+      eq(friends.ownerUserId, owner),
+    ];
+    try {
+      const [{ count = 0 } = {}] = await database
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(expenseShares)
+        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
+        .where(and(...conditions));
+      const totalItems = safeRetrievalInteger(count, "Friend expense share count");
+      const requestedPage = clampPage(page, totalItems);
+      const appliedAmount = sql<number>`coalesce(${allocationTotals.appliedAmount}, 0)`.mapWith(Number);
+      const rows = await database
+        .select({
+          expenseId: expenses.id,
+          expenseDescription: expenses.description,
+          outingTitle: outings.title,
+          outingOccurredAt: outings.occurredAt,
+          amountOwed: expenseShares.amountOwed,
+          appliedAmount,
+        })
+        .from(expenseShares)
+        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
+        .leftJoin(allocationTotals, and(eq(allocationTotals.ownerUserId, owner), eq(allocationTotals.expenseShareId, expenseShares.id)))
+        .where(and(...conditions))
+        .orderBy(
+          sql`case when ${appliedAmount} < ${expenseShares.amountOwed} then 0 else 1 end`,
+          desc(outings.occurredAt),
+          desc(expenses.createdAt),
+          asc(expenses.id),
+          asc(expenseShares.id),
+        )
+        .limit(RECORD_PAGE_SIZE)
+        .offset((requestedPage - 1) * RECORD_PAGE_SIZE);
+      const items = rows.map((row) => {
+        const amountOwed = safeRetrievalInteger(row.amountOwed, `Share for expense ${row.expenseId}`);
+        const applied = safeRetrievalInteger(row.appliedAmount ?? 0, `Applied amount for expense ${row.expenseId}`);
+        if (applied > amountOwed) throw new LedgerIntegrityError(`Allocations exceed share for expense ${row.expenseId}.`);
+        return {
+          ...row,
+          amountOwed,
+          appliedAmount: applied,
+          remainingAmount: amountOwed - applied,
+          settled: applied === amountOwed,
+        };
+      });
+      return pageResult(items, totalItems, requestedPage);
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
   type HistoryRow = {
     event_type: string;
     record_id: string;
@@ -3373,6 +3457,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     listExpenses,
     listRecentActivity,
     listExpenseRecords,
+    listFriendExpenseShareRecords,
     getExpenseDeletionImpact,
     listLedgerHistory,
     getLedgerSummary,

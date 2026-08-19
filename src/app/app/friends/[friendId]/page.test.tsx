@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import FriendRecordPage from "./page";
 import { ToastProvider } from "@/components/feedback/toast";
@@ -31,13 +31,21 @@ const friend = {
   createdAt: new Date("2026-01-02T00:00:00.000Z"),
   updatedAt: new Date("2026-01-02T00:00:00.000Z"),
 };
+const expenseShare = { expenseId: "22222222-2222-4222-8222-222222222222", expenseDescription: "Dinner", outingTitle: "Jakarta dinner", outingOccurredAt: new Date("2026-01-02T10:30:00.000Z"), amountOwed: 8_000, appliedAmount: 3_000, remainingAmount: 5_000, settled: false };
+const expenseSharePage = { items: [expenseShare], page: 1, pageSize: 20 as const, totalItems: 1, totalPages: 1 };
+const repayment = { id: "33333333-3333-4333-8333-333333333333", ownerUserId: "owner-a", friendId: friend.id, amount: 4_000, paidAt: new Date("2026-01-03T10:30:00.000Z"), paymentMethod: null, notes: null, createdAt: new Date("2026-01-03T10:30:00.000Z"), friendName: friend.name, friendArchivedAt: null, allocatedAmount: 3_000, unallocatedAmount: 1_000 };
+const repaymentPage = { items: [repayment], page: 1, pageSize: 20 as const, totalItems: 1, totalPages: 1 };
+const emptyExpenseSharePage = { items: [], page: 1, pageSize: 20 as const, totalItems: 0, totalPages: 1 };
+const emptyRepaymentPage = { items: [], page: 1, pageSize: 20 as const, totalItems: 0, totalPages: 1 };
 
 describe("friend record", () => {
   it("renders identity, metadata, edit fields, and archive action", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
     const getFriendBalances = vi.fn().mockResolvedValue([{ friendId: friend.id, assignedAmount: 10_000, repaidAmount: 4_000, outstandingAmount: 6_000 }]);
-    mocks.createLedgerRepository.mockReturnValue({ getFriend: vi.fn().mockResolvedValue(friend), getFriendBalances, listEligibleDebtorShareReceipts: vi.fn().mockResolvedValue([]) });
+    const listFriendExpenseShareRecords = vi.fn().mockResolvedValue(expenseSharePage);
+    const listRepaymentRecords = vi.fn().mockResolvedValue(repaymentPage);
+    mocks.createLedgerRepository.mockReturnValue({ getFriend: vi.fn().mockResolvedValue(friend), getFriendBalances, listEligibleDebtorShareReceipts: vi.fn().mockResolvedValue([]), listFriendExpenseShareRecords, listRepaymentRecords });
     mocks.getDebtorShareLinkStatus.mockResolvedValue({ status: "none", expiresAt: null });
     mocks.getDebtorShareReceiptSelection.mockResolvedValue([]);
     render(<ToastProvider>{await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) })}</ToastProvider>);
@@ -45,11 +53,20 @@ describe("friend record", () => {
     expect(screen.getByText("Friend · editable record")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Ada Lovelace" })).toBeInTheDocument();
     expect(screen.getByText("ACTIVE")).toBeInTheDocument();
-    expect(screen.getByText("02 Jan 2026")).toBeInTheDocument();
+    expect(screen.getAllByText("02 Jan 2026")).toHaveLength(2);
     expect(getFriendBalances).toHaveBeenCalledExactlyOnceWith([friend.id]);
     expect(screen.getByRole("heading", { level: 2, name: "Balance" })).toBeInTheDocument();
-    for (const label of ["Assigned", "Applied", "Still owes"]) expect(screen.getByText(label, { exact: true })).toBeInTheDocument();
-    for (const amount of ["Rp 10.000", "Rp 4.000", "Rp 6.000"]) expect(screen.getByText(amount, { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Expense shares" })).toBeInTheDocument();
+    expect(screen.getByText("Dinner", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("OPEN", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open expense" })).toHaveAttribute("href", `/app/expenses/${expenseShare.expenseId}`);
+    expect(screen.getByRole("heading", { level: 2, name: "Repayments" })).toBeInTheDocument();
+    expect(screen.getByText("—", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open repayment" })).toHaveAttribute("href", `/app/repayments/${repayment.id}`);
+    expect(listFriendExpenseShareRecords).toHaveBeenCalledExactlyOnceWith(friend.id, { page: undefined });
+    expect(listRepaymentRecords).toHaveBeenCalledExactlyOnceWith({ friendId: friend.id, page: undefined });
+    for (const label of ["Assigned", "Applied", "Still owes"]) expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
+    for (const amount of ["Rp 10.000", "Rp 4.000", "Rp 6.000"]) expect(screen.getAllByText(amount, { exact: true }).length).toBeGreaterThan(0);
     expect(screen.queryByText("Rp 6.000 remains outstanding.")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("Ada Lovelace");
     expect(screen.getByRole("button", { name: "Archive friend" })).toBeInTheDocument();
@@ -63,7 +80,7 @@ describe("friend record", () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
     const getFriendBalances = vi.fn().mockResolvedValue([]);
-    mocks.createLedgerRepository.mockReturnValue({ getFriend: vi.fn().mockResolvedValue(friend), getFriendBalances, listEligibleDebtorShareReceipts: vi.fn().mockResolvedValue([]) });
+    mocks.createLedgerRepository.mockReturnValue({ getFriend: vi.fn().mockResolvedValue(friend), getFriendBalances, listEligibleDebtorShareReceipts: vi.fn().mockResolvedValue([]), listFriendExpenseShareRecords: vi.fn().mockResolvedValue(emptyExpenseSharePage), listRepaymentRecords: vi.fn().mockResolvedValue(emptyRepaymentPage) });
     mocks.getDebtorShareLinkStatus.mockResolvedValue({ status: "none", expiresAt: null });
     mocks.getDebtorShareReceiptSelection.mockResolvedValue([]);
 
@@ -72,8 +89,8 @@ describe("friend record", () => {
     expect(getFriendBalances).toHaveBeenCalledExactlyOnceWith([friend.id]);
     expect(screen.getAllByText("Rp 0", { exact: true })).toHaveLength(3);
     expect(screen.getByText("No balance yet", { exact: true })).toBeInTheDocument();
-    expect(screen.queryByText("No expenses have been assigned to this friend yet.")).not.toBeInTheDocument();
-    expect(screen.queryByText("This friend is settled.")).not.toBeInTheDocument();
+    expect(screen.getByText("No expense shares recorded for this friend yet.", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("No repayments recorded for this friend yet.", { exact: true })).toBeInTheDocument();
   });
 
   it("distinguishes a settled friend from a never-assigned friend", async () => {
@@ -83,6 +100,8 @@ describe("friend record", () => {
       getFriend: vi.fn().mockResolvedValue(friend),
       getFriendBalances: vi.fn().mockResolvedValue([{ friendId: friend.id, assignedAmount: 10_000, repaidAmount: 10_000, outstandingAmount: 0 }]),
       listEligibleDebtorShareReceipts: vi.fn().mockResolvedValue([]),
+      listFriendExpenseShareRecords: vi.fn().mockResolvedValue(emptyExpenseSharePage),
+      listRepaymentRecords: vi.fn().mockResolvedValue(emptyRepaymentPage),
     });
     mocks.getDebtorShareLinkStatus.mockResolvedValue({ status: "none", expiresAt: null });
     mocks.getDebtorShareReceiptSelection.mockResolvedValue([]);
@@ -90,8 +109,27 @@ describe("friend record", () => {
     render(<ToastProvider>{await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) })}</ToastProvider>);
 
     expect(screen.getByText("Settled", { exact: true })).toBeInTheDocument();
-    expect(screen.queryByText("This friend is settled.")).not.toBeInTheDocument();
-    expect(screen.queryByText("No expenses have been assigned to this friend yet.")).not.toBeInTheDocument();
+    expect(screen.getByText("No expense shares recorded for this friend yet.", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("No repayments recorded for this friend yet.", { exact: true })).toBeInTheDocument();
+  });
+
+  it("keeps the two history pagers independent", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({
+      getFriend: vi.fn().mockResolvedValue(friend),
+      getFriendBalances: vi.fn().mockResolvedValue([]),
+      listEligibleDebtorShareReceipts: vi.fn().mockResolvedValue([]),
+      listFriendExpenseShareRecords: vi.fn().mockResolvedValue({ ...emptyExpenseSharePage, page: 1, totalItems: 21, totalPages: 2 }),
+      listRepaymentRecords: vi.fn().mockResolvedValue({ ...emptyRepaymentPage, page: 2, totalItems: 41, totalPages: 3 }),
+    });
+    mocks.getDebtorShareLinkStatus.mockResolvedValue({ status: "none", expiresAt: null });
+    mocks.getDebtorShareReceiptSelection.mockResolvedValue([]);
+
+    render(<ToastProvider>{await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }), searchParams: Promise.resolve({ expensePage: "1", repaymentPage: "2", saved: "1" }) })}</ToastProvider>);
+
+    expect(within(screen.getByRole("region", { name: "Expense shares" })).getByRole("link", { name: "Next" })).toHaveAttribute("href", `/app/friends/${friend.id}?expensePage=2&repaymentPage=2#friend-expense-shares`);
+    expect(within(screen.getByRole("region", { name: "Repayments" })).getByRole("link", { name: "Next" })).toHaveAttribute("href", `/app/friends/${friend.id}?expensePage=1&repaymentPage=3#friend-repayments`);
   });
 
   it("uses the same not-found path for an absent or foreign record", async () => {

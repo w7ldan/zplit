@@ -9,31 +9,45 @@ import { searchTripOptions, updateOutingAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteOutingAction } from "../actions";
+import { formatRupiah } from "@/domain/rupiah";
+import { recordHref } from "@/domain/record-retrieval";
+import { RecordPagination } from "@/components/records/record-pagination";
 
 export const dynamic = "force-dynamic";
+
+type OutingSearchParams = { [key: string]: string | string[] | undefined };
+
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
 
 function utcDateTimeLocal(date: Date) {
   const pad = (value: number) => value.toString().padStart(2, "0");
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
 }
 
-export default async function OutingRecordPage({ params, searchParams }: { params: Promise<{ outingId: string }>; searchParams?: Promise<{ saved?: string | string[] }> }) {
+export default async function OutingRecordPage({ params, searchParams }: { params: Promise<{ outingId: string }>; searchParams?: Promise<OutingSearchParams> }) {
   const session = await requireSession();
   const { outingId } = await params;
   const query = await searchParams;
   let outing;
   let deletionImpact;
   let trip: { id: string; name: string } | null = null;
+  let expensePage;
   try {
     const repository = createLedgerRepository(getDatabase(), session.user.id);
     outing = await repository.getOuting(outingId);
-    deletionImpact = await repository.getOutingDeletionImpact(outingId);
-    trip = outing.tripId ? await repository.getTrip(outing.tripId) : null;
+    [deletionImpact, trip, expensePage] = await Promise.all([
+      repository.getOutingDeletionImpact(outingId),
+      outing.tripId ? repository.getTrip(outing.tripId) : Promise.resolve(null),
+      repository.listExpenseRecords({ outingId: outing.id, page: first(query?.expensePage) }),
+    ]);
   } catch (error) {
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
   }
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
+  const expenseHref = recordHref(`/app/outings/${outing.id}`, query ?? {}, { saved: undefined });
 
   return (
     <section className="app-page outing-record" id="top">
@@ -66,6 +80,15 @@ export default async function OutingRecordPage({ params, searchParams }: { param
           <p className="outing-record__next">Expenses recorded under this outing keep its occurrence timestamp. Trip grouping does not change ledger calculations.</p>
         </div>
         <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" impact={deletionImpact} impactRevision={currentImpactRevision} />
+        <section className="record-history ledger-section" id="outing-expenses" aria-labelledby="outing-expenses-heading">
+          <div className="ledger-section__heading"><div><p className="technical-label">EXPENSE HISTORY</p><h2 id="outing-expenses-heading">Expenses</h2></div><span className="technical-label">{expensePage.totalItems} entries</span></div>
+          {expensePage.items.length > 0 ? <div className="record-history__rows">{expensePage.items.map((expense) => <article className="record-history__row" key={expense.id}>
+            <div className="record-history__primary"><span className="technical-label">EXPENSE</span><h3><Link href={`/app/expenses/${expense.id}`}>{expense.description}</Link></h3></div>
+            <div className="record-history__value"><span className="technical-label">Amount</span><strong>{formatRupiah(expense.amount)}</strong></div>
+            <Link className="record-history__link" href={`/app/expenses/${expense.id}`}>Open expense <span aria-hidden="true">→</span></Link>
+          </article>)}</div> : <div className="ledger-empty"><h3>No expenses recorded for this outing yet.</h3></div>}
+          <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={expenseHref} anchor="outing-expenses" pageParam="expensePage" />
+        </section>
       </div>
     </section>
   );

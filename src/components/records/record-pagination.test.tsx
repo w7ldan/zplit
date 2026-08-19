@@ -19,4 +19,10 @@ describe("RecordPagination", () => {
     rerender(<RecordPagination page={1} pageSize={20} totalItems={20} totalPages={1} href="/app/friends" />);
     expect(screen.queryByRole("navigation", { name: "Record pages" })).not.toBeInTheDocument();
   });
+
+  it("can write a detail-page parameter without changing the default", () => {
+    render(<RecordPagination page={1} pageSize={20} totalItems={21} totalPages={2} href="/app/friends/123?repaymentPage=3" anchor="friend-expense-shares" pageParam="expensePage" />);
+
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app/friends/123?repaymentPage=3&expensePage=2#friend-expense-shares");
+  });
 });

@@ -763,6 +763,39 @@ describe("ledger repository", () => {
     expect(queries[7].sql.toLowerCase().indexOf("limit")).toBeLessThan(queries[7].sql.toLowerCase().lastIndexOf('inner join "friends"'));
   });
 
+  it("lists one owner's friend shares with batched allocation totals and clamped pages", async () => {
+    const friendId = "550e8400-e29b-41d4-a716-446655440000";
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      if (sql.toLowerCase().includes("select count(*)")) return { rows: [[41]] };
+      return { rows: [
+        ["expense-open", "Open dinner", "Later outing", new Date("2026-04-02T00:00:00.000Z"), 5000, 2000],
+        ["expense-settled", "Settled lunch", "Earlier outing", new Date("2026-04-01T00:00:00.000Z"), 7000, 7000],
+      ] };
+    });
+
+    const result = await createLedgerRepository(database as unknown as Database, owner).listFriendExpenseShareRecords(friendId, { page: 9 });
+
+    expect(result).toMatchObject({ page: 3, pageSize: 20, totalItems: 41, totalPages: 3 });
+    expect(result.items).toEqual([
+      expect.objectContaining({ expenseId: "expense-open", appliedAmount: 2000, remainingAmount: 3000, settled: false }),
+      expect.objectContaining({ expenseId: "expense-settled", appliedAmount: 7000, remainingAmount: 0, settled: true }),
+    ]);
+    expect(queries).toHaveLength(2);
+    for (const query of queries) {
+      expect(query.params).toContain(owner);
+      expect(query.params).toContain(friendId);
+    }
+    expect(queries[1].sql).toContain('"repayment_allocations"');
+    expect(queries[1].sql).toContain('"expense_shares"."friend_id"');
+    expect(queries[1].sql.toLowerCase()).toContain("case when");
+    expect(queries[1].sql.toLowerCase()).toContain('order by');
+    expect(queries[1].sql.toLowerCase()).toContain('"outings"."occurred_at" desc');
+    expect(queries[1].sql.toLowerCase()).toContain("limit");
+    expect(queries[1].sql.toLowerCase()).toContain("offset");
+  });
+
   it("uses the fixed record page size and offset after counting multiple pages", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

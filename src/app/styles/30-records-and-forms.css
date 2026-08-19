@@ -870,6 +870,84 @@
   font-variant-numeric: tabular-nums;
 }
 
+.record-history {
+  grid-column: 1 / -1;
+  order: 7;
+  min-width: 0;
+}
+
+.record-history__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+  min-width: 0;
+  padding-block: 1rem;
+  border-top: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}
+
+.record-history__primary,
+.record-history__value,
+.record-history__values,
+.record-history__values > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.record-history__primary h3 {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.record-history__primary h3 a {
+  text-decoration: none;
+}
+
+.record-history__primary p {
+  margin: 0.35rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.record-history__value strong,
+.record-history__values strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.record-history__values {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.record-history__state {
+  color: var(--muted-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.record-history__state--settled {
+  color: var(--ink);
+}
+
+.record-history__link {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 2.25rem;
+  align-items: center;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
 @media (min-width: 960px) {
   .friend-row {
     grid-template-columns: minmax(0, 2fr) minmax(6rem, 0.75fr) minmax(7rem, 0.75fr) minmax(8rem, 1fr) minmax(5.5rem, auto);
@@ -962,6 +1040,20 @@
   .expense-record__sidebar,
   .repayment-record__sidebar {
     grid-column: 9 / -1;
+  }
+
+  .record-history__row {
+    grid-template-columns: minmax(0, 2fr) minmax(10rem, 1.2fr) minmax(8rem, auto);
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .record-history__row--share {
+    grid-template-columns: minmax(0, 1.7fr) minmax(18rem, 2fr) minmax(5rem, auto) minmax(8rem, auto);
+  }
+
+  .record-history__link {
+    justify-self: end;
   }
 }
 
