@@ -120,7 +120,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
   const friendOptions = useMemo(() => initialFriendOptions.filter((option) => !option.archived && !selectedIds.has(option.id)).slice(0, 20), [initialFriendOptions, selectedIds]);
   const search = useCallback((query: string, selectedId?: string) => searchFriends(query, selectedId).then((options) => options.filter((option) => !option.archived && !selectedIds.has(option.id)).slice(0, 20)), [searchFriends, selectedIds]);
   const validCharges = useMemo(() => chargeInputValues(draftCharges), [draftCharges]);
-  const initialDraftKey = useRef(expenseShareDraftKey(initialFriends, initialAmounts(initialFriends), initialCharges(initialChargeDefinitions))).current;
+  const [initialDraftKey] = useState(() => expenseShareDraftKey(initialFriends, initialAmounts(initialFriends), initialCharges(initialChargeDefinitions)));
   const isDirty = expenseShareDraftKey(selectedFriends, draftAmounts, draftCharges) !== initialDraftKey;
 
   useUnsavedChangesGuard(isDirty);

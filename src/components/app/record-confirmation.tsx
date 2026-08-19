@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type RecordConfirmationProps = {
-  queryKey: "created" | "saved";
+  queryKey: "created" | "updated" | "splitSaved" | "saved";
   message: string;
+  focusTargetId?: string;
 };
 
 function useOptionalRouter() {
@@ -20,21 +21,25 @@ type ConfirmationPhase = "entering" | "visible" | "exiting" | "unmounted";
 
 const confirmationExitMs = 220;
 
-export function RecordConfirmation({ queryKey, message }: RecordConfirmationProps) {
+export function RecordConfirmation({ queryKey, message, focusTargetId }: RecordConfirmationProps) {
   const router = useOptionalRouter();
   const [phase, setPhase] = useState<ConfirmationPhase>("entering");
+  const handledRef = useRef(false);
 
   useEffect(() => {
+    if (handledRef.current) return;
+    handledRef.current = true;
     const url = new URL(window.location.href);
     url.searchParams.delete(queryKey);
     router?.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+    if (focusTargetId) document.getElementById(focusTargetId)?.focus({ preventScroll: true });
     const enterTimer = window.setTimeout(() => setPhase("visible"), 0);
     const visibleTimer = window.setTimeout(() => setPhase("exiting"), 4000);
     return () => {
       window.clearTimeout(enterTimer);
       window.clearTimeout(visibleTimer);
     };
-  }, [queryKey, router]);
+  }, [focusTargetId, queryKey, router]);
 
   useEffect(() => {
     if (phase !== "exiting") return;

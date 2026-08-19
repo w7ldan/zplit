@@ -11,7 +11,7 @@ import type { DeleteRecordActionState } from "@/components/app/delete-record-for
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 
 export type ExpenseSubmitIntent = "add" | "continue";
-export type ExpenseActionSuccess = { expenseId: string };
+export type ExpenseActionSuccess = { expenseId: string; amount: number };
 
 export type ExpenseActionState = {
   fieldErrors: ExpenseFieldErrors;
@@ -147,10 +147,10 @@ export async function createExpenseAction(
       fieldErrors: {},
       formError: "",
       values: { description: "", amountRupiah: "", outingId: result.value.outingId },
-      success: { expenseId: expense.id },
+      success: { expenseId: expense.id, amount: expense.amount },
     };
   }
-  redirect(`/app/expenses/${encodeURIComponent(expense.id)}?created=1`);
+  redirect(`/app/expenses/${encodeURIComponent(expense.id)}?created=1#friend-shares`);
 }
 
 export async function updateExpenseAction(
@@ -171,7 +171,7 @@ export async function updateExpenseAction(
   revalidatePath("/app");
   revalidatePath("/app/expenses");
   revalidatePath(`/app/expenses/${expenseId}`);
-  redirect(`/app/expenses/${expenseId}?saved=1`);
+  redirect(`/app/expenses/${expenseId}?updated=1#expense-details`);
 }
 
 export async function replaceExpenseSharesAction(
@@ -218,7 +218,7 @@ export async function replaceExpenseSharesAction(
   }
 
   revalidatePath(`/app/expenses/${expenseId}`);
-  redirect(`/app/expenses/${expenseId}?saved=1`);
+  redirect(`/app/expenses/${expenseId}?splitSaved=1#friend-shares`);
 }
 
 export async function deleteExpenseAction(

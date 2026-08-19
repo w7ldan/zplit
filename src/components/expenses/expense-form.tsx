@@ -8,6 +8,7 @@ import type { ExpenseInputValues } from "@/domain/expense-input";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 import { useToast } from "@/components/feedback/toast";
 import { useUnsavedChangesGuard } from "@/components/navigation/unsaved-changes";
+import { formatRupiah } from "@/domain/rupiah";
 
 type ExpenseAction = (previousState: ExpenseActionState, formData: FormData) => Promise<ExpenseActionState>;
 
@@ -48,9 +49,9 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 
 export function ExpenseForm({ action, outings: outingOptions, searchOutings, initialValues = emptyValues, mode = "create" }: ExpenseFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
-  const initialDraft = useRef({ ...initialValues, outingId: initialValues.outingId || outingOptions[0]?.id || "" });
-  const [draftValues, setDraftValues] = useState(initialDraft.current);
-  const [selectedOutingId, setSelectedOutingId] = useState(initialDraft.current.outingId);
+  const [initialDraft] = useState(() => ({ ...initialValues, outingId: initialValues.outingId || outingOptions[0]?.id || "" }));
+  const [draftValues, setDraftValues] = useState(initialDraft);
+  const [selectedOutingId, setSelectedOutingId] = useState(initialDraft.outingId);
   const [selectedOuting, setSelectedOuting] = useState<SearchableOption | undefined>(() => outingOptions.find((outing) => outing.id === initialValues.outingId) ?? outingOptions[0]);
   const router = useRouter();
   const { showToast } = useToast();
@@ -58,9 +59,9 @@ export function ExpenseForm({ action, outings: outingOptions, searchOutings, ini
   const handledExpenseId = useRef<string | undefined>(undefined);
   const previousActionStateRef = useRef(state);
   const options = selectedOuting && !outingOptions.some((outing) => outing.id === selectedOuting.id) ? [...outingOptions, selectedOuting] : outingOptions;
-  const isDirty = draftValues.description !== initialDraft.current.description
-    || draftValues.amountRupiah !== initialDraft.current.amountRupiah
-    || draftValues.outingId !== initialDraft.current.outingId;
+  const isDirty = draftValues.description !== initialDraft.description
+    || draftValues.amountRupiah !== initialDraft.amountRupiah
+    || draftValues.outingId !== initialDraft.outingId;
 
   useUnsavedChangesGuard(isDirty);
 
@@ -77,7 +78,7 @@ export function ExpenseForm({ action, outings: outingOptions, searchOutings, ini
     if (mode !== "create" || !state.success || handledExpenseId.current === state.success.expenseId) return;
     handledExpenseId.current = state.success.expenseId;
     descriptionRef.current?.focus();
-    showToast({ message: "Expense added" });
+    showToast({ message: `Expense saved · ${formatRupiah(state.success.amount)}` });
     router.refresh();
   }, [mode, router, showToast, state.success]);
 

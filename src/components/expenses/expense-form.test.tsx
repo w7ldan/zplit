@@ -112,7 +112,7 @@ describe("ExpenseForm", () => {
   });
 
   it("clears fields, keeps the outing, refreshes, focuses Description, and announces continuation once", async () => {
-    const action = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: { description: "", amountRupiah: "", outingId: outing.id }, success: { expenseId: "expense-a" } });
+    const action = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: { description: "", amountRupiah: "", outingId: outing.id }, success: { expenseId: "expense-a", amount: 84000 } });
     renderForm(action);
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Dinner" } });
     fireEvent.change(screen.getByLabelText("Amount in rupiah"), { target: { value: "84000" } });
@@ -124,12 +124,12 @@ describe("ExpenseForm", () => {
     expect(screen.getByRole("combobox", { name: "Outing" })).toHaveTextContent(outing.title);
     expect(action.mock.calls[0]?.[1].get("intent")).toBe("continue");
     expect(router.refresh).toHaveBeenCalledOnce();
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Expense added"));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Expense saved · Rp 84.000"));
     expect(document.activeElement).toBe(screen.getByLabelText("Description"));
   });
 
   it("announces each new continuation and ignores a rerender of the same success", async () => {
-    const success = (expenseId: string) => ({ fieldErrors: {}, formError: "", values: { description: "", amountRupiah: "", outingId: outing.id }, success: { expenseId } });
+    const success = (expenseId: string) => ({ fieldErrors: {}, formError: "", values: { description: "", amountRupiah: "", outingId: outing.id }, success: { expenseId, amount: expenseId === "expense-a" ? 84000 : 12000 } });
     const action = vi.fn().mockResolvedValueOnce(success("expense-a")).mockResolvedValueOnce(success("expense-b"));
     const view = renderForm(action);
     const continueButton = () => screen.getByRole("button", { name: "Save & add another" });
@@ -149,7 +149,8 @@ describe("ExpenseForm", () => {
     fireEvent.click(continueButton());
     await waitFor(() => expect(action).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getAllByRole("status")).toHaveLength(2));
-    expect(screen.getAllByText("Expense added")).toHaveLength(2);
+    expect(screen.getByText("Expense saved · Rp 84.000")).toBeInTheDocument();
+    expect(screen.getByText("Expense saved · Rp 12.000")).toBeInTheDocument();
     expect(router.refresh).toHaveBeenCalledTimes(2);
   });
 
@@ -209,7 +210,7 @@ describe("ExpenseForm", () => {
   });
 
   it("keeps the selected outing after Save & add another", async () => {
-    const action = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: { description: "", amountRupiah: "", outingId: secondOuting.id }, success: { expenseId: "expense-b" } });
+    const action = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: { description: "", amountRupiah: "", outingId: secondOuting.id }, success: { expenseId: "expense-b", amount: 12000 } });
     renderForm(action, "create", initialState.values, [outingOption, secondOuting]);
 
     await chooseOuting(secondOuting.label);
@@ -266,7 +267,7 @@ describe("ExpenseForm", () => {
     fireEvent(window, failedUnload);
     expect(failedUnload.defaultPrevented).toBe(true);
 
-    const success = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: { description: "", amountRupiah: "", outingId: outing.id }, success: { expenseId: "expense-a" } });
+    const success = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: { description: "", amountRupiah: "", outingId: outing.id }, success: { expenseId: "expense-a", amount: 12000 } });
     view.rerender(<UnsavedChangesProvider><ToastProvider><ExpenseForm action={success} outings={[outingOption]} searchOutings={vi.fn().mockResolvedValue([outingOption])} /></ToastProvider></UnsavedChangesProvider>);
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Coffee" } });
     fireEvent.click(screen.getByRole("button", { name: "Save & add another" }));

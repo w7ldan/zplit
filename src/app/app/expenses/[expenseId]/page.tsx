@@ -16,7 +16,7 @@ import { deleteExpenseAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExpenseRecordPage({ params, searchParams }: { params: Promise<{ expenseId: string }>; searchParams?: Promise<{ created?: string | string[]; saved?: string | string[] }> }) {
+export default async function ExpenseRecordPage({ params, searchParams }: { params: Promise<{ expenseId: string }>; searchParams?: Promise<{ created?: string | string[]; updated?: string | string[]; splitSaved?: string | string[] }> }) {
   const session = await requireSession();
   const { expenseId } = await params;
   const query = await searchParams;
@@ -41,6 +41,10 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
   ]);
   const shareByFriend = new Map(shares.map((share) => [share.friendId, share]));
   const friends = shares.map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, baseAmount: share.baseAmount, amountOwed: share.amountOwed, expenseShareId: share.id, remainingAmount: share.remainingAmount, settled: share.settled }));
+  const assignedAmount = shares.reduce((total, share) => total + share.amountOwed, 0);
+  const splitMessage = shares.length === 0
+    ? "Split saved · No friend shares assigned"
+    : `Split saved · ${formatRupiah(assignedAmount)} assigned to ${shares.length} friend${shares.length === 1 ? "" : "s"}`;
   const friendOptions = friendOptionRows
     .filter((friend) => !friend.archived && !shareByFriend.has(friend.id))
     .slice(0, 20)
@@ -55,10 +59,10 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
           <h1>{expense.description}</h1>
           <Link className="expense-record__back" href="/app/expenses">← Back to expenses</Link>
         </div>
-        {query?.created === "1" ? <RecordConfirmation queryKey="created" message="Expense recorded. Assign shares below." /> : query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Expense changes saved." /> : null}
+        {query?.created === "1" ? <RecordConfirmation queryKey="created" message={`Expense saved · ${formatRupiah(expense.amount)}`} focusTargetId="friend-shares" /> : query?.updated === "1" ? <RecordConfirmation queryKey="updated" message={`Expense updated · ${formatRupiah(expense.amount)}`} focusTargetId="expense-details" /> : query?.splitSaved === "1" ? <RecordConfirmation queryKey="splitSaved" message={splitMessage} focusTargetId="friend-shares" /> : null}
         <div className="expense-record__tasks">
           <div className="expense-record__primary-task">
-            <div className="expense-record__shares">
+            <div className="expense-record__shares" id="friend-shares" tabIndex={-1}>
               <ExpenseShareEditor
                 action={replaceExpenseSharesAction.bind(null, expense.id)}
                 expenseAmount={expense.amount}
@@ -82,7 +86,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
               <div><span className="technical-label">Created</span><LocalDateTime iso={expense.createdAt.toISOString()} mode="date" /></div>
             </div>
             <div className="expense-record__form">
-              <p className="technical-label">EDIT RECORD</p>
+              <p className="technical-label" id="expense-details" tabIndex={-1}>EDIT RECORD</p>
               <ExpenseForm
                 action={updateExpenseAction.bind(null, expense.id)}
                 outings={outings}

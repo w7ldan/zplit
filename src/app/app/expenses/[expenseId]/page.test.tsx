@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import ExpenseRecordPage from "./page";
 import { deletionImpactRevision } from "@/domain/ledger-repository";
@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getDatabase: vi.fn(),
   createLedgerRepository: vi.fn(),
   listExpenseReceipts: vi.fn(),
+  replace: vi.fn(),
   notFound: vi.fn(() => { throw new Error("not-found"); }),
 }));
 
@@ -19,7 +20,7 @@ vi.mock("@/domain/ledger-repository", async () => {
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
 });
 vi.mock("@/server/expense-receipts", () => ({ listExpenseReceipts: mocks.listExpenseReceipts }));
-vi.mock("next/navigation", () => ({ notFound: mocks.notFound, useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound, useRouter: () => ({ replace: mocks.replace, refresh: vi.fn() }) }));
 
 const expense = {
   id: "22222222-2222-4222-8222-222222222222",
@@ -33,6 +34,21 @@ const expense = {
   outingTitle: "Jakarta dinner",
 };
 const deletionImpact = { recordType: "expense" as const, receiptCount: 0, shareCount: 0, allocationCount: 0, affectedRepaymentCount: 0, affectedRepaymentIds: [], affectedFriendIds: [] };
+
+function prepareRecord(shares: unknown[]) {
+  mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
+  mocks.getDatabase.mockReturnValue("database");
+  mocks.listExpenseReceipts.mockResolvedValue([]);
+  mocks.createLedgerRepository.mockReturnValue({
+    getExpense: vi.fn().mockResolvedValue(expense),
+    searchOutings: vi.fn().mockResolvedValue([{ id: expense.outingId, title: expense.outingTitle }]),
+    searchFriends: vi.fn().mockResolvedValue([]),
+    listExpenseShares: vi.fn().mockResolvedValue(shares),
+    listExpenseCharges: vi.fn().mockResolvedValue([]),
+    getPreviousExpenseSplit: vi.fn().mockResolvedValue(null),
+    getExpenseDeletionImpact: vi.fn().mockResolvedValue(deletionImpact),
+  });
+}
 
 describe("expense record", () => {
   it("uses the outing date and has no independent occurrence field", async () => {
@@ -88,5 +104,46 @@ describe("expense record", () => {
 
     await expect(ExpenseRecordPage({ params: Promise.resolve({ expenseId: "foreign" }) })).rejects.toThrow("not-found");
     expect(mocks.notFound).toHaveBeenCalledOnce();
+  });
+
+  it("lands create success at Friend shares with a formatted amount and focuses once", async () => {
+    prepareRecord([{ id: "share-a", friendId: "33333333-3333-4333-8333-333333333333", friendName: "Rani", friendArchivedAt: null, baseAmount: 40000, amountOwed: 40000 }]);
+    window.history.replaceState({}, "", `/app/expenses/${expense.id}?created=1#friend-shares`);
+
+    render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }), searchParams: Promise.resolve({ created: "1" }) })}</ToastProvider>);
+
+    expect(screen.getByText("Expense saved · Rp 84.000", { exact: true })).toBeInTheDocument();
+    await waitFor(() => expect(document.getElementById("friend-shares")).toHaveFocus());
+    expect(mocks.replace).toHaveBeenCalledWith(`/app/expenses/${expense.id}#friend-shares`, { scroll: false });
+  });
+
+  it("distinguishes expense updates and split saves using final persisted totals", async () => {
+    const shares = [
+      { id: "share-a", friendId: "33333333-3333-4333-8333-333333333333", friendName: "Rani", friendArchivedAt: null, baseAmount: 100000, amountOwed: 100000 },
+      { id: "share-b", friendId: "44444444-4444-4444-8444-444444444444", friendName: "Siti", friendArchivedAt: null, baseAmount: 25000, amountOwed: 26500 },
+    ];
+    prepareRecord(shares);
+    window.history.replaceState({}, "", `/app/expenses/${expense.id}?splitSaved=1&expensePage=3&repaymentPage=4#friend-shares`);
+    const splitView = render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }), searchParams: Promise.resolve({ splitSaved: "1" }) })}</ToastProvider>);
+
+    expect(screen.getByText("Split saved · Rp 126.500 assigned to 2 friends", { exact: true })).toBeInTheDocument();
+    await waitFor(() => expect(document.getElementById("friend-shares")).toHaveFocus());
+    expect(mocks.replace).toHaveBeenCalledWith(`/app/expenses/${expense.id}?expensePage=3&repaymentPage=4#friend-shares`, { scroll: false });
+    splitView.unmount();
+
+    prepareRecord(shares);
+    window.history.replaceState({}, "", `/app/expenses/${expense.id}?updated=1#expense-details`);
+    render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }), searchParams: Promise.resolve({ updated: "1" }) })}</ToastProvider>);
+
+    expect(screen.getByText("Expense updated · Rp 84.000", { exact: true })).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(document.getElementById("expense-details")));
+  });
+
+  it("uses a restrained zero-share success message", async () => {
+    prepareRecord([]);
+    window.history.replaceState({}, "", `/app/expenses/${expense.id}?splitSaved=1#friend-shares`);
+    render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }), searchParams: Promise.resolve({ splitSaved: "1" }) })}</ToastProvider>);
+
+    expect(screen.getByText("Split saved · No friend shares assigned", { exact: true })).toBeInTheDocument();
   });
 });

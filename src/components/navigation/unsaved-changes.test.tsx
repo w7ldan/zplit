@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import Link from "next/link";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TaskPanel } from "@/components/app/task-panel";
 import { UnsavedChangesProvider, useUnsavedChangesGuard } from "./unsaved-changes";
@@ -8,7 +9,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 function GuardedLink({ dirty }: { dirty: boolean }) {
   useUnsavedChangesGuard(dirty);
-  return <a href="/app/friends">Friends</a>;
+  return <Link href="/app/friends">Friends</Link>;
 }
 
 afterEach(() => {
@@ -49,6 +50,17 @@ describe("unsaved changes guard", () => {
     expect(window.confirm).toHaveBeenCalledOnce();
     expect(router.push).toHaveBeenCalledOnce();
     expect(router.push).toHaveBeenCalledWith("/app/friends");
+  });
+
+  it("restores a cancelled browser history navigation", () => {
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    window.history.replaceState({}, "", "/app/expenses");
+    render(<UnsavedChangesProvider><GuardedLink dirty /></UnsavedChangesProvider>);
+    window.history.pushState({}, "", "/app/friends");
+    fireEvent(window, new PopStateEvent("popstate"));
+
+    expect(window.confirm).toHaveBeenCalledOnce();
+    expect(router.replace).toHaveBeenCalledWith("/app/expenses", { scroll: false });
   });
 
   it("adds beforeunload only while a guard is dirty", () => {

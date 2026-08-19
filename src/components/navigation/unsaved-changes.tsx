@@ -31,7 +31,6 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const dirtyGuards = useRef(new Map<string, boolean>());
   const dirtyRef = useRef(false);
   const previousLocationRef = useRef("");
-  const restoringHistoryRef = useRef(false);
   const [dirtyRevision, setDirtyRevision] = useState(0);
 
   const setDirty = useCallback((id: string, dirty: boolean) => {
@@ -57,14 +56,10 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     function handlePopState() {
       const destination = currentLocation();
       const previous = previousLocationRef.current;
-      if (restoringHistoryRef.current) {
-        restoringHistoryRef.current = false;
+      if (!dirtyRef.current || !previous || destination === previous || confirmDiscard()) {
         previousLocationRef.current = destination;
         return;
       }
-      previousLocationRef.current = destination;
-      if (!dirtyRef.current || !previous || destination === previous || confirmDiscard()) return;
-      restoringHistoryRef.current = true;
       router.replace(previous, { scroll: false });
     }
 

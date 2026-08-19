@@ -81,17 +81,17 @@ describe("expense actions", () => {
   });
 
   it("uses normal add behavior when intent is missing", async () => {
-    const createExpense = vi.fn().mockResolvedValue({ id: "expense-a" });
+    const createExpense = vi.fn().mockResolvedValue({ id: "expense-a", amount: 84000 });
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
     mocks.createLedgerRepository.mockReturnValue({ createExpense });
 
-    await expect(createExpenseAction(initialState, form(values))).rejects.toThrow("redirect:/app/expenses/expense-a?created=1");
+    await expect(createExpenseAction(initialState, form(values))).rejects.toThrow("redirect:/app/expenses/expense-a?created=1#friend-shares");
     expect(createExpense).toHaveBeenCalledOnce();
   });
 
   it("saves one expense and returns a continuation result without redirecting", async () => {
-    const createExpense = vi.fn().mockResolvedValue({ id: "expense-a" });
+    const createExpense = vi.fn().mockResolvedValue({ id: "expense-a", amount: 84000 });
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
     mocks.createLedgerRepository.mockReturnValue({ createExpense });
@@ -101,7 +101,7 @@ describe("expense actions", () => {
     expect(createExpense).toHaveBeenCalledOnce();
     expect(result).toMatchObject({
       values: { description: "", amountRupiah: "", outingId: values.outingId },
-      success: { expenseId: "expense-a" },
+      success: { expenseId: "expense-a", amount: 84000 },
     });
     expect(mocks.redirect).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app");
@@ -131,8 +131,8 @@ describe("expense actions", () => {
     mocks.getDatabase.mockReturnValue("database");
     mocks.createLedgerRepository.mockReturnValue({ createExpense, updateExpense });
 
-    await expect(createExpenseAction(initialState, form({ ...values, ownerUserId: "owner-b" }))).rejects.toThrow("redirect:/app/expenses/expense-a?created=1");
-    await expect(updateExpenseAction("expense-a", initialState, form(values))).rejects.toThrow("redirect:/app/expenses/expense-a?saved=1");
+    await expect(createExpenseAction(initialState, form({ ...values, ownerUserId: "owner-b" }))).rejects.toThrow("redirect:/app/expenses/expense-a?created=1#friend-shares");
+    await expect(updateExpenseAction("expense-a", initialState, form(values))).rejects.toThrow("redirect:/app/expenses/expense-a?updated=1#expense-details");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
     expect(createExpense).toHaveBeenCalledWith({ description: "Dinner", amount: 84000, outingId: values.outingId });
@@ -160,7 +160,7 @@ describe("expense actions", () => {
     await expect(replaceExpenseSharesAction("expense-a", initialShareState, shareForm([
       { friendId: "11111111-1111-4111-8111-111111111111", amountRupiah: "84.000" },
       { friendId: "22222222-2222-4222-8222-222222222222", amountRupiah: "" },
-    ]))).rejects.toThrow("redirect:/app/expenses/expense-a?saved=1");
+    ]))).rejects.toThrow("redirect:/app/expenses/expense-a?splitSaved=1#friend-shares");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
     expect(replaceExpenseShares).toHaveBeenCalledWith("expense-a", [{ friendId: "11111111-1111-4111-8111-111111111111", amountOwed: 84000 }], []);
@@ -189,7 +189,7 @@ describe("expense actions", () => {
 
     await expect(replaceExpenseSharesAction("expense-a", initialShareState, shareForm([
       { friendId: "11111111-1111-4111-8111-111111111111", amountRupiah: "84000" },
-    ], [{ name: "Service charge", percentage: "7.5", scope: "all", friendIds: [] }]))).rejects.toThrow("redirect:/app/expenses/expense-a?saved=1");
+    ], [{ name: "Service charge", percentage: "7.5", scope: "all", friendIds: [] }]))).rejects.toThrow("redirect:/app/expenses/expense-a?splitSaved=1#friend-shares");
     expect(replaceExpenseShares).toHaveBeenCalledWith("expense-a", [{ friendId: "11111111-1111-4111-8111-111111111111", amountOwed: 84000 }], [{ name: "Service charge", percentageBasisPoints: 750, scope: "all", friendIds: [] }]);
   });
 
