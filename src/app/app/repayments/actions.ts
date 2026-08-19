@@ -24,6 +24,7 @@ import {
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
+import { paymentMethodFormState, parsePaymentMethodFields, type PaymentMethodFormState } from "@/domain/payment-method";
 
 export type RepaymentActionState = {
   fieldErrors: RepaymentFieldErrors;
@@ -31,6 +32,7 @@ export type RepaymentActionState = {
   values: RepaymentInputValues;
   allocations?: RepaymentAllocationInputValues;
   allocationFieldErrors?: RepaymentAllocationFieldErrors;
+  paymentMethodForm?: PaymentMethodFormState;
 };
 
 export type RepaymentAllocationActionState = {
@@ -80,22 +82,30 @@ function impactRevisionValue(formData: FormData) {
   return values[0];
 }
 
+function paymentMethodFormFromForm(formData: FormData): PaymentMethodFormState {
+  const choice = formData.get("paymentMethodChoice");
+  if (choice !== null) return parsePaymentMethodFields(choice, formData.get("paymentMethodOther")).form;
+  return paymentMethodFormState(typeof formData.get("paymentMethod") === "string" ? formData.get("paymentMethod") as string : "");
+}
+
 function valuesFromForm(formData: FormData) {
-  return validateRepaymentInput({
+  const paymentMethodChoice = formData.get("paymentMethodChoice");
+  const input = {
     friendId: formData.get("friendId"),
     amountRupiah: formData.get("amountRupiah"),
     paidAtLocal: formData.get("paidAtLocal"),
     timezoneOffsetMinutes: formData.get("timezoneOffsetMinutes"),
-    paymentMethod: formData.get("paymentMethod"),
+    ...(paymentMethodChoice !== null ? { paymentMethodChoice, paymentMethodOther: formData.get("paymentMethodOther") } : { paymentMethod: formData.get("paymentMethod") }),
     notes: formData.get("notes"),
-  });
+  };
+  return { result: validateRepaymentInput(input), paymentMethodForm: paymentMethodFormFromForm(formData) };
 }
 
-function invalidState(result: Extract<ReturnType<typeof validateRepaymentInput>, { ok: false }>): RepaymentActionState {
-  return { fieldErrors: result.errors, formError: "Please correct the marked fields.", values: result.values };
+function invalidState(result: Extract<ReturnType<typeof validateRepaymentInput>, { ok: false }>, paymentMethodForm: PaymentMethodFormState): RepaymentActionState {
+  return { fieldErrors: result.errors, formError: "Please correct the marked fields.", values: result.values, paymentMethodForm };
 }
 
-function errorState(error: unknown, values: RepaymentInputValues, allocations: RepaymentAllocationInputValues = [], allocationFieldErrors: RepaymentAllocationFieldErrors = {}): RepaymentActionState {
+function errorState(error: unknown, values: RepaymentInputValues, allocations: RepaymentAllocationInputValues = [], allocationFieldErrors: RepaymentAllocationFieldErrors = {}, paymentMethodForm?: PaymentMethodFormState): RepaymentActionState {
   return {
     fieldErrors: {},
     formError: error instanceof LedgerNotFoundError
@@ -106,6 +116,7 @@ function errorState(error: unknown, values: RepaymentInputValues, allocations: R
     values,
     allocations,
     allocationFieldErrors,
+    ...(paymentMethodForm ? { paymentMethodForm } : {}),
   };
 }
 
@@ -134,16 +145,16 @@ export async function createRepaymentAction(
   formData: FormData,
 ): Promise<RepaymentActionState> {
   const session = await requireSession();
-  const result = valuesFromForm(formData);
+  const { result, paymentMethodForm } = valuesFromForm(formData);
   const allocationResult = allocationValuesFromForm(formData);
-  if (!result.ok) return { ...invalidState(result), allocations: allocationResult.ok ? allocationResult.values : allocationResult.values, allocationFieldErrors: allocationResult.ok ? {} : allocationResult.errors };
-  if (!allocationResult.ok) return { fieldErrors: {}, formError: "Please correct the marked fields.", values: result.values, allocations: allocationResult.values, allocationFieldErrors: allocationResult.errors };
+  if (!result.ok) return { ...invalidState(result, paymentMethodForm), allocations: allocationResult.ok ? allocationResult.values : allocationResult.values, allocationFieldErrors: allocationResult.ok ? {} : allocationResult.errors };
+  if (!allocationResult.ok) return { fieldErrors: {}, formError: "Please correct the marked fields.", values: result.values, allocations: allocationResult.values, allocationFieldErrors: allocationResult.errors, paymentMethodForm };
 
   let repayment;
   try {
     repayment = await createLedgerRepository(getDatabase(), session.user.id).createRepaymentWithAllocations(result.value, allocationResult.value);
   } catch (error) {
-    return errorState(error, result.values, allocationResult.values);
+    return errorState(error, result.values, allocationResult.values, {}, paymentMethodForm);
   }
   revalidatePath("/app");
   revalidatePath("/app/repayments");
@@ -156,13 +167,13 @@ export async function updateRepaymentAction(
   formData: FormData,
 ): Promise<RepaymentActionState> {
   const session = await requireSession();
-  const result = valuesFromForm(formData);
-  if (!result.ok) return invalidState(result);
+  const { result, paymentMethodForm } = valuesFromForm(formData);
+  if (!result.ok) return invalidState(result, paymentMethodForm);
 
   try {
     await createLedgerRepository(getDatabase(), session.user.id).updateRepayment(repaymentId, result.value);
   } catch (error) {
-    return errorState(error, result.values);
+    return errorState(error, result.values, [], {}, paymentMethodForm);
   }
 
   revalidatePath("/app");

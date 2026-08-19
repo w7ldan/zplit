@@ -79,6 +79,31 @@ describe("repayment actions", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments/repayment-a");
   });
 
+  it("persists structured canonical and Other payment methods", async () => {
+    const createRepaymentWithAllocations = vi.fn().mockResolvedValue({ id: "repayment-a" });
+    const updateRepayment = vi.fn().mockResolvedValue({ id: "repayment-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createRepaymentWithAllocations, updateRepayment });
+
+    await expect(createRepaymentAction(initialState, form({ ...values, paymentMethodChoice: "GoPay", paymentMethodOther: "" }))).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1");
+    await expect(updateRepaymentAction("repayment-a", initialState, form({ ...values, paymentMethodChoice: "Other", paymentMethodOther: "Wallet" }))).rejects.toThrow("redirect:/app/repayments/repayment-a?saved=1");
+
+    expect(createRepaymentWithAllocations.mock.calls[0]![0]).toMatchObject({ paymentMethod: "GoPay" });
+    expect(updateRepayment).toHaveBeenCalledWith("repayment-a", expect.objectContaining({ paymentMethod: "Wallet" }));
+  });
+
+  it("rejects blank Other without touching persistence", async () => {
+    const createRepaymentWithAllocations = vi.fn();
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createRepaymentWithAllocations });
+
+    const result = await createRepaymentAction(initialState, form({ ...values, paymentMethodChoice: "Other", paymentMethodOther: " " }));
+    expect(result).toMatchObject({ fieldErrors: { paymentMethod: "Enter a custom payment method." }, paymentMethodForm: { choice: "Other", other: "" } });
+    expect(createRepaymentWithAllocations).not.toHaveBeenCalled();
+  });
+
   it("maps unavailable and invariant failures to stable form messages", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");

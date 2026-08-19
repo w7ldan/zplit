@@ -1,4 +1,5 @@
 import { parseLocalDateTime } from "./outing-input";
+import { parsePaymentMethodFields, type PaymentMethodFormState } from "./payment-method";
 import { MAX_RUPIAH, parseRupiah } from "./rupiah";
 
 export type RepaymentInputValues = {
@@ -30,17 +31,24 @@ function readValue(input: unknown, key: RepaymentField) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function paymentMethodValue(input: unknown): { value: string; form?: PaymentMethodFormState; error?: string } {
+  const record = input !== null && typeof input === "object" ? input as Record<string, unknown> : {};
+  if ("paymentMethodChoice" in record || "paymentMethodOther" in record) return parsePaymentMethodFields(record.paymentMethodChoice, record.paymentMethodOther);
+  return { value: readValue(input, "paymentMethod"), form: undefined };
+}
+
 function isCanonicalUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
 }
 
 export function validateRepaymentInput(input: unknown): RepaymentValidationResult {
+  const paymentMethod = paymentMethodValue(input);
   const values: RepaymentInputValues = {
     friendId: readValue(input, "friendId").toLowerCase(),
     amountRupiah: readValue(input, "amountRupiah"),
     paidAtLocal: readValue(input, "paidAtLocal"),
     timezoneOffsetMinutes: readValue(input, "timezoneOffsetMinutes"),
-    paymentMethod: readValue(input, "paymentMethod"),
+    paymentMethod: paymentMethod.value,
     notes: readValue(input, "notes"),
   };
   const errors: RepaymentFieldErrors = {};
@@ -80,7 +88,8 @@ export function validateRepaymentInput(input: unknown): RepaymentValidationResul
     parseLocalDateTime(values.paidAtLocal, timezoneOffset);
   if (values.paidAtLocal && !paidAt) errors.paidAtLocal = "Enter a valid date and time.";
 
-  if (values.paymentMethod.length > 40) errors.paymentMethod = "Payment method must be 40 characters or fewer.";
+  if (paymentMethod.error) errors.paymentMethod = paymentMethod.error;
+  else if (values.paymentMethod.length > 40) errors.paymentMethod = "Payment method must be 40 characters or fewer.";
   if (values.notes.length > 4000) errors.notes = "Notes must be 4000 characters or fewer.";
 
   if (Object.keys(errors).length > 0 || amount === null || !paidAt) return { ok: false, errors, values };

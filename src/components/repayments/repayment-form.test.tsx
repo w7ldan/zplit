@@ -78,6 +78,29 @@ describe("RepaymentForm", () => {
     expect(screen.getByText("Optional details").closest("details")).not.toHaveAttribute("open");
   });
 
+  it("offers canonical choices, optional Not specified, and preserves a legacy value as Other", () => {
+    render(<RepaymentForm action={vi.fn()} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} mode="edit" initialValues={{ friendId: activeFriend.id, amountRupiah: "64000", paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: "Legacy wallet", notes: "" }} />);
+
+    expect(screen.getByLabelText("Payment method")).toHaveValue("Other");
+    expect(screen.getByLabelText("Custom payment method")).toHaveValue("Legacy wallet");
+    expect(screen.getByRole("option", { name: "Not specified" })).toBeInTheDocument();
+    for (const option of ["Bank transfer", "GoPay", "ShopeePay", "Cash", "Other"]) expect(screen.getByRole("option", { name: option })).toBeInTheDocument();
+  });
+
+  it("preserves Other and its custom value through validation failure", async () => {
+    const action = vi.fn().mockResolvedValue({ ...initialState, fieldErrors: { paymentMethod: "Enter a custom payment method." }, formError: "Please correct the marked fields.", values: { ...initialState.values, friendId: activeFriend.id }, paymentMethodForm: { choice: "Other", other: "Wallet" } });
+    render(<RepaymentForm action={action} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} />);
+    fireEvent.click(screen.getByText("Optional details"));
+    fireEvent.change(screen.getByLabelText("Payment method"), { target: { value: "Other" } });
+    fireEvent.change(screen.getByLabelText("Custom payment method"), { target: { value: "Wallet" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Record repayment" }).closest("form")!);
+
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByLabelText("Payment method")).toHaveValue("Other"));
+    expect(screen.getByLabelText("Custom payment method")).toHaveValue("Wallet");
+    expect(screen.getByRole("alert")).toHaveTextContent("Please correct the marked fields.");
+  });
+
   it("preserves values and exposes accessible errors after validation failure", async () => {
     const action = vi.fn().mockResolvedValue({
       ...initialState,
@@ -227,7 +250,7 @@ describe("RepaymentForm", () => {
 
     await waitFor(() => expect(action).toHaveBeenCalledOnce());
     const formData = action.mock.calls[0][1] as FormData;
-    expect(formData.get("paymentMethod")).toBe("Cash");
+    expect(formData.get("paymentMethodChoice")).toBe("Cash");
     expect(formData.get("notes")).toBe("Received");
     expect(formData.getAll("expenseShareId")).toEqual([share.id, secondShare.id]);
     expect(formData.getAll("amountRupiah")).toEqual(["84000", "20000", "30000"]);

@@ -65,7 +65,7 @@ describe("repayment record", () => {
     expect(screen.getAllByText("Rp 84.000")).not.toHaveLength(0);
     expect(screen.getAllByText("Rp 40.000")).not.toHaveLength(0);
     expect(screen.getAllByText("Rp 44.000")).not.toHaveLength(0);
-    expect(screen.getByText("Bank transfer")).toBeInTheDocument();
+    expect(screen.getAllByText("Bank transfer")).not.toHaveLength(0);
     expect(screen.getByLabelText("Notes")).toHaveValue("Received in full");
     expect(document.querySelector(`time[datetime="${repayment.paidAt.toISOString()}"]`)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Back to repayments/ })).toHaveAttribute("href", "/app/repayments");

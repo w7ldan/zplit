@@ -26,6 +26,15 @@ describe("repayment input", () => {
     expect(result.ok && result.value).toMatchObject({ paymentMethod: null, notes: null });
   });
 
+  it("parses structured canonical and Other payment methods", () => {
+    const canonical = validateRepaymentInput({ friendId, amountRupiah: "1", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethodChoice: "GoPay", paymentMethodOther: "ignored", notes: "" });
+    expect(canonical.ok && canonical.value.paymentMethod).toBe("GoPay");
+    const custom = validateRepaymentInput({ friendId, amountRupiah: "1", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethodChoice: "Other", paymentMethodOther: "  Wallet  ", notes: "" });
+    expect(custom.ok && custom.value.paymentMethod).toBe("Wallet");
+    const blank = validateRepaymentInput({ friendId, amountRupiah: "1", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethodChoice: "Other", paymentMethodOther: " ", notes: "" });
+    expect(blank).toMatchObject({ ok: false, errors: { paymentMethod: "Enter a custom payment method." } });
+  });
+
   it("returns field errors and preserves normalized values", () => {
     const result = validateRepaymentInput({
       friendId: "not-a-uuid",

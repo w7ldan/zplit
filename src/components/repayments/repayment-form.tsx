@@ -6,6 +6,7 @@ import type { RepaymentActionState, RepaymentFriendContext } from "@/app/app/rep
 import type { RepaymentInputValues } from "@/domain/repayment-input";
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
 import { calculateRepaymentAllocations, type RepaymentAllocationStrategy } from "@/domain/repayment-allocation-strategy";
+import { PAYMENT_METHOD_OPTIONS, PAYMENT_METHOD_OTHER, paymentMethodFormState, type PaymentMethodChoice } from "@/domain/payment-method";
 import { formatRupiah, parseRupiah } from "@/domain/rupiah";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
@@ -60,6 +61,19 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="repayment-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
+function PaymentMethodFields({ choice, other, error, onChoiceChange, onOtherChange }: { choice: PaymentMethodChoice; other: string; error?: string; onChoiceChange: (choice: PaymentMethodChoice) => void; onOtherChange: (other: string) => void }) {
+  return <>
+    <label htmlFor="repayment-payment-method">Payment method</label>
+    <select id="repayment-payment-method" name="paymentMethodChoice" value={choice} onChange={(event) => onChoiceChange(event.target.value as PaymentMethodChoice)} aria-invalid={Boolean(error)} aria-describedby="repayment-payment-method-error">
+      <option value="">Not specified</option>
+      {PAYMENT_METHOD_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+      <option value={PAYMENT_METHOD_OTHER}>{PAYMENT_METHOD_OTHER}</option>
+    </select>
+    {choice === PAYMENT_METHOD_OTHER ? <input id="repayment-payment-method-other" name="paymentMethodOther" type="text" maxLength={40} value={other} onChange={(event) => onOtherChange(event.target.value)} placeholder="Custom payment method" aria-label="Custom payment method" aria-invalid={Boolean(error)} aria-describedby="repayment-payment-method-error" autoComplete="off" /> : null}
+    <FieldError id="repayment-payment-method-error" message={error} />
+  </>;
+}
+
 export function RepaymentForm({ action, friends: friendOptions, searchFriends, initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, initialAllocationIds = [], initialAllocationStrategy = "manual", initialFriendContext, loadFriendContext, outstandingByFriend = {}, openExpenseSharesByFriend = emptyOpenExpenseSharesByFriend }: RepaymentFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
   const [selectedFriendId, setSelectedFriendId] = useState(initialValues.friendId || friendOptions[0]?.id || "");
@@ -68,6 +82,9 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
   const [loadingFriendContext, setLoadingFriendContext] = useState(false);
   const contextRequestRef = useRef(0);
   const [allocationStrategy, setAllocationStrategy] = useState<RepaymentAllocationStrategy>(initialAllocationStrategy);
+  const initialPaymentMethod = paymentMethodFormState(initialValues.paymentMethod);
+  const [paymentMethodChoice, setPaymentMethodChoice] = useState<PaymentMethodChoice>(initialPaymentMethod.choice);
+  const [paymentMethodOther, setPaymentMethodOther] = useState(initialPaymentMethod.other);
   const [draftAllocations, setDraftAllocations] = useState<Record<string, string>>(() => Object.fromEntries((state.allocations?.length ? state.allocations : initialAllocationIds.map((expenseShareId) => ({ expenseShareId, amountRupiah: "" }))).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
   const [selectedAllocationIds, setSelectedAllocationIds] = useState<string[]>(() => state.allocations?.length ? state.allocations.map((allocation) => allocation.expenseShareId) : initialAllocationIds);
   const formRef = useRef<HTMLFormElement>(null);
@@ -121,6 +138,13 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
       if (request === contextRequestRef.current) setLoadingFriendContext(false);
     }
   }, [allocationStrategy, initialValues.amountRupiah, loadFriendContext, mode, recalculateAutomaticAllocations]);
+
+  useEffect(() => {
+    if (state === previousActionStateRef.current) return;
+    const paymentMethod = state.paymentMethodForm ?? paymentMethodFormState(state.values.paymentMethod);
+    setPaymentMethodChoice(paymentMethod.choice);
+    setPaymentMethodOther(paymentMethod.other);
+  }, [state]);
 
   useEffect(() => {
     if (state === friendActionStateRef.current || !state.values.friendId) return;
@@ -253,9 +277,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
         <details ref={detailsDisclosureRef} open={detailsDisclosureOpen || undefined} className="repayment-form__disclosure">
           <summary>Optional details</summary>
           <div className="repayment-form__field">
-            <label htmlFor="repayment-payment-method">Payment method</label>
-            <input key={state.values.paymentMethod} id="repayment-payment-method" name="paymentMethod" maxLength={40} defaultValue={state.values.paymentMethod} aria-invalid={Boolean(state.fieldErrors.paymentMethod)} aria-describedby="repayment-payment-method-error" autoComplete="off" />
-            <FieldError id="repayment-payment-method-error" message={state.fieldErrors.paymentMethod} />
+            <PaymentMethodFields choice={paymentMethodChoice} other={paymentMethodOther} error={state.fieldErrors.paymentMethod} onChoiceChange={setPaymentMethodChoice} onOtherChange={setPaymentMethodOther} />
           </div>
           <div className="repayment-form__field">
             <label htmlFor="repayment-notes">Notes</label>
@@ -265,9 +287,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, i
         </details>
       </> : <>
         <div className="repayment-form__field">
-          <label htmlFor="repayment-payment-method">Payment method</label>
-          <input key={state.values.paymentMethod} id="repayment-payment-method" name="paymentMethod" maxLength={40} aria-invalid={Boolean(state.fieldErrors.paymentMethod)} defaultValue={state.values.paymentMethod} aria-describedby="repayment-payment-method-error" autoComplete="off" />
-          <FieldError id="repayment-payment-method-error" message={state.fieldErrors.paymentMethod} />
+          <PaymentMethodFields choice={paymentMethodChoice} other={paymentMethodOther} error={state.fieldErrors.paymentMethod} onChoiceChange={setPaymentMethodChoice} onOtherChange={setPaymentMethodOther} />
         </div>
         <div className="repayment-form__field">
           <label htmlFor="repayment-notes">Notes</label>
