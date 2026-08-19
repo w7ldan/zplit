@@ -9,6 +9,8 @@ const domainTables = [
   "expenses",
   "expense_receipts",
   "expense_shares",
+  "expense_charges",
+  "expense_charge_targets",
   "repayments",
   "repayment_allocations",
   "trips",
@@ -110,10 +112,19 @@ export async function runDatabaseSmoke() {
     );
     const expenseId = expense.rows[0].id;
     const share = await client.query<{ id: string }>(
-      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4) RETURNING id",
-      [ownerUserId, expenseId, friendId, 7500],
+      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+      [ownerUserId, expenseId, friendId, 7500, 7500],
     );
     const shareId = share.rows[0].id;
+    const charge = await client.query<{ id: string }>(
+      "INSERT INTO expense_charges (owner_user_id, expense_id, name, percentage_basis_points, scope) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+      [ownerUserId, expenseId, "Smoke charge", 750, "selected"],
+    );
+    const chargeId = charge.rows[0].id;
+    await client.query(
+      "INSERT INTO expense_charge_targets (owner_user_id, expense_id, expense_charge_id, expense_share_id) VALUES ($1, $2, $3, $4)",
+      [ownerUserId, expenseId, chargeId, shareId],
+    );
     const repayment = await client.query<{ id: string }>(
       "INSERT INTO repayments (owner_user_id, friend_id, amount, paid_at) VALUES ($1, $2, $3, $4) RETURNING id",
       [ownerUserId, friendId, 7500, now],
@@ -143,6 +154,15 @@ export async function runDatabaseSmoke() {
     assert(relationship.rows[0].share_friend_id === friendId, "expense share friend relationship is wrong");
     assert(relationship.rows[0].repayment_friend_id === friendId, "repayment friend relationship is wrong");
     assert(relationship.rows[0].allocation_amount === 7500, "repayment allocation amount is wrong");
+    const chargeRelationship = await client.query<{ name: string; percentage_basis_points: number; friend_id: string }>(
+      `SELECT c.name, c.percentage_basis_points, s.friend_id
+       FROM expense_charges c
+       JOIN expense_charge_targets t ON t.owner_user_id = c.owner_user_id AND t.expense_id = c.expense_id AND t.expense_charge_id = c.id
+       JOIN expense_shares s ON s.owner_user_id = t.owner_user_id AND s.expense_id = t.expense_id AND s.id = t.expense_share_id
+       WHERE c.owner_user_id = $1 AND c.id = $2`,
+      [ownerUserId, chargeId],
+    );
+    assert(chargeRelationship.rowCount === 1 && chargeRelationship.rows[0].name === "Smoke charge" && Number(chargeRelationship.rows[0].percentage_basis_points) === 750 && chargeRelationship.rows[0].friend_id === friendId, "charge relationship is wrong");
 
     const unassignedOuting = await client.query(
       "INSERT INTO outings (owner_user_id, title, occurred_at, trip_id) VALUES ($1, $2, $3, NULL)",
@@ -174,15 +194,15 @@ export async function runDatabaseSmoke() {
     await expectConstraint(
       client,
       "23505",
-      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4)",
-      [ownerUserId, expenseId, friendId, 1],
+      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [ownerUserId, expenseId, friendId, 1, 1],
       "smoke_duplicate_share",
     );
     await expectConstraint(
       client,
       "23503",
-      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4)",
-      [ownerUserId, expenseId, randomUUID(), 1],
+      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [ownerUserId, expenseId, randomUUID(), 1, 1],
       "smoke_invalid_foreign_key",
     );
 

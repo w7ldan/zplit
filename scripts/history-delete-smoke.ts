@@ -108,13 +108,13 @@ try {
     ],
   );
   await pool.query(
-    "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ($11, $12, $13, $14, $15), ($16, $17, $18, $19, $20), ($21, $22, $23, $24, $25)",
+    "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12), ($13, $14, $15, $16, $17, $18), ($19, $20, $21, $22, $23, $24), ($25, $26, $27, $28, $29, $30)",
     [
-      shareOne, ownerA, expenseOne, friendA, 6000,
-      shareTwo, ownerA, expenseTwo, friendA, 7000,
-      shareCascade, ownerA, expenseCascade, friendA, 10000,
-      shareRepayment, ownerA, expenseRepayment, friendA, 12000,
-      shareB, ownerB, expenseB, friendB, 5000,
+      shareOne, ownerA, expenseOne, friendA, 6000, 6000,
+      shareTwo, ownerA, expenseTwo, friendA, 7000, 7000,
+      shareCascade, ownerA, expenseCascade, friendA, 10000, 10000,
+      shareRepayment, ownerA, expenseRepayment, friendA, 12000, 12000,
+      shareB, ownerB, expenseB, friendB, 5000, 5000,
     ],
   );
   await pool.query(
@@ -148,8 +148,8 @@ try {
     [expenseRace, ownerA, outingCascade, "Race expense", 11000],
   );
   await pool.query(
-    "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4, $5)",
-    [shareRace, ownerA, expenseRace, friendA, 11000],
+    "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6)",
+    [shareRace, ownerA, expenseRace, friendA, 11000, 11000],
   );
   await pool.query(
     "INSERT INTO repayment_allocations (owner_user_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",

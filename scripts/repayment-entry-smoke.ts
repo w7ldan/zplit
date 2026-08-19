@@ -66,12 +66,12 @@ async function run() {
       ],
     );
     await pool.query(
-      "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ($11, $12, $13, $14, $15), ($16, $17, $18, $19, $20)",
+      "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12), ($13, $14, $15, $16, $17, $18), ($19, $20, $21, $22, $23, $24)",
       [
-        shareA1, ownerA, expenseA1, friendA, 100_000,
-        shareA2, ownerA, expenseA2, friendA, 60_000,
-        shareC, ownerA, expenseC, friendC, 20_000,
-        shareB, ownerB, expenseB, friendB, 50_000,
+        shareA1, ownerA, expenseA1, friendA, 100_000, 100_000,
+        shareA2, ownerA, expenseA2, friendA, 60_000, 60_000,
+        shareC, ownerA, expenseC, friendC, 20_000, 20_000,
+        shareB, ownerB, expenseB, friendB, 50_000, 50_000,
       ],
     );
 

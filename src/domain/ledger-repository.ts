@@ -4,6 +4,8 @@ import type { Database } from "../db/client";
 import {
   debtorShareLinks,
   debtorShareReceipts,
+  expenseChargeTargets,
+  expenseCharges,
   expenseReceipts,
   expenseShares,
   expenses,
@@ -23,6 +25,12 @@ import {
 import { validateLedgerExportSnapshot, LedgerExportIntegrityError, type LedgerExportSnapshot } from "./ledger-export";
 import type { RepaymentAllocationInput } from "./repayment-allocation-input";
 import { MAX_RUPIAH } from "./rupiah";
+import {
+  calculateShareBreakdown,
+  MAX_PERCENTAGE_BASIS_POINTS,
+  type ExpenseShareChargeInput,
+  type ExpenseShareInput as ExpenseShareBaseInput,
+} from "./expense-share-input";
 import {
   buildLedgerHistory,
   LedgerHistoryError,
@@ -56,6 +64,7 @@ export type LedgerErrorCode =
   | "INVALID_OWNER"
   | "NOT_FOUND"
   | "SHARE_TOTAL_EXCEEDED"
+  | "SHARE_ALLOCATION_EXCEEDED"
   | "REPAYMENT_AMOUNT_TOO_LOW"
   | "REPAYMENT_FRIEND_LOCKED"
   | "REPAYMENT_ALLOCATION_AMOUNT_EXCEEDED"
@@ -84,6 +93,13 @@ export class ExpenseShareInvariantError extends LedgerRepositoryError {
   constructor() {
     super("SHARE_TOTAL_EXCEEDED", "Assigned shares cannot exceed the expense amount.");
     this.name = "ExpenseShareInvariantError";
+  }
+}
+
+export class ExpenseShareAllocationInvariantError extends LedgerRepositoryError {
+  constructor() {
+    super("SHARE_ALLOCATION_EXCEEDED", "A share cannot be reduced below its existing repayments.");
+    this.name = "ExpenseShareAllocationInvariantError";
   }
 }
 
@@ -150,8 +166,15 @@ export type ExpenseMutationInput = {
 };
 export type CreateExpenseInput = ExpenseMutationInput;
 export type UpdateExpenseInput = ExpenseMutationInput;
-export type ExpenseShareInput = {
+export type ExpenseShareInput = ExpenseShareBaseInput;
+export type ExpenseChargeInput = ExpenseShareChargeInput;
+export type ExpenseChargeRecord = ExpenseChargeInput & { id: string };
+export type ExpenseShareRecord = {
+  id: string;
   friendId: string;
+  friendName: string;
+  friendArchivedAt: Date | null;
+  baseAmount: number;
   amountOwed: number;
 };
 export type RepaymentMutationInput = {
@@ -600,17 +623,20 @@ function assertExpenseSharesInput(shares: unknown): asserts shares is ExpenseSha
   }
   const seen = new Set<string>();
   for (const share of shares) {
+    const value = share !== null && typeof share === "object" && !Array.isArray(share) ? share as Record<string, unknown> : {};
+    const baseAmount = typeof value.baseAmount === "number" ? value.baseAmount : value.amountOwed;
     if (
       share === null ||
       typeof share !== "object" ||
       Array.isArray(share) ||
-      Object.keys(share).some((key) => !["friendId", "amountOwed"].includes(key)) ||
+      Object.keys(share).some((key) => !["friendId", "amountOwed", "baseAmount"].includes(key)) ||
+      !("baseAmount" in share || "amountOwed" in share) ||
       typeof (share as ExpenseShareInput).friendId !== "string" ||
       !(share as ExpenseShareInput).friendId.trim() ||
-      typeof (share as ExpenseShareInput).amountOwed !== "number" ||
-      !Number.isInteger((share as ExpenseShareInput).amountOwed) ||
-      (share as ExpenseShareInput).amountOwed <= 0 ||
-      (share as ExpenseShareInput).amountOwed > 2_147_483_647
+      typeof baseAmount !== "number" ||
+      !Number.isInteger(baseAmount) ||
+      baseAmount <= 0 ||
+      baseAmount > MAX_RUPIAH
     ) {
       throw new LedgerRepositoryError("INVALID_INPUT", "Expense shares are invalid");
     }
@@ -618,6 +644,36 @@ function assertExpenseSharesInput(shares: unknown): asserts shares is ExpenseSha
     if (seen.has(friendId)) throw new LedgerRepositoryError("INVALID_INPUT", "Each friend can have only one share per expense.");
     seen.add(friendId);
   }
+}
+
+function assertExpenseChargesInput(charges: unknown): asserts charges is ExpenseChargeInput[] {
+  if (!Array.isArray(charges)) throw new LedgerRepositoryError("INVALID_INPUT", "Expense charges are invalid");
+  for (const charge of charges) {
+    if (
+      charge === null ||
+      typeof charge !== "object" ||
+      Array.isArray(charge) ||
+      Object.keys(charge).some((key) => !["name", "percentageBasisPoints", "scope", "friendIds"].includes(key)) ||
+      typeof (charge as ExpenseChargeInput).name !== "string" ||
+      !(charge as ExpenseChargeInput).name.trim() ||
+      (charge as ExpenseChargeInput).name.trim().length > 120 ||
+      typeof (charge as ExpenseChargeInput).percentageBasisPoints !== "number" ||
+      !Number.isSafeInteger((charge as ExpenseChargeInput).percentageBasisPoints) ||
+      (charge as ExpenseChargeInput).percentageBasisPoints < 0 ||
+      (charge as ExpenseChargeInput).percentageBasisPoints > MAX_PERCENTAGE_BASIS_POINTS ||
+      ((charge as ExpenseChargeInput).scope !== "all" && (charge as ExpenseChargeInput).scope !== "selected") ||
+      !Array.isArray((charge as ExpenseChargeInput).friendIds) ||
+      (charge as ExpenseChargeInput).friendIds.some((friendId) => typeof friendId !== "string" || !normalizeUuid(friendId)) ||
+      new Set((charge as ExpenseChargeInput).friendIds.map((friendId) => friendId.toLowerCase())).size !== (charge as ExpenseChargeInput).friendIds.length ||
+      ((charge as ExpenseChargeInput).scope === "selected" && (charge as ExpenseChargeInput).friendIds.length === 0)
+    ) {
+      throw new LedgerRepositoryError("INVALID_INPUT", "Expense charges are invalid");
+    }
+  }
+}
+
+function shareBaseAmount(share: ExpenseShareInput) {
+  return "baseAmount" in share ? share.baseAmount : share.amountOwed;
 }
 
 function notFound(): never {
@@ -2579,8 +2635,46 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       friendId: friends.id,
       friendName: friends.name,
       friendArchivedAt: friends.archivedAt,
+      baseAmount: expenseShares.baseAmount,
       amountOwed: expenseShares.amountOwed,
     };
+  }
+
+  async function listExpenseChargesFor(transaction: Pick<Database, "select">, expenseId: string): Promise<ExpenseChargeRecord[]> {
+    const rows = await transaction
+      .select({
+        id: expenseCharges.id,
+        name: expenseCharges.name,
+        percentageBasisPoints: expenseCharges.percentageBasisPoints,
+        scope: expenseCharges.scope,
+        targetFriendId: expenseShares.friendId,
+      })
+      .from(expenseCharges)
+      .leftJoin(expenseChargeTargets, and(
+        eq(expenseChargeTargets.ownerUserId, owner),
+        eq(expenseChargeTargets.expenseId, expenseId),
+        eq(expenseChargeTargets.expenseChargeId, expenseCharges.id),
+      ))
+      .leftJoin(expenseShares, and(
+        eq(expenseShares.ownerUserId, owner),
+        eq(expenseShares.expenseId, expenseId),
+        eq(expenseShares.id, expenseChargeTargets.expenseShareId),
+      ))
+      .where(and(eq(expenseCharges.ownerUserId, owner), eq(expenseCharges.expenseId, expenseId)))
+      .orderBy(asc(expenseCharges.createdAt), asc(expenseCharges.id), asc(expenseShares.friendId));
+    const charges = new Map<string, ExpenseChargeRecord>();
+    for (const row of rows) {
+      const charge = charges.get(row.id) ?? {
+        id: row.id,
+        name: row.name,
+        percentageBasisPoints: row.percentageBasisPoints,
+        scope: row.scope as ExpenseChargeInput["scope"],
+        friendIds: [],
+      };
+      if (row.targetFriendId) charge.friendIds.push(row.targetFriendId);
+      charges.set(row.id, charge);
+    }
+    return [...charges.values()];
   }
 
   async function listExpenseSharesFor(transaction: Pick<Database, "select">, expenseId: string) {
@@ -2602,6 +2696,21 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         .limit(1);
       if (!expense) return notFound();
       return await listExpenseSharesFor(database, expenseId);
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  async function listExpenseCharges(expenseId: string) {
+    assertExpenseId(expenseId);
+    try {
+      const [expense] = await database
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .limit(1);
+      if (!expense) return notFound();
+      return await listExpenseChargesFor(database, expenseId);
     } catch (error) {
       return persistenceError(error);
     }
@@ -2666,9 +2775,10 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     };
   }
 
-  async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput[]) {
+  async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput[], charges?: ExpenseChargeInput[]) {
     assertExpenseId(expenseId);
     assertExpenseSharesInput(shares);
+    if (charges !== undefined) assertExpenseChargesInput(charges);
     try {
       return await database.transaction(async (transaction) => {
         const [expense] = await transaction
@@ -2680,11 +2790,13 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         if (!expense) return notFound();
 
         const currentShares = await transaction
-          .select({ id: expenseShares.id, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
+          .select({ id: expenseShares.id, friendId: expenseShares.friendId, baseAmount: expenseShares.baseAmount, amountOwed: expenseShares.amountOwed })
           .from(expenseShares)
           .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)));
         const currentByFriend = new Map(currentShares.map((share) => [share.friendId, share]));
-        const requested = shares.map((share) => ({ ...share, friendId: share.friendId.trim().toLowerCase() }));
+        const requested = shares.map((share) => ({ friendId: share.friendId.trim().toLowerCase(), baseAmount: shareBaseAmount(share) }));
+        const storedCharges = charges === undefined ? await listExpenseChargesFor(transaction, expenseId) : [];
+        const requestedCharges: ExpenseChargeInput[] = charges ?? storedCharges.map(({ name, percentageBasisPoints, scope, friendIds }) => ({ name, percentageBasisPoints, scope, friendIds }));
 
         const friendIds = requested.map((share) => share.friendId);
         const ownedFriends = friendIds.length
@@ -2699,17 +2811,46 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
             throw new LedgerRepositoryError("INVALID_INPUT", "Archived friends cannot be newly assigned.");
           }
         }
-        const total = requested.reduce((sum, share) => sum + share.amountOwed, 0);
+        const requestedFriendIds = new Set(friendIds);
+        for (const charge of requestedCharges) {
+          if (charge.scope === "selected" && charge.friendIds.some((friendId) => !requestedFriendIds.has(friendId.toLowerCase()))) {
+            throw new LedgerRepositoryError("INVALID_INPUT", "Selected charge targets must have a share amount.");
+          }
+        }
+        const finalByFriend = new Map(requested.map((share) => {
+          try {
+            return [share.friendId, calculateShareBreakdown(share.baseAmount, requestedCharges, share.friendId).finalAmount] as const;
+          } catch {
+            throw new LedgerRepositoryError("INVALID_INPUT", "The final share amount is too large.");
+          }
+        }));
+        const total = [...finalByFriend.values()].reduce((sum, amount) => sum + amount, 0);
         if (total > expense.amount) throw new ExpenseShareInvariantError();
 
-        const requestedByFriend = new Map(requested.map((share) => [share.friendId, share.amountOwed]));
+        const allocationTotals = currentShares.length
+          ? await transaction
+              .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: sql<number>`coalesce(sum(${repaymentAllocations.amount}), 0)` })
+              .from(repaymentAllocations)
+              .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, currentShares.map((share) => share.id))))
+              .groupBy(repaymentAllocations.expenseShareId)
+          : [];
+        const allocatedByShare = new Map(allocationTotals.map((allocation) => [allocation.expenseShareId, Number(allocation.amount)]));
+        for (const requestedShare of requested) {
+          const current = currentByFriend.get(requestedShare.friendId);
+          if (current && finalByFriend.get(requestedShare.friendId)! < (allocatedByShare.get(current.id) ?? 0)) {
+            throw new ExpenseShareAllocationInvariantError();
+          }
+        }
+
+        const requestedByFriend = new Map(requested.map((share) => [share.friendId, share]));
         for (const current of currentShares) {
-          const amountOwed = requestedByFriend.get(current.friendId);
-          if (amountOwed === undefined) continue;
-          if (amountOwed !== current.amountOwed) {
+          const requestedShare = requestedByFriend.get(current.friendId);
+          if (requestedShare === undefined) continue;
+          const amountOwed = finalByFriend.get(current.friendId)!;
+          if (requestedShare.baseAmount !== current.baseAmount || amountOwed !== current.amountOwed) {
             await transaction
               .update(expenseShares)
-              .set({ amountOwed })
+              .set({ baseAmount: requestedShare.baseAmount, amountOwed })
               .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.id, current.id)));
           }
         }
@@ -2717,7 +2858,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         const newShares = requested.filter((share) => !currentByFriend.has(share.friendId));
         if (newShares.length > 0) {
           await transaction.insert(expenseShares).values(
-            newShares.map((share) => ({ ownerUserId: owner, expenseId, friendId: share.friendId, amountOwed: share.amountOwed })),
+            newShares.map((share) => ({ ownerUserId: owner, expenseId, friendId: share.friendId, baseAmount: share.baseAmount, amountOwed: finalByFriend.get(share.friendId)! })),
           );
         }
 
@@ -2726,6 +2867,27 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           await transaction
             .delete(expenseShares)
             .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId), inArray(expenseShares.id, omittedIds)));
+        }
+
+        if (charges !== undefined) {
+          await transaction.delete(expenseCharges).where(and(eq(expenseCharges.ownerUserId, owner), eq(expenseCharges.expenseId, expenseId)));
+          const shareRows = requested.length
+            ? await transaction
+                .select({ id: expenseShares.id, friendId: expenseShares.friendId })
+                .from(expenseShares)
+                .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)))
+            : [];
+          const shareIdByFriend = new Map(shareRows.map((share) => [share.friendId, share.id]));
+          const createdCharges = requestedCharges.length
+            ? await transaction
+                .insert(expenseCharges)
+                .values(requestedCharges.map((charge) => ({ ownerUserId: owner, expenseId, name: charge.name.trim(), percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope })))
+                .returning({ id: expenseCharges.id })
+            : [];
+          const targetRows = requestedCharges.flatMap((charge, index) => charge.scope === "selected"
+            ? charge.friendIds.map((friendId) => ({ ownerUserId: owner, expenseId, expenseChargeId: createdCharges[index]!.id, expenseShareId: shareIdByFriend.get(friendId.toLowerCase())! }))
+            : []);
+          if (targetRows.length > 0) await transaction.insert(expenseChargeTargets).values(targetRows);
         }
 
         return await listExpenseSharesFor(transaction, expenseId);
@@ -3470,6 +3632,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     updateExpense,
     deleteExpense,
     listExpenseShares,
+    listExpenseCharges,
     listOpenExpenseSharesByFriend,
     getRepaymentFriendContext,
     replaceExpenseShares,

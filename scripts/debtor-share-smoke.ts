@@ -55,8 +55,8 @@ async function runDebtorShareSmoke() {
       [expenseA, ownerA, outingA, "Open dinner share", 100_000, expenseB, ownerA, outingA, "Settled coffee share", 30_000],
     );
     await pool.query(
-      "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)",
-      [shareOpen, ownerA, expenseA, friendA, 100_000, shareSettled, ownerA, expenseB, friendA, 30_000],
+      "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12)",
+      [shareOpen, ownerA, expenseA, friendA, 100_000, 100_000, shareSettled, ownerA, expenseB, friendA, 30_000, 30_000],
     );
     await pool.query(
       "INSERT INTO repayments (id, owner_user_id, friend_id, amount, paid_at, payment_method, notes) VALUES ($1, $2, $3, $4, $5, $6, $7), ($8, $9, $10, $11, $12, $13, $14)",

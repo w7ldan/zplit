@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
-import { validateExpenseShareInput, type ExpenseShareFieldErrors, type ExpenseShareInputValues } from "@/domain/expense-share-input";
+import { validateExpenseShareCharges, validateExpenseShareInput, type ExpenseShareChargeValues, type ExpenseShareFieldErrors, type ExpenseShareInputValues } from "@/domain/expense-share-input";
 import { validateExpenseInput, type ExpenseFieldErrors, type ExpenseInputValues } from "@/domain/expense-input";
-import { createLedgerRepository, deletionImpactRevision, ExpenseShareInvariantError, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { createLedgerRepository, deletionImpactRevision, ExpenseShareAllocationInvariantError, ExpenseShareInvariantError, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 
@@ -25,6 +25,7 @@ export type ExpenseShareActionState = {
   fieldErrors: ExpenseShareFieldErrors;
   formError: string;
   values: ExpenseShareInputValues;
+  charges?: ExpenseShareChargeValues[];
 };
 
 export type ExpenseDeleteActionState = DeleteRecordActionState;
@@ -111,7 +112,16 @@ function shareValuesFromForm(formData: FormData) {
     };
     if (additional.friendId || additional.amountRupiah) values.push(additional);
   }
-  return { values, result: friendIds.length === amounts.length ? validateExpenseShareInput(values) : null };
+  const rawCharges = formData.get("charges");
+  let charges: unknown;
+  if (typeof rawCharges === "string") {
+    try {
+      charges = JSON.parse(rawCharges);
+    } catch {
+      charges = null;
+    }
+  }
+  return { values, result: friendIds.length === amounts.length ? validateExpenseShareInput(values) : null, charges };
 }
 
 export async function createExpenseAction(
@@ -170,18 +180,28 @@ export async function replaceExpenseSharesAction(
   formData: FormData,
 ): Promise<ExpenseShareActionState> {
   const session = await requireSession();
-  const { values, result } = shareValuesFromForm(formData);
+  const { values, result, charges } = shareValuesFromForm(formData);
   if (!result) {
     return {
       fieldErrors: {},
       formError: "Please correct the marked fields.",
       values,
+      charges: _previousState.charges ?? [],
     };
   }
-  if (!result.ok) return { fieldErrors: result.errors, formError: "Please correct the marked fields.", values: result.values };
+  if (charges === undefined) return { fieldErrors: {}, formError: "Charge data is missing. Reload and try again.", values: result.values, charges: _previousState.charges ?? [] };
+  const chargeResult = validateExpenseShareCharges(charges, values.map((value) => value.friendId));
+  if (!result.ok || !chargeResult.ok) {
+    return {
+      fieldErrors: { ...(result.ok ? {} : result.errors), ...(chargeResult.ok ? {} : chargeResult.errors) },
+      formError: "Please correct the marked fields.",
+      values: result.values,
+      charges: chargeResult.values,
+    };
+  }
 
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).replaceExpenseShares(expenseId, result.value);
+    await createLedgerRepository(getDatabase(), session.user.id).replaceExpenseShares(expenseId, result.value, chargeResult.value);
   } catch (error) {
     return {
       fieldErrors: {},
@@ -189,8 +209,11 @@ export async function replaceExpenseSharesAction(
         ? "This expense or friend is no longer available."
         : error instanceof ExpenseShareInvariantError
           ? "Assigned shares cannot exceed the expense amount."
+          : error instanceof ExpenseShareAllocationInvariantError
+            ? "A share cannot be lower than repayments already applied to it."
           : "Unable to save this split.",
       values,
+      charges: chargeResult.values,
     };
   }
 

@@ -144,4 +144,45 @@ describe("expense share editor", () => {
     expect(markup).toContain('name="additionalFriendId"');
     expect(markup).toContain('name="additionalAmountRupiah"');
   });
+
+  it("splits evenly across one friend and the owner", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={101} friends={[activeFriend]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Split evenly (incl. you)" }));
+    expect(screen.getByLabelText("Rani")).toHaveValue("50");
+    expect(screen.getByText("Rp 51 is your portion.", { exact: false })).toBeInTheDocument();
+  });
+
+  it("splits multiple friends with the deterministic owner remainder", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={100} friends={[activeFriend, archivedFriend]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Split evenly (incl. you)" }));
+    expect(screen.getByLabelText("Rani")).toHaveValue("33");
+    expect(screen.getByLabelText(/^Bima/)).toHaveValue("33");
+    expect(screen.getByText("Rp 34 is your portion.", { exact: false })).toBeInTheDocument();
+  });
+
+  it("does not offer split evenly without a selected friend", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={100} friends={[]} friendOptions={[suggestedFriend]} />);
+    expect(screen.queryByRole("button", { name: "Split evenly (incl. you)" })).not.toBeInTheDocument();
+  });
+
+  it("shows final charged totals and reconstructs charge metadata in the form", () => {
+    const action = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: [{ friendId: activeFriend.id, amountRupiah: "40000" }], charges: [{ name: "PB1", percentage: "10", scope: "all", friendIds: [] }] });
+    render(<ExpenseShareEditor action={action} expenseAmount={100_000} friends={[{ ...activeFriend, baseAmount: 40_000, amountOwed: 44_000 }]} charges={[{ name: "PB1", percentageBasisPoints: 1000, scope: "all", friendIds: [] }]} />);
+    expect(screen.getByText("Base Rp 40.000")).toBeInTheDocument();
+    expect(screen.getByText("PB1 10% · Rp 4.000")).toBeInTheDocument();
+    expect(screen.getByText("Final Rp 44.000")).toBeInTheDocument();
+    expect(screen.getByText("Rp 44.000", { exact: true })).toBeInTheDocument();
+    fireEvent.submit(screen.getByRole("button", { name: "Save split" }).closest("form")!);
+    expect(JSON.parse(action.mock.calls[0]![1].get("charges") as string)).toEqual([{ name: "PB1", percentage: "10", scope: "all", friendIds: [] }]);
+  });
+
+  it("supports selected charge targets and removes stale targets with a friend", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={100_000} friends={[activeFriend, archivedFriend]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add charge" }));
+    fireEvent.change(screen.getByLabelText("Charge 1 scope"), { target: { value: "selected" } });
+    fireEvent.change(screen.getByLabelText("Charge 1 percentage"), { target: { value: "5" } });
+    fireEvent.click(within(screen.getByLabelText("Friends for charge 1")).getAllByRole("checkbox")[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Remove Rani" }));
+    expect(screen.getByLabelText("Friends for charge 1")).not.toHaveTextContent("Rani");
+  });
 });

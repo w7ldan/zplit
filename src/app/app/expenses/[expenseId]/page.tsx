@@ -31,14 +31,15 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
   }
   const deletionImpact = await repository.getExpenseDeletionImpact(expenseId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
-  const [outingRows, friendOptionRows, shares, receipts] = await Promise.all([
+  const [outingRows, friendOptionRows, shares, charges, receipts] = await Promise.all([
     repository.searchOutings({ selectedId: expense.outingId }),
     repository.searchFriends({ activeOnly: true }),
     repository.listExpenseShares(expense.id),
+    repository.listExpenseCharges(expense.id),
     listExpenseReceipts(database, session.user.id, expense.id),
   ]);
   const shareByFriend = new Map(shares.map((share) => [share.friendId, share]));
-  const friends = shares.map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, amountOwed: share.amountOwed }));
+  const friends = shares.map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, baseAmount: share.baseAmount, amountOwed: share.amountOwed }));
   const friendOptions = friendOptionRows
     .filter((friend) => !friend.archived && !shareByFriend.has(friend.id))
     .slice(0, 20)
@@ -61,6 +62,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
                 action={replaceExpenseSharesAction.bind(null, expense.id)}
                 expenseAmount={expense.amount}
                 friends={friends}
+                charges={charges.map((charge) => ({ name: charge.name, percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope, friendIds: charge.friendIds }))}
                 friendOptions={friendOptions}
                 searchFriends={searchExpenseFriendOptions}
               />

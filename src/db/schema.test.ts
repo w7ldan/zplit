@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import * as schema from "./schema";
 
 const domainTables = [
+  "expense_charge_targets",
+  "expense_charges",
   "expense_receipts",
   "expense_shares",
   "expenses",
@@ -42,9 +44,9 @@ function foreignKeyShape(table: unknown) {
 }
 
 describe("database schema", () => {
-  it("exports the eight domain tables and four auth tables", () => {
+  it("exports the ten domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseReceipts, schema.repayments, schema.repaymentAllocations]
+      [schema.friends, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentAllocations]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -193,6 +195,8 @@ describe("database schema", () => {
       schema.trips,
       schema.expenses,
       schema.expenseShares,
+      schema.expenseCharges,
+      schema.expenseChargeTargets,
       schema.expenseReceipts,
       schema.repayments,
       schema.repaymentAllocations,
@@ -215,6 +219,7 @@ describe("database schema", () => {
       [schema.outings, "outings_owner_user_id_id_uidx"],
       [schema.expenses, "expenses_owner_user_id_id_uidx"],
       [schema.expenseShares, "expense_shares_owner_user_id_id_uidx"],
+      [schema.expenseCharges, "expense_charges_owner_user_id_id_uidx"],
       [schema.repayments, "repayments_owner_user_id_id_uidx"],
       [schema.trips, "trips_owner_user_id_id_uidx"],
     ] as const) {
@@ -225,6 +230,8 @@ describe("database schema", () => {
   it("uses owner-aware composite foreign keys for domain relationships", () => {
     const references = [
       [schema.expenseShares, ["owner_user_id", "expense_id"], "expenses", ["owner_user_id", "id"], "cascade"],
+      [schema.expenseChargeTargets, ["owner_user_id", "expense_id", "expense_charge_id"], "expense_charges", ["owner_user_id", "expense_id", "id"], "cascade"],
+      [schema.expenseChargeTargets, ["owner_user_id", "expense_id", "expense_share_id"], "expense_shares", ["owner_user_id", "expense_id", "id"], "cascade"],
       [schema.outings, ["owner_user_id", "trip_id"], "trips", ["owner_user_id", "id"], "restrict"],
       [schema.expenseShares, ["owner_user_id", "friend_id"], "friends", ["owner_user_id", "id"], "restrict"],
       [schema.repayments, ["owner_user_id", "friend_id"], "friends", ["owner_user_id", "id"], "restrict"],
@@ -240,6 +247,7 @@ describe("database schema", () => {
     for (const column of [
       schema.expenses.amount,
       schema.expenseShares.amountOwed,
+      schema.expenseShares.baseAmount,
       schema.repayments.amount,
       schema.repaymentAllocations.amount,
     ]) {
@@ -249,6 +257,7 @@ describe("database schema", () => {
     const checks = [
       ...getTableConfig(schema.expenses).checks,
       ...getTableConfig(schema.expenseShares).checks,
+      ...getTableConfig(schema.expenseCharges).checks,
       ...getTableConfig(schema.repayments).checks,
       ...getTableConfig(schema.repaymentAllocations).checks,
     ].map((check) => check.name);
@@ -256,6 +265,8 @@ describe("database schema", () => {
       expect.arrayContaining([
         "expenses_amount_positive",
         "expense_shares_amount_owed_positive",
+        "expense_shares_base_amount_positive",
+        "expense_charges_percentage_basis_points_valid",
         "repayments_amount_positive",
         "repayment_allocations_amount_positive",
       ]),
@@ -301,6 +312,8 @@ describe("database schema", () => {
     const actions = [
       ...foreignKeyShape(schema.expenses),
       ...foreignKeyShape(schema.expenseShares),
+      ...foreignKeyShape(schema.expenseCharges),
+      ...foreignKeyShape(schema.expenseChargeTargets),
       ...foreignKeyShape(schema.repayments),
       ...foreignKeyShape(schema.repaymentAllocations),
     ];
@@ -311,6 +324,9 @@ describe("database schema", () => {
         { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
         { from: ["owner_user_id", "repayment_id"], to: "repayments", target: ["owner_user_id", "id"], onDelete: "cascade" },
         { from: ["owner_user_id", "expense_share_id"], to: "expense_shares", target: ["owner_user_id", "id"], onDelete: "cascade" },
+        { from: ["owner_user_id", "expense_id"], to: "expenses", target: ["owner_user_id", "id"], onDelete: "cascade" },
+        { from: ["owner_user_id", "expense_id", "expense_charge_id"], to: "expense_charges", target: ["owner_user_id", "expense_id", "id"], onDelete: "cascade" },
+        { from: ["owner_user_id", "expense_id", "expense_share_id"], to: "expense_shares", target: ["owner_user_id", "expense_id", "id"], onDelete: "cascade" },
       ]),
     );
     expect(actions.filter(({ from, to }) => from.join(",") === "owner_user_id,friend_id" && to === "friends")).toHaveLength(2);
@@ -343,6 +359,8 @@ describe("database schema", () => {
       [schema.trips, "trips_owner_user_id_dates_idx", ["owner_user_id", "starts_on", "ends_on"]],
       [schema.expenses, "expenses_outing_id_idx", ["owner_user_id", "outing_id"]],
       [schema.expenseShares, "expense_shares_friend_id_idx", ["owner_user_id", "friend_id"]],
+      [schema.expenseCharges, "expense_charges_owner_expense_id_idx", ["owner_user_id", "expense_id"]],
+      [schema.expenseChargeTargets, "expense_charge_targets_owner_share_idx", ["owner_user_id", "expense_share_id"]],
       [schema.repayments, "repayments_friend_id_idx", ["owner_user_id", "friend_id"]],
       [schema.repayments, "repayments_paid_at_idx", ["owner_user_id", "paid_at"]],
       [schema.repaymentAllocations, "repayment_allocations_expense_share_id_idx", ["owner_user_id", "expense_share_id"]],

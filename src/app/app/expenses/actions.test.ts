@@ -27,12 +27,13 @@ function form(values: Record<string, string>) {
   return formData;
 }
 
-function shareForm(rows: Array<{ friendId: string; amountRupiah: string }>) {
+function shareForm(rows: Array<{ friendId: string; amountRupiah: string }>, charges: unknown[] = []) {
   const formData = new FormData();
   for (const row of rows) {
     formData.append("friendId", row.friendId);
     formData.append("amountRupiah", row.amountRupiah);
   }
+  formData.set("charges", JSON.stringify(charges));
   return formData;
 }
 
@@ -162,7 +163,7 @@ describe("expense actions", () => {
     ]))).rejects.toThrow("redirect:/app/expenses/expense-a?saved=1");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
-    expect(replaceExpenseShares).toHaveBeenCalledWith("expense-a", [{ friendId: "11111111-1111-4111-8111-111111111111", amountOwed: 84000 }]);
+    expect(replaceExpenseShares).toHaveBeenCalledWith("expense-a", [{ friendId: "11111111-1111-4111-8111-111111111111", amountOwed: 84000 }], []);
   });
 
   it("returns stable invariant and unavailable split messages", async () => {
@@ -178,6 +179,30 @@ describe("expense actions", () => {
     const state = await replaceExpenseSharesAction("foreign-expense", initialShareState, shareForm([]));
     expect(state.formError).toBe("This expense or friend is no longer available.");
     expect(state.formError).not.toContain("foreign-expense");
+  });
+
+  it("validates and passes persistent charge definitions with exact basis points", async () => {
+    const replaceExpenseShares = vi.fn().mockResolvedValue([]);
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ replaceExpenseShares });
+
+    await expect(replaceExpenseSharesAction("expense-a", initialShareState, shareForm([
+      { friendId: "11111111-1111-4111-8111-111111111111", amountRupiah: "84000" },
+    ], [{ name: "Service charge", percentage: "7.5", scope: "all", friendIds: [] }]))).rejects.toThrow("redirect:/app/expenses/expense-a?saved=1");
+    expect(replaceExpenseShares).toHaveBeenCalledWith("expense-a", [{ friendId: "11111111-1111-4111-8111-111111111111", amountOwed: 84000 }], [{ name: "Service charge", percentageBasisPoints: 750, scope: "all", friendIds: [] }]);
+  });
+
+  it("rejects invalid selected charge targets before persistence", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    const replaceExpenseShares = vi.fn();
+    mocks.createLedgerRepository.mockReturnValue({ replaceExpenseShares });
+    const state = await replaceExpenseSharesAction("expense-a", initialShareState, shareForm([
+      { friendId: "11111111-1111-4111-8111-111111111111", amountRupiah: "84000" },
+    ], [{ name: "PB1", percentage: "10", scope: "selected", friendIds: ["22222222-2222-4222-8222-222222222222"] }]));
+    expect(state).toMatchObject({ formError: "Please correct the marked fields.", fieldErrors: { "charge-0": "Choose valid selected friends." } });
+    expect(replaceExpenseShares).not.toHaveBeenCalled();
   });
 
   it("maps a reduced expense below assigned shares to the edit message", async () => {

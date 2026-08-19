@@ -347,8 +347,8 @@ export async function runOwnershipSmoke() {
     await expectConstraint(
       client,
       "23503",
-      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4)",
-      [userA, expenseA.id, friendB.id, 1],
+      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [userA, expenseA.id, friendB.id, 1, 1],
       "cross_owner_share",
     );
     await expectConstraint(
@@ -382,8 +382,8 @@ export async function runOwnershipSmoke() {
     await expectConstraint(
       client,
       "23514",
-      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4)",
-      [userA, expenseA.id, friendA.id, 0],
+      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [userA, expenseA.id, friendA.id, 0, 0],
       "amount_share",
     );
     await expectConstraint(
@@ -403,8 +403,8 @@ export async function runOwnershipSmoke() {
     await expectConstraint(
       client,
       "23505",
-      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, amount_owed) VALUES ($1, $2, $3, $4)",
-      [userA, expenseA.id, friendA.id, 1],
+      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [userA, expenseA.id, friendA.id, 1, 1],
       "duplicate_share",
     );
     await expectConstraint(

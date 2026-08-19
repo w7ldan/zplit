@@ -172,10 +172,12 @@ export const expenseShares = pgTable(
       .references(() => users.id, { onDelete: "restrict" }),
     expenseId: uuid("expense_id").notNull(),
     friendId: uuid("friend_id").notNull(),
+    baseAmount: integer("base_amount").notNull(),
     amountOwed: integer("amount_owed").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    check("expense_shares_base_amount_positive", sql`${table.baseAmount} > 0`),
     check("expense_shares_amount_owed_positive", sql`${table.amountOwed} > 0`),
     foreignKey({
       columns: [table.ownerUserId, table.expenseId],
@@ -188,8 +190,64 @@ export const expenseShares = pgTable(
       name: "expense_shares_owner_friend_fk",
     }).onDelete("restrict"),
     uniqueIndex("expense_shares_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
+    uniqueIndex("expense_shares_owner_expense_id_id_uidx").on(table.ownerUserId, table.expenseId, table.id),
     uniqueIndex("expense_shares_expense_friend_uidx").on(table.expenseId, table.friendId),
     index("expense_shares_friend_id_idx").on(table.ownerUserId, table.friendId),
+  ],
+);
+
+export const expenseCharges = pgTable(
+  "expense_charges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    expenseId: uuid("expense_id").notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    percentageBasisPoints: integer("percentage_basis_points").notNull(),
+    scope: varchar("scope", { length: 16 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("expense_charges_name_not_blank", sql`btrim(${table.name}) <> ''`),
+    check("expense_charges_percentage_basis_points_valid", sql`${table.percentageBasisPoints} BETWEEN 0 AND 1000000`),
+    check("expense_charges_scope_valid", sql`${table.scope} IN ('all', 'selected')`),
+    foreignKey({
+      columns: [table.ownerUserId, table.expenseId],
+      foreignColumns: [expenses.ownerUserId, expenses.id],
+      name: "expense_charges_owner_expense_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("expense_charges_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
+    uniqueIndex("expense_charges_owner_expense_id_id_uidx").on(table.ownerUserId, table.expenseId, table.id),
+    index("expense_charges_owner_expense_id_idx").on(table.ownerUserId, table.expenseId),
+  ],
+);
+
+export const expenseChargeTargets = pgTable(
+  "expense_charge_targets",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    expenseId: uuid("expense_id").notNull(),
+    expenseChargeId: uuid("expense_charge_id").notNull(),
+    expenseShareId: uuid("expense_share_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.ownerUserId, table.expenseChargeId, table.expenseShareId] }),
+    foreignKey({
+      columns: [table.ownerUserId, table.expenseId, table.expenseChargeId],
+      foreignColumns: [expenseCharges.ownerUserId, expenseCharges.expenseId, expenseCharges.id],
+      name: "expense_charge_targets_owner_charge_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.ownerUserId, table.expenseId, table.expenseShareId],
+      foreignColumns: [expenseShares.ownerUserId, expenseShares.expenseId, expenseShares.id],
+      name: "expense_charge_targets_owner_share_fk",
+    }).onDelete("cascade"),
+    index("expense_charge_targets_owner_charge_idx").on(table.ownerUserId, table.expenseChargeId),
+    index("expense_charge_targets_owner_share_idx").on(table.ownerUserId, table.expenseShareId),
   ],
 );
 

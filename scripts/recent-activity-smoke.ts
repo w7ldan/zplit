@@ -79,9 +79,9 @@ async function run() {
       [expenseIds[5], repositoryOwner, outingA7, "Museum", 3000, "2026-08-07T00:00:00Z"],
       [foreignExpense, foreignOwner, outingB, "Foreign dinner", 9000, "2029-12-01T00:00:00Z"],
     ]);
-    await insertRows("expense_shares", "id, owner_user_id, expense_id, friend_id, amount_owed", [
-      [shareE1, repositoryOwner, expenseIds[0], friendA, 1000],
-      [shareE3, repositoryOwner, expenseIds[2], friendA, 2000],
+    await insertRows("expense_shares", "id, owner_user_id, expense_id, friend_id, base_amount, amount_owed", [
+      [shareE1, repositoryOwner, expenseIds[0], friendA, 1000, 1000],
+      [shareE3, repositoryOwner, expenseIds[2], friendA, 2000, 2000],
     ]);
     await insertRows("repayments", "id, owner_user_id, friend_id, amount, paid_at, created_at", [
       [repaymentIds[0], repositoryOwner, friendA, 1000, "2026-08-10T00:00:00Z", "2026-08-01T00:00:00Z"],

@@ -1206,6 +1206,97 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   gap: 0.35rem;
 }
 
+.expense-share-editor__add > div,
+.expense-share-editor__section-heading,
+.expense-share-editor__charge-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.expense-share-editor__add > div label,
+.expense-share-editor__section-heading h3,
+.expense-share-editor__charge-heading label {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.expense-share-editor__section-heading h3 {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.expense-share-editor__charges {
+  display: grid;
+  gap: 0.65rem;
+  padding-block: 0.85rem;
+  border-block: 1px solid var(--rule);
+}
+
+.expense-share-editor__charge {
+  display: grid;
+  gap: 0.4rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--rule);
+}
+
+.expense-share-editor__charge-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(5rem, 0.55fr) minmax(0, 1fr);
+  gap: 0.45rem;
+}
+
+.expense-share-editor__percentage-input {
+  position: relative;
+}
+
+.expense-share-editor__percentage-input input {
+  padding-right: 1.5rem;
+}
+
+.expense-share-editor__percentage-input span {
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  color: var(--muted-ink);
+  transform: translateY(-50%);
+}
+
+.expense-share-editor__targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+}
+
+.expense-share-editor__targets label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 400;
+}
+
+.expense-share-editor__breakdown {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border-left: 2px solid var(--rule);
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+}
+
+.expense-share-editor__breakdown ul {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.expense-share-editor__breakdown strong {
+  color: var(--ink);
+}
+
 .expense-share-editor__add > label,
 .expense-share-editor__field-heading label {
   min-width: 0;
