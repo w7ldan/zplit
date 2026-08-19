@@ -23,9 +23,39 @@ describe("ExpenseReceipts", () => {
     expect(screen.queryByText("No file chosen")).not.toBeInTheDocument();
     expect(screen.getByText("dinner.jpg")).toBeInTheDocument();
     expect(screen.getByText(/image\/jpeg · 5 KiB/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View" })).toHaveAttribute("href", "/app/expenses/expense-a/receipts/33333333-3333-4333-8333-333333333333");
+    const previewTrigger = screen.getByRole("button", { name: "Preview dinner.jpg" });
+    expect(previewTrigger).toHaveAttribute("type", "button");
+    expect(previewTrigger.closest("form")).toBeNull();
+    expect(previewTrigger).toBeInTheDocument();
+    fireEvent.click(previewTrigger);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "dinner.jpg" })).toHaveAttribute("src", "/app/expenses/expense-a/receipts/33333333-3333-4333-8333-333333333333");
+    expect(screen.getByRole("link", { name: "Open original" })).toMatchObject({ href: expect.stringContaining("/app/expenses/expense-a/receipts/33333333-3333-4333-8333-333333333333"), target: "_blank" });
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/app/expenses/expense-a/receipts/33333333-3333-4333-8333-333333333333?download=1");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preview dinner.jpg" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("closes from the backdrop and keeps unsupported receipts on the safe original link", () => {
+    const unsupported = { ...receipt, originalFilename: "statement.pdf", mediaType: "application/pdf" };
+    const view = render(<ExpenseReceipts expenseId="expense-a" initialReceipts={[receipt]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Preview dinner.jpg" }));
+    fireEvent.click(screen.getByRole("dialog"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    view.unmount();
+    render(<ExpenseReceipts expenseId="expense-a" initialReceipts={[unsupported]} />);
+    expect(screen.getByRole("link", { name: "Open original" })).toHaveAttribute("href", "/app/expenses/expense-a/receipts/33333333-3333-4333-8333-333333333333");
+    expect(screen.queryByRole("button", { name: "Preview statement.pdf" })).not.toBeInTheDocument();
+  });
+
+  it("wraps long filenames without changing receipt metadata", () => {
+    const longFilename = { ...receipt, originalFilename: `${"receipt-".repeat(30)}.jpg` };
+    render(<ExpenseReceipts expenseId="expense-a" initialReceipts={[longFilename]} />);
+    expect(screen.getByText(longFilename.originalFilename)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `Preview ${longFilename.originalFilename}` })).toBeInTheDocument();
   });
 
   it("shows a stable pending state, then refreshes local metadata and announces success", async () => {

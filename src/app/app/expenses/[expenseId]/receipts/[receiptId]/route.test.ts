@@ -51,12 +51,18 @@ describe("receipt read and delete route", () => {
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
     expect(response.headers.get("cross-origin-resource-policy")).toBe("same-origin");
     expect(mocks.getExpenseReceipt).toHaveBeenCalledWith("database", "owner-a", "expense-a", "33333333-3333-4333-8333-333333333333");
+
+    const download = await GET(new Request("https://zplit.test/app/expenses/expense-a/receipts/receipt-a?download=1"), params);
+    expect(download.status).toBe(200);
+    expect(download.headers.get("content-disposition")).toBe('attachment; filename="receipt-33333333-3333-4333-8333-333333333333.png"');
+    expect(mocks.getExpenseReceipt).toHaveBeenLastCalledWith("database", "owner-a", "expense-a", "33333333-3333-4333-8333-333333333333");
   });
 
-  it("returns a generic missing response and owner-scoped delete with same-origin enforcement", async () => {
-    mocks.getSession.mockResolvedValue({ user: { id: "owner-a" } });
+  it("returns a generic missing response for another owner and enforces same-origin delete", async () => {
+    mocks.getSession.mockResolvedValue({ user: { id: "owner-b" } });
     mocks.getExpenseReceipt.mockResolvedValue(null);
     expect((await GET(new Request("https://zplit.test/app"), params)).status).toBe(404);
+    expect(mocks.getExpenseReceipt).toHaveBeenCalledWith("database", "owner-b", "expense-a", "33333333-3333-4333-8333-333333333333");
 
     const missingOrigin = await DELETE(new Request("https://zplit.test/app", { method: "DELETE" }), params);
     expect(missingOrigin.status).toBe(403);
@@ -64,6 +70,6 @@ describe("receipt read and delete route", () => {
     const deleted = await DELETE(new Request("https://zplit.test/app", { method: "DELETE", headers: { Origin: "https://zplit.test" } }), params);
     expect(deleted.status).toBe(204);
     expect(await deleted.text()).toBe("");
-    expect(mocks.deleteExpenseReceipt).toHaveBeenCalledWith("database", "owner-a", "expense-a", "33333333-3333-4333-8333-333333333333");
+    expect(mocks.deleteExpenseReceipt).toHaveBeenCalledWith("database", "owner-b", "expense-a", "33333333-3333-4333-8333-333333333333");
   });
 });

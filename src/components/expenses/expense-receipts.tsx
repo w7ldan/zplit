@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useRef, useState } from "react";
-import Link from "next/link";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { ReceiptPreview } from "@/components/records/receipt-preview";
 
 export type ExpenseReceipt = {
   id: string;
@@ -129,7 +129,7 @@ export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsP
                   <span>{receipt.mediaType} · {formatBytes(receipt.byteSize)} · <ReceiptDate value={receipt.createdAt} /></span>
                 </div>
                 <div className="expense-receipts__actions">
-                  <Link className="text-link" href={`/app/expenses/${encodeURIComponent(expenseId)}/receipts/${encodeURIComponent(receipt.id)}`} target="_blank" rel="noreferrer">View</Link>
+                  <ReceiptPreview href={`/app/expenses/${encodeURIComponent(expenseId)}/receipts/${encodeURIComponent(receipt.id)}`} filename={receipt.originalFilename} mediaType={receipt.mediaType} />
                   {confirming ? (
                     <>
                       <button className="text-link expense-receipts__remove" type="button" onClick={() => remove(receipt.id)} disabled={removing} aria-busy={removing}>{removing ? "Removing…" : "Remove"}</button>

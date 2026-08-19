@@ -760,6 +760,15 @@
   min-width: 0;
 }
 
+.expense-receipts__details,
+.expense-receipts__actions {
+  min-width: 0;
+}
+
+.expense-receipts__details strong {
+  overflow-wrap: anywhere;
+}
+
 .expense-record__sidebar,
 .repayment-record__sidebar {
   align-content: start;

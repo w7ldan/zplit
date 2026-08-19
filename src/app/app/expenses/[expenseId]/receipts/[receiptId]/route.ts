@@ -16,7 +16,7 @@ function privateHeaders() {
   return { "Cache-Control": "private, no-store" };
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ expenseId: string; receiptId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ expenseId: string; receiptId: string }> }) {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) return new Response("Unauthorized", { status: 401, headers: privateHeaders() });
 
@@ -26,11 +26,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ exp
     if (!receipt) return new Response(RECEIPT_UNAVAILABLE_MESSAGE, { status: 404, headers: privateHeaders() });
     const extension = extensionByMediaType[receipt.mediaType as keyof typeof extensionByMediaType];
     if (!extension) return new Response(RECEIPT_UNAVAILABLE_MESSAGE, { status: 404, headers: privateHeaders() });
+    const disposition = new URL(request.url).searchParams.get("download") === "1" ? "attachment" : "inline";
     return new Response(receipt.content as unknown as BodyInit, {
       headers: {
         "Content-Type": receipt.mediaType,
         "Content-Length": String(receipt.byteSize),
-        "Content-Disposition": `inline; filename="receipt-${receipt.id}.${extension}"`,
+        "Content-Disposition": `${disposition}; filename="receipt-${receipt.id}.${extension}"`,
         ...RECEIPT_READ_HEADERS,
       },
     });
