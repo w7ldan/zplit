@@ -128,6 +128,25 @@ function deletionDatabase(withDependents: boolean) {
   };
 }
 
+function previousSplitDatabase(fixture: {
+  outingId?: string;
+  candidateId?: string;
+  friends?: Array<{ id: string; name: string; archivedAt: Date | null; baseAmount: number }>;
+  charges?: Array<{ id: string; name: string; percentageBasisPoints: number; scope: "all" | "selected"; targetFriendId: string | null }>;
+}) {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const database = drizzle(async (sql, params) => {
+    queries.push({ sql, params });
+    const normalized = sql.toLowerCase();
+    if (normalized.startsWith('select "outing_id"') || normalized.startsWith('select "expenses"."outing_id"')) return { rows: [[fixture.outingId ?? "outing-a"]] };
+    if (normalized.includes('"base_amount"')) return { rows: (fixture.friends ?? []).map((friend) => [friend.id, friend.name, friend.archivedAt, friend.baseAmount]) };
+    if (normalized.includes('"percentage_basis_points"')) return { rows: (fixture.charges ?? []).map((charge) => [charge.id, charge.name, charge.percentageBasisPoints, charge.scope, charge.targetFriendId]) };
+    if (normalized.includes('from "expenses"') && normalized.includes('inner join "outings"') && normalized.includes("exists")) return fixture.candidateId ? { rows: [[fixture.candidateId]] } : { rows: [] };
+    return { rows: (fixture.charges ?? []).map((charge) => [charge.id, charge.name, charge.percentageBasisPoints, charge.scope, charge.targetFriendId]) };
+  });
+  return { database: database as unknown as Database, queries };
+}
+
 describe("ledger repository", () => {
   it("generates deterministic revisions from the complete normalized impact", () => {
     const impact = {
@@ -729,6 +748,98 @@ describe("ledger repository", () => {
     const database = drizzle(async () => ({ rows: [row] }));
 
     await expect(createLedgerRepository(database as unknown as Database, owner).listRecentActivity()).rejects.toBeInstanceOf(LedgerIntegrityError);
+  });
+
+  it("selects the latest reusable sibling, excludes the current expense, and stays in the outing", async () => {
+    const fixture = previousSplitDatabase({
+      candidateId: "expense-latest-reusable",
+      friends: [{ id: "friend-a", name: "Ada", archivedAt: null, baseAmount: 40000 }],
+    });
+
+    await expect(createLedgerRepository(fixture.database, owner).getPreviousExpenseSplit("expense-current")).resolves.toEqual({
+      friends: [{ friendId: "friend-a", friendName: "Ada", friendArchivedAt: null, baseAmount: 40000 }],
+      charges: [],
+    });
+
+    const candidateQuery = fixture.queries[1]!;
+    expect(candidateQuery.sql).toContain('"expenses"."outing_id"');
+    expect(candidateQuery.sql).toContain('"expenses"."id" <>');
+    expect(candidateQuery.sql.toLowerCase()).toContain("order by \"expenses\".\"created_at\" desc");
+    expect(candidateQuery.params).toEqual(expect.arrayContaining([owner, "outing-a", "expense-current"]));
+  });
+
+  it("does not return a sibling from another outing or owner", async () => {
+    const fixture = previousSplitDatabase({});
+    const result = await createLedgerRepository(fixture.database, owner).getPreviousExpenseSplit("expense-current");
+
+    expect(result).toBeNull();
+    expect(fixture.queries).toHaveLength(2);
+    expect(fixture.queries.every((query) => query.params.includes(owner))).toBe(true);
+    expect(fixture.queries[1]!.sql).toContain('"outings"."owner_user_id"');
+    expect(fixture.queries[1]!.sql).toContain('"expenses"."owner_user_id"');
+  });
+
+  it("skips a newest archived-only sibling and selects the older reusable sibling", async () => {
+    const fixture = previousSplitDatabase({
+      candidateId: "expense-older-reusable",
+      friends: [{ id: "friend-active", name: "Active", archivedAt: null, baseAmount: 25000 }],
+    });
+    const result = await createLedgerRepository(fixture.database, owner).getPreviousExpenseSplit("expense-current");
+
+    expect(result?.friends).toEqual([{ friendId: "friend-active", friendName: "Active", friendArchivedAt: null, baseAmount: 25000 }]);
+    expect(fixture.queries[1]!.sql.toLowerCase()).toContain("reusable_friends");
+    expect(fixture.queries[1]!.sql.toLowerCase()).toContain("reusable_friends.archived_at is null");
+  });
+
+  it("returns no candidate when every prior sibling is unusable", async () => {
+    const fixture = previousSplitDatabase({});
+
+    await expect(createLedgerRepository(fixture.database, owner).getPreviousExpenseSplit("expense-current")).resolves.toBeNull();
+    expect(fixture.queries).toHaveLength(2);
+    expect(fixture.queries[1]!.sql.toLowerCase()).toContain("exists");
+    expect(fixture.queries[1]!.sql.toLowerCase()).toContain("archived_at is null");
+  });
+
+  it("returns reusable base amounts and reconstructs all and selected charge targets", async () => {
+    const fixture = previousSplitDatabase({
+      candidateId: "expense-reusable",
+      friends: [
+        { id: "friend-active", name: "Active", archivedAt: null, baseAmount: 25000 },
+        { id: "friend-archived", name: "Archived", archivedAt: new Date("2026-01-01T00:00:00.000Z"), baseAmount: 15000 },
+      ],
+      charges: [
+        { id: "charge-all", name: "Tax", percentageBasisPoints: 500, scope: "all", targetFriendId: null },
+        { id: "charge-selected", name: "Tip", percentageBasisPoints: 1000, scope: "selected", targetFriendId: "friend-active" },
+        { id: "charge-selected", name: "Tip", percentageBasisPoints: 1000, scope: "selected", targetFriendId: "friend-archived" },
+      ],
+    });
+
+    await expect(createLedgerRepository(fixture.database, owner).getPreviousExpenseSplit("expense-current")).resolves.toEqual({
+      friends: [
+        { friendId: "friend-active", friendName: "Active", friendArchivedAt: null, baseAmount: 25000 },
+        { friendId: "friend-archived", friendName: "Archived", friendArchivedAt: new Date("2026-01-01T00:00:00.000Z"), baseAmount: 15000 },
+      ],
+      charges: [
+        { name: "Tax", percentageBasisPoints: 500, scope: "all", friendIds: [] },
+        { name: "Tip", percentageBasisPoints: 1000, scope: "selected", friendIds: ["friend-active", "friend-archived"] },
+      ],
+    });
+  });
+
+  it("keeps expense, outing, share, friend, charge, and target reads owner-scoped", async () => {
+    const fixture = previousSplitDatabase({
+      candidateId: "expense-owner-a",
+      friends: [{ id: "friend-owner-a", name: "Owner A", archivedAt: null, baseAmount: 10000 }],
+      charges: [{ id: "charge-owner-a", name: "Tax", percentageBasisPoints: 500, scope: "all", targetFriendId: null }],
+    });
+    const result = await createLedgerRepository(fixture.database, owner).getPreviousExpenseSplit("expense-current");
+
+    expect(result?.friends.map((friend) => friend.friendId)).toEqual(["friend-owner-a"]);
+    expect(result?.charges).toEqual([{ name: "Tax", percentageBasisPoints: 500, scope: "all", friendIds: [] }]);
+    for (const query of fixture.queries) {
+      expect(query.params).toContain(owner);
+      expect(query.sql).toContain("owner_user_id");
+    }
   });
 
   it("keeps paginated record retrieval in owner-scoped SQL", async () => {

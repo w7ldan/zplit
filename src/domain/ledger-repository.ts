@@ -2745,6 +2745,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       const [current] = await database
         .select({ outingId: expenses.outingId })
         .from(expenses)
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
         .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
         .limit(1);
       if (!current) return notFound();
@@ -2752,11 +2753,19 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       const [previous] = await database
         .select({ id: expenses.id })
         .from(expenses)
+        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
         .where(and(
           eq(expenses.ownerUserId, owner),
           eq(expenses.outingId, current.outingId),
           ne(expenses.id, expenseId),
-          sql`exists (select 1 from ${expenseShares} previous_shares where previous_shares.owner_user_id = ${owner} and previous_shares.expense_id = ${expenses.id})`,
+          sql`exists (
+            select 1
+            from ${expenseShares} previous_shares
+            inner join ${friends} reusable_friends on reusable_friends.owner_user_id = ${owner} and reusable_friends.id = previous_shares.friend_id
+            where previous_shares.owner_user_id = ${owner}
+              and previous_shares.expense_id = ${expenses.id}
+              and reusable_friends.archived_at is null
+          )`,
         ))
         .orderBy(desc(expenses.createdAt), asc(expenses.id))
         .limit(1);

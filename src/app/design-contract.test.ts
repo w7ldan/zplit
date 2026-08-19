@@ -559,6 +559,13 @@ describe("Zplit design contract", () => {
     expect(css).toMatch(/@media \(max-width: 1023px\)\s*\{[\s\S]*?\.app-shell__mobile-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
   });
 
+  it("keeps the expense split summary below the authenticated header", () => {
+    expect(authenticatedShellSource).toContain("--authenticated-header-height: 4.5rem;");
+    expect(authenticatedShellSource).toContain("min-height: var(--authenticated-header-height);");
+    expect(recordsAndFormsSource).toMatch(/\.expense-share-editor__summary\s*\{[\s\S]*?position: sticky;[\s\S]*?z-index: 2;[\s\S]*?top: calc\(var\(--authenticated-header-height\) \+ 0\.75rem\);/);
+    expect(lateOverridesSource).not.toContain("expense-share-editor__summary");
+  });
+
   it("keeps the landing access link on the shared primary action treatment", () => {
     const header = cssRuleBody(publicSource, ".public-home .site-header");
     const detachedHeader = cssRuleBody(publicSource, ".public-home .site-header.header-shell__panel--detached");

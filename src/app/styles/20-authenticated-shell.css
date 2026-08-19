@@ -44,7 +44,7 @@
 .outings-page,
 .outing-record {
   position: relative;
-  min-height: calc(100svh - 5.5rem);
+  min-height: calc(100svh - var(--authenticated-header-height));
   overflow: hidden;
   background: var(--paper);
 }
@@ -768,7 +768,7 @@
 .expenses-page,
 .expense-record {
   position: relative;
-  min-height: calc(100svh - 5.5rem);
+  min-height: calc(100svh - var(--authenticated-header-height));
   overflow: hidden;
   background: var(--paper);
 }
@@ -1178,7 +1178,7 @@
 .repayments-page,
 .repayment-record {
   position: relative;
-  min-height: calc(100svh - 5.5rem);
+  min-height: calc(100svh - var(--authenticated-header-height));
   overflow: hidden;
   background: var(--paper);
 }
@@ -2188,6 +2188,7 @@
 
 /* Authenticated product layer: compact ledger utility with restrained motion. */
 .app-shell {
+  --authenticated-header-height: 4.5rem;
   min-height: 100svh;
   background: var(--surface);
 }
@@ -2212,7 +2213,7 @@
 }
 
 .app-shell__header-layout {
-  min-height: 4.5rem;
+  min-height: var(--authenticated-header-height);
   align-items: center;
   gap: 1.25rem;
   padding: 0.75rem 1rem;
@@ -2369,7 +2370,7 @@
 }
 
 .app-shell__main {
-  min-height: calc(100svh - 4.5rem);
+  min-height: calc(100svh - var(--authenticated-header-height));
 }
 
 .app-shell .action-link,
@@ -2387,7 +2388,7 @@
 }
 
 .app-page {
-  min-height: calc(100svh - 4.5rem);
+  min-height: calc(100svh - var(--authenticated-header-height));
   overflow: visible;
   background: var(--surface);
 }

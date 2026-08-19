@@ -810,7 +810,7 @@
 .expense-share-editor__summary {
   position: sticky;
   z-index: 2;
-  top: 0.75rem;
+  top: calc(var(--authenticated-header-height) + 0.75rem);
   min-width: 0;
   padding: 0.65rem 0.75rem 0.75rem;
   border: 1px solid var(--rule);
