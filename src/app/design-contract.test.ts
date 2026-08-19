@@ -23,6 +23,7 @@ const selectorActionSources = [
   readFileSync(path.resolve(process.cwd(), "src/app/app/repayments/actions.ts"), "utf8"),
 ];
 const taskPanelSource = readFileSync(path.resolve(process.cwd(), "src/components/app/task-panel.tsx"), "utf8");
+const taskPanelRule = cssRuleBody(css, ".task-panel");
 const recordConfirmationSource = readFileSync(path.resolve(process.cwd(), "src/components/app/record-confirmation.tsx"), "utf8");
 const expenseShareSource = readFileSync(path.resolve(process.cwd(), "src/components/expenses/expense-share-editor.tsx"), "utf8");
 const repaymentAllocationSource = readFileSync(path.resolve(process.cwd(), "src/components/repayments/repayment-allocation-editor.tsx"), "utf8");
@@ -616,6 +617,13 @@ describe("Zplit design contract", () => {
     expect(expenseShareSource).toContain("data-changed-revision");
     expect(expenseShareSource).not.toContain("setTimeout");
     expect(css).toContain(".changed-value__visual");
+  });
+
+  it("anchors the native task panel without an implicit dialog gap", () => {
+    expect(taskPanelRule).toContain("position: fixed;");
+    expect(taskPanelRule).toContain("inset: 0 0 0 auto;");
+    expect(taskPanelRule).toContain("margin: 0;");
+    expect(css).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.task-panel\s*\{[\s\S]*?inset:\s*auto 0 0;/);
   });
 
   it("uses one stable underline mechanism for friend filters", () => {
