@@ -221,6 +221,55 @@ describe("expense share editor", () => {
 
     await waitFor(() => expect(action).toHaveBeenCalledOnce());
     expect(action.mock.calls[0]![1].getAll("friendId")).toEqual([archivedFriend.id]);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument());
+  });
+
+  it("removes a friend and undoes its base amount and charge targeting", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} charges={[{ name: "PB1", percentageBasisPoints: 1000, scope: "selected", friendIds: [activeFriend.id] }]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Remove Rani" }));
+    expect(screen.queryByRole("textbox", { name: "Rani" })).not.toBeInTheDocument();
+    expect(screen.getByText("Rani removed ·")).toBeInTheDocument();
+    expect(screen.getByText("Rp 84.000 is your portion.", { exact: false })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+
+    expect(screen.getByRole("textbox", { name: "Rani" })).toHaveValue("40000");
+    expect(within(screen.getByLabelText("Friends for charge 1")).getAllByRole("checkbox")[0]).toBeChecked();
+    expect(screen.getByText("Rp 44.000", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+  });
+
+  it("restores a removed charge definition and position", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} charges={[
+      { name: "PB1", percentageBasisPoints: 500, scope: "selected", friendIds: [activeFriend.id] },
+      { name: "VAT", percentageBasisPoints: 1000, scope: "all", friendIds: [] },
+    ]} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[0]!);
+    expect(screen.queryByDisplayValue("PB1")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+
+    expect(screen.getByLabelText("Charge 1")).toHaveValue("PB1");
+    expect(screen.getByLabelText("Charge 1 percentage")).toHaveValue("5");
+    expect(screen.getByLabelText("Charge 1 scope")).toHaveValue("selected");
+    expect(within(screen.getByLabelText("Friends for charge 1")).getByRole("checkbox")).toBeChecked();
+    expect(screen.getByLabelText("Charge 2")).toHaveValue("VAT");
+  });
+
+  it("replaces the previous undo token and does not duplicate a re-added friend", async () => {
+    const searchFriends = vi.fn().mockResolvedValue([suggestedFriend]);
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[{ id: suggestedFriend.id, name: suggestedFriend.label, archivedAt: null, amountOwed: 40000 }]} friendOptions={[suggestedFriend]} searchFriends={searchFriends} />);
+    fireEvent.click(screen.getByRole("button", { name: "Remove Siti" }));
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("combobox", { name: "Add friend" }));
+    const listbox = await screen.findByRole("listbox");
+    await waitFor(() => expect(within(listbox).getByRole("option", { name: "Siti" })).toBeInTheDocument());
+    fireEvent.click(within(listbox).getByRole("option", { name: "Siti" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 1 friend" }));
+    expect(screen.getByRole("textbox", { name: "Siti" })).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Siti" }));
+    expect(screen.getByText("Siti removed ·")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getAllByRole("textbox", { name: "Siti" })).toHaveLength(1);
   });
 
   it("preserves archived rows and entered values after validation", async () => {

@@ -84,6 +84,10 @@ function chargeInputValues(charges: ExpenseShareChargeValues[]) {
   });
 }
 
+type ExpenseShareUndo =
+  | { kind: "friend"; friend: ExpenseShareEditorFriend; amountRupiah: string; index: number; targetedCharges: Array<{ index: number; name: string; percentage: string; scope: ExpenseShareChargeValues["scope"] }> }
+  | { kind: "charge"; charge: ExpenseShareChargeValues; index: number };
+
 export function ExpenseShareEditor({ action, expenseAmount, friends: initialFriends, charges: initialChargeDefinitions = [], friendOptions: initialFriendOptions = [], searchFriends = emptySearch, previousSplit }: ExpenseShareEditorProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues(initialFriends), charges: initialCharges(initialChargeDefinitions) });
   const [selectedFriends, setSelectedFriends] = useState(initialFriends);
@@ -92,6 +96,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [confirmPreviousSplit, setConfirmPreviousSplit] = useState(false);
   const [previousSplitMessage, setPreviousSplitMessage] = useState("");
+  const [undoRemoval, setUndoRemoval] = useState<ExpenseShareUndo | null>(null);
   const previousStateRef = useRef(state);
   const amountRefs = useRef(new Map<string, HTMLInputElement>());
   const friendLookupRef = useRef(new Map<string, ExpenseShareEditorFriend>([
@@ -110,6 +115,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
     setSelectedFriends(nextFriends);
     setDraftAmounts(Object.fromEntries(state.values.map((value) => [value.friendId, value.amountRupiah])));
     setDraftCharges(state.charges ?? []);
+    if (!state.formError && Object.keys(state.fieldErrors).length === 0) setUndoRemoval(null);
   }, [state]);
 
   useEffect(() => {
@@ -166,6 +172,16 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
   }
 
   function removeFriend(friendId: string) {
+    const friendIndex = selectedFriends.findIndex((friend) => friend.id === friendId);
+    const friend = selectedFriends[friendIndex];
+    if (!friend) return;
+    setUndoRemoval({
+      kind: "friend",
+      friend,
+      amountRupiah: draftAmounts[friendId] ?? "",
+      index: friendIndex,
+      targetedCharges: draftCharges.flatMap((charge, index) => charge.scope === "selected" && charge.friendIds.includes(friendId) ? [{ index, name: charge.name, percentage: charge.percentage, scope: charge.scope }] : []),
+    });
     setSelectedFriends((current) => current.filter((friend) => friend.id !== friendId));
     setDraftAmounts((current) => {
       const next = { ...current };
@@ -190,10 +206,37 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
   }
 
   function removeCharge(index: number) {
+    const charge = draftCharges[index];
+    if (!charge) return;
+    setUndoRemoval({ kind: "charge", charge: { ...charge, friendIds: [...charge.friendIds] }, index });
     setDraftCharges((current) => current.filter((_, chargeIndex) => chargeIndex !== index));
   }
 
-  if (selectedFriends.length === 0 && friendOptions.length === 0) {
+  function undoLastRemoval() {
+    const operation = undoRemoval;
+    if (!operation) return;
+    setUndoRemoval(null);
+    if (operation.kind === "charge") {
+      setDraftCharges((current) => {
+        if (current.some((charge) => charge.name === operation.charge.name && charge.percentage === operation.charge.percentage && charge.scope === operation.charge.scope && charge.friendIds.join(",") === operation.charge.friendIds.join(","))) return current;
+        const next = [...current];
+        next.splice(Math.min(operation.index, next.length), 0, { ...operation.charge, friendIds: [...operation.charge.friendIds] });
+        return next;
+      });
+      return;
+    }
+
+    if (selectedFriends.some((friend) => friend.id === operation.friend.id) || !friendLookupRef.current.has(operation.friend.id)) return;
+    setSelectedFriends((current) => current.some((friend) => friend.id === operation.friend.id) ? current : [...current.slice(0, operation.index), operation.friend, ...current.slice(operation.index)]);
+    setDraftAmounts((current) => current[operation.friend.id] !== undefined ? current : { ...current, [operation.friend.id]: operation.amountRupiah });
+    setDraftCharges((current) => current.map((charge, index) => {
+      const targeted = operation.targetedCharges.find((previous) => previous.index === index || (previous.name === charge.name && previous.percentage === charge.percentage && previous.scope === charge.scope));
+      if (!targeted || charge.scope !== "selected" || charge.friendIds.includes(operation.friend.id)) return charge;
+      return { ...charge, friendIds: [...charge.friendIds, operation.friend.id] };
+    }));
+  }
+
+  if (selectedFriends.length === 0 && friendOptions.length === 0 && !undoRemoval) {
     return (
       <div className="expense-share-editor expense-share-editor--empty">
         <p className="technical-label">FRIEND SHARES</p>
@@ -259,6 +302,10 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
           />
         </div>
         {previousSplitMessage ? <p className="expense-share-editor__help" role="status">{previousSplitMessage}</p> : null}
+        {undoRemoval ? <p className="expense-share-editor__undo" role="status" aria-live="polite">
+          <span>{undoRemoval.kind === "friend" ? `${undoRemoval.friend.name} removed` : `${undoRemoval.charge.name || "Charge"} removed`} ·</span>
+          <button className="text-link" type="button" onClick={undoLastRemoval}>Undo</button>
+        </p> : null}
         <noscript>
           <p className="expense-share-editor__help">Without JavaScript, add one active friend per save. Existing charges are preserved.</p>
           <label htmlFor="expense-share-native-friend">Friend to add</label>

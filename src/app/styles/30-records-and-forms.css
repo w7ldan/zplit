@@ -1272,6 +1272,16 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   font-size: 0.78rem;
 }
 
+.expense-share-editor__undo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
 .expense-share-editor__add > div label,
 .expense-share-editor__section-heading h3,
 .expense-share-editor__charge-heading label {
