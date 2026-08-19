@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ExpenseForm } from "./expense-form";
 import { ToastProvider } from "@/components/feedback/toast";
+import { UnsavedChangesProvider } from "@/components/navigation/unsaved-changes";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
@@ -216,5 +217,65 @@ describe("ExpenseForm", () => {
     await waitFor(() => expect(action).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Outing" })).toHaveTextContent(secondOuting.label));
     expect((document.querySelector('select[name="outingId"]') as HTMLSelectElement).value).toBe(secondOuting.id);
+  });
+
+  it("tracks persisted fields, ignores selector search, and becomes clean after exact reverts", async () => {
+    render(
+      <UnsavedChangesProvider>
+        <ToastProvider><ExpenseForm action={vi.fn().mockResolvedValue(initialState)} outings={[outingOption, secondOuting]} searchOutings={vi.fn().mockResolvedValue([outingOption, secondOuting])} /></ToastProvider>
+      </UnsavedChangesProvider>,
+    );
+    const unload = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      fireEvent(window, event);
+      return event.defaultPrevented;
+    };
+
+    expect(unload()).toBe(false);
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Dinner" } });
+    expect(unload()).toBe(true);
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "" } });
+    expect(unload()).toBe(false);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Outing" }));
+    const searchInput = await screen.findByRole("searchbox", { name: "Search outings" });
+    fireEvent.change(searchInput, { target: { value: "Bandung" } });
+    expect(unload()).toBe(false);
+    fireEvent.keyDown(searchInput, { key: "Escape" });
+    await chooseOuting(secondOuting.label);
+    expect(unload()).toBe(true);
+    fireEvent.click(screen.getByRole("combobox", { name: "Outing" }));
+    const returnSearch = await screen.findByRole("searchbox", { name: "Search outings" });
+    await waitFor(() => expect(within(screen.getByRole("listbox")).getByRole("option", { name: outing.title })).toBeInTheDocument());
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: outing.title }));
+    expect(unload()).toBe(false);
+    expect(returnSearch).not.toBeInTheDocument();
+  });
+
+  it("keeps a failed save protected and clears the guard after Save & add another succeeds", async () => {
+    const failed = vi.fn().mockResolvedValue({ ...initialState, fieldErrors: { amountRupiah: "Enter an amount." }, formError: "Please correct the marked fields.", values: { description: "Dinner", amountRupiah: "bad", outingId: outing.id } });
+    const view = render(
+      <UnsavedChangesProvider>
+        <ToastProvider><ExpenseForm action={failed} outings={[outingOption]} searchOutings={vi.fn().mockResolvedValue([outingOption])} /></ToastProvider>
+      </UnsavedChangesProvider>,
+    );
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Dinner" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Add expense" }).closest("form")!);
+    await waitFor(() => expect(screen.getByText("Please correct the marked fields.")).toBeInTheDocument());
+    const failedUnload = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, failedUnload);
+    expect(failedUnload.defaultPrevented).toBe(true);
+
+    const success = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: { description: "", amountRupiah: "", outingId: outing.id }, success: { expenseId: "expense-a" } });
+    view.rerender(<UnsavedChangesProvider><ToastProvider><ExpenseForm action={success} outings={[outingOption]} searchOutings={vi.fn().mockResolvedValue([outingOption])} /></ToastProvider></UnsavedChangesProvider>);
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Coffee" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save & add another" }));
+    await waitFor(() => expect(success).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByLabelText("Description")).toHaveValue(""));
+    await waitFor(() => expect((() => {
+      const event = new Event("beforeunload", { cancelable: true });
+      fireEvent(window, event);
+      return event.defaultPrevented;
+    })()).toBe(false));
   });
 });

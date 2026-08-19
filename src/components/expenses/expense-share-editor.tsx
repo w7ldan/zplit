@@ -7,6 +7,7 @@ import type { ExpenseShareActionState } from "@/app/app/expenses/actions";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 import { calculateShareBreakdown, formatPercentageBasisPoints, parsePercentageBasisPoints, type ExpenseShareChargeValues } from "@/domain/expense-share-input";
 import { MAX_RUPIAH, parseRupiah, formatRupiah } from "@/domain/rupiah";
+import { useUnsavedChangesGuard } from "@/components/navigation/unsaved-changes";
 
 export type ExpenseShareEditorFriend = {
   id: string;
@@ -49,6 +50,18 @@ function initialAmounts(friends: ExpenseShareEditorFriend[]) {
 
 function initialCharges(charges: ExpenseShareEditorCharge[]): ExpenseShareChargeValues[] {
   return charges.map(({ name, percentageBasisPoints, scope, friendIds }) => ({ name, percentage: formatPercentageBasisPoints(percentageBasisPoints), scope, friendIds: [...friendIds] }));
+}
+
+function expenseShareDraftKey(friends: ExpenseShareEditorFriend[], amounts: Record<string, string>, charges: ExpenseShareChargeValues[]) {
+  return JSON.stringify({
+    friends: friends.map((friend) => [friend.id.toLowerCase(), parseRupiah(amounts[friend.id] ?? "") ?? (amounts[friend.id] ?? "").trim()]).sort(([left], [right]) => String(left).localeCompare(String(right))),
+    charges: charges.map((charge) => [
+      charge.name.trim(),
+      parsePercentageBasisPoints(charge.percentage) ?? charge.percentage.trim(),
+      charge.scope,
+      charge.scope === "selected" ? [...charge.friendIds].map((id) => id.toLowerCase()).sort() : [],
+    ]),
+  });
 }
 
 export function ChangedValue({ value, children }: { value: number; children: ReactNode }) {
@@ -107,6 +120,10 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
   const friendOptions = useMemo(() => initialFriendOptions.filter((option) => !option.archived && !selectedIds.has(option.id)).slice(0, 20), [initialFriendOptions, selectedIds]);
   const search = useCallback((query: string, selectedId?: string) => searchFriends(query, selectedId).then((options) => options.filter((option) => !option.archived && !selectedIds.has(option.id)).slice(0, 20)), [searchFriends, selectedIds]);
   const validCharges = useMemo(() => chargeInputValues(draftCharges), [draftCharges]);
+  const initialDraftKey = useRef(expenseShareDraftKey(initialFriends, initialAmounts(initialFriends), initialCharges(initialChargeDefinitions))).current;
+  const isDirty = expenseShareDraftKey(selectedFriends, draftAmounts, draftCharges) !== initialDraftKey;
+
+  useUnsavedChangesGuard(isDirty);
 
   useEffect(() => {
     if (previousStateRef.current === state) return;

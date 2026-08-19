@@ -2,7 +2,10 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ExpenseShareActionState } from "@/app/app/expenses/actions";
+import { UnsavedChangesProvider } from "@/components/navigation/unsaved-changes";
 import { ExpenseShareEditor, type ExpenseShareEditorFriend } from "./expense-share-editor";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 
 const activeFriend: ExpenseShareEditorFriend = { id: "11111111-1111-4111-8111-111111111111", name: "Rani", archivedAt: null, amountOwed: 40000 };
 const archivedFriend: ExpenseShareEditorFriend = { id: "22222222-2222-4222-8222-222222222222", name: "Bima", archivedAt: new Date("2026-01-03T00:00:00.000Z"), amountOwed: 20000 };
@@ -337,5 +340,34 @@ describe("expense share editor", () => {
     fireEvent.click(within(screen.getByLabelText("Friends for charge 1")).getAllByRole("checkbox")[0]!);
     fireEvent.click(screen.getByRole("button", { name: "Remove Rani" }));
     expect(screen.getByLabelText("Friends for charge 1")).not.toHaveTextContent("Rani");
+  });
+
+  it("guards base edits, friend changes, charges, and exact undo/reverts", () => {
+    render(
+      <UnsavedChangesProvider>
+        <ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} friendOptions={[suggestedFriend]} />
+      </UnsavedChangesProvider>,
+    );
+    const unload = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      fireEvent(window, event);
+      return event.defaultPrevented;
+    };
+
+    expect(unload()).toBe(false);
+    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "50000" } });
+    expect(unload()).toBe(true);
+    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "40000" } });
+    expect(unload()).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Rani" }));
+    expect(unload()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(unload()).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add charge" }));
+    expect(unload()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(unload()).toBe(false);
   });
 });

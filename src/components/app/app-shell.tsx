@@ -8,6 +8,7 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderShell } from "@/components/navigation/header-shell";
 import { ToastProvider } from "@/components/feedback/toast";
 import { DeleteConfirmation } from "./delete-record-form";
+import { UnsavedChangesProvider } from "@/components/navigation/unsaved-changes";
 
 const destinations = [
   ["Overview", "/app"],
@@ -40,8 +41,9 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
   }, []);
 
   return (
-    <ToastProvider>
-      <div className="app-shell">
+    <UnsavedChangesProvider>
+      <ToastProvider>
+        <div className="app-shell">
       <HeaderShell
         ariaLabel="Ledger header"
         navigationLabel="Ledger navigation"
@@ -91,7 +93,8 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
         ))}
       </nav>
         <main className="app-shell__main"><DeleteConfirmation />{children}</main>
-      </div>
-    </ToastProvider>
+        </div>
+      </ToastProvider>
+    </UnsavedChangesProvider>
   );
 }

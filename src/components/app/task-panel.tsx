@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUnsavedChangesNavigation } from "@/components/navigation/unsaved-changes";
 
 type TaskPanelProps = {
   open: boolean;
@@ -30,6 +31,7 @@ const panelExitFallbackMs = 260;
 
 export function TaskPanel({ open, title, description, triggerId, children }: TaskPanelProps) {
   const router = useOptionalRouter();
+  const unsavedChanges = useUnsavedChangesNavigation();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const openedRef = useRef(false);
@@ -108,6 +110,7 @@ export function TaskPanel({ open, title, description, triggerId, children }: Tas
 
   function close() {
     if (closingRef.current) return;
+    if (unsavedChanges && !unsavedChanges.confirmDiscard()) return;
     closingRef.current = true;
     setClosing(true);
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
