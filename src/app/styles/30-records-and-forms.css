@@ -1257,6 +1257,21 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   gap: 1rem;
 }
 
+.expense-share-editor__previous {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.expense-share-editor__previous-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+}
+
 .expense-share-editor__add > div label,
 .expense-share-editor__section-heading h3,
 .expense-share-editor__charge-heading label {

@@ -33,6 +33,7 @@ type ExpenseShareEditorProps = {
   charges?: ExpenseShareEditorCharge[];
   friendOptions?: SearchableOption[];
   searchFriends?: SearchableOptionAction;
+  previousSplit?: { friends: ExpenseShareEditorFriend[]; charges: ExpenseShareEditorCharge[] } | null;
 };
 
 const emptyActionState: ExpenseShareActionState = { fieldErrors: {}, formError: "", values: [], charges: [] };
@@ -83,12 +84,14 @@ function chargeInputValues(charges: ExpenseShareChargeValues[]) {
   });
 }
 
-export function ExpenseShareEditor({ action, expenseAmount, friends: initialFriends, charges: initialChargeDefinitions = [], friendOptions: initialFriendOptions = [], searchFriends = emptySearch }: ExpenseShareEditorProps) {
+export function ExpenseShareEditor({ action, expenseAmount, friends: initialFriends, charges: initialChargeDefinitions = [], friendOptions: initialFriendOptions = [], searchFriends = emptySearch, previousSplit }: ExpenseShareEditorProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues(initialFriends), charges: initialCharges(initialChargeDefinitions) });
   const [selectedFriends, setSelectedFriends] = useState(initialFriends);
   const [draftAmounts, setDraftAmounts] = useState(() => initialAmounts(initialFriends));
   const [draftCharges, setDraftCharges] = useState<ExpenseShareChargeValues[]>(() => initialCharges(initialChargeDefinitions));
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
+  const [confirmPreviousSplit, setConfirmPreviousSplit] = useState(false);
+  const [previousSplitMessage, setPreviousSplitMessage] = useState("");
   const previousStateRef = useRef(state);
   const amountRefs = useRef(new Map<string, HTMLInputElement>());
   const friendLookupRef = useRef(new Map<string, ExpenseShareEditorFriend>([
@@ -130,6 +133,36 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
     setSelectedFriends((current) => [...current, ...friends]);
     setDraftAmounts((current) => ({ ...current, ...Object.fromEntries(friends.map((friend) => [friend.id, ""])) }));
     setPendingFocusId(friends[0]!.id);
+  }
+
+  function applyPreviousSplit() {
+    if (!previousSplit) return;
+    const copiedFriends = previousSplit.friends.filter((friend, index, all) => friend.archivedAt === null && all.findIndex((candidate) => candidate.id === friend.id) === index);
+    if (copiedFriends.length === 0) {
+      setPreviousSplitMessage("No active friends from the previous split are available.");
+      setConfirmPreviousSplit(false);
+      return;
+    }
+    const copiedIds = new Set(copiedFriends.map((friend) => friend.id));
+    const copiedCharges = previousSplit.charges.flatMap((charge) => {
+      const friendIds = charge.scope === "all" ? [] : [...new Set(charge.friendIds.filter((friendId) => copiedIds.has(friendId)))];
+      return charge.scope === "selected" && friendIds.length === 0 ? [] : [{ name: charge.name, percentage: formatPercentageBasisPoints(charge.percentageBasisPoints), scope: charge.scope, friendIds }];
+    });
+    copiedFriends.forEach((friend) => friendLookupRef.current.set(friend.id, friend));
+    setSelectedFriends(copiedFriends);
+    setDraftAmounts(Object.fromEntries(copiedFriends.map((friend) => [friend.id, String(friend.baseAmount)])));
+    setDraftCharges(copiedCharges);
+    setPendingFocusId(copiedFriends[0]!.id);
+    setConfirmPreviousSplit(false);
+    setPreviousSplitMessage("");
+  }
+
+  function usePreviousSplit() {
+    if (selectedFriends.length > 0 || draftCharges.length > 0) {
+      setConfirmPreviousSplit(true);
+      return;
+    }
+    applyPreviousSplit();
   }
 
   function removeFriend(friendId: string) {
@@ -204,6 +237,13 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
             <label id="expense-share-add-label" htmlFor="expense-share-add">Add friend</label>
             {selectedFriends.length > 0 ? <button className="text-link" type="button" onClick={splitEvenly}>Split evenly (incl. you)</button> : null}
           </div>
+          {previousSplit ? <div className="expense-share-editor__previous">
+            {!confirmPreviousSplit ? <button className="text-link" type="button" onClick={usePreviousSplit}>Use previous split</button> : <div className="expense-share-editor__previous-confirm">
+              <span>Replace current draft?</span>
+              <button className="text-link" type="button" onClick={applyPreviousSplit}>Replace draft</button>
+              <button className="text-link" type="button" onClick={() => setConfirmPreviousSplit(false)}>Cancel</button>
+            </div>}
+          </div> : null}
           <SearchableCombobox
             key={[...selectedIds].join(",")}
             id="expense-share-add"
@@ -218,6 +258,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
             onValuesChange={addFriends}
           />
         </div>
+        {previousSplitMessage ? <p className="expense-share-editor__help" role="status">{previousSplitMessage}</p> : null}
         <noscript>
           <p className="expense-share-editor__help">Without JavaScript, add one active friend per save. Existing charges are preserved.</p>
           <label htmlFor="expense-share-native-friend">Friend to add</label>

@@ -162,6 +162,45 @@ describe("expense share editor", () => {
     expect(within(summary).getByText("Rp 40.000", { exact: true })).toBeInTheDocument();
   });
 
+  it("replaces the current draft with the previous saved split and drops unavailable targets", () => {
+    render(<ExpenseShareEditor
+      action={vi.fn()}
+      expenseAmount={40000}
+      friends={[activeFriend]}
+      previousSplit={{
+        friends: [
+          { id: suggestedFriend.id, name: suggestedFriend.label, archivedAt: null, baseAmount: 40000 },
+          archivedFriend,
+        ],
+        charges: [
+          { name: "PB1", percentageBasisPoints: 500, scope: "all", friendIds: [] },
+          { name: "Targeted", percentageBasisPoints: 1000, scope: "selected", friendIds: [suggestedFriend.id, archivedFriend.id] },
+        ],
+      }}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Use previous split" }));
+    expect(screen.getByText("Replace current draft?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Replace draft" }));
+
+    expect(screen.queryByLabelText("Rani")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Siti" })).toHaveValue("40000");
+    expect(screen.queryByLabelText(/^Bima/)).not.toBeInTheDocument();
+    expect(screen.getByText("Over-allocated by Rp 6.000.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Friends for charge 2")).toHaveTextContent("Siti");
+    expect(screen.getByLabelText("Friends for charge 2")).not.toHaveTextContent("Bima");
+    const form = screen.getByRole("button", { name: "Save split" }).closest("form")!;
+    expect(JSON.parse((form.querySelector('input[name="charges"]') as HTMLInputElement).value)).toEqual([
+      { name: "PB1", percentage: "5", scope: "all", friendIds: [] },
+      { name: "Targeted", percentage: "10", scope: "selected", friendIds: [suggestedFriend.id] },
+    ]);
+  });
+
+  it("does not render the previous split helper without a candidate", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} />);
+    expect(screen.queryByRole("button", { name: "Use previous split" })).not.toBeInTheDocument();
+  });
+
   it("does not offer archived candidates through the multi-select", async () => {
     const archivedOption = { id: archivedFriend.id, label: archivedFriend.name, archived: true };
     const searchFriends = vi.fn().mockResolvedValue([archivedOption]);

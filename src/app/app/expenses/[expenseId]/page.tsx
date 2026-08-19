@@ -31,12 +31,13 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
   }
   const deletionImpact = await repository.getExpenseDeletionImpact(expenseId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
-  const [outingRows, friendOptionRows, shares, charges, receipts] = await Promise.all([
+  const [outingRows, friendOptionRows, shares, charges, receipts, previousSplit] = await Promise.all([
     repository.searchOutings({ selectedId: expense.outingId }),
     repository.searchFriends({ activeOnly: true }),
     repository.listExpenseShares(expense.id),
     repository.listExpenseCharges(expense.id),
     listExpenseReceipts(database, session.user.id, expense.id),
+    repository.getPreviousExpenseSplit(expense.id),
   ]);
   const shareByFriend = new Map(shares.map((share) => [share.friendId, share]));
   const friends = shares.map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, baseAmount: share.baseAmount, amountOwed: share.amountOwed, expenseShareId: share.id, remainingAmount: share.remainingAmount, settled: share.settled }));
@@ -65,6 +66,10 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
                 charges={charges.map((charge) => ({ name: charge.name, percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope, friendIds: charge.friendIds }))}
                 friendOptions={friendOptions}
                 searchFriends={searchExpenseFriendOptions}
+                previousSplit={previousSplit ? {
+                  friends: previousSplit.friends.map((friend) => ({ id: friend.friendId, name: friend.friendName, archivedAt: friend.friendArchivedAt, baseAmount: friend.baseAmount })),
+                  charges: previousSplit.charges.map((charge) => ({ name: charge.name, percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope, friendIds: charge.friendIds })),
+                } : null}
               />
             </div>
             <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts} />

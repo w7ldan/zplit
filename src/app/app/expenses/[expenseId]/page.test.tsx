@@ -49,6 +49,7 @@ describe("expense record", () => {
       listFriends,
       listExpenseShares: vi.fn().mockResolvedValue([{ id: "share-a", friendId: "33333333-3333-4333-8333-333333333333", friendName: "Rani", friendArchivedAt: null, baseAmount: 40000, amountOwed: 40000 }]),
       listExpenseCharges: vi.fn().mockResolvedValue([]),
+      getPreviousExpenseSplit: vi.fn().mockResolvedValue(null),
       getExpenseDeletionImpact,
     });
     render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) })}</ToastProvider>);

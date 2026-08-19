@@ -180,6 +180,8 @@ export type ExpenseShareRecord = {
   remainingAmount: number;
   settled: boolean;
 };
+export type ExpenseSplitFriendDefinition = Pick<ExpenseShareRecord, "friendId" | "friendName" | "friendArchivedAt" | "baseAmount">;
+export type ExpenseSplitDefinition = { friends: ExpenseSplitFriendDefinition[]; charges: ExpenseChargeInput[] };
 export type RepaymentMutationInput = {
   friendId: string;
   amount: number;
@@ -2737,6 +2739,48 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
+  async function getPreviousExpenseSplit(expenseId: string): Promise<ExpenseSplitDefinition | null> {
+    assertExpenseId(expenseId);
+    try {
+      const [current] = await database
+        .select({ outingId: expenses.outingId })
+        .from(expenses)
+        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .limit(1);
+      if (!current) return notFound();
+
+      const [previous] = await database
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(and(
+          eq(expenses.ownerUserId, owner),
+          eq(expenses.outingId, current.outingId),
+          ne(expenses.id, expenseId),
+          sql`exists (select 1 from ${expenseShares} previous_shares where previous_shares.owner_user_id = ${owner} and previous_shares.expense_id = ${expenses.id})`,
+        ))
+        .orderBy(desc(expenses.createdAt), asc(expenses.id))
+        .limit(1);
+      if (!previous) return null;
+
+      const [friendRows, charges] = await Promise.all([
+        database
+          .select({ friendId: friends.id, friendName: friends.name, friendArchivedAt: friends.archivedAt, baseAmount: expenseShares.baseAmount })
+          .from(expenseShares)
+          .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
+          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, previous.id)))
+          .orderBy(asc(friends.name), asc(expenseShares.id)),
+        listExpenseChargesFor(database, previous.id),
+      ]);
+
+      return {
+        friends: friendRows,
+        charges: charges.map(({ name, percentageBasisPoints, scope, friendIds }) => ({ name, percentageBasisPoints, scope, friendIds })),
+      };
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
   async function listOpenExpenseSharesByFriend(friendId?: string): Promise<OpenExpenseSharesByFriend> {
     if (friendId) assertFriendId(friendId);
     try {
@@ -3654,6 +3698,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     deleteExpense,
     listExpenseShares,
     listExpenseCharges,
+    getPreviousExpenseSplit,
     listOpenExpenseSharesByFriend,
     getRepaymentFriendContext,
     replaceExpenseShares,
