@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { searchGlobalRecords as defaultSearch } from "@/app/app/search/actions";
 import type { GlobalSearchRecord } from "@/domain/ledger-repository";
 import { formatRupiah } from "@/domain/rupiah";
+import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { useUnsavedChangesNavigation } from "@/components/navigation/unsaved-changes";
 
 export type GlobalSearchAction = (query: string) => Promise<GlobalSearchRecord[]>;
@@ -28,7 +29,7 @@ function hrefFor(record: GlobalSearchRecord) {
 function dateLabel(value?: string) {
   if (!value) return "";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(date);
+  return Number.isNaN(date.getTime()) ? null : <LocalDateTime iso={value} mode="date" />;
 }
 
 function recordDetail(record: GlobalSearchRecord) {
@@ -36,9 +37,9 @@ function recordDetail(record: GlobalSearchRecord) {
   const date = dateLabel(record.date);
   if (record.kind === "friend") return record.detail || record.context || "";
   if (record.kind === "trip") return [record.detail, record.context].filter(Boolean).join(" · ");
-  if (record.kind === "outing") return [date, record.context].filter(Boolean).join(" · ");
+  if (record.kind === "outing") return <>{date}{date && record.context ? " · " : ""}{record.context}</>;
   if (record.kind === "expense") return [amount, record.detail].filter(Boolean).join(" · ");
-  return [amount, date].filter(Boolean).join(" · ");
+  return <>{amount}{amount && date ? " · " : ""}{date}</>;
 }
 
 export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearchAction }) {

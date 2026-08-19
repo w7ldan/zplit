@@ -90,6 +90,11 @@ describe("GlobalSearch", () => {
     expect(screen.getByRole("group", { name: "Outings" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Expenses" })).toHaveTextContent("Rp 42.500");
     expect(screen.getByRole("group", { name: "Repayments" })).toHaveTextContent("Rp 42.500");
+    await waitFor(() => expect(screen.getAllByRole("time")).toHaveLength(2));
+    expect(screen.getAllByRole("time").map((time) => time.getAttribute("dateTime"))).toEqual([
+      "2026-08-02T00:00:00.000Z",
+      "2026-08-03T00:00:00.000Z",
+    ]);
   });
 
   it("rejects stale results and enforces the twenty-result client cap", async () => {
