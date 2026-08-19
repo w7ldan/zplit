@@ -30,6 +30,9 @@ type SearchableComboboxProps = {
   placeholder?: string;
   searchLabel?: string;
   onValueChange?: (option: SearchableOption) => void;
+  multiSelect?: boolean;
+  selectedIds?: string[];
+  onValuesChange?: (options: SearchableOption[]) => void;
 };
 
 function mergeOptions(...groups: SearchableOption[][]) {
@@ -109,12 +112,17 @@ export function SearchableCombobox({
   placeholder,
   searchLabel = "Search options",
   onValueChange,
+  multiSelect = false,
+  selectedIds = [],
+  onValuesChange,
 }: SearchableComboboxProps) {
   const [enhanced, setEnhanced] = useState(false);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(value ?? (placeholder ? "" : initialOptions[0]?.id || ""));
   const [selectedOptionState, setSelectedOptionState] = useState<SearchableOption | undefined>(() => initialOptions.find((option) => option.id === (value ?? (placeholder ? "" : initialOptions[0]?.id || ""))));
+  const [pendingIds, setPendingIds] = useState(() => new Set(selectedIds));
+  const [pendingOptions, setPendingOptions] = useState<SearchableOption[]>([]);
   const [loadedOptions, setLoadedOptions] = useState<SearchableOption[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState("");
@@ -129,9 +137,9 @@ export function SearchableCombobox({
   const searchTimerRef = useRef<number | null>(null);
   const listboxId = `${id}-listbox`;
   const currentSelectedId = value !== undefined ? value : selectedId;
-  const allOptions = useMemo(() => mergeOptions(initialOptions, loadedOptions ?? [], selectedOptionState ? [selectedOptionState] : []), [initialOptions, loadedOptions, selectedOptionState]);
+  const allOptions = useMemo(() => mergeOptions(initialOptions, loadedOptions ?? [], selectedOptionState ? [selectedOptionState] : [], pendingOptions), [initialOptions, loadedOptions, pendingOptions, selectedOptionState]);
   const selectedOption = allOptions.find((option) => option.id === currentSelectedId);
-  const options = useMemo(() => (loadedOptions ?? initialOptions).slice(0, 20), [initialOptions, loadedOptions]);
+  const options = useMemo(() => (multiSelect ? mergeOptions(pendingOptions, loadedOptions ?? initialOptions) : loadedOptions ?? initialOptions).slice(0, 20), [initialOptions, loadedOptions, multiSelect, pendingOptions]);
   const nativeOptions = useMemo(() => mergeOptions(selectedOption ? [selectedOption] : [], options).slice(0, 20), [options, selectedOption]);
 
   // Progressive enhancement toggles the native fallback after hydration.
@@ -224,6 +232,10 @@ export function SearchableCombobox({
     setPlacement(null);
     setQuery("");
     setActiveIndex(-1);
+    if (multiSelect) {
+      setPendingIds(new Set(selectedIds));
+      setPendingOptions([]);
+    }
     if (focusTrigger) triggerRef.current?.focus();
   }
 
@@ -234,6 +246,10 @@ export function SearchableCombobox({
     setQuery("");
     setLoadedOptions(null);
     setError("");
+    if (multiSelect) {
+      setPendingIds(new Set(selectedIds));
+      setPendingOptions([]);
+    }
     setActiveIndex(direction === "up" ? Math.max(options.length - 1, 0) : 0);
     loadOptions("");
   }
@@ -249,6 +265,16 @@ export function SearchableCombobox({
   }
 
   function choose(option: SearchableOption) {
+    if (multiSelect) {
+      setPendingIds((current) => {
+        const next = new Set(current);
+        if (next.has(option.id)) next.delete(option.id);
+        else next.add(option.id);
+        return next;
+      });
+      setPendingOptions((current) => mergeOptions(current, [option]));
+      return;
+    }
     setSelectedId(option.id);
     setSelectedOptionState(option);
     setLoadedOptions((current) => mergeOptions([option], current ?? []));
@@ -258,6 +284,12 @@ export function SearchableCombobox({
     setActiveIndex(-1);
     onValueChange?.(option);
     triggerRef.current?.focus();
+  }
+
+  function applySelections() {
+    if (!multiSelect || pendingIds.size === 0) return;
+    onValuesChange?.([...pendingIds].flatMap((id) => allOptions.find((option) => option.id === id) ?? []));
+    closeMenu(true);
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -313,6 +345,7 @@ export function SearchableCombobox({
   }
 
   const activeOption = activeIndex >= 0 ? options[activeIndex] : undefined;
+  const pendingLabel = pendingIds.size > 0 ? `Add ${pendingIds.size} friend${pendingIds.size === 1 ? "" : "s"}` : "Add friends";
   const panel = open ? <div
     ref={panelRef}
     className="searchable-combobox__panel"
@@ -352,18 +385,20 @@ export function SearchableCombobox({
           <li
             id={`${listboxId}-${option.id}`}
             role="option"
-            aria-selected={option.id === currentSelectedId}
-            className={index === activeIndex ? "searchable-combobox__option searchable-combobox__option--active" : "searchable-combobox__option"}
+            aria-selected={multiSelect ? pendingIds.has(option.id) : option.id === currentSelectedId}
+            className={`${index === activeIndex ? "searchable-combobox__option searchable-combobox__option--active" : "searchable-combobox__option"}${multiSelect && pendingIds.has(option.id) ? " searchable-combobox__option--selected" : ""}`}
             onPointerDown={(event) => event.preventDefault()}
             onClick={() => choose(option)}
           >
             <span>{optionLabel(option)}</span>
+            {multiSelect && pendingIds.has(option.id) ? <span aria-hidden="true">✓</span> : null}
           </li>
         </Fragment>
       ))}
       {options.length === 0 ? <li className="searchable-combobox__empty" role="presentation">No matching options.</li> : null}
       {error ? <li className="searchable-combobox__error" role="alert">{error}</li> : null}
     </ul>
+    {multiSelect ? <button className="searchable-combobox__apply" type="button" disabled={pendingIds.size === 0} onClick={applySelections}>{pendingLabel}</button> : null}
   </div> : null;
 
   return (

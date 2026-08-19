@@ -122,6 +122,16 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
     setPendingFocusId(friend.id);
   }
 
+  function addFriends(options: SearchableOption[]) {
+    const additions = options.filter((option) => !option.archived && !selectedIds.has(option.id));
+    if (additions.length === 0) return;
+    const friends = additions.map((option) => ({ id: option.id, name: option.label, archivedAt: null }));
+    friends.forEach((friend) => friendLookupRef.current.set(friend.id, friend));
+    setSelectedFriends((current) => [...current, ...friends]);
+    setDraftAmounts((current) => ({ ...current, ...Object.fromEntries(friends.map((friend) => [friend.id, ""])) }));
+    setPendingFocusId(friends[0]!.id);
+  }
+
   function removeFriend(friendId: string) {
     setSelectedFriends((current) => current.filter((friend) => friend.id !== friendId));
     setDraftAmounts((current) => {
@@ -177,14 +187,16 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
     <div className="expense-share-editor">
       <p className="technical-label">FRIEND SHARES</p>
       <h2>Assign the split</h2>
-      <div className="expense-share-editor__totals" aria-live="polite">
-        <div><span className="technical-label">Expense total</span><strong>{formatRupiah(expenseAmount)}</strong></div>
-        <div><span className="technical-label">Assigned to friends</span><strong><ChangedValue value={totalOwed}>{formatRupiah(totalOwed)}</ChangedValue></strong></div>
-        <div><span className="technical-label">Your portion</span><strong><ChangedValue value={ownerPortion}>{formatRupiah(ownerPortion)}</ChangedValue></strong></div>
-      </div>
-      <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Expense allocation" role="progressbar" aria-valuemin={0} aria-valuemax={expenseAmount} aria-valuenow={Math.min(totalOwed, expenseAmount)}>
-        <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>
-        <span>{overAllocated ? `Over-allocated by ${formatRupiah(totalOwed - expenseAmount)}.` : `${formatRupiah(ownerPortion)} is your portion. Assigned shares become friend balances.`}</span>
+      <div className="expense-share-editor__summary">
+        <div className="expense-share-editor__totals" aria-live="polite">
+          <div><span className="technical-label">Expense total</span><strong>{formatRupiah(expenseAmount)}</strong></div>
+          <div><span className="technical-label">Assigned to friends</span><strong><ChangedValue value={totalOwed}>{formatRupiah(totalOwed)}</ChangedValue></strong></div>
+          <div><span className="technical-label">Your portion</span><strong><ChangedValue value={ownerPortion}>{formatRupiah(ownerPortion)}</ChangedValue></strong></div>
+        </div>
+        <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Expense allocation" role="progressbar" aria-valuemin={0} aria-valuemax={expenseAmount} aria-valuenow={Math.min(totalOwed, expenseAmount)}>
+          <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>
+          <span>{overAllocated ? `Over-allocated by ${formatRupiah(totalOwed - expenseAmount)}.` : `${formatRupiah(ownerPortion)} is your portion. Assigned shares become friend balances.`}</span>
+        </div>
       </div>
       <form className="expense-share-editor__form" action={formAction} noValidate>
         <div className="expense-share-editor__add">
@@ -202,6 +214,8 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
             placeholder="Choose active friend"
             searchLabel="Search active friends"
             onValueChange={addFriend}
+            multiSelect
+            onValuesChange={addFriends}
           />
         </div>
         <noscript>

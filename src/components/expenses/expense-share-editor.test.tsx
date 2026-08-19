@@ -7,6 +7,7 @@ import { ExpenseShareEditor, type ExpenseShareEditorFriend } from "./expense-sha
 const activeFriend: ExpenseShareEditorFriend = { id: "11111111-1111-4111-8111-111111111111", name: "Rani", archivedAt: null, amountOwed: 40000 };
 const archivedFriend: ExpenseShareEditorFriend = { id: "22222222-2222-4222-8222-222222222222", name: "Bima", archivedAt: new Date("2026-01-03T00:00:00.000Z"), amountOwed: 20000 };
 const suggestedFriend = { id: "33333333-3333-4333-8333-333333333333", label: "Siti" };
+const secondSuggestedFriend = { id: "44444444-4444-4444-8444-444444444444", label: "Tono" };
 
 describe("expense share editor", () => {
   it("offers repayment only for an open persisted share", () => {
@@ -108,11 +109,68 @@ describe("expense share editor", () => {
     const listbox = screen.getByRole("listbox");
     await waitFor(() => expect(within(listbox).getByRole("option", { name: "Siti" })).toBeInTheDocument());
     fireEvent.click(within(listbox).getByRole("option", { name: "Siti" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 1 friend" }));
 
     await waitFor(() => expect(screen.getByLabelText("Siti")).toHaveFocus());
     expect(screen.getByRole("button", { name: "Remove Siti" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Add friend" })).toHaveTextContent("Choose active friend");
     expect(searchFriends).toHaveBeenCalledWith("", "");
+  });
+
+  it("selects several friends before applying, excludes them afterward, and cancels cleanly", async () => {
+    const searchFriends = vi.fn().mockResolvedValue([suggestedFriend, secondSuggestedFriend]);
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} friendOptions={[suggestedFriend, secondSuggestedFriend]} searchFriends={searchFriends} />);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Add friend" }));
+    const searchInput = await screen.findByRole("searchbox", { name: "Search active friends" });
+    const listbox = screen.getByRole("listbox");
+    await waitFor(() => expect(within(listbox).getByRole("option", { name: "Siti" })).toBeInTheDocument());
+    fireEvent.click(within(listbox).getByRole("option", { name: "Siti" }));
+    expect(searchInput).toBeInTheDocument();
+    fireEvent.keyDown(searchInput, { key: "Escape" });
+    expect(screen.queryByLabelText("Siti")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("combobox", { name: "Add friend" }));
+    await screen.findByRole("searchbox", { name: "Search active friends" });
+    const reopenedBeforeApply = screen.getByRole("listbox");
+    await waitFor(() => expect(within(reopenedBeforeApply).getByRole("option", { name: "Siti" })).toBeInTheDocument());
+    fireEvent.click(within(reopenedBeforeApply).getByRole("option", { name: "Siti" }));
+    const reopenedSearchInput = screen.getByRole("searchbox", { name: "Search active friends" });
+    fireEvent.change(reopenedSearchInput, { target: { value: "Tono" } });
+    await waitFor(() => expect(within(reopenedBeforeApply).getByRole("option", { name: "Tono" })).toBeInTheDocument());
+    fireEvent.click(within(reopenedBeforeApply).getByRole("option", { name: "Tono" }));
+    expect(within(reopenedBeforeApply).getByRole("option", { name: "Siti" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 friends" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Siti")).toBeInTheDocument());
+    expect(screen.getByLabelText("Tono")).toHaveValue("");
+    fireEvent.click(screen.getByRole("combobox", { name: "Add friend" }));
+    const reopenedListbox = await screen.findByRole("listbox");
+    expect(within(reopenedListbox).queryByRole("option", { name: "Siti" })).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("searchbox", { name: "Search active friends" }), { key: "Escape" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(new FormData(screen.getByRole("button", { name: "Save split" }).closest("form")!).getAll("friendId")).toEqual([activeFriend.id, suggestedFriend.id, secondSuggestedFriend.id]);
+  });
+
+  it("keeps the sticky summary on the live base and charge totals", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={100000} friends={[activeFriend]} charges={[{ name: "PB1", percentageBasisPoints: 1000, scope: "all", friendIds: [] }]} />);
+    const summary = document.querySelector(".expense-share-editor__summary") as HTMLElement;
+    expect(summary).toBeInTheDocument();
+    expect(within(summary).getByText("Rp 44.000", { exact: true })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "50000" } });
+    fireEvent.change(screen.getByLabelText("Charge 1 percentage"), { target: { value: "20" } });
+    expect(within(summary).getByText("Rp 60.000", { exact: true })).toBeInTheDocument();
+    expect(within(summary).getByText("Rp 40.000", { exact: true })).toBeInTheDocument();
+  });
+
+  it("does not offer archived candidates through the multi-select", async () => {
+    const archivedOption = { id: archivedFriend.id, label: archivedFriend.name, archived: true };
+    const searchFriends = vi.fn().mockResolvedValue([archivedOption]);
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} friendOptions={[archivedOption]} searchFriends={searchFriends} />);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Add friend" }));
+    const listbox = await screen.findByRole("listbox");
+    await waitFor(() => expect(within(listbox).getByText("No matching options.")).toBeInTheDocument());
+    expect(within(listbox).queryByRole("option", { name: /Bima/ })).not.toBeInTheDocument();
   });
 
   it("removes a row from the submitted split", async () => {

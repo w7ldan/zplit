@@ -581,7 +581,10 @@
 }
 
 .searchable-combobox__option {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   min-width: 0;
   padding: 0.6rem 0.7rem;
   cursor: pointer;
@@ -597,6 +600,25 @@
 .searchable-combobox__option:hover,
 .searchable-combobox__option--active {
   background: var(--pastel-blue);
+}
+
+.searchable-combobox__option--selected {
+  font-weight: 700;
+}
+
+.searchable-combobox__apply {
+  min-height: 2.75rem;
+  padding: 0.6rem 0.7rem;
+  border-top: 1px solid var(--rule);
+  background: var(--surface);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.searchable-combobox__apply:disabled {
+  color: var(--muted-ink);
+  cursor: not-allowed;
 }
 
 .searchable-combobox__error {
@@ -783,6 +805,26 @@
 .repayment-allocation-editor__totals strong {
   font-variant-numeric: tabular-nums;
   transition: opacity var(--motion-state) var(--ease-product), transform var(--motion-state) var(--ease-product);
+}
+
+.expense-share-editor__summary {
+  position: sticky;
+  z-index: 2;
+  top: 0.75rem;
+  min-width: 0;
+  padding: 0.65rem 0.75rem 0.75rem;
+  border: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--surface) 94%, var(--pastel-blue));
+}
+
+.expense-share-editor__summary .expense-share-editor__totals {
+  margin-top: 0;
+  padding-block: 0.35rem 0.65rem;
+  border-top: 0;
+}
+
+.expense-share-editor__summary .allocation-bar {
+  margin-top: 0.65rem;
 }
 
 .allocation-bar {
