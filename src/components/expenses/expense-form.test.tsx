@@ -160,6 +160,25 @@ describe("ExpenseForm", () => {
     expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
   });
 
+  it("does not self-confirm a dirty save and treats equivalent rupiah formats as clean", async () => {
+    const confirm = vi.fn();
+    vi.stubGlobal("confirm", confirm);
+    const action = vi.fn().mockResolvedValue({ ...initialState, values: { description: "Dinner", amountRupiah: "84000", outingId: outing.id } });
+    renderForm(action, "edit", { description: "Dinner", amountRupiah: "84000", outingId: outing.id });
+
+    fireEvent.change(screen.getByLabelText("Amount in rupiah"), { target: { value: "84.000" } });
+    const cleanEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, cleanEvent);
+    expect(cleanEvent.defaultPrevented).toBe(false);
+
+    fireEvent.change(screen.getByLabelText("Amount in rupiah"), { target: { value: "84001" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Save changes" }).closest("form")!);
+
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("84001");
+  });
+
   it("changes an existing outing from A to B in edit mode", async () => {
     const action = vi.fn().mockResolvedValue({ ...initialState, values: { ...initialState.values, outingId: secondOuting.id }, fieldErrors: { description: "Enter a description." } });
     renderForm(action, "edit", { description: "Dinner", amountRupiah: "84000", outingId: outing.id }, [outingOption, secondOuting]);

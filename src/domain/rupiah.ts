@@ -9,6 +9,12 @@ export function parseRupiah(value: unknown): number | null {
   return Number.isSafeInteger(amount) && amount >= 1 && amount <= MAX_RUPIAH ? amount : null;
 }
 
+export function sameRupiah(left: unknown, right: unknown) {
+  const leftAmount = parseRupiah(left);
+  const rightAmount = parseRupiah(right);
+  return leftAmount !== null && rightAmount !== null ? leftAmount === rightAmount : left === right;
+}
+
 export function formatRupiah(amount: number) {
   if (!Number.isSafeInteger(amount) || amount < 0) {
     throw new RangeError("Rupiah amount must be a safe non-negative integer");

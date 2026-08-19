@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRupiah, parseRupiah } from "./rupiah";
+import { formatRupiah, parseRupiah, sameRupiah } from "./rupiah";
 
 describe("rupiah", () => {
   it("parses supported whole-rupiah forms", () => {
@@ -19,6 +19,12 @@ describe("rupiah", () => {
     expect(formatRupiah(0)).toBe("Rp 0");
     expect(formatRupiah(84000)).toBe("Rp 84.000");
     expect(formatRupiah(Number.MAX_SAFE_INTEGER)).toBe("Rp 9.007.199.254.740.991");
+  });
+
+  it("compares accepted formats by their parsed amount and preserves invalid edits", () => {
+    expect(sameRupiah("84000", "84.000")).toBe(true);
+    expect(sameRupiah("84000", "84001")).toBe(false);
+    expect(sameRupiah("84000", "84.00")).toBe(false);
   });
 
   it("rejects invalid formatter amounts", () => {

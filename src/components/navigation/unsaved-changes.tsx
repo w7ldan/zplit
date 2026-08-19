@@ -7,7 +7,8 @@ export const unsavedChangesMessage = "Discard unsaved changes?";
 
 type UnsavedChangesContextValue = {
   setDirty: (id: string, dirty: boolean) => void;
-  confirmDiscard: () => boolean;
+  confirmDiscard: (exceptId?: string) => boolean;
+  beginSubmission: (id: string) => (() => void) | null;
 };
 
 const UnsavedChangesContext = createContext<UnsavedChangesContextValue | null>(null);
@@ -29,18 +30,36 @@ function linkFromEvent(event: MouseEvent) {
 export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const dirtyGuards = useRef(new Map<string, boolean>());
+  const bypassedGuards = useRef(new Set<string>());
   const dirtyRef = useRef(false);
   const previousLocationRef = useRef("");
   const [dirtyRevision, setDirtyRevision] = useState(0);
 
+  const hasDirtyGuard = useCallback((exceptId?: string) => [...dirtyGuards.current].some(([id, dirty]) => dirty && id !== exceptId && !bypassedGuards.current.has(id)), []);
+
   const setDirty = useCallback((id: string, dirty: boolean) => {
     if (dirtyGuards.current.get(id) === dirty) return;
     dirtyGuards.current.set(id, dirty);
-    dirtyRef.current = [...dirtyGuards.current.values()].some(Boolean);
+    dirtyRef.current = hasDirtyGuard();
     setDirtyRevision((revision) => revision + 1);
-  }, []);
+  }, [hasDirtyGuard]);
 
-  const confirmDiscard = useCallback(() => !dirtyRef.current || window.confirm(unsavedChangesMessage), []);
+  const confirmDiscard = useCallback((exceptId?: string) => !hasDirtyGuard(exceptId) || window.confirm(unsavedChangesMessage), [hasDirtyGuard]);
+
+  const beginSubmission = useCallback((id: string) => {
+    if (!confirmDiscard(id)) return null;
+    bypassedGuards.current.add(id);
+    dirtyRef.current = hasDirtyGuard();
+    setDirtyRevision((revision) => revision + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      bypassedGuards.current.delete(id);
+      dirtyRef.current = hasDirtyGuard();
+      setDirtyRevision((revision) => revision + 1);
+    };
+  }, [confirmDiscard, hasDirtyGuard]);
 
   useEffect(() => {
     previousLocationRef.current = currentLocation();
@@ -81,7 +100,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [dirtyRevision]);
 
-  const context = useMemo(() => ({ setDirty, confirmDiscard }), [confirmDiscard, setDirty]);
+  const context = useMemo(() => ({ setDirty, confirmDiscard, beginSubmission }), [beginSubmission, confirmDiscard, setDirty]);
   return <UnsavedChangesContext.Provider value={context}>{children}</UnsavedChangesContext.Provider>;
 }
 
@@ -94,6 +113,8 @@ export function useUnsavedChangesGuard(dirty: boolean) {
     context.setDirty(id, dirty);
     return () => context.setDirty(id, false);
   }, [context, dirty, id]);
+
+  return context ? { beginSubmission: () => context.beginSubmission(id) } : null;
 }
 
 export function useUnsavedChangesNavigation() {

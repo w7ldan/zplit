@@ -332,6 +332,24 @@ describe("expense share editor", () => {
     expect(JSON.parse(action.mock.calls[0]![1].get("charges") as string)).toEqual([{ name: "PB1", percentage: "10", scope: "all", friendIds: [] }]);
   });
 
+  it("does not self-confirm a dirty split save", async () => {
+    const confirm = vi.fn();
+    vi.stubGlobal("confirm", confirm);
+    const action = vi.fn().mockResolvedValue({ fieldErrors: {}, formError: "", values: [{ friendId: activeFriend.id, amountRupiah: "50000" }], charges: [] });
+    render(
+      <UnsavedChangesProvider>
+        <ExpenseShareEditor action={action} expenseAmount={84000} friends={[activeFriend]} />
+      </UnsavedChangesProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "50000" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Save split" }).closest("form")!);
+
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Rani")).toHaveValue("50000");
+  });
+
   it("supports selected charge targets and removes stale targets with a friend", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={100_000} friends={[activeFriend, archivedFriend]} />);
     fireEvent.click(screen.getByRole("button", { name: "Add charge" }));

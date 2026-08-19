@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import type { ExpenseShareActionState } from "@/app/app/expenses/actions";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
@@ -102,7 +102,14 @@ type ExpenseShareUndo =
   | { kind: "charge"; charge: ExpenseShareChargeValues; index: number };
 
 export function ExpenseShareEditor({ action, expenseAmount, friends: initialFriends, charges: initialChargeDefinitions = [], friendOptions: initialFriendOptions = [], searchFriends = emptySearch, previousSplit }: ExpenseShareEditorProps) {
-  const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues(initialFriends), charges: initialCharges(initialChargeDefinitions) });
+  const submissionReleaseRef = useRef<(() => void) | null>(null);
+  const submitAction = useCallback(async (previousState: ExpenseShareActionState, formData: FormData) => {
+    const nextState = await action(previousState, formData);
+    submissionReleaseRef.current?.();
+    submissionReleaseRef.current = null;
+    return nextState;
+  }, [action]);
+  const [state, formAction] = useActionState(submitAction, { ...emptyActionState, values: initialValues(initialFriends), charges: initialCharges(initialChargeDefinitions) });
   const [selectedFriends, setSelectedFriends] = useState(initialFriends);
   const [draftAmounts, setDraftAmounts] = useState(() => initialAmounts(initialFriends));
   const [draftCharges, setDraftCharges] = useState<ExpenseShareChargeValues[]>(() => initialCharges(initialChargeDefinitions));
@@ -123,7 +130,22 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
   const [initialDraftKey] = useState(() => expenseShareDraftKey(initialFriends, initialAmounts(initialFriends), initialCharges(initialChargeDefinitions)));
   const isDirty = expenseShareDraftKey(selectedFriends, draftAmounts, draftCharges) !== initialDraftKey;
 
-  useUnsavedChangesGuard(isDirty);
+  const guard = useUnsavedChangesGuard(isDirty);
+
+  useEffect(() => () => {
+    submissionReleaseRef.current?.();
+    submissionReleaseRef.current = null;
+  }, []);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (!guard || submissionReleaseRef.current) return;
+    const release = guard.beginSubmission();
+    if (!release) {
+      event.preventDefault();
+      return;
+    }
+    submissionReleaseRef.current = release;
+  }
 
   useEffect(() => {
     if (previousStateRef.current === state) return;
@@ -291,7 +313,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
           <span>{overAllocated ? `Over-allocated by ${formatRupiah(totalOwed - expenseAmount)}.` : `${formatRupiah(ownerPortion)} is your portion. Assigned shares become friend balances.`}</span>
         </div>
       </div>
-      <form className="expense-share-editor__form" action={formAction} noValidate>
+      <form className="expense-share-editor__form" action={formAction} onSubmit={handleSubmit} noValidate>
         <div className="expense-share-editor__add">
           <div>
             <label id="expense-share-add-label" htmlFor="expense-share-add">Add friend</label>

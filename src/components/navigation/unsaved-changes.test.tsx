@@ -12,6 +12,23 @@ function GuardedLink({ dirty }: { dirty: boolean }) {
   return <Link href="/app/friends">Friends</Link>;
 }
 
+function GuardedForm({ name, dirty, onSubmit }: { name: string; dirty: boolean; onSubmit: () => void }) {
+  const guard = useUnsavedChangesGuard(dirty);
+  return (
+    <form aria-label={name} onSubmit={(event) => {
+      const release = guard?.beginSubmission();
+      if (!release) {
+        event.preventDefault();
+        return;
+      }
+      onSubmit();
+    }}>
+      <input aria-label={`${name} draft`} defaultValue="saved" />
+      <button type="submit">Save {name}</button>
+    </form>
+  );
+}
+
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -50,6 +67,46 @@ describe("unsaved changes guard", () => {
     expect(window.confirm).toHaveBeenCalledOnce();
     expect(router.push).toHaveBeenCalledOnce();
     expect(router.push).toHaveBeenCalledWith("/app/friends");
+  });
+
+  it("cancels a form submission when another form is dirty and keeps both drafts", () => {
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    const expenseSubmit = vi.fn();
+    const splitSubmit = vi.fn();
+    render(
+      <UnsavedChangesProvider>
+        <GuardedForm name="expense" dirty onSubmit={expenseSubmit} />
+        <GuardedForm name="split" dirty onSubmit={splitSubmit} />
+      </UnsavedChangesProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("expense draft"), { target: { value: "expense draft" } });
+    fireEvent.change(screen.getByLabelText("split draft"), { target: { value: "split draft" } });
+    fireEvent.submit(screen.getByRole("form", { name: "expense" }));
+
+    expect(window.confirm).toHaveBeenCalledOnce();
+    expect(expenseSubmit).not.toHaveBeenCalled();
+    expect(splitSubmit).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("expense draft")).toHaveValue("expense draft");
+    expect(screen.getByLabelText("split draft")).toHaveValue("split draft");
+  });
+
+  it("confirms the other form once and submits exactly once in the reverse direction", () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    const expenseSubmit = vi.fn();
+    const splitSubmit = vi.fn();
+    render(
+      <UnsavedChangesProvider>
+        <GuardedForm name="expense" dirty onSubmit={expenseSubmit} />
+        <GuardedForm name="split" dirty onSubmit={splitSubmit} />
+      </UnsavedChangesProvider>,
+    );
+
+    fireEvent.submit(screen.getByRole("form", { name: "split" }));
+
+    expect(window.confirm).toHaveBeenCalledOnce();
+    expect(expenseSubmit).not.toHaveBeenCalled();
+    expect(splitSubmit).toHaveBeenCalledOnce();
   });
 
   it("restores a cancelled browser history navigation", () => {

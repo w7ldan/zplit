@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { ExpenseActionState } from "@/app/app/expenses/actions";
@@ -8,7 +8,7 @@ import type { ExpenseInputValues } from "@/domain/expense-input";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 import { useToast } from "@/components/feedback/toast";
 import { useUnsavedChangesGuard } from "@/components/navigation/unsaved-changes";
-import { formatRupiah } from "@/domain/rupiah";
+import { formatRupiah, sameRupiah } from "@/domain/rupiah";
 
 type ExpenseAction = (previousState: ExpenseActionState, formData: FormData) => Promise<ExpenseActionState>;
 
@@ -48,7 +48,14 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 }
 
 export function ExpenseForm({ action, outings: outingOptions, searchOutings, initialValues = emptyValues, mode = "create" }: ExpenseFormProps) {
-  const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
+  const submissionReleaseRef = useRef<(() => void) | null>(null);
+  const submitAction = useCallback(async (previousState: ExpenseActionState, formData: FormData) => {
+    const nextState = await action(previousState, formData);
+    submissionReleaseRef.current?.();
+    submissionReleaseRef.current = null;
+    return nextState;
+  }, [action]);
+  const [state, formAction] = useActionState(submitAction, { ...emptyActionState, values: initialValues });
   const [initialDraft] = useState(() => ({ ...initialValues, outingId: initialValues.outingId || outingOptions[0]?.id || "" }));
   const [draftValues, setDraftValues] = useState(initialDraft);
   const [selectedOutingId, setSelectedOutingId] = useState(initialDraft.outingId);
@@ -60,10 +67,25 @@ export function ExpenseForm({ action, outings: outingOptions, searchOutings, ini
   const previousActionStateRef = useRef(state);
   const options = selectedOuting && !outingOptions.some((outing) => outing.id === selectedOuting.id) ? [...outingOptions, selectedOuting] : outingOptions;
   const isDirty = draftValues.description !== initialDraft.description
-    || draftValues.amountRupiah !== initialDraft.amountRupiah
+    || !sameRupiah(draftValues.amountRupiah, initialDraft.amountRupiah)
     || draftValues.outingId !== initialDraft.outingId;
 
-  useUnsavedChangesGuard(isDirty);
+  const guard = useUnsavedChangesGuard(isDirty);
+
+  useEffect(() => () => {
+    submissionReleaseRef.current?.();
+    submissionReleaseRef.current = null;
+  }, []);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (!guard || submissionReleaseRef.current) return;
+    const release = guard.beginSubmission();
+    if (!release) {
+      event.preventDefault();
+      return;
+    }
+    submissionReleaseRef.current = release;
+  }
 
   useEffect(() => {
     if (previousActionStateRef.current === state) return;
@@ -86,6 +108,7 @@ export function ExpenseForm({ action, outings: outingOptions, searchOutings, ini
     <form
       className="expense-form"
       action={formAction}
+      onSubmit={handleSubmit}
       noValidate
     >
       <div className="expense-form__field">
