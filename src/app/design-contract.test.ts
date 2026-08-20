@@ -240,6 +240,17 @@ describe("Zplit design contract", () => {
     expect(authenticatedShellSource).toContain("width: min(calc(100% - 1.5rem), 76rem);");
   });
 
+  it("keeps public and authenticated large canvases on the paper token", () => {
+    const appShellRules = [...authenticatedShellSource.matchAll(/\.app-shell\s*\{([^{}]*)\}/g)].map((match) => match[1]);
+
+    expect(publicSource).toContain(".public-home { background: var(--paper); }");
+    expect(appShellRules.at(-1)).toContain("background: var(--paper);");
+    expect(cssRuleBody(authenticatedShellSource, ".app-page")).toContain("background: var(--paper);");
+    expect(authenticatedShellSource).not.toMatch(/\.app-shell\s*\{[^{}]*background:\s*var\(--surface\)/);
+    expect(authenticatedShellSource).not.toMatch(/\.app-page\s*\{[^{}]*background:\s*var\(--surface\)/);
+    expect(cssRuleBody(lateOverridesSource, ".login-form")).toContain("background: var(--surface);");
+  });
+
   it("keeps trip detail wide and repayment activity labels on one line", () => {
     expect(recordsAndFormsSource).toContain(".trip-record__meta,\n  .trip-record__financials,\n  .trip-record__outings {\n    grid-column: 1 / -1;");
     expect(authenticatedShellSource).toContain("grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr) auto;");

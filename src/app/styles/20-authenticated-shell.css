@@ -873,7 +873,7 @@
 .app-shell {
   --authenticated-header-height: 4.5rem;
   min-height: 100svh;
-  background: var(--surface);
+  background: var(--paper);
 }
 
 .app-shell .editorial-shell {
@@ -1323,7 +1323,7 @@ body.global-search-open {
 .app-page {
   min-height: calc(100svh - var(--authenticated-header-height));
   overflow: visible;
-  background: var(--surface);
+  background: var(--paper);
 }
 
 .app-page::before,
