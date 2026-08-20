@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import type { DebtorShareActionState } from "@/app/app/friends/[friendId]/share-actions";
 import type { EligibleDebtorShareReceiptGroup } from "@/domain/ledger-repository";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
@@ -55,9 +55,14 @@ export function FriendShareLink({
     error: "",
   });
   const [, startTransition] = useTransition();
+  const feedbackTimer = useRef<number | null>(null);
   const shareUrl = state.link && typeof window !== "undefined" ? `${window.location.origin}/share/${state.link.token}` : null;
   const expiry = state.status === "active" || state.status === "expired" ? state.expiresAt : null;
   const whatsappUrl = state.reminder ? buildWhatsAppUrl(phoneNumber, state.reminder) : null;
+
+  useEffect(() => () => {
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
+  }, []);
 
   function setReceiptSelected(receiptId: string, checked: boolean) {
     setState((current) => {
@@ -113,10 +118,15 @@ export function FriendShareLink({
     if (!shareUrl) return;
     try { await navigator.clipboard.writeText(shareUrl); } catch {
       const input = document.getElementById("friend-share-link") as HTMLInputElement | null;
-      input?.select();
-      document.execCommand("copy");
+      if (input) {
+        input.focus();
+        input.select();
+        try { document.execCommand("copy"); } catch { /* The selected URL remains available for manual copy. */ }
+      }
     }
     setState((current) => ({ ...current, copied: true }));
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = window.setTimeout(() => setState((current) => ({ ...current, copied: false, reminderCopied: false })), 1800);
   }
 
   async function copyReminder() {
@@ -132,6 +142,8 @@ export function FriendShareLink({
       textarea.remove();
     }
     setState((current) => ({ ...current, reminderCopied: true }));
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = window.setTimeout(() => setState((current) => ({ ...current, copied: false, reminderCopied: false })), 1800);
   }
 
   return (
@@ -153,7 +165,8 @@ export function FriendShareLink({
       {state.status === "active" ? <form onSubmit={submitUpdate} className="friend-share__actions"><SubmitButton label="Save receipt visibility" pending="Saving…" disabled={state.pendingOperation !== null} /></form> : null}
       {state.status === "active" ? <form onSubmit={submitRevoke} className="friend-share__actions"><SubmitButton label="Revoke link" pending="Revoking…" disabled={state.pendingOperation !== null} /></form> : null}
       {state.error ? <p className="friend-share__message" role="alert">{state.error}</p> : null}
-      {shareUrl ? <section className="friend-share__result" aria-label="Balance link ready" role="status"><p><strong>Balance link ready.</strong> Save or send this link now.</p><label htmlFor="friend-share-link">Temporary balance link</label><div className="friend-share__copy-row"><input id="friend-share-link" readOnly value={shareUrl} onFocus={(event) => event.currentTarget.select()} /><button className="action-link action-link--quiet" type="button" onClick={copyLink}>{state.copied ? "Copied" : "Copy"}</button></div><p className="friend-share__warning">Save or send this link now. Zplit cannot recover it later.</p><p className="technical-label">Expires <LocalDateTime iso={state.link?.expiresAt ?? ""} mode="date" /></p>{state.reminder ? <div className="friend-share__reminder" aria-label="WhatsApp reminder"><p><strong>Reminder ready.</strong></p><p className="friend-share__reminder-copy">{state.reminder}</p><div className="friend-share__actions"><button className="action-link action-link--quiet" type="button" onClick={copyReminder}>{state.reminderCopied ? "Copied" : "Copy reminder"}</button>{whatsappUrl ? <button className="action-link action-link--quiet" type="button" onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}>Open WhatsApp</button> : null}</div></div> : null}</section> : null}
+      {state.status === "active" && !shareUrl ? <p className="friend-share__description">This existing link is active, but Zplit cannot recover its URL after this page loads. Replace balance link to issue a new URL; replacing it revokes the current link.</p> : null}
+      {shareUrl ? <section className="friend-share__result" aria-label="Balance link ready" role="status"><p><strong>Balance link ready.</strong> Save or send this link now.</p><label htmlFor="friend-share-link">Temporary balance link</label><div className="friend-share__copy-row"><input id="friend-share-link" readOnly value={shareUrl} onFocus={(event) => event.currentTarget.select()} /></div><div className="friend-share__actions" aria-label="Balance link actions"><button className="action-link action-link--primary" type="button" onClick={copyLink} aria-label={state.copied ? "Balance link copied" : "Copy balance link"}>{state.copied ? "Copied" : "Copy balance link"}</button><button className="action-link action-link--quiet" type="button" onClick={() => window.open(shareUrl, "_blank", "noopener,noreferrer")} aria-label="Preview as friend (opens in a new tab)">Preview as friend</button></div><p className="friend-share__warning">Save or send this link now. Zplit cannot recover it later.</p><p className="technical-label">Expires <LocalDateTime iso={state.link?.expiresAt ?? ""} mode="date" /></p>{state.reminder ? <div className="friend-share__reminder" aria-label="WhatsApp reminder"><p><strong>Reminder ready.</strong></p><p className="friend-share__reminder-copy">{state.reminder}</p><div className="friend-share__actions"><button className="action-link action-link--quiet" type="button" onClick={copyReminder}>{state.reminderCopied ? "Copied" : "Copy reminder"}</button>{whatsappUrl ? <button className="action-link action-link--quiet" type="button" onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}>Open WhatsApp</button> : null}</div></div> : null}</section> : null}
     </section>
   );
 }

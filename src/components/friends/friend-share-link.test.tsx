@@ -1,14 +1,18 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FriendShareLink } from "./friend-share-link";
 
 const initial = { error: "", link: null, statement: null, revoked: false };
 
+afterEach(() => vi.restoreAllMocks());
+
 describe("FriendShareLink", () => {
-  it("shows status, creates a one-time visible URL, and copies it", async () => {
+  it("creates a one-time visible URL, makes Copy primary, and previews the exact URL", async () => {
     const createAction = vi.fn().mockResolvedValue({ error: "", link: { token: "11111111-1111-4111-8111-111111111111", expiresAt: "2026-08-11T00:00:00.000Z" }, statement: { friendName: "Ada", assignedAmount: 1000, repaidAmount: 0, outstandingAmount: 1000 }, revoked: false });
     const revokeAction = vi.fn().mockResolvedValue({ ...initial, revoked: true });
-    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
     render(<FriendShareLink status={{ status: "none", expiresAt: null }} phoneNumber={"+62 811 1234"} createAction={createAction} revokeAction={revokeAction} />);
 
     expect(screen.getByText("A private, read-only view")).toBeInTheDocument();
@@ -17,12 +21,31 @@ describe("FriendShareLink", () => {
     await waitFor(() => expect(screen.getByLabelText("Temporary balance link")).toHaveValue(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`));
     expect(document.querySelectorAll(".friend-share__result")).toHaveLength(1);
     expect(screen.getByText("Save or send this link now. Zplit cannot recover it later.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
-    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("/share/")));
+    expect(screen.getByRole("button", { name: "Copy balance link" })).toHaveClass("action-link--primary");
+    fireEvent.click(screen.getByRole("button", { name: "Copy balance link" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`));
+    expect(screen.getByText("Copied")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Preview as friend (opens in a new tab)" }));
+    expect(open).toHaveBeenCalledWith(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`, "_blank", "noopener,noreferrer");
     expect(screen.getByRole("button", { name: "Copy reminder" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open WhatsApp" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Copy reminder" }));
-    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("Hi Ada")));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Hi Ada")));
+  });
+
+  it("falls back to selecting the visible URL when clipboard write fails", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("clipboard unavailable"));
+    const execCommand = vi.fn().mockReturnValue(true);
+    const select = vi.spyOn(HTMLInputElement.prototype, "select");
+    Object.assign(navigator, { clipboard: { writeText } });
+    Object.assign(document, { execCommand });
+    const createAction = vi.fn().mockResolvedValue({ error: "", link: { token: "11111111-1111-4111-8111-111111111111", expiresAt: "2026-08-11T00:00:00.000Z" }, statement: null, revoked: false });
+    render(<FriendShareLink status={{ status: "none", expiresAt: null }} phoneNumber={null} createAction={createAction} revokeAction={vi.fn()} />);
+    fireEvent.submit(screen.getByRole("button", { name: "Create balance link" }).closest("form")!);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Copy balance link" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Copy balance link" }));
+    await waitFor(() => expect(execCommand).toHaveBeenCalledWith("copy"));
+    expect(select).toHaveBeenCalled();
   });
 
   it("does not show a usable URL after a fresh render", () => {
@@ -30,7 +53,16 @@ describe("FriendShareLink", () => {
     expect(screen.queryByLabelText("Temporary balance link")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Replace balance link" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Revoke link" })).toBeInTheDocument();
+    expect(screen.getByText(/existing link is active.*cannot recover its URL/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Copy balance link/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Preview as friend/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Copy reminder" })).not.toBeInTheDocument();
+  });
+
+  it.each(["none", "expired", "revoked"] as const)("does not expose stale link controls for %s status", (status) => {
+    render(<FriendShareLink status={{ status, expiresAt: status === "none" ? null : "2026-08-11T00:00:00.000Z" }} phoneNumber={null} createAction={vi.fn()} revokeAction={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /Copy balance link/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Preview as friend/ })).not.toBeInTheDocument();
   });
 
   it("opens WhatsApp only after an explicit action and omits it for local numbers", async () => {
@@ -77,6 +109,25 @@ describe("FriendShareLink", () => {
     expect(revokeAction).toHaveBeenCalledOnce();
   });
 
+  it("replaces the known URL and drives actions with only the new URL", async () => {
+    const createAction = vi.fn()
+      .mockResolvedValueOnce({ error: "", link: { token: "11111111-1111-4111-8111-111111111111", expiresAt: "2026-08-11T00:00:00.000Z" }, statement: null, revoked: false })
+      .mockResolvedValueOnce({ error: "", link: { token: "22222222-2222-4222-8222-222222222222", expiresAt: "2026-08-12T00:00:00.000Z" }, statement: null, revoked: false });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<FriendShareLink status={{ status: "none", expiresAt: null }} phoneNumber={null} createAction={createAction} revokeAction={vi.fn()} />);
+    fireEvent.submit(screen.getByRole("button", { name: "Create balance link" }).closest("form")!);
+    await waitFor(() => expect(screen.getByLabelText("Temporary balance link")).toHaveValue(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`));
+    fireEvent.submit(screen.getByRole("button", { name: "Replace balance link" }).closest("form")!);
+    await waitFor(() => expect(screen.getByLabelText("Temporary balance link")).toHaveValue(`${window.location.origin}/share/22222222-2222-4222-8222-222222222222`));
+    expect(screen.queryByDisplayValue(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Copy balance link" }));
+    fireEvent.click(screen.getByRole("button", { name: /Preview as friend/ }));
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/share/22222222-2222-4222-8222-222222222222`);
+    expect(open).toHaveBeenCalledWith(`${window.location.origin}/share/22222222-2222-4222-8222-222222222222`, "_blank", "noopener,noreferrer");
+  });
+
   it("keeps the visible link when revocation fails and shows the server error", async () => {
     const createAction = vi.fn().mockResolvedValue({ error: "", link: { token: "11111111-1111-4111-8111-111111111111", expiresAt: "2026-08-11T00:00:00.000Z" }, statement: { friendName: "Ada", assignedAmount: 1000, repaidAmount: 0, outstandingAmount: 1000 }, revoked: false });
     const revokeAction = vi.fn().mockResolvedValue({ ...initial, error: "Unable to revoke this balance link." });
@@ -86,6 +137,18 @@ describe("FriendShareLink", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Revoke link" }).closest("form")!);
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Unable to revoke this balance link."));
     expect(screen.getByLabelText("Temporary balance link")).toBeInTheDocument();
+  });
+
+  it("keeps the known URL when replacement fails", async () => {
+    const createAction = vi.fn()
+      .mockResolvedValueOnce({ error: "", link: { token: "11111111-1111-4111-8111-111111111111", expiresAt: "2026-08-11T00:00:00.000Z" }, statement: null, revoked: false })
+      .mockResolvedValueOnce({ ...initial, error: "Unable to update this balance link." });
+    render(<FriendShareLink status={{ status: "none", expiresAt: null }} phoneNumber={null} createAction={createAction} revokeAction={vi.fn()} />);
+    fireEvent.submit(screen.getByRole("button", { name: "Create balance link" }).closest("form")!);
+    await waitFor(() => expect(screen.getByLabelText("Temporary balance link")).toBeInTheDocument());
+    fireEvent.submit(screen.getByRole("button", { name: "Replace balance link" }).closest("form")!);
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Unable to update this balance link."));
+    expect(screen.getByLabelText("Temporary balance link")).toHaveValue(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`);
   });
 
   it("sends checked receipt IDs on create and accepts authoritative selection updates", async () => {
@@ -102,5 +165,6 @@ describe("FriendShareLink", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Save receipt visibility" }).closest("form")!);
     await waitFor(() => expect(updateAction).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.getByRole("checkbox", { name: /dinner\.png/ })).not.toBeChecked());
+    expect(screen.getByLabelText("Temporary balance link")).toHaveValue(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`);
   });
 });
