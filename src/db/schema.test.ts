@@ -11,6 +11,7 @@ const domainTables = [
   "friends",
   "outings",
   "repayment_allocations",
+  "repayment_proofs",
   "repayments",
   "trips",
 ];
@@ -44,9 +45,9 @@ function foreignKeyShape(table: unknown) {
 }
 
 describe("database schema", () => {
-  it("exports the ten domain tables and four auth tables", () => {
+  it("exports the eleven domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentAllocations]
+      [schema.friends, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -56,6 +57,34 @@ describe("database schema", () => {
       "users",
       "verifications",
     ]);
+  });
+
+  it("defines one owner-private payment proof per repayment", () => {
+    const table = getTableConfig(schema.repaymentProofs);
+    expect(table.name).toBe("repayment_proofs");
+    expect(table.columns.map((column) => column.name)).toEqual([
+      "id",
+      "owner_user_id",
+      "repayment_id",
+      "original_filename",
+      "media_type",
+      "byte_size",
+      "sha256",
+      "content",
+      "created_at",
+    ]);
+    expect(table.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "repayment_proofs_media_type_allowed",
+      "repayment_proofs_byte_size_valid",
+      "repayment_proofs_content_size_matches",
+      "repayment_proofs_filename_not_blank",
+      "repayment_proofs_sha256_hex",
+    ]));
+    expect(foreignKeyShape(schema.repaymentProofs)).toEqual(expect.arrayContaining([
+      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      { from: ["owner_user_id", "repayment_id"], to: "repayments", target: ["owner_user_id", "id"], onDelete: "cascade" },
+    ]));
+    expect(indexColumns(schema.repaymentProofs, "repayment_proofs_owner_repayment_uidx")).toEqual(["owner_user_id", "repayment_id"]);
   });
 
   it("defines private receipt storage constraints and indexes", () => {

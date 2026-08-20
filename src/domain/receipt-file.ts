@@ -14,6 +14,8 @@ export type ValidatedReceiptFile = {
   content: Uint8Array;
 };
 
+export type ReceiptFileLabel = "Receipt" | "Payment proof";
+
 export class ReceiptFileValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -50,19 +52,19 @@ export function validateReceiptFile(input: {
   bytes: Uint8Array;
   filename: string;
   mediaType: string;
-}): ValidatedReceiptFile {
+}, label: ReceiptFileLabel = "Receipt"): ValidatedReceiptFile {
   if (!(input.bytes instanceof Uint8Array) || input.bytes.byteLength === 0) {
-    throw new ReceiptFileValidationError("Receipt files cannot be empty.");
+    throw new ReceiptFileValidationError(`${label} files cannot be empty.`);
   }
   if (input.bytes.byteLength > MAX_RECEIPT_BYTES) {
-    throw new ReceiptFileValidationError("Receipt files must be 5 MiB or smaller.");
+    throw new ReceiptFileValidationError(`${label} files must be 5 MiB or smaller.`);
   }
 
   const mediaType = detectReceiptMediaType(input.bytes);
-  if (!mediaType) throw new ReceiptFileValidationError("Receipt files must be JPEG, PNG, or WebP images.");
+  if (!mediaType) throw new ReceiptFileValidationError(`${label} files must be JPEG, PNG, or WebP images.`);
   const reportedMediaType = input.mediaType.trim().toLowerCase();
   if (reportedMediaType && reportedMediaType !== mediaType) {
-    throw new ReceiptFileValidationError("The receipt MIME type does not match its contents.");
+    throw new ReceiptFileValidationError(`The ${label.toLowerCase()} MIME type does not match its contents.`);
   }
 
   return {

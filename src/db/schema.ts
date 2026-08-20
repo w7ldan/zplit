@@ -282,6 +282,36 @@ export const repayments = pgTable(
   ],
 );
 
+export const repaymentProofs = pgTable(
+  "repayment_proofs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    repaymentId: uuid("repayment_id").notNull(),
+    originalFilename: varchar("original_filename", { length: 160 }).notNull(),
+    mediaType: varchar("media_type", { length: 32 }).notNull(),
+    byteSize: integer("byte_size").notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    content: bytea("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("repayment_proofs_media_type_allowed", sql`${table.mediaType} IN ('image/jpeg', 'image/png', 'image/webp')`),
+    check("repayment_proofs_byte_size_valid", sql`${table.byteSize} BETWEEN 1 AND 5242880`),
+    check("repayment_proofs_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
+    check("repayment_proofs_filename_not_blank", sql`btrim(${table.originalFilename}) <> ''`),
+    check("repayment_proofs_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    foreignKey({
+      columns: [table.ownerUserId, table.repaymentId],
+      foreignColumns: [repayments.ownerUserId, repayments.id],
+      name: "repayment_proofs_owner_repayment_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("repayment_proofs_owner_repayment_uidx").on(table.ownerUserId, table.repaymentId),
+  ],
+);
+
 export const repaymentAllocations = pgTable(
   "repayment_allocations",
   {
