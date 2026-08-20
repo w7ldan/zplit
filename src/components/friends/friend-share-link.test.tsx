@@ -22,6 +22,12 @@ describe("FriendShareLink", () => {
     expect(document.querySelectorAll(".friend-share__result")).toHaveLength(1);
     expect(screen.getByText("Save or send this link now. Zplit cannot recover it later.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy balance link" })).toHaveClass("action-link--primary");
+    expect(screen.getByRole("button", { name: "Show QR" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show QR" }));
+    expect(screen.getByRole("region", { name: "QR code for balance link" })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("region", { name: "QR code for balance link" })).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Show QR" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Copy balance link" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`));
     expect(screen.getByText("Copied")).toBeInTheDocument();
@@ -56,6 +62,7 @@ describe("FriendShareLink", () => {
     expect(screen.getByText(/existing link is active.*cannot recover its URL/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Copy balance link/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Preview as friend/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show QR" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Copy reminder" })).not.toBeInTheDocument();
   });
 
@@ -83,8 +90,11 @@ describe("FriendShareLink", () => {
 
     fireEvent.submit(screen.getByRole("button", { name: "Replace balance link" }).closest("form")!);
     await waitFor(() => expect(screen.getByLabelText("Temporary balance link")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Show QR" }));
+    expect(screen.getByRole("region", { name: "QR code for balance link" })).toBeInTheDocument();
     fireEvent.submit(screen.getByRole("button", { name: "Revoke link" }).closest("form")!);
     await waitFor(() => expect(screen.queryByLabelText("Temporary balance link")).not.toBeInTheDocument());
+    expect(screen.queryByRole("region", { name: "QR code for balance link" })).not.toBeInTheDocument();
     expect(screen.getByText("REVOKED")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create balance link" })).toBeInTheDocument();
     expect(screen.queryByText(/Expires/)).not.toBeInTheDocument();
@@ -119,8 +129,11 @@ describe("FriendShareLink", () => {
     render(<FriendShareLink status={{ status: "none", expiresAt: null }} phoneNumber={null} createAction={createAction} revokeAction={vi.fn()} />);
     fireEvent.submit(screen.getByRole("button", { name: "Create balance link" }).closest("form")!);
     await waitFor(() => expect(screen.getByLabelText("Temporary balance link")).toHaveValue(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`));
+    fireEvent.click(screen.getByRole("button", { name: "Show QR" }));
+    expect(screen.getByRole("region", { name: "QR code for balance link" })).toBeInTheDocument();
     fireEvent.submit(screen.getByRole("button", { name: "Replace balance link" }).closest("form")!);
     await waitFor(() => expect(screen.getByLabelText("Temporary balance link")).toHaveValue(`${window.location.origin}/share/22222222-2222-4222-8222-222222222222`));
+    expect(screen.queryByRole("region", { name: "QR code for balance link" })).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue(`${window.location.origin}/share/11111111-1111-4111-8111-111111111111`)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Copy balance link" }));
     fireEvent.click(screen.getByRole("button", { name: /Preview as friend/ }));

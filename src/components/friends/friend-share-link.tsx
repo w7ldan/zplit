@@ -5,6 +5,7 @@ import type { DebtorShareActionState } from "@/app/app/friends/[friendId]/share-
 import type { EligibleDebtorShareReceiptGroup } from "@/domain/ledger-repository";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { buildFriendReminder, buildWhatsAppUrl } from "@/domain/friend-reminder";
+import { BalanceLinkQr } from "./balance-link-qr";
 
 type ShareAction = (previousState: DebtorShareActionState, formData: FormData) => Promise<DebtorShareActionState>;
 type ShareStatus = { status: "none" | "active" | "expired" | "revoked"; expiresAt: string | null };
@@ -56,6 +57,9 @@ export function FriendShareLink({
   });
   const [, startTransition] = useTransition();
   const feedbackTimer = useRef<number | null>(null);
+  const showQrButton = useRef<HTMLButtonElement>(null);
+  const qrWasVisible = useRef(false);
+  const [qrVisible, setQrVisible] = useState(false);
   const shareUrl = state.link && typeof window !== "undefined" ? `${window.location.origin}/share/${state.link.token}` : null;
   const expiry = state.status === "active" || state.status === "expired" ? state.expiresAt : null;
   const whatsappUrl = state.reminder ? buildWhatsAppUrl(phoneNumber, state.reminder) : null;
@@ -63,6 +67,20 @@ export function FriendShareLink({
   useEffect(() => () => {
     if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
   }, []);
+
+  useEffect(() => {
+    if (!qrVisible) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setQrVisible(false);
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [qrVisible]);
+
+  useEffect(() => {
+    if (!qrVisible && qrWasVisible.current) showQrButton.current?.focus();
+    qrWasVisible.current = qrVisible;
+  }, [qrVisible]);
 
   function setReceiptSelected(receiptId: string, checked: boolean) {
     setState((current) => {
@@ -81,6 +99,7 @@ export function FriendShareLink({
           return;
         }
         if (operation === "revoke") {
+          setQrVisible(false);
           setState((current) => ({ ...current, status: "revoked", link: null, expiresAt: null, reminder: null, selectedReceiptIds: [], copied: false, reminderCopied: false, pendingOperation: null, error: "" }));
           return;
         }
@@ -89,6 +108,7 @@ export function FriendShareLink({
           return;
         }
         const link = result.link;
+        setQrVisible(false);
         const reminder = link && result.statement && typeof window !== "undefined"
           ? buildFriendReminder({ ...result.statement, balanceUrl: `${window.location.origin}/share/${link.token}` })
           : null;
@@ -166,7 +186,7 @@ export function FriendShareLink({
       {state.status === "active" ? <form onSubmit={submitRevoke} className="friend-share__actions"><SubmitButton label="Revoke link" pending="Revoking…" disabled={state.pendingOperation !== null} /></form> : null}
       {state.error ? <p className="friend-share__message" role="alert">{state.error}</p> : null}
       {state.status === "active" && !shareUrl ? <p className="friend-share__description">This existing link is active, but Zplit cannot recover its URL after this page loads. Replace balance link to issue a new URL; replacing it revokes the current link.</p> : null}
-      {shareUrl ? <section className="friend-share__result" aria-label="Balance link ready" role="status"><p><strong>Balance link ready.</strong> Save or send this link now.</p><label htmlFor="friend-share-link">Temporary balance link</label><div className="friend-share__copy-row"><input id="friend-share-link" readOnly value={shareUrl} onFocus={(event) => event.currentTarget.select()} /></div><div className="friend-share__actions" aria-label="Balance link actions"><button className="action-link action-link--primary" type="button" onClick={copyLink} aria-label={state.copied ? "Balance link copied" : "Copy balance link"}>{state.copied ? "Copied" : "Copy balance link"}</button><button className="action-link action-link--quiet" type="button" onClick={() => window.open(shareUrl, "_blank", "noopener,noreferrer")} aria-label="Preview as friend (opens in a new tab)">Preview as friend</button></div><p className="friend-share__warning">Save or send this link now. Zplit cannot recover it later.</p><p className="technical-label">Expires <LocalDateTime iso={state.link?.expiresAt ?? ""} mode="date" /></p>{state.reminder ? <div className="friend-share__reminder" aria-label="WhatsApp reminder"><p><strong>Reminder ready.</strong></p><p className="friend-share__reminder-copy">{state.reminder}</p><div className="friend-share__actions"><button className="action-link action-link--quiet" type="button" onClick={copyReminder}>{state.reminderCopied ? "Copied" : "Copy reminder"}</button>{whatsappUrl ? <button className="action-link action-link--quiet" type="button" onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}>Open WhatsApp</button> : null}</div></div> : null}</section> : null}
+      {shareUrl && state.status === "active" ? <section className="friend-share__result" aria-label="Balance link ready" role="status"><p><strong>Balance link ready.</strong> Save or send this link now.</p><label htmlFor="friend-share-link">Temporary balance link</label><div className="friend-share__copy-row"><input id="friend-share-link" readOnly value={shareUrl} onFocus={(event) => event.currentTarget.select()} /></div><div className="friend-share__actions" aria-label="Balance link actions"><button className="action-link action-link--primary" type="button" onClick={copyLink} aria-label={state.copied ? "Balance link copied" : "Copy balance link"}>{state.copied ? "Copied" : "Copy balance link"}</button><button className="action-link action-link--quiet" type="button" onClick={() => window.open(shareUrl, "_blank", "noopener,noreferrer")} aria-label="Preview as friend (opens in a new tab)">Preview as friend</button><button ref={showQrButton} className="action-link action-link--quiet" type="button" onClick={() => setQrVisible(true)} aria-expanded={qrVisible} aria-controls="friend-share-qr">Show QR</button></div>{qrVisible ? <BalanceLinkQr url={shareUrl} onClose={() => setQrVisible(false)} /> : null}<p className="friend-share__warning">Save or send this link now. Zplit cannot recover it later.</p><p className="technical-label">Expires <LocalDateTime iso={state.link?.expiresAt ?? ""} mode="date" /></p>{state.reminder ? <div className="friend-share__reminder" aria-label="WhatsApp reminder"><p><strong>Reminder ready.</strong></p><p className="friend-share__reminder-copy">{state.reminder}</p><div className="friend-share__actions"><button className="action-link action-link--quiet" type="button" onClick={copyReminder}>{state.reminderCopied ? "Copied" : "Copy reminder"}</button>{whatsappUrl ? <button className="action-link action-link--quiet" type="button" onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}>Open WhatsApp</button> : null}</div></div> : null}</section> : null}
     </section>
   );
 }
