@@ -6,7 +6,8 @@ import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-rep
 import { TripForm } from "@/components/trips/trip-form";
 import { TripDeleteForm } from "@/components/trips/trip-delete-form";
 import { OutingRow } from "@/components/outings/outing-row";
-import { CalendarDateRange, formatCalendarDate } from "@/components/editorial/local-date-time";
+import { CalendarDateRange } from "@/components/editorial/local-date-time";
+import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { formatRupiah } from "@/domain/rupiah";

@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CalendarDateRange, LocalDateTime, formatCalendarDate } from "./local-date-time";
+import { CalendarDate, CalendarDateRange, LocalDateTime } from "./local-date-time";
+import { formatCalendarDate } from "./calendar-date";
 
 describe("LocalDateTime", () => {
   it("renders a deterministic UTC fallback on the server and a local hydrated value", async () => {
@@ -37,6 +38,8 @@ describe("LocalDateTime", () => {
 describe("calendar dates", () => {
   it("formats the stored day without browser timezone conversion", () => {
     expect(formatCalendarDate("2026-04-12")).toBe("12 Apr 2026");
+    render(<CalendarDate value="2026-04-12" />);
+    expect(screen.getByText("12 Apr 2026")).toHaveAttribute("dateTime", "2026-04-12");
     render(<CalendarDateRange startsOn="2026-04-12" endsOn="2026-04-16" />);
     expect(screen.getByText("12 Apr 2026 – 16 Apr 2026")).toBeInTheDocument();
   });
