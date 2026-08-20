@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { Database } from "../db/client";
 import {
   debtorShareLinks,
@@ -22,14 +22,13 @@ import {
   DEBTOR_STATEMENT_PAGE_SIZE,
   DebtorStatementIntegrityError,
 } from "./debtor-statement";
-import { validateLedgerExportSnapshot, LedgerExportIntegrityError, type LedgerExportSnapshot } from "./ledger-export";
+import { validateLedgerExportSnapshot, type LedgerExportSnapshot } from "./ledger-export";
 import type { RepaymentAllocationInput } from "./repayment-allocation-input";
+import { REPAYMENT_ALLOCATION_PAGE_SIZE } from "./ledger/types";
 import { MAX_RUPIAH } from "./rupiah";
 import {
   calculateShareBreakdown,
   MAX_PERCENTAGE_BASIS_POINTS,
-  type ExpenseShareChargeInput,
-  type ExpenseShareInput as ExpenseShareBaseInput,
 } from "./expense-share-input";
 import {
   buildLedgerHistory,
@@ -59,414 +58,90 @@ import {
   RECORD_PAGE_SIZE,
   type RecordPage,
 } from "./record-retrieval";
+import {
+  addDeletionAmount,
+  assertDeleteOptions,
+  assertDeletionConfirmation,
+  literalContains,
+  notFound,
+  persistenceError,
+  safeDeletionIds,
+  safeRetrievalInteger,
+} from "./ledger/query-utils";
+import {
+  ExpenseShareAllocationInvariantError,
+  ExpenseShareInvariantError,
+  LedgerRepositoryError,
+  RepaymentAllocationAmountInvariantError,
+  RepaymentAllocationShareInvariantError,
+  RepaymentAmountInvariantError,
+  RepaymentFriendInvariantError,
+  OutingDeletionInvariantError,
+  ExpenseDeletionInvariantError,
+  RepaymentDeletionInvariantError,
+} from "./ledger/errors";
+import type {
+  CreateExpenseInput,
+  CreateFriendInput,
+  CreateOutingInput,
+  CreateRepaymentInput,
+  CreateTripInput,
+  DebtorStatementPageOptions,
+  DeleteRecordOptions,
+  EligibleDebtorShareReceiptGroup,
+  ExpenseChargeInput,
+  ExpenseChargeRecord,
+  ExpenseDeletionImpact,
+  ExpenseMutationInput,
+  ExpenseShareInput,
+  ExpenseSplitDefinition,
+  FriendArchiveReversalReceipt,
+  FriendExpenseShareRecord,
+  FriendMutationInput,
+  FriendSelectorOption,
+  GlobalSearchRecord,
+  GlobalSearchRow,
+  LedgerOverviewSummary,
+  OpenExpenseSharesByFriend,
+  OutingDeletionImpact,
+  OutingSelectorOption,
+  OutingMutationInput,
+  RepaymentAllocationPlan,
+  RepaymentAllocationReversalReceipt,
+  RepaymentFriendContext,
+  RepaymentListRecord,
+  RepaymentMutationInput,
+  RepaymentDeletionImpact,
+  RepaymentRecord,
+  RecentActivityRecord,
+  TripFinancialSummary,
+  TripListRecord,
+  TripMutationInput,
+  TripSelectorOption,
+  UpdateExpenseInput,
+  UpdateFriendInput,
+  UpdateOutingInput,
+  UpdateRepaymentInput,
+  UpdateTripInput,
+} from "./ledger/types";
 
-export type LedgerErrorCode =
-  | "INVALID_INPUT"
-  | "INVALID_OWNER"
-  | "NOT_FOUND"
-  | "SHARE_TOTAL_EXCEEDED"
-  | "SHARE_ALLOCATION_EXCEEDED"
-  | "REPAYMENT_AMOUNT_TOO_LOW"
-  | "REPAYMENT_FRIEND_LOCKED"
-  | "REPAYMENT_ALLOCATION_AMOUNT_EXCEEDED"
-  | "REPAYMENT_ALLOCATION_SHARE_EXCEEDED"
-  | "DELETION_CONFIRMATION_REQUIRED"
-  | "PERSISTENCE_ERROR";
-
-export class LedgerRepositoryError extends Error {
-  constructor(
-    readonly code: LedgerErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = "LedgerRepositoryError";
-  }
-}
-
-export class LedgerNotFoundError extends LedgerRepositoryError {
-  constructor() {
-    super("NOT_FOUND", "Ledger record not found");
-    this.name = "LedgerNotFoundError";
-  }
-}
-
-export class ExpenseShareInvariantError extends LedgerRepositoryError {
-  constructor() {
-    super("SHARE_TOTAL_EXCEEDED", "Assigned shares cannot exceed the expense amount.");
-    this.name = "ExpenseShareInvariantError";
-  }
-}
-
-export class ExpenseShareAllocationInvariantError extends LedgerRepositoryError {
-  constructor() {
-    super("SHARE_ALLOCATION_EXCEEDED", "A share cannot be reduced below its existing repayments.");
-    this.name = "ExpenseShareAllocationInvariantError";
-  }
-}
-
-export class RepaymentAmountInvariantError extends LedgerRepositoryError {
-  constructor() {
-    super("REPAYMENT_AMOUNT_TOO_LOW", "Repayment amount cannot be lower than its allocated amount.");
-    this.name = "RepaymentAmountInvariantError";
-  }
-}
-
-export class RepaymentFriendInvariantError extends LedgerRepositoryError {
-  constructor() {
-    super("REPAYMENT_FRIEND_LOCKED", "The friend cannot be changed after this repayment has allocations.");
-    this.name = "RepaymentFriendInvariantError";
-  }
-}
-
-export class RepaymentAllocationAmountInvariantError extends LedgerRepositoryError {
-  constructor() {
-    super("REPAYMENT_ALLOCATION_AMOUNT_EXCEEDED", "Allocated amount cannot exceed the repayment amount.");
-    this.name = "RepaymentAllocationAmountInvariantError";
-  }
-}
-
-export class RepaymentAllocationShareInvariantError extends LedgerRepositoryError {
-  constructor() {
-    super("REPAYMENT_ALLOCATION_SHARE_EXCEEDED", "An allocation cannot exceed the share's remaining balance.");
-    this.name = "RepaymentAllocationShareInvariantError";
-  }
-}
-
-export type FriendMutationInput = {
-  name: string;
-  phoneNumber: string | null;
-  notes: string | null;
-};
-
-export type CreateFriendInput = FriendMutationInput;
-export type UpdateFriendInput = FriendMutationInput;
-export type OutingMutationInput = {
-  title: string;
-  occurredAt: Date;
-  notes: string | null;
-  tripId?: string | null;
-};
-export type CreateOutingInput = OutingMutationInput;
-export type UpdateOutingInput = OutingMutationInput;
-export type OutingSelectorOption = { id: string; title: string; recent?: boolean };
-export type TripMutationInput = {
-  name: string;
-  startsOn: string | null;
-  endsOn: string | null;
-  notes: string | null;
-};
-export type CreateTripInput = TripMutationInput;
-export type UpdateTripInput = TripMutationInput;
-export type TripSelectorOption = { id: string; name: string };
-export type TripSummary = {
-  outingCount: number;
-  expenseCount: number;
-  expenseTotal: number;
-};
-export type TripFinancialSummary = TripSummary & {
-  totalAssignedAmount: number;
-  ownerPortionAmount: number;
-  totalOutstandingAmount: number;
-};
-export type TripListRecord = typeof trips.$inferSelect & TripSummary;
-export type ExpenseMutationInput = {
-  description: string;
-  amount: number;
-  outingId: string;
-};
-export type CreateExpenseInput = ExpenseMutationInput;
-export type UpdateExpenseInput = ExpenseMutationInput;
-export type ExpenseShareInput = ExpenseShareBaseInput;
-export type ExpenseChargeInput = ExpenseShareChargeInput;
-export type ExpenseChargeRecord = ExpenseChargeInput & { id: string };
-export type ExpenseShareRecord = {
-  id: string;
-  friendId: string;
-  friendName: string;
-  friendArchivedAt: Date | null;
-  baseAmount: number;
-  amountOwed: number;
-  appliedAmount: number;
-  remainingAmount: number;
-  settled: boolean;
-};
-export type ExpenseSplitFriendDefinition = Pick<ExpenseShareRecord, "friendId" | "friendName" | "friendArchivedAt" | "baseAmount">;
-export type ExpenseSplitDefinition = { friends: ExpenseSplitFriendDefinition[]; charges: ExpenseChargeInput[] };
-export type RepaymentMutationInput = {
-  friendId: string;
-  amount: number;
-  paidAt: Date;
-  paymentMethod: string | null;
-  notes: string | null;
-};
-export type CreateRepaymentInput = RepaymentMutationInput;
-export type UpdateRepaymentInput = RepaymentMutationInput;
-export type FriendSelectorOption = { id: string; name: string; archived: boolean };
-export type FriendArchiveReversalReceipt = {
-  version: 1;
-  friendId: string;
-  archivedAt: string;
-  updatedAt: string;
-};
-export type RepaymentAllocationReversalReceipt = {
-  version: 1;
-  reversalId: string;
-  allocationId: string;
-  repaymentId: string;
-  expenseShareId: string;
-  friendId: string;
-  amount: number;
-};
-export type RepaymentRecord = {
-  id: string;
-  ownerUserId: string;
-  friendId: string;
-  amount: number;
-  paidAt: Date;
-  paymentMethod: string | null;
-  notes: string | null;
-  createdAt: Date;
-  friendName: string;
-  friendArchivedAt: Date | null;
-};
-
-export type RepaymentListRecord = RepaymentRecord & {
-  allocatedAmount: number;
-  unallocatedAmount: number;
-};
-
-export type FriendExpenseShareRecord = {
-  id: string;
-  expenseId: string;
-  expenseDescription: string;
-  outingTitle: string;
-  outingOccurredAt: Date;
-  amountOwed: number;
-  appliedAmount: number;
-  remainingAmount: number;
-  settled: boolean;
-};
-
-export type LedgerOverviewSummary = Omit<LedgerSummary, "friendBalances"> & {
-  totalAssignedFriendCount: number;
-  friendBalances: FriendBalance[];
-};
-
-export type RecentActivityRecord = {
-  kind: "Expense" | "Repayment";
-  id: string;
-  title: string;
-  detail: string;
-  amount: number;
-  date: Date;
-};
-
-export type GlobalSearchRecord = {
-  kind: "friend" | "trip" | "outing" | "expense" | "repayment";
-  id: string;
-  title: string;
-  detail?: string;
-  context?: string;
-  amount?: number;
-  date?: string;
-};
-
-type GlobalSearchRow = {
-  record_kind: unknown;
-  record_id: unknown;
-  title_source: unknown;
-  detail_source: unknown;
-  context_source: unknown;
-  amount: unknown;
-  occurred_at: unknown;
-};
-
-export type RepaymentAllocationShare = {
-  id: string;
-  expenseShareId: string;
-  expenseDescription: string;
-  outingTitle: string;
-  outingOccurredAt: Date;
-  amountOwed: number;
-  allocatedByOtherRepayments: number;
-  currentAllocation: number;
-  capacityAvailable: number;
-};
-
-export type RepaymentAllocationPage = {
-  items: RepaymentAllocationShare[];
-  page: number;
-  pageSize: number;
-  totalItems: number;
-  totalPages: number;
-};
-
-export const REPAYMENT_ALLOCATION_PAGE_SIZE = 10 as const;
-
-export type RepaymentAllocationPlan = RepaymentRecord & {
-  allocatedAmount: number;
-  unallocatedAmount: number;
-  shares: RepaymentAllocationShare[];
-  sharePage?: RepaymentAllocationPage;
-};
-
-export type DeleteRecordOptions = { cascadeDependents: boolean; expectedImpactRevision?: string };
-
-export type OutingDeletionImpact = {
-  recordType: "outing";
-  expenseCount: number;
-  expenseTotal: number;
-  receiptCount: number;
-  shareCount: number;
-  allocationCount: number;
-  affectedRepaymentCount: number;
-  affectedRepaymentIds: string[];
-  affectedFriendIds: string[];
-};
-
-export type ExpenseDeletionImpact = {
-  recordType: "expense";
-  receiptCount: number;
-  shareCount: number;
-  allocationCount: number;
-  affectedRepaymentCount: number;
-  affectedRepaymentIds: string[];
-  affectedFriendIds: string[];
-};
-
-export type RepaymentDeletionImpact = {
-  recordType: "repayment";
-  allocationCount: number;
-  friendId: string;
-};
-
-export type DeletionImpact = OutingDeletionImpact | ExpenseDeletionImpact | RepaymentDeletionImpact;
-
-export type LedgerDeletionConfirmationReason =
-  | "cascade_confirmation_required"
-  | "impact_changed"
-  | "cascade_confirmation_obsolete";
-
-function normalizedImpactId(value: unknown, label: string) {
-  if (typeof value !== "string" || !value.trim()) throw new LedgerIntegrityError(`${label} is invalid.`);
-  return value.trim().toLowerCase();
-}
-
-function normalizedImpactIds(value: unknown, label: string) {
-  if (!Array.isArray(value)) throw new LedgerIntegrityError(`${label} is invalid.`);
-  const ids = value.map((id) => normalizedImpactId(id, label)).sort();
-  if (new Set(ids).size !== ids.length) throw new LedgerIntegrityError(`${label} contains duplicates.`);
-  return ids;
-}
-
-function deletionImpactInteger(value: unknown, label: string) {
-  if (!Number.isSafeInteger(value) || (value as number) < 0) throw new LedgerIntegrityError(`${label} is invalid.`);
-  return value as number;
-}
-
-function deletionImpactCanonical(impact: DeletionImpact) {
-  if (!impact || typeof impact !== "object" || Array.isArray(impact)) throw new LedgerIntegrityError("Deletion impact is invalid.");
-  const value = impact as unknown as Record<string, unknown>;
-  if (value.recordType === "outing") {
-    const affectedRepaymentIds = normalizedImpactIds(value.affectedRepaymentIds, "Affected repayment ID");
-    const affectedRepaymentCount = deletionImpactInteger(value.affectedRepaymentCount, "Affected repayment count");
-    if (affectedRepaymentCount !== affectedRepaymentIds.length) throw new LedgerIntegrityError("Affected repayment count is invalid.");
-    return {
-      recordType: value.recordType,
-      expenseCount: deletionImpactInteger(value.expenseCount, "Outing expense count"),
-      expenseTotal: deletionImpactInteger(value.expenseTotal, "Outing expense total"),
-      receiptCount: deletionImpactInteger(value.receiptCount, "Outing receipt count"),
-      shareCount: deletionImpactInteger(value.shareCount, "Outing share count"),
-      allocationCount: deletionImpactInteger(value.allocationCount, "Outing allocation count"),
-      affectedRepaymentCount,
-      affectedRepaymentIds,
-      affectedFriendIds: normalizedImpactIds(value.affectedFriendIds, "Affected friend ID"),
-    };
-  }
-  if (value.recordType === "expense") {
-    const affectedRepaymentIds = normalizedImpactIds(value.affectedRepaymentIds, "Affected repayment ID");
-    const affectedRepaymentCount = deletionImpactInteger(value.affectedRepaymentCount, "Affected repayment count");
-    if (affectedRepaymentCount !== affectedRepaymentIds.length) throw new LedgerIntegrityError("Affected repayment count is invalid.");
-    return {
-      recordType: value.recordType,
-      receiptCount: deletionImpactInteger(value.receiptCount, "Expense receipt count"),
-      shareCount: deletionImpactInteger(value.shareCount, "Expense share count"),
-      allocationCount: deletionImpactInteger(value.allocationCount, "Expense allocation count"),
-      affectedRepaymentCount,
-      affectedRepaymentIds,
-      affectedFriendIds: normalizedImpactIds(value.affectedFriendIds, "Affected friend ID"),
-    };
-  }
-  if (value.recordType === "repayment") {
-    return {
-      recordType: value.recordType,
-      allocationCount: deletionImpactInteger(value.allocationCount, "Repayment allocation count"),
-      friendId: normalizedImpactId(value.friendId, "Affected friend ID"),
-    };
-  }
-  throw new LedgerIntegrityError("Deletion impact record type is invalid.");
-}
-
-export function deletionImpactRevision(impact: DeletionImpact): string {
-  return createHash("sha256").update(JSON.stringify(deletionImpactCanonical(impact))).digest("hex");
-}
-
-export class LedgerDeletionConfirmationRequiredError extends LedgerRepositoryError {
-  constructor(
-    readonly impact: DeletionImpact,
-    readonly reason: LedgerDeletionConfirmationReason = "cascade_confirmation_required",
-  ) {
-    super("DELETION_CONFIRMATION_REQUIRED", "Additional destructive confirmation is required.");
-    this.name = "LedgerDeletionConfirmationRequiredError";
-  }
-}
-
-/** @deprecated Use LedgerDeletionConfirmationRequiredError. */
-export class OutingDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}
-/** @deprecated Use LedgerDeletionConfirmationRequiredError. */
-export class ExpenseDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}
-/** @deprecated Use LedgerDeletionConfirmationRequiredError. */
-export class RepaymentDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}
-
-export type OpenExpenseShare = {
-  id: string;
-  friendId: string;
-  friendName: string;
-  expenseDescription: string;
-  outingTitle: string;
-  outingOccurredAt: Date;
-  amountOwed: number;
-  repaidAmount: number;
-  remainingAmount: number;
-};
-
-export type OpenExpenseSharesByFriend = Record<string, OpenExpenseShare[]>;
-
-export type RepaymentFriendContext = {
-  option: FriendSelectorOption;
-  outstandingAmount: number;
-  openExpenseShares: OpenExpenseShare[];
-};
-
-export type EligibleDebtorShareReceipt = {
-  id: string;
-  originalFilename: string;
-  mediaType: string;
-  createdAt: Date;
-};
-
-export type EligibleDebtorShareReceiptGroup = {
-  expenseId: string;
-  expenseDescription: string;
-  outingTitle: string;
-  receipts: EligibleDebtorShareReceipt[];
-};
-
-export type DebtorStatementPageOptions = {
-  expensePage?: unknown;
-  repaymentPage?: unknown;
-};
-
+export type * from "./ledger/types";
+export type { LedgerErrorCode } from "./ledger/errors";
+export {
+  deletionImpactRevision,
+  ExpenseShareAllocationInvariantError,
+  ExpenseShareInvariantError,
+  ExpenseDeletionInvariantError,
+  LedgerDeletionConfirmationRequiredError,
+  LedgerNotFoundError,
+  LedgerRepositoryError,
+  OutingDeletionInvariantError,
+  RepaymentAllocationAmountInvariantError,
+  RepaymentAllocationShareInvariantError,
+  RepaymentAmountInvariantError,
+  RepaymentFriendInvariantError,
+  RepaymentDeletionInvariantError,
+} from "./ledger/errors";
 function assertInput(input: unknown): asserts input is Record<string, unknown> {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Ledger input is invalid");
@@ -721,74 +396,6 @@ function assertExpenseChargesInput(charges: unknown): asserts charges is Expense
 
 function shareBaseAmount(share: ExpenseShareInput) {
   return "baseAmount" in share ? share.baseAmount : share.amountOwed;
-}
-
-function notFound(): never {
-  throw new LedgerNotFoundError();
-}
-
-function persistenceError(error: unknown): never {
-  if (error instanceof LedgerRepositoryError || error instanceof LedgerIntegrityError || error instanceof DebtorStatementIntegrityError || error instanceof LedgerExportIntegrityError || error instanceof LedgerHistoryError) throw error;
-  throw new LedgerRepositoryError("PERSISTENCE_ERROR", "Ledger operation failed");
-}
-
-function literalContains(column: unknown, value: string) {
-  return sql`${column} ILIKE ${`%${escapeLikePattern(value)}%`} ESCAPE ${"\\"}`;
-}
-
-function safeRetrievalInteger(value: unknown, label: string) {
-  const number = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : NaN;
-  if (!Number.isSafeInteger(number) || number < 0) throw new LedgerIntegrityError(`${label} is invalid.`);
-  return number;
-}
-
-function safeDeletionIds(values: unknown[], label: string) {
-  const ids = values.map((value) => {
-    if (typeof value !== "string" || !value.trim()) throw new LedgerIntegrityError(`${label} is invalid.`);
-    return value;
-  });
-  return [...new Set(ids)].sort();
-}
-
-function addDeletionAmount(total: number, amount: unknown, label: string) {
-  const value = safeRetrievalInteger(amount, label);
-  const next = total + value;
-  if (!Number.isSafeInteger(next)) throw new LedgerIntegrityError(`${label} is unsafe.`);
-  return next;
-}
-
-function assertDeleteOptions(options: DeleteRecordOptions): asserts options is DeleteRecordOptions {
-  if (
-    !options ||
-    typeof options.cascadeDependents !== "boolean" ||
-    (options.expectedImpactRevision !== undefined && (typeof options.expectedImpactRevision !== "string" || !/^[0-9a-f]{64}$/.test(options.expectedImpactRevision)))
-  ) {
-    throw new LedgerRepositoryError("INVALID_INPUT", "Deletion options are invalid.");
-  }
-}
-
-function deletionImpactHasDependents(impact: DeletionImpact) {
-  return impact.recordType === "outing"
-    ? impact.expenseCount > 0 || impact.receiptCount > 0 || impact.shareCount > 0 || impact.allocationCount > 0
-    : impact.recordType === "expense"
-      ? impact.receiptCount > 0 || impact.shareCount > 0 || impact.allocationCount > 0
-      : impact.allocationCount > 0;
-}
-
-function assertDeletionConfirmation(
-  impact: DeletionImpact,
-  options: DeleteRecordOptions,
-  ErrorType: new (impact: DeletionImpact, reason?: LedgerDeletionConfirmationReason) => LedgerDeletionConfirmationRequiredError,
-) {
-  if (options.expectedImpactRevision !== undefined && deletionImpactRevision(impact) !== options.expectedImpactRevision) {
-    throw new ErrorType(impact, "impact_changed");
-  }
-  if (options.expectedImpactRevision !== undefined && options.cascadeDependents && !deletionImpactHasDependents(impact)) {
-    throw new ErrorType(impact, "cascade_confirmation_obsolete");
-  }
-  if (deletionImpactHasDependents(impact) && !options.cascadeDependents) {
-    throw new ErrorType(impact);
-  }
 }
 
 type RecentActivityRow = {
