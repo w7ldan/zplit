@@ -517,8 +517,7 @@
 .invites-page__create,
 .invites-page__history {
   min-width: 0;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ink);
+  padding-top: 0;
 }
 
 .invites-page__create h2,
@@ -549,7 +548,6 @@
 .invites-list {
   margin: 1.5rem 0 0;
   padding: 0;
-  border-block: 1px solid var(--ink);
   list-style: none;
 }
 
@@ -956,6 +954,20 @@
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 0.2em;
+}
+
+@media (min-width: 768px) and (max-width: 1099px) {
+  .history-row__link {
+    grid-template-columns: minmax(4.8rem, max-content) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .history-row__values {
+    grid-column: 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 0.4rem;
+    text-align: left;
+  }
 }
 
 .delete-record-form {

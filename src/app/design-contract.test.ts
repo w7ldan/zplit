@@ -230,6 +230,13 @@ describe("Zplit design contract", () => {
     expect(authenticatedShellSource).toContain("white-space: nowrap;");
   });
 
+  it("keeps authenticated list workspaces and medium history rows staged", () => {
+    expect(recordsAndFormsSource).toContain(".records-workspace__toolbar");
+    expect(recordsAndFormsSource).toContain(".friends-toolbar");
+    expect(publicSource).toMatch(/@media \(min-width: 768px\) and \(max-width: 1099px\)[\s\S]*?\.history-row__link[\s\S]*?grid-template-columns: minmax\(4\.8rem, max-content\) minmax\(0, 1fr\);[\s\S]*?\.history-row__values[\s\S]*?grid-column: 2;/);
+    expect(authenticatedShellSource).toContain(".overview-ledger-clarity {\n  border-block: 0;");
+  });
+
   it("keeps Friend detail ownership and workspace anchors intentional", () => {
     expect(recordsAndFormsSource).toContain(".friend-record__title");
     expect(recordsAndFormsSource).toContain(".friend-record__summary {");

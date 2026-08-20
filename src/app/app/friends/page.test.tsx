@@ -32,6 +32,8 @@ describe("/app/friends", () => {
     render(await FriendsPage({ searchParams: Promise.resolve({ view: "active", q: "Ada" }) }));
 
     expect(screen.getByRole("heading", { level: 1, name: "Friends" })).toBeInTheDocument();
+    expect(document.querySelector(".friends-toolbar")!).toContainElement(document.querySelector(".live-record-filters"));
+    expect(document.querySelector(".friends-toolbar")!).toContainElement(document.querySelector(".friends-page__views"));
     expect(screen.getByText("Friends · people you split with")).toBeInTheDocument();
     expect(screen.getByText("Find people connected to your shared expenses and review what remains open.")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/owner records|owner-scoped ledger|chronological ledger/);

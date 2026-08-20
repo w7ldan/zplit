@@ -42,15 +42,19 @@ export default async function TripsPage({ searchParams = Promise.resolve({}) }: 
           </div>
           <Link className="action-link action-link--primary" href={recordHref("/app/trips", params, { create: "1" })} data-task-trigger="trip-create">Add trip</Link>
         </div>
-        <OutingsTripsSwitch current="trips" />
-        {first(params.created) ? <RecordConfirmation queryKey="created" message="Trip added." /> : null}
-        <LiveRecordFilters action="/app/trips" search={{ label: "Search trips", placeholder: "Trip name", value: filters.q ?? "" }} clearHref={filtered ? recordHref("/app/trips", params, { q: undefined, page: undefined }) : undefined} resultStatus={`${tripPage.totalItems} trip${tripPage.totalItems === 1 ? "" : "s"} found.`} preservedParams={params} />
-        <div className="ledger-list" id="record-list">
-          <div className="ledger-list__heading"><span className="technical-label">LATEST FIRST</span><span className="technical-label">{tripPage.totalItems} entries</span></div>
-          {tripPage.items.length > 0 ? tripPage.items.map((trip) => <TripRow key={trip.id} trip={trip} emphasized={first(params.created) === trip.id} />) : (
-            <div className="ledger-empty"><h2>{filtered ? "No matching Trips." : "No Trips yet."}</h2><p>{filtered ? "Try a different Trip name." : "Group your first related outings before adding more ledger records."}</p>{filtered ? null : <Link className="text-link" href={recordHref("/app/trips", params, { create: "1" })} data-task-trigger="trip-create">Add trip <span aria-hidden="true">→</span></Link>}</div>
-          )}
-          <RecordPagination page={tripPage.page} pageSize={tripPage.pageSize} totalItems={tripPage.totalItems} totalPages={tripPage.totalPages} href={recordHref("/app/trips", params)} />
+        <div className="records-workspace">
+          <div className="records-workspace__toolbar">
+            <OutingsTripsSwitch current="trips" />
+            {first(params.created) ? <RecordConfirmation queryKey="created" message="Trip added." /> : null}
+            <LiveRecordFilters action="/app/trips" search={{ label: "Search trips", placeholder: "Trip name", value: filters.q ?? "" }} clearHref={filtered ? recordHref("/app/trips", params, { q: undefined, page: undefined }) : undefined} resultStatus={`${tripPage.totalItems} trip${tripPage.totalItems === 1 ? "" : "s"} found.`} preservedParams={params} />
+          </div>
+          <div className="ledger-list" id="record-list">
+            <div className="ledger-list__heading"><span className="technical-label">LATEST FIRST</span><span className="technical-label">{tripPage.totalItems} entries</span></div>
+            {tripPage.items.length > 0 ? tripPage.items.map((trip) => <TripRow key={trip.id} trip={trip} emphasized={first(params.created) === trip.id} />) : (
+              <div className="ledger-empty"><h2>{filtered ? "No matching Trips." : "No Trips yet."}</h2><p>{filtered ? "Try a different Trip name." : "Group your first related outings before adding more ledger records."}</p>{filtered ? null : <Link className="text-link" href={recordHref("/app/trips", params, { create: "1" })} data-task-trigger="trip-create">Add trip <span aria-hidden="true">→</span></Link>}</div>
+            )}
+            <RecordPagination page={tripPage.page} pageSize={tripPage.pageSize} totalItems={tripPage.totalItems} totalPages={tripPage.totalPages} href={recordHref("/app/trips", params)} />
+          </div>
         </div>
       </div>
       {openCreate ? <TaskPanel open title="Add a Trip" description="Group related outings without changing their financial records." triggerId="trip-create"><TripForm action={createTripAction} /></TaskPanel> : null}

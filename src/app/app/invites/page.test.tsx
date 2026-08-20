@@ -28,7 +28,7 @@ describe("/app/invites", () => {
         id: "invite-a",
         email: "person@example.com",
         suggestedName: "Ada",
-        expiresAt: new Date("2026-08-11T00:00:00.000Z"),
+        expiresAt: new Date("2099-08-11T00:00:00.000Z"),
         acceptedAt: null,
         revokedAt: null,
       },

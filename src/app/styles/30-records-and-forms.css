@@ -1424,6 +1424,69 @@
   text-underline-offset: 0.2em;
 }
 
+.friends-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1rem;
+}
+
+.friends-toolbar .live-record-filters {
+  display: block;
+  padding: 0;
+  border: 0;
+}
+
+.friends-toolbar .live-record-filters__search {
+  width: min(100%, 28rem);
+}
+
+.friends-page__views {
+  gap: 0.75rem;
+}
+
+.records-workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.records-workspace__toolbar {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding-block: 0.5rem 1rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.records-workspace__toolbar .outings-trips-switch {
+  padding-top: 0;
+}
+
+.records-workspace__toolbar .live-record-filters {
+  padding-block: 0.5rem 0;
+  border-block: 0;
+}
+
+.records-workspace > .ledger-list {
+  border-top: 0;
+}
+
+@media (max-width: 767px) {
+  .friends-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .friends-toolbar .live-record-filters__search {
+    width: 100%;
+  }
+
+  .friends-page__views {
+    justify-content: start;
+  }
+}
+
 form.live-record-filters.live-record-filters--mobile-disclosure {
   min-width: 0;
   max-width: 100%;

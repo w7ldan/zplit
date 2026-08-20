@@ -30,6 +30,9 @@ describe("/app/outings", () => {
     render(await OutingsPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Outings" })).toBeInTheDocument();
+    expect(document.querySelector(".records-workspace")!).toContainElement(document.querySelector(".outings-trips-switch"));
+    expect(document.querySelector(".records-workspace")!).toContainElement(document.querySelector(".live-record-filters"));
+    expect(document.querySelector(".records-workspace")!).toContainElement(document.querySelector(".ledger-list"));
     const viewSwitch = screen.getByRole("navigation", { name: "Outings and Trips views" });
     expect(within(viewSwitch).getByRole("link", { name: "Outings" })).toHaveAttribute("aria-current", "page");
     expect(within(viewSwitch).getByRole("link", { name: "Trips" })).toHaveAttribute("href", "/app/trips");

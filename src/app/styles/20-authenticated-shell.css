@@ -2642,7 +2642,7 @@ body.global-search-open {
 }
 
 .overview-ledger-clarity {
-  border-block: 1px solid var(--ink);
+  border-block: 0;
 }
 
 .overview-ledger-clarity > summary {
