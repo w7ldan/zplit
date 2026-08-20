@@ -1339,6 +1339,33 @@ describe("ledger repository", () => {
     expect(queries[0].params).toContain(owner);
   });
 
+  it("searches allocation choices in SQL and clamps the requested page", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    let queryIndex = 0;
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      queryIndex += 1;
+      if (queryIndex === 1) return { rows: [["repayment-a", owner, "friend-a", 100_000, new Date("2026-08-04T00:00:00.000Z"), null, null, new Date("2026-08-04T00:00:00.000Z"), "Ari", null]] };
+      if (sql.includes("count(*)")) return { rows: [[21]] };
+      return { rows: [] };
+    });
+
+    const plan = await createLedgerRepository(database as unknown as Database, owner).getRepaymentAllocationPlan("repayment-a", { q: "Rp 42.500", page: "99" });
+
+    expect(plan.sharePage).toMatchObject({ page: 3, pageSize: 10, totalItems: 21, totalPages: 3, items: [] });
+    const countQuery = queries[2]!;
+    expect(countQuery.sql).toContain("ILIKE");
+    expect(countQuery.sql).toContain('"expense_shares"."amount_owed"');
+    expect(countQuery.sql).toContain("count(*)");
+    expect(countQuery.params).toContain(42_500);
+    expect(countQuery.params).toContain(owner);
+    const pageQuery = queries[3]!;
+    expect(pageQuery.sql).toContain("limit");
+    expect(pageQuery.sql).toContain("offset");
+    expect(pageQuery.params).toContain(10);
+    expect(pageQuery.params).toContain(20);
+  });
+
   it("loads unified history with one owner-scoped query and no private fields", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

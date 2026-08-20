@@ -14,14 +14,18 @@ import { deleteRepaymentAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function RepaymentRecordPage({ params, searchParams }: { params: Promise<{ repaymentId: string }>; searchParams?: Promise<{ created?: string | string[]; saved?: string | string[] }> }) {
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function RepaymentRecordPage({ params, searchParams }: { params: Promise<{ repaymentId: string }>; searchParams?: Promise<{ created?: string | string[]; saved?: string | string[]; q?: string | string[]; page?: string | string[] }> }) {
   const session = await requireSession();
   const { repaymentId } = await params;
   const query = await searchParams;
   const repository = createLedgerRepository(getDatabase(), session.user.id);
   let plan;
   try {
-    plan = await repository.getRepaymentAllocationPlan(repaymentId);
+    plan = await repository.getRepaymentAllocationPlan(repaymentId, { q: first(query?.q), page: first(query?.page) });
   } catch (error) {
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
@@ -44,8 +48,8 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
         {query?.created === "1" ? <RecordConfirmation queryKey="created" message="Repayment recorded. Review eligible shares below." /> : query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Repayment changes saved." /> : null}
         <div className="repayment-record__tasks">
           <div className="repayment-record__primary-task">
-            <div className="repayment-record__allocations">
-              <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, repayment.id)} plan={plan} removeAction={removeRepaymentAllocationAction} undoAction={undoRepaymentAllocationAction} />
+            <div className="repayment-record__allocations" id="repayment-allocations">
+              <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, repayment.id)} plan={plan} allocationQuery={first(query?.q)} allocationPage={plan.sharePage?.page} removeAction={removeRepaymentAllocationAction} undoAction={undoRepaymentAllocationAction} />
             </div>
           </div>
           <aside className="repayment-record__sidebar">

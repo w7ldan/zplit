@@ -136,6 +136,20 @@ describe("repayment actions", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments/repayment-a");
   });
 
+  it("preserves the allocation page context when saving", async () => {
+    const replaceRepaymentAllocations = vi.fn().mockResolvedValue({});
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ replaceRepaymentAllocations });
+    const expenseShareId = "11111111-1111-4111-8111-111111111111";
+    const formData = allocationForm([{ expenseShareId, amountRupiah: "84000" }]);
+    formData.set("allocationQuery", "Dinner");
+    formData.set("allocationPage", "2");
+
+    await expect(replaceRepaymentAllocationsAction("repayment-a", initialAllocationState, formData)).rejects.toThrow("redirect:/app/repayments/repayment-a?saved=1&q=Dinner&page=2#repayment-allocations");
+    expect(replaceRepaymentAllocations).toHaveBeenCalledWith("repayment-a", [{ expenseShareId, amount: 84000 }], { q: "Dinner", page: "2" });
+  });
+
   it("parses repeated create allocations and preserves their values on invariant errors", async () => {
     const expenseShareId = "11111111-1111-4111-8111-111111111111";
     const createRepaymentWithAllocations = vi.fn().mockResolvedValue({ id: "repayment-a" });

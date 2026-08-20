@@ -191,8 +191,16 @@ export async function replaceRepaymentAllocationsAction(
   const result = allocationValuesFromForm(formData);
   if (!result.ok) return { fieldErrors: result.errors, formError: "Please correct the marked fields.", values: result.values };
 
+  const allocationQuery = formData.get("allocationQuery");
+  const allocationPage = formData.get("allocationPage");
+  const hasAllocationContext = allocationQuery !== null || allocationPage !== null;
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).replaceRepaymentAllocations(repaymentId, result.value);
+    const repository = createLedgerRepository(getDatabase(), session.user.id);
+    if (hasAllocationContext) {
+      await repository.replaceRepaymentAllocations(repaymentId, result.value, { q: allocationQuery, page: allocationPage });
+    } else {
+      await repository.replaceRepaymentAllocations(repaymentId, result.value);
+    }
   } catch (error) {
     return {
       fieldErrors: {},
@@ -208,7 +216,11 @@ export async function replaceRepaymentAllocationsAction(
   revalidatePath("/app");
   revalidatePath("/app/repayments");
   revalidatePath(`/app/repayments/${repaymentId}`);
-  redirect(`/app/repayments/${repaymentId}?saved=1`);
+  if (!hasAllocationContext) redirect(`/app/repayments/${repaymentId}?saved=1`);
+  const query = new URLSearchParams({ saved: "1" });
+  if (typeof allocationQuery === "string" && allocationQuery.trim()) query.set("q", allocationQuery.trim());
+  if (typeof allocationPage === "string" && /^[1-9]\d*$/.test(allocationPage)) query.set("page", allocationPage);
+  redirect(`/app/repayments/${repaymentId}?${query.toString()}#repayment-allocations`);
 }
 
 export async function removeRepaymentAllocationAction(

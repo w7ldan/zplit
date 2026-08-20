@@ -293,10 +293,21 @@ export type RepaymentAllocationShare = {
   capacityAvailable: number;
 };
 
+export type RepaymentAllocationPage = {
+  items: RepaymentAllocationShare[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+export const REPAYMENT_ALLOCATION_PAGE_SIZE = 10 as const;
+
 export type RepaymentAllocationPlan = RepaymentRecord & {
   allocatedAmount: number;
   unallocatedAmount: number;
   shares: RepaymentAllocationShare[];
+  sharePage?: RepaymentAllocationPage;
 };
 
 export type DeleteRecordOptions = { cascadeDependents: boolean; expectedImpactRevision?: string };
@@ -3749,7 +3760,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     }
   }
 
-  async function allocationPlanFor(transaction: Pick<Database, "select">, repaymentId: string): Promise<RepaymentAllocationPlan> {
+  async function allocationPlanFor(transaction: Pick<Database, "select">, repaymentId: string, options: { q?: unknown; page?: unknown } = {}): Promise<RepaymentAllocationPlan> {
     const [repayment] = await transaction
       .select(repaymentSelection())
       .from(repayments)
@@ -3758,96 +3769,139 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
       .limit(1);
     if (!repayment) return notFound();
 
-    const currentAllocations = await transaction
+    const search = normalizeText(options.q);
+    const amount = parseAmountSearch(search);
+    const requestedPage = normalizePage(options.page);
+    const currentAllocationRows = transaction
       .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
       .from(repaymentAllocations)
-      .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)));
-    const eligibleShares = await transaction
+      .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)))
+      .as("current_repayment_allocations");
+    const otherAllocationTotals = transaction
       .select({
-        id: expenseShares.id,
-        expenseDescription: expenses.description,
-        expenseCreatedAt: expenses.createdAt,
-        outingTitle: outings.title,
-        outingOccurredAt: outings.occurredAt,
-        amountOwed: expenseShares.amountOwed,
+        ownerUserId: repaymentAllocations.ownerUserId,
+        expenseShareId: repaymentAllocations.expenseShareId,
+        allocatedAmount: sql<number>`sum(${repaymentAllocations.amount})`.mapWith(Number).as("allocated_amount"),
       })
-      .from(expenseShares)
-      .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
-      .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-      .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.friendId, repayment.friendId)))
-      .orderBy(asc(outings.occurredAt), asc(expenses.createdAt), asc(expenseShares.id));
+      .from(repaymentAllocations)
+      .where(and(eq(repaymentAllocations.ownerUserId, owner), ne(repaymentAllocations.repaymentId, repaymentId)))
+      .groupBy(repaymentAllocations.ownerUserId, repaymentAllocations.expenseShareId)
+      .as("other_repayment_allocations");
+    const currentAllocatedAmount = sql<number>`coalesce(${currentAllocationRows.amount}, 0)`.mapWith(Number);
+    const allocatedByOtherRepayments = sql<number>`coalesce(${otherAllocationTotals.allocatedAmount}, 0)`.mapWith(Number);
+    const queryCondition = search
+      ? amount === undefined
+        ? or(literalContains(expenses.description, search), literalContains(outings.title, search))
+        : or(literalContains(expenses.description, search), literalContains(outings.title, search), eq(expenseShares.amountOwed, amount))
+      : undefined;
+    const conditions = [
+      eq(expenseShares.ownerUserId, owner),
+      eq(expenseShares.friendId, repayment.friendId),
+      eq(expenses.ownerUserId, owner),
+      eq(outings.ownerUserId, owner),
+      sql`(${allocatedByOtherRepayments} < ${expenseShares.amountOwed} OR ${currentAllocatedAmount} > 0)`,
+      ...(queryCondition ? [queryCondition] : []),
+    ];
 
-    const eligibleById = new Map(eligibleShares.map((share) => [share.id, share]));
-    const currentByShare = new Map<string, number>();
+    const currentAllocations = await transaction
+      .select({
+        expenseShareId: repaymentAllocations.expenseShareId,
+        amount: repaymentAllocations.amount,
+        friendId: expenseShares.friendId,
+        amountOwed: expenseShares.amountOwed,
+        allocatedByOtherRepayments,
+      })
+      .from(repaymentAllocations)
+      .innerJoin(expenseShares, and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.id, repaymentAllocations.expenseShareId)))
+      .leftJoin(otherAllocationTotals, and(eq(otherAllocationTotals.ownerUserId, owner), eq(otherAllocationTotals.expenseShareId, repaymentAllocations.expenseShareId)))
+      .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)));
     let allocatedAmount = 0;
     for (const allocation of currentAllocations) {
       if (!Number.isSafeInteger(allocation.amount) || allocation.amount <= 0) {
         throw new LedgerIntegrityError(`Allocated amount for repayment ${repaymentId} is invalid.`);
       }
-      if (!eligibleById.has(allocation.expenseShareId)) {
+      if (allocation.friendId !== repayment.friendId) {
         throw new LedgerIntegrityError(`Repayment ${repaymentId} references an unavailable expense share.`);
       }
-      currentByShare.set(allocation.expenseShareId, allocation.amount);
       allocatedAmount += allocation.amount;
       if (!Number.isSafeInteger(allocatedAmount)) throw new LedgerIntegrityError(`Allocated amount for repayment ${repaymentId} is unsafe.`);
+      const amountOwed = safeRetrievalInteger(allocation.amountOwed, `Share for repayment ${repaymentId}`);
+      const allocatedByOther = safeRetrievalInteger(allocation.allocatedByOtherRepayments ?? 0, `Other allocations for share ${allocation.expenseShareId}`);
+      if (allocatedAmount > repayment.amount || allocation.amount + allocatedByOther > amountOwed) {
+        throw new LedgerIntegrityError(`Allocations exceed repayment ${repaymentId}.`);
+      }
     }
     if (allocatedAmount > repayment.amount) throw new LedgerIntegrityError(`Allocations exceed repayment ${repaymentId}.`);
 
-    const shareIds = eligibleShares.map((share) => share.id);
-    const allAllocations = shareIds.length
-      ? await transaction
-          .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
-          .from(repaymentAllocations)
-          .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
-      : [];
-    const allocatedByOther = new Map<string, number>();
-    for (const allocation of allAllocations) {
-      if (!Number.isSafeInteger(allocation.amount) || allocation.amount <= 0) {
-        throw new LedgerIntegrityError(`Allocated amount for share ${allocation.expenseShareId} is invalid.`);
-      }
-      if (allocation.repaymentId === repaymentId) continue;
-      const total = (allocatedByOther.get(allocation.expenseShareId) ?? 0) + allocation.amount;
-      if (!Number.isSafeInteger(total)) throw new LedgerIntegrityError(`Allocated amount for share ${allocation.expenseShareId} is unsafe.`);
-      allocatedByOther.set(allocation.expenseShareId, total);
-    }
+    const [{ count = 0 } = {}] = await transaction
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
+      .from(expenseShares)
+      .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
+      .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+      .leftJoin(currentAllocationRows, eq(currentAllocationRows.expenseShareId, expenseShares.id))
+      .leftJoin(otherAllocationTotals, and(eq(otherAllocationTotals.ownerUserId, owner), eq(otherAllocationTotals.expenseShareId, expenseShares.id)))
+      .where(and(...conditions));
+    const totalItems = safeRetrievalInteger(count, "Repayment allocation share count");
+    const page = clampPage(requestedPage, totalItems, REPAYMENT_ALLOCATION_PAGE_SIZE);
+    const eligibleShares = await transaction
+      .select({
+        id: expenseShares.id,
+        expenseDescription: expenses.description,
+        outingTitle: outings.title,
+        outingOccurredAt: outings.occurredAt,
+        amountOwed: expenseShares.amountOwed,
+        allocatedByOtherRepayments,
+        currentAllocation: currentAllocatedAmount,
+      })
+      .from(expenseShares)
+      .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
+      .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+      .leftJoin(currentAllocationRows, eq(currentAllocationRows.expenseShareId, expenseShares.id))
+      .leftJoin(otherAllocationTotals, and(eq(otherAllocationTotals.ownerUserId, owner), eq(otherAllocationTotals.expenseShareId, expenseShares.id)))
+      .where(and(...conditions))
+      .orderBy(asc(outings.occurredAt), asc(expenses.createdAt), asc(expenseShares.id))
+      .limit(REPAYMENT_ALLOCATION_PAGE_SIZE)
+      .offset((page - 1) * REPAYMENT_ALLOCATION_PAGE_SIZE);
 
+    const shares = eligibleShares.map((share) => {
+      const amountOwed = safeRetrievalInteger(share.amountOwed, `Share for expense ${share.id}`);
+      const allocatedByOtherRepayments = safeRetrievalInteger(share.allocatedByOtherRepayments ?? 0, `Other allocations for share ${share.id}`);
+      const currentAllocation = safeRetrievalInteger(share.currentAllocation ?? 0, `Allocation for share ${share.id}`);
+      const capacityAvailable = amountOwed - allocatedByOtherRepayments;
+      if (capacityAvailable < 0 || currentAllocation + allocatedByOtherRepayments > amountOwed) {
+        throw new LedgerIntegrityError(`Allocations exceed expense share ${share.id}.`);
+      }
+      return {
+        id: share.id,
+        expenseShareId: share.id,
+        expenseDescription: share.expenseDescription,
+        outingTitle: share.outingTitle,
+        outingOccurredAt: share.outingOccurredAt,
+        amountOwed,
+        allocatedByOtherRepayments,
+        currentAllocation,
+        capacityAvailable,
+      };
+    });
     return {
       ...repayment,
       allocatedAmount,
       unallocatedAmount: repayment.amount - allocatedAmount,
-      shares: eligibleShares
-        .map((share) => {
-          const allocatedByOtherRepayments = allocatedByOther.get(share.id) ?? 0;
-          const capacityAvailable = share.amountOwed - allocatedByOtherRepayments;
-          if (!Number.isSafeInteger(capacityAvailable) || capacityAvailable < 0) {
-            throw new LedgerIntegrityError(`Allocations exceed expense share ${share.id}.`);
-          }
-          return {
-            id: share.id,
-            expenseShareId: share.id,
-            expenseDescription: share.expenseDescription,
-            outingTitle: share.outingTitle,
-            outingOccurredAt: share.outingOccurredAt,
-            amountOwed: share.amountOwed,
-            allocatedByOtherRepayments,
-            currentAllocation: currentByShare.get(share.id) ?? 0,
-            capacityAvailable,
-          };
-        })
-        .filter((share) => share.capacityAvailable > 0 || share.currentAllocation > 0),
+      shares,
+      sharePage: { items: shares, page, pageSize: REPAYMENT_ALLOCATION_PAGE_SIZE, totalItems, totalPages: Math.max(1, Math.ceil(totalItems / REPAYMENT_ALLOCATION_PAGE_SIZE)) },
     };
   }
 
-  async function getRepaymentAllocationPlan(repaymentId: string) {
+  async function getRepaymentAllocationPlan(repaymentId: string, options: { q?: unknown; page?: unknown } = {}) {
     assertRepaymentId(repaymentId);
     try {
-      return await allocationPlanFor(database, repaymentId);
+      return await allocationPlanFor(database, repaymentId, options);
     } catch (error) {
       return persistenceError(error);
     }
   }
 
-  async function replaceRepaymentAllocations(repaymentId: string, allocations: RepaymentAllocationInput[]) {
+  async function replaceRepaymentAllocations(repaymentId: string, allocations: RepaymentAllocationInput[], options: { q?: unknown; page?: unknown } = {}) {
     assertRepaymentId(repaymentId);
     assertRepaymentAllocationsInput(allocations);
     const requested = allocations.map((allocation) => ({
@@ -3864,11 +3918,14 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
           .for("update");
         if (!repayment) return notFound();
 
+        const allocationPlan = await allocationPlanFor(transaction, repaymentId, options);
         const currentAllocations = await transaction
           .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
           .from(repaymentAllocations)
           .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)));
-        const lockedShareIds = [...new Set([...currentAllocations.map((allocation) => allocation.expenseShareId), ...requested.map((allocation) => allocation.expenseShareId)])].sort();
+        const editableShareIds = new Set(allocationPlan.shares.map((share) => share.expenseShareId));
+        if (requested.some((allocation) => !editableShareIds.has(allocation.expenseShareId))) return notFound();
+        const lockedShareIds = [...editableShareIds].sort();
         const lockedShares = lockedShareIds.length
           ? await transaction
               .select({ id: expenseShares.id, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
@@ -3901,8 +3958,12 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         }
 
         const requestedTotal = requested.reduce((total, allocation) => total + allocation.amount, 0);
-        if (!Number.isSafeInteger(requestedTotal)) throw new LedgerRepositoryError("INVALID_INPUT", "Repayment allocations are invalid");
-        if (requestedTotal > repayment.amount) throw new RepaymentAllocationAmountInvariantError();
+        const editableCurrentTotal = currentAllocations
+          .filter((allocation) => editableShareIds.has(allocation.expenseShareId))
+          .reduce((total, allocation) => total + allocation.amount, 0);
+        if (!Number.isSafeInteger(requestedTotal) || !Number.isSafeInteger(editableCurrentTotal)) throw new LedgerRepositoryError("INVALID_INPUT", "Repayment allocations are invalid");
+        const preservedAllocationTotal = allocationPlan.allocatedAmount - editableCurrentTotal;
+        if (!Number.isSafeInteger(preservedAllocationTotal) || preservedAllocationTotal < 0 || preservedAllocationTotal + requestedTotal > repayment.amount) throw new RepaymentAllocationAmountInvariantError();
         const sharesById = new Map(lockedShares.map((share) => [share.id, share]));
         for (const allocation of requested) {
           const share = sharesById.get(allocation.expenseShareId);
@@ -3936,7 +3997,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
         }
 
         const requestedIds = new Set(requested.map((allocation) => allocation.expenseShareId));
-        const omittedIds = currentAllocations.map((allocation) => allocation.expenseShareId).filter((id) => !requestedIds.has(id));
+        const omittedIds = currentAllocations.map((allocation) => allocation.expenseShareId).filter((id) => editableShareIds.has(id) && !requestedIds.has(id));
         if (omittedIds.length > 0) {
           await transaction
             .delete(repaymentAllocations)
@@ -3947,7 +4008,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
             ));
         }
 
-        return await allocationPlanFor(transaction, repaymentId);
+        return await allocationPlanFor(transaction, repaymentId, options);
       });
     } catch (error) {
       return persistenceError(error);

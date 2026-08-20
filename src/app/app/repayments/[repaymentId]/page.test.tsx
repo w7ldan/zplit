@@ -55,7 +55,7 @@ describe("repayment record", () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
     const getRepaymentDeletionImpact = vi.fn().mockResolvedValue(deletionImpact);
-    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact, searchFriends: vi.fn().mockResolvedValue([{ id: friend.id, name: friend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: friend.id, name: friend.name, archived: false }, outstandingAmount: 44_000, openExpenseShares: [] }) });
+    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact, searchFriends: vi.fn().mockResolvedValue([{ id: friend.id, name: friend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: friend.id, name: friend.name, archived: false }, outstandingAmount: 44_000, openExpenseShares: [] }), listRecentPaymentMethods: vi.fn().mockResolvedValue([]) });
 
     render(<ToastProvider>{await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }) })}</ToastProvider>);
 

@@ -794,6 +794,34 @@
   line-height: 1;
 }
 
+.repayment-allocation-editor__search {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.repayment-allocation-editor__search label {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.repayment-allocation-editor__search > div {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.repayment-allocation-editor__search input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.repayment-allocation-editor__search button {
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
 .expense-share-editor__totals,
 .repayment-allocation-editor__totals {
   display: grid;

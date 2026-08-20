@@ -10,6 +10,7 @@ import { formatRupiah, parseRupiah } from "@/domain/rupiah";
 import type { RepaymentAllocationActionState, RepaymentAllocationRemovalActionState, RepaymentAllocationUndoState } from "@/app/app/repayments/actions";
 import { useToast } from "@/components/feedback/toast";
 import { ChangedValue } from "@/components/expenses/expense-share-editor";
+import { RecordPagination } from "@/components/records/record-pagination";
 
 type RepaymentAllocationAction = (
   previousState: RepaymentAllocationActionState,
@@ -31,6 +32,8 @@ type RepaymentAllocationRemovalActionFactory = (
 type RepaymentAllocationEditorProps = {
   action: RepaymentAllocationAction;
   plan: RepaymentAllocationPlan;
+  allocationQuery?: string;
+  allocationPage?: number;
   removeAction?: RepaymentAllocationRemovalActionFactory;
   undoAction?: (receipt: RepaymentAllocationReversalReceipt) => Promise<RepaymentAllocationUndoState>;
 };
@@ -122,11 +125,14 @@ function RemoveAllocationForm({ action, undoAction, onRemoved, onUndone }: { act
   );
 }
 
-export function RepaymentAllocationEditor({ action, plan, removeAction, undoAction }: RepaymentAllocationEditorProps) {
+export function RepaymentAllocationEditor({ action, plan, allocationQuery, allocationPage: requestedAllocationPage, removeAction, undoAction }: RepaymentAllocationEditorProps) {
+  const allocationPage = plan.sharePage ?? { items: plan.shares, page: requestedAllocationPage ?? 1, pageSize: 10, totalItems: plan.shares.length, totalPages: 1 };
   const values = initialValues(plan);
   const [state, formAction] = useActionState(action, { ...emptyActionState, values });
   const [draftAmounts, setDraftAmounts] = useState<Record<string, string>>(() => Object.fromEntries(values.map((value) => [value.expenseShareId, value.amountRupiah])));
-  const allocatedAmount = plan.shares.reduce((total, share) => total + (parseRupiah(draftAmounts[share.expenseShareId] ?? "") ?? 0), 0);
+  const visibleCurrentAllocation = plan.shares.reduce((total, share) => total + share.currentAllocation, 0);
+  const preservedAllocationAmount = plan.allocatedAmount - visibleCurrentAllocation;
+  const allocatedAmount = preservedAllocationAmount + plan.shares.reduce((total, share) => total + (parseRupiah(draftAmounts[share.expenseShareId] ?? "") ?? 0), 0);
   const overAllocated = allocatedAmount > plan.amount;
   const unallocatedAmount = Math.max(plan.amount - allocatedAmount, 0);
   const allocationProgress = plan.amount > 0 ? Math.min(Math.max(allocatedAmount / plan.amount, 0), 1) : 0;
@@ -143,12 +149,23 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
     return () => window.clearTimeout(timer);
   }, [overAllocated, unallocatedAmount]);
 
-  if (plan.shares.length === 0) {
+  const search = (
+    <form className="repayment-allocation-editor__search" method="get">
+      <label htmlFor="repayment-allocation-search">Search allocation choices</label>
+      <div>
+        <input id="repayment-allocation-search" name="q" type="search" defaultValue={allocationQuery ?? ""} placeholder="Expense, outing, or exact amount" />
+        <button className="action-link action-link--quiet" type="submit">Search</button>
+      </div>
+    </form>
+  );
+
+  if (allocationPage.items.length === 0) {
     return (
       <div className="repayment-allocation-editor repayment-allocation-editor--empty">
         <p className="technical-label">REPAYMENT ALLOCATIONS</p>
-        <p>No outstanding shares for this friend.</p>
-        <Link className="action-link" href="/app/expenses">Go to Expenses <span aria-hidden="true">→</span></Link>
+        {search}
+        <p>{allocationQuery ? "No matching expense shares." : "No outstanding shares for this friend."}</p>
+        {allocationQuery ? <Link className="action-link" href={`/app/repayments/${plan.id}#repayment-allocations`}>Clear search</Link> : <Link className="action-link" href="/app/expenses">Go to Expenses <span aria-hidden="true">→</span></Link>}
       </div>
     );
   }
@@ -160,6 +177,7 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
     <div className="repayment-allocation-editor">
       <p className="technical-label">REPAYMENT ALLOCATIONS</p>
       <h2>Apply the received money</h2>
+      {search}
       <div className="repayment-allocation-editor__totals" aria-live="polite">
         <div><span className="technical-label">Repayment amount</span><strong>{formatRupiah(plan.amount)}</strong></div>
         <div><span className="technical-label">Applied to shares</span><strong><ChangedValue value={allocatedAmount}>{formatRupiah(allocatedAmount)}</ChangedValue></strong></div>
@@ -170,6 +188,8 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
         <span className={completionTransition ? "allocation-bar__message allocation-bar__message--complete" : "allocation-bar__message"}>{overAllocated ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.` : unallocatedAmount > 0 ? `${formatRupiah(unallocatedAmount)} needs allocation. Only applied money reduces outstanding balances.` : "This repayment is fully applied. Applied money reduces outstanding balances."}</span>
       </div>
       <form className="repayment-allocation-editor__form" action={formAction} noValidate>
+        <input type="hidden" name="allocationPage" value={allocationPage.page} />
+        <input type="hidden" name="allocationQuery" value={allocationQuery ?? ""} />
         <p className="repayment-allocation-editor__help">Enter a whole-rupiah amount. A blank field removes this allocation.</p>
         {plan.shares.map((share) => {
           const fieldErrorId = `repayment-allocation-${share.expenseShareId}-error`;
@@ -209,6 +229,7 @@ export function RepaymentAllocationEditor({ action, plan, removeAction, undoActi
         <p className="repayment-allocation-editor__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
         <SubmitButton />
       </form>
+      <RecordPagination page={allocationPage.page} pageSize={allocationPage.pageSize} totalItems={allocationPage.totalItems} totalPages={allocationPage.totalPages} href={`/app/repayments/${plan.id}${allocationQuery ? `?q=${encodeURIComponent(allocationQuery)}` : ""}`} anchor="repayment-allocations" />
     </div>
   );
 }

@@ -98,6 +98,19 @@ describe("RepaymentAllocationEditor", () => {
     expect(screen.getByText(description, { exact: true })).toBeInTheDocument();
   });
 
+  it("keeps off-page allocations in the live totals and preserves search context", () => {
+    render(<RepaymentAllocationEditor action={vi.fn()} plan={{ ...plan, allocatedAmount: 50000, unallocatedAmount: 34000, sharePage: { items: plan.shares, page: 2, pageSize: 10, totalItems: 21, totalPages: 3 } }} allocationQuery="42.500" />);
+
+    expect(screen.getByRole("searchbox", { name: "Search allocation choices" })).toHaveValue("42.500");
+    expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute("href", `/app/repayments/${plan.id}?q=42.500&page=1#repayment-allocations`);
+    expect(document.querySelector('input[name="allocationPage"]')).toHaveValue("2");
+    expect(document.querySelector('input[name="allocationQuery"]')).toHaveValue("42.500");
+
+    fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "12000" } });
+    expect(screen.getByRole("progressbar", { name: "Repayment allocation progress" })).toHaveAttribute("aria-valuenow", "22000");
+    expect(screen.getByText("Rp 62.000 needs allocation. Only applied money reduces outstanding balances.")).toBeInTheDocument();
+  });
+
   it("emphasizes changed allocation totals and resolves back to partial state", () => {
     render(<RepaymentAllocationEditor action={vi.fn()} plan={plan} />);
     expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(0);
