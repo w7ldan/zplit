@@ -165,6 +165,12 @@ describe("expense share editor", () => {
     expect(within(summary).getByText("Rp 40.000", { exact: true })).toBeInTheDocument();
   });
 
+  it("uses a decimal keyboard for percentage charges", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} charges={[{ name: "Service", percentageBasisPoints: 750, scope: "all", friendIds: [] }]} />);
+
+    expect(screen.getByLabelText("Charge 1 percentage")).toHaveAttribute("inputmode", "decimal");
+  });
+
   it("replaces the current draft with the previous saved split and drops unavailable targets", () => {
     render(<ExpenseShareEditor
       action={vi.fn()}
