@@ -79,6 +79,14 @@ describe("GlobalSearch", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("keeps wheel interaction inside results from closing the search", () => {
+    renderSearch();
+    openSearch();
+    fireEvent.wheel(screen.getByRole("listbox", { name: "Search results" }), { deltaY: 240 });
+
+    expect(screen.getByRole("dialog", { name: "Find a record" })).toBeInTheDocument();
+  });
+
   it("renders grouped owner-search results with concise amount context", async () => {
     const search = vi.fn().mockResolvedValue(records);
     renderSearch(search);
@@ -144,7 +152,10 @@ describe("GlobalSearch", () => {
     const publicPage = readFileSync(path.resolve(process.cwd(), "src/app/page.tsx"), "utf8");
     expect(styles).toContain("body.global-search-open");
     expect(styles).toContain("max-height: calc(100svh - 1.5rem)");
-    expect(styles).toContain("overflow: auto");
+    expect(styles).toMatch(/\.global-search__backdrop\s*\{[\s\S]*?overflow: hidden;/);
+    expect(styles).toMatch(/\.global-search__dialog\s*\{[\s\S]*?grid-template-rows: auto auto minmax\(0, 1fr\);/);
+    expect(styles).toMatch(/\.global-search__results\s*\{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;[\s\S]*?overscroll-behavior: contain;/);
+    expect(styles).toContain("width: min(38rem, 100%);");
     expect(publicPage).not.toContain("GlobalSearch");
   });
 });
