@@ -6,6 +6,7 @@ Zplit is a self-hostable, owner-scoped ledger for shared expenses, friend balanc
 
 - Multi-account ledgers with every record isolated to its owner.
 - Friends, Trips, Outings, and outing-bound Expenses with whole-rupiah friend shares.
+- Trip-specific settlement balances and direct contextual repayment entry, derived from the normal share/allocation ledger.
 - Percentage charges, repayment records, payment methods, and manual, oldest-first, or newest-first allocation strategies.
 - Allocation-safe Expense deletion can automatically reallocate affected repayment allocations oldest-first to other outstanding shares for the same friend; any unresolved remainder stays unallocated, while Repayment amounts remain unchanged.
 - Private PostgreSQL-backed receipts, plus private temporary debtor balance links with selectable receipts.

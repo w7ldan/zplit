@@ -2825,6 +2825,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .trip-record__notes,
+.trip-record__settlement,
 .trip-record__outings,
 .trip-record__form,
 .trip-delete-form {
@@ -2836,6 +2837,46 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   margin: 0;
   color: var(--muted-ink);
   white-space: pre-wrap;
+}
+
+.trip-record__settlement {
+  order: 3;
+  min-width: 0;
+}
+
+.trip-record__settlement-list {
+  display: grid;
+}
+
+.trip-record__settlement-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--ink);
+}
+
+.trip-record__settlement-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+
+.trip-record__settlement-row > div span {
+  color: var(--muted-ink);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.trip-summary-copy__fallback {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .trip-record__outings {
@@ -2937,6 +2978,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 @media (min-width: 960px) {
   .trip-record__meta,
   .trip-record__financials,
+  .trip-record__settlement,
   .trip-record__outings {
     grid-column: 1 / -1;
   }
@@ -2966,6 +3008,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 @media (max-width: 959px) {
   .trip-record__meta,
   .trip-record__financials,
+  .trip-record__settlement,
   .trip-record__notes,
   .trip-record__outings,
   .trip-record__form,
@@ -2990,6 +3033,11 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
   .trip-record__actions {
     justify-items: start;
+  }
+
+  .trip-record__settlement-row {
+    align-items: start;
+    flex-direction: column;
   }
 
   .trip-form__dates {

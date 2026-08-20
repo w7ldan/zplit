@@ -520,6 +520,7 @@ describe("ledger repository", () => {
         invalid_repayment_allocations: "0",
         invalid_share_allocations: "0",
         invalid_owner_portions: "0",
+        friend_settlements: [{ friend_id: "friend-a", friend_name: "Rani", amount_owed: "126500", allocated_amount: "100000", outstanding_amount: "26500" }],
       }] };
     });
     await expect(createLedgerRepository(database as unknown as Database, owner).getTripSummary("11111111-1111-4111-8111-111111111111")).resolves.toEqual({
@@ -529,6 +530,7 @@ describe("ledger repository", () => {
       totalAssignedAmount: 126500,
       ownerPortionAmount: 57500,
       totalOutstandingAmount: 26500,
+      friendSettlements: [{ friendId: "friend-a", friendName: "Rani", amountOwed: 126500, allocatedAmount: 100000, outstandingAmount: 26500 }],
     });
     expect(queries).toHaveLength(1);
     expect(queries[0].sql).toContain("trip_outings");
@@ -536,7 +538,7 @@ describe("ledger repository", () => {
     expect(queries[0].sql).toContain("share_allocation_totals");
     expect(queries[0].sql).toContain("repayment_allocations");
     expect(queries[0].sql).toContain("t.owner_user_id = $");
-    expect(queries[0].params.filter((value) => value === owner)).toHaveLength(8);
+    expect(queries[0].params.filter((value) => value === owner)).toHaveLength(9);
     expect(queries[0].params).toContain("11111111-1111-4111-8111-111111111111");
   });
 
@@ -554,6 +556,7 @@ describe("ledger repository", () => {
       invalid_repayment_allocations: "0",
       invalid_share_allocations: "0",
       invalid_owner_portions: "0",
+      friend_settlements: [],
     }] }));
     await expect(createLedgerRepository(database as unknown as Database, owner).getTripSummary("11111111-1111-4111-8111-111111111111")).resolves.toEqual({
       outingCount: 0,
@@ -562,6 +565,7 @@ describe("ledger repository", () => {
       totalAssignedAmount: 0,
       ownerPortionAmount: 0,
       totalOutstandingAmount: 0,
+      friendSettlements: [],
     });
   });
 

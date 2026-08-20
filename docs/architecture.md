@@ -37,6 +37,8 @@ Friends → Trips / Outings → Expenses → Shares / Charges
                               Repayments → Allocations
 ```
 
+Trips are grouping records, not repayment entities: Trip settlement is derived from its Outing Expenses, Friend Shares, and normal Repayment Allocations.
+
 Friends are the people who may owe the owner. Trips group outings; an Outing supplies the occurrence date/time and owns its Expenses. An Expense has an owner portion and friend Shares. A Share can receive one or more percentage Charges, either for all friends on the expense or for a selected set. A Repayment belongs to one Friend and its Allocations apply received money to that friend’s eligible Shares.
 
 Only allocated repayment money reduces an outstanding balance. An allocation cannot cross friends, exceed the repayment amount, or exceed the share amount after other allocations.

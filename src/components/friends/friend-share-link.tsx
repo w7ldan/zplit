@@ -6,10 +6,10 @@ import type { EligibleDebtorShareReceiptGroup } from "@/domain/ledger-repository
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { buildFriendReminder, buildWhatsAppUrl } from "@/domain/friend-reminder";
 import { BalanceLinkQr } from "./balance-link-qr";
+import { copyLabel, copyText, type CopyStatus } from "@/components/feedback/copy-text";
 
 type ShareAction = (previousState: DebtorShareActionState, formData: FormData) => Promise<DebtorShareActionState>;
 type ShareStatus = { status: "none" | "active" | "expired" | "revoked"; expiresAt: string | null };
-type CopyStatus = "idle" | "copied" | "selected" | "failed";
 type ShareLink = { token: string; expiresAt: string };
 type LinkRollback = { link: ShareLink; expiresAt: string | null; reminder: string | null };
 type LinkState = {
@@ -29,33 +29,6 @@ const emptyActionState: DebtorShareActionState = { error: "", link: null, statem
 
 function SubmitButton({ label, pending, disabled }: { label: string; pending: string; disabled: boolean }) {
   return <button className="action-link action-link--primary" type="submit" disabled={disabled} aria-busy={disabled}>{disabled ? pending : label}</button>;
-}
-
-async function copyText(text: string, fallbackTarget: HTMLInputElement | HTMLTextAreaElement | null): Promise<CopyStatus> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return "copied";
-  } catch {
-    if (!fallbackTarget) return "failed";
-    try {
-      fallbackTarget.focus();
-      fallbackTarget.select();
-    } catch {
-      return "failed";
-    }
-    try {
-      return document.execCommand("copy") ? "copied" : "selected";
-    } catch {
-      return "selected";
-    }
-  }
-}
-
-function copyLabel(status: CopyStatus, idle: string) {
-  if (status === "copied") return "Copied";
-  if (status === "selected") return "Selected — press Ctrl+C";
-  if (status === "failed") return "Copy unavailable";
-  return idle;
 }
 
 export function FriendShareLink({

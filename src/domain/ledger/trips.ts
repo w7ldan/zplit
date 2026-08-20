@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
-import { expenses, outings, trips } from "../../db/schema";
+import { expenses, friends, outings, trips } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
 import { ledgerDifference, ledgerInteger, literalContains, notFound, persistenceError, safeRetrievalInteger } from "./query-utils";
 import { clampPage, normalizeText, normalizeUuid, pageResult, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
@@ -20,6 +20,7 @@ type TripAggregateRow = {
   invalid_repayment_allocations: unknown;
   invalid_share_allocations: unknown;
   invalid_owner_portions: unknown;
+  friend_settlements: unknown;
 };
 
 function tripAggregateQuery(owner: string, tripId: string) {
@@ -53,6 +54,17 @@ function tripAggregateQuery(owner: string, tripId: string) {
         AND a.expense_share_id = s.id
       WHERE s.owner_user_id = ${owner}
       GROUP BY s.id, s.friend_id, s.amount_owed
+    ),
+    friend_settlements AS (
+      SELECT s.friend_id, f.name AS friend_name,
+        SUM(s.amount_owed)::text AS amount_owed,
+        SUM(s.allocated_amount)::text AS allocated_amount,
+        SUM(s.amount_owed - s.allocated_amount)::text AS outstanding_amount
+      FROM share_allocation_totals s
+      INNER JOIN friends f
+        ON f.owner_user_id = ${owner}
+        AND f.id = s.friend_id
+      GROUP BY s.friend_id, f.name
     ),
     trip_repayment_ids AS (
       SELECT DISTINCT a.repayment_id
@@ -94,7 +106,14 @@ function tripAggregateQuery(owner: string, tripId: string) {
         (SELECT COUNT(*) FROM allocation_links WHERE repayment_friend_id IS NULL OR share_friend_id IS NULL OR repayment_friend_id <> share_friend_id)::text AS invalid_cross_friend_allocations,
         (SELECT COUNT(*) FROM repayment_allocation_totals WHERE allocated_amount > amount)::text AS invalid_repayment_allocations,
         (SELECT COUNT(*) FROM share_allocation_totals WHERE allocated_amount > amount_owed)::text AS invalid_share_allocations,
-        (SELECT COUNT(*) FROM trip_expenses WHERE assigned_amount > amount)::text AS invalid_owner_portions
+        (SELECT COUNT(*) FROM trip_expenses WHERE assigned_amount > amount)::text AS invalid_owner_portions,
+        COALESCE((SELECT json_agg(json_build_object(
+          'friend_id', friend_id,
+          'friend_name', friend_name,
+          'amount_owed', amount_owed,
+          'allocated_amount', allocated_amount,
+          'outstanding_amount', outstanding_amount
+        ) ORDER BY friend_name, friend_id) FROM friend_settlements), '[]'::json) AS friend_settlements
     )
     SELECT t.id AS trip_id, totals.*
     FROM trips t
@@ -102,6 +121,20 @@ function tripAggregateQuery(owner: string, tripId: string) {
     WHERE t.owner_user_id = ${owner}
       AND t.id = ${tripId}
   `;
+}
+
+function parseTripSettlements(value: unknown) {
+  if (!Array.isArray(value)) throw new LedgerIntegrityError("Trip friend settlements are invalid.");
+  return value.map((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new LedgerIntegrityError(`Trip friend settlement ${index} is invalid.`);
+    const row = entry as Record<string, unknown>;
+    if (typeof row.friend_id !== "string" || !row.friend_id || typeof row.friend_name !== "string") throw new LedgerIntegrityError(`Trip friend settlement ${index} is invalid.`);
+    const amountOwed = ledgerInteger(row.amount_owed, `Trip friend ${row.friend_id} amount owed`);
+    const allocatedAmount = ledgerInteger(row.allocated_amount, `Trip friend ${row.friend_id} allocated amount`);
+    const outstandingAmount = ledgerInteger(row.outstanding_amount, `Trip friend ${row.friend_id} outstanding amount`);
+    if (outstandingAmount !== ledgerDifference(amountOwed, allocatedAmount, `Trip friend ${row.friend_id} outstanding amount`)) throw new LedgerIntegrityError(`Trip friend ${row.friend_id} outstanding amount is inconsistent.`);
+    return { friendId: row.friend_id, friendName: row.friend_name, amountOwed, allocatedAmount, outstandingAmount };
+  });
 }
 
 function parseTripAggregate(row: TripAggregateRow): TripFinancialSummary {
@@ -133,6 +166,7 @@ function parseTripAggregate(row: TripAggregateRow): TripFinancialSummary {
     totalAssignedAmount,
     ownerPortionAmount,
     totalOutstandingAmount,
+    friendSettlements: parseTripSettlements(row.friend_settlements ?? []),
   };
 }
 

@@ -6,10 +6,11 @@ import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-rep
 import { TripForm } from "@/components/trips/trip-form";
 import { TripDeleteForm } from "@/components/trips/trip-delete-form";
 import { OutingRow } from "@/components/outings/outing-row";
-import { CalendarDateRange } from "@/components/editorial/local-date-time";
+import { CalendarDateRange, formatCalendarDate } from "@/components/editorial/local-date-time";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { formatRupiah } from "@/domain/rupiah";
+import { TripSummaryCopy } from "@/components/trips/trip-summary-copy";
 import { updateTripAction, deleteTripAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,16 @@ export const metadata = { title: "Trip details" };
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function tripDateSummary(startsOn: string | null, endsOn: string | null) {
+  return startsOn && endsOn
+    ? `${formatCalendarDate(startsOn)} – ${formatCalendarDate(endsOn)}`
+    : startsOn
+      ? `From ${formatCalendarDate(startsOn)}`
+      : endsOn
+        ? `Until ${formatCalendarDate(endsOn)}`
+        : "Dates not set";
 }
 
 export default async function TripRecordPage({ params, searchParams }: { params: Promise<{ tripId: string }>; searchParams?: Promise<{ saved?: string | string[]; page?: string | string[] }> }) {
@@ -37,12 +48,14 @@ export default async function TripRecordPage({ params, searchParams }: { params:
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
   }
+  const friendSettlements = summary.friendSettlements ?? [];
+  const copySummary = [`${trip.name} · ${tripDateSummary(trip.startsOn, trip.endsOn)}`, "", ...friendSettlements.map((friend) => friend.outstandingAmount > 0 ? `${friend.friendName}: ${formatRupiah(friend.outstandingAmount)} outstanding` : `${friend.friendName}: settled`)].join("\n");
   return (
     <section className="app-page trip-record" id="top">
         <div className="editorial-grid editorial-shell trip-record__layout">
           <div className="trip-record__intro">
             <div><p className="technical-label">Trip · editable grouping</p><h1>{trip.name}</h1></div>
-            <div className="trip-record__actions"><Link className="action-link action-link--quiet" href={`/app/outings?create=1&trip=${trip.id}`}>Add outing</Link><Link className="trip-record__back" href="/app/trips">← Back to Trips</Link></div>
+            <div className="trip-record__actions"><TripSummaryCopy text={copySummary} /><Link className="action-link action-link--quiet" href={`/app/outings?create=1&trip=${trip.id}`}>Add outing</Link><Link className="trip-record__back" href="/app/trips">← Back to Trips</Link></div>
           </div>
           {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Trip changes saved." /> : null}
           <section className="trip-record__summary" aria-label="Trip summary">
@@ -56,6 +69,13 @@ export default async function TripRecordPage({ params, searchParams }: { params:
               <div><span className="technical-label">Assigned to friends</span><strong>{formatRupiah(summary.totalAssignedAmount)}</strong></div>
               <div><span className="technical-label">Your portion</span><strong>{formatRupiah(summary.ownerPortionAmount)}</strong></div>
               <div><span className="technical-label">Outstanding</span><strong>{formatRupiah(summary.totalOutstandingAmount)}</strong></div>
+            </section>
+            <section className="trip-record__settlement" aria-labelledby="trip-settlement-heading">
+              <div className="trip-record__section-heading"><div><p className="technical-label">SETTLE BALANCES</p><h2 id="trip-settlement-heading">Friend balances</h2></div></div>
+              {friendSettlements.length > 0 ? <div className="trip-record__settlement-list">{friendSettlements.map((friend) => <div className="trip-record__settlement-row" key={friend.friendId}>
+                <div><strong>{friend.friendName}</strong>{friend.outstandingAmount > 0 ? <span>{formatRupiah(friend.outstandingAmount)} outstanding</span> : <span className="technical-label">Settled</span>}</div>
+                {friend.outstandingAmount > 0 ? <Link className="action-link action-link--quiet" href={`/app/repayments?create=1&friendId=${friend.friendId}&tripId=${trip.id}`}>Record repayment <span aria-hidden="true">→</span></Link> : null}
+              </div>)}</div> : <div className="ledger-empty"><h3>No friend shares in this Trip yet.</h3><p>Settlement appears after an expense is shared with a friend.</p></div>}
             </section>
             {trip.notes ? <p className="trip-record__notes">{trip.notes}</p> : null}
           </section>

@@ -33,10 +33,18 @@ export type TripSummary = {
   expenseCount: number;
   expenseTotal: number;
 };
+export type TripSettlementFriend = {
+  friendId: string;
+  friendName: string;
+  amountOwed: number;
+  allocatedAmount: number;
+  outstandingAmount: number;
+};
 export type TripFinancialSummary = TripSummary & {
   totalAssignedAmount: number;
   ownerPortionAmount: number;
   totalOutstandingAmount: number;
+  friendSettlements: TripSettlementFriend[];
 };
 export type TripListRecord = typeof trips.$inferSelect & TripSummary;
 export type ExpenseMutationInput = {

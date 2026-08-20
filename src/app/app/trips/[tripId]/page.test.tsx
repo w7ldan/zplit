@@ -16,7 +16,7 @@ describe("Trip record", () => {
   it("renders summary, paginated outings, contextual Add outing, and delete copy", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.createLedgerRepository.mockReturnValue({ getTrip: vi.fn().mockResolvedValue(trip), getTripSummary: vi.fn().mockResolvedValue({ outingCount: 2, expenseCount: 3, expenseTotal: 184_000, totalAssignedAmount: 126_500, ownerPortionAmount: 57_500, totalOutstandingAmount: 26_500 }), listOutingRecords: vi.fn().mockResolvedValue(outingPage) });
+    mocks.createLedgerRepository.mockReturnValue({ getTrip: vi.fn().mockResolvedValue(trip), getTripSummary: vi.fn().mockResolvedValue({ outingCount: 2, expenseCount: 3, expenseTotal: 184_000, totalAssignedAmount: 126_500, ownerPortionAmount: 57_500, totalOutstandingAmount: 26_500, friendSettlements: [{ friendId: "friend-rani", friendName: "Rani", amountOwed: 40_000, allocatedAmount: 12_000, outstandingAmount: 28_000 }, { friendId: "friend-fajar", friendName: "Fajar", amountOwed: 30_000, allocatedAmount: 30_000, outstandingAmount: 0 }] }), listOutingRecords: vi.fn().mockResolvedValue(outingPage) });
     render(await TripRecordPage({ params: Promise.resolve({ tripId: trip.id }) }));
     expect(screen.getByRole("heading", { level: 1, name: "Bali 2026" })).toBeInTheDocument();
     expect(document.querySelector(".trip-record__summary")!).toContainElement(document.querySelector(".trip-record__meta"));
@@ -30,6 +30,14 @@ describe("Trip record", () => {
     expect(screen.getByText("Rp 126.500")).toBeInTheDocument();
     expect(screen.getByText("Rp 57.500")).toBeInTheDocument();
     expect(screen.getByText("Rp 26.500")).toBeInTheDocument();
+    expect(screen.getByText("SETTLE BALANCES")).toBeInTheDocument();
+    expect(screen.getByText("Rani")).toBeInTheDocument();
+    expect(screen.getByText("Rp 28.000 outstanding")).toBeInTheDocument();
+    expect(screen.getByText("Fajar")).toBeInTheDocument();
+    expect(screen.getByText("Settled")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Record repayment/ })).toHaveAttribute("href", `/app/repayments?create=1&friendId=friend-rani&tripId=${trip.id}`);
+    expect(screen.getByRole("button", { name: "Copy trip summary" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Trip summary copy fallback")).toHaveValue("Bali 2026 · 12 Apr 2026 – 16 Apr 2026\n\nRani: Rp 28.000 outstanding\nFajar: settled");
     expect(screen.getByText(/no expenses or financial ledger data are deleted/i)).toBeInTheDocument();
   });
 
@@ -39,6 +47,7 @@ describe("Trip record", () => {
     mocks.createLedgerRepository.mockReturnValue({ getTrip: vi.fn().mockResolvedValue(trip), getTripSummary: vi.fn().mockResolvedValue({ outingCount: 0, expenseCount: 0, expenseTotal: 0, totalAssignedAmount: 0, ownerPortionAmount: 0, totalOutstandingAmount: 0 }), listOutingRecords: vi.fn().mockResolvedValue(outingPage) });
     render(await TripRecordPage({ params: Promise.resolve({ tripId: trip.id }) }));
     expect(screen.getAllByText("Rp 0")).toHaveLength(4);
+    expect(screen.getByText("No friend shares in this Trip yet.")).toBeInTheDocument();
   });
 
   it("maps foreign Trips to notFound", async () => {
