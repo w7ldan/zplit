@@ -4,8 +4,7 @@
   background: var(--paper);
 }
 
-.friend-row__edit,
-.friend-record__back {
+.friend-row__edit {
   position: relative;
   width: fit-content;
   padding-block: 0.2rem;
@@ -16,8 +15,7 @@
   text-transform: uppercase;
 }
 
-.friend-row__edit::after,
-.friend-record__back::after {
+.friend-row__edit::after {
   position: absolute;
   right: 0;
   bottom: 0;
@@ -31,9 +29,7 @@
 }
 
 .friend-row__edit:hover::after,
-.friend-row__edit:focus-visible::after,
-.friend-record__back:hover::after,
-.friend-record__back:focus-visible::after {
+.friend-row__edit:focus-visible::after {
   transform: scaleX(1);
   transform-origin: left;
 }
@@ -64,7 +60,6 @@
 
 .ledger-overview__layout,
 .friends-page__layout,
-.friend-record__layout,
 .outings-page__layout,
 .outing-record__layout {
   position: relative;
@@ -91,7 +86,6 @@
 
 .ledger-overview__intro > .technical-label,
 .friends-page__intro > .technical-label,
-.friend-record__intro > .technical-label,
 .outings-page__intro > .technical-label,
 .outing-record__intro > .technical-label {
   margin: 0;
@@ -99,7 +93,6 @@
 
 .ledger-overview h1,
 .friends-page h1,
-.friend-record h1,
 .outings-page h1,
 .outing-record h1 {
   max-width: 9ch;
@@ -294,7 +287,6 @@
 }
 
 .friends-page__intro h1,
-.friend-record__intro h1,
 .outings-page__intro h1,
 .outing-record__intro h1,
 .ledger-overview h1 {
@@ -656,61 +648,9 @@
   cursor: pointer;
 }
 
-.friend-form__submit:disabled,
-.friend-record__archive button:disabled {
+.friend-form__submit:disabled {
   cursor: wait;
   opacity: 0.65;
-}
-
-.friend-record__intro {
-  grid-column: 2 / span 7;
-  padding-block: clamp(4rem, 9vw, 7rem) 2rem;
-}
-
-.friend-record__intro h1 {
-  max-width: 10ch;
-}
-
-.friend-record__back {
-  display: inline-block;
-  margin-top: 2rem;
-}
-
-.friend-record__meta {
-  display: grid;
-  grid-column: 2 / span 5;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--ink);
-}
-
-.friend-record__meta div {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.friend-record__meta strong,
-.friend-record__meta time {
-  font-size: 0.95rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.friend-record__form {
-  grid-column: 2 / span 5;
-  margin-top: 4rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ink);
-}
-
-.friend-record__archive-wrap {
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--rule);
-}
-
-.friend-record__archive {
-  cursor: pointer;
 }
 
 .outing-form__submit:disabled {
@@ -1832,7 +1772,6 @@
 
   .ledger-overview__layout,
   .friends-page__layout,
-  .friend-record__layout,
   .outings-page__layout,
   .outing-record__layout {
     padding-block: 1.5rem 3.5rem;
@@ -1840,7 +1779,6 @@
 
   .ledger-overview__intro,
   .friends-page__intro,
-  .friend-record__intro,
   .outings-page__intro,
   .outing-record__intro {
     grid-column: 1 / -1;
@@ -1850,7 +1788,6 @@
 
   .ledger-overview h1,
   .friends-page h1,
-  .friend-record h1,
   .outings-page h1,
   .outing-record h1 {
     font-size: clamp(3.5rem, 15vw, 5.5rem);
@@ -1890,8 +1827,6 @@
 
   .friends-page__list,
   .friends-page__create,
-  .friend-record__meta,
-  .friend-record__form,
   .outings-page__list,
   .outings-page__create,
   .outing-record__meta,
@@ -1950,16 +1885,8 @@
     margin-top: 4rem;
   }
 
-  .friend-record__meta {
-    margin-top: 1rem;
-  }
-
   .outing-record__meta {
     margin-top: 1rem;
-  }
-
-  .friend-record__form {
-    margin-top: 3rem;
   }
 
   .outing-record__form {

@@ -62,8 +62,10 @@ export default async function FriendRecordPage({ params, searchParams }: { param
     <section className="app-page friend-record" id="top">
       <div className="editorial-grid editorial-shell friend-record__layout">
         <div className="friend-record__intro">
-          <p className="technical-label">Friend · editable record</p>
-          <h1>{friend.name}</h1>
+          <div className="friend-record__title">
+            <p className="technical-label">Friend · editable record</p>
+            <h1>{friend.name}</h1>
+          </div>
           <div className="friend-record__actions">
             <Link className="action-link action-link--quiet" href={`/app/repayments?create=1&friendId=${friend.id}`}>Record repayment</Link>
             {balance.outstandingAmount > 0 ? <Link className="action-link action-link--quiet" href={`/app/repayments?create=1&friendId=${friend.id}&amount=${balance.outstandingAmount}&strategy=oldest`}>Settle {formatRupiah(balance.outstandingAmount)}</Link> : null}

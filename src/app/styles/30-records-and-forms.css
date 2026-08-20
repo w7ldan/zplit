@@ -221,6 +221,13 @@
   padding-block: 1.5rem 4rem;
 }
 
+.friend-record__layout {
+  position: relative;
+  z-index: 1;
+  align-content: start;
+  row-gap: 0;
+}
+
 .friend-record__intro,
 .outing-record__intro,
 .expense-record__intro,
@@ -249,6 +256,14 @@
   overflow-wrap: anywhere;
 }
 
+.friend-record__title {
+  min-width: 0;
+}
+
+.friend-record__title > .technical-label {
+  margin: 0;
+}
+
 .friend-record__back,
 .outing-record__back,
 .expense-record__back,
@@ -257,6 +272,35 @@
   color: var(--muted-ink);
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.friend-record__back {
+  position: relative;
+  width: fit-content;
+  padding-block: 0.2rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.friend-record__back::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: var(--ink);
+  content: "";
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--motion-instant) var(--ease-out);
+}
+
+.friend-record__back:hover::after,
+.friend-record__back:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
 }
 
 .friend-record__actions,
@@ -287,6 +331,10 @@
 .friend-record__meta,
 .outing-record__meta {
   grid-column: 2 / span 5;
+}
+
+.friend-record__meta {
+  grid-column: 1 / -1;
 }
 
 .expense-record__meta,
@@ -406,6 +454,22 @@
 .friend-record__form,
 .outing-record__form {
   grid-column: 2 / span 5;
+}
+
+.friend-record__archive-wrap {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.friend-record__archive {
+  cursor: pointer;
+}
+
+.friend-form__submit:disabled,
+.friend-record__archive button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .expense-record__form,
@@ -1267,6 +1331,22 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 @media (max-width: 767px) {
+  .friend-record__layout {
+    padding-block: 1.5rem 3.5rem;
+  }
+
+  .friend-record__intro {
+    display: grid;
+    align-items: start;
+    gap: 1rem;
+    padding-block: 3.5rem 2rem;
+    padding-right: 0.5rem;
+  }
+
+  .friend-record__actions {
+    justify-items: start;
+  }
+
   .friend-record__balance dl,
   .expense-share-editor__totals,
   .repayment-allocation-editor__totals,
@@ -1285,6 +1365,14 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   .repayment-record__meta {
     grid-column: 1 / -1;
     grid-template-columns: 1fr;
+  }
+
+  .friend-record__meta {
+    margin-top: 1rem;
+  }
+
+  .friend-record__form {
+    margin-top: 3rem;
   }
 
   .expense-record__tasks,

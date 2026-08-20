@@ -230,6 +230,15 @@ describe("Zplit design contract", () => {
     expect(authenticatedShellSource).toContain("white-space: nowrap;");
   });
 
+  it("keeps Friend detail ownership and workspace anchors intentional", () => {
+    expect(recordsAndFormsSource).toContain(".friend-record__title");
+    expect(recordsAndFormsSource).toContain(".friend-record__meta {\n  grid-column: 1 / -1;");
+    expect(recordsAndFormsSource).toContain(".friend-record__form,\n.outing-record__form {\n  grid-column: 2 / span 5;");
+    expect(authenticatedShellSource).not.toContain(".friend-record__meta");
+    expect(authenticatedShellSource).not.toContain(".friend-record__form");
+    expect(lateOverridesSource).toContain(".friend-share {");
+  });
+
   it("keeps the desktop Journey on a centered narrower working canvas", () => {
     const desktopStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) {");
     const mobileStart = publicSource.indexOf("@media (max-width: 959px) {");
