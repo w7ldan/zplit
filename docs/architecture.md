@@ -58,7 +58,7 @@ PostgreSQL transactions and row locks protect workflows whose read impact must m
 - creating or changing receipts locks the Expense, checks count, byte budget, duplicate hash, and inserts metadata plus bytes together;
 - creating, revoking, or changing a debtor link locks the Friend and eligible receipts while replacing the active link and receipt mappings;
 - invitation creation and acceptance use an advisory lock plus claim/accept checks so a token is one-time and race-safe;
-- destructive ledger actions calculate current impact, require an explicit confirmation revision when dependents exist, then delete and reconcile in a transaction;
+- destructive ledger actions calculate current impact and require an explicit confirmation revision when dependents exist; Expense deletion then reconciles allocations in the same transaction before deletion, while Outing deletion does not invoke that reconciliation workflow;
 - migrations take an advisory lock before Drizzle applies the migration journal.
 
 ## Receipts
@@ -75,7 +75,7 @@ The balance link is a seven-day bearer token. A random UUID is returned to the o
 
 ## Delete-time allocation reconciliation
 
-Deleting an Expense or its owning Outing first locks the affected Shares and repayment Allocations. Allocations attached to deleted Shares are removed; for each affected Repayment, released money is reallocated oldest-first to remaining eligible open Shares for the same Friend. Any amount with no remaining capacity stays on the Repayment as unallocated. The operation returns affected Friends and Repayments so their views can be revalidated, and the UI explains the impact before confirmation.
+Expense deletion first locks the affected Shares and repayment Allocations. Allocations attached to deleted Shares are removed; for each affected Repayment, released money is reallocated oldest-first to remaining eligible open Shares for the same Friend. Any amount with no remaining capacity stays on the Repayment as unallocated. Repayment amounts remain historical payment records and are not rewritten. The operation returns affected Friends and Repayments so their views can be revalidated, and the UI explains the impact before confirmation. Outing deletion has a separate confirmed dependent-data cascade and does not invoke this reconciliation workflow.
 
 ## Date, time, and theme contracts
 

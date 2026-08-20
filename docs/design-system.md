@@ -61,7 +61,7 @@ Record retrieval is URL-backed: free-text search is debounced and live, discrete
 
 Database cascades model true ownership: an Outing owns its Expenses, an Expense owns its receipts and shares, and a Repayment owns its allocation links. Destructive cascades always disclose their impact before the controls, and dependent data requires an extra explicit confirmation.
 
-Deleting an Expense allocation link never silently deletes the Repayment. The repayment remains and its removed amount becomes unallocated. Server confirmation is based on current transactional impact, not client counts.
+Deleting an Expense or its allocation link never silently deletes the Repayment. For Expense deletion, released allocation is reassigned where safe; any unreconciled remainder becomes unallocated and is surfaced for review. The recorded Repayment amount remains unchanged. Server confirmation is based on current transactional impact, not client counts.
 
 ## Motion and accessibility
 
