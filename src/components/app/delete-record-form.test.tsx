@@ -46,7 +46,7 @@ describe("DeleteRecordForm", () => {
     const impact = { ...impacts.expense, receiptCount: 1, shareCount: 2, allocationCount: 1, affectedRepaymentCount: 1, affectedRepaymentIds: ["repayment-a"], affectedFriendIds: ["friend-a"] };
     render(<DeleteRecordForm action={action} recordType="expense" impact={impact} impactRevision={revision} />);
     expect(screen.getByText("Also permanently delete this expense’s 1 receipt, 2 shares, and 1 allocation.")).toBeInTheDocument();
-    expect(screen.getByText("The repayment records remain, but the removed amounts will become unallocated.")).toBeInTheDocument();
+    expect(screen.getByText(/Deleting this expense removes its shares/)).toHaveTextContent("Repayment amounts will not change");
     fireEvent.click(screen.getByRole("checkbox", { name: "Confirm deletion" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Also delete this expense’s related data" }));
     expect(screen.getByRole("button", { name: "Delete expense and related data" })).toBeEnabled();
@@ -128,5 +128,28 @@ describe("DeleteRecordForm", () => {
     render(<DeleteConfirmation message="Expense deleted." />);
     expect(replace).toHaveBeenCalledWith("/app/expenses?keep=1", { scroll: false });
     expect(screen.getByRole("status")).toHaveTextContent("Expense deleted.");
+  });
+
+  it.each([
+    ["full", "/app/expenses?deleted=1&reallocated=70000&unallocated=0", "Expense deleted. Rp 70.000 of repayment allocations was reassigned to other outstanding expenses.", false],
+    ["partial", "/app/expenses?deleted=1&reallocated=70000&unallocated=30000", "Expense deleted. Rp 70.000 was reassigned. Rp 30.000 remains unallocated.", true],
+    ["unallocated", "/app/expenses?deleted=1&reallocated=0&unallocated=100000", "Expense deleted. Rp 100.000 from affected repayments remains unallocated because there was no remaining outstanding capacity.", true],
+  ] as const)("explains %s allocation reconciliation", async (_name, path, message, review) => {
+    replace.mockClear();
+    window.history.replaceState({}, "", path);
+    render(<DeleteConfirmation />);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(message));
+    expect(screen.getByRole("status")).not.toHaveTextContent(/repayment amount.*changed/i);
+    if (review) expect(screen.getByRole("link", { name: "Review repayments" })).toHaveAttribute("href", "/app/repayments?allocation=needs");
+    else expect(screen.queryByRole("link", { name: "Review repayments" })).not.toBeInTheDocument();
+    expect(replace).toHaveBeenCalledWith("/app/expenses", { scroll: false });
+  });
+
+  it("keeps the normal feedback when no allocations were affected", async () => {
+    replace.mockClear();
+    window.history.replaceState({}, "", "/app/expenses?deleted=1");
+    render(<DeleteConfirmation />);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Expense deleted."));
+    expect(screen.queryByRole("link", { name: "Review repayments" })).not.toBeInTheDocument();
   });
 });

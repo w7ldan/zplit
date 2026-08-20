@@ -2,8 +2,10 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DeletionImpact } from "@/domain/ledger-repository";
+import { formatRupiah } from "@/domain/rupiah";
 
 export type DeleteRecordActionState = { formError: string; impact?: DeletionImpact; impactRevision?: string };
 export type DeleteRecordAction = (
@@ -58,6 +60,13 @@ function dependencySummary(impact: DeletionImpact) {
   return `Also permanently remove this repayment’s ${countLabel(impact.allocationCount, "allocation")}.`;
 }
 
+function consequence(recordType: DeleteRecordFormProps["recordType"], impact: DeletionImpact) {
+  if (recordType === "expense" && impact.allocationCount > 0) {
+    return "Deleting this expense removes its shares. Zplit will automatically reassign affected repayment amounts to other outstanding expenses for the same friend where possible. Repayment amounts will not change; money that cannot be reassigned remains unallocated.";
+  }
+  return copy[recordType].consequence;
+}
+
 function cascadeLabel(impact: DeletionImpact) {
   if (impact.recordType === "outing") return `Also delete ${countLabel(impact.expenseCount, "expense")} and related data`;
   if (impact.recordType === "expense") return "Also delete this expense’s related data";
@@ -104,11 +113,11 @@ function DeleteRecordFormRevision({ state, formAction, recordType, impact, impac
     <section className="delete-record-form" aria-labelledby={`delete-${recordType}-heading`}>
       <p className="technical-label">DELETE RECORD</p>
       <h2 id={`delete-${recordType}-heading`}>{details.label}</h2>
-      <p>{details.consequence}</p>
+      <p>{consequence(recordType, impact)}</p>
       {hasDependents ? (
         <div className="delete-record-form__summary" role="alert">
           <p>{dependencySummary(impact)}</p>
-          {impact.recordType !== "repayment" && impact.allocationCount > 0 ? <p>The repayment records remain, but the removed amounts will become unallocated.</p> : null}
+          {impact.recordType === "outing" && impact.allocationCount > 0 ? <p>The repayment records remain, but the removed amounts will become unallocated.</p> : null}
           {impact.recordType === "repayment" && impact.allocationCount > 0 ? <p>Expense shares remain; only this repayment’s allocation links are removed.</p> : null}
         </div>
       ) : null}
@@ -131,33 +140,54 @@ function DeleteRecordFormRevision({ state, formAction, recordType, impact, impac
   );
 }
 
-const deletedMessages: Record<string, string> = {
-  "/app/trips": "Trip deleted.",
-  "/app/outings": "Outing deleted.",
-  "/app/expenses": "Expense deleted.",
-  "/app/repayments": "Repayment deleted.",
+type DeleteFeedback = { message: string; reviewRepayments: boolean };
+
+const deletedMessages: Record<string, DeleteFeedback> = {
+  "/app/trips": { message: "Trip deleted.", reviewRepayments: false },
+  "/app/outings": { message: "Outing deleted.", reviewRepayments: false },
+  "/app/expenses": { message: "Expense deleted.", reviewRepayments: false },
+  "/app/repayments": { message: "Repayment deleted.", reviewRepayments: false },
 };
+
+function queryAmount(value: string | null) {
+  if (!value || !/^\d+$/.test(value)) return undefined;
+  const amount = Number(value);
+  return Number.isSafeInteger(amount) && amount >= 0 ? amount : undefined;
+}
+
+function deletedFeedback(url: URL): DeleteFeedback | undefined {
+  const normal = deletedMessages[url.pathname];
+  if (!normal || url.pathname !== "/app/expenses") return normal;
+  const reallocated = queryAmount(url.searchParams.get("reallocated"));
+  const unallocated = queryAmount(url.searchParams.get("unallocated"));
+  if (reallocated === undefined || unallocated === undefined || reallocated === 0 && unallocated === 0) return normal;
+  if (unallocated === 0) return { message: `Expense deleted. ${formatRupiah(reallocated)} of repayment allocations was reassigned to other outstanding expenses.`, reviewRepayments: false };
+  if (reallocated > 0) return { message: `Expense deleted. ${formatRupiah(reallocated)} was reassigned. ${formatRupiah(unallocated)} remains unallocated.`, reviewRepayments: true };
+  return { message: `Expense deleted. ${formatRupiah(unallocated)} from affected repayments remains unallocated because there was no remaining outstanding capacity.`, reviewRepayments: true };
+}
 
 export function DeleteConfirmation({ message }: { message?: string }) {
   const router = useRouter();
-  const [visibleMessage, setVisibleMessage] = useState(message);
+  const [visibleFeedback, setVisibleFeedback] = useState<DeleteFeedback | undefined>(message ? { message, reviewRepayments: false } : undefined);
 
   useEffect(() => {
     const url = new URL(window.location.href);
     const hasDeletedFlag = url.searchParams.get("deleted") === "1";
-    const resolvedMessage = message ?? (hasDeletedFlag ? deletedMessages[url.pathname] : undefined);
-    if (!resolvedMessage) return;
+    const feedback = message ? { message, reviewRepayments: false } : hasDeletedFlag ? deletedFeedback(url) : undefined;
+    if (!feedback) return;
     if (hasDeletedFlag) {
       url.searchParams.delete("deleted");
+      url.searchParams.delete("reallocated");
+      url.searchParams.delete("unallocated");
       router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
     }
-    const revealTimer = window.setTimeout(() => setVisibleMessage(resolvedMessage), 0);
-    const timer = window.setTimeout(() => setVisibleMessage(undefined), 4000);
+    const revealTimer = window.setTimeout(() => setVisibleFeedback(feedback), 0);
+    const timer = window.setTimeout(() => setVisibleFeedback(undefined), 4000);
     return () => {
       window.clearTimeout(revealTimer);
       window.clearTimeout(timer);
     };
   }, [message, router]);
 
-  return visibleMessage ? <p className="record-confirmation" role="status" aria-live="polite">{visibleMessage}</p> : null;
+  return visibleFeedback ? <p className="record-confirmation" role="status" aria-live="polite">{visibleFeedback.message}{visibleFeedback.reviewRepayments ? <> <Link href="/app/repayments?allocation=needs">Review repayments</Link></> : null}</p> : null;
 }

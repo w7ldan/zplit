@@ -267,5 +267,10 @@ export async function deleteExpenseAction(
     revalidatePath(`/app/repayments/${repaymentId}`);
   }
   revalidatePath("/share/[token]", "page");
-  redirect("/app/expenses?deleted=1");
+  const feedback = new URLSearchParams({ deleted: "1" });
+  if (result.reallocatedAmount > 0 || result.unallocatedAmount > 0) {
+    feedback.set("reallocated", String(result.reallocatedAmount));
+    feedback.set("unallocated", String(result.unallocatedAmount));
+  }
+  redirect(`/app/expenses?${feedback.toString()}`);
 }

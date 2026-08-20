@@ -250,4 +250,17 @@ describe("expense actions", () => {
     await expect(deleteExpenseAction("expense-a", { formError: "" }, confirmed)).rejects.toThrow("redirect:/app/expenses?deleted=1");
     expect(deleteExpense).toHaveBeenCalledWith("expense-a", { cascadeDependents: true, expectedImpactRevision: revision });
   });
+
+  it.each([
+    ["full", 70_000, 0, "redirect:/app/expenses?deleted=1&reallocated=70000&unallocated=0"],
+    ["partial", 70_000, 30_000, "redirect:/app/expenses?deleted=1&reallocated=70000&unallocated=30000"],
+    ["unallocated", 0, 100_000, "redirect:/app/expenses?deleted=1&reallocated=0&unallocated=100000"],
+  ] as const)("passes %s reconciliation totals to the delete feedback", async (_name, reallocatedAmount, unallocatedAmount, redirectPath) => {
+    const deleteExpense = vi.fn().mockResolvedValue({ friendIds: ["friend-a"], repaymentIds: ["repayment-a"], reallocatedAmount, unallocatedAmount, affectedRepaymentCount: 1 });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ deleteExpense });
+    await expect(deleteExpenseAction("expense-a", { formError: "" }, form({ confirm: "delete", confirmCascade: "delete-dependents", impactRevision: revision }))).rejects.toThrow(redirectPath);
+    expect(deleteExpense).toHaveBeenCalledWith("expense-a", { cascadeDependents: true, expectedImpactRevision: revision });
+  });
 });
