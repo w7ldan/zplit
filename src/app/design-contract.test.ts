@@ -294,6 +294,10 @@ describe("Zplit design contract", () => {
 
   it("keeps detail grids owned, stable, and mobile-safe", () => {
     expect(recordsAndFormsSource).not.toContain("grid-column: 1 / span 6");
+    expect(recordsAndFormsSource).not.toContain("grid-column: 2 / span 5");
+    for (const selector of [".outing-record__summary", ".outing-record__workspace", ".expense-record__controls", ".repayment-record__controls", ".trip-record__summary"]) {
+      expect(recordsAndFormsSource).toContain(selector);
+    }
     expect(recordsAndFormsSource).toContain("grid-template-columns: repeat(12, minmax(0, 1fr));");
     expect(recordsAndFormsSource).toContain("grid-column: 1 / span 8;");
     expect(recordsAndFormsSource).toContain("grid-column: 9 / -1;");

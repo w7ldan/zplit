@@ -53,32 +53,34 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
             </div>
           </div>
           <aside className="repayment-record__sidebar">
-            <div className="repayment-record__meta" aria-label="Repayment metadata">
-              <div><span className="technical-label">Received</span><strong>{formatRupiah(repayment.amount)}</strong></div>
-              <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(repayment.allocatedAmount)}</strong></div>
-              <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(repayment.unallocatedAmount)}</strong></div>
-              <div><span className="technical-label">Payment date</span><LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" /></div>
-              <div><span className="technical-label">Payment method</span><span>{repayment.paymentMethod ?? "—"}</span></div>
-              <div><span className="technical-label">Notes</span><span className="repayment-record__notes-value">{repayment.notes ?? "—"}</span></div>
-            </div>
-            <div className="repayment-record__form">
-              <p className="technical-label">EDIT RECORD</p>
-              <RepaymentForm
-                action={updateRepaymentAction.bind(null, repayment.id)}
-                friends={friendOptions}
-                searchFriends={searchFriendOptions}
-                recentPaymentMethods={recentPaymentMethods}
-                mode="edit"
-                friendLocked={repayment.allocatedAmount > 0}
-                initialFriendContext={formContext}
-                loadFriendContext={loadRepaymentFriendContext}
-                initialPaidAtUtc={repayment.paidAt.toISOString()}
-                initialValues={{ friendId: repayment.friendId, amountRupiah: repayment.amount.toString(), paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: repayment.paymentMethod ?? "", notes: repayment.notes ?? "" }}
-              />
+            <div className="repayment-record__controls">
+              <div className="repayment-record__meta" aria-label="Repayment metadata">
+                <div><span className="technical-label">Received</span><strong>{formatRupiah(repayment.amount)}</strong></div>
+                <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(repayment.allocatedAmount)}</strong></div>
+                <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(repayment.unallocatedAmount)}</strong></div>
+                <div><span className="technical-label">Payment date</span><LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" /></div>
+                <div><span className="technical-label">Payment method</span><span>{repayment.paymentMethod ?? "—"}</span></div>
+                <div><span className="technical-label">Notes</span><span className="repayment-record__notes-value">{repayment.notes ?? "—"}</span></div>
+              </div>
+              <div className="repayment-record__form">
+                <p className="technical-label">EDIT RECORD</p>
+                <RepaymentForm
+                  action={updateRepaymentAction.bind(null, repayment.id)}
+                  friends={friendOptions}
+                  searchFriends={searchFriendOptions}
+                  recentPaymentMethods={recentPaymentMethods}
+                  mode="edit"
+                  friendLocked={repayment.allocatedAmount > 0}
+                  initialFriendContext={formContext}
+                  loadFriendContext={loadRepaymentFriendContext}
+                  initialPaidAtUtc={repayment.paidAt.toISOString()}
+                  initialValues={{ friendId: repayment.friendId, amountRupiah: repayment.amount.toString(), paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: repayment.paymentMethod ?? "", notes: repayment.notes ?? "" }}
+                />
+              </div>
+              <DeleteRecordForm action={deleteRepaymentAction.bind(null, repayment.id)} recordType="repayment" impact={deletionImpact} impactRevision={currentImpactRevision} />
             </div>
           </aside>
         </div>
-        <DeleteRecordForm action={deleteRepaymentAction.bind(null, repayment.id)} recordType="repayment" impact={deletionImpact} impactRevision={currentImpactRevision} />
       </div>
     </section>
   );

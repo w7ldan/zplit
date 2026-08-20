@@ -43,6 +43,10 @@ describe("outing record", () => {
 
     expect(screen.getByText("Outing · editable record")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Jakarta dinner" })).toBeInTheDocument();
+    expect(document.querySelector(".outing-record__summary")!).toContainElement(document.querySelector(".outing-record__meta"));
+    expect(document.querySelector(".outing-record__summary")!).toContainElement(document.querySelector(".outing-record__notes"));
+    expect(document.querySelector(".outing-record__workspace")!).toContainElement(document.querySelector(".outing-record__form"));
+    expect(document.querySelector(".outing-record__workspace")!).toContainElement(document.querySelector(".delete-record-form"));
     expect(document.querySelector(`time[datetime="${outing.occurredAt.toISOString()}"]`)).toBeInTheDocument();
     expect(document.querySelector(`time[datetime="${outing.createdAt.toISOString()}"]`)).toBeInTheDocument();
     expect(screen.getByLabelText("Notes")).toHaveValue("Bring the receipt.");

@@ -80,7 +80,8 @@ describe("repayment record", () => {
     expect(document.querySelector(".repayment-record__primary-task .repayment-record__allocations")).toBeInTheDocument();
     expect(document.querySelector(".repayment-record__sidebar .repayment-record__meta")).toBeInTheDocument();
     expect(document.querySelector(".repayment-record__sidebar .repayment-record__form")).toBeInTheDocument();
-    expect(document.querySelector(".repayment-record__tasks + .delete-record-form")).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__controls .delete-record-form")).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__sidebar .repayment-record__controls")).toContainElement(document.querySelector(".repayment-record__meta"));
     expect(screen.queryByText(/Remove this repayment's allocations before deleting it/)).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/allocation editor|debtor|card|pill|status dot/i);
     expect(screen.getByDisplayValue(deletionImpactRevision(deletionImpact))).toHaveAttribute("name", "impactRevision");

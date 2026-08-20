@@ -79,25 +79,27 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
             <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts} />
           </div>
           <aside className="expense-record__sidebar">
-            <div className="expense-record__meta" aria-label="Expense metadata">
-              <div><span className="technical-label">Amount</span><strong>{formatRupiah(expense.amount)}</strong></div>
-              <div><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></div>
-              <div><span className="technical-label">Outing date</span><LocalDateTime iso={expense.outingOccurredAt.toISOString()} /></div>
-              <div><span className="technical-label">Created</span><LocalDateTime iso={expense.createdAt.toISOString()} mode="date" /></div>
-            </div>
-            <div className="expense-record__form">
-              <p className="technical-label" id="expense-details" tabIndex={-1}>EDIT RECORD</p>
-              <ExpenseForm
-                action={updateExpenseAction.bind(null, expense.id)}
-                outings={outings}
-                searchOutings={searchOutingOptions}
-                mode="edit"
-                initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
-              />
+            <div className="expense-record__controls">
+              <div className="expense-record__meta" aria-label="Expense metadata">
+                <div><span className="technical-label">Amount</span><strong>{formatRupiah(expense.amount)}</strong></div>
+                <div><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></div>
+                <div><span className="technical-label">Outing date</span><LocalDateTime iso={expense.outingOccurredAt.toISOString()} /></div>
+                <div><span className="technical-label">Created</span><LocalDateTime iso={expense.createdAt.toISOString()} mode="date" /></div>
+              </div>
+              <div className="expense-record__form">
+                <p className="technical-label" id="expense-details" tabIndex={-1}>EDIT RECORD</p>
+                <ExpenseForm
+                  action={updateExpenseAction.bind(null, expense.id)}
+                  outings={outings}
+                  searchOutings={searchOutingOptions}
+                  mode="edit"
+                  initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
+                />
+              </div>
+              <DeleteRecordForm action={deleteExpenseAction.bind(null, expense.id)} recordType="expense" impact={deletionImpact} impactRevision={currentImpactRevision} />
             </div>
           </aside>
         </div>
-        <DeleteRecordForm action={deleteExpenseAction.bind(null, expense.id)} recordType="expense" impact={deletionImpact} impactRevision={currentImpactRevision} />
       </div>
     </section>
   );

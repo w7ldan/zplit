@@ -19,6 +19,9 @@ describe("Trip record", () => {
     mocks.createLedgerRepository.mockReturnValue({ getTrip: vi.fn().mockResolvedValue(trip), getTripSummary: vi.fn().mockResolvedValue({ outingCount: 2, expenseCount: 3, expenseTotal: 184_000, totalAssignedAmount: 126_500, ownerPortionAmount: 57_500, totalOutstandingAmount: 26_500 }), listOutingRecords: vi.fn().mockResolvedValue(outingPage) });
     render(await TripRecordPage({ params: Promise.resolve({ tripId: trip.id }) }));
     expect(screen.getByRole("heading", { level: 1, name: "Bali 2026" })).toBeInTheDocument();
+    expect(document.querySelector(".trip-record__summary")!).toContainElement(document.querySelector(".trip-record__meta"));
+    expect(document.querySelector(".trip-record__summary")!).toContainElement(document.querySelector(".trip-record__financials"));
+    expect(document.querySelector(".trip-record__summary")!).toContainElement(document.querySelector(".trip-record__notes"));
     expect(screen.getByText("12 Apr 2026 – 16 Apr 2026")).toBeInTheDocument();
     expect(within(document.querySelector(".trip-record__intro")!).getByRole("link", { name: "Add outing" })).toHaveAttribute("href", `/app/outings?create=1&trip=${trip.id}`);
     expect(within(document.querySelector(".ledger-empty")!).getByRole("link", { name: "Add outing" })).toHaveAttribute("href", `/app/outings?create=1&trip=${trip.id}`);

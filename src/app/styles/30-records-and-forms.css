@@ -327,8 +327,51 @@
   border-block: 1px solid var(--rule);
 }
 
+.outing-record__summary,
+.trip-record__summary {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+  padding-block: 1rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+
 .outing-record__meta {
-  grid-column: 2 / span 5;
+  grid-column: auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0;
+  border: 0;
+}
+
+.outing-record__notes {
+  grid-column: auto;
+  margin: 0;
+  color: var(--muted-ink);
+  white-space: pre-wrap;
+}
+
+.outing-record__workspace {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 2rem;
+  min-width: 0;
+  max-width: 38rem;
+}
+
+.outing-record__workspace .outing-record__form {
+  grid-column: auto;
+  max-width: none;
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.outing-record__workspace .delete-record-form {
+  grid-column: auto;
+  order: initial;
+  max-width: none;
+  margin: 0;
 }
 
 .friend-record__meta {
@@ -461,7 +504,7 @@
 }
 
 .outing-record__form {
-  grid-column: 2 / span 5;
+  grid-column: auto;
 }
 
 .friend-record__form {
@@ -854,8 +897,8 @@
   grid-column: auto;
   order: initial;
   margin-top: 0;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ink);
+  padding-top: 0;
+  border-top: 0;
 }
 
 .expense-record__tasks,
@@ -876,6 +919,13 @@
   min-width: 0;
 }
 
+.expense-record__controls,
+.repayment-record__controls {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
 .expense-receipts__details,
 .expense-receipts__actions {
   min-width: 0;
@@ -890,9 +940,40 @@
   align-content: start;
 }
 
-.expense-record__sidebar .expense-record__meta,
-.repayment-record__sidebar .repayment-record__meta {
-  grid-column: 1 / -1;
+.expense-record__controls .expense-record__meta,
+.repayment-record__controls .repayment-record__meta {
+  grid-column: auto;
+  grid-template-columns: 1fr;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.expense-record__controls .expense-record__form,
+.repayment-record__controls .repayment-record__form {
+  grid-column: auto;
+  max-width: none;
+  margin: 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+
+.expense-record__controls .delete-record-form,
+.repayment-record__controls .delete-record-form {
+  grid-column: auto;
+  order: initial;
+  max-width: none;
+  margin: 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--error);
+}
+
+.expense-record__primary-task > .expense-receipts {
+  max-width: none;
+  margin-top: 1.5rem;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .expense-share-editor,
@@ -1789,12 +1870,12 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .trip-record__meta {
-  grid-column: 2 / span 5;
+  grid-column: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
-  padding-block: 0.9rem;
-  border-block: 1px solid var(--rule);
+  padding: 0;
+  border: 0;
 }
 
 .trip-record__meta > div {
@@ -1812,12 +1893,12 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .trip-record__financials {
-  grid-column: 2 / span 5;
+  grid-column: auto;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
-  padding-block: 0.9rem;
-  border-block: 1px solid var(--rule);
+  padding: 0;
+  border: 0;
 }
 
 .trip-record__financials > div {
@@ -1833,11 +1914,10 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .trip-record__notes,
-.trip-record__financials,
 .trip-record__outings,
 .trip-record__form,
 .trip-delete-form {
-  grid-column: 2 / span 5;
+  grid-column: 1 / -1;
   min-width: 0;
 }
 

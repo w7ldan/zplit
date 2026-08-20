@@ -44,17 +44,19 @@ export default async function TripRecordPage({ params, searchParams }: { params:
             <div className="trip-record__actions"><Link className="action-link action-link--quiet" href={`/app/outings?create=1&trip=${trip.id}`}>Add outing</Link><Link className="trip-record__back" href="/app/trips">← Back to Trips</Link></div>
           </div>
           {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Trip changes saved." /> : null}
-          <div className="trip-record__meta" aria-label="Trip metadata">
-            <div><span className="technical-label">Dates</span><CalendarDateRange startsOn={trip.startsOn} endsOn={trip.endsOn} /></div>
-            <div><span className="technical-label">Outings</span><strong>{summary.outingCount}</strong></div>
-            <div><span className="technical-label">Expenses</span><strong>{summary.expenseCount}</strong></div>
-          </div>
-          {trip.notes ? <p className="trip-record__notes">{trip.notes}</p> : null}
-          <section className="trip-record__financials" aria-label="Trip financial summary">
-            <div><span className="technical-label">Total spending</span><strong>{formatRupiah(summary.expenseTotal)}</strong></div>
-            <div><span className="technical-label">Assigned to friends</span><strong>{formatRupiah(summary.totalAssignedAmount)}</strong></div>
-            <div><span className="technical-label">Your portion</span><strong>{formatRupiah(summary.ownerPortionAmount)}</strong></div>
-            <div><span className="technical-label">Outstanding</span><strong>{formatRupiah(summary.totalOutstandingAmount)}</strong></div>
+          <section className="trip-record__summary" aria-label="Trip summary">
+            <div className="trip-record__meta" aria-label="Trip metadata">
+              <div><span className="technical-label">Dates</span><CalendarDateRange startsOn={trip.startsOn} endsOn={trip.endsOn} /></div>
+              <div><span className="technical-label">Outings</span><strong>{summary.outingCount}</strong></div>
+              <div><span className="technical-label">Expenses</span><strong>{summary.expenseCount}</strong></div>
+            </div>
+            <section className="trip-record__financials" aria-label="Trip financial summary">
+              <div><span className="technical-label">Total spending</span><strong>{formatRupiah(summary.expenseTotal)}</strong></div>
+              <div><span className="technical-label">Assigned to friends</span><strong>{formatRupiah(summary.totalAssignedAmount)}</strong></div>
+              <div><span className="technical-label">Your portion</span><strong>{formatRupiah(summary.ownerPortionAmount)}</strong></div>
+              <div><span className="technical-label">Outstanding</span><strong>{formatRupiah(summary.totalOutstandingAmount)}</strong></div>
+            </section>
+            {trip.notes ? <p className="trip-record__notes">{trip.notes}</p> : null}
           </section>
           <section className="trip-record__outings" aria-labelledby="trip-outings-heading">
             <div className="trip-record__section-heading"><div><p className="technical-label">GROUPED OUTINGS</p><h2 id="trip-outings-heading">Outings</h2></div><span className="technical-label">{outingPage.totalItems} entries</span></div>

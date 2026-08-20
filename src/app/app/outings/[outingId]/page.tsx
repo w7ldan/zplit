@@ -61,25 +61,29 @@ export default async function OutingRecordPage({ params, searchParams }: { param
           </div>
         </div>
         {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Outing changes saved." /> : null}
-        <div className="outing-record__meta" aria-label="Outing metadata">
-          <div><span className="technical-label">Occurred</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></div>
-          <div><span className="technical-label">Trip</span>{trip ? <Link href={`/app/trips/${trip.id}`}>{trip.name} →</Link> : <span>No trip</span>}</div>
-          <div><span className="technical-label">Created</span><LocalDateTime iso={outing.createdAt.toISOString()} mode="date" /></div>
+        <section className="outing-record__summary" aria-label="Outing summary">
+          <div className="outing-record__meta" aria-label="Outing metadata">
+            <div><span className="technical-label">Occurred</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></div>
+            <div><span className="technical-label">Trip</span>{trip ? <Link href={`/app/trips/${trip.id}`}>{trip.name} →</Link> : <span>No trip</span>}</div>
+            <div><span className="technical-label">Created</span><LocalDateTime iso={outing.createdAt.toISOString()} mode="date" /></div>
+          </div>
+          {outing.notes ? <p className="outing-record__notes">{outing.notes}</p> : null}
+        </section>
+        <div className="outing-record__workspace">
+          <div className="outing-record__form">
+            <p className="technical-label">EDIT RECORD</p>
+            <OutingForm
+              action={updateOutingAction.bind(null, outing.id)}
+              mode="edit"
+              trips={[{ id: "", label: "No trip" }, ...(trip ? [{ id: trip.id, label: trip.name }] : [])]}
+              searchTrips={searchTripOptions}
+              initialOccurredAtUtc={outing.occurredAt.toISOString()}
+              initialValues={{ title: outing.title, occurredAtLocal: utcDateTimeLocal(outing.occurredAt), timezoneOffsetMinutes: "0", notes: outing.notes ?? "", tripId: trip?.id ?? "" }}
+            />
+            <p className="outing-record__next">Expenses recorded under this outing keep its occurrence timestamp. Trip grouping does not change ledger calculations.</p>
+          </div>
+          <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" impact={deletionImpact} impactRevision={currentImpactRevision} />
         </div>
-        {outing.notes ? <p className="outing-record__notes">{outing.notes}</p> : null}
-        <div className="outing-record__form">
-          <p className="technical-label">EDIT RECORD</p>
-          <OutingForm
-            action={updateOutingAction.bind(null, outing.id)}
-            mode="edit"
-            trips={[{ id: "", label: "No trip" }, ...(trip ? [{ id: trip.id, label: trip.name }] : [])]}
-            searchTrips={searchTripOptions}
-            initialOccurredAtUtc={outing.occurredAt.toISOString()}
-            initialValues={{ title: outing.title, occurredAtLocal: utcDateTimeLocal(outing.occurredAt), timezoneOffsetMinutes: "0", notes: outing.notes ?? "", tripId: trip?.id ?? "" }}
-          />
-          <p className="outing-record__next">Expenses recorded under this outing keep its occurrence timestamp. Trip grouping does not change ledger calculations.</p>
-        </div>
-        <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" impact={deletionImpact} impactRevision={currentImpactRevision} />
         <section className="record-history ledger-section" id="outing-expenses" aria-labelledby="outing-expenses-heading">
           <div className="ledger-section__heading"><div><p className="technical-label">EXPENSE HISTORY</p><h2 id="outing-expenses-heading">Expenses</h2></div><span className="technical-label">{expensePage.totalItems} entries</span></div>
           {expensePage.items.length > 0 ? <div className="record-history__rows">{expensePage.items.map((expense) => <article className="record-history__row" key={expense.id}>

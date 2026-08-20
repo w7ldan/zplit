@@ -91,7 +91,8 @@ describe("expense record", () => {
     expect(document.querySelector(".expense-record__primary-task .expense-record__shares")).toBeInTheDocument();
     expect(document.querySelector(".expense-record__sidebar .expense-record__meta")).toBeInTheDocument();
     expect(document.querySelector(".expense-record__sidebar .expense-record__form")).toBeInTheDocument();
-    expect(document.querySelector(".expense-record__tasks + .delete-record-form")).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__controls .delete-record-form")).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__sidebar .expense-record__controls")).toContainElement(document.querySelector(".expense-record__meta"));
     expect(screen.queryByText(/Remove repayment allocations before deleting this expense/)).not.toBeInTheDocument();
     expect(screen.getByDisplayValue(deletionImpactRevision(deletionImpact))).toHaveAttribute("name", "impactRevision");
     expect(getExpenseDeletionImpact).toHaveBeenCalledOnce();
