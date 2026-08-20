@@ -36,4 +36,12 @@ describe("/app/trips", () => {
     expect(screen.getByRole("heading", { name: "No matching Trips." })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/app/trips");
   });
+
+  it("makes an unfiltered empty Trip list actionable", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listTripRecords: vi.fn().mockResolvedValue({ ...page, items: [], totalItems: 0 }) });
+    render(await TripsPage());
+
+    expect(within(document.querySelector(".ledger-empty")!).getByRole("link", { name: "Add trip" })).toHaveAttribute("href", "/app/trips?create=1");
+  });
 });

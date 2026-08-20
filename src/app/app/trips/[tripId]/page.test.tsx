@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import TripRecordPage from "./page";
 import { LedgerNotFoundError } from "@/domain/ledger-repository";
@@ -20,7 +20,8 @@ describe("Trip record", () => {
     render(await TripRecordPage({ params: Promise.resolve({ tripId: trip.id }) }));
     expect(screen.getByRole("heading", { level: 1, name: "Bali 2026" })).toBeInTheDocument();
     expect(screen.getByText("12 Apr 2026 – 16 Apr 2026")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Add outing" })).toHaveAttribute("href", `/app/outings?create=1&trip=${trip.id}`);
+    expect(within(document.querySelector(".trip-record__intro")!).getByRole("link", { name: "Add outing" })).toHaveAttribute("href", `/app/outings?create=1&trip=${trip.id}`);
+    expect(within(document.querySelector(".ledger-empty")!).getByRole("link", { name: "Add outing" })).toHaveAttribute("href", `/app/outings?create=1&trip=${trip.id}`);
     expect(screen.getByText("Total spending")).toBeInTheDocument();
     expect(screen.getByText("Rp 184.000")).toBeInTheDocument();
     expect(screen.getByText("Rp 126.500")).toBeInTheDocument();

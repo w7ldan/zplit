@@ -93,6 +93,8 @@ describe("friend record", () => {
     expect(screen.getByText("No balance yet", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("No expense shares recorded for this friend yet.", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("No repayments recorded for this friend yet.", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Record repayment" })).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}`);
+    expect(screen.queryByRole("link", { name: /Settle/ })).not.toBeInTheDocument();
   });
 
   it("distinguishes a settled friend from a never-assigned friend", async () => {

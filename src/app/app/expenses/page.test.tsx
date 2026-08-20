@@ -43,6 +43,14 @@ describe("/app/expenses", () => {
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
+  it("makes an unfiltered empty expense list actionable when an outing exists", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
+    render(await ExpensesPage());
+
+    expect(within(document.querySelector(".ledger-empty")!).getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
+  });
+
   it("passes the normalized browser offset to expense filtering and grouping", async () => {
     const boundaryExpense = { ...expense, outingOccurredAt: new Date("2026-06-30T17:00:00.000Z") };
     const listExpenseRecords = vi.fn().mockResolvedValue({ ...expensePage, items: [boundaryExpense] });

@@ -57,6 +57,14 @@ describe("/app/friends", () => {
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
   });
 
+  it("makes an unfiltered empty Friends list actionable", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listFriendRecords: vi.fn().mockResolvedValue({ ...friendPage, items: [], totalItems: 0, totalPages: 1 }), getFriendBalances: vi.fn().mockResolvedValue([]) });
+    render(await FriendsPage());
+
+    expect(within(document.querySelector(".ledger-empty")!).getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?create=1");
+  });
+
   it("removes an invalid return target before authentication or repository access", async () => {
     await expect(FriendsPage({ searchParams: Promise.resolve({ returnTo: "https://evil.example/app/repayments", view: "archived", q: "Ada", page: "2", create: "1", created: "friend-a", confirmation: "yes", source: "ledger" }) })).rejects.toThrow("redirect:/app/friends?view=archived&q=Ada&page=2&create=1&created=friend-a&confirmation=yes&source=ledger");
     expect(mocks.requireSession).not.toHaveBeenCalled();

@@ -64,7 +64,7 @@ describe("/app/outings", () => {
     render(await OutingsPage({ searchParams: Promise.resolve({ create: "1" }) }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Title")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Add an outing" })).toHaveAttribute("href", "/app/outings?create=1");
+    expect(within(document.querySelector(".ledger-empty")!).getByRole("link", { name: "Add outing" })).toHaveAttribute("href", "/app/outings?create=1");
   });
 
   it("preselects a valid Trip context in Add outing", async () => {
@@ -121,8 +121,7 @@ describe("/app/outings", () => {
     render(await OutingsPage({ searchParams: Promise.resolve({ returnTo: "/app/expenses?create=1&q=Dinner", page: "2", task: "open", source: "ledger" }) }));
 
     const href = "/app/outings?returnTo=%2Fapp%2Fexpenses%3Fcreate%3D1%26q%3DDinner&page=2&task=open&source=ledger&create=1";
-    expect(screen.getByRole("link", { name: "Add outing" })).toHaveAttribute("href", href);
-    expect(screen.getByRole("link", { name: "Add an outing" })).toHaveAttribute("href", href);
+    expect(within(document.querySelector(".ledger-empty")!).getByRole("link", { name: "Add outing" })).toHaveAttribute("href", href);
   });
 
   it("renders a bounded page and keeps long outing names available to the row", async () => {

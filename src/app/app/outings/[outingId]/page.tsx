@@ -86,7 +86,7 @@ export default async function OutingRecordPage({ params, searchParams }: { param
             <div className="record-history__primary"><span className="technical-label">EXPENSE</span><h3><Link href={`/app/expenses/${expense.id}`}>{expense.description}</Link></h3></div>
             <div className="record-history__value"><span className="technical-label">Amount</span><strong>{formatRupiah(expense.amount)}</strong></div>
             <Link className="record-history__link" href={`/app/expenses/${expense.id}`}>Open expense <span aria-hidden="true">→</span></Link>
-          </article>)}</div> : <div className="ledger-empty"><h3>No expenses recorded for this outing yet.</h3></div>}
+          </article>)}</div> : <div className="ledger-empty"><h3>No expenses recorded for this outing yet.</h3><p>Add the first expense for this outing.</p><Link className="text-link" href={`/app/expenses?create=1&outing=${encodeURIComponent(outing.id)}`} data-task-trigger="expense-create">Add expense <span aria-hidden="true">→</span></Link></div>}
           <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={expenseHref} anchor="outing-expenses" pageParam="expensePage" />
         </section>
       </div>

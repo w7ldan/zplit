@@ -77,7 +77,7 @@ export default async function FriendsPage({ searchParams = Promise.resolve({}) }
         <div className="ledger-list" id="record-list">
           <div className="ledger-list__heading"><span className="technical-label">{view === "active" ? "ACTIVE RECORDS" : "ARCHIVED RECORDS"}</span><span className="technical-label">{friendPage.totalItems} entries</span></div>
           {friends.length > 0 ? friends.map((friend) => <FriendRow key={friend.id} friend={friend} balance={balances.get(friend.id)} emphasized={created === friend.id} />) : (
-            <div className="ledger-empty"><h2>{filtered ? "No matching friends." : view === "active" ? "No active friends yet." : "No archived friends yet."}</h2><p>{filtered ? "Try a different name or phone number." : view === "active" ? "Add the first person to begin your private record." : "Archived records remain available here when you need them."}</p></div>
+            <div className="ledger-empty"><h2>{filtered ? "No matching friends." : view === "active" ? "No active friends yet." : "No archived friends yet."}</h2><p>{filtered ? "Try a different name or phone number." : view === "active" ? "Add the first person to begin your private record." : "Archived records remain available here when you need them."}</p>{filtered || view === "archived" ? null : <Link className="text-link" href={recordHref("/app/friends", params, { create: "1" })} data-task-trigger="friend-create">Add friend <span aria-hidden="true">→</span></Link>}</div>
           )}
           <RecordPagination page={friendPage.page} pageSize={friendPage.pageSize} totalItems={friendPage.totalItems} totalPages={friendPage.totalPages} href={listHref} />
         </div>

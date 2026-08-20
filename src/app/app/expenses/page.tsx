@@ -65,7 +65,7 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
             <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
             {group.items.map((expense) => <ExpenseRow key={expense.id} expense={expense} />)}
           </div>) : (
-            <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? null : <Link className="text-link" href={recordHref(outingOptions.length ? "/app/expenses" : "/app/outings", params, { create: "1" })} data-task-trigger={outingOptions.length ? "expense-create" : "outing-create"}>{outingOptions.length ? "Add an expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
+            <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? null : <Link className="text-link" href={recordHref(outingOptions.length ? "/app/expenses" : "/app/outings", params, { create: "1" })} data-task-trigger={outingOptions.length ? "expense-create" : "outing-create"}>{outingOptions.length ? "Add expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
           )}
           <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={listHref} />
         </div>

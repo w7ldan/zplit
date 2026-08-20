@@ -13,6 +13,7 @@ function filterHref(type: LedgerHistoryType) {
   return type === "all" ? "/app/history" : `/app/history?type=${type}`;
 }
 export function LedgerHistory({ items, type, nextCursor }: LedgerHistoryProps) {
+  const emptyAction = type === "repayment" ? { href: "/app/repayments?create=1", label: "Record repayment" } : { href: "/app/expenses?create=1", label: "Add expense" };
   return (
     <>
       <nav className="history-filters" aria-label="History filters">
@@ -26,6 +27,7 @@ export function LedgerHistory({ items, type, nextCursor }: LedgerHistoryProps) {
         <div className="ledger-empty history-empty">
           <h2>No ledger history yet.</h2>
           <p>Expenses and repayments will appear here in chronological order.</p>
+          <Link className="text-link" href={emptyAction.href}>{emptyAction.label} <span aria-hidden="true">→</span></Link>
         </div>
       ) : (
         <ol className="history-list" aria-label="Ledger history">

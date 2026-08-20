@@ -70,6 +70,7 @@ describe("outing record", () => {
     render(await OutingRecordPage({ params: Promise.resolve({ outingId: outing.id }) }));
 
     expect(screen.getByText("No expenses recorded for this outing yet.", { exact: true })).toBeInTheDocument();
+    expect(within(document.querySelector(".ledger-empty")!).getByRole("link", { name: "Add expense" })).toHaveAttribute("href", `/app/expenses?create=1&outing=${outing.id}`);
     expect(screen.getByText("0 entries", { exact: true })).toBeInTheDocument();
   });
 

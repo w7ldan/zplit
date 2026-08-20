@@ -47,6 +47,12 @@ describe("LedgerHistory", () => {
   it("has a clear empty state", () => {
     render(<LedgerHistory items={[]} type="expense" nextCursor={null} />);
     expect(screen.getByRole("heading", { name: "No ledger history yet." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
     expect(screen.queryByRole("link", { name: /Next page/ })).not.toBeInTheDocument();
+  });
+
+  it("points an empty repayment history to the repayment flow", () => {
+    render(<LedgerHistory items={[]} type="repayment" nextCursor={null} />);
+    expect(screen.getByRole("link", { name: "Record repayment" })).toHaveAttribute("href", "/app/repayments?create=1");
   });
 });
