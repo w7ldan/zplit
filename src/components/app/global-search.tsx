@@ -146,6 +146,7 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
 
   return <>
     <button className="global-search-trigger" type="button" data-quick-search-trigger="true" onClick={(event) => openSearch(event.currentTarget)} aria-label="Search records">
+      <svg className="global-search-trigger__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
       <span>Search</span><kbd>/</kbd>
     </button>
     {open ? <div className="global-search__backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeSearch(); }}>

@@ -296,7 +296,7 @@
   animation: result-in var(--motion-state) var(--ease-product) both;
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1199px) {
   .app-shell__brand .technical-label {
     display: none;
   }

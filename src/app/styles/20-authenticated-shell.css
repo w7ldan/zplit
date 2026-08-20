@@ -954,6 +954,13 @@ body.global-search-open {
   text-align: center;
 }
 
+.global-search-trigger__icon {
+  display: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+}
+
 .global-search__backdrop {
   position: fixed;
   z-index: 70;
@@ -1104,6 +1111,14 @@ body.global-search-open {
     display: none;
   }
 
+  .global-search-trigger kbd {
+    display: none;
+  }
+
+  .global-search-trigger__icon {
+    display: block;
+  }
+
   .global-search__backdrop {
     align-items: start;
     padding: 0.75rem;
@@ -1141,7 +1156,7 @@ body.global-search-open {
   width: max-content;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1200px) {
   .app-shell__nav {
     display: flex;
     width: max-content;

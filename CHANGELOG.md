@@ -16,6 +16,7 @@ This is a curated history of meaningful Zplit product, system, security, and ope
 - Reduced authenticated CSS debt and clarified fragment ownership while preserving responsive detail/list hierarchy.
 - Improved mobile numeric entry, long-record layouts, empty states, statement layout, trip and overview composition, friend detail, expense charges, repayment allocation spacing, and authenticated page toolbars.
 - Reduced ledger editing density by progressively disclosing optional split charges and moving repayment allocation arithmetic into per-row details.
+- Improved mobile Search discoverability with a magnifier icon and kept the authenticated header compact through intermediate widths so account controls remain usable.
 
 ### Fixed
 

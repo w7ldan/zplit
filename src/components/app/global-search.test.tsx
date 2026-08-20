@@ -158,4 +158,15 @@ describe("GlobalSearch", () => {
     expect(styles).toContain("width: min(38rem, 100%);");
     expect(publicPage).not.toContain("GlobalSearch");
   });
+
+  it("keeps the desktop shortcut and makes the mobile trigger recognizable", () => {
+    const styles = readFileSync(path.resolve(process.cwd(), "src/app/styles/20-authenticated-shell.css"), "utf8");
+    renderSearch();
+    const trigger = screen.getByRole("button", { name: "Search records" });
+    expect(trigger).toHaveTextContent("Search");
+    expect(trigger.querySelector("kbd")).toHaveTextContent("/");
+    expect(trigger.querySelector(".global-search-trigger__icon")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-label", "Search records");
+    expect(styles).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.global-search-trigger span\s*\{[\s\S]*?display: none;[\s\S]*?\.global-search-trigger kbd\s*\{[\s\S]*?display: none;[\s\S]*?\.global-search-trigger__icon\s*\{[\s\S]*?display: block;/);
+  });
 });
