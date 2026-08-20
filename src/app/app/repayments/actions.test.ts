@@ -79,6 +79,38 @@ describe("repayment actions", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments/repayment-a");
   });
 
+  it("keeps contextual allocation inside the owner Trip and preserves the entered amount", async () => {
+    const createRepaymentWithAllocations = vi.fn().mockResolvedValue({ id: "repayment-a" });
+    const getTrip = vi.fn().mockResolvedValue({ id: "trip-a", name: "Bandung" });
+    const getRepaymentFriendContext = vi.fn().mockResolvedValue({ option: { id: friendId, name: "Ari", archived: false }, outstandingAmount: 42_000, openExpenseShares: [{ id: "66666666-6666-4666-8666-666666666666", friendId, remainingAmount: 42_000 }] });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createRepaymentWithAllocations, getTrip, getRepaymentFriendContext });
+    const formData = form({ ...values, tripId: "55555555-5555-4555-8555-555555555555" });
+    formData.append("expenseShareId", "66666666-6666-4666-8666-666666666666");
+    formData.append("amountRupiah", "42000");
+
+    await expect(createRepaymentAction(initialState, formData)).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1&tripId=55555555-5555-4555-8555-555555555555");
+    expect(getTrip).toHaveBeenCalledWith("55555555-5555-4555-8555-555555555555");
+    expect(getRepaymentFriendContext).toHaveBeenCalledWith(friendId, true, "55555555-5555-4555-8555-555555555555");
+    expect(createRepaymentWithAllocations).toHaveBeenCalledWith(expect.objectContaining({ amount: 84_000 }), [{ expenseShareId: "66666666-6666-4666-8666-666666666666", amount: 42_000 }]);
+  });
+
+  it("rejects a contextual allocation outside the selected Trip", async () => {
+    const createRepaymentWithAllocations = vi.fn();
+    const getTrip = vi.fn().mockResolvedValue({ id: "trip-a", name: "Bandung" });
+    const getRepaymentFriendContext = vi.fn().mockResolvedValue({ option: { id: friendId, name: "Ari", archived: false }, outstandingAmount: 42_000, openExpenseShares: [{ id: "77777777-7777-4777-8777-777777777777", friendId, remainingAmount: 42_000 }] });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createRepaymentWithAllocations, getTrip, getRepaymentFriendContext });
+    const formData = form({ ...values, tripId: "55555555-5555-4555-8555-555555555555" });
+    formData.append("expenseShareId", "88888888-8888-4888-8888-888888888888");
+    formData.append("amountRupiah", "42000");
+
+    await expect(createRepaymentAction(initialState, formData)).resolves.toMatchObject({ formError: "Trip context only allows allocations to this Trip's outstanding shares." });
+    expect(createRepaymentWithAllocations).not.toHaveBeenCalled();
+  });
+
   it("persists structured canonical and Other payment methods", async () => {
     const createRepaymentWithAllocations = vi.fn().mockResolvedValue({ id: "repayment-a" });
     const updateRepayment = vi.fn().mockResolvedValue({ id: "repayment-a" });

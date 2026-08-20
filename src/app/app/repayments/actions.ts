@@ -25,6 +25,7 @@ import type { DeleteRecordActionState } from "@/components/app/delete-record-for
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
 import { paymentMethodFormState, parsePaymentMethodFields, type PaymentMethodFormState } from "@/domain/payment-method";
+import { normalizeUuid } from "@/domain/record-retrieval";
 
 export type RepaymentActionState = {
   fieldErrors: RepaymentFieldErrors;
@@ -63,9 +64,20 @@ export async function searchFriendFilterOptions(query = "", selectedId?: string)
 
 export type RepaymentFriendContext = { option: SearchableOption; outstandingAmount: number; openExpenseShares: OpenExpenseShare[] };
 
-export async function loadRepaymentFriendContext(friendId: string, includeOpenExpenseShares = true): Promise<RepaymentFriendContext> {
+export async function loadRepaymentFriendContext(friendId: string, includeOpenExpenseShares = true, tripId?: string): Promise<RepaymentFriendContext> {
   const session = await requireSession();
-  const context = await createLedgerRepository(getDatabase(), session.user.id).getRepaymentFriendContext(friendId, includeOpenExpenseShares);
+  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const requestedTripId = normalizeUuid(tripId);
+  let validTripId: string | undefined;
+  if (requestedTripId) {
+    try {
+      await repository.getTrip(requestedTripId);
+      validTripId = requestedTripId;
+    } catch (error) {
+      if (!(error instanceof LedgerNotFoundError)) throw error;
+    }
+  }
+  const context = validTripId ? await repository.getRepaymentFriendContext(friendId, includeOpenExpenseShares, validTripId) : await repository.getRepaymentFriendContext(friendId, includeOpenExpenseShares);
   return { ...context, option: { id: context.option.id, label: context.option.name, archived: context.option.archived } };
 }
 
@@ -150,15 +162,41 @@ export async function createRepaymentAction(
   if (!result.ok) return { ...invalidState(result, paymentMethodForm), allocations: allocationResult.ok ? allocationResult.values : allocationResult.values, allocationFieldErrors: allocationResult.ok ? {} : allocationResult.errors };
   if (!allocationResult.ok) return { fieldErrors: {}, formError: "Please correct the marked fields.", values: result.values, allocations: allocationResult.values, allocationFieldErrors: allocationResult.errors, paymentMethodForm };
 
+  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  let contextTripId: string | undefined;
+  const requestedTripId = normalizeUuid(typeof formData.get("tripId") === "string" ? formData.get("tripId") : undefined);
+  if (requestedTripId) {
+    try {
+      await repository.getTrip(requestedTripId);
+      contextTripId = requestedTripId;
+    } catch (error) {
+      if (!(error instanceof LedgerNotFoundError)) return errorState(error, result.values, allocationResult.values, {}, paymentMethodForm);
+    }
+  }
+  if (contextTripId && allocationResult.value.length > 0) {
+    try {
+      const context = await repository.getRepaymentFriendContext(result.value.friendId, true, contextTripId);
+      const eligibleShareIds = new Set(context.openExpenseShares.map((share) => share.id));
+      if (allocationResult.value.some((allocation) => !eligibleShareIds.has(allocation.expenseShareId))) {
+        return { fieldErrors: {}, formError: "Trip context only allows allocations to this Trip's outstanding shares.", values: result.values, allocations: allocationResult.values, paymentMethodForm };
+      }
+    } catch (error) {
+      return errorState(error, result.values, allocationResult.values, {}, paymentMethodForm);
+    }
+  }
+
   let repayment;
   try {
-    repayment = await createLedgerRepository(getDatabase(), session.user.id).createRepaymentWithAllocations(result.value, allocationResult.value);
+    repayment = await repository.createRepaymentWithAllocations(result.value, allocationResult.value);
   } catch (error) {
     return errorState(error, result.values, allocationResult.values, {}, paymentMethodForm);
   }
   revalidatePath("/app");
   revalidatePath("/app/repayments");
-  redirect(`/app/repayments/${encodeURIComponent(repayment.id)}?created=1`);
+  if (contextTripId) revalidatePath(`/app/trips/${contextTripId}`);
+  const redirectQuery = new URLSearchParams({ created: "1" });
+  if (contextTripId) redirectQuery.set("tripId", contextTripId);
+  redirect(`/app/repayments/${encodeURIComponent(repayment.id)}?${redirectQuery.toString()}`);
 }
 
 export async function updateRepaymentAction(

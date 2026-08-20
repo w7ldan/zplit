@@ -1348,6 +1348,25 @@ describe("ledger repository", () => {
     expect(shareQuery.sql).toContain('"expense_shares"."friend_id" = $');
   });
 
+  it("filters open expense shares to one owner-scoped Trip without extra per-share queries", async () => {
+    const selectedId = "11111111-1111-4111-8111-111111111111";
+    const tripId = "22222222-2222-4222-8222-222222222222";
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+
+    await expect(createLedgerRepository(database as unknown as Database, owner).listOpenExpenseSharesByFriend(selectedId, tripId)).resolves.toEqual({});
+
+    expect(queries).toHaveLength(1);
+    expect(queries[0].params).toContain(owner);
+    expect(queries[0].params).toContain(selectedId);
+    expect(queries[0].params).toContain(tripId);
+    expect(queries[0].sql).toContain('"trips"."owner_user_id" = $');
+    expect(queries[0].sql).toContain('"trips"."id" = $');
+  });
+
   it("builds the export snapshot from five owner-scoped queries without private fields", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

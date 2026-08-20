@@ -1400,6 +1400,17 @@
   font-weight: 700;
 }
 
+.repayment-form__context {
+  margin: -0.35rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.repayment-form__context span {
+  display: inline-block;
+  margin-top: 0.2rem;
+}
+
 .repayment-form__amount-row {
   display: flex;
   flex-wrap: wrap;

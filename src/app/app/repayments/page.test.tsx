@@ -1,11 +1,12 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RepaymentsPage from "./page";
+import { LedgerNotFoundError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }) }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
-vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
+vi.mock("@/domain/ledger-repository", async () => ({ ...(await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository")), createLedgerRepository: mocks.createLedgerRepository }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
 const activeFriend = { id: "11111111-1111-4111-8111-111111111111", name: "Ari", archivedAt: null };
@@ -13,6 +14,7 @@ const archivedFriend = { id: "22222222-2222-4222-8222-222222222222", name: "Bima
 const summary = { friendBalances: [{ friendId: activeFriend.id, name: "Ari", archived: false, assignedAmount: 84_000, repaidAmount: 20_000, outstandingAmount: 64_000 }] };
 const repayment = { id: "repayment-a", friendName: "Ari", friendArchivedAt: null, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", allocatedAmount: 40_000, unallocatedAmount: 44_000 };
 const contextShare = { id: "33333333-3333-4333-8333-333333333333", friendId: activeFriend.id, friendName: activeFriend.name, expenseDescription: "Dinner", outingTitle: "Bandung day out", outingOccurredAt: new Date("2026-01-01T00:00:00.000Z"), amountOwed: 84_000, repaidAmount: 20_000, remainingAmount: 64_000 };
+const trip = { id: "55555555-5555-4555-8555-555555555555", name: "Bandung" };
 
 describe("/app/repayments", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -103,6 +105,38 @@ describe("/app/repayments", () => {
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id }) }));
     expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Friend" })).toHaveTextContent(activeFriend.name);
     expect(listRepaymentRecords).toHaveBeenCalledWith({ q: undefined, friendId: activeFriend.id, month: undefined, allocation: undefined, page: undefined, timezoneOffsetMinutes: undefined });
+  });
+
+  it("scopes contextual entry to the selected Trip and leaves excess repayment unallocated", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    const getTrip = vi.fn().mockResolvedValue(trip);
+    const getContext = vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [contextShare] });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listRecentPaymentMethods: vi.fn().mockResolvedValue([]), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getTrip, getRepaymentFriendContext: getContext });
+
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id, tripId: trip.id, amount: "100000" }) }));
+
+    expect(getTrip).toHaveBeenCalledWith(trip.id);
+    expect(getContext).toHaveBeenCalledWith(activeFriend.id, true, trip.id);
+    expect(screen.getByText("Recording repayment for Ari · Bandung")).toBeInTheDocument();
+    expect(screen.getByText("Allocating within Bandung. Amounts above its remaining balance stay unallocated.")).toBeInTheDocument();
+    expect(document.querySelector(".repayment-form input[name=tripId]")).toHaveValue(trip.id);
+    expect(screen.getByLabelText("Allocation strategy")).toHaveValue("oldest");
+    expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("100000");
+    expect(await screen.findByLabelText("Allocation for Dinner")).toHaveValue("64000");
+  });
+
+  it("ignores a foreign Trip context without leaking it into repayment entry", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    const getTrip = vi.fn().mockRejectedValue(new LedgerNotFoundError());
+    const getContext = vi.fn().mockResolvedValue({ option: { id: activeFriend.id, name: activeFriend.name, archived: false }, outstandingAmount: 64_000, openExpenseShares: [contextShare] });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }), listRecentPaymentMethods: vi.fn().mockResolvedValue([]), searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }]), getTrip, getRepaymentFriendContext: getContext });
+
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1", friendId: activeFriend.id, tripId: trip.id }) }));
+
+    expect(getTrip).toHaveBeenCalledWith(trip.id);
+    expect(getContext).toHaveBeenCalledWith(activeFriend.id, true);
+    expect(screen.queryByText(/Recording repayment for Ari · Bandung/)).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue(trip.id)).not.toBeInTheDocument();
   });
 
   it.each([

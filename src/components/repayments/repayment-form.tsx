@@ -25,7 +25,9 @@ type RepaymentFormProps = {
   initialAllocationIds?: string[];
   initialAllocationStrategy?: RepaymentAllocationStrategy;
   initialFriendContext?: RepaymentFriendContext;
-  loadFriendContext?: (friendId: string, includeOpenExpenseShares?: boolean) => Promise<RepaymentFriendContext>;
+  loadFriendContext?: (friendId: string, includeOpenExpenseShares?: boolean, tripId?: string) => Promise<RepaymentFriendContext>;
+  tripContext?: { id: string; name: string };
+  tripContextId?: string;
   outstandingByFriend?: Record<string, number>;
   openExpenseSharesByFriend?: Record<string, OpenExpenseShare[]>;
 };
@@ -87,7 +89,7 @@ function PaymentMethodFields({ choice, other, recentMethods = [], error, onChoic
   </>;
 }
 
-export function RepaymentForm({ action, friends: friendOptions, searchFriends, recentPaymentMethods = [], initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, initialAllocationIds = [], initialAllocationStrategy = "manual", initialFriendContext, loadFriendContext, outstandingByFriend = {}, openExpenseSharesByFriend = emptyOpenExpenseSharesByFriend }: RepaymentFormProps) {
+export function RepaymentForm({ action, friends: friendOptions, searchFriends, recentPaymentMethods = [], initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, initialAllocationIds = [], initialAllocationStrategy = "manual", initialFriendContext, loadFriendContext, tripContext, tripContextId, outstandingByFriend = {}, openExpenseSharesByFriend = emptyOpenExpenseSharesByFriend }: RepaymentFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
   const [selectedFriendId, setSelectedFriendId] = useState(initialValues.friendId || friendOptions[0]?.id || "");
   const [selectedFriend, setSelectedFriend] = useState<SearchableOption | undefined>(() => friendOptions.find((friend) => friend.id === initialValues.friendId) ?? friendOptions[0]);
@@ -147,7 +149,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, r
     if (!loadFriendContext) return;
     const request = ++contextRequestRef.current;
     try {
-      const context = await loadFriendContext(friendId, mode === "create");
+      const context = tripContextId ? await loadFriendContext(friendId, mode === "create", tripContextId) : await loadFriendContext(friendId, mode === "create");
       if (request === contextRequestRef.current) {
         setFriendContext(context);
         if (allocationStrategy !== "manual") recalculateAutomaticAllocations(allocationStrategy, amountRef.current?.value ?? initialValues.amountRupiah, context.openExpenseShares);
@@ -155,7 +157,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, r
     } finally {
       if (request === contextRequestRef.current) setLoadingFriendContext(false);
     }
-  }, [allocationStrategy, initialValues.amountRupiah, loadFriendContext, mode, recalculateAutomaticAllocations]);
+  }, [allocationStrategy, initialValues.amountRupiah, loadFriendContext, mode, recalculateAutomaticAllocations, tripContextId]);
 
   useEffect(() => {
     if (state === previousActionStateRef.current) return;
@@ -213,9 +215,11 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, r
         <label id="repayment-friend-label" htmlFor="repayment-friend">Friend</label>
         <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} placeholder="Choose friend" searchLabel="Search friends" ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setFriendContext(undefined); setSelectedAllocationIds([]); setDraftAllocations({}); if (loadFriendContext) { setLoadingFriendContext(true); void refreshFriendContext(friend.id); } }} />
         <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"}: {formatRupiah(friendContext?.option.id === selectedFriendId ? friendContext.outstandingAmount : outstandingByFriend[selectedFriendId] ?? 0)}</p>
+        {tripContext ? <p className="repayment-form__context" aria-live="polite">Recording repayment for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"} · {tripContext.name}<br /><span>Allocating within {tripContext.name}. Amounts above its remaining balance stay unallocated.</span></p> : null}
         {friendLocked ? <p className="repayment-form__help">The friend is fixed while this repayment has allocations.</p> : null}
         <FieldError id="repayment-friend-error" message={state.fieldErrors.friendId} />
       </div>
+      {tripContextId ? <input type="hidden" name="tripId" value={tripContextId} readOnly /> : null}
       <div className="repayment-form__field">
         <label htmlFor="repayment-amount">Amount in rupiah</label>
         <div className="repayment-form__amount-row">

@@ -79,17 +79,18 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     withRepaymentTotals,
   });
 
-  async function getRepaymentFriendContext(friendId: string, includeOpenExpenseShares = false): Promise<RepaymentFriendContext> {
+  async function getRepaymentFriendContext(friendId: string, includeOpenExpenseShares = false, tripId?: string): Promise<RepaymentFriendContext> {
     assertFriendId(friendId);
     const [friend, balances, shares] = await Promise.all([
       getFriend(friendId),
       getFriendBalances([friendId]),
-      includeOpenExpenseShares ? listOpenExpenseSharesByFriend(friendId) : Promise.resolve({} as OpenExpenseSharesByFriend),
+      includeOpenExpenseShares ? listOpenExpenseSharesByFriend(friendId, tripId) : Promise.resolve({} as OpenExpenseSharesByFriend),
     ]);
+    const openExpenseShares = shares[friendId] ?? [];
     return {
       option: { id: friend.id, name: friend.name, archived: friend.archivedAt !== null },
-      outstandingAmount: balances[0]?.outstandingAmount ?? 0,
-      openExpenseShares: shares[friendId] ?? [],
+      outstandingAmount: tripId ? openExpenseShares.reduce((total, share) => total + share.remainingAmount, 0) : balances[0]?.outstandingAmount ?? 0,
+      openExpenseShares,
     };
   }
 

@@ -1,13 +1,13 @@
 import { and, asc, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
-import { debtorShareReceipts, expenseCharges, expenseChargeTargets, expenseReceipts, expenseShares, expenses, friends, outings, repaymentAllocations, repayments } from "../../db/schema";
+import { debtorShareReceipts, expenseCharges, expenseChargeTargets, expenseReceipts, expenseShares, expenses, friends, outings, repaymentAllocations, repayments, trips } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
 import { calculateShareBreakdown } from "../expense-share-input";
 import { calculateRepaymentAllocations } from "../repayment-allocation-strategy";
 import { ExpenseDeletionInvariantError, ExpenseShareAllocationInvariantError, ExpenseShareInvariantError, LedgerRepositoryError } from "./errors";
 import { assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
 import { clampPage, monthStart, nextMonthStart, normalizeExpenseFilters, normalizePage, normalizeTimezoneOffset, pageResult, parseAmountSearch, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
-import { assertExpenseChargesInput, assertExpenseId, assertExpenseInput, assertExpenseSharesInput, assertFriendId, shareBaseAmount } from "./validation";
+import { assertExpenseChargesInput, assertExpenseId, assertExpenseInput, assertExpenseSharesInput, assertFriendId, assertTripId, shareBaseAmount } from "./validation";
 import type { CreateExpenseInput, DeleteRecordOptions, ExpenseChargeInput, ExpenseChargeRecord, ExpenseDeletionImpact, ExpenseDeletionResult, ExpenseShareInput, ExpenseSplitDefinition, FriendExpenseShareRecord, OpenExpenseSharesByFriend, UpdateExpenseInput } from "./types";
 
 export function createExpenseReadRepository(database: Database, owner: string) {
@@ -334,8 +334,9 @@ async function getPreviousExpenseSplit(expenseId: string): Promise<ExpenseSplitD
     }
   }
 
-async function listOpenExpenseSharesByFriend(friendId?: string): Promise<OpenExpenseSharesByFriend> {
+async function listOpenExpenseSharesByFriend(friendId?: string, tripId?: string): Promise<OpenExpenseSharesByFriend> {
     if (friendId) assertFriendId(friendId);
+    if (tripId) assertTripId(tripId);
     try {
       const shares = await database
         .select({
@@ -351,7 +352,8 @@ async function listOpenExpenseSharesByFriend(friendId?: string): Promise<OpenExp
         .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
         .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
         .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .where(and(eq(expenseShares.ownerUserId, owner), ...(friendId ? [eq(expenseShares.friendId, friendId)] : [])))
+        .leftJoin(trips, and(eq(trips.ownerUserId, owner), eq(trips.id, outings.tripId)))
+        .where(and(eq(expenseShares.ownerUserId, owner), ...(friendId ? [eq(expenseShares.friendId, friendId)] : []), ...(tripId ? [eq(trips.id, tripId)] : [])))
         .orderBy(asc(friends.name), asc(outings.occurredAt), asc(expenses.createdAt), asc(expenseShares.id));
       const allocations = shares.length
         ? await database

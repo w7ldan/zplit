@@ -9,6 +9,7 @@ This is a curated history of meaningful Zplit product, system, security, and ope
 - Persistent Light, Dark, and System theme preferences, dark semantic tokens, and route-specific page titles.
 - Actionable Needs Attention repayment allocation workflow on Overview.
 - Actionable Trip settlement balances derived from normal Expense shares and Repayment allocations, with a restrained Copy trip summary action.
+- Contextual Trip repayment entry that scopes the normal repayment workflow to the selected Friend and Trip.
 - Delete-time repayment-allocation reconciliation: removing expense shares releases money, reallocates it to eligible older shares for the same friend, and leaves any remainder explicitly unallocated.
 - Allocation explanations, paginated repayment allocation choices, QR balance-link sharing, and clearer Copy/Preview/share state.
 

@@ -32,6 +32,7 @@ const repayment = {
   unallocatedAmount: 44_000,
 };
 const friend = { id: repayment.friendId, name: "Ari", archivedAt: null };
+const trip = { id: "55555555-5555-4555-8555-555555555555", name: "Bandung" };
 const allocationPlan = {
   ...repayment,
   ownerUserId: "owner-a",
@@ -94,5 +95,15 @@ describe("repayment record", () => {
 
     await expect(RepaymentRecordPage({ params: Promise.resolve({ repaymentId: "foreign" }) })).rejects.toThrow("not-found");
     expect(mocks.notFound).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a validated contextual Trip available as a return path", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact: vi.fn().mockResolvedValue(deletionImpact), getTrip: vi.fn().mockResolvedValue(trip), searchFriends: vi.fn().mockResolvedValue([{ id: friend.id, name: friend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: friend.id, name: friend.name, archived: false }, outstandingAmount: 44_000, openExpenseShares: [] }), listRecentPaymentMethods: vi.fn().mockResolvedValue([]) });
+
+    render(<ToastProvider>{await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }), searchParams: Promise.resolve({ tripId: trip.id }) })}</ToastProvider>);
+
+    expect(screen.getByRole("link", { name: "← Back to Bandung" })).toHaveAttribute("href", `/app/trips/${trip.id}`);
   });
 });
