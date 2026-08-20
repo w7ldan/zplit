@@ -311,6 +311,15 @@ describe("Zplit design contract", () => {
     expect(recordsAndFormsSource).not.toContain(".repayment-form__allocation {\n    min-width: max-content");
   });
 
+  it("keeps repayment allocation editing wide and visually staged", () => {
+    expect(recordsAndFormsSource).toContain(".repayment-allocation-editor__form {\n  display: grid;\n  width: 100%;\n  max-width: none;");
+    expect(recordsAndFormsSource).toContain("grid-template-columns: minmax(0, 1.6fr) minmax(16rem, 0.8fr);");
+    expect(recordsAndFormsSource).toContain(".repayment-allocation-editor__submit {\n  width: fit-content;\n  justify-self: start;");
+    expect(recordsAndFormsSource).toContain(".repayment-allocation-editor > .record-pagination {\n  margin-top: 1rem;");
+    expect(recordsAndFormsSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.repayment-allocation-editor__row\s*\{[\s\S]*?grid-template-columns: 1fr;/);
+    expect(lateOverridesSource).not.toMatch(/repayment-allocation-editor__(?:form|row|submit)|repayment-allocation-editor\s*>\s*\.record-pagination/);
+  });
+
   it("keeps desktop record columns semantic and aligned", () => {
     expect(recordsAndFormsSource).toMatch(/@media \(min-width: 960px\)[\s\S]*?\.expense-row__meta,[\s\S]*?\.repayment-row__meta\s*\{[\s\S]*?display: contents;/);
     expect(recordsAndFormsSource).toContain("minmax(0, 2fr) minmax(7rem, auto) minmax(7rem, auto)");
