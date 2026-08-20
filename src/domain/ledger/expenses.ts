@@ -1,11 +1,13 @@
 import { and, asc, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
-import { expenseCharges, expenseChargeTargets, expenseShares, expenses, friends, outings, repaymentAllocations } from "../../db/schema";
+import { debtorShareReceipts, expenseCharges, expenseChargeTargets, expenseReceipts, expenseShares, expenses, friends, outings, repaymentAllocations } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
-import { literalContains, notFound, persistenceError, safeRetrievalInteger } from "./query-utils";
+import { calculateShareBreakdown } from "../expense-share-input";
+import { ExpenseDeletionInvariantError, ExpenseShareAllocationInvariantError, ExpenseShareInvariantError, LedgerRepositoryError } from "./errors";
+import { assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
 import { clampPage, monthStart, nextMonthStart, normalizeExpenseFilters, normalizePage, normalizeTimezoneOffset, pageResult, parseAmountSearch, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
-import { assertExpenseId, assertFriendId } from "./validation";
-import type { ExpenseChargeInput, ExpenseChargeRecord, ExpenseSplitDefinition, FriendExpenseShareRecord, OpenExpenseSharesByFriend } from "./types";
+import { assertExpenseChargesInput, assertExpenseId, assertExpenseInput, assertExpenseSharesInput, assertFriendId, shareBaseAmount } from "./validation";
+import type { CreateExpenseInput, DeleteRecordOptions, ExpenseChargeInput, ExpenseChargeRecord, ExpenseDeletionImpact, ExpenseShareInput, ExpenseSplitDefinition, FriendExpenseShareRecord, OpenExpenseSharesByFriend, UpdateExpenseInput } from "./types";
 
 export function createExpenseReadRepository(database: Database, owner: string) {
 function expenseSelection() {
@@ -390,4 +392,309 @@ async function listOpenExpenseSharesByFriend(friendId?: string): Promise<OpenExp
     getPreviousExpenseSplit,
     listOpenExpenseSharesByFriend,
   };
+}
+
+export function createExpenseMutationRepository(
+  database: Database,
+  owner: string,
+  read: Pick<ReturnType<typeof createExpenseReadRepository>, "expenseSelection" | "listExpenseChargesFor" | "listExpenseSharesFor">,
+) {
+  const { expenseSelection, listExpenseChargesFor, listExpenseSharesFor } = read;
+async function lockExpenseDependents(
+  transaction: Parameters<Parameters<Database["transaction"]>[0]>[0],
+  expenseIds: string[],
+) {
+  if (expenseIds.length === 0) return { receipts: [], publicReceipts: [], shares: [], allocations: [] };
+  const receipts = await transaction
+    .select({ id: expenseReceipts.id })
+    .from(expenseReceipts)
+    .where(and(eq(expenseReceipts.ownerUserId, owner), inArray(expenseReceipts.expenseId, expenseIds)))
+    .orderBy(asc(expenseReceipts.id))
+    .for("update");
+  const publicReceipts = await transaction
+    .select({ id: debtorShareReceipts.id })
+    .from(debtorShareReceipts)
+    .where(and(eq(debtorShareReceipts.ownerUserId, owner), inArray(debtorShareReceipts.expenseId, expenseIds)))
+    .orderBy(asc(debtorShareReceipts.id))
+    .for("update");
+  const shares = await transaction
+    .select({ id: expenseShares.id, friendId: expenseShares.friendId })
+    .from(expenseShares)
+    .where(and(eq(expenseShares.ownerUserId, owner), inArray(expenseShares.expenseId, expenseIds)))
+    .orderBy(asc(expenseShares.id))
+    .for("update");
+  const shareIds = safeDeletionIds(shares.map((share) => share.id), "Expense share ID");
+  const allocations = shareIds.length
+    ? await transaction
+        .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId })
+        .from(repaymentAllocations)
+        .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+        .orderBy(asc(repaymentAllocations.expenseShareId), asc(repaymentAllocations.repaymentId))
+        .for("update")
+    : [];
+  return { receipts, publicReceipts, shares, allocations };
+}
+
+async function assertOwnedOuting(transaction: Parameters<Parameters<Database["transaction"]>[0]>[0], outingId: string) {
+    const [outing] = await transaction
+      .select({ id: outings.id })
+      .from(outings)
+      .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+      .limit(1);
+    if (!outing) return notFound();
+  }
+
+async function createExpense(input: CreateExpenseInput) {
+    assertExpenseInput(input);
+    try {
+      return await database.transaction(async (transaction) => {
+        await assertOwnedOuting(transaction, input.outingId);
+        const [expense] = await transaction.insert(expenses).values({ ...input, ownerUserId: owner }).returning();
+        if (!expense) return persistenceError(new Error("expense insert returned no row"));
+        const [created] = await transaction
+          .select(expenseSelection())
+          .from(expenses)
+          .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expense.id)))
+          .limit(1);
+        if (!created) return persistenceError(new Error("expense insert lookup returned no row"));
+        return created;
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function updateExpense(expenseId: string, input: UpdateExpenseInput) {
+    assertExpenseId(expenseId);
+    assertExpenseInput(input);
+    try {
+      return await database.transaction(async (transaction) => {
+        const [currentExpense] = await transaction
+          .select({ id: expenses.id, amount: expenses.amount })
+          .from(expenses)
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .limit(1)
+          .for("update");
+        if (!currentExpense) return notFound();
+
+        const currentShares = await transaction
+          .select({ amountOwed: expenseShares.amountOwed })
+          .from(expenseShares)
+          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)));
+        const assignedTotal = currentShares.reduce((total, share) => total + share.amountOwed, 0);
+        if (input.amount < assignedTotal) throw new ExpenseShareInvariantError();
+
+        await assertOwnedOuting(transaction, input.outingId);
+        const [expense] = await transaction
+          .update(expenses)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .returning();
+        if (!expense) return notFound();
+        const [updated] = await transaction
+          .select(expenseSelection())
+          .from(expenses)
+          .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .limit(1);
+        if (!updated) return persistenceError(new Error("expense update returned no row"));
+        return updated;
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function getExpenseDeletionImpact(expenseId: string): Promise<ExpenseDeletionImpact> {
+    assertExpenseId(expenseId);
+    try {
+      const [expense] = await database
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .limit(1);
+      if (!expense) return notFound();
+      const [receiptRows, shareRows] = await Promise.all([
+        database.select({ id: expenseReceipts.id }).from(expenseReceipts).where(and(eq(expenseReceipts.ownerUserId, owner), eq(expenseReceipts.expenseId, expenseId))),
+        database.select({ id: expenseShares.id, friendId: expenseShares.friendId }).from(expenseShares).where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId))),
+      ]);
+      const shareIds = safeDeletionIds(shareRows.map((share) => share.id), "Expense share ID");
+      const allocationRows = shareIds.length
+        ? await database.select({ repaymentId: repaymentAllocations.repaymentId }).from(repaymentAllocations).where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+        : [];
+      const affectedRepaymentIds = safeDeletionIds(allocationRows.map((allocation) => allocation.repaymentId), "Affected repayment ID");
+      return {
+        recordType: "expense",
+        receiptCount: safeRetrievalInteger(receiptRows.length, "Expense receipt count"),
+        shareCount: safeRetrievalInteger(shareRows.length, "Expense share count"),
+        allocationCount: safeRetrievalInteger(allocationRows.length, "Expense allocation count"),
+        affectedRepaymentCount: safeRetrievalInteger(affectedRepaymentIds.length, "Affected repayment count"),
+        affectedRepaymentIds,
+        affectedFriendIds: safeDeletionIds(shareRows.map((share) => share.friendId), "Affected friend ID"),
+      };
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function deleteExpense(expenseId: string, options: DeleteRecordOptions = { cascadeDependents: false }) {
+    assertExpenseId(expenseId);
+    assertDeleteOptions(options);
+    try {
+      return await database.transaction(async (transaction) => {
+        const [expense] = await transaction
+          .select({ id: expenses.id })
+          .from(expenses)
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .limit(1)
+          .for("update");
+        if (!expense) return notFound();
+        const dependents = await lockExpenseDependents(transaction, [expenseId]);
+        const affectedRepaymentIds = safeDeletionIds(dependents.allocations.map((allocation) => allocation.repaymentId), "Affected repayment ID");
+        const impact: ExpenseDeletionImpact = {
+          recordType: "expense",
+          receiptCount: safeRetrievalInteger(dependents.receipts.length, "Expense receipt count"),
+          shareCount: safeRetrievalInteger(dependents.shares.length, "Expense share count"),
+          allocationCount: safeRetrievalInteger(dependents.allocations.length, "Expense allocation count"),
+          affectedRepaymentCount: safeRetrievalInteger(affectedRepaymentIds.length, "Affected repayment count"),
+          affectedRepaymentIds,
+          affectedFriendIds: safeDeletionIds(dependents.shares.map((share) => share.friendId), "Affected friend ID"),
+        };
+        assertDeletionConfirmation(impact, options, ExpenseDeletionInvariantError);
+        const deleted = await transaction
+          .delete(expenses)
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .returning({ id: expenses.id });
+        if (deleted.length === 0) return notFound();
+        return { friendIds: impact.affectedFriendIds, repaymentIds: impact.affectedRepaymentIds };
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput[], charges?: ExpenseChargeInput[]) {
+    assertExpenseId(expenseId);
+    assertExpenseSharesInput(shares);
+    if (charges !== undefined) assertExpenseChargesInput(charges);
+    try {
+      return await database.transaction(async (transaction) => {
+        const [expense] = await transaction
+          .select({ id: expenses.id, amount: expenses.amount })
+          .from(expenses)
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .limit(1)
+          .for("update");
+        if (!expense) return notFound();
+
+        const currentShares = await transaction
+          .select({ id: expenseShares.id, friendId: expenseShares.friendId, baseAmount: expenseShares.baseAmount, amountOwed: expenseShares.amountOwed })
+          .from(expenseShares)
+          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)));
+        const currentByFriend = new Map(currentShares.map((share) => [share.friendId, share]));
+        const requested = shares.map((share) => ({ friendId: share.friendId.trim().toLowerCase(), baseAmount: shareBaseAmount(share) }));
+        const storedCharges = charges === undefined ? await listExpenseChargesFor(transaction, expenseId) : [];
+        const requestedCharges: ExpenseChargeInput[] = charges ?? storedCharges.map(({ name, percentageBasisPoints, scope, friendIds }) => ({ name, percentageBasisPoints, scope, friendIds }));
+
+        const friendIds = requested.map((share) => share.friendId);
+        const ownedFriends = friendIds.length
+          ? await transaction
+              .select({ id: friends.id, archivedAt: friends.archivedAt })
+              .from(friends)
+              .where(and(eq(friends.ownerUserId, owner), inArray(friends.id, friendIds)))
+          : [];
+        if (ownedFriends.length !== new Set(friendIds).size) return notFound();
+        for (const friend of ownedFriends) {
+          if (friend.archivedAt !== null && !currentByFriend.has(friend.id)) {
+            throw new LedgerRepositoryError("INVALID_INPUT", "Archived friends cannot be newly assigned.");
+          }
+        }
+        const requestedFriendIds = new Set(friendIds);
+        for (const charge of requestedCharges) {
+          if (charge.scope === "selected" && charge.friendIds.some((friendId) => !requestedFriendIds.has(friendId.toLowerCase()))) {
+            throw new LedgerRepositoryError("INVALID_INPUT", "Selected charge targets must have a share amount.");
+          }
+        }
+        const finalByFriend = new Map(requested.map((share) => {
+          try {
+            return [share.friendId, calculateShareBreakdown(share.baseAmount, requestedCharges, share.friendId).finalAmount] as const;
+          } catch {
+            throw new LedgerRepositoryError("INVALID_INPUT", "The final share amount is too large.");
+          }
+        }));
+        const total = [...finalByFriend.values()].reduce((sum, amount) => sum + amount, 0);
+        if (total > expense.amount) throw new ExpenseShareInvariantError();
+
+        const allocationTotals = currentShares.length
+          ? await transaction
+              .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: sql<number>`coalesce(sum(${repaymentAllocations.amount}), 0)` })
+              .from(repaymentAllocations)
+              .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, currentShares.map((share) => share.id))))
+              .groupBy(repaymentAllocations.expenseShareId)
+          : [];
+        const allocatedByShare = new Map(allocationTotals.map((allocation) => [allocation.expenseShareId, Number(allocation.amount)]));
+        for (const requestedShare of requested) {
+          const current = currentByFriend.get(requestedShare.friendId);
+          if (current && finalByFriend.get(requestedShare.friendId)! < (allocatedByShare.get(current.id) ?? 0)) {
+            throw new ExpenseShareAllocationInvariantError();
+          }
+        }
+
+        const requestedByFriend = new Map(requested.map((share) => [share.friendId, share]));
+        for (const current of currentShares) {
+          const requestedShare = requestedByFriend.get(current.friendId);
+          if (requestedShare === undefined) continue;
+          const amountOwed = finalByFriend.get(current.friendId)!;
+          if (requestedShare.baseAmount !== current.baseAmount || amountOwed !== current.amountOwed) {
+            await transaction
+              .update(expenseShares)
+              .set({ baseAmount: requestedShare.baseAmount, amountOwed })
+              .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.id, current.id)));
+          }
+        }
+
+        const newShares = requested.filter((share) => !currentByFriend.has(share.friendId));
+        if (newShares.length > 0) {
+          await transaction.insert(expenseShares).values(
+            newShares.map((share) => ({ ownerUserId: owner, expenseId, friendId: share.friendId, baseAmount: share.baseAmount, amountOwed: finalByFriend.get(share.friendId)! })),
+          );
+        }
+
+        const omittedIds = currentShares.filter((share) => !requestedByFriend.has(share.friendId)).map((share) => share.id);
+        if (omittedIds.length > 0) {
+          await transaction
+            .delete(expenseShares)
+            .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId), inArray(expenseShares.id, omittedIds)));
+        }
+
+        if (charges !== undefined) {
+          await transaction.delete(expenseCharges).where(and(eq(expenseCharges.ownerUserId, owner), eq(expenseCharges.expenseId, expenseId)));
+          const shareRows = requested.length
+            ? await transaction
+                .select({ id: expenseShares.id, friendId: expenseShares.friendId })
+                .from(expenseShares)
+                .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)))
+            : [];
+          const shareIdByFriend = new Map(shareRows.map((share) => [share.friendId, share.id]));
+          const createdCharges = requestedCharges.length
+            ? await transaction
+                .insert(expenseCharges)
+                .values(requestedCharges.map((charge) => ({ ownerUserId: owner, expenseId, name: charge.name.trim(), percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope })))
+                .returning({ id: expenseCharges.id })
+            : [];
+          const targetRows = requestedCharges.flatMap((charge, index) => charge.scope === "selected"
+            ? charge.friendIds.map((friendId) => ({ ownerUserId: owner, expenseId, expenseChargeId: createdCharges[index]!.id, expenseShareId: shareIdByFriend.get(friendId.toLowerCase())! }))
+            : []);
+          if (targetRows.length > 0) await transaction.insert(expenseChargeTargets).values(targetRows);
+        }
+
+        return await listExpenseSharesFor(transaction, expenseId);
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  return { lockExpenseDependents, createExpense, updateExpense, getExpenseDeletionImpact, deleteExpense, replaceExpenseShares };
 }

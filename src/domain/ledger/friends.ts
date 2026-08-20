@@ -11,8 +11,8 @@ import {
   RECORD_PAGE_SIZE,
   type RecordPage,
 } from "../record-retrieval";
-import { assertFriendId } from "./validation";
-import type { FriendSelectorOption } from "./types";
+import { assertFriendArchiveReversalReceipt, assertFriendId, assertFriendInput } from "./validation";
+import type { CreateFriendInput, FriendArchiveReversalReceipt, FriendSelectorOption, UpdateFriendInput } from "./types";
 
 export function createFriendsReadRepository(database: Database, owner: string) {
 async function getFriend(friendId: string) {
@@ -101,4 +101,95 @@ async function listFriendRecords(options: { archived?: unknown; q?: unknown; pag
   }
 
   return { getFriend, listFriends, searchFriends, listFriendRecords };
+}
+
+export function createFriendsMutationRepository(database: Database, owner: string) {
+async function createFriend(input: CreateFriendInput) {
+    assertFriendInput(input);
+    try {
+      const [friend] = await database.insert(friends).values({ ...input, ownerUserId: owner }).returning();
+      if (!friend) return persistenceError(new Error("friend insert returned no row"));
+      return friend;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function updateFriend(friendId: string, input: UpdateFriendInput) {
+    assertFriendId(friendId);
+    assertFriendInput(input);
+    try {
+      const [friend] = await database
+        .update(friends)
+        .set({ ...input, updatedAt: new Date() })
+        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .returning();
+      if (!friend) return notFound();
+      return friend;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function setFriendArchived(friendId: string, archived: boolean) {
+    assertFriendId(friendId);
+    try {
+      const [friend] = await database
+        .update(friends)
+        .set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() })
+        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .returning();
+      if (!friend) return notFound();
+      return friend;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function archiveFriend(friendId: string) {
+    assertFriendId(friendId);
+    const archivedAt = new Date();
+    const updatedAt = new Date();
+    try {
+      const [friend] = await database
+        .update(friends)
+        .set({ archivedAt, updatedAt })
+        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId), isNull(friends.archivedAt)))
+        .returning();
+      if (!friend) return notFound();
+      return {
+        friend,
+        reversalReceipt: {
+          version: 1 as const,
+          friendId: friend.id,
+          archivedAt: friend.archivedAt?.toISOString() ?? archivedAt.toISOString(),
+          updatedAt: friend.updatedAt.toISOString(),
+        },
+      };
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function undoFriendArchive(receipt: FriendArchiveReversalReceipt) {
+    assertFriendArchiveReversalReceipt(receipt);
+    try {
+      const [friend] = await database
+        .update(friends)
+        .set({ archivedAt: null, updatedAt: new Date() })
+        .where(and(
+          eq(friends.ownerUserId, owner),
+          eq(friends.id, receipt.friendId),
+          eq(friends.archivedAt, new Date(receipt.archivedAt)),
+          eq(friends.updatedAt, new Date(receipt.updatedAt)),
+        ))
+        .returning();
+      if (!friend) return notFound();
+      return friend;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  return { createFriend, updateFriend, setFriendArchived, archiveFriend, undoFriendArchive };
 }

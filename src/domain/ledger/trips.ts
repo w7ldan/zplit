@@ -4,8 +4,8 @@ import { expenses, outings, trips } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
 import { ledgerDifference, ledgerInteger, literalContains, notFound, persistenceError, safeRetrievalInteger } from "./query-utils";
 import { clampPage, normalizeText, normalizeUuid, pageResult, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
-import { assertTripId } from "./validation";
-import type { TripFinancialSummary, TripListRecord, TripSelectorOption } from "./types";
+import { assertTripId, assertTripInput } from "./validation";
+import type { CreateTripInput, TripFinancialSummary, TripListRecord, TripSelectorOption, UpdateTripInput } from "./types";
 
 type TripAggregateRow = {
   trip_id: unknown;
@@ -243,4 +243,63 @@ async function getTripSummary(tripId: string): Promise<TripFinancialSummary> {
   }
 
   return { getTrip, searchTrips, listTripRecords, getTripSummary };
+}
+
+export function createTripsMutationRepository(database: Database, owner: string) {
+async function createTrip(input: CreateTripInput) {
+    assertTripInput(input);
+    try {
+      const [trip] = await database.insert(trips).values({ ...input, ownerUserId: owner }).returning();
+      if (!trip) return persistenceError(new Error("trip insert returned no row"));
+      return trip;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function updateTrip(tripId: string, input: UpdateTripInput) {
+    assertTripId(tripId);
+    assertTripInput(input);
+    try {
+      const [trip] = await database
+        .update(trips)
+        .set({ ...input, updatedAt: new Date() })
+        .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+        .returning();
+      if (!trip) return notFound();
+      return trip;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function deleteTrip(tripId: string) {
+    assertTripId(tripId);
+    try {
+      return await database.transaction(async (transaction) => {
+        const [trip] = await transaction
+          .select({ id: trips.id })
+          .from(trips)
+          .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+          .limit(1)
+          .for("update");
+        if (!trip) return notFound();
+        const detached = await transaction
+          .update(outings)
+          .set({ tripId: null, updatedAt: new Date() })
+          .where(and(eq(outings.ownerUserId, owner), eq(outings.tripId, tripId)))
+          .returning({ id: outings.id });
+        const deleted = await transaction
+          .delete(trips)
+          .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+          .returning({ id: trips.id });
+        if (deleted.length === 0) return notFound();
+        return { detachedOutingCount: detached.length };
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  return { createTrip, updateTrip, deleteTrip };
 }

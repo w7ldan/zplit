@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
-import { expenses, outings, repayments, trips } from "../../db/schema";
-import { literalContains, notFound, persistenceError, safeRetrievalInteger } from "./query-utils";
+import { expenseReceipts, expenseShares, expenses, outings, repaymentAllocations, repayments, trips } from "../../db/schema";
+import { OutingDeletionInvariantError } from "./errors";
+import { addDeletionAmount, assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
 import {
   clampPage,
   monthStart,
@@ -13,8 +14,8 @@ import {
   pageResult,
   RECORD_PAGE_SIZE,
 } from "../record-retrieval";
-import { assertOutingId } from "./validation";
-import type { OutingSelectorOption } from "./types";
+import { assertOutingId, assertOutingInput } from "./validation";
+import type { CreateOutingInput, DeleteRecordOptions, OutingDeletionImpact, OutingSelectorOption, UpdateOutingInput } from "./types";
 
 export function createOutingsReadRepository(database: Database, owner: string) {
 async function getOuting(outingId: string) {
@@ -172,4 +173,144 @@ async function listOutingRecords(options: { q?: unknown; month?: unknown; trip?:
   }
 
   return { getOuting, listOutings, searchOutings, listRecentPaymentMethods, listOutingRecords };
+}
+
+import type { createExpenseMutationRepository } from "./expenses";
+
+export function createOutingsMutationRepository(
+  database: Database,
+  owner: string,
+  { lockExpenseDependents }: Pick<ReturnType<typeof createExpenseMutationRepository>, "lockExpenseDependents">,
+) {
+async function assertOwnedTrip(databaseLike: Pick<Database, "select">, tripId: string) {
+    const [trip] = await databaseLike
+      .select({ id: trips.id })
+      .from(trips)
+      .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+      .limit(1);
+    if (!trip) return notFound();
+  }
+
+async function createOuting(input: CreateOutingInput) {
+    assertOutingInput(input);
+    const requested = { ...input, tripId: input.tripId ?? null };
+    try {
+      if (requested.tripId) await assertOwnedTrip(database, requested.tripId);
+      const [outing] = await database.insert(outings).values({ ...requested, ownerUserId: owner }).returning();
+      if (!outing) return persistenceError(new Error("outing insert returned no row"));
+      return outing;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function updateOuting(outingId: string, input: UpdateOutingInput) {
+    assertOutingId(outingId);
+    assertOutingInput(input);
+    const requested = { ...input, tripId: input.tripId ?? null };
+    try {
+      if (requested.tripId) await assertOwnedTrip(database, requested.tripId);
+      const [outing] = await database
+        .update(outings)
+        .set({ ...requested, updatedAt: new Date() })
+        .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+        .returning();
+      if (!outing) return notFound();
+      return outing;
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function getOutingDeletionImpact(outingId: string): Promise<OutingDeletionImpact> {
+    assertOutingId(outingId);
+    try {
+      const [outing] = await database
+        .select({ id: outings.id })
+        .from(outings)
+        .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+        .limit(1);
+      if (!outing) return notFound();
+      const expenseRows = await database
+        .select({ id: expenses.id, amount: expenses.amount })
+        .from(expenses)
+        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.outingId, outingId)));
+      const expenseIds = safeDeletionIds(expenseRows.map((expense) => expense.id), "Outing expense ID");
+      let expenseTotal = 0;
+      for (const expense of expenseRows) expenseTotal = addDeletionAmount(expenseTotal, expense.amount, `Expense ${expense.id} amount`);
+      const shareRows = expenseIds.length
+        ? await database.select({ id: expenseShares.id, friendId: expenseShares.friendId }).from(expenseShares).where(and(eq(expenseShares.ownerUserId, owner), inArray(expenseShares.expenseId, expenseIds)))
+        : [];
+      const shareIds = safeDeletionIds(shareRows.map((share) => share.id), "Expense share ID");
+      const [receiptRows, allocationRows] = expenseIds.length
+        ? await Promise.all([
+            database.select({ id: expenseReceipts.id }).from(expenseReceipts).where(and(eq(expenseReceipts.ownerUserId, owner), inArray(expenseReceipts.expenseId, expenseIds))),
+            shareIds.length
+              ? database.select({ repaymentId: repaymentAllocations.repaymentId }).from(repaymentAllocations).where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+              : Promise.resolve([]),
+          ])
+        : [[], []];
+      const affectedRepaymentIds = safeDeletionIds(allocationRows.map((allocation) => allocation.repaymentId), "Affected repayment ID");
+      return {
+        recordType: "outing",
+        expenseCount: safeRetrievalInteger(expenseRows.length, "Outing expense count"),
+        expenseTotal,
+        receiptCount: safeRetrievalInteger(receiptRows.length, "Outing receipt count"),
+        shareCount: safeRetrievalInteger(shareRows.length, "Outing share count"),
+        allocationCount: safeRetrievalInteger(allocationRows.length, "Outing allocation count"),
+        affectedRepaymentCount: safeRetrievalInteger(affectedRepaymentIds.length, "Affected repayment count"),
+        affectedRepaymentIds,
+        affectedFriendIds: safeDeletionIds(shareRows.map((share) => share.friendId), "Affected friend ID"),
+      };
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+async function deleteOuting(outingId: string, options: DeleteRecordOptions = { cascadeDependents: false }) {
+    assertOutingId(outingId);
+    assertDeleteOptions(options);
+    try {
+      return await database.transaction(async (transaction) => {
+        const [outing] = await transaction
+          .select({ id: outings.id })
+          .from(outings)
+          .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+          .limit(1)
+          .for("update");
+        if (!outing) return notFound();
+        const dependentExpenses = await transaction
+          .select({ id: expenses.id, amount: expenses.amount })
+          .from(expenses)
+          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.outingId, outingId)))
+          .orderBy(asc(expenses.id))
+          .for("update");
+        const expenseIds = safeDeletionIds(dependentExpenses.map((expense) => expense.id), "Outing expense ID");
+        const dependents = await lockExpenseDependents(transaction, expenseIds);
+        const affectedRepaymentIds = safeDeletionIds(dependents.allocations.map((allocation) => allocation.repaymentId), "Affected repayment ID");
+        const impact: OutingDeletionImpact = {
+          recordType: "outing",
+          expenseCount: safeRetrievalInteger(dependentExpenses.length, "Outing expense count"),
+          expenseTotal: dependentExpenses.reduce((total, expense) => addDeletionAmount(total, expense.amount, `Expense ${expense.id} amount`), 0),
+          receiptCount: safeRetrievalInteger(dependents.receipts.length, "Outing receipt count"),
+          shareCount: safeRetrievalInteger(dependents.shares.length, "Outing share count"),
+          allocationCount: safeRetrievalInteger(dependents.allocations.length, "Outing allocation count"),
+          affectedRepaymentCount: safeRetrievalInteger(affectedRepaymentIds.length, "Affected repayment count"),
+          affectedRepaymentIds,
+          affectedFriendIds: safeDeletionIds(dependents.shares.map((share) => share.friendId), "Affected friend ID"),
+        };
+        assertDeletionConfirmation(impact, options, OutingDeletionInvariantError);
+        const deleted = await transaction
+          .delete(outings)
+          .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+          .returning({ id: outings.id });
+        if (deleted.length === 0) return notFound();
+        return { friendIds: impact.affectedFriendIds, repaymentIds: impact.affectedRepaymentIds };
+      });
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  return { createOuting, updateOuting, getOutingDeletionImpact, deleteOuting };
 }
