@@ -10,7 +10,7 @@ export type ResolvedTheme = "light" | "dark";
 
 const themeColors: Record<ResolvedTheme, string> = {
   light: "#F4F1EA",
-  dark: "#211F1D",
+  dark: "#171816",
 };
 
 export function isThemePreference(value: string | null): value is ThemePreference {

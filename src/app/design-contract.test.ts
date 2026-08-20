@@ -112,6 +112,21 @@ describe("Zplit design contract", () => {
       expect(css).toContain(token);
     }
 
+    const darkPalette = css.match(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/)?.[1] ?? "";
+    for (const token of [
+      "--paper: #171816",
+      "--surface: #20211F",
+      "--ink: #E8E4DC",
+      "--muted-ink: #A8A39A",
+      "--rule: #42433F",
+      "--pastel-blue: #263C47",
+      "--mint: #22372C",
+      "--amber: #3B3321",
+      "--peach: #3A2825",
+    ]) {
+      expect(darkPalette).toContain(token);
+    }
+
     for (const radius of ["--radius-sm: 6px", "--radius-md: 10px", "--radius-lg: 16px", "--radius-xl: 20px", "--radius-control: 10px", "--radius-panel: 16px"]) {
       expect(css).toContain(radius);
     }

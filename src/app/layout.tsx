@@ -4,7 +4,7 @@ import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-regis
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import "./globals.css";
 
-export const themeBootstrap = `(()=>{const r=document.documentElement;let p="system";try{p=localStorage.getItem("zplit-theme")||"system"}catch{}let d="light";try{d=p==="light"||p==="dark"?p:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch{}r.dataset.theme=d;r.style.colorScheme=d;document.querySelector('meta[name="theme-color"]')?.setAttribute("content",d==="dark"?"#211F1D":"#F4F1EA")})()`;
+export const themeBootstrap = `(()=>{const r=document.documentElement;let p="system";try{p=localStorage.getItem("zplit-theme")||"system"}catch{}let d="light";try{d=p==="light"||p==="dark"?p:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch{}r.dataset.theme=d;r.style.colorScheme=d;document.querySelector('meta[name="theme-color"]')?.setAttribute("content",d==="dark"?"#171816":"#F4F1EA")})()`;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://idr.wildan.lol"),

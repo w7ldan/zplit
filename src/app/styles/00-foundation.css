@@ -41,15 +41,15 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ink: #F3F0EA;
-  --paper: #211F1D;
-  --pastel-blue: #9FCDE5;
-  --surface: #2B2926;
-  --muted-ink: #B8B2AA;
-  --rule: #57534E;
-  --mint: #B8D9C6;
-  --peach: #E4BDAA;
-  --amber: #E4CF97;
+  --ink: #E8E4DC;
+  --paper: #171816;
+  --pastel-blue: #263C47;
+  --surface: #20211F;
+  --muted-ink: #A8A39A;
+  --rule: #42433F;
+  --mint: #22372C;
+  --peach: #3A2825;
+  --amber: #3B3321;
   --error: #F09A8E;
   --white: #FFFFFF;
   --success: #9DD4AE;

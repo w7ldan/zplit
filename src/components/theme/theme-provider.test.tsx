@@ -57,7 +57,7 @@ describe("theme controller", () => {
 
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
     expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("system");
-    expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute("content", "#211F1D");
+    expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute("content", "#171816");
   });
 
   it.each([["light", false], ["dark", true]] as const)("honors stored %s preference", async (preference, systemDark) => {
@@ -107,6 +107,7 @@ describe("theme controller", () => {
   it("keeps the bootstrap before body content and defines the dark token contract", () => {
     expect(themeBootstrap).toContain("zplit-theme");
     expect(themeBootstrap).toContain("prefers-color-scheme: dark");
+    expect(themeBootstrap).toContain('d==="dark"?"#171816":"#F4F1EA"');
     const root = RootLayout({ children: <span>content</span> }) as ReactElement<{ children: ReactElement[] }>;
     const [head, body] = root.props.children;
     expect(head.type).toBe("head");
