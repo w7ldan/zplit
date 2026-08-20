@@ -173,6 +173,8 @@ describe("expense share editor", () => {
 
   it("associates charge controls with visible labels and renders one rate suffix", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} charges={[{ name: "Service", percentageBasisPoints: 750, scope: "all", friendIds: [] }]} />);
+    expect(document.querySelector<HTMLDetailsElement>(".expense-share-editor__charges")).toHaveAttribute("open", "");
+    expect(screen.getByText("Charges · 1")).toBeInTheDocument();
     const charge = screen.getByText("Charge 1").closest(".expense-share-editor__charge")!;
 
     expect(within(charge).getByLabelText("Name")).toHaveValue("Service");
@@ -180,6 +182,29 @@ describe("expense share editor", () => {
     expect(within(charge).getByLabelText("Applies to")).toHaveValue("all");
     expect(within(charge).getAllByText("%", { exact: true })).toHaveLength(1);
     expect(within(charge).queryByPlaceholderText("%")).not.toBeInTheDocument();
+  });
+
+  it("collapses optional charges without losing a draft", () => {
+    const action = vi.fn();
+    render(<ExpenseShareEditor action={action} expenseAmount={84000} friends={[activeFriend]} charges={[{ name: "Service", percentageBasisPoints: 750, scope: "all", friendIds: [] }]} />);
+    const details = document.querySelector<HTMLDetailsElement>(".expense-share-editor__charges")!;
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Platform" } });
+    fireEvent.click(screen.getByText("Charges · 1"));
+
+    expect(details).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Charges · 1"));
+    expect(screen.getByLabelText("Name")).toHaveValue("Platform");
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it("keeps charges collapsed when none exist until opened", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} />);
+    const details = document.querySelector<HTMLDetailsElement>(".expense-share-editor__charges")!;
+    expect(details).not.toHaveAttribute("open");
+    expect(screen.getByText("Charges (optional)")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Charges (optional)"));
+    expect(details).toHaveAttribute("open", "");
+    expect(screen.getByRole("button", { name: "Add charge" })).toBeInTheDocument();
   });
 
   it("replaces the current draft with the previous saved split and drops unavailable targets", () => {
@@ -320,14 +345,14 @@ describe("expense share editor", () => {
 
   it("splits evenly across one friend and the owner", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={101} friends={[activeFriend]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Split evenly (incl. you)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Split evenly with me" }));
     expect(screen.getByLabelText("Rani")).toHaveValue("50");
     expect(screen.getByText("Rp 51 is your portion.", { exact: false })).toBeInTheDocument();
   });
 
   it("splits multiple friends with the deterministic owner remainder", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={100} friends={[activeFriend, archivedFriend]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Split evenly (incl. you)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Split evenly with me" }));
     expect(screen.getByLabelText("Rani")).toHaveValue("33");
     expect(screen.getByLabelText(/^Bima/)).toHaveValue("33");
     expect(screen.getByText("Rp 34 is your portion.", { exact: false })).toBeInTheDocument();
@@ -335,7 +360,7 @@ describe("expense share editor", () => {
 
   it("does not offer split evenly without a selected friend", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={100} friends={[]} friendOptions={[suggestedFriend]} />);
-    expect(screen.queryByRole("button", { name: "Split evenly (incl. you)" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Split evenly with me" })).not.toBeInTheDocument();
   });
 
   it("shows final charged totals and reconstructs charge metadata in the form", () => {

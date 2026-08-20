@@ -199,20 +199,25 @@ export function RepaymentAllocationEditor({ action, plan, allocationQuery, alloc
               <div className="repayment-allocation-editor__details">
                 <p className="repayment-allocation-editor__description">{share.expenseDescription}</p>
                 <p className="repayment-allocation-editor__outing">{share.outingTitle} · <LocalDateTime iso={share.outingOccurredAt.toISOString()} mode="date" /></p>
-                <dl>
-                  <div><dt>Original amount owed</dt><dd>{formatRupiah(share.amountOwed)}</dd></div>
-                  <div><dt>Applied through other repayments</dt><dd>{formatRupiah(share.allocatedByOtherRepayments)}</dd></div>
-                  <div><dt>Capacity available to this repayment</dt><dd>{formatRupiah(share.capacityAvailable)}</dd></div>
-                </dl>
+                <div className="repayment-allocation-editor__available"><span>Available</span><strong>{formatRupiah(share.capacityAvailable)}</strong></div>
+                <details className="repayment-allocation-editor__details-disclosure">
+                  <summary>Allocation details</summary>
+                  <dl>
+                    <div><dt>Original owed</dt><dd>{formatRupiah(share.amountOwed)}</dd></div>
+                    <div><dt>Other repayments</dt><dd>{formatRupiah(share.allocatedByOtherRepayments)}</dd></div>
+                    <div><dt>Available</dt><dd>{formatRupiah(share.capacityAvailable)}</dd></div>
+                  </dl>
+                </details>
               </div>
               <div className="repayment-allocation-editor__field">
                 <input type="hidden" name="expenseShareId" value={share.expenseShareId} />
-                <label htmlFor={`repayment-allocation-${share.expenseShareId}`}>Amount to allocate to {share.expenseDescription}</label>
+                <label htmlFor={`repayment-allocation-${share.expenseShareId}`}>Allocate</label>
                 <input
                   id={`repayment-allocation-${share.expenseShareId}`}
                   name="amountRupiah"
                   type="text"
                   inputMode="numeric"
+                  aria-label={`Amount to allocate to ${share.expenseDescription}`}
                   value={draftAmounts[share.expenseShareId] ?? ""}
                   onChange={(event) => setDraftAmounts((current) => ({ ...current, [share.expenseShareId]: event.target.value }))}
                   aria-invalid={Boolean(state.fieldErrors[share.expenseShareId])}

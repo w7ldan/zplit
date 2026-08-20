@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RepaymentAllocationActionState } from "@/app/app/repayments/actions";
 import type { RepaymentAllocationPlan } from "@/domain/ledger-repository";
@@ -58,9 +58,15 @@ describe("RepaymentAllocationEditor", () => {
 
     expect(screen.getByText("Dinner")).toBeInTheDocument();
     expect(screen.getByText(/Friday night/)).toBeInTheDocument();
-    expect(screen.getByText("Original amount owed")).toBeInTheDocument();
-    expect(screen.getByText("Applied through other repayments")).toBeInTheDocument();
-    expect(screen.getByText("Capacity available to this repayment")).toBeInTheDocument();
+    const row = document.querySelector<HTMLElement>(".repayment-allocation-editor__row")!;
+    const details = within(row).getByText("Allocation details").closest("details") as HTMLDetailsElement;
+    expect(details).not.toHaveAttribute("open");
+    expect(within(row).getByText("Available", { selector: ".repayment-allocation-editor__available span" })).toBeInTheDocument();
+    fireEvent.click(within(row).getByText("Allocation details"));
+    expect(details).toHaveAttribute("open", "");
+    expect(within(details).getByText("Original owed")).toBeInTheDocument();
+    expect(within(details).getByText("Other repayments")).toBeInTheDocument();
+    expect(within(details).getByText("Available")).toBeInTheDocument();
     expect(screen.getByText("Rp 70.000", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Rp 30.000", { exact: true })).toBeInTheDocument();
     expect(screen.getAllByText("Rp 40.000", { exact: true }).length).toBeGreaterThan(0);
@@ -136,7 +142,7 @@ describe("RepaymentAllocationEditor", () => {
     fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "40000" } });
     expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
     expect(screen.getByText("Rp 44.000 needs allocation. Only applied money reduces outstanding balances.")).toBeInTheDocument();
-    expect(screen.getByText("Capacity available to this repayment")).toBeInTheDocument();
+    expect(screen.getByText("Available", { selector: ".repayment-allocation-editor__available span" })).toBeInTheDocument();
   });
 
   it("preserves values and exposes field errors after validation failure", async () => {

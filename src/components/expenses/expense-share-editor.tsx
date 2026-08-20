@@ -113,6 +113,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
   const [selectedFriends, setSelectedFriends] = useState(initialFriends);
   const [draftAmounts, setDraftAmounts] = useState(() => initialAmounts(initialFriends));
   const [draftCharges, setDraftCharges] = useState<ExpenseShareChargeValues[]>(() => initialCharges(initialChargeDefinitions));
+  const [chargesOpen, setChargesOpen] = useState(initialChargeDefinitions.length > 0);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [confirmPreviousSplit, setConfirmPreviousSplit] = useState(false);
   const [previousSplitMessage, setPreviousSplitMessage] = useState("");
@@ -317,7 +318,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
         <div className="expense-share-editor__add">
           <div>
             <label id="expense-share-add-label" htmlFor="expense-share-add">Add friend</label>
-            {selectedFriends.length > 0 ? <button className="text-link" type="button" onClick={splitEvenly}>Split evenly (incl. you)</button> : null}
+            {selectedFriends.length > 0 ? <button className="text-link" type="button" onClick={splitEvenly}>Split evenly with me</button> : null}
           </div>
           {previousSplit ? <div className="expense-share-editor__previous">
             {!confirmPreviousSplit ? <button className="text-link" type="button" onClick={usePreviousSplit}>Use previous split</button> : <div className="expense-share-editor__previous-confirm">
@@ -355,9 +356,10 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
           <label htmlFor="expense-share-native-amount">Amount for friend to add</label>
           <input id="expense-share-native-amount" name="additionalAmountRupiah" type="text" inputMode="numeric" autoComplete="off" />
         </noscript>
-        <section className="expense-share-editor__charges" aria-labelledby="expense-share-charges-heading">
+        <details className="expense-share-editor__charges" open={chargesOpen} onToggle={(event) => setChargesOpen(event.currentTarget.open)}>
+          <summary>{draftCharges.length > 0 ? `Charges · ${draftCharges.length}` : "Charges (optional)"}</summary>
           <div className="expense-share-editor__section-heading">
-            <h3 id="expense-share-charges-heading">Charges</h3>
+            <span className="technical-label">Optional charge tools</span>
             <button className="text-link" type="button" onClick={addCharge}>Add charge</button>
           </div>
           {draftCharges.map((charge, index) => {
@@ -400,7 +402,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
             );
           })}
           <input type="hidden" name="charges" value={JSON.stringify(draftCharges)} readOnly />
-        </section>
+        </details>
         <p className="expense-share-editor__help">Enter a whole-rupiah base amount. Charges are calculated from that base. Use Remove to omit a friend from the split.</p>
         {selectedFriends.map((friend) => {
           const fieldErrorId = `expense-share-${friend.id}-error`;

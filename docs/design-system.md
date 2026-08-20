@@ -54,6 +54,8 @@ Record retrieval is URL-backed: free-text search is debounced and live, discrete
 - Prerequisite creation preserves the owner’s original task and returns automatically.
 - Creating the prerequisite Friend from Add repayment returns automatically to Repayment entry with that Friend selected.
 - Optional create-time fields use native progressive disclosure.
+- Expense split charges are optional native disclosure: saved charges open by default, empty charge tools stay collapsed, and collapsing preserves drafts.
+- Repayment allocation rows keep Available visible while per-row arithmetic details stay collapsed until requested.
 - Returned values and validation errors reveal their containing disclosure.
 - Edit forms remain direct when hiding controls would obstruct review.
 
