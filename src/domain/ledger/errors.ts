@@ -154,5 +154,3 @@ export class OutingDeletionInvariantError extends LedgerDeletionConfirmationRequ
 export class ExpenseDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}
 /** @deprecated Use LedgerDeletionConfirmationRequiredError. */
 export class RepaymentDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}
-
-

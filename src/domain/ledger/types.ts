@@ -141,16 +141,6 @@ export type GlobalSearchRecord = {
   date?: string;
 };
 
-export type GlobalSearchRow = {
-  record_kind: unknown;
-  record_id: unknown;
-  title_source: unknown;
-  detail_source: unknown;
-  context_source: unknown;
-  amount: unknown;
-  occurred_at: unknown;
-};
-
 export type RepaymentAllocationShare = {
   id: string;
   expenseShareId: string;
@@ -255,5 +245,3 @@ export type DebtorStatementPageOptions = {
   expensePage?: unknown;
   repaymentPage?: unknown;
 };
-
-

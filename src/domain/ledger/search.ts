@@ -3,7 +3,17 @@ import type { Database } from "../../db/client";
 import { LedgerIntegrityError } from "../ledger-summary";
 import { persistenceError, recentActivityDate, safeRetrievalInteger } from "./query-utils";
 import { escapeLikePattern, normalizeText, parseAmountSearch } from "../record-retrieval";
-import type { GlobalSearchRecord, GlobalSearchRow } from "./types";
+import type { GlobalSearchRecord } from "./types";
+
+type GlobalSearchRow = {
+  record_kind: unknown;
+  record_id: unknown;
+  title_source: unknown;
+  detail_source: unknown;
+  context_source: unknown;
+  amount: unknown;
+  occurred_at: unknown;
+};
 
 export function createLedgerSearchRepository(database: Database, owner: string) {
 async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]> {
