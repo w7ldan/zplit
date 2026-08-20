@@ -17,6 +17,7 @@ export const EXPECTED_TABLES = [
   "expense_receipts",
   "expense_shares",
   "repayments",
+  "repayment_proofs",
   "repayment_allocations",
 ] as const;
 

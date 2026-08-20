@@ -5,6 +5,7 @@ import { requireSession } from "@/auth/require-session";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { RepaymentForm } from "@/components/repayments/repayment-form";
 import { RepaymentAllocationEditor } from "@/components/repayments/repayment-allocation-editor";
+import { RepaymentPaymentProof } from "@/components/repayments/repayment-payment-proof";
 import { formatRupiah } from "@/domain/rupiah";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
@@ -12,6 +13,7 @@ import { loadRepaymentFriendContext, removeRepaymentAllocationAction, replaceRep
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteRepaymentAction } from "../actions";
+import { getRepaymentPaymentProofMetadata } from "@/server/repayment-payment-proofs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Repayment details" };
@@ -24,7 +26,8 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
   const session = await requireSession();
   const { repaymentId } = await params;
   const query = await searchParams;
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const database = getDatabase();
+  const repository = createLedgerRepository(database, session.user.id);
   let plan;
   try {
     plan = await repository.getRepaymentAllocationPlan(repaymentId, { q: first(query?.q), page: first(query?.page) });
@@ -44,7 +47,12 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
       if (!(error instanceof LedgerNotFoundError)) throw error;
     }
   }
-  const [friendOptionRows, friendContext, recentPaymentMethods] = await Promise.all([repository.searchFriends({ selectedId: plan.friendId }), repository.getRepaymentFriendContext(plan.friendId), repository.listRecentPaymentMethods()]);
+  const [friendOptionRows, friendContext, recentPaymentMethods, paymentProof] = await Promise.all([
+    repository.searchFriends({ selectedId: plan.friendId }),
+    repository.getRepaymentFriendContext(plan.friendId),
+    repository.listRecentPaymentMethods(),
+    getRepaymentPaymentProofMetadata(database, session.user.id, plan.id),
+  ]);
   const friendOptions = friendOptionRows.map((friend) => ({ id: friend.id, label: friend.name, archived: friend.archived }));
   const formContext = { ...friendContext, option: { id: friendContext.option.id, label: friendContext.option.name, archived: friendContext.option.archived } };
   const repayment = plan;
@@ -63,6 +71,7 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
             <div className="repayment-record__allocations" id="repayment-allocations">
               <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, repayment.id)} plan={plan} allocationQuery={first(query?.q)} allocationPage={plan.sharePage?.page} removeAction={removeRepaymentAllocationAction} undoAction={undoRepaymentAllocationAction} />
             </div>
+            <RepaymentPaymentProof repaymentId={repayment.id} initialPaymentProof={paymentProof} />
           </div>
           <aside className="repayment-record__sidebar">
             <div className="repayment-record__controls">

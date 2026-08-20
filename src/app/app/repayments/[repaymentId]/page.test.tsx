@@ -8,11 +8,13 @@ const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   getDatabase: vi.fn(),
   createLedgerRepository: vi.fn(),
+  getPaymentProof: vi.fn(),
   notFound: vi.fn(() => { throw new Error("not-found"); }),
 }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
+vi.mock("@/server/repayment-payment-proofs", () => ({ getRepaymentPaymentProofMetadata: mocks.getPaymentProof }));
 vi.mock("@/domain/ledger-repository", async () => {
   const actual = await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository");
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
@@ -55,6 +57,7 @@ describe("repayment record", () => {
   it("renders the friend identity, totals, local date metadata, and editable fields", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
+    mocks.getPaymentProof.mockResolvedValue(null);
     const getRepaymentDeletionImpact = vi.fn().mockResolvedValue(deletionImpact);
     mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact, searchFriends: vi.fn().mockResolvedValue([{ id: friend.id, name: friend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: friend.id, name: friend.name, archived: false }, outstandingAmount: 44_000, openExpenseShares: [] }), listRecentPaymentMethods: vi.fn().mockResolvedValue([]) });
 
@@ -78,6 +81,9 @@ describe("repayment record", () => {
     expect(screen.getByText("The friend is fixed while this repayment has allocations.")).toBeInTheDocument();
     expect(screen.getByText("Dinner")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Delete repayment" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Payment proof" })).toBeInTheDocument();
+    expect(screen.getByText("No payment proof attached.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add payment proof" })).toBeDisabled();
     expect(document.querySelector(".repayment-record__primary-task .repayment-record__allocations")).toBeInTheDocument();
     expect(document.querySelector(".repayment-record__sidebar .repayment-record__meta")).toBeInTheDocument();
     expect(document.querySelector(".repayment-record__sidebar .repayment-record__form")).toBeInTheDocument();
@@ -100,10 +106,15 @@ describe("repayment record", () => {
   it("keeps a validated contextual Trip available as a return path", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
+    mocks.getPaymentProof.mockResolvedValue({ id: "proof-a", originalFilename: "transfer.png", mediaType: "image/png", byteSize: 8, createdAt: repayment.paidAt });
     mocks.createLedgerRepository.mockReturnValue({ getRepaymentAllocationPlan: vi.fn().mockResolvedValue(allocationPlan), getRepaymentDeletionImpact: vi.fn().mockResolvedValue(deletionImpact), getTrip: vi.fn().mockResolvedValue(trip), searchFriends: vi.fn().mockResolvedValue([{ id: friend.id, name: friend.name, archived: false }]), getRepaymentFriendContext: vi.fn().mockResolvedValue({ option: { id: friend.id, name: friend.name, archived: false }, outstandingAmount: 44_000, openExpenseShares: [] }), listRecentPaymentMethods: vi.fn().mockResolvedValue([]) });
 
     render(<ToastProvider>{await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }), searchParams: Promise.resolve({ tripId: trip.id }) })}</ToastProvider>);
 
     expect(screen.getByRole("link", { name: "← Back to Bandung" })).toHaveAttribute("href", `/app/trips/${trip.id}`);
+    expect(screen.getByText("transfer.png")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Replace payment proof" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Preview transfer.png" })).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("Repayment receipt");
   });
 });

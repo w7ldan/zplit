@@ -24,7 +24,7 @@ function downloadHref(href: string) {
   return `${href}${href.includes("?") ? "&" : "?"}download=1`;
 }
 
-export function ReceiptPreview({ href, filename, mediaType }: { href: string; filename: string; mediaType: string }) {
+export function ReceiptPreview({ href, filename, mediaType, previewLabel = "receipt" }: { href: string; filename: string; mediaType: string; previewLabel?: string }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -105,7 +105,7 @@ export function ReceiptPreview({ href, filename, mediaType }: { href: string; fi
         <section className="receipt-preview__surface">
           <header className="receipt-preview__header">
             <h2 id={titleId} title={filename}>{filename}</h2>
-            <button className="receipt-preview__close" type="button" onClick={() => setOpen(false)} aria-label="Close receipt preview">Close</button>
+            <button className="receipt-preview__close" type="button" onClick={() => setOpen(false)} aria-label={`Close ${previewLabel} preview`}>Close</button>
           </header>
           <div className="receipt-preview__body">
             {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -6,6 +6,7 @@ This is a curated history of meaningful Zplit product, system, security, and ope
 
 ### Added
 
+- Owner-private Payment proof attachments for Repayments.
 - Persistent Light, Dark, and System theme preferences, dark semantic tokens, and route-specific page titles.
 - Actionable Needs Attention repayment allocation workflow on Overview.
 - Actionable Trip settlement balances derived from normal Expense shares and Repayment allocations, with a restrained Copy trip summary action.

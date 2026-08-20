@@ -1,6 +1,6 @@
 # Architecture
 
-Zplit is a modular monolith. One Next.js application owns the web routes, server actions, session boundary, domain rules, repository facade, and PostgreSQL access. Authentication and receipt/share-link services remain explicit server-side modules, but they run in the same deployable web service.
+Zplit is a modular monolith. One Next.js application owns the web routes, server actions, session boundary, domain rules, repository facade, and PostgreSQL access. Authentication, evidence, and share-link services remain explicit server-side modules, but they run in the same deployable web service.
 
 ## Request and data flow
 
@@ -24,6 +24,7 @@ Pages read through the owner-scoped repository. Mutations validate input at the 
 - `friends.ts`, `trips.ts`, and `outings.ts` own their reads and mutations.
 - `expenses.ts` owns expense reads, shares, percentage charges, receipt-dependent deletion data, and expense mutations.
 - `repayments.ts` owns repayment reads, allocation plans, strategies, and mutations.
+- `expense-receipts.ts` and `repayment-payment-proofs.ts` own private evidence bytes for their distinct historical facts.
 - `search.ts`, `history.ts`, and `statements.ts` own global/search, history, exports/statement, and summary reads.
 - `types.ts`, `validation.ts`, `query-utils.ts`, and `errors.ts` hold shared contracts and invariant handling.
 
@@ -58,6 +59,7 @@ Every ledger table carries `owner_user_id`. Repository queries include the authe
 PostgreSQL transactions and row locks protect workflows whose read impact must match their write:
 
 - creating or changing receipts locks the Expense, checks count, byte budget, duplicate hash, and inserts metadata plus bytes together;
+- creating or replacing a Payment proof locks the Repayment and keeps exactly one owner-scoped proof row, without changing its amount or allocations;
 - creating, revoking, or changing a debtor link locks the Friend and eligible receipts while replacing the active link and receipt mappings;
 - invitation creation and acceptance use an advisory lock plus claim/accept checks so a token is one-time and race-safe;
 - destructive ledger actions calculate current impact and require an explicit confirmation revision when dependents exist; Expense deletion then reconciles allocations in the same transaction before deletion, while Outing deletion does not invoke that reconciliation workflow;
@@ -67,13 +69,22 @@ PostgreSQL transactions and row locks protect workflows whose read impact must m
 
 Receipt metadata and binary content are stored in PostgreSQL. An Expense accepts at most five receipts and 15 MiB total; duplicate content is rejected by SHA-256. Authenticated receipt routes select by owner and Expense/receipt IDs and return private, no-store responses with restrictive content and referrer policies. A debtor link may expose only receipt mappings explicitly selected by the owner and eligible for that Friend.
 
+## Historical evidence
+
+```text
+Expense   → Receipt
+Repayment → Payment proof
+```
+
+Both are owner-private evidence attached to different historical facts. Payment proofs use the same validated JPEG, PNG, or WebP PostgreSQL byte-storage contract as receipts, but have their own `repayment_proofs` table, owner/Repayment relationship, one-proof uniqueness constraint, and authenticated route. Payment proofs are not included in debtor links, statements, QR/copy summaries, social metadata, or exports.
+
 ## Invitations
 
 The installation owner creates an invitation for a normalized email and optional suggested name. The system returns a random 32-byte token, stores only its SHA-256 hash, and gives it an expiry, claim, acceptance, and revocation state. Acceptance is invitation-only, creates a normal Better Auth credential account without creating a session, and records the accepted account atomically after the account is verified.
 
 ## Private debtor links
 
-The balance link is a seven-day bearer token. A random UUID is returned to the owner once; only its SHA-256 hash is stored. Resolution hashes the presented token and requires a non-revoked, unexpired row, then reads only the linked owner’s Friend statement. A new active link revokes the prior active link for that owner/Friend. Receipt selection is stored as link-to-receipt mappings and is checked against the same owner, Friend, Expense, and receipt relationships.
+The balance link is a seven-day bearer token. A random UUID is returned to the owner once; only its SHA-256 hash is stored. Resolution hashes the presented token and requires a non-revoked, unexpired row, then reads only the linked owner’s Friend statement. A new active link revokes the prior active link for that owner/Friend. Receipt selection is stored as link-to-receipt mappings and is checked against the same owner, Friend, Expense, and receipt relationships; Payment proofs have no public mapping path.
 
 ## Delete-time allocation reconciliation
 

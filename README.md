@@ -9,7 +9,7 @@ Zplit is a self-hostable, owner-scoped ledger for shared expenses, friend balanc
 - Trip-specific settlement balances and direct contextual repayment entry, derived from the normal share/allocation ledger.
 - Percentage charges, repayment records, payment methods, and manual, oldest-first, or newest-first allocation strategies.
 - Allocation-safe Expense deletion can automatically reallocate affected repayment allocations oldest-first to other outstanding shares for the same friend; any unresolved remainder stays unallocated, while Repayment amounts remain unchanged.
-- Private PostgreSQL-backed receipts, plus private temporary debtor balance links with selectable receipts.
+- Private PostgreSQL-backed Expense receipts and owner-private Repayment Payment proofs, plus private temporary debtor balance links with selectable receipts.
 - Copy, Preview, and QR sharing for balance links; invitation-only account creation.
 - Global record search, amount search, URL-backed filters and pagination, history, and CSV exports.
 - Light, dark, and system themes; installable PWA behavior with a static/offline fallback. Financial records are not available offline.
@@ -61,7 +61,7 @@ The production web container has no published host port; Caddy routes to it thro
 
 ## Security and privacy
 
-Authentication is invitation-only, and Better Auth sessions are required for the private application. Server actions and repository queries carry the authenticated owner ID; PostgreSQL constraints reinforce owner isolation. Receipts are private database bytes served with no-store and restrictive response headers. Debtor links are seven-day bearer links whose random token is returned once and only its SHA-256 hash is stored. Private routes are non-indexable and non-cacheable, and the Caddy edge applies the site security headers. The current in-memory request limits assume one web container; shared rate-limit storage is required before horizontal scaling.
+Authentication is invitation-only, and Better Auth sessions are required for the private application. Server actions and repository queries carry the authenticated owner ID; PostgreSQL constraints reinforce owner isolation. Expense receipts and Repayment Payment proofs are private database bytes served with no-store and restrictive response headers. Debtor links are seven-day bearer links whose random token is returned once and only its SHA-256 hash is stored; Payment proofs never enter their public statement surfaces. Private routes are non-indexable and non-cacheable, and the Caddy edge applies the site security headers. The current in-memory request limits assume one web container; shared rate-limit storage is required before horizontal scaling.
 
 ## Further reading
 
