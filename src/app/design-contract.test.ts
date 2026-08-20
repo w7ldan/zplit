@@ -249,6 +249,11 @@ describe("Zplit design contract", () => {
     expect(lateOverridesSource).not.toContain(".live-record-filters {");
     expect(lateOverridesSource).not.toContain(".record-pagination {");
     expect(lateOverridesSource).not.toContain(".repayment-form__allocations");
+    expect(lateOverridesSource).not.toContain(".friend-share__");
+    expect(authenticatedShellSource).not.toMatch(/\.(?:friend|outing|expense|repayment)-(?:row|form)(?:__|\s*\{)/);
+    expect(recordsAndFormsSource).toContain(".friend-row {");
+    expect(recordsAndFormsSource).toContain(".friend-form {");
+    expect(recordsAndFormsSource).toContain(".friends-toolbar {");
     expect(authenticatedShellSource).not.toMatch(/\.outing-record__meta\s*\{/);
     expect(authenticatedShellSource).not.toMatch(/\.expense-record__meta\s*\{/);
     expect(authenticatedShellSource).not.toMatch(/\.repayment-record__meta\s*\{/);
