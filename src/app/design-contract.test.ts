@@ -274,6 +274,13 @@ describe("Zplit design contract", () => {
     expect(authenticatedShellSource).not.toMatch(/\.repayment-record__meta\s*\{/);
   });
 
+  it("keeps Friend history actions stacked and aligned by their owning layout", () => {
+    expect(cssRuleBody(css, ".record-history__links")).toMatch(/display:\s*grid;[\s\S]*justify-items:\s*start;[\s\S]*gap:\s*0\.35rem;/);
+    expect(recordsAndFormsSource).toContain(".record-history__row:not(.record-history__row--share) > .record-history__link");
+    expect(recordsAndFormsSource).toMatch(/@media \(min-width: 960px\)[\s\S]*?\.record-history__links\s*\{[\s\S]*?justify-items:\s*end;/);
+    expect(cssRuleBody(recordsAndFormsSource, ".record-history__link")).not.toContain("justify-self: end;");
+  });
+
   it("keeps Friend detail ownership and workspace anchors intentional", () => {
     expect(recordsAndFormsSource).toContain(".friend-record__title");
     expect(recordsAndFormsSource).toContain(".friend-record__summary {");

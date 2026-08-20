@@ -2053,6 +2053,13 @@
   text-underline-offset: 0.2em;
 }
 
+.record-history__links {
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
 @media (min-width: 960px) {
   .friend-record__summary {
     grid-template-columns: minmax(0, 1.6fr) minmax(13rem, 0.8fr);
@@ -2167,8 +2174,12 @@
     grid-template-columns: minmax(0, 1.7fr) minmax(18rem, 2fr) minmax(5rem, auto) minmax(8rem, auto);
   }
 
-  .record-history__link {
+  .record-history__row:not(.record-history__row--share) > .record-history__link {
     justify-self: end;
+  }
+
+  .record-history__links {
+    justify-items: end;
   }
 }
 

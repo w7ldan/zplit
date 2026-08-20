@@ -33,6 +33,8 @@ const friend = {
 };
 const expenseShare = { id: "44444444-4444-4444-8444-444444444444", expenseId: "22222222-2222-4222-8222-222222222222", expenseDescription: "Dinner", outingTitle: "Jakarta dinner", outingOccurredAt: new Date("2026-01-02T10:30:00.000Z"), amountOwed: 8_000, appliedAmount: 3_000, remainingAmount: 5_000, settled: false };
 const expenseSharePage = { items: [expenseShare], page: 1, pageSize: 20 as const, totalItems: 1, totalPages: 1 };
+const settledExpenseShare = { ...expenseShare, id: "55555555-5555-4555-8555-555555555555", appliedAmount: 8_000, remainingAmount: 0, settled: true };
+const settledExpenseSharePage = { items: [settledExpenseShare], page: 1, pageSize: 20 as const, totalItems: 1, totalPages: 1 };
 const repayment = { id: "33333333-3333-4333-8333-333333333333", ownerUserId: "owner-a", friendId: friend.id, amount: 4_000, paidAt: new Date("2026-01-03T10:30:00.000Z"), paymentMethod: null, notes: null, createdAt: new Date("2026-01-03T10:30:00.000Z"), friendName: friend.name, friendArchivedAt: null, allocatedAmount: 3_000, unallocatedAmount: 1_000 };
 const repaymentPage = { items: [repayment], page: 1, pageSize: 20 as const, totalItems: 1, totalPages: 1 };
 const emptyExpenseSharePage = { items: [], page: 1, pageSize: 20 as const, totalItems: 0, totalPages: 1 };
@@ -67,9 +69,16 @@ describe("friend record", () => {
     expect(screen.getByText("Dinner", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("OPEN", { exact: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open expense" })).toHaveAttribute("href", `/app/expenses/${expenseShare.expenseId}`);
+    const shareRow = document.querySelector<HTMLElement>(".record-history__row--share")!;
+    expect(within(shareRow).getByRole("link", { name: "Open expense" })).toBeInTheDocument();
+    expect(within(shareRow).getByRole("link", { name: "Record repayment" })).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}&expenseShareId=${expenseShare.id}`);
+    expect(shareRow.querySelector(".record-history__links")).toContainElement(within(shareRow).getByRole("link", { name: "Record repayment" }));
     expect(screen.getByRole("heading", { level: 2, name: "Repayments" })).toBeInTheDocument();
     expect(screen.getByText("—", { exact: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open repayment" })).toHaveAttribute("href", `/app/repayments/${repayment.id}`);
+    const repaymentRow = document.querySelector<HTMLElement>(".record-history__row--repayment")!;
+    expect(repaymentRow.querySelectorAll(".record-history__link")).toHaveLength(1);
+    expect(repaymentRow.querySelector(".record-history__links")).not.toBeInTheDocument();
     expect(listFriendExpenseShareRecords).toHaveBeenCalledExactlyOnceWith(friend.id, { page: undefined });
     expect(listRepaymentRecords).toHaveBeenCalledExactlyOnceWith({ friendId: friend.id, page: undefined });
     for (const label of ["Assigned", "Applied", "Still owes"]) expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
@@ -83,6 +92,28 @@ describe("friend record", () => {
     expect(screen.getAllByRole("link", { name: "Record repayment" })[1]).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}&expenseShareId=${expenseShare.id}`);
     expect(screen.getByRole("link", { name: "Settle Rp 6.000" })).toHaveAttribute("href", `/app/repayments?create=1&friendId=${friend.id}&amount=6000&strategy=oldest`);
     expect(screen.getByRole("link", { name: /Back to friends/ })).toHaveAttribute("href", "/app/friends");
+  });
+
+  it("keeps settled share actions limited to opening the expense", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({
+      getFriend: vi.fn().mockResolvedValue(friend),
+      getFriendBalances: vi.fn().mockResolvedValue([{ friendId: friend.id, assignedAmount: 8_000, repaidAmount: 8_000, outstandingAmount: 0 }]),
+      listEligibleDebtorShareReceipts: vi.fn().mockResolvedValue([]),
+      listFriendExpenseShareRecords: vi.fn().mockResolvedValue(settledExpenseSharePage),
+      listRepaymentRecords: vi.fn().mockResolvedValue(emptyRepaymentPage),
+    });
+    mocks.getDebtorShareLinkStatus.mockResolvedValue({ status: "none", expiresAt: null });
+    mocks.getDebtorShareReceiptSelection.mockResolvedValue([]);
+
+    render(<ToastProvider>{await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) })}</ToastProvider>);
+
+    const shareRow = document.querySelector<HTMLElement>(".record-history__row--share")!;
+    const shareActions = shareRow.querySelector<HTMLElement>(".record-history__links")!;
+    expect(within(shareRow).getByRole("link", { name: "Open expense" })).toHaveAttribute("href", `/app/expenses/${settledExpenseShare.expenseId}`);
+    expect(within(shareRow).queryByRole("link", { name: "Record repayment" })).not.toBeInTheDocument();
+    expect(within(shareActions).getAllByRole("link")).toHaveLength(1);
   });
 
   it("uses zero values and distinguishes a never-assigned friend", async () => {
