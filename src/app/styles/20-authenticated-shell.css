@@ -883,6 +883,7 @@
 
 .app-shell .header-shell__panel,
 .app-shell .header-shell__panel--detached {
+  display: flex;
   width: min(calc(100% - 2rem), 76rem);
   max-width: 76rem;
 }
@@ -1157,6 +1158,11 @@ body.global-search-open {
 }
 
 @media (min-width: 1200px) {
+  .app-shell .header-shell__panel,
+  .app-shell .header-shell__panel--detached {
+    display: grid;
+  }
+
   .app-shell__nav {
     display: flex;
     width: max-content;

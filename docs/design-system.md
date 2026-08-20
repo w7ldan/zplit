@@ -79,7 +79,7 @@ Under `prefers-reduced-motion: reduce`, remove translation, scaling, clipping tr
 
 The authenticated navbar is integrated with the page at the top and becomes a centered detached panel only after the existing scroll threshold, using the public navbar’s width, max-width, vertical translation, border, radius, surface, and shadow transition. The full-width sticky wrapper remains transparent, borderless, shadowless, and never paints an opaque strip or intercepts content outside the navbar. Only the centered panel may own the detached border, radius, surface, and shadow; restored scroll positions may initialize directly into the detached state.
 
-Authenticated full navigation owns widths from 1200px upward; the compact header remains active below that to protect Search, Add expense, and account controls at intermediate widths. Mobile quick search uses the bordered control with a magnifier icon while the `/` shortcut remains a desktop affordance.
+Shared/public desktop headers use their three-column grid from 1024px upward. Authenticated full navigation owns widths from 1200px upward; the compact header remains active below that to protect Search, Add expense, and account controls at intermediate widths. Mobile quick search uses the bordered control with a magnifier icon while the `/` shortcut remains a desktop affordance.
 
 ## CSS ownership
 

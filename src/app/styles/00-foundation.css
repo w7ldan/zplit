@@ -310,7 +310,7 @@ input[type="search"]::-webkit-search-decoration {
   transform-origin: left;
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 1024px) {
   .header-shell__panel {
     display: grid;
   }

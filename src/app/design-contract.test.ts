@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { readCssBundle } from "@/test/read-css-bundle";
 
 const css = readCssBundle().css;
+const foundationSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/00-foundation.css"), "utf8");
 const publicSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/10-public.css"), "utf8");
 const authenticatedShellSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/20-authenticated-shell.css"), "utf8");
 const recordsAndFormsSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/30-records-and-forms.css"), "utf8");
@@ -672,8 +673,21 @@ describe("Zplit design contract", () => {
     expect(css).toMatch(/\.header-shell__nav a::after\s*\{[\s\S]*?transition: transform var\(--motion-instant\) var\(--ease-out\);/);
     expect(css).toMatch(/\.header-shell__nav a:hover::after,[\s\S]*?\.header-shell__nav a\[aria-current="page"\]::after\s*\{[\s\S]*?transform: scaleX\(1\);/);
     expect(cssRuleBody(css, ".app-shell__nav-link:hover, .app-shell__nav-link:focus-visible")).toContain("color: var(--ink);");
-    expect(css).toMatch(/@media \(min-width: 1200px\)\s*\{[\s\S]*?\.header-shell__panel\s*\{[\s\S]*?display:\s*grid;/);
     expect(css).toMatch(/@media \(max-width: 1199px\)\s*\{[\s\S]*?\.app-shell__mobile-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
+  });
+
+  it("keeps shared/public and authenticated header breakpoints independent", () => {
+    const sharedDesktop = cssAtRuleBodies(foundationSource, "@media (min-width: 1024px)");
+    const authenticatedDesktop = cssAtRuleBodies(authenticatedShellSource, "@media (min-width: 1200px)");
+    const authenticatedPanel = ".app-shell .header-shell__panel,\n.app-shell .header-shell__panel--detached";
+
+    expect(sharedDesktop).toHaveLength(1);
+    expect(cssRuleBody(sharedDesktop[0], ".header-shell__panel")).toContain("display: grid;");
+    expect(foundationSource).not.toContain("@media (min-width: 1200px)");
+    expect(cssRuleBody(publicSource, ".site-header")).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);");
+    expect(cssRuleBody(authenticatedShellSource, authenticatedPanel)).toContain("display: flex;");
+    expect(authenticatedDesktop).toHaveLength(1);
+    expect(cssRuleBody(authenticatedDesktop[0], authenticatedPanel)).toContain("display: grid;");
   });
 
   it("keeps the expense split summary below the authenticated header", () => {
