@@ -25,7 +25,7 @@ const summary = {
 };
 
 describe("/app overview", () => {
-  it("answers outstanding, balances, recent activity, and unallocated attention", async () => {
+  it("answers outstanding, balances, and actionable partial allocation attention", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     const listRecentActivity = vi.fn().mockResolvedValue([
       { kind: "Expense", id: "expense-a", title: "Dinner", detail: "Jakarta", amount: 8_000, date: new Date("2026-01-02T10:30:00Z") },
@@ -34,6 +34,7 @@ describe("/app overview", () => {
     const repository = {
       getLedgerOverviewSummary: vi.fn().mockResolvedValue(summary),
       listRecentActivity,
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items: [{ id: "repayment-a", ownerUserId: "owner-a", friendId: "friend-a", amount: 8_000, paidAt: new Date("2026-01-03T10:30:00Z"), paymentMethod: null, notes: null, createdAt: new Date("2026-01-03T10:30:00Z"), friendName: "Ari", friendArchivedAt: null, allocatedAmount: 3_000, unallocatedAmount: 5_000 }], totalItems: 1 }),
     };
     mocks.createLedgerRepository.mockReturnValue(repository);
 
@@ -67,7 +68,12 @@ describe("/app overview", () => {
     expect(screen.getAllByText("Rp 4.000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Ari").length).toBeGreaterThan(0);
     expect(screen.getByText("Received money still needs an expense.")).toBeInTheDocument();
-    expect(screen.getByText(/received remains unallocated/)).toBeInTheDocument();
+    const attention = screen.getByRole("heading", { level: 2, name: "Needs attention" }).closest("section")!;
+    expect(attention.querySelectorAll(".overview-attention__row")).toHaveLength(1);
+    expect(within(attention).getByText("Rp 5.000 needs allocation")).toBeInTheDocument();
+    expect(within(attention).getByRole("link", { name: /Review/ })).toHaveAttribute("href", "/app/repayments/repayment-a#repayment-allocations");
+    expect(within(attention).queryByRole("link", { name: /View all/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/received remains unallocated/)).not.toBeInTheDocument();
     const activityRows = [...document.querySelectorAll<HTMLAnchorElement>(".activity-row")];
     expect(activityRows.map((row) => row.textContent)).toEqual([
       expect.stringContaining("Dinner"),
@@ -95,6 +101,7 @@ describe("/app overview", () => {
         friendBalances: [],
       }),
       listRecentActivity: vi.fn().mockResolvedValue([]),
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
     };
     mocks.createLedgerRepository.mockReturnValue(repository);
 
@@ -105,7 +112,42 @@ describe("/app overview", () => {
     expect(screen.getByText("Balances appear after assigning friends to an expense.")).toBeInTheDocument();
     expect(screen.getByText("All received money is applied to shares.")).toBeInTheDocument();
     expect(screen.queryByText("All received money is assigned.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "Needs attention" })).not.toBeInTheDocument();
     expect(repository.listRecentActivity).toHaveBeenCalledExactlyOnceWith({ limit: 6 });
+  });
+
+  it("shows at most three oldest unresolved repayments and links to the full needs filter", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    const items = ["Oldest", "Next", "Newest", "Beyond"].map((friendName, index) => ({
+      id: `repayment-${index}`,
+      ownerUserId: "owner-a",
+      friendId: `friend-${index}`,
+      amount: 10_000,
+      paidAt: new Date(`2026-01-0${index + 1}T10:30:00Z`),
+      paymentMethod: null,
+      notes: null,
+      createdAt: new Date(`2026-01-0${index + 1}T10:30:00Z`),
+      friendName,
+      friendArchivedAt: null,
+      allocatedAmount: index === 0 ? 0 : 4_000,
+      unallocatedAmount: index === 0 ? 10_000 : 6_000,
+    }));
+    mocks.createLedgerRepository.mockReturnValue({
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue(summary),
+      listRecentActivity: vi.fn().mockResolvedValue([]),
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items, totalItems: 4 }),
+    });
+
+    render(await AppPage());
+
+    const attention = screen.getByRole("heading", { level: 2, name: "Needs attention" }).closest("section")!;
+    expect([...attention.querySelectorAll<HTMLElement>(".overview-attention__friend strong")].map((element) => element.textContent)).toEqual(["Oldest", "Next", "Newest"]);
+    expect(attention.querySelectorAll(".overview-attention__row")).toHaveLength(3);
+    expect(within(attention).getByText("Rp 10.000 needs allocation")).toBeInTheDocument();
+    expect(within(attention).getAllByRole("time")).toHaveLength(3);
+    expect(within(attention).queryByText("Beyond", { exact: true })).not.toBeInTheDocument();
+    expect(within(attention).getByText("4", { exact: true })).toBeInTheDocument();
+    expect(within(attention).getByRole("link", { name: /View all unresolved repayments/ })).toHaveAttribute("href", "/app/repayments?allocation=needs");
   });
 
   it("renders the bounded balance list and links to the full friend list", async () => {
@@ -113,6 +155,7 @@ describe("/app overview", () => {
     mocks.createLedgerRepository.mockReturnValue({
       getLedgerOverviewSummary: vi.fn().mockResolvedValue({ ...summary, totalAssignedFriendCount: 9, friendBalances: Array.from({ length: 8 }, (_, index) => ({ ...summary.friendBalances[0]!, friendId: `friend-${index}`, name: `Friend ${index}` })) }),
       listRecentActivity: vi.fn().mockResolvedValue([]),
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
     });
 
     render(await AppPage());
@@ -128,6 +171,7 @@ describe("/app overview", () => {
     mocks.createLedgerRepository.mockReturnValue({
       getLedgerOverviewSummary: vi.fn().mockResolvedValue({ ...summary, friendBalances: [{ ...summary.friendBalances[0]!, name }] }),
       listRecentActivity: vi.fn().mockResolvedValue([{ kind: "Expense", id: "expense-a", title, detail: "outing-" + "y".repeat(240), amount: 8_000, date: new Date("2026-01-02T10:30:00Z") }]),
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
     });
 
     render(await AppPage());

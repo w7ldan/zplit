@@ -105,6 +105,11 @@ export type RepaymentListRecord = RepaymentRecord & {
   unallocatedAmount: number;
 };
 
+export type NeedsAttentionRepaymentResult = {
+  items: RepaymentListRecord[];
+  totalItems: number;
+};
+
 export type FriendExpenseShareRecord = {
   id: string;
   expenseId: string;

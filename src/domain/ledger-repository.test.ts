@@ -1456,6 +1456,40 @@ describe("ledger repository", () => {
     expect(queries[2].sql).toContain('"repayment_allocations"');
   });
 
+  it("bounds Needs Attention repayments to oldest unresolved owner records", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+
+    await expect(createLedgerRepository(database as unknown as Database, owner).listNeedsAttentionRepayments()).resolves.toEqual({ items: [], totalItems: 0 });
+
+    expect(queries).toHaveLength(1);
+    const query = queries[0]!.sql.toLowerCase();
+    expect(query).toContain('"repayments"."owner_user_id"');
+    expect(query).toContain('"friends"."owner_user_id"');
+    expect(query).toContain('"repayment_allocations"');
+    expect(query).toContain('< "repayments"."amount"');
+    expect(query).toContain('count(*) over()');
+    expect(query).toContain('order by "repayments"."paid_at" asc, "repayments"."created_at" asc, "repayments"."id" asc');
+    expect(query).toContain("limit");
+    expect(queries[0]!.params).toContain(owner);
+    expect(queries[0]!.params).toContain(4);
+  });
+
+  it("returns only the repayment remainder for Needs Attention", async () => {
+    const paidAt = new Date("2026-01-01T00:00:00Z");
+    const database = drizzle(async () => ({ rows: [[
+      "repayment-a", owner, "friend-a", 100, paidAt, null, null, paidAt, "Ari", null, "40", "1",
+    ]] }));
+
+    await expect(createLedgerRepository(database as unknown as Database, owner).listNeedsAttentionRepayments()).resolves.toMatchObject({
+      totalItems: 1,
+      items: [{ id: "repayment-a", friendName: "Ari", amount: 100, allocatedAmount: 40, unallocatedAmount: 60 }],
+    });
+  });
+
   it("owner-scopes allocation plans before loading share details", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

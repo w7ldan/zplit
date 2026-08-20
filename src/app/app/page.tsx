@@ -12,10 +12,12 @@ export const dynamic = "force-dynamic";
 export default async function AppPage() {
   const session = await requireSession();
   const repository = createLedgerRepository(getDatabase(), session.user.id);
-  const [summary, activity] = await Promise.all([
+  const [summary, activity, needsAttention] = await Promise.all([
     repository.getLedgerOverviewSummary(),
     repository.listRecentActivity({ limit: 6 }),
+    repository.listNeedsAttentionRepayments(),
   ]);
+  const displayedNeedsAttention = needsAttention.items.slice(0, 3);
 
   return (
     <section className="app-page overview-page" id="top">
@@ -78,7 +80,21 @@ export default async function AppPage() {
             ))}
           </section>
         </div>
-        {summary.totalUnallocatedRepaymentAmount > 0 ? <p className="overview-attention" role="status">{formatRupiah(summary.totalUnallocatedRepaymentAmount)} received remains unallocated. Review repayments to apply it to eligible shares.</p> : null}
+        {needsAttention.totalItems > 0 ? (
+          <section className="ledger-section overview-attention" aria-labelledby="needs-attention-heading">
+            <div className="ledger-section__heading"><h2 id="needs-attention-heading">Needs attention</h2><span className="technical-label">{needsAttention.totalItems}</span></div>
+            <div className="overview-attention__list">
+              {displayedNeedsAttention.map((repayment) => (
+                <div className="overview-attention__row" key={repayment.id}>
+                  <span className="overview-attention__friend"><strong>{repayment.friendName}</strong><small>{formatRupiah(repayment.unallocatedAmount)} needs allocation</small></span>
+                  <span className="overview-attention__date"><LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" /></span>
+                  <Link className="text-link overview-attention__review" href={`/app/repayments/${repayment.id}#repayment-allocations`}>Review <span aria-hidden="true">→</span></Link>
+                </div>
+              ))}
+            </div>
+            {needsAttention.totalItems > displayedNeedsAttention.length ? <Link className="text-link" href="/app/repayments?allocation=needs">View all unresolved repayments <span aria-hidden="true">→</span></Link> : null}
+          </section>
+        ) : null}
       </div>
     </section>
   );

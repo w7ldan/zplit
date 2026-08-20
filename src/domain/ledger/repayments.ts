@@ -7,7 +7,7 @@ import { assertDeleteOptions, assertDeletionConfirmation, literalContains, notFo
 import { clampPage, monthStart, nextMonthStart, normalizePage, normalizeRepaymentFilters, normalizeText, normalizeTimezoneOffset, pageResult, parseAmountSearch, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
 import { assertRepaymentAllocationReversalReceipt, assertRepaymentAllocationsInput, assertRepaymentId, assertRepaymentInput, repaymentAllocationId } from "./validation";
 import { REPAYMENT_ALLOCATION_PAGE_SIZE } from "./types";
-import type { CreateRepaymentInput, DeleteRecordOptions, RepaymentAllocationPlan, RepaymentAllocationReversalReceipt, RepaymentDeletionImpact, RepaymentListRecord, RepaymentRecord, UpdateRepaymentInput } from "./types";
+import type { CreateRepaymentInput, DeleteRecordOptions, NeedsAttentionRepaymentResult, RepaymentAllocationPlan, RepaymentAllocationReversalReceipt, RepaymentDeletionImpact, RepaymentListRecord, RepaymentRecord, UpdateRepaymentInput } from "./types";
 import type { RepaymentAllocationInput } from "../repayment-allocation-input";
 import {
   LedgerRepositoryError,
@@ -17,6 +17,8 @@ import {
   RepaymentFriendInvariantError,
   RepaymentDeletionInvariantError,
 } from "./errors";
+
+const NEEDS_ATTENTION_PREVIEW_LIMIT = 4;
 
 export function createRepaymentReadRepository(database: Database, owner: string) {
 function repaymentSelection() {
@@ -155,6 +157,30 @@ async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; 
         return { ...repayment, allocatedAmount: allocated, unallocatedAmount: repayment.amount - allocated };
       });
       return pageResult(items, totalItems, page);
+    } catch (error) {
+      return persistenceError(error);
+  }
+}
+
+async function listNeedsAttentionRepayments(): Promise<NeedsAttentionRepaymentResult> {
+    const allocationValue = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ownerUserId} = ${owner} and ${repaymentAllocations.repaymentId} = ${repayments.id}), 0)`.mapWith(Number);
+    try {
+      const rows = await database
+        .select({ ...repaymentSelection(), allocatedAmount: allocationValue.as("allocated_amount"), totalItems: sql<number>`count(*) over()`.mapWith(Number).as("total_items") })
+        .from(repayments)
+        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
+        .where(and(eq(repayments.ownerUserId, owner), eq(friends.ownerUserId, owner), sql`${allocationValue} < ${repayments.amount}`))
+        .orderBy(asc(repayments.paidAt), asc(repayments.createdAt), asc(repayments.id))
+        .limit(NEEDS_ATTENTION_PREVIEW_LIMIT);
+      const totalItems = rows.length === 0 ? 0 : safeRetrievalInteger(rows[0]!.totalItems, "Needs attention repayment count");
+      const items = rows.map(({ allocatedAmount, totalItems: _totalItems, ...repayment }) => {
+        const allocated = safeRetrievalInteger(allocatedAmount ?? 0, `Allocation for repayment ${repayment.id}`);
+        if (!Number.isSafeInteger(repayment.amount) || repayment.amount < 0 || allocated > repayment.amount) {
+          throw new LedgerIntegrityError(`Allocations exceed repayment ${repayment.id}.`);
+        }
+        return { ...repayment, allocatedAmount: allocated, unallocatedAmount: repayment.amount - allocated };
+      });
+      return { items, totalItems };
     } catch (error) {
       return persistenceError(error);
     }
@@ -305,6 +331,7 @@ async function getRepaymentAllocationPlan(repaymentId: string, options: { q?: un
     getRepayment,
     listRepayments,
     listRepaymentRecords,
+    listNeedsAttentionRepayments,
     allocationPlanFor,
     getRepaymentAllocationPlan,
     repaymentSelection,

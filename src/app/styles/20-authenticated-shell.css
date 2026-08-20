@@ -1716,14 +1716,59 @@ body.global-search-open {
   }
 }
 
-.overview-attention {
-  margin: 0;
-  padding: 0.8rem 1rem;
-  border-left: 3px solid var(--ink);
-  border-radius: var(--radius-control);
-  background: var(--amber);
-  font-size: 0.9rem;
-  font-weight: 700;
+.overview-attention__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  min-height: 4.25rem;
+  padding-block: 0.8rem;
+  border-top: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}
+
+.overview-attention__friend {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.overview-attention__friend strong {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.overview-attention__friend small,
+.overview-attention__date {
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.overview-attention__review {
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .overview-attention__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .overview-attention__date {
+    grid-column: 1;
+  }
+
+  .overview-attention__review {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
 }
 
 .task-panel input,
