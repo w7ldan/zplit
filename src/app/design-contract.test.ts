@@ -223,6 +223,13 @@ describe("Zplit design contract", () => {
     expect(authenticatedShellSource).toContain("width: min(calc(100% - 1.5rem), 76rem);");
   });
 
+  it("keeps trip detail wide and repayment activity labels on one line", () => {
+    expect(recordsAndFormsSource).toContain(".trip-record__meta,\n  .trip-record__financials,\n  .trip-record__outings {\n    grid-column: 1 / -1;");
+    expect(authenticatedShellSource).toContain("grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr) auto;");
+    expect(authenticatedShellSource).toContain(".activity-row > span:first-child");
+    expect(authenticatedShellSource).toContain("white-space: nowrap;");
+  });
+
   it("keeps the desktop Journey on a centered narrower working canvas", () => {
     const desktopStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) {");
     const mobileStart = publicSource.indexOf("@media (max-width: 959px) {");

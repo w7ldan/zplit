@@ -1727,6 +1727,12 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 @media (min-width: 960px) {
+  .trip-record__meta,
+  .trip-record__financials,
+  .trip-record__outings {
+    grid-column: 1 / -1;
+  }
+
   .trip-row {
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(8rem, 1fr) minmax(5rem, 0.6fr) minmax(8rem, 0.8fr) minmax(10rem, 0.8fr) minmax(5.5rem, auto);
