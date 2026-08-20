@@ -160,7 +160,7 @@ describe("expense share editor", () => {
     expect(summary).toBeInTheDocument();
     expect(within(summary).getByText("Rp 44.000", { exact: true })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "50000" } });
-    fireEvent.change(screen.getByLabelText("Charge 1 percentage"), { target: { value: "20" } });
+    fireEvent.change(screen.getByLabelText("Rate"), { target: { value: "20" } });
     expect(within(summary).getByText("Rp 60.000", { exact: true })).toBeInTheDocument();
     expect(within(summary).getByText("Rp 40.000", { exact: true })).toBeInTheDocument();
   });
@@ -168,7 +168,18 @@ describe("expense share editor", () => {
   it("uses a decimal keyboard for percentage charges", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} charges={[{ name: "Service", percentageBasisPoints: 750, scope: "all", friendIds: [] }]} />);
 
-    expect(screen.getByLabelText("Charge 1 percentage")).toHaveAttribute("inputmode", "decimal");
+    expect(screen.getByLabelText("Rate")).toHaveAttribute("inputmode", "decimal");
+  });
+
+  it("associates charge controls with visible labels and renders one rate suffix", () => {
+    render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} charges={[{ name: "Service", percentageBasisPoints: 750, scope: "all", friendIds: [] }]} />);
+    const charge = screen.getByText("Charge 1").closest(".expense-share-editor__charge")!;
+
+    expect(within(charge).getByLabelText("Name")).toHaveValue("Service");
+    expect(within(charge).getByLabelText("Rate")).toHaveAttribute("placeholder", "7.5");
+    expect(within(charge).getByLabelText("Applies to")).toHaveValue("all");
+    expect(within(charge).getAllByText("%", { exact: true })).toHaveLength(1);
+    expect(within(charge).queryByPlaceholderText("%")).not.toBeInTheDocument();
   });
 
   it("replaces the current draft with the previous saved split and drops unavailable targets", () => {
@@ -256,11 +267,11 @@ describe("expense share editor", () => {
     expect(screen.queryByDisplayValue("PB1")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
 
-    expect(screen.getByLabelText("Charge 1")).toHaveValue("PB1");
-    expect(screen.getByLabelText("Charge 1 percentage")).toHaveValue("5");
-    expect(screen.getByLabelText("Charge 1 scope")).toHaveValue("selected");
+    expect(screen.getAllByLabelText("Name")[0]).toHaveValue("PB1");
+    expect(screen.getAllByLabelText("Rate")[0]).toHaveValue("5");
+    expect(screen.getAllByLabelText("Applies to")[0]).toHaveValue("selected");
     expect(within(screen.getByLabelText("Friends for charge 1")).getByRole("checkbox")).toBeChecked();
-    expect(screen.getByLabelText("Charge 2")).toHaveValue("VAT");
+    expect(screen.getAllByLabelText("Name")[1]).toHaveValue("VAT");
   });
 
   it("replaces the previous undo token and does not duplicate a re-added friend", async () => {
@@ -359,8 +370,8 @@ describe("expense share editor", () => {
   it("supports selected charge targets and removes stale targets with a friend", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={100_000} friends={[activeFriend, archivedFriend]} />);
     fireEvent.click(screen.getByRole("button", { name: "Add charge" }));
-    fireEvent.change(screen.getByLabelText("Charge 1 scope"), { target: { value: "selected" } });
-    fireEvent.change(screen.getByLabelText("Charge 1 percentage"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("Applies to"), { target: { value: "selected" } });
+    fireEvent.change(screen.getByLabelText("Rate"), { target: { value: "5" } });
     fireEvent.click(within(screen.getByLabelText("Friends for charge 1")).getAllByRole("checkbox")[0]!);
     fireEvent.click(screen.getByRole("button", { name: "Remove Rani" }));
     expect(screen.getByLabelText("Friends for charge 1")).not.toHaveTextContent("Rani");

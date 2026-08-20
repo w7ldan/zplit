@@ -1455,7 +1455,8 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .expense-share-editor__add > div label,
 .expense-share-editor__section-heading h3,
-.expense-share-editor__charge-heading label {
+.expense-share-editor__charge-heading > span,
+.expense-share-editor__charge-field label {
   margin: 0;
   font-size: 0.82rem;
   font-weight: 700;
@@ -1482,8 +1483,14 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .expense-share-editor__charge-fields {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(5rem, 0.55fr) minmax(0, 1fr);
-  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1.5fr) minmax(7rem, 0.5fr) minmax(10rem, 1fr);
+  gap: 0.75rem;
+}
+
+.expense-share-editor__charge-field {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
 }
 
 .expense-share-editor__percentage-input {
@@ -1510,11 +1517,24 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   font-size: 0.78rem;
 }
 
+.expense-share-editor__targets-label {
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .expense-share-editor__targets label {
   display: flex;
   align-items: center;
   gap: 0.3rem;
   font-weight: 400;
+}
+
+@media (max-width: 767px) {
+  .expense-share-editor__charge-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 .expense-share-editor__breakdown {

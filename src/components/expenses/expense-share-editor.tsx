@@ -362,23 +362,39 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
           </div>
           {draftCharges.map((charge, index) => {
             const errorId = `expense-share-charge-${index}-error`;
+            const nameId = `expense-share-charge-name-${index}`;
+            const rateId = `expense-share-charge-rate-${index}`;
+            const scopeId = `expense-share-charge-scope-${index}`;
+            const targetsLabelId = `expense-share-charge-targets-${index}`;
             return (
               <div className="expense-share-editor__charge" key={index}>
                 <div className="expense-share-editor__charge-heading">
-                  <label htmlFor={`expense-share-charge-name-${index}`}>Charge {index + 1}</label>
+                  <span>Charge {index + 1}</span>
                   <button className="text-link" type="button" onClick={() => removeCharge(index)}>Remove</button>
                 </div>
                 <div className="expense-share-editor__charge-fields">
-                  <input id={`expense-share-charge-name-${index}`} type="text" value={charge.name} placeholder="Name" onChange={(event) => updateCharge(index, { name: event.target.value })} aria-describedby={errorId} />
-                  <div className="expense-share-editor__percentage-input"><input aria-label={`Charge ${index + 1} percentage`} type="text" inputMode="decimal" value={charge.percentage} placeholder="%" onChange={(event) => updateCharge(index, { percentage: event.target.value })} /><span aria-hidden="true">%</span></div>
-                  <select aria-label={`Charge ${index + 1} scope`} value={charge.scope} onChange={(event) => updateCharge(index, { scope: event.target.value as "all" | "selected", friendIds: event.target.value === "all" ? [] : charge.friendIds })}>
-                    <option value="all">All friends</option>
-                    <option value="selected">Selected friends</option>
-                  </select>
+                  <div className="expense-share-editor__charge-field">
+                    <label htmlFor={nameId}>Name</label>
+                    <input id={nameId} type="text" value={charge.name} onChange={(event) => updateCharge(index, { name: event.target.value })} aria-describedby={errorId} />
+                  </div>
+                  <div className="expense-share-editor__charge-field">
+                    <label htmlFor={rateId}>Rate</label>
+                    <div className="expense-share-editor__percentage-input"><input id={rateId} type="text" inputMode="decimal" value={charge.percentage} placeholder="7.5" onChange={(event) => updateCharge(index, { percentage: event.target.value })} aria-describedby={errorId} /><span aria-hidden="true">%</span></div>
+                  </div>
+                  <div className="expense-share-editor__charge-field">
+                    <label htmlFor={scopeId}>Applies to</label>
+                    <select id={scopeId} value={charge.scope} onChange={(event) => updateCharge(index, { scope: event.target.value as "all" | "selected", friendIds: event.target.value === "all" ? [] : charge.friendIds })} aria-describedby={errorId}>
+                      <option value="all">All friends</option>
+                      <option value="selected">Selected friends</option>
+                    </select>
+                  </div>
                 </div>
-                {charge.scope === "selected" ? <div className="expense-share-editor__targets" aria-label={`Friends for charge ${index + 1}`}>
-                  {selectedFriends.map((friend) => <label key={friend.id}><input type="checkbox" checked={charge.friendIds.includes(friend.id)} onChange={(event) => updateCharge(index, { friendIds: event.target.checked ? [...charge.friendIds, friend.id] : charge.friendIds.filter((id) => id !== friend.id) })} /> {friend.name}</label>)}
-                </div> : null}
+                {charge.scope === "selected" ? <>
+                  <p className="expense-share-editor__targets-label" id={targetsLabelId}>Apply to</p>
+                  <div className="expense-share-editor__targets" aria-label={`Friends for charge ${index + 1}`} aria-labelledby={targetsLabelId}>
+                    {selectedFriends.map((friend) => <label key={friend.id}><input type="checkbox" checked={charge.friendIds.includes(friend.id)} onChange={(event) => updateCharge(index, { friendIds: event.target.checked ? [...charge.friendIds, friend.id] : charge.friendIds.filter((id) => id !== friend.id) })} /> {friend.name}</label>)}
+                  </div>
+                </> : null}
                 <FieldError id={errorId} message={state.fieldErrors[`charge-${index}`]} />
               </div>
             );
