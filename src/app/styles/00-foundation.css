@@ -10,6 +10,13 @@
   --amber: #F4E4B7;
   --error: #B42318;
   --white: #FFFFFF;
+  --success: #2f6b47;
+  --overlay-soft: rgb(17 19 21 / 35%);
+  --overlay: rgb(17 19 21 / 42%);
+  --overlay-heavy: rgb(17 19 21 / 72%);
+  --shadow: rgb(17 19 21 / 10%);
+  --shadow-heavy: rgb(17 19 21 / 18%);
+  --shadow-panel: rgb(17 19 21 / 12%);
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -30,6 +37,28 @@
   --ease-out: cubic-bezier(.22,1,.36,1);
   --font-display: Arial, "Helvetica Neue", Helvetica, sans-serif;
   --font-body: Arial, "Helvetica Neue", Helvetica, sans-serif;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #F3F0EA;
+  --paper: #211F1D;
+  --pastel-blue: #9FCDE5;
+  --surface: #2B2926;
+  --muted-ink: #B8B2AA;
+  --rule: #57534E;
+  --mint: #B8D9C6;
+  --peach: #E4BDAA;
+  --amber: #E4CF97;
+  --error: #F09A8E;
+  --white: #FFFFFF;
+  --success: #9DD4AE;
+  --overlay-soft: rgb(0 0 0 / 52%);
+  --overlay: rgb(0 0 0 / 58%);
+  --overlay-heavy: rgb(0 0 0 / 78%);
+  --shadow: rgb(0 0 0 / 30%);
+  --shadow-heavy: rgb(0 0 0 / 46%);
+  --shadow-panel: rgb(0 0 0 / 38%);
 }
 
 /* Explicit Zplit browser baseline. */
@@ -221,7 +250,7 @@ input[type="search"]::-webkit-search-decoration {
   border: 1px solid var(--rule);
   border-radius: var(--radius-panel);
   background: var(--surface);
-  box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
+  box-shadow: 0 0.35rem 1rem var(--shadow);
   transform: translateY(0.6rem);
 }
 

@@ -962,7 +962,7 @@ body.global-search-open {
   align-items: start;
   overflow: hidden;
   padding: calc(var(--authenticated-header-height) + 1rem) 1rem 1rem;
-  background: rgb(17 19 21 / 42%);
+  background: var(--overlay);
   overscroll-behavior: none;
 }
 
@@ -976,7 +976,7 @@ body.global-search-open {
   overflow: hidden;
   border: 1px solid var(--ink);
   background: var(--surface);
-  box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
+  box-shadow: 0 0.35rem 1rem var(--shadow);
   overscroll-behavior: contain;
 }
 
@@ -1254,6 +1254,27 @@ body.global-search-open {
 
 .account-menu__panel .sign-out-button {
   margin-top: 0.65rem;
+}
+
+.theme-control {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.theme-control select {
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
 }
 
 .app-shell__mobile-nav {

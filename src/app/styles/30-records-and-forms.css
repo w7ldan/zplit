@@ -1276,7 +1276,7 @@
   overflow: hidden;
   border: 1px solid var(--ink);
   background: var(--surface);
-  box-shadow: 0 0.4rem 1rem rgb(17 19 21 / 12%);
+  box-shadow: 0 0.4rem 1rem var(--shadow-panel);
 }
 
 .searchable-combobox__panel[data-portal="dialog"] {

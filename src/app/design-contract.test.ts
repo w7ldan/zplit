@@ -173,7 +173,7 @@ describe("Zplit design contract", () => {
 
     expect(css).not.toMatch(/gradient/i);
     expect(css).not.toContain("backdrop-filter");
-    expect(css).toContain("box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%)");
+    expect(css).toContain("box-shadow: 0 0.35rem 1rem var(--shadow)");
     expect(css).not.toContain("--motion-cinematic");
     expect(css).not.toContain("friend-heading-reveal");
     expect(css).not.toContain("friend-list-reveal");

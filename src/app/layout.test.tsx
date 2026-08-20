@@ -8,7 +8,7 @@ describe("root PWA metadata", () => {
       manifest: "/manifest.webmanifest",
       appleWebApp: { capable: true, title: "Zplit", statusBarStyle: "default" },
     });
-    expect(viewport).toEqual({ themeColor: "#111315" });
+    expect(viewport).toEqual({ themeColor: "#F4F1EA" });
     expect(metadata.icons).toMatchObject({
       icon: [
         { url: "/icons/favicon.svg", type: "image/svg+xml" },

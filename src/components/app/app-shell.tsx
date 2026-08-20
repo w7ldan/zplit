@@ -9,6 +9,7 @@ import { HeaderShell } from "@/components/navigation/header-shell";
 import { ToastProvider } from "@/components/feedback/toast";
 import { DeleteConfirmation } from "./delete-record-form";
 import { UnsavedChangesProvider } from "@/components/navigation/unsaved-changes";
+import { ThemeControl } from "@/components/theme/theme-provider";
 import { GlobalSearch } from "./global-search";
 
 const destinations = [
@@ -81,6 +82,7 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
                 <Link href="/app/history">History</Link>
                 <Link href="/app/exports">Exports</Link>
                 {canManageInvites ? <Link href="/app/invites">Invitations</Link> : null}
+                <ThemeControl />
                 <SignOutButton />
               </div>
             </details>

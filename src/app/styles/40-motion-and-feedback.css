@@ -26,7 +26,7 @@
 }
 
 .task-panel::backdrop {
-  background: rgb(17 19 21 / 35%);
+  background: var(--overlay-soft);
 }
 
 .task-panel__surface {
@@ -98,7 +98,7 @@
   width: 100%;
   height: 100%;
   padding: clamp(0.75rem, 3vw, 2rem);
-  background: rgb(17 19 21 / 72%);
+  background: var(--overlay-heavy);
   animation: receipt-preview-in var(--motion-state) var(--ease-product) both;
 }
 
@@ -110,7 +110,7 @@
   flex-direction: column;
   border: 1px solid var(--ink);
   background: var(--surface);
-  box-shadow: 0 0.5rem 2rem rgb(17 19 21 / 18%);
+  box-shadow: 0 0.5rem 2rem var(--shadow-heavy);
 }
 
 .receipt-preview__header,
@@ -195,7 +195,7 @@
   padding: 0.75rem 0.9rem;
   border: 1px solid var(--ink);
   background: var(--surface);
-  box-shadow: 0 0.35rem 1rem rgb(17 19 21 / 10%);
+  box-shadow: 0 0.35rem 1rem var(--shadow);
   pointer-events: auto;
   animation: toast-in var(--motion-state) var(--ease-product) both;
 }
