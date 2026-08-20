@@ -194,6 +194,14 @@ export type ExpenseDeletionImpact = {
   affectedFriendIds: string[];
 };
 
+export type ExpenseDeletionResult = {
+  friendIds: string[];
+  repaymentIds: string[];
+  reallocatedAmount: number;
+  unallocatedAmount: number;
+  affectedRepaymentCount: number;
+};
+
 export type RepaymentDeletionImpact = {
   recordType: "repayment";
   allocationCount: number;

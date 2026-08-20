@@ -100,19 +100,22 @@ function repaymentAllocationDatabase(overrides: Partial<{
 
 function deletionDatabase(withDependents: boolean) {
   let deleteCalls = 0;
+  let expenseShareQuery = 0;
   const transaction = {
     select() {
       let table: unknown;
       const chain = {
         from(nextTable: unknown) { table = nextTable; return chain; },
+        innerJoin() { return chain; },
         where() { return chain; },
         limit() { return chain; },
         orderBy() { return chain; },
         for() {
           if (table === expenses) return Promise.resolve([{ id: "expense-a" }]);
           if (table === expenseReceipts || table === debtorShareReceipts) return Promise.resolve([]);
-          if (table === expenseShares) return Promise.resolve(withDependents ? [{ id: "share-a", friendId: "friend-a" }] : []);
-          if (table === repaymentAllocations) return Promise.resolve(withDependents ? [{ repaymentId: "repayment-a", expenseShareId: "share-a" }] : []);
+          if (table === expenseShares) return Promise.resolve(withDependents && expenseShareQuery++ === 0 ? [{ id: "share-a", friendId: "friend-a" }] : []);
+          if (table === repayments) return Promise.resolve(withDependents ? [{ id: "repayment-a", friendId: "friend-a", amount: 100 }] : []);
+          if (table === repaymentAllocations) return Promise.resolve(withDependents ? [{ repaymentId: "repayment-a", expenseShareId: "share-a", amount: 40 }] : []);
           return Promise.resolve([]);
         },
       };
@@ -126,6 +129,70 @@ function deletionDatabase(withDependents: boolean) {
     database: { transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction) } as unknown as Database,
     deleteCalls: () => deleteCalls,
   };
+}
+
+type ReconciliationFixture = {
+  repayments: Array<{ id: string; friendId: string; amount: number }>;
+  deletedShares: Array<{ id: string; friendId: string }>;
+  allocations: Array<{ repaymentId: string; expenseShareId: string; amount: number }>;
+  candidateShares: Array<{ id: string; ownerUserId: string; expenseId: string; friendId: string; amountOwed: number }>;
+  failDelete?: boolean;
+};
+
+function reconciliationDatabase(fixture: ReconciliationFixture) {
+  const state = { ...fixture, allocations: fixture.allocations.map((allocation) => ({ ...allocation })) };
+  let expenseShareQuery = 0;
+  let allocationQuery = 0;
+  let rolledBack = false;
+  const transaction = {
+    select() {
+      let table: unknown;
+      const chain = {
+        from(nextTable: unknown) { table = nextTable; return chain; },
+        innerJoin() { return chain; },
+        where() { return chain; },
+        limit() { return chain; },
+        orderBy() { return chain; },
+        for() {
+          if (table === expenses) return Promise.resolve([{ id: "expense-a" }]);
+          if (table === expenseReceipts || table === debtorShareReceipts) return Promise.resolve([]);
+          if (table === expenseShares) return Promise.resolve(expenseShareQuery++ === 0 ? state.deletedShares : state.candidateShares);
+          if (table === repayments) return Promise.resolve(state.repayments);
+          if (table === repaymentAllocations) {
+            if (allocationQuery++ === 0) return Promise.resolve(state.allocations.filter((allocation) => state.deletedShares.some((share) => share.id === allocation.expenseShareId)));
+            if (allocationQuery === 2) return Promise.resolve(state.allocations.filter((allocation) => state.repayments.some((repayment) => repayment.id === allocation.repaymentId)));
+            return Promise.resolve(state.allocations
+              .filter((allocation) => state.candidateShares.some((share) => share.id === allocation.expenseShareId))
+              .map((allocation) => ({ ...allocation, friendId: state.repayments.find((repayment) => repayment.id === allocation.repaymentId)?.friendId })));
+          }
+          return Promise.resolve([]);
+        },
+      };
+      return chain;
+    },
+    insert() {
+      return { values: (value: { repaymentId: string; expenseShareId: string; amount: number }) => { state.allocations.push({ repaymentId: value.repaymentId, expenseShareId: value.expenseShareId, amount: value.amount }); return {}; } };
+    },
+    update() {
+      return { set: (value: { amount: number }) => ({ where: async () => { const allocation = state.allocations.find((candidate) => candidate.repaymentId === state.repayments[0]?.id && state.candidateShares.some((share) => share.id === candidate.expenseShareId)); if (allocation) allocation.amount = value.amount; } }) };
+    },
+    delete() {
+      return { where: () => ({ returning: async () => { if (state.failDelete) throw new Error("delete failed"); return [{ id: "expense-a" }]; } }) };
+    },
+  };
+  const database = {
+    transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => {
+      const allocations = state.allocations.map((allocation) => ({ ...allocation }));
+      try {
+        return await callback(transaction);
+      } catch (error) {
+        state.allocations.splice(0, state.allocations.length, ...allocations);
+        rolledBack = true;
+        throw error;
+      }
+    },
+  } as unknown as Database;
+  return { database, state, rolledBack: () => rolledBack };
 }
 
 function previousSplitDatabase(fixture: {
@@ -187,7 +254,7 @@ describe("ledger repository", () => {
   it("requires and compares the locked current impact before deletion", async () => {
     const impact = { recordType: "expense" as const, receiptCount: 0, shareCount: 1, allocationCount: 1, affectedRepaymentCount: 1, affectedRepaymentIds: ["repayment-a"], affectedFriendIds: ["friend-a"] };
     const matching = deletionDatabase(true);
-    await expect(createLedgerRepository(matching.database, owner).deleteExpense("expense-a", { cascadeDependents: true, expectedImpactRevision: deletionImpactRevision(impact) })).resolves.toEqual({ friendIds: ["friend-a"], repaymentIds: ["repayment-a"] });
+    await expect(createLedgerRepository(matching.database, owner).deleteExpense("expense-a", { cascadeDependents: true, expectedImpactRevision: deletionImpactRevision(impact) })).resolves.toEqual({ friendIds: ["friend-a"], repaymentIds: ["repayment-a"], reallocatedAmount: 0, unallocatedAmount: 40, affectedRepaymentCount: 1 });
     expect(matching.deleteCalls()).toBe(1);
 
     const stale = deletionDatabase(true);
@@ -195,6 +262,70 @@ describe("ledger repository", () => {
     expect(error).toBeInstanceOf(LedgerDeletionConfirmationRequiredError);
     expect(error).toMatchObject({ reason: "impact_changed", impact });
     expect(stale.deleteCalls()).toBe(0);
+  });
+
+  it.each([
+    ["fully reallocates released money", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }], [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }], { reallocatedAmount: 100, unallocatedAmount: 0 }],
+    ["leaves partial capacity unallocated", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }], [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 70 }], { reallocatedAmount: 70, unallocatedAmount: 30 }],
+    ["leaves money unallocated when no capacity remains", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }, { id: "repayment-b", friendId: "friend-a", amount: 70 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }, { repaymentId: "repayment-b", expenseShareId: "target-share", amount: 70 }], [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 70 }], { reallocatedAmount: 0, unallocatedAmount: 100 }],
+    ["accounts for allocations from other repayments", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }, { id: "repayment-b", friendId: "friend-a", amount: 30 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }, { repaymentId: "repayment-b", expenseShareId: "target-share", amount: 30 }], [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }], { reallocatedAmount: 70, unallocatedAmount: 30 }],
+    ["processes affected repayments without double allocation", [{ id: "repayment-a", friendId: "friend-a", amount: 60 }, { id: "repayment-b", friendId: "friend-a", amount: 60 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 60 }, { repaymentId: "repayment-b", expenseShareId: "deleted-share", amount: 60 }], [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }], { reallocatedAmount: 100, unallocatedAmount: 20 }],
+  ] as const)("%s", async (_name, repayments, allocations, candidateShares, expected) => {
+    const database = reconciliationDatabase({ repayments: [...repayments], deletedShares: [{ id: "deleted-share", friendId: "friend-a" }], allocations: [...allocations], candidateShares: [...candidateShares] });
+    const result = await createLedgerRepository(database.database, owner).deleteExpense("expense-a", { cascadeDependents: true });
+    const affectedRepaymentIds = [...new Set(allocations.filter((allocation) => allocation.expenseShareId === "deleted-share").map((allocation) => allocation.repaymentId))].sort();
+
+    expect(result).toMatchObject({ friendIds: ["friend-a"], repaymentIds: affectedRepaymentIds, affectedRepaymentCount: affectedRepaymentIds.length, ...expected });
+    expect(database.state.repayments).toEqual(repayments);
+    expect(database.state.allocations.filter((allocation) => allocation.expenseShareId === "target-share").reduce((total, allocation) => total + allocation.amount, 0)).toBe(expected.reallocatedAmount + allocations.filter((allocation) => allocation.expenseShareId === "target-share").reduce((total, allocation) => total + allocation.amount, 0));
+  });
+
+  it("reuses an existing target allocation instead of creating a duplicate", async () => {
+    const database = reconciliationDatabase({
+      repayments: [{ id: "repayment-a", friendId: "friend-a", amount: 100 }],
+      deletedShares: [{ id: "deleted-share", friendId: "friend-a" }],
+      allocations: [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 40 }, { repaymentId: "repayment-a", expenseShareId: "target-share", amount: 30 }],
+      candidateShares: [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }],
+    });
+
+    await expect(createLedgerRepository(database.database, owner).deleteExpense("expense-a", { cascadeDependents: true })).resolves.toMatchObject({ reallocatedAmount: 40, unallocatedAmount: 0 });
+    expect(database.state.allocations.filter((allocation) => allocation.expenseShareId === "target-share")).toEqual([{ repaymentId: "repayment-a", expenseShareId: "target-share", amount: 70 }]);
+  });
+
+  it("uses oldest-first ordering and excludes deleted, foreign, and other-friend shares", async () => {
+    const database = reconciliationDatabase({
+      repayments: [{ id: "repayment-a", friendId: "friend-a", amount: 100 }],
+      deletedShares: [{ id: "deleted-share", friendId: "friend-a" }],
+      allocations: [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }],
+      candidateShares: [
+        { id: "deleted-target", ownerUserId: owner, expenseId: "expense-a", friendId: "friend-a", amountOwed: 100 },
+        { id: "other-friend", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-b", amountOwed: 100 },
+        { id: "foreign-owner", ownerUserId: "user-b", expenseId: "expense-c", friendId: "friend-a", amountOwed: 100 },
+        { id: "oldest-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 50 },
+        { id: "newest-share", ownerUserId: owner, expenseId: "expense-c", friendId: "friend-a", amountOwed: 50 },
+      ],
+    });
+
+    await expect(createLedgerRepository(database.database, owner).deleteExpense("expense-a", { cascadeDependents: true })).resolves.toMatchObject({ reallocatedAmount: 100, unallocatedAmount: 0 });
+    expect(database.state.allocations.filter((allocation) => allocation.repaymentId === "repayment-a")).toEqual([
+      { repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 },
+      { repaymentId: "repayment-a", expenseShareId: "oldest-share", amount: 50 },
+      { repaymentId: "repayment-a", expenseShareId: "newest-share", amount: 50 },
+    ]);
+  });
+
+  it("rolls back reconciliation when Expense deletion fails", async () => {
+    const database = reconciliationDatabase({
+      repayments: [{ id: "repayment-a", friendId: "friend-a", amount: 100 }],
+      deletedShares: [{ id: "deleted-share", friendId: "friend-a" }],
+      allocations: [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }],
+      candidateShares: [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }],
+      failDelete: true,
+    });
+
+    await expect(createLedgerRepository(database.database, owner).deleteExpense("expense-a", { cascadeDependents: true })).rejects.toMatchObject({ code: "PERSISTENCE_ERROR" });
+    expect(database.rolledBack()).toBe(true);
+    expect(database.state.allocations).toEqual([{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }]);
   });
 
   it("rejects an obsolete cascade confirmation with the current empty impact", async () => {
