@@ -79,3 +79,21 @@ export function assertDeletionConfirmation(
     throw new ErrorType(impact);
   }
 }
+
+export function ledgerInteger(value: unknown, label: string) {
+  const result = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : NaN;
+  if (!Number.isSafeInteger(result) || result < 0) throw new LedgerIntegrityError(`${label} is not a safe whole-rupiah amount.`);
+  return result;
+}
+
+export function ledgerDifference(left: number, right: number, label: string) {
+  const result = left - right;
+  if (!Number.isSafeInteger(result) || result < 0) throw new LedgerIntegrityError(`${label} is negative or not a safe integer.`);
+  return result;
+}
+
+export function recentActivityDate(value: unknown, label: string) {
+  const date = value instanceof Date ? new Date(value.getTime()) : typeof value === "string" ? new Date(value) : null;
+  if (!date || !Number.isFinite(date.getTime())) throw new LedgerIntegrityError(`${label} is invalid.`);
+  return date;
+}
