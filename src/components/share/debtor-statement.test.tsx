@@ -71,4 +71,20 @@ describe("DebtorStatementView", () => {
     const repaymentPagination = screen.getByRole("navigation", { name: "Repayment history pagination" });
     expect(within(repaymentPagination).getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/share/11111111-1111-4111-8111-111111111111?expensePage=2&repaymentPage=2#repayment-history");
   });
+
+  it("keeps long private-statement values semantic without adding owner actions", () => {
+    const friendName = "friend-" + "x".repeat(240);
+    const expenseDescription = "expense-" + "y".repeat(240);
+    const outingTitle = "outing-" + "z".repeat(240);
+    render(<DebtorStatementView
+      statement={{ ...statement, friendName, items: [{ ...statement.items[0]!, expenseDescription, outingTitle }] }}
+      expiresAt={new Date("2026-08-11T00:00:00Z")}
+    />);
+
+    expect(screen.getByRole("heading", { name: friendName })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: expenseDescription })).toBeInTheDocument();
+    expect(screen.getByText(outingTitle, { exact: false })).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
 });

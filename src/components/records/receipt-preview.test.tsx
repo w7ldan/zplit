@@ -19,4 +19,13 @@ describe("ReceiptPreview", () => {
     expect(screen.getByRole("link", { name: "Open original" })).toHaveAttribute("href", "/receipt/two");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("keeps a long filename in the preview heading and image alternative text", () => {
+    const filename = "receipt-" + "x".repeat(240) + ".png";
+    render(<ReceiptPreview href="/receipt/long" filename={filename} mediaType="image/png" />);
+    fireEvent.click(screen.getByRole("button", { name: `Preview ${filename}` }));
+
+    expect(screen.getByRole("heading", { name: filename })).toHaveAttribute("title", filename);
+    expect(screen.getByRole("img", { name: filename })).toBeInTheDocument();
+  });
 });

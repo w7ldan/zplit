@@ -880,6 +880,7 @@
   gap: 1.25rem;
   align-items: center;
   min-height: 5.75rem;
+  min-width: 0;
   padding-block: 0.9rem;
   text-decoration: none;
 }
@@ -917,6 +918,25 @@
 
 .history-row__values strong {
   font-variant-numeric: tabular-nums;
+}
+
+.debtor-statement__intro h1,
+.debtor-statement__item-heading,
+.debtor-statement__item-heading h3,
+.debtor-statement__item-heading p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.debtor-statement .debtor-statement__item-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.debtor-statement .debtor-statement__item-values {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .history-next {

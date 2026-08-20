@@ -882,6 +882,16 @@
 .repayment-allocation-editor__description,
 .repayment-allocation-editor__outing {
   margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.repayment-allocation-editor__details,
+.record-history__primary h3 a,
+.trip-record__intro > div:first-child,
+.expense-share-editor__targets label,
+.friend-share__receipt > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .repayment-allocation-editor__description {

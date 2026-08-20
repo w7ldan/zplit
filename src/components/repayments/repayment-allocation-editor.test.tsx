@@ -90,6 +90,14 @@ describe("RepaymentAllocationEditor", () => {
     expect(document.body).not.toHaveTextContent(/-Rp|automatic|distribut|delete|debtor|card|pill|status dot/i);
   });
 
+  it("keeps long allocation labels available beside the amount field", () => {
+    const description = "expense-" + "x".repeat(240);
+    render(<RepaymentAllocationEditor action={vi.fn()} plan={{ ...plan, shares: [{ ...plan.shares[0]!, expenseDescription: description }] }} />);
+
+    expect(screen.getByRole("textbox", { name: `Amount to allocate to ${description}` })).toBeInTheDocument();
+    expect(screen.getByText(description, { exact: true })).toBeInTheDocument();
+  });
+
   it("emphasizes changed allocation totals and resolves back to partial state", () => {
     render(<RepaymentAllocationEditor action={vi.fn()} plan={plan} />);
     expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(0);
