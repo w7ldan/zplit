@@ -423,7 +423,6 @@
 
 .debtor-statement__item-values {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   margin: 1rem 0 0;
   padding-top: 0.75rem;
@@ -579,8 +578,7 @@
     grid-column: 1 / -1;
   }
 
-  .friend-share__heading,
-  .debtor-statement__item-heading {
+  .friend-share__heading {
     align-items: start;
   }
 
@@ -604,10 +602,6 @@
 
   .debtor-statement__summary > div:first-child {
     border-top: 0;
-  }
-
-  .debtor-statement__item-values {
-    grid-template-columns: 1fr;
   }
 
   .debtor-statement__allocations li {

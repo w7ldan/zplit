@@ -79,6 +79,25 @@ function cssRuleBody(source: string, selector: string) {
   return "";
 }
 
+function cssAtRuleBodies(source: string, atRule: string) {
+  const bodies: string[] = [];
+  let searchFrom = 0;
+  while (true) {
+    const start = source.indexOf(`${atRule} {`, searchFrom);
+    if (start < 0) return bodies;
+    const open = source.indexOf("{", start);
+    let depth = 1;
+    for (let index = open + 1; index < source.length; index += 1) {
+      if (source[index] === "{") depth += 1;
+      else if (source[index] === "}" && --depth === 0) {
+        bodies.push(source.slice(open + 1, index));
+        searchFrom = index + 1;
+        break;
+      }
+    }
+  }
+}
+
 describe("Zplit design contract", () => {
   it("keeps record selectors shared and bounded at the form boundary", () => {
     for (const source of [expenseFormSource, repaymentFormSource]) {
@@ -505,6 +524,23 @@ describe("Zplit design contract", () => {
     expect(css).toMatch(/\.activity-row small\s*\{[\s\S]*?overflow-wrap:\s*anywhere;[\s\S]*?white-space:\s*normal;/);
     expect(css).toMatch(/\.friend-record__intro h1,[\s\S]*?\.repayment-record__intro h1\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/);
     expect(cssRuleBody(css, ".friend-record__intro h1, .outing-record__intro h1, .expense-record__intro h1, .repayment-record__intro h1")).not.toContain("-webkit-line-clamp");
+  });
+
+  it("keeps debtor statement values and headings responsive at the owning breakpoint", () => {
+    const valuesSelector = ".debtor-statement .debtor-statement__item-values";
+    const headingSelector = ".debtor-statement .debtor-statement__item-heading";
+    const mobile = cssAtRuleBodies(publicSource, "@media (max-width: 767px)").find((body) => body.includes(`${valuesSelector} {`));
+    const lateMobile = cssAtRuleBodies(lateOverridesSource, "@media (max-width: 767px)").join("\n");
+
+    expect(cssRuleBody(publicSource, valuesSelector)).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));");
+    expect(cssRuleBody(publicSource, headingSelector)).toContain("align-items: baseline;");
+    expect(cssRuleBody(lateOverridesSource, ".debtor-statement__item-values")).not.toContain("grid-template-columns");
+    expect(mobile).toContain(`${headingSelector} {`);
+    expect(mobile).toContain("align-items: start;");
+    expect(mobile).toContain(`${valuesSelector} {`);
+    expect(mobile).toContain("grid-template-columns: 1fr;");
+    expect(lateMobile).not.toContain(".debtor-statement__item-heading");
+    expect(lateMobile).not.toContain(".debtor-statement__item-values");
   });
 
   it("keeps scale-sized server results bounded at the page and selector boundaries", () => {

@@ -939,6 +939,16 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+@media (max-width: 767px) {
+  .debtor-statement .debtor-statement__item-heading {
+    align-items: start;
+  }
+
+  .debtor-statement .debtor-statement__item-values {
+    grid-template-columns: 1fr;
+  }
+}
+
 .history-next {
   display: inline-flex;
   gap: 0.45rem;
