@@ -316,7 +316,6 @@
   margin-top: 0;
 }
 
-.friend-record__meta,
 .outing-record__meta,
 .expense-record__meta,
 .repayment-record__meta {
@@ -328,13 +327,15 @@
   border-block: 1px solid var(--rule);
 }
 
-.friend-record__meta,
 .outing-record__meta {
   grid-column: 2 / span 5;
 }
 
 .friend-record__meta {
-  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding-top: 0.15rem;
 }
 
 .expense-record__meta,
@@ -342,10 +343,19 @@
   grid-column: 1 / -1;
 }
 
-.friend-record__balance {
+.friend-record__summary {
   grid-column: 1 / -1;
-  padding-block: 1rem;
-  border-block: 1px solid var(--ink);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  min-width: 0;
+  padding-block: 1rem 1.5rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.friend-record__balance {
+  padding: 0;
 }
 
 .friend-record__balance h2 {
@@ -440,7 +450,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.friend-record__form,
 .outing-record__form,
 .expense-record__form,
 .repayment-record__form {
@@ -451,9 +460,45 @@
   border-top: 1px solid var(--ink);
 }
 
-.friend-record__form,
 .outing-record__form {
   grid-column: 2 / span 5;
+}
+
+.friend-record__form {
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.friend-record__workspace {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+  min-width: 0;
+  margin-top: 2rem;
+}
+
+.friend-record__workspace > * {
+  min-width: 0;
+}
+
+.friend-record__workspace .friend-share {
+  grid-column: auto;
+  order: initial;
+  align-self: start;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 0;
+}
+
+.friend-record__layout > .record-history {
+  margin-top: 3rem;
+  border-block: 0;
 }
 
 .friend-record__archive-wrap {
@@ -1168,6 +1213,16 @@
 }
 
 @media (min-width: 960px) {
+  .friend-record__summary {
+    grid-template-columns: minmax(0, 1.6fr) minmax(13rem, 0.8fr);
+    gap: clamp(2rem, 5vw, 4rem);
+  }
+
+  .friend-record__workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: clamp(2.5rem, 5vw, 4rem);
+  }
+
   .friend-row {
     grid-template-columns: minmax(0, 2fr) minmax(6rem, 0.75fr) minmax(7rem, 0.75fr) minmax(8rem, 1fr) minmax(5.5rem, auto);
     gap: 1.25rem;
@@ -1385,11 +1440,9 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
     grid-template-columns: 1fr;
   }
 
-  .friend-record__form,
   .outing-record__form,
   .expense-record__form,
   .repayment-record__form,
-  .friend-record__meta,
   .outing-record__meta,
   .expense-record__meta,
   .repayment-record__meta {
@@ -1397,12 +1450,24 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
     grid-template-columns: 1fr;
   }
 
-  .friend-record__meta {
-    margin-top: 1rem;
+  .friend-record__summary {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
   }
 
-  .friend-record__form {
-    margin-top: 3rem;
+  .friend-record__meta {
+    grid-template-columns: 1fr;
+    padding-top: 0;
+  }
+
+  .friend-record__workspace {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    margin-top: 2rem;
+  }
+
+  .friend-record__workspace .friend-share {
+    grid-column: auto;
   }
 
   .expense-record__tasks,

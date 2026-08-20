@@ -232,11 +232,12 @@ describe("Zplit design contract", () => {
 
   it("keeps Friend detail ownership and workspace anchors intentional", () => {
     expect(recordsAndFormsSource).toContain(".friend-record__title");
-    expect(recordsAndFormsSource).toContain(".friend-record__meta {\n  grid-column: 1 / -1;");
-    expect(recordsAndFormsSource).toContain(".friend-record__form,\n.outing-record__form {\n  grid-column: 2 / span 5;");
+    expect(recordsAndFormsSource).toContain(".friend-record__summary {");
+    expect(recordsAndFormsSource).toContain(".friend-record__workspace {");
+    expect(recordsAndFormsSource).toContain("grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);");
     expect(authenticatedShellSource).not.toContain(".friend-record__meta");
     expect(authenticatedShellSource).not.toContain(".friend-record__form");
-    expect(lateOverridesSource).toContain(".friend-share {");
+    expect(lateOverridesSource).not.toContain(".friend-share {");
   });
 
   it("keeps the desktop Journey on a centered narrower working canvas", () => {
@@ -296,7 +297,7 @@ describe("Zplit design contract", () => {
     expect(recordsAndFormsSource).toContain("grid-template-columns: repeat(12, minmax(0, 1fr));");
     expect(recordsAndFormsSource).toContain("grid-column: 1 / span 8;");
     expect(recordsAndFormsSource).toContain("grid-column: 9 / -1;");
-    expect(recordsAndFormsSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.friend-record__form,[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?\.expense-record__tasks,[\s\S]*?grid-template-columns: 1fr;/);
+    expect(recordsAndFormsSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.friend-record__workspace\s*\{[\s\S]*?grid-template-columns: 1fr;[\s\S]*?\.expense-record__tasks,[\s\S]*?grid-template-columns: 1fr;/);
     expect(recordsAndFormsSource).not.toContain("overflow-x: clip");
   });
 

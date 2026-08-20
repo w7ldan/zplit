@@ -73,39 +73,43 @@ export default async function FriendRecordPage({ params, searchParams }: { param
           </div>
         </div>
         {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Friend changes saved." /> : null}
-        <div className="friend-record__meta" aria-label="Friend metadata">
-          <div><span className="technical-label">Record state</span><strong>{archived ? "ARCHIVED" : "ACTIVE"}</strong></div>
-          <div><span className="technical-label">Created</span><LocalDateTime iso={friend.createdAt.toISOString()} mode="date" /></div>
-        </div>
-        <section className={`friend-record__balance${balance.assignedAmount === 0 ? " friend-record__balance--empty" : balance.outstandingAmount === 0 ? " friend-record__balance--settled" : ""}`} aria-labelledby="friend-balance-heading">
-          <h2 id="friend-balance-heading">Balance</h2>
-          <div className="friend-record__balance-primary">
-            {balance.assignedAmount === 0 ? <strong>No balance yet</strong> : balance.outstandingAmount === 0 ? <strong>Settled</strong> : <><span className="technical-label">Still owes</span><strong>{formatRupiah(balance.outstandingAmount)}</strong></>}
+        <section className="friend-record__summary" aria-label="Friend summary">
+          <section className={`friend-record__balance${balance.assignedAmount === 0 ? " friend-record__balance--empty" : balance.outstandingAmount === 0 ? " friend-record__balance--settled" : ""}`} aria-labelledby="friend-balance-heading">
+            <h2 id="friend-balance-heading">Balance</h2>
+            <div className="friend-record__balance-primary">
+              {balance.assignedAmount === 0 ? <strong>No balance yet</strong> : balance.outstandingAmount === 0 ? <strong>Settled</strong> : <><span className="technical-label">Still owes</span><strong>{formatRupiah(balance.outstandingAmount)}</strong></>}
+            </div>
+            <dl>
+              <div><dt>Assigned</dt><dd>{formatRupiah(balance.assignedAmount)}</dd></div>
+              <div><dt>Applied</dt><dd>{formatRupiah(balance.repaidAmount)}</dd></div>
+              {balance.outstandingAmount === 0 ? <div><dt>Still owes</dt><dd>{formatRupiah(balance.outstandingAmount)}</dd></div> : null}
+            </dl>
+          </section>
+          <div className="friend-record__meta" aria-label="Friend metadata">
+            <div><span className="technical-label">Record state</span><strong>{archived ? "ARCHIVED" : "ACTIVE"}</strong></div>
+            <div><span className="technical-label">Created</span><LocalDateTime iso={friend.createdAt.toISOString()} mode="date" /></div>
           </div>
-          <dl>
-            <div><dt>Assigned</dt><dd>{formatRupiah(balance.assignedAmount)}</dd></div>
-            <div><dt>Applied</dt><dd>{formatRupiah(balance.repaidAmount)}</dd></div>
-            {balance.outstandingAmount === 0 ? <div><dt>Still owes</dt><dd>{formatRupiah(balance.outstandingAmount)}</dd></div> : null}
-          </dl>
         </section>
-        <div className="friend-record__form">
-          <p className="technical-label">EDIT RECORD</p>
-          <FriendForm
-            action={updateFriendAction.bind(null, friend.id)}
-            mode="edit"
-            initialValues={{ name: friend.name, phoneNumber: friend.phoneNumber ?? "", notes: friend.notes ?? "" }}
+        <div className="friend-record__workspace">
+          <div className="friend-record__form">
+            <p className="technical-label">EDIT RECORD</p>
+            <FriendForm
+              action={updateFriendAction.bind(null, friend.id)}
+              mode="edit"
+              initialValues={{ name: friend.name, phoneNumber: friend.phoneNumber ?? "", notes: friend.notes ?? "" }}
+            />
+            <FriendArchiveForm action={(archived ? restoreFriendAction : archiveFriendAction).bind(null, friend.id)} archived={archived} undoAction={undoFriendArchiveAction} />
+          </div>
+          <FriendShareLink
+            status={{ status: shareStatus.status, expiresAt: shareStatus.expiresAt?.toISOString() ?? null }}
+            phoneNumber={friend.phoneNumber}
+            createAction={createDebtorShareLinkAction.bind(null, friend.id)}
+            revokeAction={revokeDebtorShareLinkAction.bind(null, friend.id)}
+            updateSelectionAction={updateDebtorShareReceiptSelectionAction.bind(null, friend.id)}
+            eligibleReceipts={eligibleReceipts}
+            selectedReceiptIds={selectedReceiptIds}
           />
-          <FriendArchiveForm action={(archived ? restoreFriendAction : archiveFriendAction).bind(null, friend.id)} archived={archived} undoAction={undoFriendArchiveAction} />
         </div>
-        <FriendShareLink
-          status={{ status: shareStatus.status, expiresAt: shareStatus.expiresAt?.toISOString() ?? null }}
-          phoneNumber={friend.phoneNumber}
-          createAction={createDebtorShareLinkAction.bind(null, friend.id)}
-          revokeAction={revokeDebtorShareLinkAction.bind(null, friend.id)}
-          updateSelectionAction={updateDebtorShareReceiptSelectionAction.bind(null, friend.id)}
-          eligibleReceipts={eligibleReceipts}
-          selectedReceiptIds={selectedReceiptIds}
-        />
         <section className="record-history ledger-section" id="friend-expense-shares" aria-labelledby="friend-expense-shares-heading">
           <div className="ledger-section__heading"><div><p className="technical-label">SHARE HISTORY</p><h2 id="friend-expense-shares-heading">Expense shares</h2></div><span className="technical-label">{expenseSharePage.totalItems} entries</span></div>
           {expenseSharePage.items.length > 0 ? <div className="record-history__rows">{expenseSharePage.items.map((share) => <article className="record-history__row record-history__row--share" key={share.id}>
