@@ -1,89 +1,71 @@
 # Zplit
 
-Zplit is a self-hostable personal expense and repayment tracker.
+Zplit is a self-hostable, owner-scoped ledger for shared expenses, friend balances, and repayments. It is designed for keeping an outing’s spending and the money received back understandable without turning the ledger into a social network.
 
-## Current checkpoint
+## Current capabilities
 
-Authentication supports multiple users structurally, every domain record is scoped to its owner, and the protected application provides owner-scoped Friends, Outings, outing-bound Expenses, private PostgreSQL-backed receipt images, manual whole-rupiah friend-share assignment, repayment records, repayment allocation, ledger overview, owner-issued one-time account invitations, temporary read-only debtor balance links, and ledger exports. Outings own occurrence date and time; changing an expense’s outing changes its effective date, and independent expenses are not supported. Public registration remains disabled; invitations create normal Better Auth credential accounts with empty ledgers. The design contract is in `docs/design-system.md`.
+- Multi-account ledgers with every record isolated to its owner.
+- Friends, Trips, Outings, and outing-bound Expenses with whole-rupiah friend shares.
+- Percentage charges, repayment records, payment methods, and manual, oldest-first, or newest-first allocation strategies.
+- Allocation-safe deletion reconciliation: removing an expense or outing reallocates released repayment money when eligible shares remain and reports any remainder as unallocated.
+- Private PostgreSQL-backed receipts, plus private temporary debtor balance links with selectable receipts.
+- Copy, Preview, and QR sharing for balance links; invitation-only account creation.
+- Global record search, amount search, URL-backed filters and pagination, history, and CSV exports.
+- Light, dark, and system themes; installable PWA behavior with a static/offline fallback. Financial records are not available offline.
 
-## Prerequisites
+## Stack
 
-- Node.js 24.18 or newer
-- npm 11
+Next.js App Router and server actions, React, TypeScript, Better Auth, Drizzle ORM, and PostgreSQL. Production runs as a non-root Next.js Docker container behind Caddy; the repository and domain rules form a modular monolith.
 
-## Commands
+## Local setup
+
+Prerequisites are Node.js 24.18 or newer, npm 11, and PostgreSQL. Install dependencies, configure the required `DB_*` and `BETTER_AUTH_*` environment values (secrets are read from files), apply migrations, and start the development server:
 
 ```sh
 npm ci
+npm run db:migrate
 npm run dev
-npm run typecheck
-npm run test:debtor-shares
-npm run test:receipts
+```
+
+The application is invitation-only in normal operation. A local owner can be bootstrapped with the repository’s `scripts/bootstrap-owner.ts` tool when its secret-file environment is configured.
+
+## Common commands
+
+```sh
+npm run dev
 npm test
+npm run typecheck
 npm run lint
 npm run build
+npm run test:deployment
 npm run test:release
 ```
 
-CI runs typechecking, the full one-worker Vitest suite, lint, build, and the deployment contract test with `npm ci` on Node 24.18.0.
+Focused domain, component, repository, security, and design/source-contract commands are listed in [Testing](docs/testing.md).
 
-Authentication keeps production sign-up invitation-only, permits bootstrap-only sign-up, and applies in-memory rate limits of 100 requests per 60 seconds by default and 5 email sign-in attempts per 60 seconds. In-memory storage matches the current single-web-container deployment; replace it with shared storage before horizontal scaling.
+## Docker deployment basics
 
-The edge removes the `Server` header, enforces HSTS, CSP, permissions, opener, frame, content-type, and referrer policies, and marks private paths non-indexable and non-cacheable. Crawlers may index only the public root. See the [release runbook](docs/release-runbook.md) for backup, deployment, verification, and rollback.
-
-The shared master Caddyfile is owned by DeskTorrent infrastructure; Zplit owns only the imported `/etc/caddy/routes/zplit.caddy` route. Zplit validates Cloudflare peers locally with `remote_ip`, and Caddy converts either a trusted `CF-Connecting-IP` or the direct socket address into `X-Zplit-Client-IP`. Better Auth trusts only that internal header, and its existing rate-limit contract is unchanged. Review the configured Cloudflare ranges whenever Cloudflare publishes changes.
-
-## Private Docker deployment
-
-The standalone Docker image runs Zplit as a non-root production process behind
-the isolated `wildan-edge-zplit` network. The neutral edge owns public Caddy
-and routes Zplit at `https://idr.wildan.lol`.
-
-```sh
-docker compose -f compose.yml build web
-docker compose -f compose.yml up -d web
-docker compose -f compose.yml ps
-docker compose -f compose.yml logs -f web
-```
-
-No host port is published for the web or PostgreSQL services. PostgreSQL is private to the internal `database` network.
-
-Start PostgreSQL and apply the schema:
+Compose keeps PostgreSQL on the internal `database` network and exposes the web service only to the neutral Caddy ingress network. Start the database, migrate it, then build and start the web service:
 
 ```sh
 docker compose -f compose.yml up -d postgres
 docker compose -f compose.yml build migrate
 docker compose -f compose.yml --profile tools run --rm migrate
+docker compose -f compose.yml build web
+docker compose -f compose.yml up -d web
 docker compose -f compose.yml ps
 ```
 
-The password is read from the ignored `secrets/postgres-password` file. Back it up securely.
+The production web container has no published host port; Caddy routes to it through the external `wildan-edge-zplit` network. The compose ingress address `172.25.0.19` is an intentional upstream contract and must not be changed casually. See [Operations](docs/operations.md) for deployment, backup, verification, rollback, and disposable fixture workflows.
 
-## PostgreSQL backups
+## Security and privacy
 
-Create a metadata-only companion manifest and a secure PostgreSQL custom-format archive from the healthy Compose database:
+Authentication is invitation-only, and Better Auth sessions are required for the private application. Server actions and repository queries carry the authenticated owner ID; PostgreSQL constraints reinforce owner isolation. Receipts are private database bytes served with no-store and restrictive response headers. Debtor links are seven-day bearer links whose random token is returned once and only its SHA-256 hash is stored. Private routes are non-indexable and non-cacheable, and the Caddy edge applies the site security headers. The current in-memory request limits assume one web container; shared rate-limit storage is required before horizontal scaling.
 
-```sh
-./scripts/create-backup.sh /absolute/backup/directory
-./scripts/verify-backup.sh /absolute/backup/directory/zplit-YYYYMMDDTHHMMSSZ.dump
-```
+## Further reading
 
-The archive includes users and credentials, ledger data, invitations, debtor share links, and private receipt bytes. Store backup files securely; they contain credentials, ledger data, invitation data, share-link hashes, and private receipt images. The manifest contains only the format version, UTC creation time, Git commit, PostgreSQL version, archive hash and size, and archive filename. A backup is not trusted until disposable restoration verification passes.
-
-### Production restoration runbook
-
-Production restoration is deliberately manual and must never replace the live database automatically:
-
-1. Verify the archive with `./scripts/verify-backup.sh`.
-2. Stop the Zplit web service.
-3. Prepare a new empty PostgreSQL database or volume.
-4. Restore the archive into that empty target with `pg_restore --exit-on-error --no-owner --no-privileges`.
-5. Run the current migrations.
-6. Run the backup-integrity checks.
-7. Point Zplit at the restored database.
-8. Start the web service and check `/healthz`.
-9. Retain the old database until the restored deployment is verified.
-
-Backup encryption and automatic scheduling are not implemented. Keep the archive and its manifest access-controlled and protected by the storage system used for backups.
-
-The initial schema and authenticated Friends, Outings, outing-bound Expenses, owner-scoped manual share workflows, repayment recording, repayment allocation, ledger overview, invitation-only account registration, and temporary debtor balance links are implemented. Only allocated repayment money reduces outstanding balances.
+- [Architecture](docs/architecture.md)
+- [Design system](docs/design-system.md)
+- [Operations](docs/operations.md)
+- [Testing](docs/testing.md)
+- [Changelog](CHANGELOG.md)

@@ -11,7 +11,7 @@ const motionSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/40
 const lateOverridesSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/90-late-overrides.css"), "utf8");
 const siteHeaderSource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/site-header.tsx"), "utf8");
 const documentation = readFileSync(path.resolve(process.cwd(), "docs/design-system.md"), "utf8");
-const scaleDocumentation = readFileSync(path.resolve(process.cwd(), "docs/scale-testing.md"), "utf8");
+const scaleDocumentation = readFileSync(path.resolve(process.cwd(), "docs/testing.md"), "utf8");
 const recordPageSources = [
   "friends",
   "trips",

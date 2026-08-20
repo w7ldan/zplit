@@ -1,6 +1,6 @@
 # Zplit design system
 
-Zplit uses expressive editorial utility in public surfaces: 65% clarity, 25% editorial expression, and 10% controlled spectacle. The authenticated product remains denser and more task-focused: 85% functional clarity, 12% editorial personality, and 3% controlled spectacle.
+Zplit uses expressive editorial utility in public surfaces: 65% clarity, 25% editorial expression, and 10% controlled spectacle. The authenticated product remains denser and more task-focused: 85% functional clarity, 12% editorial personality, and 3% controlled spectacle. Authenticated UI should feel practical, legible, and editorial without becoming a generic SaaS dashboard.
 
 ## Product direction
 
@@ -16,9 +16,11 @@ The public interactive journey is a keyboard-operable five-step scenario. On wid
 
 The example must stay truthful to the application. Zplit does not imply automatic splitting, automatic allocation, notifications, receipt scanning, debtor actions, or other capabilities that are not implemented.
 
-## Palette
+## Palette and theme
 
-| Token | Value | Use |
+The semantic palette is shared by the public and authenticated modes. Light uses warm paper and surface-white working areas; dark remaps the same roles to a dark paper, surface, ink, muted-ink, rule, pastel-blue, mint, amber, and peach palette. Semantic color is never the only signal: financial state also uses text, labels, rules, and structure.
+
+| Token | Light value | Use |
 | --- | --- | --- |
 | Ink | `#111315` | Primary text and strong rules |
 | Paper | `#F4F1EA` | Warm public background |
@@ -31,15 +33,19 @@ The example must stay truthful to the application. Zplit does not imply automati
 | Amber | restrained pale amber | Unallocated or still-open financial context |
 | Error | `#B42318` | Validation and invariant errors, always paired with wording |
 
-Semantic color is never the only signal. Financial state also uses text, labels, rules, and structure. Do not use status dots, gradients, glow, glass, or decorative blobs.
+The user preference is Light, Dark, or System. The preference is stored in local storage, System follows `prefers-color-scheme`, and the resolved theme is applied to the document root and `color-scheme`. The interface updates the theme-color metadata as well. Storage failure falls back to the live selection; it does not block use of the product.
 
-## Typography and geometry
+Do not use status dots, gradients, glow, glass, or decorative blobs.
+
+## Typography, grid, and geometry
 
 Use the dependency-free system grotesk stack: Arial, Helvetica Neue, Helvetica, sans-serif. Use tabular numerals for rupiah values and dates. Use sentence case for authenticated headings, labels, and actions.
 
 Public composition uses a disciplined grid, thin rules, warm paper, surface white, pastel blue, and moderate tactile geometry. Controls use `10–12px` radii and practical 44px minimum targets. Focused product frames and task panels use `14–16px` radii. Ledger rows stay open and rule-based rather than becoming card mosaics.
 
 The public mode is spacious enough to explain the product but keeps the hero action and product object visible in the first viewport. Public pages may use expressive editorial scale; authenticated list pages prioritize task density. The authenticated mode is compact, surface-white, and task-first. These are separate density modes, not competing page templates.
+
+Detail pages may give the record title and financial relationship room to read, while list pages keep metadata, amounts, and actions in a bounded ledger hierarchy. Long record values wrap safely in rows and remain unclamped on detail pages. Responsive layouts re-stage columns before they force horizontal scrolling.
 
 Record retrieval is URL-backed: free-text search is debounced and live, discrete filters apply immediately, and filter bars remain compact ledger controls. On mobile, search stays visible while secondary list filters may use a native disclosure; its active-filter count excludes free-text search. Clear filters remains available whenever filtering is active. Result updates announce concise matching totals, not entire ledger lists. Record lists use bounded pagination rather than unbounded loading.
 
@@ -57,21 +63,21 @@ Database cascades model true ownership: an Outing owns its Expenses, an Expense 
 
 Deleting an Expense allocation link never silently deletes the Repayment. The repayment remains and its removed amount becomes unallocated. Server confirmation is based on current transactional impact, not client counts.
 
-## Motion
+## Motion and accessibility
 
 Public motion uses one short non-blocking opening fade, restrained bottom-to-top text reveals, interaction feedback, and the wide-screen journey’s scroll-linked panel movement. Utility timing is `100–220ms`; layout and state timing is `220–360ms`; public reveal is `500–750ms`; journey transitions stay below `900ms`. Content is rendered immediately, there are no fake loaders, scroll hijacks, perpetual animations, or routine text scrambling. Navigation may become a detached surface after a small scroll threshold, using one restrained shadow for separation. Public and authenticated navigation share the same detached-panel transition.
 
 Authenticated motion is denser and spends approximately 80% on state feedback, 17% on orientation and continuity, and 3% on delight. It is limited to active navigation, task panels, small row insertion, changed values, allocation bars, affected records, and concise save confirmation. Authenticated pages do not use cinematic heading reveals or decorative background motion.
 
-### Authenticated navigation
-
-The authenticated navbar is integrated with the page at the top and becomes a centered detached panel only after the existing scroll threshold, using the public navbar’s width, max-width, vertical translation, border, radius, surface, and shadow transition. The full-width sticky wrapper remains transparent, borderless, shadowless, and never paints an opaque strip or intercepts content outside the navbar. Only the centered panel may own the detached border, radius, surface, and shadow; restored scroll positions may initialize directly into the detached state.
-
 Motion communicates insertion, completion, state change, or spatial entry/exit. Frequent financial inputs remain immediate. Reduced motion removes spatial effects while preserving useful state and visibility feedback.
 
 Under `prefers-reduced-motion: reduce`, remove translation, scaling, clipping travel, staged sequences, and movement of values. Preserve immediate state changes, short opacity feedback where useful, keyboard focus, and full journey operation.
 
-## CSS architecture
+### Authenticated navigation
+
+The authenticated navbar is integrated with the page at the top and becomes a centered detached panel only after the existing scroll threshold, using the public navbar’s width, max-width, vertical translation, border, radius, surface, and shadow transition. The full-width sticky wrapper remains transparent, borderless, shadowless, and never paints an opaque strip or intercepts content outside the navbar. Only the centered panel may own the detached border, radius, surface, and shadow; restored scroll positions may initialize directly into the detached state.
+
+## CSS ownership
 
 `globals.css` is the single root stylesheet manifest. Its six fragment imports are ordered and therefore part of the cascade contract:
 
@@ -81,7 +87,7 @@ Under `prefers-reduced-motion: reduce`, remove translation, scaling, clipping tr
 - `30-records-and-forms.css` owns record rows, detail views, forms, filters, and progressive disclosure where those rules occur in source order.
 - New record-filter and mobile-disclosure rules belong in `30-records-and-forms.css`, not the late-override quarantine.
 - `40-motion-and-feedback.css` owns task panels, result states, keyframes, and reduced-motion rules.
-- `90-late-overrides.css` preserves existing source-order-sensitive debt, including later public journey and late filter rules.
+- `90-late-overrides.css` owns genuine late overrides that are still required by source order, including documented legacy cascade boundaries.
 
 Add new rules to their owning fragment. Unrelated new rules must not be appended to `90-late-overrides.css`. Moving a rule between fragments requires proof of cascade equivalence; visual cleanup and deduplication belong in separate reviewed checkpoints.
 
