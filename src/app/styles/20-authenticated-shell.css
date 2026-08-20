@@ -4,36 +4,6 @@
   background: var(--paper);
 }
 
-.friend-row__edit {
-  position: relative;
-  width: fit-content;
-  padding-block: 0.2rem;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-decoration: none;
-  text-transform: uppercase;
-}
-
-.friend-row__edit::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 1px;
-  background: var(--ink);
-  content: "";
-  transform: scaleX(0);
-  transform-origin: right;
-  transition: transform var(--motion-instant) var(--ease-out);
-}
-
-.friend-row__edit:hover::after,
-.friend-row__edit:focus-visible::after {
-  transform: scaleX(1);
-  transform-origin: left;
-}
-
 .ledger-overview,
 .friends-page,
 .friend-record,
@@ -457,11 +427,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.friend-row__edit {
-  justify-self: end;
-  color: var(--ink);
-}
-
 .friends-page__empty {
   min-height: 9rem;
   padding-block: 2rem;
@@ -656,53 +621,6 @@
 .outing-form__submit:disabled {
   cursor: wait;
   opacity: 0.65;
-}
-
-.outing-record__meta {
-  display: grid;
-  grid-column: 2 / span 5;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--ink);
-}
-
-.outing-record__meta div {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.outing-record__meta time {
-  font-size: 0.95rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.outing-record__back {
-  display: inline-block;
-  margin-top: 2rem;
-}
-
-.outing-record__notes {
-  grid-column: 2 / span 5;
-  margin: 2rem 0 0;
-  color: var(--muted-ink);
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-
-.outing-record__form {
-  grid-column: 2 / span 5;
-  margin-top: 4rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ink);
-}
-
-.outing-record__next {
-  max-width: 26rem;
-  margin: 2rem 0 0;
-  color: var(--muted-ink);
-  font-size: 0.85rem;
-  line-height: 1.5;
 }
 
 .expenses-page,
@@ -962,157 +880,6 @@
 .expense-form__submit:disabled {
   cursor: wait;
   opacity: 0.65;
-}
-
-.expense-record__meta {
-  display: grid;
-  grid-column: 2 / span 6;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--ink);
-}
-
-.expense-record__meta div {
-  display: grid;
-  gap: 0.4rem;
-  min-width: 0;
-}
-
-.expense-record__meta strong,
-.expense-record__meta time,
-.expense-record__meta div > span:last-child {
-  font-size: 0.95rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.expense-record__back {
-  display: inline-block;
-  margin-top: 2rem;
-}
-
-.expense-record__form {
-  grid-column: 2 / span 5;
-  margin-top: 4rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ink);
-}
-
-.expense-record__shares {
-  grid-column: 2 / -1;
-  margin-top: 5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ink);
-}
-
-.expense-share-editor {
-  max-width: 52rem;
-}
-
-.expense-share-editor h2 {
-  margin: 1.25rem 0 0;
-  font-family: var(--font-display);
-  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
-  font-weight: 800;
-  letter-spacing: -0.055em;
-  line-height: 1;
-}
-
-.expense-share-editor__totals {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  margin-top: 2rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--rule);
-}
-
-.expense-share-editor__totals div {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.expense-share-editor__totals strong {
-  font-size: 1rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.expense-share-editor__form {
-  display: grid;
-  gap: 1rem;
-  max-width: 31rem;
-  margin-top: 2rem;
-}
-
-.expense-share-editor__help,
-.expense-share-editor__field-error,
-.expense-share-editor__message {
-  min-height: 1.25rem;
-  margin: 0;
-  color: var(--muted-ink);
-  font-size: 0.8rem;
-}
-
-.expense-share-editor__field {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.expense-share-editor__field label {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.expense-share-editor__field input[type="text"] {
-  width: 100%;
-  min-height: 3.25rem;
-  padding: 0.75rem;
-  border: 1px solid var(--ink);
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 0px;
-  border-bottom-left-radius: 0px;
-  background: var(--paper);
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.expense-share-editor__field input[type="text"]:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
-
-.expense-share-editor__field-error,
-.expense-share-editor__message {
-  color: var(--error);
-}
-
-.expense-share-editor__message {
-  min-height: 1.5rem;
-}
-
-.expense-share-editor__submit:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-
-.expense-share-editor--empty {
-  max-width: 31rem;
-}
-
-.expense-share-editor--empty > p:not(.technical-label) {
-  margin: 1.25rem 0 0;
-  color: var(--muted-ink);
-}
-
-.expense-share-editor--empty .action-link {
-  margin-top: 1.5rem;
 }
 
 .repayments-page,
@@ -1409,208 +1176,6 @@
   font-weight: 700;
 }
 
-.repayment-record__intro h1 {
-  max-width: 10ch;
-}
-
-.repayment-record__back {
-  display: inline-block;
-  margin-top: 2rem;
-}
-
-.repayment-record__meta {
-  display: grid;
-  grid-column: 2 / span 6;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--ink);
-}
-
-.repayment-record__meta div {
-  display: grid;
-  gap: 0.4rem;
-  min-width: 0;
-}
-
-.repayment-record__meta strong,
-.repayment-record__meta time,
-.repayment-record__meta div > span:last-child {
-  font-size: 0.95rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.repayment-record__notes-value {
-  white-space: pre-wrap;
-}
-
-.repayment-record__form {
-  grid-column: 2 / span 5;
-  margin-top: 4rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ink);
-}
-
-.repayment-record__allocations {
-  grid-column: 2 / -1;
-  margin-top: 5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ink);
-}
-
-.repayment-allocation-editor {
-  max-width: 58rem;
-}
-
-.repayment-allocation-editor h2 {
-  margin: 1.25rem 0 0;
-  font-family: var(--font-display);
-  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
-  font-weight: 800;
-  letter-spacing: -0.055em;
-  line-height: 1;
-}
-
-.repayment-allocation-editor__totals {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  margin-top: 2rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--rule);
-}
-
-.repayment-allocation-editor__totals div,
-.repayment-allocation-editor__details dl div {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.repayment-allocation-editor__totals strong,
-.repayment-allocation-editor__details dd {
-  font-variant-numeric: tabular-nums;
-}
-
-.repayment-allocation-editor__form {
-  display: grid;
-  gap: 1rem;
-  margin-top: 2rem;
-}
-
-.repayment-allocation-editor__help,
-.repayment-allocation-editor__field-error,
-.repayment-allocation-editor__message {
-  min-height: 1.25rem;
-  margin: 0;
-  color: var(--muted-ink);
-  font-size: 0.8rem;
-}
-
-.repayment-allocation-editor__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(14rem, 0.7fr);
-  gap: 2rem;
-  padding-block: 1.25rem;
-  border-top: 1px solid var(--rule);
-}
-
-.repayment-allocation-editor__description,
-.repayment-allocation-editor__outing {
-  margin: 0;
-}
-
-.repayment-allocation-editor__description {
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-}
-
-.repayment-allocation-editor__outing {
-  margin-top: 0.35rem;
-  color: var(--muted-ink);
-  font-size: 0.85rem;
-}
-
-.repayment-allocation-editor__details dl {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  margin: 1.25rem 0 0;
-}
-
-.repayment-allocation-editor__details dt {
-  color: var(--muted-ink);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.repayment-allocation-editor__details dd {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.repayment-allocation-editor__field {
-  display: grid;
-  align-content: start;
-  gap: 0.4rem;
-}
-
-.repayment-allocation-editor__field label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.repayment-allocation-editor__field input[type="text"] {
-  width: 100%;
-  min-height: 3.25rem;
-  padding: 0.75rem;
-  border: 1px solid var(--ink);
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 0px;
-  border-bottom-left-radius: 0px;
-  background: var(--paper);
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.repayment-allocation-editor__field input[type="text"]:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
-
-.repayment-allocation-editor__field-error,
-.repayment-allocation-editor__message {
-  color: var(--error);
-}
-
-.repayment-allocation-editor__message {
-  min-height: 1.5rem;
-}
-
-.repayment-allocation-editor__submit:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-
-.repayment-allocation-editor--empty {
-  max-width: 31rem;
-}
-
-.repayment-allocation-editor--empty > p:not(.technical-label) {
-  margin: 1.25rem 0 0;
-  color: var(--muted-ink);
-}
-
-.repayment-allocation-editor--empty .action-link {
-  margin-top: 1.5rem;
-}
-
 @keyframes masked-hero-reveal {
   from {
     clip-path: inset(0 0 100% 0);
@@ -1828,10 +1393,7 @@
   .friends-page__list,
   .friends-page__create,
   .outings-page__list,
-  .outings-page__create,
-  .outing-record__meta,
-  .outing-record__notes,
-  .outing-record__form {
+  .outings-page__create {
     grid-column: 1 / -1;
   }
 
@@ -1883,14 +1445,6 @@
 
   .outings-page__create {
     margin-top: 4rem;
-  }
-
-  .outing-record__meta {
-    margin-top: 1rem;
-  }
-
-  .outing-record__form {
-    margin-top: 3rem;
   }
 
   .access-page__layout,
@@ -1990,23 +1544,6 @@
     margin-top: 4rem;
   }
 
-  .expense-record__meta {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: 1rem;
-  }
-
-  .expense-record__form {
-    margin-top: 3rem;
-  }
-
-  .expense-record__shares {
-    grid-column: 1 / -1;
-    margin-top: 4rem;
-  }
-
-  .expense-share-editor__totals {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 767px) {
@@ -2024,10 +1561,7 @@
   .repayments-page__intro,
   .repayment-record__intro,
   .repayments-page__list,
-  .repayments-page__create,
-  .repayment-record__meta,
-  .repayment-record__form,
-  .repayment-record__allocations {
+  .repayments-page__create {
     grid-column: 1 / -1;
   }
 
@@ -2075,28 +1609,6 @@
     margin-top: 4rem;
   }
 
-  .repayment-record__meta {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: 1rem;
-  }
-
-  .repayment-record__form {
-    margin-top: 3rem;
-  }
-
-  .repayment-record__allocations {
-    margin-top: 4rem;
-  }
-
-  .repayment-allocation-editor__totals,
-  .repayment-allocation-editor__details dl {
-    grid-template-columns: 1fr;
-  }
-
-  .repayment-allocation-editor__row {
-    grid-template-columns: 1fr;
-    gap: 1.25rem;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2731,6 +2243,42 @@ body.global-search-open {
   .app-page__columns {
     grid-template-columns: 1fr;
     gap: 1.5rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .app-page__layout {
+    gap: 1.1rem;
+    padding-block: 1rem 2rem;
+  }
+
+  .app-page__header {
+    display: block;
+    padding-bottom: 1rem;
+  }
+
+  .app-page__header h1 {
+    max-width: 18ch;
+    font-size: clamp(1.75rem, 8vw, 2.25rem);
+  }
+
+  .app-page__actions {
+    margin-top: 1rem;
+  }
+
+  .app-page__actions .action-link,
+  .app-page__header > .action-link {
+    width: 100%;
+  }
+
+  .overview-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-summary > div {
+    min-height: 4.25rem;
+    padding: 0.75rem;
+    border-left: 0;
   }
 }
 

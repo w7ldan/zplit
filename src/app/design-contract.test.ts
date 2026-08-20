@@ -7,6 +7,7 @@ const css = readCssBundle().css;
 const publicSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/10-public.css"), "utf8");
 const authenticatedShellSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/20-authenticated-shell.css"), "utf8");
 const recordsAndFormsSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/30-records-and-forms.css"), "utf8");
+const motionSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/40-motion-and-feedback.css"), "utf8");
 const lateOverridesSource = readFileSync(path.resolve(process.cwd(), "src/app/styles/90-late-overrides.css"), "utf8");
 const siteHeaderSource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/site-header.tsx"), "utf8");
 const documentation = readFileSync(path.resolve(process.cwd(), "docs/design-system.md"), "utf8");
@@ -233,8 +234,24 @@ describe("Zplit design contract", () => {
   it("keeps authenticated list workspaces and medium history rows staged", () => {
     expect(recordsAndFormsSource).toContain(".records-workspace__toolbar");
     expect(recordsAndFormsSource).toContain(".friends-toolbar");
-    expect(publicSource).toMatch(/@media \(min-width: 768px\) and \(max-width: 1099px\)[\s\S]*?\.history-row__link[\s\S]*?grid-template-columns: minmax\(4\.8rem, max-content\) minmax\(0, 1fr\);[\s\S]*?\.history-row__values[\s\S]*?grid-column: 2;/);
+    expect(recordsAndFormsSource).toMatch(/@media \(min-width: 768px\) and \(max-width: 1099px\)[\s\S]*?\.history-row__link[\s\S]*?grid-template-columns: minmax\(4\.8rem, max-content\) minmax\(0, 1fr\);[\s\S]*?\.history-row__values[\s\S]*?grid-column: 2;/);
     expect(authenticatedShellSource).toContain(".overview-ledger-clarity {\n  border-block: 0;");
+  });
+
+  it("keeps authenticated record ownership out of public, motion, and late CSS", () => {
+    for (const selector of [".invites-page__columns", ".expense-receipts", ".history-row__link", ".exports-row", ".delete-record-form"]) {
+      expect(publicSource).not.toContain(selector);
+      expect(recordsAndFormsSource).toContain(selector);
+    }
+
+    expect(motionSource).not.toContain(".expense-record__layout");
+    expect(motionSource).not.toContain(".repayment-record__layout");
+    expect(lateOverridesSource).not.toContain(".live-record-filters {");
+    expect(lateOverridesSource).not.toContain(".record-pagination {");
+    expect(lateOverridesSource).not.toContain(".repayment-form__allocations");
+    expect(authenticatedShellSource).not.toMatch(/\.outing-record__meta\s*\{/);
+    expect(authenticatedShellSource).not.toMatch(/\.expense-record__meta\s*\{/);
+    expect(authenticatedShellSource).not.toMatch(/\.repayment-record__meta\s*\{/);
   });
 
   it("keeps Friend detail ownership and workspace anchors intentional", () => {

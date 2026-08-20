@@ -96,21 +96,24 @@ describe("CSS architecture", () => {
 
     const anchors = [
       ".header-shell {",
+      ".public-home {",
       ".app-shell {",
       ".app-shell__header-layout {",
       ".friend-row,\n.outing-row,",
-      ".task-panel {",
-      ".public-home {",
       ".live-record-filters {",
-      ".record-pagination {",
+      ".record-pagination {\n  display: flex;",
+      ".task-panel {",
     ].map((anchor) => bundle.css.indexOf(anchor));
 
     expect(anchors.every((index) => index >= 0)).toBe(true);
     expect(anchors).toEqual([...anchors].sort((left, right) => left - right));
     expect(bundle.css.indexOf(".header-shell {")).toBeLessThan(bundle.css.indexOf(".app-shell {"));
-    expect(bundle.fragmentSources[5]).toContain("/* Refined authenticated controls and row actions. */");
-    expect(bundle.fragmentSources[5]).toContain(".live-record-filters {");
-    expect(bundle.fragmentSources[5]).toContain(".record-pagination {");
+    expect(bundle.fragmentSources[2]).toContain(".app-page__layout");
+    expect(bundle.fragmentSources[3]).toContain("/* Shared authenticated record filters, pagination, and row actions. */");
+    expect(bundle.fragmentSources[3]).toContain(".live-record-filters {");
+    expect(bundle.fragmentSources[3]).toContain(".record-pagination {\n  display: flex;");
+    expect(bundle.fragmentSources[5]).not.toContain(".live-record-filters {");
+    expect(bundle.fragmentSources[5]).not.toContain(".record-pagination {");
   });
 
   it("keeps mobile disclosure ownership in the records-and-forms fragment", () => {
