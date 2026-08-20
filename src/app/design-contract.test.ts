@@ -624,7 +624,20 @@ describe("Zplit design contract", () => {
     expect(authenticatedShellSource).toContain("--authenticated-header-height: 4.5rem;");
     expect(authenticatedShellSource).toContain("min-height: var(--authenticated-header-height);");
     expect(recordsAndFormsSource).toMatch(/\.expense-share-editor__summary\s*\{[\s\S]*?position: sticky;[\s\S]*?z-index: 2;[\s\S]*?top: calc\(var\(--authenticated-header-height\) \+ 0\.75rem\);/);
+    expect(cssRuleBody(css, ".expense-share-editor__summary")).toContain("margin-top: 0.75rem;");
+    expect(cssRuleBody(css, ".expense-share-editor__summary")).toContain("border-radius: var(--radius-md);");
     expect(lateOverridesSource).not.toContain("expense-share-editor__summary");
+  });
+
+  it("keeps charge controls inside their assigned tracks", () => {
+    expect(cssRuleBody(css, ".expense-share-editor__charge-fields")).toContain("grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 9rem) minmax(10rem, 11rem);");
+    expect(cssRuleBody(css, ".expense-share-editor__charge-fields > *")).toContain("min-width: 0;");
+    expect(cssRuleBody(css, ".expense-share-editor__percentage-input")).toMatch(/width: 100%;[\s\S]*min-width: 0;/);
+    expect(cssRuleBody(css, ".expense-share-editor__percentage-input input")).toMatch(/width: 100%;[\s\S]*min-width: 0;/);
+    expect(cssRuleBody(css, ".expense-share-editor__charge-field select")).toMatch(/width: 100%;[\s\S]*min-width: 0;/);
+    expect(expenseShareSource).toContain('inputMode="decimal"');
+    expect(expenseShareSource).toContain('placeholder="7.5"');
+    expect(expenseShareSource).toContain('aria-hidden="true">%</span>');
   });
 
   it("keeps the landing access link on the shared primary action treatment", () => {
