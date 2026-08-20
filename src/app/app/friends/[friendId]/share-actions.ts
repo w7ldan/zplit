@@ -26,6 +26,7 @@ export type DebtorShareActionState = {
   revoked: boolean;
   selectedReceiptIds?: string[];
   selectionUpdated?: boolean;
+  replacementCommitted?: boolean;
 };
 
 const initialDebtorShareActionState: DebtorShareActionState = {
@@ -49,12 +50,14 @@ export async function createDebtorShareLinkAction(
 ): Promise<DebtorShareActionState> {
   void _previousState;
   const session = await requireSession();
+  let replacementCommitted = false;
   try {
     const database = getDatabase();
     const selected = selectedReceiptIds(_formData);
     const link = selected.length > 0
       ? await createDebtorShareLink(database, session.user.id, friendId, selected)
       : await createDebtorShareLink(database, session.user.id, friendId);
+    replacementCommitted = true;
     const statement = await createLedgerRepository(database, session.user.id).getFriendDebtorStatement(friendId);
     revalidatePath(`/app/friends/${friendId}`);
     return {
@@ -70,8 +73,10 @@ export async function createDebtorShareLinkAction(
       selectedReceiptIds: link.selectedReceiptIds ?? [],
     };
   } catch (error) {
-    if (error instanceof DebtorShareReceiptSelectionError) return { ...initialDebtorShareActionState, error: SHARED_RECEIPT_UNAVAILABLE };
-    return { ...initialDebtorShareActionState, error: "This friend is no longer available." };
+    const result = error instanceof DebtorShareReceiptSelectionError
+      ? { ...initialDebtorShareActionState, error: SHARED_RECEIPT_UNAVAILABLE }
+      : { ...initialDebtorShareActionState, error: "This friend is no longer available." };
+    return replacementCommitted ? { ...result, replacementCommitted: true } : result;
   }
 }
 

@@ -29,6 +29,7 @@ services:
       ingress:
         aliases:
           - zplit-web
+        ipv4_address: 172.25.0.19
       database:
     depends_on:
       postgres:

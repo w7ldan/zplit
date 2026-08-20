@@ -9,14 +9,18 @@ import { BalanceLinkQr } from "./balance-link-qr";
 
 type ShareAction = (previousState: DebtorShareActionState, formData: FormData) => Promise<DebtorShareActionState>;
 type ShareStatus = { status: "none" | "active" | "expired" | "revoked"; expiresAt: string | null };
+type CopyStatus = "idle" | "copied" | "selected" | "failed";
+type ShareLink = { token: string; expiresAt: string };
+type LinkRollback = { link: ShareLink; expiresAt: string | null; reminder: string | null };
 type LinkState = {
   status: ShareStatus["status"];
-  link: { token: string; expiresAt: string } | null;
+  link: ShareLink | null;
+  rollback: LinkRollback | null;
   expiresAt: string | null;
   reminder: string | null;
   selectedReceiptIds: string[];
-  copied: boolean;
-  reminderCopied: boolean;
+  copyStatus: CopyStatus;
+  reminderCopyStatus: CopyStatus;
   pendingOperation: "create" | "update" | "revoke" | null;
   error: string;
 };
@@ -25,6 +29,33 @@ const emptyActionState: DebtorShareActionState = { error: "", link: null, statem
 
 function SubmitButton({ label, pending, disabled }: { label: string; pending: string; disabled: boolean }) {
   return <button className="action-link action-link--primary" type="submit" disabled={disabled} aria-busy={disabled}>{disabled ? pending : label}</button>;
+}
+
+async function copyText(text: string, fallbackTarget: HTMLInputElement | HTMLTextAreaElement | null): Promise<CopyStatus> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return "copied";
+  } catch {
+    if (!fallbackTarget) return "failed";
+    try {
+      fallbackTarget.focus();
+      fallbackTarget.select();
+    } catch {
+      return "failed";
+    }
+    try {
+      return document.execCommand("copy") ? "copied" : "selected";
+    } catch {
+      return "selected";
+    }
+  }
+}
+
+function copyLabel(status: CopyStatus, idle: string) {
+  if (status === "copied") return "Copied";
+  if (status === "selected") return "Selected — press Ctrl+C";
+  if (status === "failed") return "Copy unavailable";
+  return idle;
 }
 
 export function FriendShareLink({
@@ -47,25 +78,44 @@ export function FriendShareLink({
   const [state, setState] = useState<LinkState>({
     status: status.status,
     link: null,
+    rollback: null,
     expiresAt: status.expiresAt,
     reminder: null,
     selectedReceiptIds: initialSelectedReceiptIds ?? [],
-    copied: false,
-    reminderCopied: false,
+    copyStatus: "idle",
+    reminderCopyStatus: "idle",
     pendingOperation: null,
     error: "",
   });
   const [, startTransition] = useTransition();
   const feedbackTimer = useRef<number | null>(null);
+  const temporaryCopyTarget = useRef<HTMLTextAreaElement | null>(null);
   const showQrButton = useRef<HTMLButtonElement>(null);
   const qrWasVisible = useRef(false);
   const [qrVisible, setQrVisible] = useState(false);
   const shareUrl = state.link && typeof window !== "undefined" ? `${window.location.origin}/share/${state.link.token}` : null;
+  const usableShareUrl = state.pendingOperation === "create" ? null : shareUrl;
   const expiry = state.status === "active" || state.status === "expired" ? state.expiresAt : null;
   const whatsappUrl = state.reminder ? buildWhatsAppUrl(phoneNumber, state.reminder) : null;
 
-  useEffect(() => () => {
+  function clearCopyFeedback() {
     if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = null;
+    temporaryCopyTarget.current?.remove();
+    temporaryCopyTarget.current = null;
+  }
+
+  function scheduleCopyFeedbackReset() {
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = window.setTimeout(() => {
+      temporaryCopyTarget.current?.remove();
+      temporaryCopyTarget.current = null;
+      setState((current) => ({ ...current, copyStatus: "idle", reminderCopyStatus: "idle" }));
+    }, 1800);
+  }
+
+  useEffect(() => () => {
+    clearCopyFeedback();
   }, []);
 
   useEffect(() => {
@@ -91,16 +141,48 @@ export function FriendShareLink({
   }
 
   function run(operation: "create" | "update" | "revoke", action: ShareAction, formData: FormData) {
-    setState((current) => ({ ...current, pendingOperation: operation, error: "" }));
+    if (operation === "create") setQrVisible(false);
+    setState((current) => {
+      const rollback = operation === "create" && current.link
+        ? { link: current.link, expiresAt: current.expiresAt, reminder: current.reminder }
+        : null;
+      return {
+        ...current,
+        link: rollback ? null : current.link,
+        rollback,
+        expiresAt: rollback ? null : current.expiresAt,
+        reminder: rollback ? null : current.reminder,
+        copyStatus: rollback ? "idle" : current.copyStatus,
+        reminderCopyStatus: rollback ? "idle" : current.reminderCopyStatus,
+        pendingOperation: operation,
+        error: "",
+      };
+    });
     startTransition(() => {
       void action(emptyActionState, formData).then((result) => {
         if (result.error) {
-          setState((current) => ({ ...current, pendingOperation: null, error: result.error }));
+          setState((current) => {
+            const rollback = operation === "create" && result.replacementCommitted !== true ? current.rollback : null;
+            if (operation === "create") {
+              return {
+                ...current,
+                link: rollback?.link ?? null,
+                rollback: null,
+                expiresAt: rollback?.expiresAt ?? null,
+                reminder: rollback?.reminder ?? null,
+                copyStatus: "idle",
+                reminderCopyStatus: "idle",
+                pendingOperation: null,
+                error: result.error,
+              };
+            }
+            return { ...current, pendingOperation: null, error: result.error };
+          });
           return;
         }
         if (operation === "revoke") {
           setQrVisible(false);
-          setState((current) => ({ ...current, status: "revoked", link: null, expiresAt: null, reminder: null, selectedReceiptIds: [], copied: false, reminderCopied: false, pendingOperation: null, error: "" }));
+          setState((current) => ({ ...current, status: "revoked", link: null, rollback: null, expiresAt: null, reminder: null, selectedReceiptIds: [], copyStatus: "idle", reminderCopyStatus: "idle", pendingOperation: null, error: "" }));
           return;
         }
         if (operation === "update") {
@@ -112,8 +194,10 @@ export function FriendShareLink({
         const reminder = link && result.statement && typeof window !== "undefined"
           ? buildFriendReminder({ ...result.statement, balanceUrl: `${window.location.origin}/share/${link.token}` })
           : null;
-        setState((current) => ({ ...current, status: "active", link, expiresAt: link?.expiresAt ?? null, reminder, selectedReceiptIds: result.selectedReceiptIds ?? [], copied: false, reminderCopied: false, pendingOperation: null, error: "" }));
-      }).catch(() => setState((current) => ({ ...current, pendingOperation: null, error: "Unable to update this balance link." })));
+        setState((current) => ({ ...current, status: "active", link, rollback: null, expiresAt: link?.expiresAt ?? null, reminder, selectedReceiptIds: result.selectedReceiptIds ?? [], copyStatus: "idle", reminderCopyStatus: "idle", pendingOperation: null, error: "" }));
+      }).catch(() => setState((current) => operation === "create"
+        ? { ...current, link: null, rollback: null, expiresAt: null, reminder: null, copyStatus: "idle", reminderCopyStatus: "idle", pendingOperation: null, error: "Unable to update this balance link." }
+        : { ...current, pendingOperation: null, error: "Unable to update this balance link." }));
     });
   }
 
@@ -135,35 +219,29 @@ export function FriendShareLink({
   }
 
   async function copyLink() {
-    if (!shareUrl) return;
-    try { await navigator.clipboard.writeText(shareUrl); } catch {
-      const input = document.getElementById("friend-share-link") as HTMLInputElement | null;
-      if (input) {
-        input.focus();
-        input.select();
-        try { document.execCommand("copy"); } catch { /* The selected URL remains available for manual copy. */ }
-      }
-    }
-    setState((current) => ({ ...current, copied: true }));
-    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
-    feedbackTimer.current = window.setTimeout(() => setState((current) => ({ ...current, copied: false, reminderCopied: false })), 1800);
+    if (!usableShareUrl) return;
+    clearCopyFeedback();
+    const input = document.getElementById("friend-share-link") as HTMLInputElement | null;
+    const status = await copyText(usableShareUrl, input);
+    setState((current) => ({ ...current, copyStatus: status }));
+    scheduleCopyFeedbackReset();
   }
 
   async function copyReminder() {
     if (!state.reminder) return;
-    try { await navigator.clipboard.writeText(state.reminder); } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = state.reminder;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      textarea.remove();
-    }
-    setState((current) => ({ ...current, reminderCopied: true }));
-    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
-    feedbackTimer.current = window.setTimeout(() => setState((current) => ({ ...current, copied: false, reminderCopied: false })), 1800);
+    clearCopyFeedback();
+    const textarea = document.createElement("textarea");
+    textarea.value = state.reminder;
+    textarea.readOnly = true;
+    textarea.setAttribute("aria-label", "Reminder text copy fallback");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    const status = await copyText(state.reminder, textarea);
+    if (status === "selected") temporaryCopyTarget.current = textarea;
+    else textarea.remove();
+    setState((current) => ({ ...current, reminderCopyStatus: status }));
+    scheduleCopyFeedbackReset();
   }
 
   return (
@@ -185,8 +263,8 @@ export function FriendShareLink({
       {state.status === "active" ? <form onSubmit={submitUpdate} className="friend-share__actions"><SubmitButton label="Save receipt visibility" pending="Saving…" disabled={state.pendingOperation !== null} /></form> : null}
       {state.status === "active" ? <form onSubmit={submitRevoke} className="friend-share__actions"><SubmitButton label="Revoke link" pending="Revoking…" disabled={state.pendingOperation !== null} /></form> : null}
       {state.error ? <p className="friend-share__message" role="alert">{state.error}</p> : null}
-      {state.status === "active" && !shareUrl ? <p className="friend-share__description">This existing link is active, but Zplit cannot recover its URL after this page loads. Replace balance link to issue a new URL; replacing it revokes the current link.</p> : null}
-      {shareUrl && state.status === "active" ? <section className="friend-share__result" aria-label="Balance link ready" role="status"><p><strong>Balance link ready.</strong> Save or send this link now.</p><label htmlFor="friend-share-link">Temporary balance link</label><div className="friend-share__copy-row"><input id="friend-share-link" readOnly value={shareUrl} onFocus={(event) => event.currentTarget.select()} /></div><div className="friend-share__actions" aria-label="Balance link actions"><button className="action-link action-link--primary" type="button" onClick={copyLink} aria-label={state.copied ? "Balance link copied" : "Copy balance link"}>{state.copied ? "Copied" : "Copy balance link"}</button><button className="action-link action-link--quiet" type="button" onClick={() => window.open(shareUrl, "_blank", "noopener,noreferrer")} aria-label="Preview as friend (opens in a new tab)">Preview as friend</button><button ref={showQrButton} className="action-link action-link--quiet" type="button" onClick={() => setQrVisible(true)} aria-expanded={qrVisible} aria-controls="friend-share-qr">Show QR</button></div>{qrVisible ? <BalanceLinkQr url={shareUrl} onClose={() => setQrVisible(false)} /> : null}<p className="friend-share__warning">Save or send this link now. Zplit cannot recover it later.</p><p className="technical-label">Expires <LocalDateTime iso={state.link?.expiresAt ?? ""} mode="date" /></p>{state.reminder ? <div className="friend-share__reminder" aria-label="WhatsApp reminder"><p><strong>Reminder ready.</strong></p><p className="friend-share__reminder-copy">{state.reminder}</p><div className="friend-share__actions"><button className="action-link action-link--quiet" type="button" onClick={copyReminder}>{state.reminderCopied ? "Copied" : "Copy reminder"}</button>{whatsappUrl ? <button className="action-link action-link--quiet" type="button" onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}>Open WhatsApp</button> : null}</div></div> : null}</section> : null}
+      {state.status === "active" && state.pendingOperation === null && !usableShareUrl ? <p className="friend-share__description">This existing link is active, but Zplit cannot recover its URL after this page loads. Replace balance link to issue a new URL; replacing it revokes the current link.</p> : null}
+      {usableShareUrl && state.status === "active" ? <section className="friend-share__result" aria-label="Balance link ready" role="status"><p><strong>Balance link ready.</strong> Save or send this link now.</p><label htmlFor="friend-share-link">Temporary balance link</label><div className="friend-share__copy-row"><input id="friend-share-link" readOnly value={usableShareUrl} onFocus={(event) => event.currentTarget.select()} /></div><div className="friend-share__actions" aria-label="Balance link actions"><button className="action-link action-link--primary" type="button" onClick={copyLink} aria-label={copyLabel(state.copyStatus, "Copy balance link")}>{copyLabel(state.copyStatus, "Copy balance link")}</button><button className="action-link action-link--quiet" type="button" onClick={() => window.open(usableShareUrl, "_blank", "noopener,noreferrer")} aria-label="Preview as friend (opens in a new tab)">Preview as friend</button><button ref={showQrButton} className="action-link action-link--quiet" type="button" onClick={() => setQrVisible(true)} aria-expanded={qrVisible} aria-controls="friend-share-qr">Show QR</button></div>{qrVisible ? <BalanceLinkQr url={usableShareUrl} onClose={() => setQrVisible(false)} /> : null}<p className="friend-share__warning">Save or send this link now. Zplit cannot recover it later.</p><p className="technical-label">Expires <LocalDateTime iso={state.link?.expiresAt ?? ""} mode="date" /></p>{state.reminder ? <div className="friend-share__reminder" aria-label="WhatsApp reminder"><p><strong>Reminder ready.</strong></p><p className="friend-share__reminder-copy">{state.reminder}</p><div className="friend-share__actions"><button className="action-link action-link--quiet" type="button" onClick={copyReminder}>{copyLabel(state.reminderCopyStatus, "Copy reminder")}</button>{whatsappUrl ? <button className="action-link action-link--quiet" type="button" onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}>Open WhatsApp</button> : null}</div></div> : null}</section> : null}
     </section>
   );
 }

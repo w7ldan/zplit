@@ -14,7 +14,7 @@ vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession 
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("@/server/debtor-share-links", () => ({ createDebtorShareLink: mocks.create, revokeDebtorShareLink: mocks.revoke }));
+vi.mock("@/server/debtor-share-links", () => ({ createDebtorShareLink: mocks.create, revokeDebtorShareLink: mocks.revoke, DebtorShareReceiptSelectionError: class extends Error {} }));
 
 import { createDebtorShareLinkAction, revokeDebtorShareLinkAction } from "./share-actions";
 
@@ -39,5 +39,14 @@ describe("debtor share actions", () => {
 
     await expect(revokeDebtorShareLinkAction("friend-a", { error: "", link: null, statement: null, revoked: false }, new FormData())).resolves.toEqual({ error: "", link: null, statement: null, revoked: true });
     expect(mocks.revoke).toHaveBeenCalledWith("database", "owner-a", "friend-a");
+  });
+
+  it("reports when replacement committed before a later lookup failed", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.create.mockResolvedValue({ token: "11111111-1111-4111-8111-111111111111", expiresAt: new Date("2026-08-11T00:00:00Z") });
+    mocks.createLedgerRepository.mockReturnValue({ getFriendDebtorStatement: vi.fn().mockRejectedValue(new Error("lookup failed")) });
+
+    await expect(createDebtorShareLinkAction("friend-a", { error: "", link: null, statement: null, revoked: false }, new FormData())).resolves.toMatchObject({ error: "This friend is no longer available.", replacementCommitted: true });
   });
 });
