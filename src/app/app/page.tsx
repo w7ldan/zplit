@@ -3,6 +3,8 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { createLedgerRepository } from "@/domain/ledger-repository";
 import { formatRupiah } from "@/domain/rupiah";
+
+export const metadata = { title: "Overview" };
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 
 export const dynamic = "force-dynamic";

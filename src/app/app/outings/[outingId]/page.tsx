@@ -14,6 +14,7 @@ import { recordHref } from "@/domain/record-retrieval";
 import { RecordPagination } from "@/components/records/record-pagination";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Outing details" };
 
 type OutingSearchParams = { [key: string]: string | string[] | undefined };
 

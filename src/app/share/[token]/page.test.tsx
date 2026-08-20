@@ -52,7 +52,7 @@ describe("/share/[token]", () => {
     expect(dynamic).toBe("force-dynamic");
     expect(revalidate).toBe(0);
     expect(metadata).toMatchObject({
-      title: "Private Zplit balance",
+      title: "Private balance",
       description: "A private, read-only Zplit balance is ready to view.",
       robots: { index: false, follow: false },
       referrer: "no-referrer",

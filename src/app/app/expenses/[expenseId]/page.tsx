@@ -15,6 +15,7 @@ import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteExpenseAction } from "../actions";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Expense details" };
 
 export default async function ExpenseRecordPage({ params, searchParams }: { params: Promise<{ expenseId: string }>; searchParams?: Promise<{ created?: string | string[]; updated?: string | string[]; splitSaved?: string | string[] }> }) {
   const session = await requireSession();

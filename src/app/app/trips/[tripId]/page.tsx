@@ -13,6 +13,7 @@ import { formatRupiah } from "@/domain/rupiah";
 import { updateTripAction, deleteTripAction } from "../actions";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Trip details" };
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

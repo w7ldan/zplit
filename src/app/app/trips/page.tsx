@@ -14,6 +14,7 @@ import { normalizeTripFilters, recordHref } from "@/domain/record-retrieval";
 import { OutingsTripsSwitch } from "@/components/outings/outings-trips-switch";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Trips" };
 
 type TripsPageProps = { searchParams?: Promise<{ [key: string]: string | string[] | undefined; create?: string | string[]; created?: string | string[]; deleted?: string | string[]; q?: string | string[]; page?: string | string[] }> };
 

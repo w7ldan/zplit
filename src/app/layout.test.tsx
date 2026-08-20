@@ -22,7 +22,7 @@ describe("root PWA metadata", () => {
 
   it("publishes generic Open Graph and Twitter metadata", () => {
     expect(metadata).toMatchObject({
-      title: "Zplit — Shared expenses, clearly settled",
+      title: { default: "Zplit — Shared expenses, clearly settled", template: "%s · Zplit" },
       description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
       metadataBase: new URL("https://idr.wildan.lol"),
       openGraph: {

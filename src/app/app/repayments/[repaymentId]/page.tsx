@@ -13,6 +13,7 @@ import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteRepaymentAction } from "../actions";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Repayment details" };
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

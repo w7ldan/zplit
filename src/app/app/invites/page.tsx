@@ -7,6 +7,7 @@ import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { createInviteAction, revokeInviteAction } from "./actions";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Invitations" };
 
 function invitationStatus(invitation: { acceptedAt: Date | null; revokedAt: Date | null; expiresAt: Date }, now: Date) {
   if (invitation.acceptedAt) return "Accepted";

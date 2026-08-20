@@ -7,7 +7,7 @@ import { JoinedConfirmation } from "@/components/auth/joined-confirmation";
 import { LoginForm } from "@/components/auth/login-form";
 
 export const metadata: Metadata = {
-  title: "Sign in to Zplit",
+  title: "Sign in",
   description: "Sign in to open your private shared-expense ledger.",
   openGraph: {
     title: "Sign in to Zplit",

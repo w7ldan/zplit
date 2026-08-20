@@ -11,7 +11,7 @@ import { acceptInvitationAction } from "./actions";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const metadata: Metadata = {
-  title: "Join Zplit",
+  title: "Join",
   description: "Create your private Zplit ledger through a secure invitation.",
   robots: { index: false, follow: false },
   referrer: "no-referrer",

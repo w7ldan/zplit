@@ -14,6 +14,7 @@ import { normalizeFriendFilters, recordHref } from "@/domain/record-retrieval";
 import { validateRepaymentReturnTarget } from "@/domain/repayment-return";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Friends" };
 
 type FriendsPageProps = {
   searchParams?: Promise<FriendsSearchParams>;

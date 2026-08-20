@@ -18,7 +18,7 @@ vi.mock("@/auth/auth-client", () => ({ authClient: { signIn: { email: vi.fn() } 
 describe("/login", () => {
   it("uses generic sign-in metadata", () => {
     expect(metadata).toMatchObject({
-      title: "Sign in to Zplit",
+      title: "Sign in",
       description: "Sign in to open your private shared-expense ledger.",
       openGraph: { title: "Sign in to Zplit", description: "Sign in to open your private shared-expense ledger.", type: "website" },
       twitter: { card: "summary_large_image", title: "Sign in to Zplit", description: "Sign in to open your private shared-expense ledger." },

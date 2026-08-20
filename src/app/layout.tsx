@@ -8,7 +8,10 @@ export const themeBootstrap = `(()=>{const r=document.documentElement;let p="sys
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://idr.wildan.lol"),
-  title: "Zplit — Shared expenses, clearly settled",
+  title: {
+    default: "Zplit — Shared expenses, clearly settled",
+    template: "%s · Zplit",
+  },
   applicationName: "Zplit",
   description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
   manifest: "/manifest.webmanifest",

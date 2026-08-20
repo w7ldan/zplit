@@ -14,6 +14,7 @@ import { validateRepaymentReturnTarget } from "@/domain/repayment-return";
 import type { RepaymentAllocationStrategy } from "@/domain/repayment-allocation-strategy";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Repayments" };
 
 type RepaymentsPageProps = { searchParams?: Promise<{ [key: string]: string | string[] | undefined; create?: string | string[]; q?: string | string[]; friendId?: string | string[]; expenseShareId?: string | string[]; amount?: string | string[]; strategy?: string | string[]; month?: string | string[]; allocation?: string | string[]; page?: string | string[] }> };
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireSession } from "@/auth/require-session";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Ledger exports" };
 
 const exports = [
   ["Friend balances", "Assigned, repaid, and outstanding totals for active and archived friends.", "/app/exports/balances.csv"],

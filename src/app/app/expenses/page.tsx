@@ -13,6 +13,7 @@ import { groupRecordsByMonth, monthDisplayLabel, normalizeExpenseFilters, normal
 import { validateExpenseReturnTarget } from "@/domain/expense-return";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Expenses" };
 
 type ExpensesPageProps = { searchParams?: Promise<{ [key: string]: string | string[] | undefined; create?: string | string[]; outing?: string | string[]; q?: string | string[]; month?: string | string[]; assignment?: string | string[]; page?: string | string[] }> };
 

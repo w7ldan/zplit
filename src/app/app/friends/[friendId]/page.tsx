@@ -15,6 +15,7 @@ import { createDebtorShareLinkAction, revokeDebtorShareLinkAction, updateDebtorS
 import { getDebtorShareLinkStatus, getDebtorShareReceiptSelection } from "@/server/debtor-share-links";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Friend details" };
 
 type FriendSearchParams = { [key: string]: string | string[] | undefined };
 

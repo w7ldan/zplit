@@ -42,7 +42,7 @@ describe("/join/[token]", () => {
 
   it("marks invitation links noindex and nofollow", () => {
     expect(metadata).toMatchObject({
-      title: "Join Zplit",
+      title: "Join",
       description: "Create your private Zplit ledger through a secure invitation.",
       robots: { index: false, follow: false },
       referrer: "no-referrer",

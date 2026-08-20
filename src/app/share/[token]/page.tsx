@@ -7,7 +7,7 @@ import { DebtorStatementView } from "@/components/share/debtor-statement";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const metadata: Metadata = {
-  title: "Private Zplit balance",
+  title: "Private balance",
   description: "A private, read-only Zplit balance is ready to view.",
   robots: { index: false, follow: false },
   referrer: "no-referrer",

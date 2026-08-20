@@ -15,6 +15,7 @@ import { validateExpenseReturnTarget } from "@/domain/expense-return";
 import { OutingsTripsSwitch } from "@/components/outings/outings-trips-switch";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Outings" };
 
 type OutingsPageProps = { searchParams?: Promise<{ [key: string]: string | string[] | undefined; create?: string | string[]; created?: string | string[]; q?: string | string[]; month?: string | string[]; trip?: string | string[]; page?: string | string[] }> };
 

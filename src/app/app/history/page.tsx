@@ -5,6 +5,7 @@ import { LedgerHistory } from "@/components/history/ledger-history";
 import type { LedgerHistoryType } from "@/domain/ledger-history";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Ledger history" };
 
 type HistoryPageProps = {
   searchParams?: Promise<{ type?: string | string[]; cursor?: string | string[] }>;
