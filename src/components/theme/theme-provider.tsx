@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ChangeEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ChangeEvent, type ReactNode } from "react";
 
 export const THEME_STORAGE_KEY = "zplit-theme";
 export const THEME_MEDIA_QUERY = "(prefers-color-scheme: dark)";
@@ -65,16 +65,12 @@ export function useTheme() {
 }
 
 export function ThemeProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const [preference, setPreferenceState] = useState<ThemePreference>("system");
+  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const [manualPreference, setManualPreference] = useState<ThemePreference>();
+  const preference = manualPreference ?? (hydrated ? readThemePreference() : "system");
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => (typeof document !== "undefined" && document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
 
   useEffect(() => {
-    const stored = readThemePreference();
-    if (stored !== preference) {
-      setPreferenceState(stored);
-      return;
-    }
-
     const media = preference === "system" ? window.matchMedia?.(THEME_MEDIA_QUERY) : undefined;
     const update = () => setResolvedTheme(applyTheme(preference, media?.matches ?? false));
     update();
@@ -90,7 +86,7 @@ export function ThemeProvider({ children }: Readonly<{ children: ReactNode }>) {
     } catch {
       // The DOM still follows the selection when storage is unavailable.
     }
-    setPreferenceState(next);
+    setManualPreference(next);
     setResolvedTheme(applyTheme(next, systemDark()));
   }
 

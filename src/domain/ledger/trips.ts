@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
-import { expenses, friends, outings, trips } from "../../db/schema";
+import { expenses, outings, trips } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
 import { ledgerDifference, ledgerInteger, literalContains, notFound, persistenceError, safeRetrievalInteger } from "./query-utils";
 import { clampPage, normalizeText, normalizeUuid, pageResult, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";

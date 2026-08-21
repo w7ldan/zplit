@@ -139,6 +139,7 @@ export function SearchableCombobox({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const selectedIdsRef = useRef(selectedIds);
   const requestRef = useRef(0);
   const searchTimerRef = useRef<number | null>(null);
   const listboxId = `${id}-listbox`;
@@ -147,6 +148,23 @@ export function SearchableCombobox({
   const selectedOption = allOptions.find((option) => option.id === currentSelectedId);
   const options = useMemo(() => (multiSelect ? mergeOptions(pendingOptions, loadedOptions ?? initialOptions) : loadedOptions ?? initialOptions).slice(0, 20), [initialOptions, loadedOptions, multiSelect, pendingOptions]);
   const nativeOptions = useMemo(() => mergeOptions(selectedOption ? [selectedOption] : [], options).slice(0, 20), [options, selectedOption]);
+  const closeMenu = useCallback((focusTrigger = false) => {
+    if (searchTimerRef.current !== null) window.clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = null;
+    setOpen(false);
+    setPlacement(null);
+    setQuery("");
+    setActiveIndex(-1);
+    if (multiSelect) {
+      setPendingIds(new Set(selectedIdsRef.current));
+      setPendingOptions([]);
+    }
+    if (focusTrigger) triggerRef.current?.focus();
+  }, [multiSelect]);
+
+  useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  }, [selectedIds]);
 
   // Progressive enhancement toggles the native fallback after hydration.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -168,7 +186,7 @@ export function SearchableCombobox({
     }
     document.addEventListener("pointerdown", closeOnOutsideInteraction, true);
     return () => document.removeEventListener("pointerdown", closeOnOutsideInteraction, true);
-  }, []);
+  }, [closeMenu]);
 
   useEffect(() => {
     if (open) searchInputRef.current?.focus();
@@ -230,20 +248,6 @@ export function SearchableCombobox({
     const timer = window.setTimeout(() => loadOptions(""), 0);
     return () => window.clearTimeout(timer);
   }, [allOptions, currentSelectedId, loadOptions]);
-
-  function closeMenu(focusTrigger = false) {
-    if (searchTimerRef.current !== null) window.clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = null;
-    setOpen(false);
-    setPlacement(null);
-    setQuery("");
-    setActiveIndex(-1);
-    if (multiSelect) {
-      setPendingIds(new Set(selectedIds));
-      setPendingOptions([]);
-    }
-    if (focusTrigger) triggerRef.current?.focus();
-  }
 
   function openMenu(direction: "down" | "up" = "down") {
     if (disabled) return;

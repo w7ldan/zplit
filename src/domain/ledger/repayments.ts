@@ -173,7 +173,8 @@ async function listNeedsAttentionRepayments(): Promise<NeedsAttentionRepaymentRe
         .orderBy(asc(repayments.paidAt), asc(repayments.createdAt), asc(repayments.id))
         .limit(NEEDS_ATTENTION_PREVIEW_LIMIT);
       const totalItems = rows.length === 0 ? 0 : safeRetrievalInteger(rows[0]!.totalItems, "Needs attention repayment count");
-      const items = rows.map(({ allocatedAmount, totalItems: _totalItems, ...repayment }) => {
+      const items = rows.map(({ allocatedAmount, ...repayment }) => {
+        Reflect.deleteProperty(repayment, "totalItems");
         const allocated = safeRetrievalInteger(allocatedAmount ?? 0, `Allocation for repayment ${repayment.id}`);
         if (!Number.isSafeInteger(repayment.amount) || repayment.amount < 0 || allocated > repayment.amount) {
           throw new LedgerIntegrityError(`Allocations exceed repayment ${repayment.id}.`);
