@@ -18,3 +18,7 @@ secrets/owner-password
 s.sh
 zip.cjs
 zplit.zip
+
+.env
+.env.*
+!.env.example
