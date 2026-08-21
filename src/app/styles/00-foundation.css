@@ -303,11 +303,17 @@ input[type="search"]::-webkit-search-decoration {
   transition: transform var(--motion-instant) var(--ease-out);
 }
 
-.header-shell__nav a:hover::after,
 .header-shell__nav a:focus-visible::after,
 .header-shell__nav a[aria-current="page"]::after {
   transform: scaleX(1);
   transform-origin: left;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .header-shell__nav a:hover::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
 }
 
 @media (min-width: 1024px) {

@@ -252,7 +252,7 @@ describe("Zplit design contract", () => {
   });
 
   it("keeps trip detail wide and repayment activity labels on one line", () => {
-    expect(recordsAndFormsSource).toContain(".trip-record__meta,\n  .trip-record__financials,\n  .trip-record__outings {\n    grid-column: 1 / -1;");
+    expect(recordsAndFormsSource).toContain(".trip-record__meta,\n  .trip-record__financials,\n  .trip-record__settlement,\n  .trip-record__outings {\n    grid-column: 1 / -1;");
     expect(authenticatedShellSource).toContain("grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr) auto;");
     expect(authenticatedShellSource).toContain(".activity-row > span:first-child");
     expect(authenticatedShellSource).toContain("white-space: nowrap;");
@@ -682,7 +682,7 @@ describe("Zplit design contract", () => {
     expect(css).not.toContain(".app-shell__header--detached {");
     expect(css).not.toContain(".app-shell__header-layout--detached {");
     expect(css).toMatch(/\.header-shell__nav a::after\s*\{[\s\S]*?transition: transform var\(--motion-instant\) var\(--ease-out\);/);
-    expect(css).toMatch(/\.header-shell__nav a:hover::after,[\s\S]*?\.header-shell__nav a\[aria-current="page"\]::after\s*\{[\s\S]*?transform: scaleX\(1\);/);
+    expect(css).toMatch(/@media \(hover: hover\) and \(pointer: fine\)\s*\{[\s\S]*?\.header-shell__nav a:hover::after\s*\{[\s\S]*?transform: scaleX\(1\);/);
     expect(cssRuleBody(css, ".app-shell__nav-link:hover, .app-shell__nav-link:focus-visible")).toContain("color: var(--ink);");
     expect(css).toMatch(/@media \(max-width: 1199px\)\s*\{[\s\S]*?\.app-shell__mobile-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
   });
@@ -780,6 +780,26 @@ describe("Zplit design contract", () => {
     expect(expenseShareSource).toContain("data-changed-revision");
     expect(expenseShareSource).not.toContain("setTimeout");
     expect(css).toContain(".changed-value__visual");
+  });
+
+  it("keeps the interaction motion pointer-safe and tokenized", () => {
+    expect(foundationSource).toMatch(/@media \(hover: hover\) and \(pointer: fine\)[\s\S]*?\.header-shell__nav a:hover::after/);
+    expect(authenticatedShellSource).toMatch(/@media \(hover: hover\) and \(pointer: fine\)[\s\S]*?\.ledger-overview__friend-link:hover::after/);
+    expect(recordsAndFormsSource).toMatch(/@media \(hover: hover\) and \(pointer: fine\)[\s\S]*?\.outing-row__edit:hover::after/);
+    expect(foundationSource).toContain(".header-shell__nav a:focus-visible::after");
+    expect(recordsAndFormsSource).toContain(".outing-row__edit:focus-visible::after");
+    expect(motionSource).toContain("receipt-preview--closing");
+    expect(motionSource).toContain("@keyframes receipt-preview-out");
+    expect(recordsAndFormsSource).toContain('.searchable-combobox__panel[data-placement="down"]');
+    expect(recordsAndFormsSource).toContain('.searchable-combobox__panel[data-placement="up"]');
+    expect(recordsAndFormsSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.searchable-combobox__panel\s*\{[\s\S]*?opacity: 1;[\s\S]*?transform: none;[\s\S]*?animation: none;/);
+    expect(publicSource).toContain("animation: masked-hero-reveal var(--motion-reveal) var(--ease-emphasized) both;");
+    expect(authenticatedShellSource).toContain("animation: field-reveal var(--motion-reveal) var(--ease-emphasized) both;");
+    expect(publicSource).not.toContain("700ms cubic-bezier");
+    expect(authenticatedShellSource).not.toContain("850ms");
+    expect(publicSource).toContain(".action-link--primary:not(:disabled):active");
+    expect(publicSource).toContain("transform: translateY(1px);");
+    expect(motionSource).toContain(".action-link--primary:not(:disabled):active");
   });
 
   it("anchors the native task panel without an implicit dialog gap", () => {

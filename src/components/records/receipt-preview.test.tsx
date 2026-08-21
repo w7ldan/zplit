@@ -1,9 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ReceiptPreview } from "./receipt-preview";
 
 describe("ReceiptPreview", () => {
-  it("restores focus to the exact trigger after closing", () => {
+  it("keeps the preview mounted during exit, then restores focus", () => {
+    vi.useFakeTimers();
     render(<><button type="button">Other</button><ReceiptPreview href="/receipt/one" filename="one.png" mediaType="image/png" /></>);
     const trigger = screen.getByRole("button", { name: "Preview one.png" });
     trigger.focus();
@@ -11,7 +12,12 @@ describe("ReceiptPreview", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close receipt preview" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Close receipt preview" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(trigger).not.toHaveFocus();
+    act(() => vi.advanceTimersByTime(160));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+    vi.useRealTimers();
   });
 
   it("uses a normal authorized link for unsupported media", () => {
@@ -50,6 +56,7 @@ describe("ReceiptPreview", () => {
   });
 
   it("restores background state, scroll state, and focus on Escape or backdrop close", () => {
+    vi.useFakeTimers();
     const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
     Object.defineProperty(window, "scrollY", { configurable: true, value: 240 });
     document.body.style.overflow = "auto";
@@ -63,6 +70,8 @@ describe("ReceiptPreview", () => {
     expect(document.body.style.overflow).toBe("hidden");
     expect(document.documentElement.style.overflow).toBe("hidden");
     fireEvent.click(screen.getByRole("dialog"));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(160));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(container).toHaveAttribute("aria-hidden", "false");
     expect((container as HTMLElement & { inert: boolean }).inert).toBe(true);
@@ -73,9 +82,33 @@ describe("ReceiptPreview", () => {
 
     fireEvent.click(trigger);
     fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(160));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
     scrollTo.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("ignores repeated close attempts and closes immediately with reduced motion", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === "(prefers-reduced-motion: reduce)" }));
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+    document.body.style.overflow = "auto";
+    document.documentElement.style.overflow = "scroll";
+    const { container } = render(<ReceiptPreview href="/receipt/reduced" filename="reduced.png" mediaType="image/png" />);
+    const trigger = screen.getByRole("button", { name: "Preview reduced.png" });
+    fireEvent.click(trigger);
+    const close = screen.getByRole("button", { name: "Close receipt preview" });
+    fireEvent.click(close);
+    fireEvent.click(close);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(container).not.toHaveAttribute("aria-hidden", "true");
+    expect(document.body.style.overflow).toBe("auto");
+    expect(document.documentElement.style.overflow).toBe("scroll");
+    expect(scrollTo).toHaveBeenCalledWith(0, window.scrollY);
+    expect(trigger).toHaveFocus();
+    scrollTo.mockRestore();
+    vi.unstubAllGlobals();
   });
 
   it("preserves receipt authorization and download URL behavior", () => {

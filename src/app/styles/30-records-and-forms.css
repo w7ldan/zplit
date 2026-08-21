@@ -79,9 +79,7 @@
   transition: transform var(--motion-instant) var(--ease-out);
 }
 
-.outing-row__edit:hover::after,
 .outing-row__edit:focus-visible::after,
-.outing-record__back:hover::after,
 .outing-record__back:focus-visible::after {
   transform: scaleX(1);
   transform-origin: left;
@@ -326,9 +324,7 @@
   transition: transform var(--motion-instant) var(--ease-out);
 }
 
-.expense-row__edit:hover::after,
 .expense-row__edit:focus-visible::after,
-.expense-record__back:hover::after,
 .expense-record__back:focus-visible::after {
   transform: scaleX(1);
   transform-origin: left;
@@ -484,9 +480,7 @@
   transition: transform var(--motion-instant) var(--ease-out);
 }
 
-.repayment-row__edit:hover::after,
 .repayment-row__edit:focus-visible::after,
-.repayment-record__back:hover::after,
 .repayment-record__back:focus-visible::after {
   transform: scaleX(1);
   transform-origin: left;
@@ -878,7 +872,6 @@
   transition: transform var(--motion-instant) var(--ease-out);
 }
 
-.friend-record__back:hover::after,
 .friend-record__back:focus-visible::after {
   transform: scaleX(1);
   transform-origin: left;
@@ -1277,6 +1270,15 @@
   border: 1px solid var(--ink);
   background: var(--surface);
   box-shadow: 0 0.4rem 1rem var(--shadow-panel);
+  opacity: 0;
+}
+
+.searchable-combobox__panel[data-placement="down"] {
+  animation: searchable-combobox-reveal-down var(--motion-fast) var(--ease-product) both;
+}
+
+.searchable-combobox__panel[data-placement="up"] {
+  animation: searchable-combobox-reveal-up var(--motion-fast) var(--ease-product) both;
 }
 
 .searchable-combobox__panel[data-portal="dialog"] {
@@ -1363,6 +1365,24 @@
 
 .searchable-combobox__error {
   color: var(--error);
+}
+
+@keyframes searchable-combobox-reveal-down {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes searchable-combobox-reveal-up {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .searchable-combobox__panel {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
 }
 
 .friend-form__submit,
@@ -3767,7 +3787,6 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   transition: transform var(--motion-instant) var(--ease-out);
 }
 
-.friend-row__edit:hover::after,
 .friend-row__edit:focus-visible::after {
   transform: scaleX(1);
   transform-origin: left;
@@ -3861,6 +3880,20 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 .record-pagination__summary small,
 .record-pagination__disabled {
   color: var(--muted-ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .outing-row__edit:hover::after,
+  .outing-record__back:hover::after,
+  .expense-row__edit:hover::after,
+  .expense-record__back:hover::after,
+  .repayment-row__edit:hover::after,
+  .repayment-record__back:hover::after,
+  .friend-record__back:hover::after,
+  .friend-row__edit:hover::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
 }
 
 @media (max-width: 959px) {

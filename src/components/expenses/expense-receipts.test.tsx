@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ExpenseReceipts } from "./expense-receipts";
 
@@ -14,6 +14,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("ExpenseReceipts", () => {
   it("renders limits, metadata, accessible view, and explicit inline removal controls", () => {
+    vi.useFakeTimers();
     render(<ExpenseReceipts expenseId="expense-a" initialReceipts={[receipt]} />);
     expect(screen.getByRole("heading", { name: "Receipts" })).toBeInTheDocument();
     expect(screen.getByText(/JPEG, PNG, or WebP/)).toBeInTheDocument();
@@ -33,22 +34,27 @@ describe("ExpenseReceipts", () => {
     expect(screen.getByRole("link", { name: "Open original" })).toMatchObject({ href: expect.stringContaining("/app/expenses/expense-a/receipts/33333333-3333-4333-8333-333333333333"), target: "_blank" });
     expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/app/expenses/expense-a/receipts/33333333-3333-4333-8333-333333333333?download=1");
     fireEvent.keyDown(document, { key: "Escape" });
+    act(() => vi.advanceTimersByTime(160));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Preview dinner.jpg" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("closes from the backdrop and keeps unsupported receipts on the safe original link", () => {
+    vi.useFakeTimers();
     const unsupported = { ...receipt, originalFilename: "statement.pdf", mediaType: "application/pdf" };
     const view = render(<ExpenseReceipts expenseId="expense-a" initialReceipts={[receipt]} />);
     fireEvent.click(screen.getByRole("button", { name: "Preview dinner.jpg" }));
     fireEvent.click(screen.getByRole("dialog"));
+    act(() => vi.advanceTimersByTime(160));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     view.unmount();
     render(<ExpenseReceipts expenseId="expense-a" initialReceipts={[unsupported]} />);
     expect(screen.getByRole("link", { name: "Open original" })).toHaveAttribute("href", "/app/expenses/expense-a/receipts/33333333-3333-4333-8333-333333333333");
     expect(screen.queryByRole("button", { name: "Preview statement.pdf" })).not.toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("wraps long filenames without changing receipt metadata", () => {

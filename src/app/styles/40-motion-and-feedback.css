@@ -102,6 +102,10 @@
   animation: receipt-preview-in var(--motion-state) var(--ease-product) both;
 }
 
+.receipt-preview--closing {
+  animation: receipt-preview-out var(--motion-fast) var(--ease-product) both;
+}
+
 .receipt-preview__surface {
   display: flex;
   width: min(72rem, 100%);
@@ -173,6 +177,11 @@
 @keyframes receipt-preview-in {
   from { opacity: 0; transform: translateY(0.35rem); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes receipt-preview-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(2px); }
 }
 
 .toast-viewport {
@@ -414,6 +423,8 @@
   .task-panel,
   .task-panel--closing,
   .receipt-preview,
+  .receipt-preview--closing,
+  .action-link--primary:not(:disabled):active,
   .toast,
   .invite-form__result,
   .friend-share__result {

@@ -1,7 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 const previewableMediaTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const focusableSelector = [
@@ -26,16 +26,45 @@ function downloadHref(href: string) {
 
 export function ReceiptPreview({ href, filename, mediaType, previewLabel = "receipt" }: { href: string; filename: string; mediaType: string; previewLabel?: string }) {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const closingRef = useRef(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const wasOpenRef = useRef(false);
   const titleId = useId();
   const previewable = previewableMediaTypes.has(mediaType);
 
-  useEffect(() => {
-    if (!open) {
-      if (triggerRef.current?.isConnected) triggerRef.current.focus();
+  const finishClose = useCallback(() => {
+    if (!closingRef.current) return;
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    closingRef.current = false;
+    setClosing(false);
+    setOpen(false);
+  }, []);
+
+  const closePreview = useCallback(() => {
+    if (!open || closingRef.current) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setOpen(false);
       return;
     }
+    closingRef.current = true;
+    setClosing(true);
+    closeTimerRef.current = window.setTimeout(finishClose, 160);
+  }, [finishClose, open]);
+
+  useEffect(() => {
+    if (!open) {
+      if (wasOpenRef.current && triggerRef.current?.isConnected) triggerRef.current.focus();
+      wasOpenRef.current = false;
+      return;
+    }
+
+    wasOpenRef.current = true;
 
     const dialog = dialogRef.current;
     if (!dialog) return;
@@ -61,7 +90,7 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        setOpen(false);
+        closePreview();
         return;
       }
       if (event.key !== "Tab") return;
@@ -85,6 +114,10 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
       for (const { element, inert, ariaHidden } of background) {
         (element as InertElement).inert = inert;
         if (ariaHidden === null) element.removeAttribute("aria-hidden");
@@ -94,18 +127,18 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
       document.documentElement.style.overflow = documentOverflow;
       window.scrollTo(0, scrollY);
     };
-  }, [open]);
+  }, [closePreview, open]);
 
   if (!previewable) return <a className="text-link" href={href} target="_blank" rel="noreferrer">Open original</a>;
 
   return <>
-    <button className="text-link expense-receipts__preview-trigger" type="button" onClick={(event) => { triggerRef.current = event.currentTarget; setOpen(true); }} aria-label={`Preview ${filename}`}>Preview</button>
+    <button className="text-link expense-receipts__preview-trigger" type="button" onClick={(event) => { triggerRef.current = event.currentTarget; closingRef.current = false; setClosing(false); setOpen(true); }} aria-label={`Preview ${filename}`}>Preview</button>
     {open ? createPortal(
-      <div ref={dialogRef} className="receipt-preview" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onClick={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+      <div ref={dialogRef} className={`receipt-preview${closing ? " receipt-preview--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onAnimationEnd={finishClose} onClick={(event) => { if (event.target === event.currentTarget) closePreview(); }}>
         <section className="receipt-preview__surface">
           <header className="receipt-preview__header">
             <h2 id={titleId} title={filename}>{filename}</h2>
-            <button className="receipt-preview__close" type="button" onClick={() => setOpen(false)} aria-label={`Close ${previewLabel} preview`}>Close</button>
+            <button className="receipt-preview__close" type="button" onClick={closePreview} aria-label={`Close ${previewLabel} preview`}>Close</button>
           </header>
           <div className="receipt-preview__body">
             {/* eslint-disable-next-line @next/next/no-img-element */}
