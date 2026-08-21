@@ -97,7 +97,10 @@ describe("backup integrity", () => {
   it("discovers all current migrations from the explicit commit", () => {
     const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
     const migrations = loadExpectedMigrations(commit);
-    expect(migrations).toHaveLength(10);
+    const journal = JSON.parse(execFileSync("git", ["show", commit + ":drizzle/meta/_journal.json"], { encoding: "utf8" })) as {
+      entries: Array<{ idx: number; tag: string }>;
+    };
+    expect(migrations.map(({ idx, tag }) => ({ idx, tag }))).toEqual(journal.entries.map(({ idx, tag }) => ({ idx, tag })));
     expect(migrations.map((migration) => migration.tag)).toEqual(expect.arrayContaining([
       "0000_initial_schema",
       "0009_cascade_confirmed_ledger_deletions",

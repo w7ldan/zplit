@@ -12,6 +12,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/app",
   useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }),
 }));
+vi.mock("@/app/app/search/actions", () => ({ searchGlobalRecords: vi.fn() }));
 
 afterEach(() => {
   vi.useRealTimers();

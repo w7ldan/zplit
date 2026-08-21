@@ -11,6 +11,7 @@ const packageJson = JSON.parse(readFileSync(path.join(root, "package.json"), "ut
   overrides: Record<string, Record<string, string>>;
 };
 const ledgerRepository = readFileSync(path.join(root, "src/domain/ledger-repository.ts"), "utf8");
+const ledgerTypes = readFileSync(path.join(root, "src/domain/ledger/types.ts"), "utf8");
 const expenseRow = readFileSync(path.join(root, "src/components/expenses/expense-row.tsx"), "utf8");
 
 function cssRuleBody(source: string, selector: string) {
@@ -81,8 +82,9 @@ describe("styling cleanup contract", () => {
     }
     expect(css).toContain(".product-journey {");
     for (const alias of ["CreateFriendInput", "UpdateFriendInput", "CreateOutingInput", "UpdateOutingInput", "CreateExpenseInput", "UpdateExpenseInput", "CreateRepaymentInput", "UpdateRepaymentInput"]) {
-      expect(ledgerRepository).toContain(alias);
+      expect(ledgerTypes).toContain(alias);
     }
+    expect(ledgerRepository).toContain('export type * from "./ledger/types";');
   });
 
   it("uses the domain rupiah formatter in ExpenseRow", () => {
