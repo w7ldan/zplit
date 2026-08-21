@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider, useToast } from "./toast";
 
@@ -16,6 +17,19 @@ function Trigger() {
   );
 }
 
+function StackTrigger() {
+  const { dismissToast, showToast } = useToast();
+  const firstId = useRef<string | null>(null);
+  return (
+    <>
+      <button type="button" onClick={() => { firstId.current = showToast({ message: "First" }); }}>Add first</button>
+      <button type="button" onClick={() => showToast({ message: "Second" })}>Add second</button>
+      <button type="button" onClick={() => showToast({ message: "Third" })}>Add third</button>
+      <button type="button" onClick={() => { if (firstId.current) dismissToast(firstId.current); }}>Dismiss first</button>
+    </>
+  );
+}
+
 describe("ToastProvider", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
@@ -23,7 +37,7 @@ describe("ToastProvider", () => {
     vi.unstubAllGlobals();
   });
 
-  it("marks timeout dismissal as exiting before removing after 160ms", () => {
+  it("marks timeout dismissal as exiting before removing after 220ms", () => {
     render(<ToastProvider><Trigger /></ToastProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Show" }));
     const toast = screen.getByRole("status");
@@ -31,9 +45,19 @@ describe("ToastProvider", () => {
     act(() => vi.advanceTimersByTime(8000));
     expect(toast).toHaveClass("toast--exiting");
     expect(toast).toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(159));
+    act(() => vi.advanceTimersByTime(219));
     expect(toast).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("can dismiss safely while entry is still in progress", () => {
+    render(<ToastProvider><Trigger /></ToastProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Show" }));
+    const toast = screen.getByRole("status");
+    fireEvent.click(within(toast).getByRole("button", { name: "Dismiss notification" }));
+    expect(toast).toHaveClass("toast--exiting");
+    act(() => vi.advanceTimersByTime(220));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -45,7 +69,7 @@ describe("ToastProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
     expect(screen.getByRole("status")).toHaveClass("toast--exiting");
     expect(vi.getTimerCount()).toBe(timersAfterFirstDismiss);
-    act(() => vi.advanceTimersByTime(160));
+    act(() => vi.advanceTimersByTime(220));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -65,7 +89,7 @@ describe("ToastProvider", () => {
     expect(toast).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1));
     expect(toast).toHaveClass("toast--exiting");
-    act(() => vi.advanceTimersByTime(160));
+    act(() => vi.advanceTimersByTime(220));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -97,7 +121,7 @@ describe("ToastProvider", () => {
     await act(async () => undefined);
     expect(onAction).toHaveBeenCalledOnce();
     expect(screen.getByRole("status")).toHaveClass("toast--exiting");
-    act(() => vi.advanceTimersByTime(160));
+    act(() => vi.advanceTimersByTime(220));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -108,6 +132,46 @@ describe("ToastProvider", () => {
     expect(screen.queryByText("One")).not.toBeInTheDocument();
     expect(screen.getByText("Two")).toBeInTheDocument();
     expect(screen.getByText("Three")).toBeInTheDocument();
+  });
+
+  it("keeps remaining toast order through rapid add and remove", () => {
+    render(<ToastProvider><StackTrigger /></ToastProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Add first" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add second" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss first" }));
+    act(() => vi.advanceTimersByTime(220));
+    fireEvent.click(screen.getByRole("button", { name: "Add third" }));
+    expect(screen.getAllByRole("status").map((toast) => toast.querySelector(".toast__message")?.textContent)).toEqual(["Second", "Third"]);
+  });
+
+  it("clears stack FLIP offsets after the next frame", () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 0;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      const id = ++nextFrame;
+      frames.set(id, callback);
+      return id;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const element = this as HTMLElement;
+      const siblings = Array.from(element.parentElement?.querySelectorAll<HTMLElement>("[data-toast-id]") ?? []);
+      return { top: 100 - Math.max(0, siblings.indexOf(element)) * 50 } as DOMRect;
+    });
+
+    render(<ToastProvider><StackTrigger /></ToastProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Add first" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add second" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss first" }));
+    act(() => vi.advanceTimersByTime(220));
+
+    const remaining = screen.getByRole("status").parentElement as HTMLElement;
+    expect(remaining.style.getPropertyValue("--toast-layout-offset")).toBe("-50px");
+    act(() => {
+      for (const callback of frames.values()) callback(0);
+      frames.clear();
+    });
+    expect(remaining.style.getPropertyValue("--toast-layout-offset")).toBe("");
   });
 
   it("keeps a failed Undo visible with an explanation", async () => {

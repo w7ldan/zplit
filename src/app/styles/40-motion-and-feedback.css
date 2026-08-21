@@ -195,6 +195,12 @@
   pointer-events: none;
 }
 
+.toast__position {
+  min-width: 0;
+  transform: translateY(var(--toast-layout-offset, 0));
+  transition: transform var(--motion-state) var(--ease-product);
+}
+
 .toast {
   display: flex;
   align-items: center;
@@ -206,7 +212,14 @@
   background: var(--surface);
   box-shadow: 0 0.35rem 1rem var(--shadow);
   pointer-events: auto;
-  animation: toast-in var(--motion-state) var(--ease-product) both;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--motion-state) var(--ease-product), transform var(--motion-state) var(--ease-product);
+}
+
+.toast--entering {
+  opacity: 0;
+  transform: translateY(0.45rem);
 }
 
 .toast__message {
@@ -246,7 +259,8 @@
 }
 
 .toast--exiting {
-  animation: toast-out 160ms var(--ease-product) both;
+  opacity: 0;
+  transform: translateY(4px);
 }
 
 .changed-value {
@@ -278,16 +292,6 @@
 @keyframes result-in {
   from { opacity: 0; transform: translateY(0.5rem); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes toast-in {
-  from { opacity: 0; clip-path: inset(0 0 100%); transform: translateY(0.45rem); }
-  to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
-}
-
-@keyframes toast-out {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(4px); }
 }
 
 @keyframes changed-value {
@@ -433,8 +437,13 @@
     transition: none !important;
   }
 
+  .toast__position {
+    transform: none !important;
+    transition: none !important;
+  }
+
   .toast {
-    clip-path: none !important;
+    opacity: 1 !important;
   }
 
   .toast--exiting,

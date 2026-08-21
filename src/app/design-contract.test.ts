@@ -196,8 +196,10 @@ describe("Zplit design contract", () => {
     expect(css).toContain(".toast-viewport");
     expect(css).toContain("width: min(26rem, calc(100vw - 2rem))");
     expect(css).toContain("bottom: calc(4.5rem + env(safe-area-inset-bottom) + 0.75rem)");
-    expect(css).toContain("clip-path: inset(0 0 100%)");
-    expect(css).toContain(".toast {\n    clip-path: none !important;");
+    expect(css).toContain(".toast__position");
+    expect(css).toContain("transition: opacity var(--motion-state) var(--ease-product), transform var(--motion-state) var(--ease-product);");
+    expect(css).not.toContain("@keyframes toast-in");
+    expect(css).not.toContain("@keyframes toast-out");
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.toast,[\s\S]*?animation: none !important;/);
   });
 
