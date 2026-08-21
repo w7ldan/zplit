@@ -175,7 +175,11 @@ describe("expense share editor", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend]} charges={[{ name: "Service", percentageBasisPoints: 750, scope: "all", friendIds: [] }]} />);
     expect(document.querySelector<HTMLDetailsElement>(".expense-share-editor__charges")).toHaveAttribute("open", "");
     expect(screen.getByText("Charges · 1")).toBeInTheDocument();
-    const charge = screen.getByText("Charge 1").closest(".expense-share-editor__charge")!;
+    const charge = screen.getByText("Charge 1").closest(".expense-share-editor__charge");
+    expect(charge).toBeInstanceOf(HTMLElement);
+    if (!(charge instanceof HTMLElement)) {
+      throw new Error("Expected charge container");
+    }
 
     expect(within(charge).getByLabelText("Name")).toHaveValue("Service");
     expect(within(charge).getByLabelText("Rate")).toHaveAttribute("placeholder", "7.5");
