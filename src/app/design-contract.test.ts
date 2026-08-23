@@ -790,6 +790,11 @@ describe("Zplit design contract", () => {
     expect(recordsAndFormsSource).toMatch(/@media \(hover: hover\) and \(pointer: fine\)[\s\S]*?\.outing-row__edit:hover::after/);
     expect(foundationSource).toContain(".header-shell__nav a:focus-visible::after");
     expect(recordsAndFormsSource).toContain(".outing-row__edit:focus-visible::after");
+    expect(motionSource).toMatch(/\.receipt-preview\s*\{[\s\S]*?height: 100dvh;/);
+    expect(motionSource).toMatch(/\.receipt-preview\s*\{[\s\S]*?overflow: auto;[\s\S]*?overscroll-behavior: contain;/);
+    expect(motionSource).toMatch(/\.receipt-preview__surface\s*\{[\s\S]*?max-height: calc\(100dvh - var\(--receipt-preview-gutter\) - var\(--receipt-preview-gutter\)\);[\s\S]*?overflow: hidden;/);
+    expect(motionSource).toMatch(/\.receipt-preview__body\s*\{[\s\S]*?flex: 1 1 auto;[\s\S]*?min-height: 0;[\s\S]*?overflow: auto;/);
+    expect(motionSource).toMatch(/\.receipt-preview__body img\s*\{[\s\S]*?max-width: 100%;[\s\S]*?max-height: min\(70dvh, 48rem\);[\s\S]*?object-fit: contain;/);
     expect(motionSource).toContain("receipt-preview--closing");
     expect(motionSource).toContain("@keyframes receipt-preview-out");
     expect(recordsAndFormsSource).toContain('.searchable-combobox__panel[data-placement="down"]');

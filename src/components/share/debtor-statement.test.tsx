@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DebtorStatementView } from "./debtor-statement";
 
@@ -70,6 +70,30 @@ describe("DebtorStatementView", () => {
 
     const repaymentPagination = screen.getByRole("navigation", { name: "Repayment history pagination" });
     expect(within(repaymentPagination).getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/share/11111111-1111-4111-8111-111111111111?expensePage=2&repaymentPage=2#repayment-history");
+  });
+
+  it("opens shared receipts in the generic preview without exposing private filenames", () => {
+    const token = "11111111-1111-4111-8111-111111111111";
+    const publicReceiptId = "22222222-2222-4222-8222-222222222222";
+    const privateFilename = "owner-private-filename.png";
+    render(<DebtorStatementView
+      token={token}
+      statement={{
+        ...statement,
+        items: [{ ...statement.items[0]!, sharedReceipts: [{ publicId: publicReceiptId, label: "Receipt image" as const, mediaType: "image/png" }] }],
+      }}
+      expiresAt={new Date("2026-08-11T00:00:00Z")}
+    />);
+
+    const trigger = screen.getByRole("button", { name: "Receipt image" });
+    expect(trigger).toHaveTextContent("Receipt image");
+    expect(screen.queryByText(privateFilename)).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+
+    expect(screen.getByRole("heading", { name: "Receipt image" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Receipt image" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open original" })).toHaveAttribute("href", `/share/${token}/receipts/${publicReceiptId}`);
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", `/share/${token}/receipts/${publicReceiptId}?download=1`);
   });
 
   it("keeps long private-statement values semantic without adding owner actions", () => {

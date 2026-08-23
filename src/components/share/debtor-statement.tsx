@@ -1,6 +1,7 @@
 import { formatRupiah } from "@/domain/rupiah";
 import { DEBTOR_STATEMENT_PAGE_SIZE, type DebtorStatement, type DebtorStatementPage } from "@/domain/debtor-statement";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { ReceiptPreview } from "@/components/records/receipt-preview";
 
 function pageHref(
   token: string,
@@ -93,7 +94,7 @@ export function DebtorStatementView({ statement, expiresAt, token = "" }: { stat
                 <div><dt>Allocated repayments</dt><dd>{formatRupiah(item.repaidAmount)}</dd></div>
                 <div><dt>Remaining</dt><dd>{formatRupiah(item.remainingAmount)}</dd></div>
               </dl>
-              {item.sharedReceipts?.length ? <section className="debtor-statement__shared-receipts" aria-label="Shared receipts"><h4>Shared receipts</h4><ul>{item.sharedReceipts.map((receipt) => <li key={receipt.publicId}><a href={`/share/${token}/receipts/${receipt.publicId}`}>{receipt.label}</a></li>)}</ul></section> : null}
+              {item.sharedReceipts?.length ? <section className="debtor-statement__shared-receipts" aria-label="Shared receipts"><h4>Shared receipts</h4><ul>{item.sharedReceipts.map((receipt) => <li key={receipt.publicId}><ReceiptPreview href={`/share/${token}/receipts/${receipt.publicId}`} filename={receipt.label} mediaType={receipt.mediaType} triggerLabel={receipt.label} /></li>)}</ul></section> : null}
             </article>
           ))}</div> : <p className="debtor-statement__empty">No assigned expense shares are recorded.</p>}
           <Pagination label="Expense shares" anchor="expense-shares" token={token} page="expense" totalPages={expensePage.totalPages} expensePage={expensePage.page} repaymentPage={repaymentPage.page} />

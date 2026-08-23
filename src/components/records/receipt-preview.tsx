@@ -24,7 +24,7 @@ function downloadHref(href: string) {
   return `${href}${href.includes("?") ? "&" : "?"}download=1`;
 }
 
-export function ReceiptPreview({ href, filename, mediaType, previewLabel = "receipt" }: { href: string; filename: string; mediaType: string; previewLabel?: string }) {
+export function ReceiptPreview({ href, filename, mediaType, previewLabel = "receipt", triggerLabel = "Preview" }: { href: string; filename: string; mediaType: string; previewLabel?: string; triggerLabel?: string }) {
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -132,7 +132,7 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
   if (!previewable) return <a className="text-link" href={href} target="_blank" rel="noreferrer">Open original</a>;
 
   return <>
-    <button className="text-link expense-receipts__preview-trigger" type="button" onClick={(event) => { triggerRef.current = event.currentTarget; closingRef.current = false; setClosing(false); setOpen(true); }} aria-label={`Preview ${filename}`}>Preview</button>
+    <button className="text-link expense-receipts__preview-trigger" type="button" onClick={(event) => { triggerRef.current = event.currentTarget; closingRef.current = false; setClosing(false); setOpen(true); }} aria-label={triggerLabel === "Preview" ? `Preview ${filename}` : triggerLabel}>{triggerLabel}</button>
     {open ? createPortal(
       <div ref={dialogRef} className={`receipt-preview${closing ? " receipt-preview--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onAnimationEnd={finishClose} onClick={(event) => { if (event.target === event.currentTarget) closePreview(); }}>
         <section className="receipt-preview__surface">

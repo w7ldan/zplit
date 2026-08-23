@@ -26,6 +26,14 @@ describe("ReceiptPreview", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("supports a custom visible trigger label", () => {
+    render(<ReceiptPreview href="/receipt/custom" filename="Receipt image" mediaType="image/png" triggerLabel="Receipt image" />);
+    const trigger = screen.getByRole("button", { name: "Receipt image" });
+    expect(trigger).toHaveTextContent("Receipt image");
+    fireEvent.click(trigger);
+    expect(screen.getByRole("heading", { name: "Receipt image" })).toBeInTheDocument();
+  });
+
   it("keeps a long filename in the preview heading and image alternative text", () => {
     const filename = "receipt-" + "x".repeat(240) + ".png";
     render(<ReceiptPreview href="/receipt/long" filename={filename} mediaType="image/png" />);
