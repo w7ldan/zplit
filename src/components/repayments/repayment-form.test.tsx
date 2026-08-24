@@ -279,6 +279,23 @@ describe("RepaymentForm", () => {
     expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("12000");
   });
 
+  it("does not let an earlier Friend context response replace a newer selection", async () => {
+    type Context = { option: { id: string; label: string }; outstandingAmount: number; openExpenseShares: typeof share[] };
+    const resolvers: Array<(context: Context) => void> = [];
+    const loadFriendContext = vi.fn().mockImplementation(() => new Promise<Context>((resolve) => { resolvers.push(resolve); }));
+    render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }, { id: archivedFriend.id, label: archivedFriend.name, archived: true }]} searchFriends={vi.fn().mockResolvedValue(searchableFriends)} initialValues={{ friendId: activeFriend.id, amountRupiah: "12000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", paymentMethod: "", notes: "" }} loadFriendContext={loadFriendContext} />);
+
+    await chooseFriend("Bima (ARCHIVED)");
+    await chooseFriend("Ari");
+    resolvers[0]!({ option: { id: archivedFriend.id, label: archivedFriend.name }, outstandingAmount: 22_000, openExpenseShares: [otherShare] });
+    await Promise.resolve();
+    expect(screen.queryByRole("button", { name: "Use full outstanding" })).not.toBeInTheDocument();
+
+    resolvers[1]!({ option: { id: activeFriend.id, label: activeFriend.name }, outstandingAmount: 64_000, openExpenseShares: [share] });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Use full outstanding" })).toBeInTheDocument());
+    expect(screen.queryByLabelText("Allocation for Taxi")).not.toBeInTheDocument();
+  });
+
   it("hides the full-outstanding shortcut for zero balances and edit forms", () => {
     const context = { option: { id: activeFriend.id, label: activeFriend.name }, outstandingAmount: 0, openExpenseShares: [] };
     const view = render(<RepaymentForm action={vi.fn().mockResolvedValue(initialState)} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} initialFriendContext={context} />);

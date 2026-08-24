@@ -1,15 +1,16 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { RepaymentActionState, RepaymentFriendContext } from "@/app/app/repayments/actions";
 import type { RepaymentInputValues } from "@/domain/repayment-input";
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
-import { calculateRepaymentAllocations, type RepaymentAllocationStrategy } from "@/domain/repayment-allocation-strategy";
+import type { RepaymentAllocationStrategy } from "@/domain/repayment-allocation-strategy";
 import { PAYMENT_METHOD_OPTIONS, PAYMENT_METHOD_OTHER, canonicalPaymentMethod, paymentMethodFormState, recentPaymentMethodValues, type PaymentMethodChoice } from "@/domain/payment-method";
-import { formatRupiah, parseRupiah } from "@/domain/rupiah";
+import { formatRupiah } from "@/domain/rupiah";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { useRepaymentAllocationDraft } from "./use-repayment-allocation-draft";
 
 type RepaymentAction = (previousState: RepaymentActionState, formData: FormData) => Promise<RepaymentActionState>;
 
@@ -40,7 +41,6 @@ const emptyValues: RepaymentInputValues = {
   paymentMethod: "",
   notes: "",
 };
-const emptyOpenExpenseShares: OpenExpenseShare[] = [];
 const emptyOpenExpenseSharesByFriend: Record<string, OpenExpenseShare[]> = {};
 const emptyActionState: RepaymentActionState = { fieldErrors: {}, formError: "", values: emptyValues, allocations: [] };
 
@@ -91,95 +91,58 @@ function PaymentMethodFields({ choice, other, recentMethods = [], error, onChoic
 
 export function RepaymentForm({ action, friends: friendOptions, searchFriends, recentPaymentMethods = [], initialValues = emptyValues, initialPaidAtUtc, mode = "create", friendLocked = false, initialAllocationIds = [], initialAllocationStrategy = "manual", initialFriendContext, loadFriendContext, tripContext, tripContextId, outstandingByFriend = {}, openExpenseSharesByFriend = emptyOpenExpenseSharesByFriend }: RepaymentFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
-  const [selectedFriendId, setSelectedFriendId] = useState(initialValues.friendId || friendOptions[0]?.id || "");
-  const [selectedFriend, setSelectedFriend] = useState<SearchableOption | undefined>(() => friendOptions.find((friend) => friend.id === initialValues.friendId) ?? friendOptions[0]);
-  const [friendContext, setFriendContext] = useState(initialFriendContext);
-  const [loadingFriendContext, setLoadingFriendContext] = useState(false);
-  const contextRequestRef = useRef(0);
-  const [allocationStrategy, setAllocationStrategy] = useState<RepaymentAllocationStrategy>(initialAllocationStrategy);
   const initialPaymentMethod = paymentMethodFormState(initialValues.paymentMethod);
   const [paymentMethodChoice, setPaymentMethodChoice] = useState<PaymentMethodChoice>(initialPaymentMethod.choice);
   const [paymentMethodOther, setPaymentMethodOther] = useState(initialPaymentMethod.other);
-  const [draftAllocations, setDraftAllocations] = useState<Record<string, string>>(() => Object.fromEntries((state.allocations?.length ? state.allocations : initialAllocationIds.map((expenseShareId) => ({ expenseShareId, amountRupiah: "" }))).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
-  const [selectedAllocationIds, setSelectedAllocationIds] = useState<string[]>(() => state.allocations?.length ? state.allocations.map((allocation) => allocation.expenseShareId) : initialAllocationIds);
   const formRef = useRef<HTMLFormElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
   const timezoneOffsetRef = useRef<HTMLInputElement>(null);
   const allocationDisclosureRef = useRef<HTMLDetailsElement>(null);
   const detailsDisclosureRef = useRef<HTMLDetailsElement>(null);
   const previousActionStateRef = useRef(state);
-  const friendActionStateRef = useRef(state);
   const initializedRef = useRef(false);
-  const selectedShares = useMemo(() => friendContext?.option.id === selectedFriendId ? friendContext.openExpenseShares : openExpenseSharesByFriend[selectedFriendId] ?? emptyOpenExpenseShares, [friendContext, openExpenseSharesByFriend, selectedFriendId]);
-  const selectedContext = friendContext?.option.id === selectedFriendId ? friendContext : undefined;
-  const friendOptionsWithSelection = selectedFriend && !friendOptions.some((friend) => friend.id === selectedFriend.id) ? [...friendOptions, selectedFriend] : friendOptions;
-  const selectedAllocationIdSet = useMemo(() => new Set(selectedAllocationIds), [selectedAllocationIds]);
-  const selectedAllocationRows = useMemo(() => selectedAllocationIds.map((id) => selectedShares.find((share) => share.id === id)).filter((share): share is OpenExpenseShare => Boolean(share)), [selectedAllocationIds, selectedShares]);
-  const availableAllocationShares = useMemo(() => selectedShares.filter((share) => !selectedAllocationIdSet.has(share.id)), [selectedAllocationIdSet, selectedShares]);
-  const allocationOptions = useMemo(() => availableAllocationShares.slice(0, 20).map((share) => ({ id: share.id, label: `${share.expenseDescription} · ${share.outingTitle} · ${formatRupiah(share.remainingAmount)} remaining` })), [availableAllocationShares]);
-  const allocationDisclosureOpen = allocationStrategy !== "manual" || initialAllocationIds.length > 0 || (state.allocations ?? []).some((allocation) => allocation.amountRupiah.trim() !== "") || Object.keys(state.allocationFieldErrors ?? {}).length > 0;
+  const {
+    addAllocation,
+    allocationDisclosureOpen,
+    allocationOptions,
+    allocationRows,
+    allocationStrategy,
+    friendOptionsWithSelection,
+    handleAmountChange,
+    handleFriendChange,
+    loadingFriendContext,
+    outstandingAmount,
+    removeAllocation,
+    searchOutstandingExpenses,
+    selectedAllocationIdSet,
+    selectedAllocationIds,
+    selectedAllocationRows,
+    selectedContext,
+    selectedFriendId,
+    selectedShares,
+    setAllocationStrategy,
+    updateAllocationAmount,
+  } = useRepaymentAllocationDraft({
+    actionState: state,
+    amountRef,
+    friendOptions,
+    initialAllocationIds,
+    initialAllocationStrategy,
+    initialFriendContext,
+    initialValues,
+    loadFriendContext,
+    mode,
+    openExpenseSharesByFriend,
+    outstandingByFriend,
+    tripContextId,
+  });
   const detailsDisclosureOpen = Boolean(state.values.paymentMethod || state.values.notes || state.fieldErrors.paymentMethod || state.fieldErrors.notes);
-
-  const recalculateAutomaticAllocations = useCallback((strategy: RepaymentAllocationStrategy, amountRupiah: string, shares: OpenExpenseShare[]) => {
-    if (strategy === "manual") return;
-    const amount = parseRupiah(amountRupiah);
-    const generated = amount === null ? [] : calculateRepaymentAllocations(amount, shares, strategy);
-    setSelectedAllocationIds(generated.map((allocation) => allocation.expenseShareId));
-    setDraftAllocations(Object.fromEntries(generated.map((allocation) => [allocation.expenseShareId, allocation.amount.toString()])));
-  }, []);
-
-  const handleAmountChange = useCallback((amountRupiah: string) => {
-    if (amountRef.current) amountRef.current.value = amountRupiah;
-    if (allocationStrategy !== "manual") recalculateAutomaticAllocations(allocationStrategy, amountRupiah, selectedShares);
-  }, [allocationStrategy, recalculateAutomaticAllocations, selectedShares]);
-
-  useEffect(() => {
-    if (allocationStrategy !== "manual") recalculateAutomaticAllocations(allocationStrategy, amountRef.current?.value ?? initialValues.amountRupiah, selectedShares);
-  }, [allocationStrategy, initialValues.amountRupiah, recalculateAutomaticAllocations, selectedFriendId, selectedShares]);
-
-  const searchOutstandingExpenses = useCallback(async (query: string) => {
-    const normalizedQuery = query.trim().toLocaleLowerCase();
-    return availableAllocationShares
-      .filter((share) => `${share.expenseDescription} ${share.outingTitle}`.toLocaleLowerCase().includes(normalizedQuery))
-      .slice(0, 20)
-      .map((share) => ({ id: share.id, label: `${share.expenseDescription} · ${share.outingTitle} · ${formatRupiah(share.remainingAmount)} remaining` }));
-  }, [availableAllocationShares]);
-
-  const refreshFriendContext = useCallback(async (friendId: string) => {
-    if (!loadFriendContext) return;
-    const request = ++contextRequestRef.current;
-    try {
-      const context = tripContextId ? await loadFriendContext(friendId, mode === "create", tripContextId) : await loadFriendContext(friendId, mode === "create");
-      if (request === contextRequestRef.current) {
-        setFriendContext(context);
-        if (allocationStrategy !== "manual") recalculateAutomaticAllocations(allocationStrategy, amountRef.current?.value ?? initialValues.amountRupiah, context.openExpenseShares);
-      }
-    } finally {
-      if (request === contextRequestRef.current) setLoadingFriendContext(false);
-    }
-  }, [allocationStrategy, initialValues.amountRupiah, loadFriendContext, mode, recalculateAutomaticAllocations, tripContextId]);
 
   useEffect(() => {
     if (state === previousActionStateRef.current) return;
     const paymentMethod = state.paymentMethodForm ?? paymentMethodFormState(state.values.paymentMethod);
     setPaymentMethodChoice(paymentMethod.choice);
     setPaymentMethodOther(paymentMethod.other);
-  }, [state]);
-
-  useEffect(() => {
-    if (state === friendActionStateRef.current || !state.values.friendId) return;
-    friendActionStateRef.current = state;
-    // The action result is the source of truth after validation.
-    setSelectedFriendId(state.values.friendId);
-    if (loadFriendContext) {
-      void refreshFriendContext(state.values.friendId);
-    }
-  }, [loadFriendContext, refreshFriendContext, state]);
-
-  useEffect(() => {
-    if (state === previousActionStateRef.current) return;
-    setSelectedAllocationIds((state.allocations ?? []).map((allocation) => allocation.expenseShareId));
-    setDraftAllocations(Object.fromEntries((state.allocations ?? []).map((allocation) => [allocation.expenseShareId, allocation.amountRupiah])));
   }, [state]);
 
   useEffect(() => {
@@ -213,8 +176,8 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, r
     >
       <div className="repayment-form__field">
         <label id="repayment-friend-label" htmlFor="repayment-friend">Friend</label>
-        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} placeholder="Choose friend" searchLabel="Search friends" ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={(friend) => { setSelectedFriendId(friend.id); setSelectedFriend(friend); setFriendContext(undefined); setSelectedAllocationIds([]); setDraftAllocations({}); if (loadFriendContext) { setLoadingFriendContext(true); void refreshFriendContext(friend.id); } }} />
-        <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"}: {formatRupiah(friendContext?.option.id === selectedFriendId ? friendContext.outstandingAmount : outstandingByFriend[selectedFriendId] ?? 0)}</p>
+        <SearchableCombobox id="repayment-friend" name="friendId" value={selectedFriendId} options={friendOptionsWithSelection} search={searchFriends} required={!friendLocked} disabled={friendLocked} placeholder="Choose friend" searchLabel="Search friends" ariaInvalid={Boolean(state.fieldErrors.friendId)} ariaDescribedBy="repayment-friend-error" labelId="repayment-friend-label" onValueChange={handleFriendChange} />
+        <p className="repayment-form__outstanding" aria-live="polite">Outstanding for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"}: {formatRupiah(outstandingAmount)}</p>
         {tripContext ? <p className="repayment-form__context" aria-live="polite">Recording repayment for {friendOptionsWithSelection.find((friend) => friend.id === selectedFriendId)?.label ?? "this friend"} · {tripContext.name}<br /><span>Allocating within {tripContext.name}. Amounts above its remaining balance stay unallocated.</span></p> : null}
         {friendLocked ? <p className="repayment-form__help">The friend is fixed while this repayment has allocations.</p> : null}
         <FieldError id="repayment-friend-error" message={state.fieldErrors.friendId} />
@@ -263,8 +226,7 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, r
                 labelId="repayment-add-expense-label"
                 onValueChange={(option) => {
                   if (loadingFriendContext || selectedAllocationIdSet.has(option.id) || !selectedShares.some((share) => share.id === option.id)) return;
-                  setSelectedAllocationIds((current) => current.includes(option.id) ? current : [...current, option.id]);
-                  setDraftAllocations((current) => ({ ...current, [option.id]: "" }));
+                  addAllocation(option.id);
                 }}
               />
             </div>
@@ -288,9 +250,9 @@ export function RepaymentForm({ action, friends: friendOptions, searchFriends, r
                 </div>
                 <input type="hidden" name="expenseShareId" value={share.id} readOnly />
                 <label htmlFor={`repayment-allocation-${share.id}`}>Allocation for {share.expenseDescription}</label>
-                <input id={`repayment-allocation-${share.id}`} name="amountRupiah" type="text" inputMode="numeric" placeholder="Optional" value={draftAllocations[share.id] ?? ""} onChange={(event) => setDraftAllocations((current) => ({ ...current, [share.id]: event.target.value }))} aria-invalid={Boolean(state.allocationFieldErrors?.[share.id])} />
+                <input id={`repayment-allocation-${share.id}`} name="amountRupiah" type="text" inputMode="numeric" placeholder="Optional" value={allocationRows.find((allocation) => allocation.expenseShareId === share.id)?.amountRupiah ?? ""} onChange={(event) => updateAllocationAmount(share.id, event.target.value)} aria-invalid={Boolean(state.allocationFieldErrors?.[share.id])} />
                 {state.allocationFieldErrors?.[share.id] ? <p className="repayment-form__field-error">{state.allocationFieldErrors[share.id]}</p> : null}
-                <button className="action-link action-link--quiet repayment-form__allocation-remove" type="button" onClick={() => { setSelectedAllocationIds((current) => current.filter((id) => id !== share.id)); setDraftAllocations((current) => { const next = { ...current }; delete next[share.id]; return next; }); }}>Remove</button>
+                <button className="action-link action-link--quiet repayment-form__allocation-remove" type="button" onClick={() => removeAllocation(share.id)}>Remove</button>
               </div>
             ))}
             {selectedShares.length === 0 && !loadingFriendContext ? <p className="repayment-form__help">No outstanding expense shares for this friend.</p> : null}
