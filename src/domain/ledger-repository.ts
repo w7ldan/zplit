@@ -37,6 +37,7 @@ import { createTripsMutationRepository } from "./ledger/trips";
 import { createOutingsMutationRepository } from "./ledger/outings";
 import { createExpenseMutationRepository } from "./ledger/expenses";
 import { createRepaymentMutationRepository } from "./ledger/repayments";
+import { createRepaymentDestinationRepository } from "./ledger/repayment-destinations";
 
 export function createLedgerRepository(database: Database, ownerUserId: string) {
   const owner = ownerUserId.trim();
@@ -72,6 +73,7 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
   const friendsMutationMethods = createFriendsMutationRepository(database, owner);
   const tripsMutationMethods = createTripsMutationRepository(database, owner);
   const repaymentMutationMethods = createRepaymentMutationRepository(database, owner, allocationRepository);
+  const repaymentDestinationMethods = createRepaymentDestinationRepository(database, owner);
 
   async function getRepaymentFriendContext(friendId: string, includeOpenExpenseShares = false, tripId?: string): Promise<RepaymentFriendContext> {
     assertFriendId(friendId);
@@ -107,5 +109,6 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     getRepaymentFriendContext,
     ...repaymentReadMethods,
     ...repaymentMutationMethods,
+    ...repaymentDestinationMethods,
   };
 }

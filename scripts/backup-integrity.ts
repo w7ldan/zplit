@@ -17,6 +17,7 @@ export const EXPECTED_TABLES = [
   "expense_receipts",
   "expense_shares",
   "repayments",
+  "repayment_destinations",
   "repayment_proofs",
   "repayment_allocations",
 ] as const;
@@ -180,6 +181,7 @@ export const INTEGRITY_CHECKS: readonly IntegrityCheck[] = [
       (SELECT count(*) FROM expense_receipts r WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = r.owner_user_id) OR NOT EXISTS (SELECT 1 FROM expenses e WHERE e.owner_user_id = r.owner_user_id AND e.id = r.expense_id)) +
       (SELECT count(*) FROM expense_shares s WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = s.owner_user_id) OR NOT EXISTS (SELECT 1 FROM expenses e WHERE e.owner_user_id = s.owner_user_id AND e.id = s.expense_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.owner_user_id = s.owner_user_id AND f.id = s.friend_id)) +
       (SELECT count(*) FROM repayments r WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = r.owner_user_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.owner_user_id = r.owner_user_id AND f.id = r.friend_id)) +
+      (SELECT count(*) FROM repayment_destinations d WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = d.owner_user_id)) +
       (SELECT count(*) FROM repayment_allocations a WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = a.owner_user_id) OR NOT EXISTS (SELECT 1 FROM repayments r WHERE r.owner_user_id = a.owner_user_id AND r.id = a.repayment_id) OR NOT EXISTS (SELECT 1 FROM expense_shares s WHERE s.owner_user_id = a.owner_user_id AND s.id = a.expense_share_id)) +
       (SELECT count(*) FROM account_invitations i WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = i.created_by_user_id) OR (i.accepted_user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = i.accepted_user_id))) +
       (SELECT count(*) FROM debtor_share_links l WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = l.owner_user_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.owner_user_id = l.owner_user_id AND f.id = l.friend_id))

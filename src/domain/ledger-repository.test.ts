@@ -1429,14 +1429,29 @@ describe("ledger repository", () => {
     expect(statement).toMatchObject({ assignedAmount: 300, repaidAmount: 120, outstandingAmount: 180 });
     expect(statement.expensePage).toMatchObject({ page: 3, pageSize: 10, totalItems: 25, totalPages: 3, items: [] });
     expect(statement.repaymentPage).toMatchObject({ page: 1, pageSize: 10, totalItems: 23, totalPages: 3, items: [] });
-    expect(queries).toHaveLength(3);
-    expect(queries[1]?.sql).toMatch(/limit.*offset/i);
-    expect(queries[2]?.sql).toMatch(/limit/i);
-    expect(queries[2]?.sql).toContain('"repayments"."payment_method"');
+    expect(queries).toHaveLength(4);
+    expect(queries[2]?.sql).toMatch(/limit.*offset/i);
+    expect(queries[3]?.sql).toMatch(/limit/i);
+    expect(queries[3]?.sql).toContain('"repayments"."payment_method"');
     for (const query of queries) {
       expect(query.params).toContain(owner);
       expect(query.sql).not.toMatch(/phone_number|notes|token_hash/);
     }
+  });
+
+  it("projects only explicitly shared repayment destinations into a public statement", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      if (queries.length === 1) return { rows: [["friend-a", "Ada", "300", "120", "0", "0", "0", "0"]] };
+      if (queries.length === 2) return { rows: [["bank_account", "BCA", "123", "Ada", "pay here"]] };
+      return { rows: [] };
+    });
+    const statement = await createLedgerRepository(database as unknown as Database, owner).getPublicFriendDebtorStatement("friend-a", new Date("2026-08-04T00:00:00.000Z"), "link-a");
+    expect(statement.repaymentDestinations).toEqual([{ type: "bank_account", name: "BCA", identifier: "123", accountName: "Ada", note: "pay here" }]);
+    expect(queries[1]?.sql).toContain('"share_on_balance_links" = $');
+    expect(queries[1]?.sql).toContain('"sort_order" asc');
+    expect(JSON.stringify(statement)).not.toMatch(/ownerUserId|shareOnBalanceLinks|createdAt|updatedAt/);
   });
 
   it("preserves the typed integrity error from aggregate summary rows", async () => {

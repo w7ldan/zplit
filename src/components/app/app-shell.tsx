@@ -81,6 +81,7 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
                 <span>{user.email}</span>
                 <Link href="/app/history">History</Link>
                 <Link href="/app/exports">Exports</Link>
+                <Link href="/app/settings">Settings</Link>
                 {canManageInvites ? <Link href="/app/invites">Invitations</Link> : null}
                 <ThemeControl />
                 <SignOutButton />

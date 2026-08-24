@@ -25,6 +25,7 @@ describe("Repository route metadata contract", () => {
       ["src/app/app/history/page.tsx", "Ledger history"],
       ["src/app/app/invites/page.tsx", "Invitations"],
       ["src/app/app/exports/page.tsx", "Ledger exports"],
+      ["src/app/app/settings/page.tsx", "Settings"],
       ["src/app/app/friends/[friendId]/page.tsx", "Friend details"],
       ["src/app/app/outings/[outingId]/page.tsx", "Outing details"],
       ["src/app/app/trips/[tripId]/page.tsx", "Trip details"],

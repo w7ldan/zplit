@@ -31,6 +31,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
   let shareStatus;
   let eligibleReceipts;
   let selectedReceiptIds;
+  let sharedDestinationNames: string[] = [];
   let balance = { assignedAmount: 0, repaidAmount: 0, outstandingAmount: 0 };
   let expenseSharePage;
   let repaymentPage;
@@ -38,11 +39,12 @@ export default async function FriendRecordPage({ params, searchParams }: { param
     const database = getDatabase();
     const repository = createLedgerRepository(database, session.user.id);
     friend = await repository.getFriend(friendId);
-    const [friendBalances, nextShareStatus, nextEligibleReceipts, nextSelectedReceiptIds, nextExpenseSharePage, nextRepaymentPage] = await Promise.all([
+    const [friendBalances, nextShareStatus, nextEligibleReceipts, nextSelectedReceiptIds, nextSharedDestinations, nextExpenseSharePage, nextRepaymentPage] = await Promise.all([
       repository.getFriendBalances([friend.id]),
       getDebtorShareLinkStatus(database, session.user.id, friendId),
       repository.listEligibleDebtorShareReceipts(friendId),
       getDebtorShareReceiptSelection(database, session.user.id, friendId),
+      repository.listSharedRepaymentDestinations(),
       repository.listFriendExpenseShareRecords(friend.id, { page: first(query?.expensePage) }),
       repository.listRepaymentRecords({ friendId: friend.id, page: first(query?.repaymentPage) }),
     ]);
@@ -50,6 +52,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
     shareStatus = nextShareStatus;
     eligibleReceipts = nextEligibleReceipts;
     selectedReceiptIds = nextSelectedReceiptIds;
+    sharedDestinationNames = nextSharedDestinations.map((destination) => destination.name);
     expenseSharePage = nextExpenseSharePage;
     repaymentPage = nextRepaymentPage;
   } catch (error) {
@@ -109,6 +112,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
             updateSelectionAction={updateDebtorShareReceiptSelectionAction.bind(null, friend.id)}
             eligibleReceipts={eligibleReceipts}
             selectedReceiptIds={selectedReceiptIds}
+            sharedDestinationNames={sharedDestinationNames}
           />
         </div>
         <section className="record-history ledger-section" id="friend-expense-shares" aria-labelledby="friend-expense-shares-heading">

@@ -39,6 +39,7 @@ export function FriendShareLink({
   updateSelectionAction,
   eligibleReceipts,
   selectedReceiptIds: initialSelectedReceiptIds,
+  sharedDestinationNames,
 }: {
   status: ShareStatus;
   phoneNumber: string | null;
@@ -47,6 +48,7 @@ export function FriendShareLink({
   updateSelectionAction?: ShareAction;
   eligibleReceipts?: EligibleDebtorShareReceiptGroup[];
   selectedReceiptIds?: string[];
+  sharedDestinationNames?: string[];
 }) {
   const [state, setState] = useState<LinkState>({
     status: status.status,
@@ -221,6 +223,10 @@ export function FriendShareLink({
     <section className="friend-share" aria-labelledby="friend-share-heading">
       <div className="friend-share__heading"><div><p className="technical-label">Share balance</p><h2 id="friend-share-heading">A private, read-only view</h2></div><span className="friend-share__state">{state.status === "none" ? "NONE" : state.status.toUpperCase()}</span></div>
       <p className="friend-share__description">This temporary link shows this friend’s balance and itemized shares. It cannot change the ledger.</p>
+      <section className="friend-share__destinations" aria-labelledby="friend-share-destinations-heading">
+        <div><p className="technical-label">Repays to</p><h3 id="friend-share-destinations-heading">{sharedDestinationNames?.length ? `${sharedDestinationNames.length} repayment destination${sharedDestinationNames.length === 1 ? "" : "s"} will be shown` : "No repayment destination will be shown."}</h3>{sharedDestinationNames?.length ? <p>{sharedDestinationNames.join(" · ")}</p> : null}</div>
+        <a className="text-link" href="/app/settings#repays-to">{sharedDestinationNames?.length ? "Manage repayment details" : "Add repayment details"}</a>
+      </section>
       {expiry ? <p className="friend-share__expiry">{state.status === "expired" ? "Expired" : "Expires"} <LocalDateTime iso={expiry} mode="date" /></p> : null}
       <form id="friend-share-create" onSubmit={submitCreate}>
         <fieldset className="friend-share__receipts">

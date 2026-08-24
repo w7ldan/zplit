@@ -2,6 +2,8 @@ import { formatRupiah } from "@/domain/rupiah";
 import { DEBTOR_STATEMENT_PAGE_SIZE, type DebtorStatement, type DebtorStatementPage } from "@/domain/debtor-statement";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { ReceiptPreview } from "@/components/records/receipt-preview";
+import { destinationTypeLabel } from "@/domain/repayment-destination";
+import { CopyRepaymentDestination } from "./copy-repayment-destination";
 
 function pageHref(
   token: string,
@@ -84,6 +86,15 @@ export function DebtorStatementView({ statement, expiresAt, token = "" }: { stat
           <div><span className="technical-label">Assigned</span><strong>{formatRupiah(statement.assignedAmount)}</strong></div>
           <div><span className="technical-label">Repaid</span><strong>{formatRupiah(statement.repaidAmount)}</strong></div>
         </section>
+        {statement.repaymentDestinations?.length ? <section className="debtor-statement__destinations" id="repay-to" aria-labelledby="debtor-destinations-heading">
+          <div className="debtor-statement__items-heading"><h2 id="debtor-destinations-heading">Repay to</h2><span className="technical-label">{statement.repaymentDestinations.length} destinations</span></div>
+          <div className="debtor-statement__destination-list">{statement.repaymentDestinations.map((destination, index) => <article className="debtor-statement__destination" key={`${destination.name}-${index}`}>
+            <div className="debtor-statement__destination-heading"><h3>{destination.name}</h3><span className="technical-label">{destinationTypeLabel(destination.type)}</span></div>
+            <CopyRepaymentDestination identifier={destination.identifier} name={destination.name} />
+            {destination.accountName ? <p>{destination.accountName}</p> : null}
+            {destination.note ? <p className="debtor-statement__destination-note">{destination.note}</p> : null}
+          </article>)}</div>
+        </section> : null}
         <section className="debtor-statement__items" id="expense-shares" aria-labelledby="debtor-items-heading">
           <div className="debtor-statement__items-heading"><h2 id="debtor-items-heading">Expense shares</h2><span className="technical-label">{expensePage.totalItems} items</span></div>
           {expensePage.items.length ? <div className="debtor-statement__list">{expensePage.items.map((item, index) => (

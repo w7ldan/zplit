@@ -400,6 +400,66 @@
   padding-top: 3rem;
 }
 
+.debtor-statement__destinations {
+  max-width: 64rem;
+  margin-top: 3rem;
+  border-block: 1px solid var(--ink);
+}
+
+.debtor-statement__destination {
+  padding-block: 1.1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.debtor-statement__destination-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.debtor-statement__destination-heading h3,
+.debtor-statement__destination p {
+  margin: 0;
+}
+
+.debtor-statement__destination-heading h3 {
+  font-size: 1.15rem;
+}
+
+.debtor-statement__destination-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.debtor-statement__destination-copy input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.debtor-statement__destination-copy button {
+  min-height: 2.75rem;
+}
+
+.debtor-statement__destination > p {
+  margin-top: 0.45rem;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+}
+
+.debtor-statement__destination-note {
+  white-space: pre-wrap;
+}
+
 @media (max-width: 767px) {
   .exports-row {
     grid-template-columns: 1fr;
@@ -422,6 +482,10 @@
 
   .debtor-statement__allocations li {
     align-items: start;
+  }
+
+  .debtor-statement__destination-copy {
+    grid-template-columns: 1fr;
   }
 }
 

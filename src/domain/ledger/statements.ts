@@ -9,6 +9,7 @@ import {
   friends,
   outings,
   repaymentAllocations,
+  repaymentDestinations,
   repayments,
 } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
@@ -23,6 +24,7 @@ import { notFound, persistenceError, safeRetrievalInteger } from "./query-utils"
 import { assertFriendId } from "./validation";
 import { clampPage, normalizePage } from "../record-retrieval";
 import type { DebtorStatementPageOptions, EligibleDebtorShareReceiptGroup } from "./types";
+import { toPublicRepaymentDestination, type RepaymentDestinationType } from "../repayment-destination";
 
 export function createLedgerStatementRepository(database: Database, owner: string) {
 async function getLedgerExportSnapshot(): Promise<LedgerExportSnapshot> {
@@ -235,6 +237,22 @@ async function getPublicFriendDebtorStatement(
         .limit(1);
       if (!summary) return notFound();
 
+      const destinationRows = await database
+        .select({
+          type: repaymentDestinations.type,
+          name: repaymentDestinations.name,
+          identifier: repaymentDestinations.identifier,
+          accountName: repaymentDestinations.accountName,
+          note: repaymentDestinations.note,
+        })
+        .from(repaymentDestinations)
+        .where(and(eq(repaymentDestinations.ownerUserId, owner), eq(repaymentDestinations.shareOnBalanceLinks, true)))
+        .orderBy(asc(repaymentDestinations.sortOrder), asc(repaymentDestinations.id));
+      const publicRepaymentDestinations = destinationRows.map((destination) => toPublicRepaymentDestination({
+        ...destination,
+        type: destination.type as RepaymentDestinationType,
+      }));
+
       const assignedTotal = safeRetrievalInteger(summary.assignedAmount, "Assigned amount");
       const repaidTotal = safeRetrievalInteger(summary.repaidAmount, "Repaid amount");
       if (safeRetrievalInteger(summary.invalidShareAllocations, "Expense share allocation integrity") > 0) throw new LedgerIntegrityError("Allocations exceed an expense share.");
@@ -356,6 +374,7 @@ async function getPublicFriendDebtorStatement(
         repaidAmount: repaidTotal,
         expensePage: { page: expensePage, totalItems: expenseTotalItems },
         repaymentPage: { page: repaymentPage, totalItems: repaymentTotalItems },
+        repaymentDestinations: publicRepaymentDestinations,
         asOf,
       });
     } catch (error) {

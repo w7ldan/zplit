@@ -282,6 +282,34 @@ export const repayments = pgTable(
   ],
 );
 
+export const repaymentDestinations = pgTable(
+  "repayment_destinations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: varchar("type", { length: 16 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    identifier: varchar("identifier", { length: 255 }).notNull(),
+    accountName: varchar("account_name", { length: 120 }),
+    note: varchar("note", { length: 1000 }),
+    shareOnBalanceLinks: boolean("share_on_balance_links").default(false).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("repayment_destinations_type_allowed", sql`${table.type} IN ('bank_account', 'e_wallet', 'other')`),
+    check("repayment_destinations_name_not_blank", sql`btrim(${table.name}) <> ''`),
+    check("repayment_destinations_identifier_not_blank", sql`btrim(${table.identifier}) <> ''`),
+    check("repayment_destinations_account_name_not_blank", sql`${table.accountName} IS NULL OR btrim(${table.accountName}) <> ''`),
+    check("repayment_destinations_note_not_blank", sql`${table.note} IS NULL OR btrim(${table.note}) <> ''`),
+    check("repayment_destinations_sort_order_nonnegative", sql`${table.sortOrder} >= 0`),
+    index("repayment_destinations_owner_order_idx").on(table.ownerUserId, table.sortOrder, table.id),
+  ],
+);
+
 export const repaymentProofs = pgTable(
   "repayment_proofs",
   {

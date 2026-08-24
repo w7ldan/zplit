@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { DebtorStatementView } from "./debtor-statement";
 
 const statement = {
@@ -70,6 +70,31 @@ describe("DebtorStatementView", () => {
 
     const repaymentPagination = screen.getByRole("navigation", { name: "Repayment history pagination" });
     expect(within(repaymentPagination).getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/share/11111111-1111-4111-8111-111111111111?expensePage=2&repaymentPage=2#repayment-history");
+  });
+
+  it("renders ordered shared destinations with adaptive type labels and copy feedback", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    render(<DebtorStatementView
+      statement={{ ...statement, repaymentDestinations: [
+        { type: "bank_account", name: "BCA", identifier: "123456", accountName: "Ada", note: null },
+        { type: "e_wallet", name: "GoPay", identifier: "0812", accountName: null, note: "Use this number" },
+        { type: "other", name: "Cash", identifier: "Ask me", accountName: null, note: null },
+      ] }}
+      expiresAt={new Date("2026-08-11T00:00:00Z")}
+    />);
+
+    const destinations = screen.getByRole("region", { name: "Repay to" });
+    expect(within(destinations).getByText("BANK ACCOUNT")).toBeInTheDocument();
+    expect(within(destinations).getByText("E-WALLET")).toBeInTheDocument();
+    expect(within(destinations).getByText("OTHER")).toBeInTheDocument();
+    expect(within(destinations).getByDisplayValue("123456")).toBeInTheDocument();
+    expect(within(destinations).getByText("Use this number")).toBeInTheDocument();
+    expect(destinations.compareDocumentPosition(screen.getByRole("region", { name: "Expense shares" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(within(destinations).getByRole("button", { name: "Copy BCA repayment details" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument());
+    expect(writeText).toHaveBeenCalledWith("123456");
   });
 
   it("opens shared receipts in the generic preview without exposing private filenames", () => {

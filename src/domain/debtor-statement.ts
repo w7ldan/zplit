@@ -1,3 +1,5 @@
+import type { PublicRepaymentDestination } from "./repayment-destination";
+
 export type DebtorStatementShare = {
   id: string;
   friendId: string;
@@ -42,6 +44,7 @@ export type DebtorStatementInput = {
   repayments: DebtorStatementRepayment[];
   allocations: DebtorStatementAllocation[];
   publicReceipts?: DebtorStatementPublicReceipt[];
+  repaymentDestinations?: PublicRepaymentDestination[];
   asOf?: Date;
 };
 
@@ -81,6 +84,7 @@ export type DebtorStatement = {
   expensePage?: DebtorStatementPage<DebtorStatementItem>;
   repayments?: DebtorStatementRepaymentItem[];
   repaymentPage?: DebtorStatementPage<DebtorStatementRepaymentItem>;
+  repaymentDestinations?: PublicRepaymentDestination[];
 };
 
 type PagedShare = DebtorStatementShare & { repaidAmount: number };
@@ -108,6 +112,7 @@ export function buildPagedDebtorStatement(input: {
   repaidAmount: number;
   expensePage: { page: number; totalItems: number };
   repaymentPage: { page: number; totalItems: number };
+  repaymentDestinations?: PublicRepaymentDestination[];
   asOf?: Date;
 }): DebtorStatement {
   if (!input.friend.id || typeof input.friend.name !== "string") {
@@ -192,6 +197,7 @@ export function buildPagedDebtorStatement(input: {
     expensePage,
     repayments: repaymentItems,
     repaymentPage,
+    repaymentDestinations: input.repaymentDestinations ?? [],
   };
 }
 
@@ -314,5 +320,6 @@ export function buildDebtorStatement(input: DebtorStatementInput): DebtorStateme
     repaidAmount,
     outstandingAmount: assignedAmount - repaidAmount,
     items,
+    repaymentDestinations: input.repaymentDestinations ?? [],
   };
 }

@@ -3882,6 +3882,271 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   color: var(--muted-ink);
 }
 
+.settings-page__section {
+  min-width: 0;
+  padding-block: 1.25rem;
+  border-block: 1px solid var(--ink);
+}
+
+.settings-page__section + .settings-page__section {
+  border-top: 0;
+}
+
+.settings-page__section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.settings-page__section-heading h2 {
+  margin: 0.3rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  letter-spacing: -0.055em;
+}
+
+.settings-page__section-heading p:not(.technical-label) {
+  max-width: 38rem;
+  margin: 0.65rem 0 0;
+  color: var(--muted-ink);
+}
+
+.settings-page__profile {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  max-width: 40rem;
+  margin: 1.25rem 0 0;
+}
+
+.settings-page__profile div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.settings-page__profile dt,
+.settings-page__profile dd,
+.settings-page__destination p {
+  margin: 0;
+}
+
+.settings-page__profile dt,
+.settings-page__destination-footer,
+.settings-page__empty,
+.settings-page__error {
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+}
+
+.settings-page__profile dd,
+.settings-page__identifier {
+  overflow-wrap: anywhere;
+}
+
+.settings-page__destinations {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+
+.settings-page__destination {
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.settings-page__destination-main,
+.settings-page__destination-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.settings-page__destination-main h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+}
+
+.settings-page__destination-main > .technical-label {
+  flex: 0 0 auto;
+}
+
+.settings-page__identifier {
+  margin-top: 0.25rem !important;
+  font-variant-numeric: tabular-nums;
+  white-space: pre-wrap;
+}
+
+.settings-page__note {
+  margin-top: 0.35rem !important;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+}
+
+.settings-page__destination-footer {
+  align-items: center;
+  margin-top: 0.85rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--rule);
+}
+
+.settings-page__destination-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.75rem;
+}
+
+.settings-page__destination-actions form,
+.settings-page__destination-actions details {
+  margin: 0;
+}
+
+.settings-page__destination-actions summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-page__destination-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-page__destination-actions details[open] {
+  flex-basis: 100%;
+}
+
+.settings-page__destination-actions details[open] .repayment-destination-form {
+  margin-top: 1rem;
+}
+
+.settings-page__empty,
+.settings-page__error {
+  margin: 1.25rem 0 0;
+}
+
+.settings-page__error {
+  padding: 0.7rem 0.85rem;
+  border-left: 3px solid var(--error);
+}
+
+.settings-page__add {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ink);
+}
+
+.settings-page__add > .technical-label {
+  margin: 0 0 0.75rem;
+}
+
+.repayment-destination-form {
+  display: grid;
+  gap: 0.85rem;
+  max-width: 38rem;
+}
+
+.repayment-destination-form__field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.repayment-destination-form__field label,
+.repayment-destination-form__checkbox {
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.repayment-destination-form__field label span {
+  font-weight: 400;
+}
+
+.repayment-destination-form__field-error {
+  min-height: 1rem;
+  margin: 0;
+  color: var(--error);
+  font-size: 0.75rem;
+}
+
+.repayment-destination-form__checkbox {
+  display: flex;
+  align-items: start;
+  gap: 0.6rem;
+  padding-top: 0.35rem;
+}
+
+.repayment-destination-form__checkbox input {
+  flex: 0 0 auto;
+  min-height: auto;
+  margin-top: 0.1rem;
+}
+
+.repayment-destination-form__checkbox span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.repayment-destination-form__checkbox strong {
+  color: var(--ink);
+}
+
+.repayment-destination-form__checkbox small {
+  color: var(--muted-ink);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.repayment-destination-form__message {
+  min-height: 1.1rem;
+  margin: 0;
+  color: var(--error);
+  font-size: 0.82rem;
+}
+
+.friend-share__destinations {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block: 1rem;
+  padding-block: 0.9rem;
+  border-block: 1px solid var(--rule);
+}
+
+.friend-share__destinations h3,
+.friend-share__destinations p {
+  margin: 0.3rem 0 0;
+}
+
+.friend-share__destinations h3 {
+  font-size: 1rem;
+}
+
+.friend-share__destinations p:not(.technical-label) {
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 767px) {
+  .settings-page__profile {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-page__section-heading,
+  .settings-page__destination-main,
+  .settings-page__destination-footer,
+  .friend-share__destinations {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .settings-page__destination-actions {
+    justify-content: start;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .outing-row__edit:hover::after,
   .outing-record__back:hover::after,

@@ -11,6 +11,7 @@ const domainTables = [
   "friends",
   "outings",
   "repayment_allocations",
+  "repayment_destinations",
   "repayment_proofs",
   "repayments",
   "trips",
@@ -45,9 +46,9 @@ function foreignKeyShape(table: unknown) {
 }
 
 describe("database schema", () => {
-  it("exports the eleven domain tables and four auth tables", () => {
+  it("exports the twelve domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations]
+      [schema.friends, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -57,6 +58,34 @@ describe("database schema", () => {
       "users",
       "verifications",
     ]);
+  });
+
+  it("defines owner-editable repayment destinations with safe bounds", () => {
+    const table = getTableConfig(schema.repaymentDestinations);
+    expect(table.name).toBe("repayment_destinations");
+    expect(table.columns.map((column) => column.name)).toEqual([
+      "id",
+      "owner_user_id",
+      "type",
+      "name",
+      "identifier",
+      "account_name",
+      "note",
+      "share_on_balance_links",
+      "sort_order",
+      "created_at",
+      "updated_at",
+    ]);
+    expect(table.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "repayment_destinations_type_allowed",
+      "repayment_destinations_name_not_blank",
+      "repayment_destinations_identifier_not_blank",
+      "repayment_destinations_sort_order_nonnegative",
+    ]));
+    expect(foreignKeyShape(schema.repaymentDestinations)).toEqual(expect.arrayContaining([
+      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "cascade" },
+    ]));
+    expect(indexColumns(schema.repaymentDestinations, "repayment_destinations_owner_order_idx")).toEqual(["owner_user_id", "sort_order", "id"]);
   });
 
   it("defines one owner-private payment proof per repayment", () => {
