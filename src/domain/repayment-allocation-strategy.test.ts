@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateRepaymentAllocations } from "./repayment-allocation-strategy";
+import { calculateRepaymentAllocations } from "./ledger/allocations";
 
 const shares = [
   { id: "old", remainingAmount: 3_000 },

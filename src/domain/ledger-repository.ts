@@ -24,6 +24,7 @@ import { createOutingsReadRepository } from "./ledger/outings";
 import { createLedgerSearchRepository } from "./ledger/search";
 import { createLedgerHistoryRepository } from "./ledger/history";
 import { createLedgerStatementRepository } from "./ledger/statements";
+import { createRepaymentAllocationRepository } from "./ledger/allocations";
 import { createExpenseReadRepository } from "./ledger/expenses";
 import { createRepaymentReadRepository } from "./ledger/repayments";
 import {
@@ -39,6 +40,7 @@ import { createRepaymentMutationRepository } from "./ledger/repayments";
 export function createLedgerRepository(database: Database, ownerUserId: string) {
   const owner = ownerUserId.trim();
   if (!owner) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger owner is required");
+  const allocationRepository = createRepaymentAllocationRepository(database, owner);
 
   const friendsReads = createFriendsReadRepository(database, owner);
   const { getFriend, ...friendReads } = friendsReads;
@@ -56,28 +58,18 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     listOpenExpenseSharesByFriend,
     ...expenseReadMethods
   } = expenseReads;
-  const repaymentReads = createRepaymentReadRepository(database, owner);
-  const {
-    allocationPlanFor,
-    repaymentSelection,
-    withRepaymentTotals,
-    ...repaymentReadMethods
-  } = repaymentReads;
+  const repaymentReadMethods = createRepaymentReadRepository(database, owner, allocationRepository);
 
   const expenseMutations = createExpenseMutationRepository(database, owner, {
     expenseSelection,
     listExpenseChargesFor,
     listExpenseSharesFor,
-  });
+  }, allocationRepository);
   const { lockExpenseDependents, ...expenseMutationMethods } = expenseMutations;
   const outingsMutations = createOutingsMutationRepository(database, owner, { lockExpenseDependents });
   const friendsMutationMethods = createFriendsMutationRepository(database, owner);
   const tripsMutationMethods = createTripsMutationRepository(database, owner);
-  const repaymentMutationMethods = createRepaymentMutationRepository(database, owner, {
-    allocationPlanFor,
-    repaymentSelection,
-    withRepaymentTotals,
-  });
+  const repaymentMutationMethods = createRepaymentMutationRepository(database, owner, allocationRepository);
 
   async function getRepaymentFriendContext(friendId: string, includeOpenExpenseShares = false, tripId?: string): Promise<RepaymentFriendContext> {
     assertFriendId(friendId);
