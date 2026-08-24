@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition, type DragEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type DragEvent } from "react";
 import type { RepaymentDestinationFormAction, RepaymentDestinationOrderAction } from "@/app/app/settings/actions";
 import { destinationTypeLabel, type RepaymentDestinationType } from "@/domain/repayment-destination";
 import { RepaymentDestinationForm } from "./repayment-destination-form";
@@ -30,9 +30,19 @@ type Props = {
 
 const createFormId = "repayment-destination-create-form";
 
+function serverSnapshot(destinations: SettingsRepaymentDestinationEntry[]) {
+  return JSON.stringify(destinations.map(({ id, type, name, identifier, accountName, note, shareOnBalanceLinks }) => [id, type, name, identifier, accountName, note, shareOnBalanceLinks]));
+}
+
+function hasOrder(destinations: SettingsRepaymentDestinationEntry[], ids: string[]) {
+  return destinations.length === ids.length && destinations.every(({ id }, index) => id === ids[index]);
+}
+
 export function RepaymentDestinationsSettings({ destinations, createAction, setOrderAction }: Props) {
   const [orderedDestinations, setOrderedDestinations] = useState(destinations);
   const confirmedOrder = useRef(destinations);
+  const lastServerSnapshot = useRef(serverSnapshot(destinations));
+  const pendingOrder = useRef<string[] | null>(null);
   const [openForm, setOpenForm] = useState<string | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
@@ -40,6 +50,18 @@ export function RepaymentDestinationsSettings({ destinations, createAction, setO
   const createTrigger = useRef<HTMLButtonElement>(null);
   const editTriggers = useRef<Record<string, HTMLButtonElement | null>>({});
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const nextSnapshot = serverSnapshot(destinations);
+    if (nextSnapshot === lastServerSnapshot.current) return;
+    if (pendingOrder.current && !hasOrder(destinations, pendingOrder.current)) return;
+    lastServerSnapshot.current = nextSnapshot;
+    confirmedOrder.current = destinations;
+    pendingOrder.current = null;
+    setOrderedDestinations(destinations);
+    setOrderError("");
+    setOpenForm(null);
+  }, [destinations, isPending]);
 
   function closeForm(trigger?: HTMLButtonElement | null) {
     setOpenForm(null);
@@ -50,16 +72,19 @@ export function RepaymentDestinationsSettings({ destinations, createAction, setO
     if (isPending) return;
     setOrderedDestinations(nextOrder);
     setOrderError("");
+    pendingOrder.current = nextOrder.map(({ id }) => id);
     startTransition(async () => {
       try {
         const result = await setOrderAction(nextOrder.map(({ id }) => id));
         if (result.ok) {
-          confirmedOrder.current = nextOrder;
+          if (pendingOrder.current) confirmedOrder.current = nextOrder;
           return;
         }
+        pendingOrder.current = null;
         setOrderedDestinations(confirmedOrder.current);
         setOrderError(result.message);
       } catch {
+        pendingOrder.current = null;
         setOrderedDestinations(confirmedOrder.current);
         setOrderError("Unable to save repayment destination order.");
       }
