@@ -1,18 +1,15 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
-
-const root = process.cwd();
+import { readSource } from "./helpers";
 
 function metadataTitle(file: string) {
-  const source = readFileSync(path.resolve(root, file), "utf8");
+  const source = readSource(file);
   const block = source.match(/export const metadata(?:\s*:\s*Metadata)?\s*=\s*\{([\s\S]*?)\};/)?.[1] ?? "";
   return block.match(/^\s*title:\s*"([^"]+)"/m)?.[1];
 }
 
 describe("Repository route metadata contract", () => {
   it("keeps the root default title and child template", () => {
-    const source = readFileSync(path.resolve(root, "src/app/layout.tsx"), "utf8");
+    const source = readSource("src/app/layout.tsx");
     expect(source).toContain('default: "Zplit — Shared expenses, clearly settled"');
     expect(source).toContain('template: "%s · Zplit"');
   });

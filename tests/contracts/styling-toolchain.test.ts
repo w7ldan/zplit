@@ -1,26 +1,18 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { readCssBundle } from "@/test/read-css-bundle";
+import { cssRuleBody, readSource, root } from "./helpers";
 
-const root = process.cwd();
 const css = readCssBundle(root).css;
-const packageJson = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
+const packageJson = JSON.parse(readSource("package.json")) as {
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
   overrides: Record<string, Record<string, string>>;
 };
-const ledgerRepository = readFileSync(path.join(root, "src/domain/ledger-repository.ts"), "utf8");
-const ledgerTypes = readFileSync(path.join(root, "src/domain/ledger/types.ts"), "utf8");
-const expenseRow = readFileSync(path.join(root, "src/components/expenses/expense-row.tsx"), "utf8");
-
-function cssRuleBody(source: string, selector: string) {
-  const expected = selector.trim().replace(/\s+/g, " ");
-  for (const match of source.matchAll(/(?:^|\n)([^{}]+)\{([^{}]*)\}/g)) {
-    if (match[1].trim().replace(/\s+/g, " ") === expected) return match[2];
-  }
-  return "";
-}
+const ledgerRepository = readSource("src/domain/ledger-repository.ts");
+const ledgerTypes = readSource("src/domain/ledger/types.ts");
+const expenseRow = readSource("src/components/expenses/expense-row.tsx");
 
 describe("Repository styling toolchain contract", () => {
   it("removes unused styling configuration and direct packages", () => {

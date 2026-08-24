@@ -1,11 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { readSource, root } from "./helpers";
 
-const root = process.cwd();
 const sharedDateTime = path.resolve(root, "src/components/editorial/local-date-time.tsx");
 const calendarDate = path.resolve(root, "src/components/editorial/calendar-date.ts");
-const tripPage = path.resolve(root, "src/app/app/trips/[tripId]/page.tsx");
 
 function productionFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -18,9 +17,9 @@ function productionFiles(directory: string): string[] {
 
 describe("Repository date-time contract", () => {
   it("keeps calendar formatting outside the client boundary", () => {
-    const localDateTimeSource = readFileSync(sharedDateTime, "utf8");
-    const calendarDateSource = readFileSync(calendarDate, "utf8");
-    const tripPageSource = readFileSync(tripPage, "utf8");
+    const localDateTimeSource = readSource("src/components/editorial/local-date-time.tsx");
+    const calendarDateSource = readSource("src/components/editorial/calendar-date.ts");
+    const tripPageSource = readSource("src/app/app/trips/[tripId]/page.tsx");
 
     expect(localDateTimeSource).toMatch(/^"use client";/);
     expect(localDateTimeSource).toContain('from "./calendar-date"');
