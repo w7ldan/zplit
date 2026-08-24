@@ -12,7 +12,7 @@ import {
   type RecordPage,
 } from "../record-retrieval";
 import { assertFriendArchiveReversalReceipt, assertFriendId, assertFriendInput } from "./validation";
-import type { CreateFriendInput, FriendArchiveReversalReceipt, FriendSelectorOption, UpdateFriendInput } from "./types";
+import type { CreateFriendInput, FriendArchiveReversalReceipt, FriendListRecord, FriendSelectorOption, UpdateFriendInput } from "./types";
 
 export function createFriendsReadRepository(database: Database, owner: string) {
 async function getFriend(friendId: string) {
@@ -73,7 +73,7 @@ async function searchFriends(options: { q?: unknown; selectedId?: unknown; activ
     }
   }
 
-async function listFriendRecords(options: { archived?: unknown; q?: unknown; page?: unknown } = {}): Promise<RecordPage<typeof friends.$inferSelect>> {
+async function listFriendRecords(options: { archived?: unknown; q?: unknown; page?: unknown } = {}): Promise<RecordPage<FriendListRecord>> {
     const filters = normalizeFriendFilters(options);
     const conditions = [
       eq(friends.ownerUserId, owner),

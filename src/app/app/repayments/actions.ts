@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
-import { getDatabase } from "@/db/client";
 import { validateRepaymentInput, type RepaymentFieldErrors, type RepaymentInputValues } from "@/domain/repayment-input";
 import {
   validateRepaymentAllocationInput,
@@ -11,7 +10,6 @@ import {
   type RepaymentAllocationInputValues,
 } from "@/domain/repayment-allocation-input";
 import {
-  createLedgerRepository,
   deletionImpactRevision,
   LedgerNotFoundError,
   RepaymentAllocationAmountInvariantError,
@@ -26,6 +24,8 @@ import type { SearchableOption } from "@/components/records/searchable-combobox"
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
 import { paymentMethodFormState, parsePaymentMethodFields, type PaymentMethodFormState } from "@/domain/payment-method";
 import { normalizeUuid } from "@/domain/record-retrieval";
+import { parseCascadeConfirmation, parseImpactRevision } from "@/domain/deletion-confirmation";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 
 export type RepaymentActionState = {
   fieldErrors: RepaymentFieldErrors;
@@ -54,8 +54,8 @@ export type RepaymentAllocationUndoState =
 export type RepaymentDeleteActionState = DeleteRecordActionState;
 
 export async function searchFriendOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
-  const session = await requireSession();
-  return (await createLedgerRepository(getDatabase(), session.user.id).searchFriends({ q: query, selectedId })).map((friend) => ({ id: friend.id, label: friend.name, archived: friend.archived }));
+  const { ledger } = await getAuthenticatedLedger();
+  return (await ledger.searchFriends({ q: query, selectedId })).map((friend) => ({ id: friend.id, label: friend.name, archived: friend.archived }));
 }
 
 export async function searchFriendFilterOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
@@ -66,7 +66,7 @@ export type RepaymentFriendContext = { option: SearchableOption; outstandingAmou
 
 export async function loadRepaymentFriendContext(friendId: string, includeOpenExpenseShares = true, tripId?: string): Promise<RepaymentFriendContext> {
   const session = await requireSession();
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   const requestedTripId = normalizeUuid(tripId);
   let validTripId: string | undefined;
   if (requestedTripId) {
@@ -79,19 +79,6 @@ export async function loadRepaymentFriendContext(friendId: string, includeOpenEx
   }
   const context = validTripId ? await repository.getRepaymentFriendContext(friendId, includeOpenExpenseShares, validTripId) : await repository.getRepaymentFriendContext(friendId, includeOpenExpenseShares);
   return { ...context, option: { id: context.option.id, label: context.option.name, archived: context.option.archived } };
-}
-
-function cascadeValue(formData: FormData) {
-  const values = formData.getAll("confirmCascade");
-  if (values.length === 0) return false;
-  if (values.length !== 1 || values[0] !== "delete-dependents") throw new Error("Cascade confirmation is invalid.");
-  return true;
-}
-
-function impactRevisionValue(formData: FormData) {
-  const values = formData.getAll("impactRevision");
-  if (values.length !== 1 || typeof values[0] !== "string" || !/^[0-9a-f]{64}$/.test(values[0])) return null;
-  return values[0];
 }
 
 function paymentMethodFormFromForm(formData: FormData): PaymentMethodFormState {
@@ -162,7 +149,7 @@ export async function createRepaymentAction(
   if (!result.ok) return { ...invalidState(result, paymentMethodForm), allocations: allocationResult.ok ? allocationResult.values : allocationResult.values, allocationFieldErrors: allocationResult.ok ? {} : allocationResult.errors };
   if (!allocationResult.ok) return { fieldErrors: {}, formError: "Please correct the marked fields.", values: result.values, allocations: allocationResult.values, allocationFieldErrors: allocationResult.errors, paymentMethodForm };
 
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   let contextTripId: string | undefined;
   const requestedTripId = normalizeUuid(typeof formData.get("tripId") === "string" ? formData.get("tripId") : undefined);
   if (requestedTripId) {
@@ -209,7 +196,8 @@ export async function updateRepaymentAction(
   if (!result.ok) return invalidState(result, paymentMethodForm);
 
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).updateRepayment(repaymentId, result.value);
+    const { ledger } = await getAuthenticatedLedger(session);
+    await ledger.updateRepayment(repaymentId, result.value);
   } catch (error) {
     return errorState(error, result.values, [], {}, paymentMethodForm);
   }
@@ -233,7 +221,7 @@ export async function replaceRepaymentAllocationsAction(
   const allocationPage = formData.get("allocationPage");
   const hasAllocationContext = allocationQuery !== null || allocationPage !== null;
   try {
-    const repository = createLedgerRepository(getDatabase(), session.user.id);
+    const { ledger: repository } = await getAuthenticatedLedger(session);
     if (hasAllocationContext) {
       await repository.replaceRepaymentAllocations(repaymentId, result.value, { q: allocationQuery, page: allocationPage });
     } else {
@@ -271,7 +259,8 @@ export async function removeRepaymentAllocationAction(
   void _formData;
   const session = await requireSession();
   try {
-    const result = await createLedgerRepository(getDatabase(), session.user.id).removeRepaymentAllocation(repaymentId, expenseShareId);
+    const { ledger } = await getAuthenticatedLedger(session);
+    const result = await ledger.removeRepaymentAllocation(repaymentId, expenseShareId);
     revalidateAllocationRoutes(result);
     return { formError: "", removalReceipt: result.reversalReceipt };
   } catch (error) {
@@ -286,7 +275,8 @@ export async function removeRepaymentAllocationAction(
 export async function undoRepaymentAllocationAction(receipt: RepaymentAllocationReversalReceipt): Promise<RepaymentAllocationUndoState> {
   const session = await requireSession();
   try {
-    const result = await createLedgerRepository(getDatabase(), session.user.id).undoRepaymentAllocation(receipt);
+    const { ledger } = await getAuthenticatedLedger(session);
+    const result = await ledger.undoRepaymentAllocation(receipt);
     revalidateAllocationRoutes(result);
     return { ok: true };
   } catch (error) {
@@ -308,15 +298,15 @@ export async function deleteRepaymentAction(
 ): Promise<RepaymentDeleteActionState> {
   const session = await requireSession();
   if (formData.getAll("confirm").length !== 1 || formData.get("confirm") !== "delete") return { formError: "Type delete to confirm." };
-  const expectedImpactRevision = impactRevisionValue(formData);
+  const expectedImpactRevision = parseImpactRevision(formData);
   if (!expectedImpactRevision) return { formError: "Impact revision is invalid." };
 
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   let result;
   try {
     let cascadeDependents;
     try {
-      cascadeDependents = cascadeValue(formData);
+      cascadeDependents = parseCascadeConfirmation(formData);
     } catch (error) {
       return { formError: error instanceof Error ? error.message : "Cascade confirmation is invalid." };
     }

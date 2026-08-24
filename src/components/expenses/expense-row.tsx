@@ -1,12 +1,9 @@
 import Link from "next/link";
-import type { InferSelectModel } from "drizzle-orm";
-import type { expenses } from "@/db/schema";
 import { formatRupiah } from "@/domain/rupiah";
+import type { ExpenseListRecord } from "@/domain/ledger/types";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 
-type ExpenseRecord = Omit<InferSelectModel<typeof expenses>, "occurredAt"> & { outingTitle: string; outingOccurredAt: Date };
-
-export function ExpenseRow({ expense, emphasized = false }: { expense: ExpenseRecord; emphasized?: boolean }) {
+export function ExpenseRow({ expense, emphasized = false }: { expense: ExpenseListRecord; emphasized?: boolean }) {
   return (
     <article className={`expense-row${emphasized ? " expense-row--created" : ""}`} data-record-id={expense.id}>
       <div className="expense-row__primary">

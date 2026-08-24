@@ -13,9 +13,10 @@ import {
   normalizeUuid,
   pageResult,
   RECORD_PAGE_SIZE,
+  type RecordPage,
 } from "../record-retrieval";
 import { assertOutingId, assertOutingInput } from "./validation";
-import type { CreateOutingInput, DeleteRecordOptions, OutingDeletionImpact, OutingSelectorOption, UpdateOutingInput } from "./types";
+import type { CreateOutingInput, DeleteRecordOptions, OutingDeletionImpact, OutingListRecord, OutingSelectorOption, UpdateOutingInput } from "./types";
 
 export function createOutingsReadRepository(database: Database, owner: string) {
 async function getOuting(outingId: string) {
@@ -117,7 +118,7 @@ async function listRecentPaymentMethods(): Promise<string[]> {
     }
   }
 
-async function listOutingRecords(options: { q?: unknown; month?: unknown; trip?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}) {
+async function listOutingRecords(options: { q?: unknown; month?: unknown; trip?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}): Promise<RecordPage<OutingListRecord & { expenseCount: number; expenseTotal: number }>> {
     const filters = normalizeOutingFilters(options);
     const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
     const conditions = [

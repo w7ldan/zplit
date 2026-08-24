@@ -1,4 +1,3 @@
-import { trips } from "../../db/schema";
 import type { ExpenseShareChargeInput, ExpenseShareInput as ExpenseShareBaseInput } from "../expense-share-input";
 import type { FriendBalance, LedgerSummary } from "../ledger-summary";
 
@@ -46,7 +45,33 @@ export type TripFinancialSummary = TripSummary & {
   totalOutstandingAmount: number;
   friendSettlements: TripSettlementFriend[];
 };
-export type TripListRecord = typeof trips.$inferSelect & TripSummary;
+export type FriendListRecord = {
+  id: string;
+  name: string;
+  phoneNumber: string | null;
+  archivedAt: Date | null;
+  createdAt: Date;
+};
+export type TripListRecord = {
+  id: string;
+  name: string;
+  startsOn: string | null;
+  endsOn: string | null;
+} & TripSummary;
+export type OutingListRecord = {
+  id: string;
+  title: string;
+  occurredAt: Date;
+  tripId?: string | null;
+  tripName?: string | null;
+};
+export type ExpenseListRecord = {
+  id: string;
+  description: string;
+  amount: number;
+  outingTitle: string;
+  outingOccurredAt: Date;
+};
 export type ExpenseMutationInput = {
   description: string;
   amount: number;

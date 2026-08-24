@@ -1,14 +1,11 @@
 import Link from "next/link";
-import type { InferSelectModel } from "drizzle-orm";
-import type { friends } from "@/db/schema";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
+import type { FriendListRecord } from "@/domain/ledger/types";
 import { formatRupiah } from "@/domain/rupiah";
-
-type Friend = InferSelectModel<typeof friends>;
 
 type FriendBalance = { assignedAmount: number; repaidAmount: number; outstandingAmount: number };
 
-export function FriendRow({ friend, balance, emphasized = false }: { friend: Friend; balance?: FriendBalance; emphasized?: boolean }) {
+export function FriendRow({ friend, balance, emphasized = false }: { friend: FriendListRecord; balance?: FriendBalance; emphasized?: boolean }) {
   const archived = friend.archivedAt !== null;
   return (
     <article className={`friend-row${archived ? " friend-row--archived" : ""}${emphasized ? " friend-row--created" : ""}`} data-record-id={friend.id}>

@@ -8,7 +8,7 @@ import { ExpenseDeletionInvariantError, ExpenseShareAllocationInvariantError, Ex
 import { assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
 import { clampPage, monthStart, nextMonthStart, normalizeExpenseFilters, normalizePage, normalizeTimezoneOffset, pageResult, parseAmountSearch, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
 import { assertExpenseChargesInput, assertExpenseId, assertExpenseInput, assertExpenseSharesInput, assertFriendId, assertTripId, shareBaseAmount } from "./validation";
-import type { CreateExpenseInput, DeleteRecordOptions, ExpenseChargeInput, ExpenseChargeRecord, ExpenseDeletionImpact, ExpenseDeletionResult, ExpenseShareInput, ExpenseSplitDefinition, FriendExpenseShareRecord, OpenExpenseSharesByFriend, UpdateExpenseInput } from "./types";
+import type { CreateExpenseInput, DeleteRecordOptions, ExpenseChargeInput, ExpenseChargeRecord, ExpenseDeletionImpact, ExpenseDeletionResult, ExpenseListRecord, ExpenseShareInput, ExpenseSplitDefinition, FriendExpenseShareRecord, OpenExpenseSharesByFriend, UpdateExpenseInput } from "./types";
 
 export function createExpenseReadRepository(database: Database, owner: string) {
 function expenseSelection() {
@@ -127,7 +127,7 @@ async function listExpenses() {
     }
   }
 
-async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; month?: unknown; assignment?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}) {
+async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; month?: unknown; assignment?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}): Promise<RecordPage<ExpenseListRecord>> {
     const filters = normalizeExpenseFilters(options);
     const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
     const assignmentCondition = filters.assignment === "all"

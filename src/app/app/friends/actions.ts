@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
-import { getDatabase } from "@/db/client";
 import { validateFriendInput, type FriendFieldErrors, type FriendInputValues } from "@/domain/friend-input";
-import { createLedgerRepository, LedgerNotFoundError, type FriendArchiveReversalReceipt } from "@/domain/ledger-repository";
+import { LedgerNotFoundError, type FriendArchiveReversalReceipt } from "@/domain/ledger-repository";
 import { addFriendToRepaymentReturnTarget, validateRepaymentReturnTarget } from "@/domain/repayment-return";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 
 export type FriendActionState = {
   fieldErrors: FriendFieldErrors;
@@ -64,7 +64,8 @@ export async function createFriendAction(
 
   let friend;
   try {
-    friend = await createLedgerRepository(getDatabase(), session.user.id).createFriend(result.value);
+    const { ledger } = await getAuthenticatedLedger(session);
+    friend = await ledger.createFriend(result.value);
   } catch (error) {
     return errorState(error, "save");
   }
@@ -85,7 +86,8 @@ export async function updateFriendAction(
   if (!result.ok) return invalidState(result);
 
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).updateFriend(friendId, result.value);
+    const { ledger } = await getAuthenticatedLedger(session);
+    await ledger.updateFriend(friendId, result.value);
   } catch (error) {
     return errorState(error, "save");
   }
@@ -104,7 +106,8 @@ export async function archiveFriendAction(
   void _formData;
   const session = await requireSession();
   try {
-    const result = await createLedgerRepository(getDatabase(), session.user.id).archiveFriend(friendId);
+    const { ledger } = await getAuthenticatedLedger(session);
+    const result = await ledger.archiveFriend(friendId);
     revalidatePath("/app");
     revalidatePath("/app/friends");
     revalidatePath(`/app/friends/${friendId}`);
@@ -127,7 +130,8 @@ export async function restoreFriendAction(
 export async function undoFriendArchiveAction(receipt: FriendArchiveReversalReceipt): Promise<FriendArchiveUndoState> {
   const session = await requireSession();
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).undoFriendArchive(receipt);
+    const { ledger } = await getAuthenticatedLedger(session);
+    await ledger.undoFriendArchive(receipt);
     revalidatePath("/app");
     revalidatePath("/app/friends");
     revalidatePath(`/app/friends/${receipt.friendId}`);
@@ -145,7 +149,8 @@ export async function undoFriendArchiveAction(receipt: FriendArchiveReversalRece
 async function setArchived(friendId: string, archived: boolean): Promise<FriendActionState> {
   const session = await requireSession();
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).setFriendArchived(friendId, archived);
+    const { ledger } = await getAuthenticatedLedger(session);
+    await ledger.setFriendArchived(friendId, archived);
   } catch (error) {
     return errorState(error, "archive");
   }

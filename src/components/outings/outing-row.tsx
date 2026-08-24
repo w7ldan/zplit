@@ -1,12 +1,9 @@
 import Link from "next/link";
-import type { InferSelectModel } from "drizzle-orm";
-import type { outings } from "@/db/schema";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
+import type { OutingListRecord } from "@/domain/ledger/types";
 import { formatRupiah } from "@/domain/rupiah";
 
-type OutingRowOuting = Omit<InferSelectModel<typeof outings>, "tripId"> & { tripId?: string | null; tripName?: string | null };
-
-export function OutingRow({ outing, expenseCount, expenseTotal, emphasized = false, showTripContext = true }: { outing: OutingRowOuting; expenseCount: number; expenseTotal: number; emphasized?: boolean; showTripContext?: boolean }) {
+export function OutingRow({ outing, expenseCount, expenseTotal, emphasized = false, showTripContext = true }: { outing: OutingListRecord; expenseCount: number; expenseTotal: number; emphasized?: boolean; showTripContext?: boolean }) {
   return (
     <article className={`outing-row${emphasized ? " outing-row--created" : ""}`} data-record-id={outing.id}>
       <div className="outing-row__primary">

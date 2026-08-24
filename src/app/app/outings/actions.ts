@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
-import { getDatabase } from "@/db/client";
 import { validateOutingInput, type OutingFieldErrors, type OutingInputValues } from "@/domain/outing-input";
-import { createLedgerRepository, deletionImpactRevision, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { deletionImpactRevision, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { addOutingToExpenseReturnTarget, validateExpenseReturnTarget } from "@/domain/expense-return";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
+import { parseCascadeConfirmation, parseImpactRevision } from "@/domain/deletion-confirmation";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 
 export type OutingActionState = {
   fieldErrors: OutingFieldErrors;
@@ -19,10 +20,10 @@ export type OutingActionState = {
 export type OutingDeleteActionState = DeleteRecordActionState;
 
 export async function searchTripOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
-  const session = await requireSession();
+  const { ledger } = await getAuthenticatedLedger();
   return [
     { id: "", label: "No trip" },
-    ...(await createLedgerRepository(getDatabase(), session.user.id).searchTrips({ q: query, selectedId })).map((trip) => ({ id: trip.id, label: trip.name })),
+    ...(await ledger.searchTrips({ q: query, selectedId })).map((trip) => ({ id: trip.id, label: trip.name })),
   ].slice(0, 20);
 }
 
@@ -32,19 +33,6 @@ export async function searchTripFilterOptions(query = "", selectedId?: string): 
     { id: "unassigned", label: "No trip" },
     ...(await searchTripOptions(query, selectedId)).filter((trip) => trip.id).slice(0, 18),
   ];
-}
-
-function cascadeValue(formData: FormData) {
-  const values = formData.getAll("confirmCascade");
-  if (values.length === 0) return false;
-  if (values.length !== 1 || values[0] !== "delete-dependents") throw new Error("Cascade confirmation is invalid.");
-  return true;
-}
-
-function impactRevisionValue(formData: FormData) {
-  const values = formData.getAll("impactRevision");
-  if (values.length !== 1 || typeof values[0] !== "string" || !/^[0-9a-f]{64}$/.test(values[0])) return null;
-  return values[0];
 }
 
 function valuesFromForm(formData: FormData) {
@@ -91,7 +79,8 @@ export async function createOutingAction(
 
   let outing;
   try {
-    outing = await createLedgerRepository(getDatabase(), session.user.id).createOuting(result.value);
+    const { ledger } = await getAuthenticatedLedger(session);
+    outing = await ledger.createOuting(result.value);
   } catch (error) {
     return error instanceof LedgerNotFoundError ? unavailableTripState(result.values) : errorState(error, result.values);
   }
@@ -113,7 +102,7 @@ export async function updateOutingAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
 
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   try {
     await repository.updateOuting(outingId, result.value);
   } catch (error) {
@@ -141,15 +130,15 @@ export async function deleteOutingAction(
 ): Promise<OutingDeleteActionState> {
   const session = await requireSession();
   if (formData.getAll("confirm").length !== 1 || formData.get("confirm") !== "delete") return { formError: "Type delete to confirm." };
-  const expectedImpactRevision = impactRevisionValue(formData);
+  const expectedImpactRevision = parseImpactRevision(formData);
   if (!expectedImpactRevision) return { formError: "Impact revision is invalid." };
 
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   let result;
   try {
     let cascadeDependents;
     try {
-      cascadeDependents = cascadeValue(formData);
+      cascadeDependents = parseCascadeConfirmation(formData);
     } catch (error) {
       return { formError: error instanceof Error ? error.message : "Cascade confirmation is invalid." };
     }

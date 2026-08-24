@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
-import { getDatabase } from "@/db/client";
 import { validateTripInput, type TripFieldErrors, type TripInputValues } from "@/domain/trip-input";
-import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { LedgerNotFoundError } from "@/domain/ledger-repository";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 
 export type TripActionState = { fieldErrors: TripFieldErrors; formError: string; values: TripInputValues };
 export type TripDeleteActionState = DeleteRecordActionState;
@@ -31,7 +31,8 @@ export async function createTripAction(_previousState: TripActionState, formData
   if (!result.ok) return invalidState(result);
   let trip;
   try {
-    trip = await createLedgerRepository(getDatabase(), session.user.id).createTrip(result.value);
+    const { ledger } = await getAuthenticatedLedger(session);
+    trip = await ledger.createTrip(result.value);
   } catch (error) {
     return errorState(error);
   }
@@ -45,7 +46,8 @@ export async function updateTripAction(tripId: string, _previousState: TripActio
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).updateTrip(tripId, result.value);
+    const { ledger } = await getAuthenticatedLedger(session);
+    await ledger.updateTrip(tripId, result.value);
   } catch (error) {
     return errorState(error);
   }
@@ -58,7 +60,8 @@ export async function deleteTripAction(tripId: string, _previousState: TripDelet
   const session = await requireSession();
   if (formData.getAll("confirm").length !== 1 || formData.get("confirm") !== "delete") return { formError: "Confirm deletion to continue." };
   try {
-    await createLedgerRepository(getDatabase(), session.user.id).deleteTrip(tripId);
+    const { ledger } = await getAuthenticatedLedger(session);
+    await ledger.deleteTrip(tripId);
   } catch (error) {
     return { formError: error instanceof LedgerNotFoundError ? "This Trip is no longer available." : "Unable to delete this Trip." };
   }
