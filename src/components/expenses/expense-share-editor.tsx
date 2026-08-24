@@ -5,22 +5,14 @@ import { useActionState, useCallback, useEffect, useMemo, useRef, useState, type
 import { useFormStatus } from "react-dom";
 import type { ExpenseShareActionState } from "@/app/app/expenses/actions";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
-import { calculateShareBreakdown, formatPercentageBasisPoints, parsePercentageBasisPoints, type ExpenseShareChargeValues } from "@/domain/expense-share-input";
-import { MAX_RUPIAH, parseRupiah, formatRupiah } from "@/domain/rupiah";
+import { formatPercentageBasisPoints } from "@/domain/expense-share-input";
+import { formatRupiah } from "@/domain/rupiah";
 import { useUnsavedChangesGuard } from "@/components/navigation/unsaved-changes";
+import { createExpenseSplitDraft, serializeExpenseSplit, type ExpenseSplitChargeDefinition, type ExpenseSplitFriend } from "./expense-split-draft";
+import { useExpenseSplitDraft } from "./use-expense-split-draft";
 
-export type ExpenseShareEditorFriend = {
-  id: string;
-  name: string;
-  archivedAt: Date | null;
-  baseAmount?: number;
-  amountOwed?: number;
-  expenseShareId?: string;
-  remainingAmount?: number;
-  settled?: boolean;
-};
-
-export type ExpenseShareEditorCharge = Omit<ExpenseShareChargeValues, "percentage"> & { percentageBasisPoints: number };
+export type ExpenseShareEditorFriend = ExpenseSplitFriend;
+export type ExpenseShareEditorCharge = ExpenseSplitChargeDefinition;
 
 type ExpenseShareAction = (
   previousState: ExpenseShareActionState,
@@ -39,30 +31,6 @@ type ExpenseShareEditorProps = {
 
 const emptyActionState: ExpenseShareActionState = { fieldErrors: {}, formError: "", values: [], charges: [] };
 const emptySearch: SearchableOptionAction = async () => [];
-
-function initialValues(friends: ExpenseShareEditorFriend[]) {
-  return friends.map((friend) => ({ friendId: friend.id, amountRupiah: (friend.baseAmount ?? friend.amountOwed)?.toString() ?? "" }));
-}
-
-function initialAmounts(friends: ExpenseShareEditorFriend[]) {
-  return Object.fromEntries(initialValues(friends).map((value) => [value.friendId, value.amountRupiah]));
-}
-
-function initialCharges(charges: ExpenseShareEditorCharge[]): ExpenseShareChargeValues[] {
-  return charges.map(({ name, percentageBasisPoints, scope, friendIds }) => ({ name, percentage: formatPercentageBasisPoints(percentageBasisPoints), scope, friendIds: [...friendIds] }));
-}
-
-function expenseShareDraftKey(friends: ExpenseShareEditorFriend[], amounts: Record<string, string>, charges: ExpenseShareChargeValues[]) {
-  return JSON.stringify({
-    friends: friends.map((friend) => [friend.id.toLowerCase(), parseRupiah(amounts[friend.id] ?? "") ?? (amounts[friend.id] ?? "").trim()]).sort(([left], [right]) => String(left).localeCompare(String(right))),
-    charges: charges.map((charge) => [
-      charge.name.trim(),
-      parsePercentageBasisPoints(charge.percentage) ?? charge.percentage.trim(),
-      charge.scope,
-      charge.scope === "selected" ? [...charge.friendIds].map((id) => id.toLowerCase()).sort() : [],
-    ]),
-  });
-}
 
 export function ChangedValue({ value, children }: { value: number; children: ReactNode }) {
   const previousValue = useRef(value);
@@ -90,17 +58,6 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="expense-share-editor__field-error" id={id} role={message ? "alert" : undefined}>{message || "\u00a0"}</p>;
 }
 
-function chargeInputValues(charges: ExpenseShareChargeValues[]) {
-  return charges.flatMap((charge) => {
-    const percentageBasisPoints = parsePercentageBasisPoints(charge.percentage);
-    return percentageBasisPoints === null ? [] : [{ name: charge.name, percentageBasisPoints, scope: charge.scope, friendIds: charge.friendIds }];
-  });
-}
-
-type ExpenseShareUndo =
-  | { kind: "friend"; friend: ExpenseShareEditorFriend; amountRupiah: string; index: number; targetedCharges: Array<{ index: number; name: string; percentage: string; scope: ExpenseShareChargeValues["scope"] }> }
-  | { kind: "charge"; charge: ExpenseShareChargeValues; index: number };
-
 export function ExpenseShareEditor({ action, expenseAmount, friends: initialFriends, charges: initialChargeDefinitions = [], friendOptions: initialFriendOptions = [], searchFriends = emptySearch, previousSplit }: ExpenseShareEditorProps) {
   const submissionReleaseRef = useRef<(() => void) | null>(null);
   const submitAction = useCallback(async (previousState: ExpenseShareActionState, formData: FormData) => {
@@ -109,27 +66,40 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
     submissionReleaseRef.current = null;
     return nextState;
   }, [action]);
-  const [state, formAction] = useActionState(submitAction, { ...emptyActionState, values: initialValues(initialFriends), charges: initialCharges(initialChargeDefinitions) });
-  const [selectedFriends, setSelectedFriends] = useState(initialFriends);
-  const [draftAmounts, setDraftAmounts] = useState(() => initialAmounts(initialFriends));
-  const [draftCharges, setDraftCharges] = useState<ExpenseShareChargeValues[]>(() => initialCharges(initialChargeDefinitions));
+  const [initialDraft] = useState(() => createExpenseSplitDraft(initialFriends, initialChargeDefinitions));
+  const initialSerializedDraft = useMemo(() => serializeExpenseSplit(initialDraft), [initialDraft]);
+  const [state, formAction] = useActionState(submitAction, { ...emptyActionState, values: initialSerializedDraft.values, charges: initialSerializedDraft.charges });
   const [chargesOpen, setChargesOpen] = useState(initialChargeDefinitions.length > 0);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [confirmPreviousSplit, setConfirmPreviousSplit] = useState(false);
-  const [previousSplitMessage, setPreviousSplitMessage] = useState("");
-  const [undoRemoval, setUndoRemoval] = useState<ExpenseShareUndo | null>(null);
-  const previousStateRef = useRef(state);
   const amountRefs = useRef(new Map<string, HTMLInputElement>());
-  const friendLookupRef = useRef(new Map<string, ExpenseShareEditorFriend>([
-    ...initialFriends.map((friend) => [friend.id, friend] as const),
-    ...initialFriendOptions.map((option) => [option.id, { id: option.id, name: option.label, archivedAt: null }] as const),
-  ]));
-  const selectedIds = useMemo(() => new Set(selectedFriends.map((friend) => friend.id)), [selectedFriends]);
+  const {
+    selectedFriends,
+    draftAmounts,
+    draftCharges,
+    selectedIds,
+    undoRemoval,
+    previousSplitMessage,
+    isDirty,
+    breakdowns,
+    totalOwed,
+    ownerPortion,
+    overAllocated,
+    allocationProgress,
+    serializedDraft,
+    addFriend: addFriendToDraft,
+    addFriends: addFriendsToDraft,
+    updateFriendAmount,
+    removeFriend,
+    splitEvenly,
+    applyPreviousSplit: applyPreviousSplitDraft,
+    addCharge,
+    updateCharge,
+    removeCharge,
+    undoLastRemoval,
+  } = useExpenseSplitDraft({ initialDraft, initialFriendOptions, actionState: state, expenseAmount, previousSplit });
   const friendOptions = useMemo(() => initialFriendOptions.filter((option) => !option.archived && !selectedIds.has(option.id)).slice(0, 20), [initialFriendOptions, selectedIds]);
   const search = useCallback((query: string, selectedId?: string) => searchFriends(query, selectedId).then((options) => options.filter((option) => !option.archived && !selectedIds.has(option.id)).slice(0, 20)), [searchFriends, selectedIds]);
-  const validCharges = useMemo(() => chargeInputValues(draftCharges), [draftCharges]);
-  const [initialDraftKey] = useState(() => expenseShareDraftKey(initialFriends, initialAmounts(initialFriends), initialCharges(initialChargeDefinitions)));
-  const isDirty = expenseShareDraftKey(selectedFriends, draftAmounts, draftCharges) !== initialDraftKey;
 
   const guard = useUnsavedChangesGuard(isDirty);
 
@@ -149,58 +119,23 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
   }
 
   useEffect(() => {
-    if (previousStateRef.current === state) return;
-    previousStateRef.current = state;
-    const nextFriends = state.values.map((value) => friendLookupRef.current.get(value.friendId) ?? { id: value.friendId, name: value.friendId, archivedAt: null });
-    setSelectedFriends(nextFriends);
-    setDraftAmounts(Object.fromEntries(state.values.map((value) => [value.friendId, value.amountRupiah])));
-    setDraftCharges(state.charges ?? []);
-    if (!state.formError && Object.keys(state.fieldErrors).length === 0) setUndoRemoval(null);
-  }, [state]);
-
-  useEffect(() => {
     if (pendingFocusId) amountRefs.current.get(pendingFocusId)?.focus();
   }, [pendingFocusId, selectedFriends]);
 
   function addFriend(option: SearchableOption) {
-    if (option.archived || selectedIds.has(option.id)) return;
-    const friend = { id: option.id, name: option.label, archivedAt: null };
-    friendLookupRef.current.set(friend.id, friend);
-    setSelectedFriends((current) => [...current, friend]);
-    setDraftAmounts((current) => ({ ...current, [friend.id]: "" }));
-    setPendingFocusId(friend.id);
+    const friendId = addFriendToDraft(option);
+    if (friendId) setPendingFocusId(friendId);
   }
 
   function addFriends(options: SearchableOption[]) {
-    const additions = options.filter((option) => !option.archived && !selectedIds.has(option.id));
-    if (additions.length === 0) return;
-    const friends = additions.map((option) => ({ id: option.id, name: option.label, archivedAt: null }));
-    friends.forEach((friend) => friendLookupRef.current.set(friend.id, friend));
-    setSelectedFriends((current) => [...current, ...friends]);
-    setDraftAmounts((current) => ({ ...current, ...Object.fromEntries(friends.map((friend) => [friend.id, ""])) }));
-    setPendingFocusId(friends[0]!.id);
+    const friendId = addFriendsToDraft(options);
+    if (friendId) setPendingFocusId(friendId);
   }
 
   function applyPreviousSplit() {
-    if (!previousSplit) return;
-    const copiedFriends = previousSplit.friends.filter((friend, index, all) => friend.archivedAt === null && all.findIndex((candidate) => candidate.id === friend.id) === index);
-    if (copiedFriends.length === 0) {
-      setPreviousSplitMessage("No active friends from the previous split are available.");
-      setConfirmPreviousSplit(false);
-      return;
-    }
-    const copiedIds = new Set(copiedFriends.map((friend) => friend.id));
-    const copiedCharges = previousSplit.charges.flatMap((charge) => {
-      const friendIds = charge.scope === "all" ? [] : [...new Set(charge.friendIds.filter((friendId) => copiedIds.has(friendId)))];
-      return charge.scope === "selected" && friendIds.length === 0 ? [] : [{ name: charge.name, percentage: formatPercentageBasisPoints(charge.percentageBasisPoints), scope: charge.scope, friendIds }];
-    });
-    copiedFriends.forEach((friend) => friendLookupRef.current.set(friend.id, friend));
-    setSelectedFriends(copiedFriends);
-    setDraftAmounts(Object.fromEntries(copiedFriends.map((friend) => [friend.id, String(friend.baseAmount)])));
-    setDraftCharges(copiedCharges);
-    setPendingFocusId(copiedFriends[0]!.id);
+    const friendId = applyPreviousSplitDraft();
     setConfirmPreviousSplit(false);
-    setPreviousSplitMessage("");
+    if (friendId) setPendingFocusId(friendId);
   }
 
   function usePreviousSplit() {
@@ -209,71 +144,6 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
       return;
     }
     applyPreviousSplit();
-  }
-
-  function removeFriend(friendId: string) {
-    const friendIndex = selectedFriends.findIndex((friend) => friend.id === friendId);
-    const friend = selectedFriends[friendIndex];
-    if (!friend) return;
-    setUndoRemoval({
-      kind: "friend",
-      friend,
-      amountRupiah: draftAmounts[friendId] ?? "",
-      index: friendIndex,
-      targetedCharges: draftCharges.flatMap((charge, index) => charge.scope === "selected" && charge.friendIds.includes(friendId) ? [{ index, name: charge.name, percentage: charge.percentage, scope: charge.scope }] : []),
-    });
-    setSelectedFriends((current) => current.filter((friend) => friend.id !== friendId));
-    setDraftAmounts((current) => {
-      const next = { ...current };
-      delete next[friendId];
-      return next;
-    });
-    setDraftCharges((current) => current.map((charge) => ({ ...charge, friendIds: charge.friendIds.filter((id) => id !== friendId) })));
-  }
-
-  function splitEvenly() {
-    if (selectedFriends.length === 0) return;
-    const baseAmount = Math.floor(expenseAmount / (selectedFriends.length + 1));
-    setDraftAmounts(Object.fromEntries(selectedFriends.map((friend) => [friend.id, String(baseAmount)])));
-  }
-
-  function addCharge() {
-    setDraftCharges((current) => [...current, { name: "", percentage: "", scope: "all", friendIds: [] }]);
-  }
-
-  function updateCharge(index: number, update: Partial<ExpenseShareChargeValues>) {
-    setDraftCharges((current) => current.map((charge, chargeIndex) => chargeIndex === index ? { ...charge, ...update } : charge));
-  }
-
-  function removeCharge(index: number) {
-    const charge = draftCharges[index];
-    if (!charge) return;
-    setUndoRemoval({ kind: "charge", charge: { ...charge, friendIds: [...charge.friendIds] }, index });
-    setDraftCharges((current) => current.filter((_, chargeIndex) => chargeIndex !== index));
-  }
-
-  function undoLastRemoval() {
-    const operation = undoRemoval;
-    if (!operation) return;
-    setUndoRemoval(null);
-    if (operation.kind === "charge") {
-      setDraftCharges((current) => {
-        if (current.some((charge) => charge.name === operation.charge.name && charge.percentage === operation.charge.percentage && charge.scope === operation.charge.scope && charge.friendIds.join(",") === operation.charge.friendIds.join(","))) return current;
-        const next = [...current];
-        next.splice(Math.min(operation.index, next.length), 0, { ...operation.charge, friendIds: [...operation.charge.friendIds] });
-        return next;
-      });
-      return;
-    }
-
-    if (selectedFriends.some((friend) => friend.id === operation.friend.id) || !friendLookupRef.current.has(operation.friend.id)) return;
-    setSelectedFriends((current) => current.some((friend) => friend.id === operation.friend.id) ? current : [...current.slice(0, operation.index), operation.friend, ...current.slice(operation.index)]);
-    setDraftAmounts((current) => current[operation.friend.id] !== undefined ? current : { ...current, [operation.friend.id]: operation.amountRupiah });
-    setDraftCharges((current) => current.map((charge, index) => {
-      const targeted = operation.targetedCharges.find((previous) => previous.index === index || (previous.name === charge.name && previous.percentage === charge.percentage && previous.scope === charge.scope));
-      if (!targeted || charge.scope !== "selected" || charge.friendIds.includes(operation.friend.id)) return charge;
-      return { ...charge, friendIds: [...charge.friendIds, operation.friend.id] };
-    }));
   }
 
   if (selectedFriends.length === 0 && friendOptions.length === 0 && !undoRemoval) {
@@ -285,19 +155,6 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
       </div>
     );
   }
-
-  const breakdowns = selectedFriends.map((friend) => {
-    const baseAmount = parseRupiah(draftAmounts[friend.id] ?? "") ?? 0;
-    try {
-      return { friendId: friend.id, ...calculateShareBreakdown(baseAmount, validCharges, friend.id) };
-    } catch {
-      return { friendId: friend.id, baseAmount, charges: [], finalAmount: MAX_RUPIAH + 1 };
-    }
-  });
-  const totalOwed = breakdowns.reduce((total, breakdown) => total + breakdown.finalAmount, 0);
-  const overAllocated = totalOwed > expenseAmount;
-  const ownerPortion = Math.max(expenseAmount - totalOwed, 0);
-  const allocationProgress = expenseAmount > 0 ? Math.min(Math.max(totalOwed / expenseAmount, 0), 1) : 0;
 
   return (
     <div className="expense-share-editor">
@@ -401,7 +258,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
               </div>
             );
           })}
-          <input type="hidden" name="charges" value={JSON.stringify(draftCharges)} readOnly />
+          <input type="hidden" name="charges" value={serializedDraft.chargesJson} readOnly />
         </details>
         <p className="expense-share-editor__help">Enter a whole-rupiah base amount. Charges are calculated from that base. Use Remove to omit a friend from the split.</p>
         {selectedFriends.map((friend) => {
@@ -427,7 +284,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
                 type="text"
                 inputMode="numeric"
                 value={draftAmounts[friend.id] ?? ""}
-                onChange={(event) => setDraftAmounts((current) => ({ ...current, [friend.id]: event.target.value }))}
+                onChange={(event) => updateFriendAmount(friend.id, event.target.value)}
                 aria-invalid={Boolean(state.fieldErrors[friend.id])}
                 aria-describedby={`${helpId} ${fieldErrorId}`}
                 autoComplete="off"
