@@ -2,19 +2,13 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { mergeSearchableOptions, useSearchableOptions } from "./use-searchable-options";
+import type { SearchableOption, SearchableOptionAction } from "./use-searchable-options";
+import { useSearchableComboboxPlacement } from "./searchable-combobox-placement";
+export { calculateSearchableComboboxPlacement } from "./searchable-combobox-placement";
+export type { SearchableComboboxPlacement } from "./searchable-combobox-placement";
 
-export type SearchableOption = { id: string; label: string; archived?: boolean; group?: string };
-export type SearchableOptionAction = (query: string, selectedId?: string) => Promise<SearchableOption[]>;
-export type SearchableComboboxPlacement = {
-  direction: "down" | "up";
-  top: number;
-  left: number;
-  width: number;
-  maxHeight: number;
-};
-
-type PlacementRect = Pick<DOMRect, "top" | "right" | "bottom" | "left">;
-type TriggerRect = PlacementRect & Pick<DOMRect, "width">;
+export type { SearchableOption, SearchableOptionAction } from "./use-searchable-options";
 
 type SearchableComboboxProps = {
   id: string;
@@ -35,11 +29,6 @@ type SearchableComboboxProps = {
   onValuesChange?: (options: SearchableOption[]) => void;
 };
 
-function mergeOptions(...groups: SearchableOption[][]) {
-  const seen = new Set<string>();
-  return groups.flat().filter((option) => !seen.has(option.id) && seen.add(option.id));
-}
-
 function optionLabel(option: SearchableOption) {
   return option.archived ? `${option.label} (ARCHIVED)` : option.label;
 }
@@ -48,60 +37,6 @@ function optionGroup(options: SearchableOption[], option: SearchableOption) {
   if (option.group) return option.group;
   if (!options.some((candidate) => !candidate.archived) || !options.some((candidate) => candidate.archived)) return undefined;
   return option.archived ? "Archived friends" : "Active friends";
-}
-
-export function calculateSearchableComboboxPlacement(triggerRect: TriggerRect, boundaryRect: PlacementRect, naturalHeight: number, gap = 4): SearchableComboboxPlacement {
-  const boundaryWidth = Math.max(boundaryRect.right - boundaryRect.left, 0);
-  const width = Math.min(Math.max(triggerRect.width, 0), boundaryWidth);
-  const left = Math.min(Math.max(triggerRect.left, boundaryRect.left), boundaryRect.right - width);
-  const below = Math.max(boundaryRect.bottom - triggerRect.bottom - gap, 0);
-  const above = Math.max(triggerRect.top - boundaryRect.top - gap, 0);
-  const height = Math.max(naturalHeight, 0);
-  const direction = below >= height || below >= above ? "down" : "up";
-  const available = direction === "down" ? below : above;
-  const maxHeight = Math.min(height, available);
-
-  return {
-    direction,
-    top: direction === "down" ? triggerRect.bottom + gap : triggerRect.top - gap - maxHeight,
-    left,
-    width,
-    maxHeight,
-  };
-}
-
-function isClippingOverflow(value: string) {
-  return value === "auto" || value === "clip" || value === "hidden" || value === "scroll";
-}
-
-function getClippingRect(element: HTMLElement) {
-  const visualViewport = window.visualViewport;
-  const viewportLeft = visualViewport?.offsetLeft ?? 0;
-  const viewportTop = visualViewport?.offsetTop ?? 0;
-  const boundary = {
-    top: viewportTop,
-    right: viewportLeft + (visualViewport?.width ?? window.innerWidth),
-    bottom: viewportTop + (visualViewport?.height ?? window.innerHeight),
-    left: viewportLeft,
-  };
-
-  for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
-    const style = window.getComputedStyle(ancestor);
-    const clipX = isClippingOverflow(style.overflowX || style.overflow);
-    const clipY = isClippingOverflow(style.overflowY || style.overflow);
-    if (!clipX && !clipY) continue;
-    const rect = ancestor.getBoundingClientRect();
-    if (clipX) {
-      boundary.left = Math.max(boundary.left, rect.left);
-      boundary.right = Math.min(boundary.right, rect.right);
-    }
-    if (clipY) {
-      boundary.top = Math.max(boundary.top, rect.top);
-      boundary.bottom = Math.min(boundary.bottom, rect.bottom);
-    }
-  }
-
-  return boundary;
 }
 
 export function SearchableCombobox({
@@ -124,43 +59,49 @@ export function SearchableCombobox({
 }: SearchableComboboxProps) {
   const [enhanced, setEnhanced] = useState(false);
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(value ?? (placeholder ? "" : initialOptions[0]?.id || ""));
   const [selectedOptionState, setSelectedOptionState] = useState<SearchableOption | undefined>(() => initialOptions.find((option) => option.id === (value ?? (placeholder ? "" : initialOptions[0]?.id || ""))));
   const [pendingIds, setPendingIds] = useState(() => new Set(selectedIds));
   const [pendingOptions, setPendingOptions] = useState<SearchableOption[]>([]);
-  const [loadedOptions, setLoadedOptions] = useState<SearchableOption[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [placement, setPlacement] = useState<SearchableComboboxPlacement | null>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const selectedIdsRef = useRef(selectedIds);
-  const requestRef = useRef(0);
-  const searchTimerRef = useRef<number | null>(null);
   const listboxId = `${id}-listbox`;
   const currentSelectedId = value !== undefined ? value : selectedId;
-  const allOptions = useMemo(() => mergeOptions(initialOptions, loadedOptions ?? [], selectedOptionState ? [selectedOptionState] : [], pendingOptions), [initialOptions, loadedOptions, pendingOptions, selectedOptionState]);
-  const selectedOption = allOptions.find((option) => option.id === currentSelectedId);
-  const options = useMemo(() => (multiSelect ? mergeOptions(pendingOptions, loadedOptions ?? initialOptions) : loadedOptions ?? initialOptions).slice(0, 20), [initialOptions, loadedOptions, multiSelect, pendingOptions]);
-  const nativeOptions = useMemo(() => mergeOptions(selectedOption ? [selectedOption] : [], options).slice(0, 20), [options, selectedOption]);
+  const onOptionsLoaded = useCallback((nextOptions: SearchableOption[]) => {
+    const selectedIndex = nextOptions.findIndex((option) => option.id === currentSelectedId);
+    setActiveIndex(selectedIndex >= 0 ? selectedIndex : nextOptions.length ? 0 : -1);
+  }, [currentSelectedId]);
+  const {
+    allOptions,
+    options,
+    selectedOption,
+    query,
+    error,
+    loading,
+    loadOptions,
+    scheduleSearch,
+    resetSearch,
+    resetOptions,
+    rememberOption,
+  } = useSearchableOptions({ initialOptions, search, currentSelectedId, selectedOption: selectedOptionState, pendingOptions, multiSelect, onOptionsLoaded });
+  const nativeOptions = useMemo(() => mergeSearchableOptions(selectedOption ? [selectedOption] : [], options).slice(0, 20), [options, selectedOption]);
+  const { placement, clearPlacement } = useSearchableComboboxPlacement({ open, portalTarget, rootRef, triggerRef, panelRef, options, error, loading });
   const closeMenu = useCallback((focusTrigger = false) => {
-    if (searchTimerRef.current !== null) window.clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = null;
+    resetSearch();
     setOpen(false);
-    setPlacement(null);
-    setQuery("");
+    clearPlacement();
     setActiveIndex(-1);
     if (multiSelect) {
       setPendingIds(new Set(selectedIdsRef.current));
       setPendingOptions([]);
     }
     if (focusTrigger) triggerRef.current?.focus();
-  }, [multiSelect]);
+  }, [clearPlacement, multiSelect, resetSearch]);
 
   useEffect(() => {
     selectedIdsRef.current = selectedIds;
@@ -172,10 +113,6 @@ export function SearchableCombobox({
 
   useEffect(() => {
     setPortalTarget(rootRef.current?.closest("dialog") ?? document.body);
-  }, []);
-
-  useEffect(() => () => {
-    if (searchTimerRef.current !== null) window.clearTimeout(searchTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -192,70 +129,12 @@ export function SearchableCombobox({
     if (open) searchInputRef.current?.focus();
   }, [open]);
 
-  useEffect(() => {
-    if (!open || !portalTarget) return;
-
-    let frame: number | null = null;
-    const schedulePlacement = () => {
-      if (frame !== null) return;
-      frame = window.requestAnimationFrame(() => {
-        frame = null;
-        const trigger = triggerRef.current;
-        const panel = panelRef.current;
-        if (!trigger || !panel) return;
-        const triggerRect = trigger.getBoundingClientRect();
-        const boundaryRect = getClippingRect(rootRef.current ?? trigger);
-        const width = Math.min(Math.max(triggerRect.width, 0), Math.max(boundaryRect.right - boundaryRect.left, 0));
-        panel.style.width = `${width}px`;
-        panel.style.maxHeight = "none";
-        setPlacement(calculateSearchableComboboxPlacement(triggerRect, boundaryRect, panel.scrollHeight));
-      });
-    };
-
-    schedulePlacement();
-    window.addEventListener("resize", schedulePlacement);
-    window.addEventListener("scroll", schedulePlacement, true);
-    window.visualViewport?.addEventListener("resize", schedulePlacement);
-    window.visualViewport?.addEventListener("scroll", schedulePlacement);
-    return () => {
-      if (frame !== null) window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", schedulePlacement);
-      window.removeEventListener("scroll", schedulePlacement, true);
-      window.visualViewport?.removeEventListener("resize", schedulePlacement);
-      window.visualViewport?.removeEventListener("scroll", schedulePlacement);
-    };
-  }, [error, loading, open, options, portalTarget]);
-
-  const loadOptions = useCallback((nextQuery: string) => {
-    const request = ++requestRef.current;
-    setError("");
-    setLoading(true);
-    void search(nextQuery, currentSelectedId).then((result) => {
-        if (request !== requestRef.current) return;
-        const nextOptions = result.slice(0, 20);
-        setLoadedOptions(nextOptions);
-        const selectedIndex = nextOptions.findIndex((option) => option.id === currentSelectedId);
-        setActiveIndex(selectedIndex >= 0 ? selectedIndex : nextOptions.length ? 0 : -1);
-      }).catch(() => {
-        if (request === requestRef.current) setError("Unable to load options.");
-      }).finally(() => {
-        if (request === requestRef.current) setLoading(false);
-      });
-  }, [currentSelectedId, search]);
-
-  useEffect(() => {
-    if (!currentSelectedId || allOptions.some((option) => option.id === currentSelectedId)) return;
-    const timer = window.setTimeout(() => loadOptions(""), 0);
-    return () => window.clearTimeout(timer);
-  }, [allOptions, currentSelectedId, loadOptions]);
-
   function openMenu(direction: "down" | "up" = "down") {
     if (disabled) return;
     setOpen(true);
-    setPlacement(null);
-    setQuery("");
-    setLoadedOptions(null);
-    setError("");
+    clearPlacement();
+    resetSearch();
+    resetOptions();
     if (multiSelect) {
       setPendingIds(new Set(selectedIds));
       setPendingOptions([]);
@@ -264,14 +143,9 @@ export function SearchableCombobox({
     loadOptions("");
   }
 
-  function scheduleSearch(nextQuery: string) {
-    setQuery(nextQuery);
+  function onSearchChange(nextQuery: string) {
     setOpen(true);
-    if (searchTimerRef.current !== null) window.clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = window.setTimeout(() => {
-      searchTimerRef.current = null;
-      loadOptions(nextQuery);
-    }, 120);
+    scheduleSearch(nextQuery);
   }
 
   function choose(option: SearchableOption) {
@@ -282,15 +156,15 @@ export function SearchableCombobox({
         else next.add(option.id);
         return next;
       });
-      setPendingOptions((current) => mergeOptions(current, [option]));
+      setPendingOptions((current) => mergeSearchableOptions(current, [option]));
       return;
     }
     setSelectedId(option.id);
     setSelectedOptionState(option);
-    setLoadedOptions((current) => mergeOptions([option], current ?? []));
-    setQuery("");
+    rememberOption(option);
+    resetSearch();
     setOpen(false);
-    setPlacement(null);
+    clearPlacement();
     setActiveIndex(-1);
     onValueChange?.(option);
     triggerRef.current?.focus();
@@ -381,7 +255,7 @@ export function SearchableCombobox({
         aria-controls={listboxId}
         aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
         aria-busy={loading}
-        onChange={(event) => scheduleSearch(event.target.value)}
+        onChange={(event) => onSearchChange(event.target.value)}
         onKeyDown={onKeyDown}
         onBlur={(event) => {
           if (!event.relatedTarget || (!rootRef.current?.contains(event.relatedTarget) && !panelRef.current?.contains(event.relatedTarget))) closeMenu();

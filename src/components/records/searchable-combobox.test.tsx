@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { calculateSearchableComboboxPlacement, SearchableCombobox, type SearchableOption } from "./searchable-combobox";
+import { SearchableCombobox, type SearchableOption } from "./searchable-combobox";
 
 const active: SearchableOption = { id: "11111111-1111-4111-8111-111111111111", label: "Ari" };
 const archived: SearchableOption = { id: "22222222-2222-4222-8222-222222222222", label: "Bima", archived: true };
@@ -25,36 +25,6 @@ async function openSelector() {
 }
 
 describe("SearchableCombobox", () => {
-  it("keeps the full popup below when the clipping boundary has room", () => {
-    const placement = calculateSearchableComboboxPlacement(
-      { top: 120, right: 320, bottom: 160, left: 120, width: 200 },
-      { top: 0, right: 800, bottom: 700, left: 0 },
-      260,
-    );
-
-    expect(placement).toMatchObject({ direction: "down", top: 164, left: 120, width: 200, maxHeight: 260 });
-  });
-
-  it("flips the popup above when below space cannot fit it", () => {
-    const placement = calculateSearchableComboboxPlacement(
-      { top: 500, right: 320, bottom: 540, left: 120, width: 200 },
-      { top: 0, right: 800, bottom: 700, left: 0 },
-      260,
-    );
-
-    expect(placement).toMatchObject({ direction: "up", top: 236, left: 120, width: 200, maxHeight: 260 });
-  });
-
-  it("caps the options region to the larger available side when neither side fits", () => {
-    const placement = calculateSearchableComboboxPlacement(
-      { top: 170, right: 320, bottom: 210, left: 120, width: 200 },
-      { top: 0, right: 800, bottom: 260, left: 0 },
-      260,
-    );
-
-    expect(placement).toMatchObject({ direction: "up", top: 0, left: 120, width: 200, maxHeight: 166 });
-  });
-
   it("ports the open popup to the dialog layer outside clipped form ancestors", async () => {
     const dialog = document.createElement("dialog");
     dialog.setAttribute("open", "");
