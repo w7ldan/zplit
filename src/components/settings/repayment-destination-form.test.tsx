@@ -15,4 +15,13 @@ describe("RepaymentDestinationForm", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Type" }), { target: { value: "other" } });
     expect(screen.getByLabelText("Repayment details")).toBeInTheDocument();
   });
+
+  it("cancels without submitting", () => {
+    const action = vi.fn();
+    const onCancel = vi.fn();
+    render(<RepaymentDestinationForm action={action} onCancel={onCancel} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(action).not.toHaveBeenCalled();
+  });
 });

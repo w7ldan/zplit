@@ -2,10 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import type { RepaymentDestinationActionState } from "@/app/app/settings/actions";
+import type { RepaymentDestinationFormAction } from "@/app/app/settings/actions";
 import { destinationTypeLabel, identifierLabel, REPAYMENT_DESTINATION_TYPES, type RepaymentDestinationFormValues } from "@/domain/repayment-destination";
-
-type DestinationAction = (previousState: RepaymentDestinationActionState, formData: FormData) => Promise<RepaymentDestinationActionState>;
 
 const emptyValues: RepaymentDestinationFormValues = {
   type: "bank_account",
@@ -25,7 +23,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="repayment-destination-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
-export function RepaymentDestinationForm({ action, initialValues = emptyValues, mode = "create", idPrefix = "repayment-destination" }: { action: DestinationAction; initialValues?: RepaymentDestinationFormValues; mode?: "create" | "edit"; idPrefix?: string }) {
+export function RepaymentDestinationForm({ action, initialValues = emptyValues, mode = "create", idPrefix = "repayment-destination", onCancel }: { action: RepaymentDestinationFormAction; initialValues?: RepaymentDestinationFormValues; mode?: "create" | "edit"; idPrefix?: string; onCancel?: () => void }) {
   const [state, formAction] = useActionState(action, { fieldErrors: {}, formError: "", values: initialValues });
   const [type, setType] = useState(state.values.type);
   const identifierHelp = identifierLabel(type);
@@ -64,7 +62,10 @@ export function RepaymentDestinationForm({ action, initialValues = emptyValues, 
         <span><strong>Show on balance links</strong><small>Anyone with an active balance link can see these details.</small></span>
       </label>
       <p className="repayment-destination-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
-      <SubmitButton mode={mode} />
+      <div className="repayment-destination-form__actions">
+        {onCancel ? <button className="action-link action-link--quiet" type="button" onClick={onCancel}>Cancel</button> : null}
+        <SubmitButton mode={mode} />
+      </div>
     </form>
   );
 }

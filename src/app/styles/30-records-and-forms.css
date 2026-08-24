@@ -3954,12 +3954,47 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   border-bottom: 1px solid var(--rule);
 }
 
+.settings-page__destination--dragging {
+  opacity: 0.55;
+}
+
+.settings-page__destination--drag-target {
+  border-bottom: 2px solid var(--ink);
+}
+
 .settings-page__destination-main,
 .settings-page__destination-footer {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.settings-page__destination-copy {
+  display: flex;
+  align-items: start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.settings-page__destination-drag-handle {
+  flex: 0 0 auto;
+  padding-top: 0.1rem;
+  color: var(--muted-ink);
+  cursor: grab;
+  font-size: 1rem;
+  letter-spacing: -0.2em;
+  line-height: 1;
+  user-select: none;
+}
+
+.settings-page__destination-drag-handle:active {
+  cursor: grabbing;
+}
+
+.settings-page__destination-drag-handle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 0.2rem;
 }
 
 .settings-page__destination-main h3 {
@@ -3999,26 +4034,18 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   gap: 0.75rem;
 }
 
-.settings-page__destination-actions form,
-.settings-page__destination-actions details {
+.settings-page__destination-actions form {
   margin: 0;
 }
 
-.settings-page__destination-actions summary {
+.settings-page__destination-actions .text-link {
+  margin-top: 0;
   cursor: pointer;
-  list-style: none;
 }
 
-.settings-page__destination-actions summary::-webkit-details-marker {
-  display: none;
-}
-
-.settings-page__destination-actions details[open] {
-  flex-basis: 100%;
-}
-
-.settings-page__destination-actions details[open] .repayment-destination-form {
-  margin-top: 1rem;
+.settings-page__destination-actions .text-link:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .settings-page__empty,
@@ -4037,7 +4064,18 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   border-top: 1px solid var(--ink);
 }
 
-.settings-page__add > .technical-label {
+.settings-page__add > .text-link {
+  margin-top: 0;
+  cursor: pointer;
+}
+
+.settings-page__disclosure {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.settings-page__disclosure > .technical-label {
   margin: 0 0 0.75rem;
 }
 
@@ -4045,6 +4083,12 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   display: grid;
   gap: 0.85rem;
   max-width: 38rem;
+}
+
+.repayment-destination-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .repayment-destination-form__field {

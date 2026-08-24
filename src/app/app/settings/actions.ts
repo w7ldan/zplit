@@ -13,6 +13,14 @@ export type RepaymentDestinationActionState = {
   values: RepaymentDestinationFormValues;
 };
 
+export type RepaymentDestinationFormAction = (
+  previousState: RepaymentDestinationActionState,
+  formData: FormData,
+) => Promise<RepaymentDestinationActionState>;
+
+export type RepaymentDestinationOrderResult = { ok: true } | { ok: false; message: string };
+export type RepaymentDestinationOrderAction = (orderedIds: string[]) => Promise<RepaymentDestinationOrderResult>;
+
 function valuesFromForm(formData: FormData) {
   return parseRepaymentDestination({
     type: formData.get("type"),
@@ -38,6 +46,13 @@ function errorState(error: unknown, values: RepaymentDestinationFormValues): Rep
 
 function settingsPath() {
   return "/app/settings?saved=1#repays-to";
+}
+
+async function persistRepaymentDestinationOrder(orderedIds: string[]) {
+  const session = await requireSession();
+  await (await getAuthenticatedLedger(session)).ledger.reorderRepaymentDestinations(orderedIds);
+  revalidatePath("/app/settings");
+  revalidatePath("/app/friends");
 }
 
 export async function createRepaymentDestinationAction(
@@ -89,7 +104,6 @@ export async function deleteRepaymentDestinationAction(destinationId: string, _f
 }
 
 export async function reorderRepaymentDestinationsAction(formData: FormData) {
-  const session = await requireSession();
   const ids = formData.getAll("destinationId");
   const movingId = formData.get("movingId");
   const direction = formData.get("direction");
@@ -102,11 +116,21 @@ export async function reorderRepaymentDestinationsAction(formData: FormData) {
   if (index < 0 || nextIndex < 0 || nextIndex >= orderedIds.length) redirect("/app/settings?error=1#repays-to");
   [orderedIds[index], orderedIds[nextIndex]] = [orderedIds[nextIndex]!, orderedIds[index]!];
   try {
-    await (await getAuthenticatedLedger(session)).ledger.reorderRepaymentDestinations(orderedIds);
+    await persistRepaymentDestinationOrder(orderedIds);
   } catch {
     redirect("/app/settings?error=1#repays-to");
   }
-  revalidatePath("/app/settings");
-  revalidatePath("/app/friends");
   redirect(settingsPath());
+}
+
+export async function setRepaymentDestinationOrderAction(orderedIds: string[]): Promise<RepaymentDestinationOrderResult> {
+  if (!Array.isArray(orderedIds) || orderedIds.some((id) => typeof id !== "string")) {
+    return { ok: false, message: "Unable to save repayment destination order." };
+  }
+  try {
+    await persistRepaymentDestinationOrder(orderedIds);
+    return { ok: true };
+  } catch {
+    return { ok: false, message: "Unable to save repayment destination order." };
+  }
 }

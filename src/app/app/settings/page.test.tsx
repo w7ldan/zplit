@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
-  reorder: vi.fn(),
+  setOrder: vi.fn(),
 }));
 
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: mocks.getAuthenticatedLedger }));
@@ -15,7 +15,7 @@ vi.mock("./actions", () => ({
   createRepaymentDestinationAction: mocks.create,
   updateRepaymentDestinationAction: mocks.update,
   deleteRepaymentDestinationAction: mocks.remove,
-  reorderRepaymentDestinationsAction: mocks.reorder,
+  setRepaymentDestinationOrderAction: mocks.setOrder,
 }));
 
 const destinations = [
@@ -44,15 +44,17 @@ describe("/app/settings", () => {
     expect(screen.getByRole("button", { name: "Move GoPay up" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Move GoPay down" })).toBeDisabled();
     expect(screen.getAllByText("Edit", { exact: true })).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Add destination" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New destination" })).toBeInTheDocument();
+    expect(screen.queryByText("ADD DESTINATION")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Theme" })).toBeInTheDocument();
   });
 
   it("shows the empty destination state and save confirmation", async () => {
     mocks.getAuthenticatedLedger.mockResolvedValue({ user: { name: "Wildan", email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue([]) } });
     render(await SettingsPage({ searchParams: Promise.resolve({ saved: "1" }) }));
-    expect(screen.getByText("No repayment destinations yet.")).toBeInTheDocument();
+    expect(screen.getByText(/No repayment destinations yet\./)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Settings saved.");
-    expect(screen.getByRole("button", { name: "Add destination" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New destination" })).toBeInTheDocument();
+    expect(screen.queryByText("ADD DESTINATION")).not.toBeInTheDocument();
   });
 });

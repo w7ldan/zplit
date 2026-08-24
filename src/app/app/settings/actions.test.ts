@@ -3,6 +3,7 @@ import {
   createRepaymentDestinationAction,
   deleteRepaymentDestinationAction,
   reorderRepaymentDestinationsAction,
+  setRepaymentDestinationOrderAction,
   updateRepaymentDestinationAction,
 } from "./actions";
 
@@ -73,5 +74,14 @@ describe("repayment destination actions", () => {
     order.set("direction", "up");
     await expect(reorderRepaymentDestinationsAction(order)).rejects.toThrow("redirect:/app/settings?saved=1#repays-to");
     expect(ledger.reorderRepaymentDestinations).toHaveBeenCalledWith(["destination-b", "destination-a"]);
+
+    await expect(setRepaymentDestinationOrderAction(["destination-a", "destination-b"])).resolves.toEqual({ ok: true });
+    expect(ledger.reorderRepaymentDestinations).toHaveBeenLastCalledWith(["destination-a", "destination-b"]);
+  });
+
+  it("returns a recoverable error when explicit order persistence fails", async () => {
+    const ledger = { reorderRepaymentDestinations: vi.fn().mockRejectedValue(new Error("database unavailable")) };
+    mocks.getAuthenticatedLedger.mockResolvedValue({ ledger });
+    await expect(setRepaymentDestinationOrderAction(["destination-a", "destination-b"])).resolves.toEqual({ ok: false, message: "Unable to save repayment destination order." });
   });
 });
