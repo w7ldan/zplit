@@ -16,7 +16,7 @@ function productionFiles(directory: string): string[] {
   });
 }
 
-describe("web date-time source contract", () => {
+describe("Repository date-time contract", () => {
   it("keeps calendar formatting outside the client boundary", () => {
     const localDateTimeSource = readFileSync(sharedDateTime, "utf8");
     const calendarDateSource = readFileSync(calendarDate, "utf8");

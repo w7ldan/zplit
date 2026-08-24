@@ -55,7 +55,7 @@ function cssBraceDepth(source: string) {
   return depth;
 }
 
-describe("CSS architecture", () => {
+describe("Repository CSS architecture contract", () => {
   it("keeps the root manifest exact and declaration-free", () => {
     const expectedManifest = `${requiredImports
       .map((file) => `@import "./${file.slice("src/app/".length)}";`)

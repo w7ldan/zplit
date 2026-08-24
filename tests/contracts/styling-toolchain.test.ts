@@ -22,7 +22,7 @@ function cssRuleBody(source: string, selector: string) {
   return "";
 }
 
-describe("styling cleanup contract", () => {
+describe("Repository styling toolchain contract", () => {
   it("removes unused styling configuration and direct packages", () => {
     expect(existsSync(path.join(root, "components.json"))).toBe(false);
     expect(existsSync(path.join(root, "postcss.config.mjs"))).toBe(false);

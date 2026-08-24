@@ -10,7 +10,7 @@ function metadataTitle(file: string) {
   return block.match(/^\s*title:\s*"([^"]+)"/m)?.[1];
 }
 
-describe("route metadata contract", () => {
+describe("Repository route metadata contract", () => {
   it("keeps the root default title and child template", () => {
     const source = readFileSync(path.resolve(root, "src/app/layout.tsx"), "utf8");
     expect(source).toContain('default: "Zplit — Shared expenses, clearly settled"');

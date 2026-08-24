@@ -10,7 +10,7 @@ Focused examples include:
 
 ```sh
 npx vitest run src/domain src/components src/auth src/server
-npx vitest run src/app/design-contract.test.ts src/app/css-architecture.test.ts src/app/date-time-contract.test.ts
+npx vitest run tests/contracts/design.test.ts tests/contracts/css-architecture.test.ts tests/contracts/date-time.test.ts
 ```
 
 The exact file list can grow with the product; use the full `npm test` suite before a release when the change is not documentation-only.
@@ -35,7 +35,7 @@ Run these only against an explicitly disposable or designated test database. The
 
 ## Design and source contracts
 
-`docs/design-system.md` is the design source. `src/app/design-contract.test.ts` reads it directly and checks the semantic palette, geometry, motion/accessibility language, responsive hierarchy, CSS ownership, and the scale-result budgets below. Do not weaken those assertions to make a stale document pass; update the document and source together when the contract genuinely changes.
+`docs/design-system.md` is the design source. `tests/contracts/design.test.ts` reads it directly and checks the semantic palette, geometry, motion/accessibility language, responsive hierarchy, CSS ownership, and the scale-result budgets below. Do not weaken those assertions to make a stale document pass; update the document and source together when the contract genuinely changes.
 
 Other source contracts check CSS fragment order and ownership, browser metadata, route titles, date/time formatting, PWA manifest/service worker behavior, receipt accessibility, and deployment assumptions.
 

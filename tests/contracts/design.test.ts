@@ -100,7 +100,7 @@ function cssAtRuleBodies(source: string, atRule: string) {
   }
 }
 
-describe("Zplit design contract", () => {
+describe("Repository design contract", () => {
   it("keeps record selectors shared and bounded at the form boundary", () => {
     for (const source of [expenseFormSource, repaymentFormSource]) {
       expect(source).toContain("SearchableCombobox");
