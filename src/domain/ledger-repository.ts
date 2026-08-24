@@ -23,6 +23,7 @@ import { createTripsReadRepository } from "./ledger/trips";
 import { createOutingsReadRepository } from "./ledger/outings";
 import { createLedgerSearchRepository } from "./ledger/search";
 import { createLedgerHistoryRepository } from "./ledger/history";
+import { createLedgerSummaryRepository } from "./ledger/summary";
 import { createLedgerStatementRepository } from "./ledger/statements";
 import { createRepaymentAllocationRepository } from "./ledger/allocations";
 import { createExpenseReadRepository } from "./ledger/expenses";
@@ -48,8 +49,9 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
   const outingsReads = createOutingsReadRepository(database, owner);
   const searchReads = createLedgerSearchRepository(database, owner);
   const historyReads = createLedgerHistoryRepository(database, owner);
+  const summaryReads = createLedgerSummaryRepository(database, owner);
+  const { getFriendBalances, ...summaryReadMethods } = summaryReads;
   const statementsReads = createLedgerStatementRepository(database, owner);
-  const { getFriendBalances, ...statementReads } = statementsReads;
   const expenseReads = createExpenseReadRepository(database, owner);
   const {
     expenseSelection,
@@ -96,7 +98,8 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     ...outingsMutations,
     ...searchReads,
     ...historyReads,
-    ...statementReads,
+    ...summaryReadMethods,
+    ...statementsReads,
     getFriendBalances,
     ...expenseReadMethods,
     listOpenExpenseSharesByFriend,
