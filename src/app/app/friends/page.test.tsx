@@ -69,7 +69,7 @@ describe("/app/friends", () => {
     expect(within(document.querySelector(".ledger-empty")!).getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?create=1");
   });
 
-  it("renders a connection-only entry without balance lookup or a Friend detail route", async () => {
+  it("renders an active registered Friend without balance lookup or a Friend detail route", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
     const getFriendBalances = vi.fn().mockResolvedValue([]);
@@ -80,10 +80,10 @@ describe("/app/friends", () => {
 
     render(await FriendsPage());
 
-    const row = document.querySelector<HTMLElement>(".friend-row--connection")!;
+    const row = document.querySelector<HTMLElement>(".friend-row")!;
     expect(within(row).getByText("Alice Tan")).toBeInTheDocument();
     expect(within(row).getByText("@alice")).toBeInTheDocument();
-    expect(within(row).getByText("Connected")).toBeInTheDocument();
+    expect(within(row).getByText("ACTIVE")).toBeInTheDocument();
     expect(within(row).queryByRole("link")).not.toBeInTheDocument();
     expect(getFriendBalances).not.toHaveBeenCalled();
   });

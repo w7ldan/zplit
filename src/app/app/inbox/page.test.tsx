@@ -82,7 +82,7 @@ describe("/app/inbox", () => {
     mocks.getUnread.mockResolvedValue(0);
     mocks.getFriendLinkStatuses.mockResolvedValue(new Map([["11111111-1111-4111-8111-111111111111", "connected"]]));
     render(await InboxPage({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(screen.getByText("Active friend")).toBeInTheDocument();
     expect(screen.getByText("Unlink", { selector: "summary" })).toBeInTheDocument();
     expect(screen.getByText("Unlink @owner?")).toBeInTheDocument();
     expect(screen.getByText(/Existing Friend balances and history remain unchanged/)).toBeInTheDocument();

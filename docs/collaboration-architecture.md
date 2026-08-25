@@ -84,13 +84,14 @@ different people may both be named Alice.
 External identities MAY share names and MAY use a local descriptive label such
 as `Fasilkom`, `Office`, or `Bob's sister`.
 
-An accepted Friend link is a bidirectional registered-user identity connection.
-It does not create a reciprocal ledger Friend, copy financial history, or grant
-the target access to the owner's private ledger. The local Friend remains the
-owner-controlled financial identity. Either connected user MAY unlink the
-connection; unlinking preserves the Friend, shares, repayments, allocations,
-balances, and accepted request history, and a future connection requires a new
-explicit link request.
+An accepted request is a bidirectional active Zplit friendship. The
+`friend_connections` row is the mutual friendship; local `friends` rows remain
+owner-local ledger contacts/financial identities. Friendship does not create a
+reciprocal ledger Friend, copy or migrate financial history, require reciprocal
+ledger rows, or grant private-ledger access. Either active friend MAY unlink;
+unlinking ends the friendship but preserves any local Friend, shares,
+repayments, allocations, balances, and accepted request history. A future
+friendship requires a new explicit link request.
 
 ## 6. Realtime contract
 

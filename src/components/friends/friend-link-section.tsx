@@ -28,7 +28,7 @@ export function FriendLinkSection({ status, search, action, cancelAction, unlink
   const [state, formAction] = useActionState(action, { error: "" });
 
   if (status.status === "linked") {
-    return <section className="friend-link" aria-labelledby="friend-link-heading"><div className="friend-link__heading"><p className="technical-label" id="friend-link-heading">Zplit account</p><span className="friend-link__state">Connected</span></div><p className="friend-link__identity"><strong>{status.user.displayName}</strong><span>@{status.user.username}</span></p>{unlinkAction ? <details className="friend-link__unlink"><summary className="text-link">Unlink</summary><div><p>Unlink @{status.user.username}?</p><p>This removes the Zplit account connection. Existing Friend balances and history remain unchanged.</p><form action={unlinkAction}><button className="action-link action-link--quiet" type="submit">Unlink</button></form></div></details> : null}</section>;
+    return <section className="friend-link" aria-labelledby="friend-link-heading"><div className="friend-link__heading"><p className="technical-label" id="friend-link-heading">Zplit friend</p><span className="friend-link__state">Active</span></div><p className="friend-link__identity"><strong>{status.user.displayName}</strong><span>@{status.user.username}</span></p>{unlinkAction ? <details className="friend-link__unlink"><summary className="text-link">Unlink</summary><div><p>Unlink @{status.user.username}?</p><p>This removes the Zplit account connection. Existing Friend balances and history remain unchanged.</p><form action={unlinkAction}><button className="action-link action-link--quiet" type="submit">Unlink</button></form></div></details> : null}</section>;
   }
 
   if (status.status === "pending") {
