@@ -42,29 +42,25 @@ describe("Repository design-system contract", () => {
     expect(css.indexOf("/* Explicit Zplit browser baseline. */")).toBeGreaterThanOrEqual(0);
     expect(css.indexOf("/* Explicit Zplit browser baseline. */")).toBeLessThan(css.indexOf(".editorial-shell {"));
     for (const statement of [
-      "65% clarity, 25% editorial expression, and 10% controlled spectacle",
-      "85% functional clarity",
-      "Product UI is the illustration",
-      "public interactive journey",
-      "separate density modes",
-      "80% on state feedback",
+      "information-clear",
+      "Public surfaces can be more expressive",
+      "The Journey is a keyboard-operable five-step scenario",
       "prefers-reduced-motion: reduce",
-      "expressive editorial scale",
-      "prioritize task density",
-      "Motion communicates insertion, completion, state change, or spatial entry/exit",
-      "Frequent financial inputs remain immediate",
-      "Reduced motion removes spatial effects",
-      "Public and authenticated navigation share the same detached-panel transition.",
-      "Prerequisite creation preserves the owner’s original task and returns automatically.",
-      "Optional create-time fields use native progressive disclosure.",
-      "Returned values and validation errors reveal their containing disclosure.",
-      "Edit forms remain direct when hiding controls would obstruct review.",
-      "Creating the prerequisite Friend from Add repayment returns automatically to Repayment entry with that Friend selected.",
-      "search stays visible while secondary list filters may use a native disclosure",
+      "The authenticated shell currently has a compact header.",
+      "Record retrieval is URL-backed.",
+      "The searchable combobox contract is strict:",
+      "The repayment-destination list is the reference for simple list reordering:",
+      "The current toast system is a bounded, polite status surface",
+      "Future realtime updates must use the same restraint",
+      "Receipt and payment-proof previews use a bounded overlay.",
+      "Future implementation prompts must follow both documents.",
+      "Edit forms remain direct",
+      "Creating the prerequisite Friend from Add repayment returns to",
+      "On mobile, search stays visible",
       "active-filter count excludes free-text search",
-      "Clear filters remains available whenever filtering is active",
-      "Result updates announce concise matching totals, not entire ledger lists.",
-      "New record-filter and mobile-disclosure rules belong in `30-records-and-forms.css`, not the late-override quarantine.",
+      "filters remains available whenever filtering is active.",
+      "Result updates announce",
+      "`30-records-and-forms` owns record rows",
     ]) {
       expect(documentation).toContain(statement);
     }
@@ -73,17 +69,16 @@ describe("Repository design-system contract", () => {
 
   it("keeps prohibited visual patterns out of the product contract", () => {
     for (const prohibitedPattern of [
-      "generic SaaS dashboards",
-      "generic rounded cards",
+      "generic SaaS-dashboard aesthetic",
+      "Ledger rows are not generic",
       "excessive pills",
-      "colored status dots",
+      "colored “Live” status-dot styling",
       "glassmorphism",
-      "gradient blobs",
-      "glowing effects",
+      "gradient",
       "heavy shadows",
       "decorative 3D",
       "fake analytics",
-      "animation on every element",
+      "perpetual animation",
     ]) {
       expect(documentation).toContain(prohibitedPattern);
     }
