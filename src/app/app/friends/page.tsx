@@ -69,7 +69,7 @@ export default async function FriendsPage({ searchParams = Promise.resolve({}) }
         </div>
         {created ? <RecordConfirmation queryKey="created" message="Friend added." /> : null}
         <div className="friends-toolbar">
-          <LiveRecordFilters action="/app/friends" search={{ label: "Search friends", placeholder: "Name or phone number", value: filters.q ?? "" }} clearHref={filtered ? recordHref("/app/friends", params, { q: undefined, page: undefined }) : undefined} resultStatus={`${friendPage.totalItems} friend${friendPage.totalItems === 1 ? "" : "s"} found.`} preservedParams={params} />
+          <LiveRecordFilters action="/app/friends" search={{ label: "Search friends", placeholder: "Name, phone number, or username", value: filters.q ?? "" }} clearHref={filtered ? recordHref("/app/friends", params, { q: undefined, page: undefined }) : undefined} resultStatus={`${friendPage.totalItems} friend${friendPage.totalItems === 1 ? "" : "s"} found.`} preservedParams={params} />
           <nav className="friends-page__views" aria-label="Friend record views">
             <Link className={view === "active" ? "friends-page__view friends-page__view--selected" : "friends-page__view"} href={viewHref("active", params)} aria-current={view === "active" ? "page" : undefined}>Active</Link>
             <Link className={view === "archived" ? "friends-page__view friends-page__view--selected" : "friends-page__view"} href={viewHref("archived", params)} aria-current={view === "archived" ? "page" : undefined}>Archived</Link>

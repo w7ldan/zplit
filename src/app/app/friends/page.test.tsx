@@ -39,6 +39,7 @@ describe("/app/friends", () => {
     expect(screen.getByText("Find people connected to your shared expenses and review what remains open.")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/owner records|owner-scoped ledger|chronological ledger/);
     expect(screen.getByLabelText("Search friends")).toHaveValue("Ada");
+    expect(screen.getByLabelText("Search friends")).toHaveAttribute("placeholder", "Name, phone number, or username");
     expect(screen.getByText("Rp 64.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add friend" })).toHaveAttribute("href", "/app/friends?view=active&q=Ada&create=1");
     expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/app/friends?view=active");

@@ -1149,13 +1149,11 @@ describe("ledger repository", () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {
       queries.push({ sql, params });
-      if (sql.includes('"friend_connections"')) return { rows: [
-        ["connection-b", owner, "user-b", "Alice Tan", "alice", "request-old", new Date("2026-01-01T00:00:00Z")],
-        ["connection-b", owner, "user-b", "Alice Tan", "alice", "request-new", new Date("2026-01-02T00:00:00Z")],
-        ["connection-c", owner, "user-c", "Carol Tan", "carol", "request-c", new Date("2026-01-03T00:00:00Z")],
+      if (sql.toLowerCase().includes("count(*)")) return { rows: [{ total_items: 2 }] };
+      return { rows: [
+        { entry_type: "local", entry_id: "friend-b", user_id: "user-b", request_id: null, name: "Alice ledger", phone_number: null, archived_at: null, created_at: new Date("2026-01-04T00:00:00Z"), linked_display_name: "Alice Tan", linked_username: "alice" },
+        { entry_type: "connection", entry_id: "connection-c", user_id: "user-c", request_id: "request-c", name: "Carol Tan", phone_number: null, archived_at: null, created_at: null, linked_display_name: null, linked_username: "carol" },
       ] };
-      if (sql.toLowerCase().startsWith('select "linked_user_id"')) return { rows: [["user-b"]] };
-      return { rows: [["friend-b", "Alice ledger", null, null, new Date("2026-01-04T00:00:00Z"), "user-b", "Alice Tan", "alice"]] };
     });
 
     const result = await createLedgerRepository(database as unknown as Database, owner).listFriendsExperience();
@@ -1165,9 +1163,66 @@ describe("ledger repository", () => {
       { type: "connection", connection: { type: "connection", id: "connection-c", userId: "user-c", name: "Carol Tan", username: "carol", requestId: "request-c" } },
     ]);
     expect(result.totalItems).toBe(2);
-    expect(queries).toHaveLength(3);
+    expect(queries).toHaveLength(2);
+    expect(queries.every(({ sql }) => sql.toLowerCase().includes("union all"))).toBe(true);
+    expect(queries.every(({ sql }) => sql.toLowerCase().includes("not exists"))).toBe(true);
+    expect(queries.every(({ sql }) => sql.includes("represented_users"))).toBe(true);
     expect(queries.every(({ sql }) => !sql.includes('"email"'))).toBe(true);
     expect(queries.every(({ params }) => params.includes(owner))).toBe(true);
+  });
+
+  it("counts the full unified result while fetching only the requested page", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      if (sql.toLowerCase().includes("count(*)")) return { rows: [{ total_items: 45 }] };
+      const pageTwo = params.at(-1) === 20;
+      return { rows: [
+        { entry_type: pageTwo ? "connection" : "local", entry_id: pageTwo ? "connection-21" : "friend-01", user_id: pageTwo ? "user-21" : null, request_id: pageTwo ? "request-21" : null, name: pageTwo ? "Person 21" : "Person 01", phone_number: null, archived_at: null, created_at: pageTwo ? null : new Date("2026-01-01T00:00:00Z"), linked_display_name: null, linked_username: pageTwo ? "person21" : null },
+      ] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    const firstPage = await repository.listFriendsExperience({ page: 1 });
+    const secondPage = await repository.listFriendsExperience({ page: 2 });
+
+    expect(firstPage).toMatchObject({ page: 1, pageSize: 20, totalItems: 45, totalPages: 3, items: [{ type: "local", friend: { id: "friend-01", name: "Person 01" } }] });
+    expect(secondPage).toMatchObject({ page: 2, pageSize: 20, totalItems: 45, totalPages: 3, items: [{ type: "connection", connection: { id: "connection-21", name: "Person 21" } }] });
+    expect(queries).toHaveLength(4);
+    expect(queries[0]!.sql.toLowerCase()).toContain("count(*)");
+    expect(queries[1]!.sql.toLowerCase()).toMatch(/limit \$\d+ offset \$\d+/);
+    expect(queries[1]!.params).toContain(0);
+    expect(queries[2]!.sql.toLowerCase()).toContain("count(*)");
+    expect(queries[3]!.sql.toLowerCase()).toMatch(/limit \$\d+ offset \$\d+/);
+    expect(queries[3]!.params).toContain(20);
+  });
+
+  it("searches local and connected identity fields without email discovery", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      if (sql.toLowerCase().includes("count(*)")) return { rows: [{ total_items: 1 }] };
+      return { rows: [{ entry_type: "local", entry_id: "friend-a", user_id: "user-a", request_id: null, name: "Roommate", phone_number: null, archived_at: null, created_at: new Date("2026-01-01T00:00:00Z"), linked_display_name: "Alice Tan", linked_username: "alice" }] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    for (const query of ["Roommate", "Alice Tan", "@alice", "alice", "@carol"]) {
+      await repository.listFriendsExperience({ q: query });
+    }
+
+    const pageQueries = queries.filter(({ sql }) => !sql.toLowerCase().includes("count(*)"));
+    expect(pageQueries).toHaveLength(5);
+    for (const query of pageQueries) {
+      const normalized = query.sql.toLowerCase();
+      expect(normalized).toContain("f.name ilike");
+      expect(normalized).toContain("f.phone_number ilike");
+      expect(normalized).toContain("linked.name ilike");
+      expect(normalized).toContain("linked.username ilike");
+      expect(normalized).toContain("connected_user.name ilike");
+      expect(normalized).toContain("connected_user.username ilike");
+      expect(normalized).not.toContain("email");
+    }
+    expect(queries.some(({ params }) => params.includes("%alice%"))).toBe(true);
   });
 
   it("combines exact amount predicates with text search in both count and page queries", async () => {

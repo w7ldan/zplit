@@ -1,18 +1,144 @@
 import { and, asc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
-import { expenseShares, friendConnections, friendLinkRequests, friends, repayments, users } from "../../db/schema";
+import { expenseShares, friends, repayments } from "../../db/schema";
 import { literalContains, notFound, persistenceError, safeRetrievalInteger } from "./query-utils";
 import {
   clampPage,
   normalizeFriendFilters,
   normalizeText,
   normalizeUuid,
+  escapeLikePattern,
   pageResult,
   RECORD_PAGE_SIZE,
   type RecordPage,
 } from "../record-retrieval";
 import { assertFriendArchiveReversalReceipt, assertFriendId, assertFriendInput } from "./validation";
-import type { CreateFriendInput, FriendArchiveReversalReceipt, FriendConnectionListRecord, FriendListEntry, FriendListRecord, FriendSelectorOption, UpdateFriendInput } from "./types";
+import { normalizeUsername } from "../username";
+import type { CreateFriendInput, FriendArchiveReversalReceipt, FriendListEntry, FriendListRecord, FriendSelectorOption, UpdateFriendInput } from "./types";
+
+type FriendExperienceRow = {
+  entry_type: "local" | "connection";
+  entry_id: string;
+  user_id: string | null;
+  request_id: string | null;
+  name: string;
+  phone_number: string | null;
+  archived_at: Date | null;
+  created_at: Date | null;
+  linked_display_name: string | null;
+  linked_username: string | null;
+};
+
+function friendExperienceCte(owner: string, filters: ReturnType<typeof normalizeFriendFilters>) {
+  const query = filters.q;
+  const pattern = query ? `%${escapeLikePattern(query)}%` : "";
+  const usernameQuery = normalizeUsername(query);
+  const usernamePattern = usernameQuery ? `%${escapeLikePattern(usernameQuery)}%` : "";
+  const usernameSearch = usernameQuery ? sql` ILIKE ${usernamePattern} ESCAPE ${"\\"}` : sql` IS NOT NULL AND FALSE`;
+  const localSearch = query ? sql`AND (
+    f.name ILIKE ${pattern} ESCAPE ${"\\"}
+    OR f.phone_number ILIKE ${pattern} ESCAPE ${"\\"}
+    OR linked.name ILIKE ${pattern} ESCAPE ${"\\"}
+    OR linked.username${usernameSearch}
+  )` : sql``;
+  const connectionSearch = query ? sql`AND (
+    connected_user.name ILIKE ${pattern} ESCAPE ${"\\"}
+    OR connected_user.username${usernameSearch}
+  )` : sql``;
+  const archiveFilter = filters.archived ? sql`f.archived_at IS NOT NULL` : sql`f.archived_at IS NULL`;
+
+  return sql`
+    WITH represented_users AS (
+      SELECT DISTINCT f.linked_user_id AS user_id
+      FROM friends f
+      WHERE f.owner_user_id = ${owner}
+        AND f.linked_user_id IS NOT NULL
+    ),
+    accepted_requests AS (
+      SELECT DISTINCT ON (LEAST(r.owner_user_id, r.target_user_id), GREATEST(r.owner_user_id, r.target_user_id))
+        LEAST(r.owner_user_id, r.target_user_id) AS user_a_id,
+        GREATEST(r.owner_user_id, r.target_user_id) AS user_b_id,
+        r.id::text AS request_id
+      FROM friend_link_requests r
+      WHERE r.status = 'accepted'
+      ORDER BY LEAST(r.owner_user_id, r.target_user_id), GREATEST(r.owner_user_id, r.target_user_id), r.accepted_at DESC NULLS LAST, r.id DESC
+    ),
+    unified_friends AS (
+      SELECT
+        'local'::text AS entry_type,
+        f.id::text AS entry_id,
+        f.linked_user_id AS user_id,
+        NULL::text AS request_id,
+        f.name::text AS name,
+        f.phone_number::text AS phone_number,
+        f.archived_at AS archived_at,
+        f.created_at AS created_at,
+        linked.name::text AS linked_display_name,
+        linked.username::text AS linked_username
+      FROM friends f
+      LEFT JOIN users linked ON linked.id = f.linked_user_id
+      WHERE f.owner_user_id = ${owner}
+        AND ${archiveFilter}
+        ${localSearch}
+
+      UNION ALL
+
+      SELECT
+        'connection'::text AS entry_type,
+        connection.id::text AS entry_id,
+        CASE WHEN connection.user_a_id = ${owner} THEN connection.user_b_id ELSE connection.user_a_id END AS user_id,
+        request.request_id,
+        connected_user.name::text AS name,
+        NULL::text AS phone_number,
+        NULL::timestamptz AS archived_at,
+        NULL::timestamptz AS created_at,
+        NULL::text AS linked_display_name,
+        connected_user.username::text AS linked_username
+      FROM friend_connections connection
+      INNER JOIN users connected_user
+        ON connected_user.id = CASE WHEN connection.user_a_id = ${owner} THEN connection.user_b_id ELSE connection.user_a_id END
+      INNER JOIN accepted_requests request
+        ON request.user_a_id = connection.user_a_id
+        AND request.user_b_id = connection.user_b_id
+      WHERE connection.status = 'connected'
+        AND (connection.user_a_id = ${owner} OR connection.user_b_id = ${owner})
+        AND connected_user.username IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM represented_users represented
+          WHERE represented.user_id = CASE WHEN connection.user_a_id = ${owner} THEN connection.user_b_id ELSE connection.user_a_id END
+        )
+        ${filters.archived ? sql`AND FALSE` : connectionSearch}
+    )
+  `;
+}
+
+function mapFriendExperienceRow(row: FriendExperienceRow): FriendListEntry {
+  if (row.entry_type === "local") {
+    return {
+      type: "local",
+      friend: {
+        id: row.entry_id,
+        name: row.name,
+        phoneNumber: row.phone_number,
+        archivedAt: row.archived_at,
+        createdAt: row.created_at!,
+        ...(row.linked_display_name && row.linked_username ? { linkedUser: { displayName: row.linked_display_name, username: row.linked_username } } : {}),
+      },
+    };
+  }
+  return {
+    type: "connection",
+    connection: {
+      type: "connection",
+      id: row.entry_id,
+      userId: row.user_id!,
+      name: row.name,
+      username: row.linked_username!,
+      requestId: row.request_id!,
+    },
+  };
+}
 
 export function createFriendsReadRepository(database: Database, owner: string) {
 async function getFriend(friendId: string) {
@@ -102,94 +228,20 @@ async function searchFriends(options: { q?: unknown; selectedId?: unknown; activ
 
   async function listFriendsExperience(options: { archived?: unknown; q?: unknown; page?: unknown } = {}): Promise<RecordPage<FriendListEntry>> {
     const filters = normalizeFriendFilters(options);
-    const localConditions = [
-      eq(friends.ownerUserId, owner),
-      filters.archived ? isNotNull(friends.archivedAt) : isNull(friends.archivedAt),
-      ...(filters.q ? [sql`(${literalContains(friends.name, filters.q)} OR ${literalContains(friends.phoneNumber, filters.q)})`] : []),
-    ];
     try {
-      const [localRows, representedRows, connectionRows] = await Promise.all([
-        database
-          .select({
-            id: friends.id,
-            name: friends.name,
-            phoneNumber: friends.phoneNumber,
-            archivedAt: friends.archivedAt,
-            createdAt: friends.createdAt,
-            linkedUserId: friends.linkedUserId,
-            linkedDisplayName: users.name,
-            linkedUsername: users.username,
-          })
-          .from(friends)
-          .leftJoin(users, eq(users.id, friends.linkedUserId))
-          .where(and(...localConditions))
-          .orderBy(asc(friends.name), asc(friends.id)),
-        filters.archived
-          ? Promise.resolve([])
-          : database
-              .select({ linkedUserId: friends.linkedUserId })
-              .from(friends)
-              .where(and(eq(friends.ownerUserId, owner), isNotNull(friends.linkedUserId))),
-        filters.archived
-          ? Promise.resolve([])
-          : database
-              .select({
-                id: friendConnections.id,
-                userAId: friendConnections.userAId,
-                userBId: friendConnections.userBId,
-                name: users.name,
-                username: users.username,
-                requestId: friendLinkRequests.id,
-                requestAcceptedAt: friendLinkRequests.acceptedAt,
-              })
-              .from(friendConnections)
-              .innerJoin(users, or(
-                and(eq(friendConnections.userAId, owner), eq(users.id, friendConnections.userBId)),
-                and(eq(friendConnections.userBId, owner), eq(users.id, friendConnections.userAId)),
-              ))
-              .leftJoin(friendLinkRequests, and(
-                eq(friendLinkRequests.status, "accepted"),
-                or(
-                  and(eq(friendLinkRequests.ownerUserId, friendConnections.userAId), eq(friendLinkRequests.targetUserId, friendConnections.userBId)),
-                  and(eq(friendLinkRequests.ownerUserId, friendConnections.userBId), eq(friendLinkRequests.targetUserId, friendConnections.userAId)),
-                ),
-              ))
-              .where(and(
-                or(eq(friendConnections.userAId, owner), eq(friendConnections.userBId, owner)),
-                eq(friendConnections.status, "connected"),
-                ...(filters.q ? [or(literalContains(users.name, filters.q), literalContains(users.username, filters.q))] : []),
-              ))
-              .orderBy(asc(users.name), asc(users.id)),
-      ]);
-
-      const representedUserIds = new Set([...localRows, ...representedRows].map(({ linkedUserId }) => linkedUserId).filter((id): id is string => Boolean(id)));
-      const localEntries: FriendListEntry[] = localRows.map(({ linkedUserId, linkedDisplayName, linkedUsername, ...friend }) => ({
-        type: "local",
-        friend: {
-          ...friend,
-          ...(linkedUserId && linkedDisplayName && linkedUsername ? { linkedUser: { displayName: linkedDisplayName, username: linkedUsername } } : {}),
-        },
-      }));
-      const connectionById = new Map<string, { entry: FriendConnectionListRecord; acceptedAt: number }>();
-      for (const row of connectionRows) {
-        const userId = row.userAId === owner ? row.userBId : row.userAId;
-        if (representedUserIds.has(userId) || typeof row.username !== "string" || typeof row.requestId !== "string") continue;
-        const acceptedAt = row.requestAcceptedAt?.getTime() ?? -1;
-        const current = connectionById.get(row.id);
-        if (!current || acceptedAt > current.acceptedAt) {
-          connectionById.set(row.id, { acceptedAt, entry: { type: "connection", id: row.id, userId, name: row.name, username: row.username, requestId: row.requestId } });
-        }
-      }
-      const entries = [...localEntries, ...[...connectionById.values()].map(({ entry }) => ({ type: "connection" as const, connection: entry }))];
-      entries.sort((left, right) => {
-        const leftName = left.type === "local" ? left.friend.name : left.connection.name;
-        const rightName = right.type === "local" ? right.friend.name : right.connection.name;
-        return leftName.localeCompare(rightName) || (left.type === "local" ? left.friend.id : left.connection.id).localeCompare(right.type === "local" ? right.friend.id : right.connection.id);
-      });
-      const totalItems = entries.length;
+      const cte = friendExperienceCte(owner, filters);
+      const countResult = await database.execute<{ total_items: unknown }>(sql`${cte} SELECT count(*) AS total_items FROM unified_friends`);
+      const countRows = (Array.isArray(countResult) ? countResult : countResult.rows) as Array<{ total_items?: unknown }>;
+      const totalItems = safeRetrievalInteger(countRows[0]?.total_items ?? 0, "Friend count");
       const page = clampPage(filters.page, totalItems);
-      const offset = (page - 1) * RECORD_PAGE_SIZE;
-      return pageResult(entries.slice(offset, offset + RECORD_PAGE_SIZE), totalItems, page);
+      const pageQueryResult = await database.execute<FriendExperienceRow>(sql`${cte}
+        SELECT entry_type, entry_id, user_id, request_id, name, phone_number, archived_at, created_at, linked_display_name, linked_username
+        FROM unified_friends
+        ORDER BY name ASC, entry_type ASC, entry_id ASC
+        LIMIT ${RECORD_PAGE_SIZE} OFFSET ${(page - 1) * RECORD_PAGE_SIZE}
+      `);
+      const rows = (Array.isArray(pageQueryResult) ? pageQueryResult : pageQueryResult.rows) as FriendExperienceRow[];
+      return pageResult(rows.map(mapFriendExperienceRow), totalItems, page);
     } catch (error) {
       return persistenceError(error);
     }
