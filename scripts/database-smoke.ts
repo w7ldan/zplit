@@ -14,6 +14,9 @@ const domainTables = [
   "repayments",
   "repayment_allocations",
   "trips",
+  "organizations",
+  "organization_memberships",
+  "organization_avatars",
 ];
 
 function assert(condition: unknown, message: string): asserts condition {

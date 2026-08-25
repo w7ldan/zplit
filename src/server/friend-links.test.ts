@@ -104,16 +104,38 @@ describe("Friend ↔ Zplit-user linking", () => {
     const db = database([
       [request],
       [{ id: friendId, linkedUserId: null }],
+      [{ id: ownerId, name: "Owner" }, { id: targetId, name: "Target" }],
       [],
       [{ id: "connection", userAId: ownerId, userBId: targetId, status: "connected" }],
-    ], [[]], [[{ id: friendId }], [accepted], [], []]);
+      [],
+    ], [[], [{ id: "target-friend" }]], [[{ id: friendId }], [accepted], [], []]);
 
     await expect(respondToFriendLinkRequest(db, targetId, requestId, "accept")).resolves.toMatchObject({ status: "accepted" });
     expect(db.transaction).toHaveBeenCalledOnce();
-    expect(db.transactionDb.insert).toHaveBeenCalledOnce();
+    expect(db.transactionDb.insert).toHaveBeenCalledTimes(2);
     expect(db.transactionDb.update).toHaveBeenCalledTimes(4);
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith(ownerId, expect.objectContaining({ type: "friend.link.state.changed", data: expect.objectContaining({ friendId, status: "accepted" }) }));
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetId, "resolved");
+  });
+
+  it("reuses and reactivates the reciprocal Friend instead of creating a duplicate", async () => {
+    const request = { id: requestId, ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" };
+    const accepted = { ...request, status: "accepted" };
+    const reciprocalId = "33333333-3333-4333-8333-333333333333";
+    const db = database([
+      [request],
+      [{ id: friendId, linkedUserId: null }],
+      [{ id: ownerId, name: "Owner" }, { id: targetId, name: "Target" }],
+      [],
+      [{ id: "connection", userAId: ownerId, userBId: targetId, status: "connected" }],
+      [],
+      [{ id: reciprocalId, archivedAt: new Date("2026-01-01T00:00:00Z") }],
+    ], [[]], [[{ id: friendId }], [{ id: reciprocalId }], [accepted], [], []]);
+
+    await expect(respondToFriendLinkRequest(db, targetId, requestId, "accept")).resolves.toMatchObject({ status: "accepted" });
+    expect(db.transactionDb.insert).toHaveBeenCalledOnce();
+    expect(db.transactionDb.update).toHaveBeenCalledWith(expect.anything());
+    expect(db.transactionDb.update).toHaveBeenCalledTimes(5);
   });
 
   it("rejects a response from a different user without touching the Friend", async () => {

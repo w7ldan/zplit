@@ -12,6 +12,9 @@ const domainTables = [
   "friend_link_requests",
   "friends",
   "notifications",
+  "organization_avatars",
+  "organization_memberships",
+  "organizations",
   "outings",
   "repayment_allocations",
   "repayment_destinations",
@@ -62,9 +65,9 @@ describe("database schema", () => {
     expect(foreignKeyShape(schema.userAvatars)).toEqual([{ from: ["user_id"], to: "users", target: ["id"], onDelete: "cascade" }]);
   });
 
-  it("exports the fifteen domain tables and four auth tables", () => {
+  it("exports the eighteen domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications]
+      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationAvatars]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -108,6 +111,23 @@ describe("database schema", () => {
     expect(foreignKeyShape(schema.friendConnections)).toEqual(expect.arrayContaining([
       { from: ["user_a_id"], to: "users", target: ["id"], onDelete: "restrict" },
       { from: ["user_b_id"], to: "users", target: ["id"], onDelete: "restrict" },
+    ]));
+  });
+
+  it("defines organizations with one role-bearing membership and normalized avatar storage", () => {
+    const organization = getTableConfig(schema.organizations);
+    expect(organization.columns.map((column) => column.name)).toEqual(["id", "name", "description", "created_at", "updated_at"]);
+    expect(organization.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["organizations_name_not_blank"]));
+    const memberships = getTableConfig(schema.organizationMemberships);
+    expect(memberships.columns.map((column) => column.name)).toEqual(["organization_id", "user_id", "role", "joined_at"]);
+    expect(memberships.checks.map((check) => check.name)).toContain("organization_memberships_role_allowed");
+    expect(foreignKeyShape(schema.organizationMemberships)).toEqual(expect.arrayContaining([
+      { from: ["organization_id"], to: "organizations", target: ["id"], onDelete: "cascade" },
+      { from: ["user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+    ]));
+    expect(getTableConfig(schema.organizationAvatars).checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "organization_avatars_media_type_allowed",
+      "organization_avatars_content_size_matches",
     ]));
   });
 

@@ -153,6 +153,58 @@ export const friendConnections = pgTable(
   ],
 );
 
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: varchar("name", { length: 160 }).notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("organizations_name_not_blank", sql`btrim(${table.name}) <> ''`),
+    check("organizations_description_not_blank", sql`${table.description} IS NULL OR btrim(${table.description}) <> ''`),
+    index("organizations_name_idx").on(table.name),
+  ],
+);
+
+export const organizationMemberships = pgTable(
+  "organization_memberships",
+  {
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    role: varchar("role", { length: 32 }).default("member").notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.userId] }),
+    check("organization_memberships_role_allowed", sql`${table.role} IN ('owner', 'admin', 'treasurer', 'member', 'custom')`),
+    index("organization_memberships_user_idx").on(table.userId),
+  ],
+);
+
+export const organizationAvatars = pgTable("organization_avatars", {
+  organizationId: uuid("organization_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  mediaType: varchar("media_type", { length: 32 }).notNull(),
+  byteSize: integer("byte_size").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  content: bytea("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  check("organization_avatars_media_type_allowed", sql`${table.mediaType} = 'image/webp'`),
+  check("organization_avatars_byte_size_valid", sql`${table.byteSize} BETWEEN 1 AND 5242880`),
+  check("organization_avatars_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
+  check("organization_avatars_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+]);
+
 export const trips = pgTable(
   "trips",
   {
@@ -682,6 +734,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   friendConnectionsB: many(friendConnections, { relationName: "friendConnectionsB" }),
   createdInvitations: many(accountInvitations, { relationName: "createdInvitations" }),
   acceptedInvitations: many(accountInvitations, { relationName: "acceptedInvitations" }),
+  organizationMemberships: many(organizationMemberships),
 }));
 
 export const friendsRelations = relations(friends, ({ one, many }) => ({
@@ -725,6 +778,29 @@ export const friendConnectionsRelations = relations(friendConnections, ({ one })
     fields: [friendConnections.userBId],
     references: [users.id],
     relationName: "friendConnectionsB",
+  }),
+}));
+
+export const organizationsRelations = relations(organizations, ({ many, one }) => ({
+  memberships: many(organizationMemberships),
+  avatar: one(organizationAvatars),
+}));
+
+export const organizationMembershipsRelations = relations(organizationMemberships, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [organizationMemberships.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [organizationMemberships.userId],
+    references: [users.id],
+  }),
+}));
+
+export const organizationAvatarsRelations = relations(organizationAvatars, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [organizationAvatars.organizationId],
+    references: [organizations.id],
   }),
 }));
 

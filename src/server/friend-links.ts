@@ -244,6 +244,39 @@ async function lockOrCreateConnection(transaction: Database, userAId: string, us
   return connection;
 }
 
+async function ensureActiveLinkedFriend(transaction: Database, ownerUserId: string, linkedUserId: string, name: string, preferredFriendId?: string) {
+  const [existing] = await transaction
+    .select({ id: friends.id })
+    .from(friends)
+    .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.linkedUserId, linkedUserId)))
+    .limit(1)
+    .for("update");
+  if (existing) {
+    await transaction
+      .update(friends)
+      .set({ archivedAt: null, updatedAt: new Date() })
+      .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.id, existing.id)));
+    return existing.id;
+  }
+
+  if (preferredFriendId) {
+    const [linked] = await transaction
+      .update(friends)
+      .set({ linkedUserId, archivedAt: null, updatedAt: new Date() })
+      .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.id, preferredFriendId), or(isNull(friends.linkedUserId), eq(friends.linkedUserId, linkedUserId))))
+      .returning({ id: friends.id });
+    if (!linked) throw new FriendLinkError("conflict");
+    return linked.id;
+  }
+
+  const [created] = await transaction
+    .insert(friends)
+    .values({ ownerUserId, linkedUserId, name })
+    .returning({ id: friends.id });
+  if (!created) throw new FriendLinkError("conflict");
+  return created.id;
+}
+
 export async function respondToFriendLinkRequest(database: Database, targetUserId: string, requestId: string, response: "accept" | "decline") {
   assertUserId(targetUserId);
   assertFriendId(requestId);
@@ -277,6 +310,14 @@ export async function respondToFriendLinkRequest(database: Database, targetUserI
       return { request: declined, changed: true, targetUserIds: [targetUserId] };
     }
 
+    const linkUsers = await transaction
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(inArray(users.id, [request.ownerUserId, targetUserId]));
+    const requester = linkUsers.find((user) => user.id === request.ownerUserId);
+    const target = linkUsers.find((user) => user.id === targetUserId);
+    if (!requester || !target) throw new FriendLinkError("not_found");
+
     const [existingLink] = await transaction
       .select({ id: friends.id })
       .from(friends)
@@ -296,12 +337,8 @@ export async function respondToFriendLinkRequest(database: Database, targetUserI
     const [userAId, userBId] = canonicalPair(request.ownerUserId, targetUserId);
     await lockOrCreateConnection(transaction as Database, userAId, userBId, now);
     try {
-      const updatedFriends = await transaction
-        .update(friends)
-        .set({ linkedUserId: targetUserId, updatedAt: now })
-        .where(and(eq(friends.ownerUserId, request.ownerUserId), eq(friends.id, request.friendId), or(isNull(friends.linkedUserId), eq(friends.linkedUserId, targetUserId))))
-        .returning({ id: friends.id });
-      if (updatedFriends.length === 0) throw new FriendLinkError("conflict");
+      await ensureActiveLinkedFriend(transaction as Database, request.ownerUserId, targetUserId, target.name, request.friendId);
+      await ensureActiveLinkedFriend(transaction as Database, targetUserId, request.ownerUserId, requester.name);
     } catch (error) {
       if (error instanceof FriendLinkError) throw error;
       if (databaseCode(error) === "23505") throw new FriendLinkError("conflict");

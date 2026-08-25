@@ -86,9 +86,10 @@ as `Fasilkom`, `Office`, or `Bob's sister`.
 
 An accepted request is a bidirectional active Zplit friendship. The
 `friend_connections` row is the mutual friendship; local `friends` rows remain
-owner-local ledger contacts/financial identities. Friendship does not create a
-reciprocal ledger Friend, copy or migrate financial history, require reciprocal
-ledger rows, or grant private-ledger access. Either active friend MAY unlink;
+owner-local ledger contacts/financial identities. Acceptance ensures both users
+have an active local Friend projection, so either user can select the other in
+normal Personal expense and payer flows. It does not copy or migrate financial
+history or grant private-ledger access. Either active friend MAY unlink;
 unlinking ends the friendship but preserves any local Friend, shares,
 repayments, allocations, balances, and accepted request history. A future
 friendship requires a new explicit link request.

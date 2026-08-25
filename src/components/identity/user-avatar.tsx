@@ -35,6 +35,7 @@ function DefaultAvatar({ userId, decorative, label }: { userId: string; decorati
 export function UserAvatar({
   userId,
   customAvatar,
+  customAvatarUrl,
   previewSrc,
   size = "md",
   alt = "User avatar",
@@ -42,12 +43,13 @@ export function UserAvatar({
 }: {
   userId: string;
   customAvatar?: AvatarReference | null;
+  customAvatarUrl?: string;
   previewSrc?: string | null;
   size?: AvatarSize;
   alt?: string;
   decorative?: boolean;
 }) {
-  const src = previewSrc ?? (customAvatar ? `/app/avatar?userId=${encodeURIComponent(userId)}&v=${encodeURIComponent(customAvatar.sha256)}` : null);
+  const src = previewSrc ?? (customAvatar ? (customAvatarUrl ?? `/app/avatar?userId=${encodeURIComponent(userId)}&v=${encodeURIComponent(customAvatar.sha256)}`) : null);
   return (
     <span className={`user-avatar user-avatar--${size}`} aria-hidden={decorative || undefined}>
       {src ? <img src={src} alt={decorative ? "" : alt} /> : <DefaultAvatar userId={userId} decorative={decorative} label={alt} />}

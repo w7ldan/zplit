@@ -622,6 +622,12 @@ describe("ledger repository", () => {
     expect(queries[0]!.params).toContain(owner);
   });
 
+  it("returns reciprocal linked Friend projections through the active expense picker", async () => {
+    const database = drizzle(async () => ({ rows: [["friend-b", "Alice", false]] }));
+    const result = await createLedgerRepository(database as unknown as Database, owner).searchFriends({ activeOnly: true });
+    expect(result).toEqual([{ id: "friend-b", name: "Alice", archived: false }]);
+  });
+
   it("owner-scopes get, archived list, update, archive, and restore predicates", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => {

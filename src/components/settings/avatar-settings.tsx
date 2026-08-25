@@ -9,7 +9,7 @@ function responseMessage(body: unknown, fallback: string) {
   return typeof body === "object" && body !== null && "error" in body && typeof body.error === "string" ? body.error : fallback;
 }
 
-export function AvatarSettings({ userId, avatar, children }: { userId: string; avatar: AvatarReference | null; children?: ReactNode }) {
+export function AvatarSettings({ userId, avatar, endpoint = "/app/avatar", avatarUrl, children }: { userId: string; avatar: AvatarReference | null; endpoint?: string; avatarUrl?: string | ((avatar: AvatarReference) => string); children?: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
   const [current, setCurrent] = useState<AvatarReference | null>(avatar);
   const [preview, setPreview] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export function AvatarSettings({ userId, avatar, children }: { userId: string; a
     const formData = new FormData();
     formData.set("avatar", file);
     try {
-      const response = await fetch("/app/avatar", { method: "POST", body: formData, credentials: "same-origin" });
+      const response = await fetch(endpoint, { method: "POST", body: formData, credentials: "same-origin" });
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) throw new Error(responseMessage(body, "Unable to save this avatar."));
       if (typeof body !== "object" || body === null || !("avatar" in body) || typeof body.avatar !== "object" || body.avatar === null || !("sha256" in body.avatar) || typeof body.avatar.sha256 !== "string") {
@@ -48,7 +48,7 @@ export function AvatarSettings({ userId, avatar, children }: { userId: string; a
     setPending(true);
     setError("");
     try {
-      const response = await fetch("/app/avatar", { method: "DELETE", credentials: "same-origin" });
+      const response = await fetch(endpoint, { method: "DELETE", credentials: "same-origin" });
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) throw new Error(responseMessage(body, "Unable to remove this avatar."));
       setCurrent(null);
@@ -62,7 +62,7 @@ export function AvatarSettings({ userId, avatar, children }: { userId: string; a
 
   return (
     <div className="settings-page__identity">
-      <UserAvatar userId={userId} customAvatar={current} previewSrc={preview} decorative size="md" />
+      <UserAvatar userId={userId} customAvatar={current} customAvatarUrl={current && typeof avatarUrl === "function" ? avatarUrl(current) : typeof avatarUrl === "string" ? avatarUrl : undefined} previewSrc={preview} decorative size="md" />
       <div className="settings-page__identity-details">
         {children}
         <div className="settings-page__avatar-control">
