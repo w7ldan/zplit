@@ -3,9 +3,15 @@ import "server-only";
 import { and, asc, count, eq, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { organizationAvatars, organizationMemberships, organizations } from "@/db/schema";
+import {
+  isOrganizationRole,
+  resolveOrganizationCapabilities,
+  type OrganizationCapability,
+  type OrganizationRole,
+} from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
 
-export type OrganizationRole = "owner" | "admin" | "treasurer" | "member" | "custom";
+export type { OrganizationRole } from "@/domain/organization-permissions";
 export type OrganizationAvatarMetadata = { mediaType: "image/webp"; byteSize: number; sha256: string };
 export type OrganizationSummary = {
   id: string;
@@ -15,9 +21,10 @@ export type OrganizationSummary = {
   memberCount: number;
   avatar: OrganizationAvatarMetadata | null;
 };
+export type OrganizationDetail = OrganizationSummary & { canUpdate: boolean; canDelete: boolean };
 
 export class OrganizationError extends Error {
-  constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "not_owner") {
+  constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden") {
     super(code);
     this.name = "OrganizationError";
   }
@@ -46,13 +53,29 @@ function mapAvatar(avatar: { mediaType: string; byteSize: number; sha256: string
   return avatar ? { mediaType: "image/webp", byteSize: avatar.byteSize, sha256: avatar.sha256 } : null;
 }
 
-async function memberRole(database: Database, organizationId: string, userId: string) {
+export type OrganizationAccess = {
+  role: OrganizationRole;
+  can(capability: OrganizationCapability): boolean;
+  require(capability: OrganizationCapability): void;
+};
+
+export async function requireOrganizationAccess(database: Database, organizationId: string, userId: string): Promise<OrganizationAccess> {
+  assertOrganizationId(organizationId);
   const [membership] = await database
-    .select({ role: organizationMemberships.role })
+    .select({ role: organizationMemberships.role, customCapabilities: organizationMemberships.customCapabilities })
     .from(organizationMemberships)
     .where(and(eq(organizationMemberships.organizationId, organizationId), eq(organizationMemberships.userId, userId)))
     .limit(1);
-  return membership?.role as OrganizationRole | undefined;
+  if (!membership) throw new OrganizationError("not_member");
+  if (!isOrganizationRole(membership.role)) throw new OrganizationError("forbidden");
+  const capabilities = resolveOrganizationCapabilities(membership.role, membership.customCapabilities);
+  return {
+    role: membership.role,
+    can: (capability) => capabilities.has(capability),
+    require: (capability) => {
+      if (!capabilities.has(capability)) throw new OrganizationError("forbidden");
+    },
+  };
 }
 
 export async function listOrganizations(database: Database, userId: string): Promise<OrganizationSummary[]> {
@@ -73,8 +96,9 @@ export async function listOrganizations(database: Database, userId: string): Pro
   return rows.map((row) => ({ ...row, role: row.role as OrganizationRole, avatar: mapAvatar(row.avatar) }));
 }
 
-export async function getOrganizationForMember(database: Database, organizationId: string, userId: string): Promise<OrganizationSummary> {
-  assertOrganizationId(organizationId);
+export async function getOrganizationForMember(database: Database, organizationId: string, userId: string): Promise<OrganizationDetail> {
+  const access = await requireOrganizationAccess(database, organizationId, userId);
+  access.require("organization.view");
   const [row] = await database
     .select({
       id: organizations.id,
@@ -93,7 +117,7 @@ export async function getOrganizationForMember(database: Database, organizationI
     .select({ memberCount: count() })
     .from(organizationMemberships)
     .where(eq(organizationMemberships.organizationId, organizationId));
-  return { ...row, role: row.role as OrganizationRole, memberCount: Number(memberCount), avatar: mapAvatar(row.avatar) };
+  return { ...row, role: row.role as OrganizationRole, memberCount: Number(memberCount), avatar: mapAvatar(row.avatar), canUpdate: access.can("organization.update"), canDelete: access.can("organization.delete") };
 }
 
 export async function createOrganization(
@@ -113,15 +137,9 @@ export async function createOrganization(
   });
 }
 
-async function requireOwner(database: Database, organizationId: string, userId: string) {
-  const role = await memberRole(database, organizationId, userId);
-  if (!role) throw new OrganizationError("not_member");
-  if (role !== "owner") throw new OrganizationError("not_owner");
-}
-
 export async function updateOrganization(database: Database, organizationId: string, userId: string, input: { name: string; description?: string | null }) {
-  assertOrganizationId(organizationId);
-  await requireOwner(database, organizationId, userId);
+  const access = await requireOrganizationAccess(database, organizationId, userId);
+  access.require("organization.update");
   const [organization] = await database
     .update(organizations)
     .set({ ...cleanInput(input), updatedAt: new Date() })
@@ -132,8 +150,8 @@ export async function updateOrganization(database: Database, organizationId: str
 }
 
 export async function deleteOrganization(database: Database, organizationId: string, userId: string) {
-  assertOrganizationId(organizationId);
-  await requireOwner(database, organizationId, userId);
+  const access = await requireOrganizationAccess(database, organizationId, userId);
+  access.require("organization.delete");
   const deleted = await database.delete(organizations).where(eq(organizations.id, organizationId)).returning({ id: organizations.id });
   return deleted.length > 0;
 }
@@ -145,8 +163,8 @@ export async function getOrganizationAvatar(database: Database, organizationId: 
 }
 
 export async function saveOrganizationAvatar(database: Database, organizationId: string, userId: string, avatar: { mediaType: "image/webp"; byteSize: number; sha256: string; content: Uint8Array }) {
-  assertOrganizationId(organizationId);
-  await requireOwner(database, organizationId, userId);
+  const access = await requireOrganizationAccess(database, organizationId, userId);
+  access.require("organization.update");
   const [saved] = await database
     .insert(organizationAvatars)
     .values({ ...avatar, organizationId, content: Buffer.from(avatar.content) })
@@ -160,8 +178,8 @@ export async function saveOrganizationAvatar(database: Database, organizationId:
 }
 
 export async function deleteOrganizationAvatar(database: Database, organizationId: string, userId: string) {
-  assertOrganizationId(organizationId);
-  await requireOwner(database, organizationId, userId);
+  const access = await requireOrganizationAccess(database, organizationId, userId);
+  access.require("organization.update");
   const deleted = await database.delete(organizationAvatars).where(eq(organizationAvatars.organizationId, organizationId)).returning({ organizationId: organizationAvatars.organizationId });
   return deleted.length > 0;
 }

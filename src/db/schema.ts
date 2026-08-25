@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import type { NotificationMetadata, NotificationType } from "@/domain/notifications";
+import type { OrganizationCapability } from "@/domain/organization-permissions";
 import {
   boolean,
   check,
@@ -179,6 +180,7 @@ export const organizationMemberships = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     role: varchar("role", { length: 32 }).default("member").notNull(),
+    customCapabilities: jsonb("custom_capabilities").$type<OrganizationCapability[]>().notNull().default([]),
     joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

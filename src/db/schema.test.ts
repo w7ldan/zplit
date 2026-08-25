@@ -114,12 +114,13 @@ describe("database schema", () => {
     ]));
   });
 
-  it("defines organizations with one role-bearing membership and normalized avatar storage", () => {
+  it("defines organizations with capability-bearing memberships and normalized avatar storage", () => {
     const organization = getTableConfig(schema.organizations);
     expect(organization.columns.map((column) => column.name)).toEqual(["id", "name", "description", "created_at", "updated_at"]);
     expect(organization.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["organizations_name_not_blank"]));
     const memberships = getTableConfig(schema.organizationMemberships);
-    expect(memberships.columns.map((column) => column.name)).toEqual(["organization_id", "user_id", "role", "joined_at"]);
+    expect(memberships.columns.map((column) => column.name)).toEqual(["organization_id", "user_id", "role", "custom_capabilities", "joined_at"]);
+    expect(memberships.columns.find((column) => column.name === "custom_capabilities")?.notNull).toBe(true);
     expect(memberships.checks.map((check) => check.name)).toContain("organization_memberships_role_allowed");
     expect(foreignKeyShape(schema.organizationMemberships)).toEqual(expect.arrayContaining([
       { from: ["organization_id"], to: "organizations", target: ["id"], onDelete: "cascade" },

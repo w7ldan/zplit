@@ -1,0 +1,1 @@
+ALTER TABLE "organization_memberships" ADD COLUMN "custom_capabilities" jsonb DEFAULT '[]'::jsonb NOT NULL;

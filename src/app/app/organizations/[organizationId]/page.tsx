@@ -25,8 +25,8 @@ export default async function OrganizationDetailPage({ params }: { params: Promi
         <div className="organization-detail__header"><OrganizationIdentity organization={organization} /><div className="organization-detail__facts"><span><span className="technical-label">ROLE</span>{organization.role[0]?.toUpperCase()}{organization.role.slice(1)}</span><span><span className="technical-label">MEMBERS</span>{organization.memberCount}</span></div></div>
         {organization.description ? <p className="organization-detail__description">{organization.description}</p> : null}
         <div className="organization-detail__future" aria-label="Organization capabilities"><span className="technical-label">STAGE 7 FOUNDATION</span><p>Ledger, members, and Chat will appear here in later stages.</p></div>
-        {organization.role === "owner" ? <OrganizationProfile organization={organization} action={update} /> : null}
-        {organization.role === "owner" ? <form className="organization-detail__delete" action={deleteOrganizationAction.bind(null, organizationId)}><button className="action-link action-link--quiet" type="submit">Delete organization</button></form> : null}
+        {organization.canUpdate ? <OrganizationProfile organization={organization} action={update} /> : null}
+        {organization.canDelete ? <form className="organization-detail__delete" action={deleteOrganizationAction.bind(null, organizationId)}><button className="action-link action-link--quiet" type="submit">Delete organization</button></form> : null}
       </div>
     </section>
   );

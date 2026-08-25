@@ -21,7 +21,7 @@ function contentLengthError(request: Request) {
 }
 function isUploadFile(value: FormDataEntryValue): value is File { return typeof value === "object" && value !== null && "arrayBuffer" in value && "name" in value && "type" in value; }
 async function session() { return getAuth().api.getSession({ headers: await headers() }); }
-function accessStatus(error: unknown) { return error instanceof OrganizationError && error.code === "not_owner" ? 403 : 404; }
+function accessStatus(error: unknown, exposeForbidden = false) { return exposeForbidden && error instanceof OrganizationError && error.code === "forbidden" ? 403 : 404; }
 
 export async function GET(request: Request, { params }: { params: Promise<{ organizationId: string }> }) {
   const current = await session();
@@ -53,7 +53,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
     return json({ avatar });
   } catch (error) {
     if (error instanceof AvatarFileValidationError) return json({ field: "avatar", error: error.message }, 400);
-    if (error instanceof OrganizationError) return new Response("Organization unavailable.", { status: accessStatus(error), headers: privateHeaders() });
+    if (error instanceof OrganizationError) return new Response("Organization unavailable.", { status: accessStatus(error, true), headers: privateHeaders() });
     return json({ error: "Unable to save this avatar." }, 500);
   }
 }
@@ -63,5 +63,5 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ o
   if (!current) return new Response("Unauthorized", { status: 401, headers: privateHeaders() });
   if (!isSameOriginRequest(request)) return new Response(SAME_ORIGIN_ERROR, { status: 403 });
   try { await deleteOrganizationAvatar(getDatabase(), (await params).organizationId, current.user.id); return new Response(null, { status: 204, headers: privateHeaders() }); }
-  catch (error) { return new Response("Organization unavailable.", { status: accessStatus(error), headers: privateHeaders() }); }
+  catch (error) { return new Response("Organization unavailable.", { status: accessStatus(error, true), headers: privateHeaders() }); }
 }

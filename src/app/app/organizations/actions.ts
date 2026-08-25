@@ -59,7 +59,7 @@ export async function updateOrganizationAction(organizationId: string, _previous
   try {
     await updateOrganization(getDatabase(), organizationId, session.user.id, values);
   } catch (error) {
-    return { fieldErrors: {}, formError: error instanceof OrganizationError && error.code === "not_owner" ? "Only the organization owner can edit this profile." : "Unable to save this organization.", values };
+    return { fieldErrors: {}, formError: error instanceof OrganizationError && error.code === "forbidden" ? "You do not have permission to edit this organization." : "Unable to save this organization.", values };
   }
   revalidatePath("/app/organizations");
   revalidatePath(`/app/organizations/${organizationId}`);
