@@ -84,6 +84,19 @@ describe("RepaymentDestinationsSettings", () => {
     await waitFor(() => expect(setOrderAction).toHaveBeenCalledWith([destinations[0]!.id, dana.id, destinations[1]!.id]));
   });
 
+  it("does not resurrect stale disclosure state after returning to an old snapshot", () => {
+    const { rerender } = render(<RepaymentDestinationsSettings destinations={entries([destinations[0]!])} createAction={vi.fn()} setOrderAction={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "New destination" }));
+
+    rerender(<RepaymentDestinationsSettings destinations={entries()} createAction={vi.fn()} setOrderAction={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "New destination" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("ADD DESTINATION")).not.toBeInTheDocument();
+
+    rerender(<RepaymentDestinationsSettings destinations={entries([destinations[0]!])} createAction={vi.fn()} setOrderAction={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "New destination" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("ADD DESTINATION")).not.toBeInTheDocument();
+  });
+
   it("adopts edited destination details and closes the edit disclosure", async () => {
     const initial = { ...destinations[0], name: "BCA old", identifier: "old-identifier" };
     const updated = { ...initial, name: "BCA updated", identifier: "new-identifier" };

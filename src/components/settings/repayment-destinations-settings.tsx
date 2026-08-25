@@ -51,7 +51,12 @@ type OrderOverlay =
   | { kind: "optimistic"; ids: string[]; snapshot: string }
   | { kind: "rollback"; ids: string[]; snapshot: string };
 
-export function RepaymentDestinationsSettings({ destinations, createAction, setOrderAction }: Props) {
+export function RepaymentDestinationsSettings(props: Props) {
+  const snapshot = serverSnapshot(props.destinations);
+  return <RepaymentDestinationsSettingsStateful key={snapshot} {...props} />;
+}
+
+function RepaymentDestinationsSettingsStateful({ destinations, createAction, setOrderAction }: Props) {
   const destinationIds = destinations.map(({ id }) => id);
   const currentServerSnapshot = serverSnapshot(destinations);
   const [orderOverlay, setOrderOverlay] = useState<OrderOverlay | null>(null);
