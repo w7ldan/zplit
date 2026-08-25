@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { parseRepaymentDestination, type RepaymentDestinationFieldErrors, type RepaymentDestinationFormValues } from "@/domain/repayment-destination";
+import { parseUsername } from "@/domain/username";
 import { LedgerNotFoundError } from "@/domain/ledger-repository";
+import { eq } from "drizzle-orm";
+import { getDatabase } from "@/db/client";
+import { users } from "@/db/schema";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 
 export type RepaymentDestinationActionState = {
@@ -20,6 +24,9 @@ export type RepaymentDestinationFormAction = (
 
 export type RepaymentDestinationOrderResult = { ok: true } | { ok: false; message: string };
 export type RepaymentDestinationOrderAction = (orderedIds: string[]) => Promise<RepaymentDestinationOrderResult>;
+
+export type UsernameActionState = { error: string; value: string };
+export type UsernameFormAction = (previousState: UsernameActionState, formData: FormData) => Promise<UsernameActionState>;
 
 function valuesFromForm(formData: FormData) {
   return parseRepaymentDestination({
@@ -46,6 +53,34 @@ function errorState(error: unknown, values: RepaymentDestinationFormValues): Rep
 
 function settingsPath() {
   return "/app/settings?saved=1#repays-to";
+}
+
+function isUniqueViolation(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
+
+export async function updateUsernameAction(
+  _previousState: UsernameActionState,
+  formData: FormData,
+): Promise<UsernameActionState> {
+  const value = typeof formData.get("username") === "string" ? formData.get("username") as string : "";
+  const result = parseUsername(value);
+  if (!result.ok) return { error: result.error, value };
+
+  const session = await requireSession();
+  try {
+    const [updated] = await getDatabase()
+      .update(users)
+      .set({ username: result.value })
+      .where(eq(users.id, session.user.id))
+      .returning({ username: users.username });
+    if (!updated) return { error: "Unable to save your username.", value };
+  } catch (error) {
+    return { error: isUniqueViolation(error) ? "That username is already taken." : "Unable to save your username.", value };
+  }
+  revalidatePath("/app");
+  revalidatePath("/app/settings");
+  redirect("/app/settings?saved=1#settings-profile-heading");
 }
 
 async function persistRepaymentDestinationOrder(orderedIds: string[]) {

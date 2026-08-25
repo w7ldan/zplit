@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
   setOrder: vi.fn(),
+  updateUsername: vi.fn(),
 }));
 
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: mocks.getAuthenticatedLedger }));
@@ -16,6 +17,7 @@ vi.mock("./actions", () => ({
   updateRepaymentDestinationAction: mocks.update,
   deleteRepaymentDestinationAction: mocks.remove,
   setRepaymentDestinationOrderAction: mocks.setOrder,
+  updateUsernameAction: mocks.updateUsername,
 }));
 
 const destinations = [
@@ -26,13 +28,14 @@ const destinations = [
 describe("/app/settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getAuthenticatedLedger.mockResolvedValue({ user: { name: "Wildan", email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue(destinations) } });
+    mocks.getAuthenticatedLedger.mockResolvedValue({ user: { name: "Wildan", username: "wildan", email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue(destinations) } });
   });
 
   it("renders modular profile, repayment, and appearance sections", async () => {
     render(await SettingsPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Account context" })).toBeInTheDocument();
+    expect(screen.getByText("@wildan")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Repayment destinations" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Theme" })).toBeInTheDocument();
     expect(screen.getByText("BCA")).toBeInTheDocument();
@@ -43,18 +46,19 @@ describe("/app/settings", () => {
     expect(screen.getByRole("button", { name: "Move BCA down" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Move GoPay up" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Move GoPay down" })).toBeDisabled();
-    expect(screen.getAllByText("Edit", { exact: true })).toHaveLength(2);
+    expect(screen.getAllByText("Edit", { exact: true })).toHaveLength(3);
     expect(screen.getByRole("button", { name: "New destination" })).toBeInTheDocument();
     expect(screen.queryByText("ADD DESTINATION")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Theme" })).toBeInTheDocument();
   });
 
   it("shows the empty destination state and save confirmation", async () => {
-    mocks.getAuthenticatedLedger.mockResolvedValue({ user: { name: "Wildan", email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue([]) } });
+    mocks.getAuthenticatedLedger.mockResolvedValue({ user: { name: "Wildan", username: null, email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue([]) } });
     render(await SettingsPage({ searchParams: Promise.resolve({ saved: "1" }) }));
     expect(screen.getByText(/No repayment destinations yet\./)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Settings saved.");
     expect(screen.getByRole("button", { name: "New destination" })).toBeInTheDocument();
     expect(screen.queryByText("ADD DESTINATION")).not.toBeInTheDocument();
+    expect(screen.getByText("Not set")).toBeInTheDocument();
   });
 });

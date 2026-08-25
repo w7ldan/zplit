@@ -1,11 +1,13 @@
 import { ThemeControl } from "@/components/theme/theme-provider";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { RepaymentDestinationsSettings } from "@/components/settings/repayment-destinations-settings";
+import { UsernameSettings } from "@/components/settings/username-settings";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import {
   createRepaymentDestinationAction,
   deleteRepaymentDestinationAction,
   setRepaymentDestinationOrderAction,
+  updateUsernameAction,
   updateRepaymentDestinationAction,
 } from "./actions";
 
@@ -49,6 +51,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
           <div className="settings-page__section-heading"><div><p className="technical-label">Profile</p><h2 id="settings-profile-heading">Account context</h2></div></div>
           <dl className="settings-page__profile">
             <div><dt>Name</dt><dd>{user.name}</dd></div>
+            <div><dt>Username</dt><dd><UsernameSettings username={user.username} action={updateUsernameAction} /></dd></div>
             <div><dt>Email</dt><dd>{user.email}</dd></div>
           </dl>
         </section>

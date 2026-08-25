@@ -21,34 +21,48 @@ import { acceptInvitationAction } from "./actions";
 const initialJoinActionState = {
   fieldErrors: {},
   formError: "",
-  values: { name: "" },
+  values: { username: "", name: "" },
 };
 
 describe("join actions", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("requires a username for interactive invitation signup", async () => {
+    const form = new FormData();
+    form.set("name", "Ada Lovelace");
+    form.set("password", "a".repeat(16));
+    form.set("confirmPassword", "a".repeat(16));
+    await expect(acceptInvitationAction("b".repeat(43), initialJoinActionState, form)).resolves.toMatchObject({
+      fieldErrors: { username: "Username must be at least 3 characters." },
+      values: { username: "", name: "Ada Lovelace" },
+    });
+    expect(mocks.acceptInvitation).not.toHaveBeenCalled();
+  });
+
   it("accepts through the invitation service and enters login", async () => {
     mocks.acceptInvitation.mockResolvedValue({ id: "user-b" });
     const form = new FormData();
+    form.set("username", "ada_lovelace");
     form.set("name", "Ada Lovelace");
     form.set("password", "a".repeat(16));
     form.set("confirmPassword", "a".repeat(16));
 
     await expect(acceptInvitationAction("b".repeat(43), initialJoinActionState, form)).rejects.toThrow("redirect:/login?joined=1");
-    expect(mocks.acceptInvitation).toHaveBeenCalledWith("database", "b".repeat(43), { name: "Ada Lovelace", password: "a".repeat(16) });
+    expect(mocks.acceptInvitation).toHaveBeenCalledWith("database", "b".repeat(43), { username: "ada_lovelace", name: "Ada Lovelace", password: "a".repeat(16) });
   });
 
   it("rejects an unavailable invitation without returning passwords", async () => {
     mocks.acceptInvitation.mockRejectedValue(new Error("This invitation is unavailable."));
-    const form = new FormData();
-    form.set("name", "Ada");
+  const form = new FormData();
+  form.set("username", "ada_lovelace");
+  form.set("name", "Ada");
     form.set("password", "a".repeat(16));
     form.set("confirmPassword", "a".repeat(16));
 
     await expect(acceptInvitationAction("b".repeat(43), initialJoinActionState, form)).resolves.toEqual({
       fieldErrors: {},
       formError: "This invitation is unavailable.",
-      values: { name: "Ada" },
+      values: { username: "ada_lovelace", name: "Ada" },
     });
   });
 });

@@ -9,7 +9,7 @@ type JoinAction = (previousState: JoinActionState, formData: FormData) => Promis
 const emptyState: JoinActionState = {
   fieldErrors: {},
   formError: "",
-  values: { name: "" },
+  values: { username: "", name: "" },
 };
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -22,12 +22,17 @@ function SubmitButton() {
 }
 
 export function InviteSignupForm({ email, suggestedName, action }: { email: string; suggestedName?: string | null; action: JoinAction }) {
-  const [state, formAction] = useActionState(action, { ...emptyState, values: { name: suggestedName ?? "" } });
+  const [state, formAction] = useActionState(action, { ...emptyState, values: { username: "", name: suggestedName ?? "" } });
   return (
     <form className="invite-signup-form" action={formAction} noValidate>
       <div className="invite-signup-form__invitee">
         <span className="technical-label">Invited email</span>
         <strong>{email}</strong>
+      </div>
+      <div className="invite-signup-form__field">
+        <label htmlFor="join-username">Username</label>
+        <input id="join-username" name="username" autoComplete="username" required defaultValue={state.values.username} aria-invalid={Boolean(state.fieldErrors.username)} aria-describedby="join-username-error" />
+        <FieldError id="join-username-error" message={state.fieldErrors.username} />
       </div>
       <div className="invite-signup-form__field">
         <label htmlFor="join-name">Your name</label>

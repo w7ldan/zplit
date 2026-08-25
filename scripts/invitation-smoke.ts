@@ -111,7 +111,7 @@ async function runInvitationSmoke() {
       assert(error instanceof Error && error.message === EXISTING_ACCOUNT_ERROR, "existing account rejection was unstable");
     }
 
-    const creationNow = new Date("2026-08-04T00:00:00.000Z");
+    const creationNow = new Date(Date.now() - 60_000);
     const duplicate = await createInvitation(db, {
       email: "duplicate@example.com",
       suggestedName: "Duplicate",
@@ -139,8 +139,9 @@ async function runInvitationSmoke() {
     await revokeInvitation(db, revokable.invitation.id, ownerId);
 
     const accepted = await createInvitation(db, { email: "accepted@example.com", suggestedName: "Accepted", createdByUserId: ownerId });
-    const acceptedUser = await acceptInvitation(db, accepted.token, { name: "Accepted User", password: ownerPassword });
+    const acceptedUser = await acceptInvitation(db, accepted.token, { username: "accepted_user", name: "Accepted User", password: ownerPassword });
     assert(await countEmail(client, acceptedUser.email) === 1, "acceptance created duplicate users");
+    assert(acceptedUser.username === "accepted_user", "acceptance did not persist the username");
     const credentialCount = await client.query<{ count: string }>("SELECT count(*)::text AS count FROM accounts WHERE user_id = $1 AND provider_id = 'credential'", [acceptedUser.id]);
     assert(Number(credentialCount.rows[0]?.count) === 1, "acceptance did not create exactly one credential account");
     const acceptedSessions = await client.query<{ count: string }>("SELECT count(*)::text AS count FROM sessions WHERE user_id = $1", [acceptedUser.id]);
@@ -149,20 +150,20 @@ async function runInvitationSmoke() {
       const owned = await client.query<{ count: string }>(`SELECT count(*)::text AS count FROM "${table}" WHERE owner_user_id = $1`, [acceptedUser.id]);
       assert(Number(owned.rows[0]?.count) === 0, "accepted ledger was not empty");
     }
-    const usedError = await expectUnavailable(() => acceptInvitation(db, accepted.token, { name: "Again", password: ownerPassword }));
+    const usedError = await expectUnavailable(() => acceptInvitation(db, accepted.token, { username: "again_user", name: "Again", password: ownerPassword }));
 
     const expired = await createInvitation(db, { email: "expired@example.com", suggestedName: null, createdByUserId: ownerId, now: new Date(Date.now() - INVITATION_TTL_MS - 1) });
-    const expiredError = await expectUnavailable(() => acceptInvitation(db, expired.token, { name: "Expired", password: ownerPassword }));
+    const expiredError = await expectUnavailable(() => acceptInvitation(db, expired.token, { username: "expired_user", name: "Expired", password: ownerPassword }));
     const revoked = await createInvitation(db, { email: "revoked-again@example.com", suggestedName: null, createdByUserId: ownerId });
     await revokeInvitation(db, revoked.invitation.id, ownerId);
-    const revokedError = await expectUnavailable(() => acceptInvitation(db, revoked.token, { name: "Revoked", password: ownerPassword }));
+    const revokedError = await expectUnavailable(() => acceptInvitation(db, revoked.token, { username: "revoked_user", name: "Revoked", password: ownerPassword }));
     assert(usedError === expiredError && expiredError === revokedError, "used, expired, and revoked errors differ");
     assert(await findUsableInvitation(db, "not-a-token") === null, "malformed token was usable");
 
     const concurrent = await createInvitation(db, { email: "concurrent@example.com", suggestedName: null, createdByUserId: ownerId });
     const concurrentResults = await Promise.allSettled([
-      acceptInvitation(db, concurrent.token, { name: "Concurrent One", password: ownerPassword }),
-      acceptInvitation(db, concurrent.token, { name: "Concurrent Two", password: ownerPassword }),
+      acceptInvitation(db, concurrent.token, { username: "concurrent_one", name: "Concurrent One", password: ownerPassword }),
+      acceptInvitation(db, concurrent.token, { username: "concurrent_two", name: "Concurrent Two", password: ownerPassword }),
     ]);
     assert(concurrentResults.filter((result) => result.status === "fulfilled").length === 1, "concurrent acceptance did not have one winner");
     assert(await countEmail(client, "concurrent@example.com") === 1, "concurrent acceptance created duplicate users");
@@ -172,8 +173,9 @@ async function runInvitationSmoke() {
     await client.query("UPDATE account_invitations SET claimed_at = $1 WHERE id = $2", [claimTime, interrupted.invitation.id]);
     const trustedAuth = createAuth({ db, secret, baseURL, enableBootstrapSignUp: true });
     await trustedAuth.api.signUpEmail({ body: { name: "Interrupted User", email: interrupted.invitation.email, password: ownerPassword } });
-    const recovered = await acceptInvitation(db, interrupted.token, { name: "Retry Name", password: ownerPassword });
+    const recovered = await acceptInvitation(db, interrupted.token, { username: "retry_name", name: "Retry Name", password: ownerPassword });
     assert(recovered.email === interrupted.invitation.email, "interrupted acceptance did not finalize the existing account");
+    assert(recovered.username === "retry_name", "interrupted acceptance did not persist the username");
     assert(await countEmail(client, interrupted.invitation.email) === 1, "interrupted acceptance duplicated the account");
 
     const productionAuth = createAuth({ db, secret, baseURL, enableBootstrapSignUp: false });

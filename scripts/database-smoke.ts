@@ -87,6 +87,27 @@ export async function runDatabaseSmoke() {
       "INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, $4)",
       [otherOwnerUserId, "Other Smoke Owner", `smoke-${otherOwnerUserId}@example.com`, true],
     );
+    const legacyUsers = await client.query<{ count: string }>("SELECT count(*)::text AS count FROM users WHERE username IS NULL");
+    assert(Number(legacyUsers.rows[0]?.count) >= 2, "multiple legacy username-less users were not preserved");
+    const usernameUserId = randomUUID();
+    await client.query(
+      "INSERT INTO users (id, name, email, email_verified, username) VALUES ($1, $2, $3, $4, $5)",
+      [usernameUserId, "Username Smoke", `smoke-${usernameUserId}@example.com`, true, "smoke_user"],
+    );
+    await expectConstraint(
+      client,
+      "23505",
+      "INSERT INTO users (id, name, email, email_verified, username) VALUES ($1, $2, $3, $4, $5)",
+      [randomUUID(), "Duplicate Username", `smoke-${randomUUID()}@example.com`, true, "smoke_user"],
+      "smoke_duplicate_username",
+    );
+    await expectConstraint(
+      client,
+      "23514",
+      "INSERT INTO users (id, name, email, email_verified, username) VALUES ($1, $2, $3, $4, $5)",
+      [randomUUID(), "Malformed Username", `smoke-${randomUUID()}@example.com`, true, "a..b"],
+      "smoke_malformed_username",
+    );
     const trip = await client.query<{ id: string }>(
       "INSERT INTO trips (owner_user_id, name, starts_on, ends_on) VALUES ($1, $2, $3, $4) RETURNING id",
       [ownerUserId, "Smoke Trip", "2026-04-12", "2026-04-16"],

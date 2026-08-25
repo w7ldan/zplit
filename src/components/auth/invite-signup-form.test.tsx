@@ -5,7 +5,7 @@ import { InviteSignupForm } from "./invite-signup-form";
 const initialState = {
   fieldErrors: {},
   formError: "",
-  values: { name: "" },
+  values: { username: "", name: "" },
 };
 
 describe("InviteSignupForm", () => {
@@ -13,6 +13,7 @@ describe("InviteSignupForm", () => {
     render(<InviteSignupForm email="person@example.com" suggestedName="Ada" action={vi.fn().mockResolvedValue(initialState)} />);
 
     expect(screen.getByText("person@example.com")).toBeInTheDocument();
+    expect(screen.getByLabelText("Username")).toBeRequired();
     expect(screen.getByLabelText("Your name")).toHaveValue("Ada");
     expect(screen.getByLabelText("Password")).toHaveAttribute("autocomplete", "new-password");
     expect(screen.getByLabelText("Confirm password")).toHaveAttribute("autocomplete", "new-password");
@@ -24,7 +25,7 @@ describe("InviteSignupForm", () => {
       ...initialState,
       fieldErrors: { confirmPassword: "Passwords do not match." },
       formError: "Please correct the marked fields.",
-      values: { name: "Ada Lovelace" },
+      values: { username: "Ada_2026", name: "Ada Lovelace" },
     });
     render(<InviteSignupForm email="person@example.com" action={action} />);
     fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Ada Lovelace" } });
@@ -32,6 +33,7 @@ describe("InviteSignupForm", () => {
 
     await waitFor(() => expect(screen.getByText("Passwords do not match.")).toBeInTheDocument());
     expect(screen.getByLabelText("Your name")).toHaveValue("Ada Lovelace");
+    expect(screen.getByLabelText("Username")).toHaveValue("Ada_2026");
     expect(screen.getByLabelText("Password")).toHaveValue("");
   });
 });

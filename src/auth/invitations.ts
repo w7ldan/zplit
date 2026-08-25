@@ -17,6 +17,7 @@ import {
   users,
 } from "../db/schema";
 import { getTrustedAuth } from "./runtime";
+import { parseUsername } from "../domain/username";
 
 export const INVITATION_TTL_MS = 72 * 60 * 60 * 1000;
 export const INVITATION_LOCK_KEY = 20603020;
@@ -304,9 +305,11 @@ async function clearClaim(db: Database, id: string, claimedAt: Date) {
 export async function acceptInvitation(
   db: Database,
   token: string,
-  input: { name: string; password: string; now?: Date },
+  input: { username: string; name: string; password: string; now?: Date },
 ) {
   if (!isInvitationToken(token)) throw new InvitationUnavailableError();
+  const username = parseUsername(input.username);
+  if (!username.ok) throw new InvitationUnavailableError();
   return withInvitationLock(async () => {
     const now = input.now ?? new Date();
     const claimed = await claimInvitationForAcceptance(db, hashInvitationToken(token), now);
@@ -316,7 +319,7 @@ export async function acceptInvitation(
     if (!matching) {
       try {
         const signup = await getTrustedAuth().api.signUpEmail({
-          body: { name: input.name, email: claimed.invitation.email, password: input.password },
+          body: { name: input.name, username: username.value, email: claimed.invitation.email, password: input.password },
         });
         if (signup.token !== null) throw new Error("Invitation signup created a session");
       } catch (error) {
@@ -364,6 +367,15 @@ export async function acceptInvitation(
       if (sessionRows.length !== 0 || await hasDomainRows(transaction, current.user.id)) {
         throw new InvitationUnavailableError();
       }
+      if (current.user.username && current.user.username !== username.value) throw new InvitationUnavailableError();
+      if (!current.user.username) {
+        const [updatedUser] = await transaction
+          .update(users)
+          .set({ username: username.value })
+          .where(and(eq(users.id, current.user.id), isNull(users.username)))
+          .returning({ id: users.id });
+        if (!updatedUser) throw new InvitationUnavailableError();
+      }
 
       const [accepted] = await transaction
         .update(accountInvitations)
@@ -380,6 +392,6 @@ export async function acceptInvitation(
       if (!accepted) throw new InvitationUnavailableError();
     });
 
-    return matching.user;
+    return matching.user.username ? matching.user : { ...matching.user, username: username.value };
   });
 }

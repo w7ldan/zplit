@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import * as schema from "../db/schema";
+import { parseUsername } from "../domain/username";
 
 export type AuthFactoryOptions = {
   db: Parameters<typeof drizzleAdapter>[0];
@@ -8,6 +9,13 @@ export type AuthFactoryOptions = {
   baseURL: string;
   enableBootstrapSignUp: boolean;
 };
+
+async function normalizeAuthUsername(user: Record<string, unknown>) {
+  if (!("username" in user)) return { data: user };
+  const result = parseUsername(user.username);
+  if (!result.ok) throw new Error(result.error);
+  return { data: { ...user, username: result.value } };
+}
 
 export function createAuth({ db, secret, baseURL, enableBootstrapSignUp }: AuthFactoryOptions) {
   const configuredBaseURL = baseURL.trim();
@@ -43,6 +51,17 @@ export function createAuth({ db, secret, baseURL, enableBootstrapSignUp }: AuthF
         verifications: schema.verifications,
       },
     }),
+    user: {
+      additionalFields: {
+        username: { type: "string" as const, required: false, returned: true, input: true, sortable: true, unique: true },
+      },
+    },
+    databaseHooks: {
+      user: {
+        create: { before: normalizeAuthUsername },
+        update: { before: normalizeAuthUsername },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       disableSignUp: !enableBootstrapSignUp,

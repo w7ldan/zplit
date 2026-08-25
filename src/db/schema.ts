@@ -24,6 +24,7 @@ export const users = pgTable("users", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  username: varchar("username", { length: 20 }),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -31,7 +32,11 @@ export const users = pgTable("users", {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
-});
+}, (table) => [
+  check("users_username_lowercase", sql`${table.username} IS NULL OR ${table.username} = lower(${table.username})`),
+  check("users_username_shape", sql`${table.username} IS NULL OR (length(${table.username}) BETWEEN 3 AND 20 AND ${table.username} ~ '^[a-z0-9][a-z0-9._]*[a-z0-9]$' AND ${table.username} !~ '[._]{2}')`),
+  uniqueIndex("users_username_uidx").on(table.username).where(sql`${table.username} IS NOT NULL`),
+]);
 
 export const friends = pgTable(
   "friends",
