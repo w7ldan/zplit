@@ -98,6 +98,13 @@ Unless a later bounded technical preflight proves it unsuitable, authenticated
 SSE is the transport direction. Missed or reconnected events MUST be
 recoverable from canonical persisted state.
 
+Stage 3 uses a user-scoped in-process publisher because the current deployment
+has one effective web instance. It is a freshness channel, not durable event
+storage; multi-instance notification or chat delivery needs a later shared
+wake-up adapter such as PostgreSQL `LISTEN/NOTIFY` without moving truth out of
+PostgreSQL. Consumers must refetch canonical state after a reconnect or
+relevant invalidation; the transport does not replay missed events.
+
 Realtime notifications update Inbox unread state, relevant attention surfaces,
 and restrained in-app feedback where appropriate. The system MUST avoid
 notification spam.

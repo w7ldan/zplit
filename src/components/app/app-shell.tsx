@@ -11,6 +11,7 @@ import { DeleteConfirmation } from "./delete-record-form";
 import { UnsavedChangesProvider } from "@/components/navigation/unsaved-changes";
 import { ThemeControl } from "@/components/theme/theme-provider";
 import { GlobalSearch } from "./global-search";
+import { RealtimeProvider } from "@/components/realtime/realtime-provider";
 
 const destinations = [
   ["Overview", "/app"],
@@ -43,8 +44,9 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
   }, []);
 
   return (
-    <UnsavedChangesProvider>
-      <ToastProvider>
+    <RealtimeProvider>
+      <UnsavedChangesProvider>
+        <ToastProvider>
         <div className="app-shell">
       <HeaderShell
         ariaLabel="Ledger header"
@@ -99,7 +101,8 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
       </nav>
         <main className="app-shell__main"><DeleteConfirmation />{children}</main>
         </div>
-      </ToastProvider>
-    </UnsavedChangesProvider>
+        </ToastProvider>
+      </UnsavedChangesProvider>
+    </RealtimeProvider>
   );
 }

@@ -43,6 +43,8 @@ describe("/app/settings", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Account context" })).toBeInTheDocument();
     expect(document.querySelectorAll(".settings-page__identity .user-avatar")).toHaveLength(1);
     expect(document.querySelector(".settings-page__identity svg")).toBeInTheDocument();
+    expect(document.querySelector(".settings-page__identity > .user-avatar")).toBeInTheDocument();
+    expect(document.querySelector(".settings-page__identity > .settings-page__identity-details .settings-page__avatar-control")).toBeInTheDocument();
     expect(document.querySelector(".settings-page__identity-name")).toHaveTextContent("Wildan");
     expect(screen.getByText("@wildan")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Change photo" })).toBeInTheDocument();

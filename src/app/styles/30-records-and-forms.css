@@ -3924,17 +3924,17 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   gap: 1rem;
   min-width: 0;
-  padding-bottom: 1rem;
+  padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--rule);
 }
 
 .settings-page__identity-details {
   display: grid;
   min-width: 0;
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 
 .settings-page__identity-name {
@@ -4002,7 +4002,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 .settings-page__avatar-control {
   display: block;
   min-width: 0;
-  margin-top: 0.35rem;
+  margin-top: 0.2rem;
 }
 
 .settings-page__avatar-copy {
@@ -4383,10 +4383,6 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 @media (max-width: 767px) {
   .settings-page__profile {
     grid-template-columns: 1fr;
-  }
-
-  .settings-page__identity {
-    align-items: start;
   }
 
   .settings-page__section-heading,
