@@ -1542,7 +1542,8 @@ body.global-search-open {
 }
 
 .organization-detail__future,
-.organization-detail__owner-tools {
+.organization-detail__owner-tools,
+.organization-detail__section {
   display: grid;
   gap: 0.75rem;
   margin-top: 1.25rem;
@@ -1558,6 +1559,87 @@ body.global-search-open {
 .organization-detail__owner-tools h2 {
   margin: 0;
   font-size: 1.1rem;
+}
+
+.organization-detail__section h2,
+.organization-detail__section h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.organization-detail__section h3 {
+  font-size: 0.95rem;
+}
+
+.organization-members__list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.organization-members__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 0;
+  padding-block: 0.55rem;
+  border-top: 1px solid var(--rule);
+}
+
+.organization-members__row:first-child {
+  border-top: 0;
+}
+
+.organization-members__identity {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.organization-members__identity span,
+.organization-members__role,
+.organization-invite__message {
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.organization-members__role {
+  text-align: right;
+}
+
+.organization-invite__form {
+  display: grid;
+  gap: 0.65rem;
+  max-width: 34rem;
+}
+
+.organization-invite__form > label {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.organization-invite__form select {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.organization-invite__message {
+  margin: 0;
+}
+
+.organization-invite__pending {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
 }
 
 .organization-detail__delete {

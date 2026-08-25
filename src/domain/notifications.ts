@@ -1,6 +1,10 @@
+import { normalizeUuid } from "@/domain/record-retrieval";
+import { isOrganizationInvitationRole, type OrganizationInvitationRole } from "@/domain/organization-permissions";
+
 export const NOTIFICATION_TYPES = {
   test: "system.test",
   friendLinkRequest: "friend.link.request",
+  organizationInvitation: "organization.invitation",
 } as const;
 export const NOTIFICATION_STATE_CHANGED_EVENT = "notification.state.changed";
 
@@ -13,6 +17,14 @@ export type NotificationMetadata = {
     requesterDisplayName: string;
     requesterUsername: string;
     friendName: string;
+  };
+  "organization.invitation": {
+    invitationId: string;
+    organizationId: string;
+    organizationName: string;
+    inviterDisplayName: string;
+    role: OrganizationInvitationRole;
+    expiresAt: string;
   };
 };
 
@@ -49,8 +61,37 @@ function parseFriendLinkRequestMetadata(value: unknown): NotificationMetadata["f
   };
 }
 
+function parseOrganizationInvitationMetadata(value: unknown): NotificationMetadata["organization.invitation"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 6) return null;
+  const invitationId = normalizeUuid(record.invitationId);
+  const organizationId = normalizeUuid(record.organizationId);
+  if (!invitationId || !organizationId) return null;
+  if (typeof record.organizationName !== "string" || !record.organizationName.trim() || record.organizationName.length > 160) return null;
+  if (typeof record.inviterDisplayName !== "string" || !record.inviterDisplayName.trim() || record.inviterDisplayName.length > 120) return null;
+  if (!isOrganizationInvitationRole(record.role)) return null;
+  if (typeof record.expiresAt !== "string" || Number.isNaN(Date.parse(record.expiresAt))) return null;
+  return {
+    invitationId,
+    organizationId,
+    organizationName: record.organizationName.trim(),
+    inviterDisplayName: record.inviterDisplayName.trim(),
+    role: record.role,
+    expiresAt: new Date(record.expiresAt).toISOString(),
+  };
+}
+
 export function getFriendLinkRequestMetadata(value: unknown) {
   return parseFriendLinkRequestMetadata(value);
+}
+
+export function getOrganizationInvitationMetadata(value: unknown) {
+  return parseOrganizationInvitationMetadata(value);
+}
+
+function roleLabel(role: OrganizationInvitationRole) {
+  return role[0]?.toUpperCase() + role.slice(1);
 }
 
 export const notificationCatalog = {
@@ -69,6 +110,15 @@ export const notificationCatalog = {
       label: "Friend link request",
       primary: `${metadata.requesterDisplayName} @${metadata.requesterUsername} wants to link “${metadata.friendName}”.`,
       secondary: "Identity confirmation only.",
+    }),
+  },
+  "organization.invitation": {
+    label: "Organization invitation",
+    parseMetadata: parseOrganizationInvitationMetadata,
+    present: (metadata: NotificationMetadata["organization.invitation"]): NotificationPresentation => ({
+      label: "Organization invitation",
+      primary: `${metadata.inviterDisplayName} invited you to join ${metadata.organizationName} as ${roleLabel(metadata.role)}.`,
+      secondary: `Expires ${new Date(metadata.expiresAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })} UTC.`,
     }),
   },
 } as const;

@@ -2,12 +2,13 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OrganizationRole } from "@/domain/organization-permissions";
 
-const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), getOrganizationForMember: vi.fn(), notFound: vi.fn(() => { throw new Error("not_found"); }) }));
+const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), getOrganizationForMember: vi.fn(), listOrganizationMembers: vi.fn(), listPendingOrganizationInvitations: vi.fn(), notFound: vi.fn(() => { throw new Error("not_found"); }) }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/organizations", () => ({ getOrganizationForMember: mocks.getOrganizationForMember }));
+vi.mock("@/server/organization-invitations", () => ({ listOrganizationMembers: mocks.listOrganizationMembers, listPendingOrganizationInvitations: mocks.listPendingOrganizationInvitations }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
 import OrganizationDetailPage from "./page";
@@ -26,6 +27,8 @@ describe("Organization detail capability gating", () => {
     vi.clearAllMocks();
     mocks.requireSession.mockResolvedValue({ user: { id: "user-a" } });
     mocks.getDatabase.mockReturnValue("database");
+    mocks.listOrganizationMembers.mockResolvedValue([]);
+    mocks.listPendingOrganizationInvitations.mockResolvedValue([]);
   });
 
   async function renderPage(permissions: { canUpdate: boolean; canDelete: boolean }, role: OrganizationRole = organization.role) {

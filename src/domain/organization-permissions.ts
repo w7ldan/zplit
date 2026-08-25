@@ -26,6 +26,8 @@ export const ORGANIZATION_CAPABILITIES = [
 export type OrganizationCapability = typeof ORGANIZATION_CAPABILITIES[number];
 export const ORGANIZATION_ROLES = ["owner", "admin", "treasurer", "member", "custom"] as const;
 export type OrganizationRole = typeof ORGANIZATION_ROLES[number];
+export const ORGANIZATION_INVITATION_ROLES = ["admin", "treasurer", "member"] as const;
+export type OrganizationInvitationRole = typeof ORGANIZATION_INVITATION_ROLES[number];
 
 export const ORGANIZATION_OWNER_RESERVED_CAPABILITIES = ["organization.delete"] as const satisfies readonly OrganizationCapability[];
 
@@ -63,6 +65,10 @@ export function isOrganizationRole(value: unknown): value is OrganizationRole {
   return typeof value === "string" && (ORGANIZATION_ROLES as readonly string[]).includes(value);
 }
 
+export function isOrganizationInvitationRole(value: unknown): value is OrganizationInvitationRole {
+  return typeof value === "string" && (ORGANIZATION_INVITATION_ROLES as readonly string[]).includes(value);
+}
+
 export function normalizeCustomCapabilities(value: unknown): OrganizationCapability[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((capability): capability is OrganizationCapability => isOrganizationCapability(capability) && !ownerReservedCapabilities.has(capability)))];
@@ -72,4 +78,14 @@ export function resolveOrganizationCapabilities(role: unknown, customCapabilitie
   if (!isOrganizationRole(role)) return new Set<OrganizationCapability>();
   const grants: readonly OrganizationCapability[] = role === "custom" ? ["organization.view", ...normalizeCustomCapabilities(customCapabilities)] : presetCapabilities[role];
   return new Set<OrganizationCapability>(grants);
+}
+
+export function canGrantOrganizationInvitationRole(role: unknown, can: (capability: OrganizationCapability) => boolean) {
+  if (!isOrganizationInvitationRole(role) || !can("members.invite")) return false;
+  if (role === "member") return true;
+  return can("roles.manage") && [...resolveOrganizationCapabilities(role)].every(can);
+}
+
+export function getOrganizationInvitationRoles(can: (capability: OrganizationCapability) => boolean): OrganizationInvitationRole[] {
+  return ORGANIZATION_INVITATION_ROLES.filter((role) => canGrantOrganizationInvitationRole(role, can));
 }

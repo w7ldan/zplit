@@ -23,4 +23,21 @@ describe("notification catalog", () => {
     })).toEqual({ label: "Friend link request", primary: "Owner @owner wants to link “Office”.", secondary: "Identity confirmation only." });
     expect(() => normalizeNotificationMetadata("friend.link.request", { requesterUsername: "owner", email: "owner@example.com" })).toThrow("Invalid metadata");
   });
+
+  it("presents Organization invitations without accepting private fields", () => {
+    const metadata = {
+      invitationId: "11111111-1111-4111-8111-111111111111",
+      organizationId: "22222222-2222-4222-8222-222222222222",
+      organizationName: "Zplit Team",
+      inviterDisplayName: "Wildan",
+      role: "treasurer",
+      expiresAt: "2026-09-01T00:00:00.000Z",
+    } as const;
+    expect(presentNotification("organization.invitation", metadata)).toMatchObject({
+      label: "Organization invitation",
+      primary: "Wildan invited you to join Zplit Team as Treasurer.",
+    });
+    expect(() => normalizeNotificationMetadata("organization.invitation", { ...metadata, email: "private@example.com" })).toThrow("Invalid metadata");
+    expect(() => normalizeNotificationMetadata("organization.invitation", { ...metadata, role: "owner" })).toThrow("Invalid metadata");
+  });
 });

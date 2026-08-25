@@ -13,6 +13,7 @@ const domainTables = [
   "friends",
   "notifications",
   "organization_avatars",
+  "organization_invitations",
   "organization_memberships",
   "organizations",
   "outings",
@@ -65,9 +66,9 @@ describe("database schema", () => {
     expect(foreignKeyShape(schema.userAvatars)).toEqual([{ from: ["user_id"], to: "users", target: ["id"], onDelete: "cascade" }]);
   });
 
-  it("exports the eighteen domain tables and four auth tables", () => {
+  it("exports the nineteen domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationAvatars]
+      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -130,6 +131,15 @@ describe("database schema", () => {
       "organization_avatars_media_type_allowed",
       "organization_avatars_content_size_matches",
     ]));
+    const invitations = getTableConfig(schema.organizationInvitations);
+    expect(invitations.columns.map((column) => column.name)).toEqual(["id", "organization_id", "target_user_id", "invited_by_user_id", "role", "status", "created_at", "expires_at", "updated_at", "accepted_at", "declined_at", "revoked_at", "expired_at"]);
+    expect(invitations.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "organization_invitations_target_not_inviter",
+      "organization_invitations_role_allowed",
+      "organization_invitations_status_allowed",
+      "organization_invitations_transition_timestamps",
+    ]));
+    expect(indexColumns(schema.organizationInvitations, "organization_invitations_pending_organization_target_uidx")).toEqual(["organization_id", "target_user_id"]);
   });
 
   it("keeps notifications recipient-owned, bounded, and queryable by unread/newest state", () => {

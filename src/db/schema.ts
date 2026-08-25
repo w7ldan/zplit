@@ -1,6 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import type { NotificationMetadata, NotificationType } from "@/domain/notifications";
-import type { OrganizationCapability } from "@/domain/organization-permissions";
+import type { OrganizationCapability, OrganizationInvitationRole } from "@/domain/organization-permissions";
 import {
   boolean,
   check,
@@ -187,6 +187,47 @@ export const organizationMemberships = pgTable(
     primaryKey({ columns: [table.organizationId, table.userId] }),
     check("organization_memberships_role_allowed", sql`${table.role} IN ('owner', 'admin', 'treasurer', 'member', 'custom')`),
     index("organization_memberships_user_idx").on(table.userId),
+  ],
+);
+
+export const organizationInvitations = pgTable(
+  "organization_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    targetUserId: text("target_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    invitedByUserId: text("invited_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    role: varchar("role", { length: 32 }).$type<OrganizationInvitationRole>().notNull(),
+    status: varchar("status", { length: 16 }).default("pending").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    declinedAt: timestamp("declined_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    expiredAt: timestamp("expired_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("organization_invitations_target_not_inviter", sql`${table.targetUserId} <> ${table.invitedByUserId}`),
+    check("organization_invitations_role_allowed", sql`${table.role} IN ('admin', 'treasurer', 'member')`),
+    check("organization_invitations_status_allowed", sql`${table.status} IN ('pending', 'accepted', 'declined', 'revoked', 'expired')`),
+    check("organization_invitations_expires_after_created", sql`${table.expiresAt} > ${table.createdAt}`),
+    check(
+      "organization_invitations_transition_timestamps",
+      sql`(${table.status} = 'pending' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NULL AND ${table.revokedAt} IS NULL AND ${table.expiredAt} IS NULL) OR (${table.status} = 'accepted' AND ${table.acceptedAt} IS NOT NULL AND ${table.declinedAt} IS NULL AND ${table.revokedAt} IS NULL AND ${table.expiredAt} IS NULL) OR (${table.status} = 'declined' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NOT NULL AND ${table.revokedAt} IS NULL AND ${table.expiredAt} IS NULL) OR (${table.status} = 'revoked' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NULL AND ${table.revokedAt} IS NOT NULL AND ${table.expiredAt} IS NULL) OR (${table.status} = 'expired' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NULL AND ${table.revokedAt} IS NULL AND ${table.expiredAt} IS NOT NULL)`,
+    ),
+    uniqueIndex("organization_invitations_pending_organization_target_uidx")
+      .on(table.organizationId, table.targetUserId)
+      .where(sql`${table.status} = 'pending'`),
+    index("organization_invitations_organization_status_idx").on(table.organizationId, table.status),
+    index("organization_invitations_target_status_idx").on(table.targetUserId, table.status),
+    index("organization_invitations_expires_at_idx").on(table.expiresAt),
   ],
 );
 
@@ -737,6 +778,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   createdInvitations: many(accountInvitations, { relationName: "createdInvitations" }),
   acceptedInvitations: many(accountInvitations, { relationName: "acceptedInvitations" }),
   organizationMemberships: many(organizationMemberships),
+  organizationInvitationsReceived: many(organizationInvitations, { relationName: "organizationInvitationTargets" }),
+  organizationInvitationsSent: many(organizationInvitations, { relationName: "organizationInvitationInviters" }),
 }));
 
 export const friendsRelations = relations(friends, ({ one, many }) => ({
@@ -785,6 +828,7 @@ export const friendConnectionsRelations = relations(friendConnections, ({ one })
 
 export const organizationsRelations = relations(organizations, ({ many, one }) => ({
   memberships: many(organizationMemberships),
+  invitations: many(organizationInvitations),
   avatar: one(organizationAvatars),
 }));
 
@@ -796,6 +840,23 @@ export const organizationMembershipsRelations = relations(organizationMembership
   user: one(users, {
     fields: [organizationMemberships.userId],
     references: [users.id],
+  }),
+}));
+
+export const organizationInvitationsRelations = relations(organizationInvitations, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [organizationInvitations.organizationId],
+    references: [organizations.id],
+  }),
+  target: one(users, {
+    fields: [organizationInvitations.targetUserId],
+    references: [users.id],
+    relationName: "organizationInvitationTargets",
+  }),
+  inviter: one(users, {
+    fields: [organizationInvitations.invitedByUserId],
+    references: [users.id],
+    relationName: "organizationInvitationInviters",
   }),
 }));
 

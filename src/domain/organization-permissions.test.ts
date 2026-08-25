@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   ORGANIZATION_CAPABILITIES,
+  canGrantOrganizationInvitationRole,
+  getOrganizationInvitationRoles,
   normalizeCustomCapabilities,
   resolveOrganizationCapabilities,
 } from "./organization-permissions";
@@ -55,5 +57,20 @@ describe("Organization capability presets", () => {
 
   it("fails closed for unknown roles", () => {
     expect(capabilities("superuser", ["organization.delete", "organization.update"])).toEqual([]);
+  });
+
+  it("keeps invitation role assignment inside the inviter's resolved grant set", () => {
+    const owner = new Set(capabilities("owner"));
+    const admin = new Set(capabilities("admin"));
+    const memberOnly = new Set(["members.invite"]);
+    const elevatedPartial = new Set(["members.invite", "roles.manage", "organization.view", "members.view"]);
+
+    expect(getOrganizationInvitationRoles((capability) => owner.has(capability))).toEqual(["admin", "treasurer", "member"]);
+    expect(getOrganizationInvitationRoles((capability) => admin.has(capability))).toEqual(["admin", "treasurer", "member"]);
+    expect(getOrganizationInvitationRoles((capability) => memberOnly.has(capability))).toEqual(["member"]);
+    expect(canGrantOrganizationInvitationRole("treasurer", (capability) => elevatedPartial.has(capability))).toBe(false);
+    expect(canGrantOrganizationInvitationRole("owner", (capability) => owner.has(capability))).toBe(false);
+    expect(canGrantOrganizationInvitationRole("custom", (capability) => owner.has(capability))).toBe(false);
+    expect(canGrantOrganizationInvitationRole("forged", () => true)).toBe(false);
   });
 });

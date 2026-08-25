@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   markAll: vi.fn(),
   markOne: vi.fn(),
   getFriendLinkStatuses: vi.fn(),
+  getOrganizationInvitationStatuses: vi.fn(),
 }));
 
 vi.mock("@/server/notifications", () => ({
@@ -15,8 +16,9 @@ vi.mock("@/server/notifications", () => ({
   getCurrentUserUnreadNotificationCount: mocks.getUnread,
 }));
 vi.mock("@/server/friend-links", () => ({ getCurrentUserFriendLinkRequestStatuses: mocks.getFriendLinkStatuses }));
+vi.mock("@/server/organization-invitations", () => ({ getCurrentUserOrganizationInvitationStatuses: mocks.getOrganizationInvitationStatuses }));
 vi.mock("@/components/notifications/inbox-live-refresh", () => ({ InboxLiveRefresh: () => null }));
-vi.mock("./actions", () => ({ markAllNotificationsReadAction: mocks.markAll, markNotificationReadAction: mocks.markOne, acceptFriendLinkRequestAction: vi.fn(), declineFriendLinkRequestAction: vi.fn(), unlinkFriendLinkRequestAction: vi.fn() }));
+vi.mock("./actions", () => ({ markAllNotificationsReadAction: mocks.markAll, markNotificationReadAction: mocks.markOne, acceptFriendLinkRequestAction: vi.fn(), declineFriendLinkRequestAction: vi.fn(), unlinkFriendLinkRequestAction: vi.fn(), acceptOrganizationInvitationAction: vi.fn(), declineOrganizationInvitationAction: vi.fn() }));
 
 describe("/app/inbox", () => {
   beforeEach(() => {
@@ -33,6 +35,7 @@ describe("/app/inbox", () => {
     });
     mocks.getUnread.mockResolvedValue(1);
     mocks.getFriendLinkStatuses.mockResolvedValue(new Map());
+    mocks.getOrganizationInvitationStatuses.mockResolvedValue(new Map());
   });
 
   it("renders bounded newest rows with safe text and explicit read actions", async () => {
@@ -87,5 +90,23 @@ describe("/app/inbox", () => {
     expect(screen.getByText("Unlink @owner?")).toBeInTheDocument();
     expect(screen.getByText(/Existing Friend balances and history remain unchanged/)).toBeInTheDocument();
     expect(screen.queryByText(/email|private ledger|expense history/i)).not.toBeInTheDocument();
+  });
+
+  it("renders pending and resolved Organization invitation states without email fields", async () => {
+    const invitationId = "33333333-3333-4333-8333-333333333333";
+    const organizationId = "44444444-4444-4444-8444-444444444444";
+    mocks.getPage.mockResolvedValue({
+      rows: [{ id: "notification-invitation", type: "organization.invitation", metadata: { invitationId, organizationId, organizationName: "Zplit Team", inviterDisplayName: "Wildan", role: "treasurer", expiresAt: "2026-09-01T00:00:00.000Z" }, createdAt: new Date("2026-08-25T07:00:00Z"), readAt: null, recipientUserId: "user-a", dedupeKey: `organization-invitation:${invitationId}` }],
+      page: 1,
+      pageSize: 20,
+      totalItems: 1,
+      totalPages: 1,
+    });
+    mocks.getOrganizationInvitationStatuses.mockResolvedValue(new Map([[invitationId, { id: invitationId, organizationId, status: "pending", role: "treasurer", expiresAt: new Date("2026-09-01T00:00:00Z") }]]));
+    render(await InboxPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText("Wildan invited you to join Zplit Team as Treasurer.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
+    expect(screen.queryByText(/email|example\.com/i)).not.toBeInTheDocument();
   });
 });

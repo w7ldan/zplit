@@ -3,10 +3,12 @@ import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { InboxLiveRefresh } from "@/components/notifications/inbox-live-refresh";
 import { InboxIcon } from "@/components/notifications/inbox-icon";
 import { RecordPagination } from "@/components/records/record-pagination";
-import { getFriendLinkRequestMetadata, NOTIFICATION_TYPES, presentNotification } from "@/domain/notifications";
+import { getFriendLinkRequestMetadata, getOrganizationInvitationMetadata, NOTIFICATION_TYPES, presentNotification } from "@/domain/notifications";
 import { getCurrentUserNotificationPage, getCurrentUserUnreadNotificationCount } from "@/server/notifications";
 import { getCurrentUserFriendLinkRequestStatuses } from "@/server/friend-links";
+import { getCurrentUserOrganizationInvitationStatuses } from "@/server/organization-invitations";
 import { FriendLinkRequestActions } from "@/components/notifications/friend-link-request";
+import { OrganizationInvitationActions } from "@/components/notifications/organization-invitation";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +27,11 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
     getCurrentUserUnreadNotificationCount(),
   ]);
   const friendLinkRequestIds = page.rows.flatMap((notification) => notification.type === NOTIFICATION_TYPES.friendLinkRequest ? [getFriendLinkRequestMetadata(notification.metadata)?.requestId].filter((id): id is string => Boolean(id)) : []);
-  const friendLinkRequestStatuses = await getCurrentUserFriendLinkRequestStatuses(friendLinkRequestIds);
+  const organizationInvitationIds = page.rows.flatMap((notification) => notification.type === NOTIFICATION_TYPES.organizationInvitation ? [getOrganizationInvitationMetadata(notification.metadata)?.invitationId].filter((id): id is string => Boolean(id)) : []);
+  const [friendLinkRequestStatuses, organizationInvitationStatuses] = await Promise.all([
+    getCurrentUserFriendLinkRequestStatuses(friendLinkRequestIds),
+    getCurrentUserOrganizationInvitationStatuses(organizationInvitationIds),
+  ]);
 
   return (
     <section className="app-page inbox-page" id="top">
@@ -46,6 +52,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
                 const presentation = presentNotification(notification.type, notification.metadata);
                 const unread = notification.readAt === null;
                 const linkMetadata = notification.type === NOTIFICATION_TYPES.friendLinkRequest ? getFriendLinkRequestMetadata(notification.metadata) : null;
+                const invitationMetadata = notification.type === NOTIFICATION_TYPES.organizationInvitation ? getOrganizationInvitationMetadata(notification.metadata) : null;
                 return (
                   <li className={`notification-row${unread ? " notification-row--unread" : ""}`} key={notification.id}>
                     <div className="notification-row__main">
@@ -60,6 +67,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
                     <div className="notification-row__state">
                       {unread ? <form action={markNotificationReadAction.bind(null, notification.id)}><button className="text-link" type="submit">Mark read</button></form> : <span>Read</span>}
                       {linkMetadata ? <FriendLinkRequestActions requestId={linkMetadata.requestId} requesterUsername={linkMetadata.requesterUsername} status={friendLinkRequestStatuses.get(linkMetadata.requestId)} /> : null}
+                      {invitationMetadata ? <OrganizationInvitationActions invitationId={invitationMetadata.invitationId} status={organizationInvitationStatuses.get(invitationMetadata.invitationId)} /> : null}
                     </div>
                   </li>
                 );

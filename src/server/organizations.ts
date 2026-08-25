@@ -5,8 +5,10 @@ import type { Database } from "@/db/client";
 import { organizationAvatars, organizationMemberships, organizations } from "@/db/schema";
 import {
   isOrganizationRole,
+  getOrganizationInvitationRoles,
   resolveOrganizationCapabilities,
   type OrganizationCapability,
+  type OrganizationInvitationRole,
   type OrganizationRole,
 } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
@@ -21,7 +23,7 @@ export type OrganizationSummary = {
   memberCount: number;
   avatar: OrganizationAvatarMetadata | null;
 };
-export type OrganizationDetail = OrganizationSummary & { canUpdate: boolean; canDelete: boolean };
+export type OrganizationDetail = OrganizationSummary & { canUpdate: boolean; canDelete: boolean; canViewMembers: boolean; invitationRoles: OrganizationInvitationRole[] };
 
 export class OrganizationError extends Error {
   constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden") {
@@ -117,7 +119,16 @@ export async function getOrganizationForMember(database: Database, organizationI
     .select({ memberCount: count() })
     .from(organizationMemberships)
     .where(eq(organizationMemberships.organizationId, organizationId));
-  return { ...row, role: row.role as OrganizationRole, memberCount: Number(memberCount), avatar: mapAvatar(row.avatar), canUpdate: access.can("organization.update"), canDelete: access.can("organization.delete") };
+  return {
+    ...row,
+    role: row.role as OrganizationRole,
+    memberCount: Number(memberCount),
+    avatar: mapAvatar(row.avatar),
+    canUpdate: access.can("organization.update"),
+    canDelete: access.can("organization.delete"),
+    canViewMembers: access.can("members.view"),
+    invitationRoles: getOrganizationInvitationRoles(access.can),
+  };
 }
 
 export async function createOrganization(

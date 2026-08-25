@@ -5,6 +5,7 @@ import { requireSession } from "@/auth/require-session";
 import { markAllCurrentUserNotificationsRead, markCurrentUserNotificationRead } from "@/server/notifications";
 import { getDatabase } from "@/db/client";
 import { respondToFriendLinkRequest, unlinkFriendLink } from "@/server/friend-links";
+import { acceptOrganizationInvitation, declineOrganizationInvitation } from "@/server/organization-invitations";
 
 export async function markNotificationReadAction(notificationId: string) {
   await markCurrentUserNotificationRead(notificationId);
@@ -45,4 +46,26 @@ export async function unlinkFriendLinkRequestAction(requestId: string) {
   }
   revalidatePath("/app/inbox");
   revalidatePath("/app/friends");
+}
+
+export async function acceptOrganizationInvitationAction(invitationId: string) {
+  const session = await requireSession();
+  try {
+    const result = await acceptOrganizationInvitation(getDatabase(), session.user.id, invitationId);
+    revalidatePath(`/app/organizations/${result.organizationId}`);
+    revalidatePath("/app/organizations");
+  } catch {
+    // The Inbox refetches canonical state after a competing or stale response.
+  }
+  revalidatePath("/app/inbox");
+}
+
+export async function declineOrganizationInvitationAction(invitationId: string) {
+  const session = await requireSession();
+  try {
+    await declineOrganizationInvitation(getDatabase(), session.user.id, invitationId);
+  } catch {
+    // The Inbox refetches canonical state after a competing or stale response.
+  }
+  revalidatePath("/app/inbox");
 }
