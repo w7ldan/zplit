@@ -10,7 +10,7 @@ import type { Database } from "@/db/client";
 
 export const NOTIFICATIONS_PAGE_SIZE = 20;
 
-type NotificationStateChangeReason = "created" | "read" | "read_all";
+export type NotificationStateChangeReason = "created" | "read" | "read_all" | "resolved";
 
 export type NotificationRecord = typeof notifications.$inferSelect;
 
@@ -32,7 +32,7 @@ export function normalizeNotificationPage(value: unknown) {
   return Math.min(page, 10_000);
 }
 
-function publishStateChange(recipientUserId: string, reason: NotificationStateChangeReason) {
+export function publishNotificationStateChange(recipientUserId: string, reason: NotificationStateChangeReason) {
   try {
     publishRealtimeEvent(recipientUserId, {
       type: NOTIFICATION_STATE_CHANGED_EVENT,
@@ -51,7 +51,9 @@ export type CreateNotificationInput<T extends NotificationType = NotificationTyp
 };
 
 export async function createNotification<T extends NotificationType>(input: CreateNotificationInput<T>) {
-  return createNotificationInDatabase(getDatabase(), input);
+  const created = await createNotificationInDatabase(getDatabase(), input);
+  publishNotificationStateChange(input.recipientUserId, "created");
+  return created;
 }
 
 export async function createNotificationInDatabase<T extends NotificationType>(database: Database, input: CreateNotificationInput<T>) {
@@ -67,10 +69,9 @@ export async function createNotificationInDatabase<T extends NotificationType>(d
       type: input.type,
       metadata: normalizeNotificationMetadata(input.type, input.metadata),
       dedupeKey: input.dedupeKey ?? null,
-    })
+  })
     .returning();
   if (!created) throw new Error("Notification was not created");
-  publishStateChange(input.recipientUserId, "created");
   return created;
 }
 
@@ -121,7 +122,7 @@ export async function markNotificationReadForUser(recipientUserId: string, notif
     .where(and(eq(notifications.id, notificationId), eq(notifications.recipientUserId, recipientUserId), isNull(notifications.readAt)))
     .returning({ id: notifications.id });
   if (!updated) return false;
-  publishStateChange(recipientUserId, "read");
+  publishNotificationStateChange(recipientUserId, "read");
   return true;
 }
 
@@ -137,7 +138,7 @@ export async function markAllNotificationsReadForUser(recipientUserId: string) {
     .set({ readAt: new Date() })
     .where(and(eq(notifications.recipientUserId, recipientUserId), isNull(notifications.readAt)))
     .returning({ id: notifications.id });
-  if (updated.length > 0) publishStateChange(recipientUserId, "read_all");
+  if (updated.length > 0) publishNotificationStateChange(recipientUserId, "read_all");
   return updated.length;
 }
 

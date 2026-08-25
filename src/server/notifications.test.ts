@@ -11,7 +11,7 @@ vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/realtime", () => ({ publishRealtimeEvent: mocks.publishRealtimeEvent }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 
-import { createNotification, markCurrentUserNotificationRead } from "./notifications";
+import { createNotification, createNotificationInDatabase, markCurrentUserNotificationRead } from "./notifications";
 
 const row = {
   id: "notification-a",
@@ -62,5 +62,22 @@ describe("notification service", () => {
     mocks.getDatabase.mockReturnValue({ insert: vi.fn(() => builder) });
 
     await expect(createNotification({ recipientUserId: "user-a", type: "system.test", metadata: { message: "Hello" } })).resolves.toEqual(row);
+  });
+
+  it("keeps caller-owned transaction insertion silent until the caller commits", async () => {
+    const returning = vi.fn().mockResolvedValue([row]);
+    const builder = { values: vi.fn(), returning };
+    builder.values.mockReturnValue(builder);
+    const transaction = { insert: vi.fn(() => builder) };
+    await expect(createNotificationInDatabase(transaction as never, { recipientUserId: "user-a", type: "system.test", metadata: { message: "Hello" } })).resolves.toEqual(row);
+    expect(mocks.publishRealtimeEvent).not.toHaveBeenCalled();
+  });
+
+  it("does not publish when durable insertion fails", async () => {
+    const builder = { values: vi.fn(), returning: vi.fn().mockRejectedValue(new Error("database unavailable")) };
+    builder.values.mockReturnValue(builder);
+    mocks.getDatabase.mockReturnValue({ insert: vi.fn(() => builder) });
+    await expect(createNotification({ recipientUserId: "user-a", type: "system.test", metadata: { message: "Hello" } })).rejects.toThrow("database unavailable");
+    expect(mocks.publishRealtimeEvent).not.toHaveBeenCalled();
   });
 });

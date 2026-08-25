@@ -9,7 +9,7 @@ import { addFriendToRepaymentReturnTarget, validateRepaymentReturnTarget } from 
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 import { searchUsernameDirectory } from "@/server/user-directory";
-import { cancelFriendLinkRequest, createFriendLinkRequest, FriendLinkError } from "@/server/friend-links";
+import { cancelFriendLinkRequest, createFriendLinkRequest, FriendLinkError, unlinkFriendLink } from "@/server/friend-links";
 import { getDatabase } from "@/db/client";
 
 export type FriendActionState = {
@@ -42,7 +42,7 @@ function friendLinkErrorMessage(error: unknown) {
     invalid_target: "Choose a Zplit account with a username.",
     self: "You cannot link a Friend to your own account.",
     already_linked: "This Friend or account is already linked.",
-    duplicate_request: "A request to this account is already waiting.",
+    duplicate_request: "A link request for this Friend or account is already waiting.",
     resolved: "This Friend link request has already been resolved.",
     conflict: "This account was linked to another Friend first.",
   }[error.code];
@@ -72,6 +72,18 @@ export async function cancelFriendLinkRequestAction(friendId: string, requestId:
   } catch {
     // The page refetches the canonical pending/confirmed state below.
   }
+  revalidatePath(`/app/friends/${friendId}`);
+  redirect(`/app/friends/${friendId}`);
+}
+
+export async function unlinkFriendLinkAction(friendId: string) {
+  const session = await requireSession();
+  try {
+    await unlinkFriendLink(getDatabase(), session.user.id, { friendId });
+  } catch {
+    // The page refetches canonical state after a competing unlink.
+  }
+  revalidatePath("/app/friends");
   revalidatePath(`/app/friends/${friendId}`);
   redirect(`/app/friends/${friendId}`);
 }

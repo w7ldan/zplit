@@ -8,6 +8,7 @@ const domainTables = [
   "expense_receipts",
   "expense_shares",
   "expenses",
+  "friend_connections",
   "friend_link_requests",
   "friends",
   "notifications",
@@ -61,9 +62,9 @@ describe("database schema", () => {
     expect(foreignKeyShape(schema.userAvatars)).toEqual([{ from: ["user_id"], to: "users", target: ["id"], onDelete: "cascade" }]);
   });
 
-  it("exports the fourteen domain tables and four auth tables", () => {
+  it("exports the fifteen domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications]
+      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -94,7 +95,20 @@ describe("database schema", () => {
       { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
       { from: ["target_user_id"], to: "users", target: ["id"], onDelete: "cascade" },
     ]));
-    expect(indexColumns(schema.friendLinkRequests, "friend_link_requests_pending_uidx")).toEqual(["owner_user_id", "friend_id", "target_user_id"]);
+    expect(indexColumns(schema.friendLinkRequests, "friend_link_requests_pending_owner_friend_uidx")).toEqual(["owner_user_id", "friend_id"]);
+    expect(indexColumns(schema.friendLinkRequests, "friend_link_requests_pending_owner_target_uidx")).toEqual(["owner_user_id", "target_user_id"]);
+    const connections = getTableConfig(schema.friendConnections);
+    expect(connections.columns.map((column) => column.name)).toEqual(["id", "user_a_id", "user_b_id", "status", "created_at", "connected_at", "disconnected_at", "updated_at"]);
+    expect(connections.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "friend_connections_distinct_users",
+      "friend_connections_canonical_pair",
+      "friend_connections_status_allowed",
+      "friend_connections_transition_timestamps",
+    ]));
+    expect(foreignKeyShape(schema.friendConnections)).toEqual(expect.arrayContaining([
+      { from: ["user_a_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      { from: ["user_b_id"], to: "users", target: ["id"], onDelete: "restrict" },
+    ]));
   });
 
   it("keeps notifications recipient-owned, bounded, and queryable by unread/newest state", () => {

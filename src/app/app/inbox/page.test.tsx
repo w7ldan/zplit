@@ -16,7 +16,7 @@ vi.mock("@/server/notifications", () => ({
 }));
 vi.mock("@/server/friend-links", () => ({ getCurrentUserFriendLinkRequestStatuses: mocks.getFriendLinkStatuses }));
 vi.mock("@/components/notifications/inbox-live-refresh", () => ({ InboxLiveRefresh: () => null }));
-vi.mock("./actions", () => ({ markAllNotificationsReadAction: mocks.markAll, markNotificationReadAction: mocks.markOne, acceptFriendLinkRequestAction: vi.fn(), declineFriendLinkRequestAction: vi.fn() }));
+vi.mock("./actions", () => ({ markAllNotificationsReadAction: mocks.markAll, markNotificationReadAction: mocks.markOne, acceptFriendLinkRequestAction: vi.fn(), declineFriendLinkRequestAction: vi.fn(), unlinkFriendLinkRequestAction: vi.fn() }));
 
 describe("/app/inbox", () => {
   beforeEach(() => {
@@ -68,6 +68,24 @@ describe("/app/inbox", () => {
     expect(screen.getByText("Owner @owner wants to link “Office”.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
-    expect(screen.queryByText(/email|balance|expense history/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/email|private ledger|expense history/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the target-side connected state and unlink consequence without ledger details", async () => {
+    mocks.getPage.mockResolvedValue({
+      rows: [{ id: "notification-link", type: "friend.link.request", metadata: { requestId: "11111111-1111-4111-8111-111111111111", requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" }, createdAt: new Date("2026-08-25T07:00:00Z"), readAt: new Date("2026-08-25T08:00:00Z"), recipientUserId: "user-a", dedupeKey: "friend-link-request:11111111-1111-4111-8111-111111111111" }],
+      page: 1,
+      pageSize: 20,
+      totalItems: 1,
+      totalPages: 1,
+    });
+    mocks.getUnread.mockResolvedValue(0);
+    mocks.getFriendLinkStatuses.mockResolvedValue(new Map([["11111111-1111-4111-8111-111111111111", "connected"]]));
+    render(await InboxPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(screen.getByText("Unlink", { selector: "summary" })).toBeInTheDocument();
+    expect(screen.getByText("Unlink @owner?")).toBeInTheDocument();
+    expect(screen.getByText(/Existing Friend balances and history remain unchanged/)).toBeInTheDocument();
+    expect(screen.queryByText(/email|private ledger|expense history/i)).not.toBeInTheDocument();
   });
 });

@@ -112,11 +112,44 @@ export const friendLinkRequests = pgTable(
       foreignColumns: [friends.ownerUserId, friends.id],
       name: "friend_link_requests_owner_friend_fk",
     }).onDelete("restrict"),
-    uniqueIndex("friend_link_requests_pending_uidx")
-      .on(table.ownerUserId, table.friendId, table.targetUserId)
+    uniqueIndex("friend_link_requests_pending_owner_friend_uidx")
+      .on(table.ownerUserId, table.friendId)
+      .where(sql`${table.status} = 'pending'`),
+    uniqueIndex("friend_link_requests_pending_owner_target_uidx")
+      .on(table.ownerUserId, table.targetUserId)
       .where(sql`${table.status} = 'pending'`),
     index("friend_link_requests_owner_friend_idx").on(table.ownerUserId, table.friendId),
     index("friend_link_requests_target_status_idx").on(table.targetUserId, table.status),
+  ],
+);
+
+export const friendConnections = pgTable(
+  "friend_connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userAId: text("user_a_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    userBId: text("user_b_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: varchar("status", { length: 16 }).default("connected").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    connectedAt: timestamp("connected_at", { withTimezone: true }).defaultNow().notNull(),
+    disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("friend_connections_distinct_users", sql`${table.userAId} <> ${table.userBId}`),
+    check("friend_connections_canonical_pair", sql`${table.userAId} < ${table.userBId}`),
+    check("friend_connections_status_allowed", sql`${table.status} IN ('connected', 'disconnected')`),
+    check(
+      "friend_connections_transition_timestamps",
+      sql`(${table.status} = 'connected' AND ${table.connectedAt} IS NOT NULL AND ${table.disconnectedAt} IS NULL) OR (${table.status} = 'disconnected' AND ${table.connectedAt} IS NOT NULL AND ${table.disconnectedAt} IS NOT NULL)`,
+    ),
+    uniqueIndex("friend_connections_pair_uidx").on(table.userAId, table.userBId),
+    index("friend_connections_user_a_idx").on(table.userAId),
+    index("friend_connections_user_b_idx").on(table.userBId),
   ],
 );
 
@@ -645,6 +678,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   linkedFriends: many(friends, { relationName: "linkedFriends" }),
   friendLinkRequestOwners: many(friendLinkRequests, { relationName: "friendLinkRequestOwners" }),
   friendLinkRequestTargets: many(friendLinkRequests, { relationName: "friendLinkRequestTargets" }),
+  friendConnectionsA: many(friendConnections, { relationName: "friendConnectionsA" }),
+  friendConnectionsB: many(friendConnections, { relationName: "friendConnectionsB" }),
   createdInvitations: many(accountInvitations, { relationName: "createdInvitations" }),
   acceptedInvitations: many(accountInvitations, { relationName: "acceptedInvitations" }),
 }));
@@ -677,6 +712,19 @@ export const friendLinkRequestsRelations = relations(friendLinkRequests, ({ one 
     fields: [friendLinkRequests.targetUserId],
     references: [users.id],
     relationName: "friendLinkRequestTargets",
+  }),
+}));
+
+export const friendConnectionsRelations = relations(friendConnections, ({ one }) => ({
+  userA: one(users, {
+    fields: [friendConnections.userAId],
+    references: [users.id],
+    relationName: "friendConnectionsA",
+  }),
+  userB: one(users, {
+    fields: [friendConnections.userBId],
+    references: [users.id],
+    relationName: "friendConnectionsB",
   }),
 }));
 

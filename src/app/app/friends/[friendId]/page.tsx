@@ -10,7 +10,7 @@ import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { formatRupiah } from "@/domain/rupiah";
 import { recordHref } from "@/domain/record-retrieval";
 import { RecordPagination } from "@/components/records/record-pagination";
-import { archiveFriendAction, cancelFriendLinkRequestAction, createFriendLinkRequestAction, restoreFriendAction, searchFriendLinkUserOptions, undoFriendArchiveAction, updateFriendAction } from "../actions";
+import { archiveFriendAction, cancelFriendLinkRequestAction, createFriendLinkRequestAction, restoreFriendAction, searchFriendLinkUserOptions, unlinkFriendLinkAction, undoFriendArchiveAction, updateFriendAction } from "../actions";
 import { createDebtorShareLinkAction, revokeDebtorShareLinkAction, updateDebtorShareReceiptSelectionAction } from "./share-actions";
 import { getDebtorShareLinkStatus, getDebtorShareReceiptSelection } from "@/server/debtor-share-links";
 import { getFriendLinkStatus } from "@/server/friend-links";
@@ -114,6 +114,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
               search={searchFriendLinkUserOptions}
               action={createFriendLinkRequestAction.bind(null, friend.id)}
               cancelAction={friendLinkStatus.status === "pending" ? cancelFriendLinkRequestAction.bind(null, friend.id, friendLinkStatus.requestId) : undefined}
+              unlinkAction={friendLinkStatus.status === "linked" ? unlinkFriendLinkAction.bind(null, friend.id) : undefined}
             />
             <FriendArchiveForm action={(archived ? restoreFriendAction : archiveFriendAction).bind(null, friend.id)} archived={archived} undoAction={undoFriendArchiveAction} />
           </div>

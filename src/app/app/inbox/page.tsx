@@ -45,6 +45,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
               {page.rows.map((notification) => {
                 const presentation = presentNotification(notification.type, notification.metadata);
                 const unread = notification.readAt === null;
+                const linkMetadata = notification.type === NOTIFICATION_TYPES.friendLinkRequest ? getFriendLinkRequestMetadata(notification.metadata) : null;
                 return (
                   <li className={`notification-row${unread ? " notification-row--unread" : ""}`} key={notification.id}>
                     <div className="notification-row__main">
@@ -58,7 +59,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
                     </div>
                     <div className="notification-row__state">
                       {unread ? <form action={markNotificationReadAction.bind(null, notification.id)}><button className="text-link" type="submit">Mark read</button></form> : <span>Read</span>}
-                      {notification.type === NOTIFICATION_TYPES.friendLinkRequest ? <FriendLinkRequestActions requestId={getFriendLinkRequestMetadata(notification.metadata)?.requestId ?? ""} status={friendLinkRequestStatuses.get(getFriendLinkRequestMetadata(notification.metadata)?.requestId ?? "")} /> : null}
+                      {linkMetadata ? <FriendLinkRequestActions requestId={linkMetadata.requestId} requesterUsername={linkMetadata.requesterUsername} status={friendLinkRequestStatuses.get(linkMetadata.requestId)} /> : null}
                     </div>
                   </li>
                 );

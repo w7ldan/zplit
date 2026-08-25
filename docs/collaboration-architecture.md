@@ -84,6 +84,14 @@ different people may both be named Alice.
 External identities MAY share names and MAY use a local descriptive label such
 as `Fasilkom`, `Office`, or `Bob's sister`.
 
+An accepted Friend link is a bidirectional registered-user identity connection.
+It does not create a reciprocal ledger Friend, copy financial history, or grant
+the target access to the owner's private ledger. The local Friend remains the
+owner-controlled financial identity. Either connected user MAY unlink the
+connection; unlinking preserves the Friend, shares, repayments, allocations,
+balances, and accepted request history, and a future connection requires a new
+explicit link request.
+
 ## 6. Realtime contract
 
 Notifications and Chat share a deliberate realtime substrate. PostgreSQL is

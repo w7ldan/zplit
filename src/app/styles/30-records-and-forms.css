@@ -1196,6 +1196,34 @@
   justify-content: flex-end;
 }
 
+.friend-link__unlink > div,
+.notification-row__unlink > div {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 28rem;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.friend-link__unlink p,
+.notification-row__unlink p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.friend-link__unlink p:nth-child(2),
+.notification-row__unlink p:nth-child(2) {
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.friend-link__unlink summary,
+.notification-row__unlink summary {
+  cursor: pointer;
+}
+
 .notification-row__actions {
   display: flex;
   flex-wrap: wrap;

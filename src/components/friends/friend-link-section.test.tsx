@@ -23,9 +23,12 @@ describe("FriendLinkSection", () => {
   });
 
   it("keeps the local Friend identity separate from the confirmed account identity", () => {
-    render(<FriendLinkSection status={{ status: "linked", user: { displayName: "Alice Tan", username: "alice" } }} search={search} action={vi.fn()} />);
-    expect(screen.getByText("Linked")).toBeInTheDocument();
+    render(<FriendLinkSection status={{ status: "linked", user: { displayName: "Alice Tan", username: "alice" } }} search={search} action={vi.fn()} unlinkAction={vi.fn()} />);
+    expect(screen.getByText("Connected")).toBeInTheDocument();
     expect(screen.getByText("Alice Tan")).toBeInTheDocument();
     expect(screen.getByText("@alice")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Unlink", { selector: "summary" }));
+    expect(screen.getByText("Unlink @alice?")).toBeInTheDocument();
+    expect(screen.getByText(/Existing Friend balances and history remain unchanged/)).toBeInTheDocument();
   });
 });

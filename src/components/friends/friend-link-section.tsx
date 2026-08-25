@@ -11,6 +11,7 @@ type FriendLinkStatus =
 
 type FriendLinkAction = (previousState: FriendLinkActionState, formData: FormData) => Promise<FriendLinkActionState>;
 type CancelAction = () => Promise<void>;
+type UnlinkAction = () => Promise<void>;
 
 function identityParts(label: string) {
   const separator = label.indexOf(" · ");
@@ -21,13 +22,13 @@ function SubmitButton() {
   return <button className="action-link action-link--primary" type="submit">Send request</button>;
 }
 
-export function FriendLinkSection({ status, search, action, cancelAction }: { status: FriendLinkStatus; search: SearchableOptionAction; action: FriendLinkAction; cancelAction?: CancelAction }) {
+export function FriendLinkSection({ status, search, action, cancelAction, unlinkAction }: { status: FriendLinkStatus; search: SearchableOptionAction; action: FriendLinkAction; cancelAction?: CancelAction; unlinkAction?: UnlinkAction }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<SearchableOption | undefined>();
   const [state, formAction] = useActionState(action, { error: "" });
 
   if (status.status === "linked") {
-    return <section className="friend-link" aria-labelledby="friend-link-heading"><div className="friend-link__heading"><p className="technical-label" id="friend-link-heading">Zplit account</p><span className="friend-link__state">Linked</span></div><p className="friend-link__identity"><strong>{status.user.displayName}</strong><span>@{status.user.username}</span></p></section>;
+    return <section className="friend-link" aria-labelledby="friend-link-heading"><div className="friend-link__heading"><p className="technical-label" id="friend-link-heading">Zplit account</p><span className="friend-link__state">Connected</span></div><p className="friend-link__identity"><strong>{status.user.displayName}</strong><span>@{status.user.username}</span></p>{unlinkAction ? <details className="friend-link__unlink"><summary className="text-link">Unlink</summary><div><p>Unlink @{status.user.username}?</p><p>This removes the Zplit account connection. Existing Friend balances and history remain unchanged.</p><form action={unlinkAction}><button className="action-link action-link--quiet" type="submit">Unlink</button></form></div></details> : null}</section>;
   }
 
   if (status.status === "pending") {
