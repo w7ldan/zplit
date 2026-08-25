@@ -14,7 +14,7 @@ export type ValidatedReceiptFile = {
   content: Uint8Array;
 };
 
-export type ReceiptFileLabel = "Receipt" | "Payment proof";
+export type ReceiptFileLabel = "Receipt" | "Payment proof" | "Avatar";
 
 export class ReceiptFileValidationError extends Error {
   constructor(message: string) {

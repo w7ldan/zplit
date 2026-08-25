@@ -9,9 +9,13 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   setOrder: vi.fn(),
   updateUsername: vi.fn(),
+  getDatabase: vi.fn(),
+  getAvatar: vi.fn(),
 }));
 
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: mocks.getAuthenticatedLedger }));
+vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
+vi.mock("@/server/user-avatars", () => ({ getUserAvatarMetadata: mocks.getAvatar }));
 vi.mock("./actions", () => ({
   createRepaymentDestinationAction: mocks.create,
   updateRepaymentDestinationAction: mocks.update,
@@ -28,7 +32,9 @@ const destinations = [
 describe("/app/settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getAuthenticatedLedger.mockResolvedValue({ user: { name: "Wildan", username: "wildan", email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue(destinations) } });
+    mocks.getDatabase.mockReturnValue({});
+    mocks.getAvatar.mockResolvedValue(null);
+    mocks.getAuthenticatedLedger.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", username: "wildan", email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue(destinations) } });
   });
 
   it("renders modular profile, repayment, and appearance sections", async () => {
@@ -53,7 +59,7 @@ describe("/app/settings", () => {
   });
 
   it("shows the empty destination state and save confirmation", async () => {
-    mocks.getAuthenticatedLedger.mockResolvedValue({ user: { name: "Wildan", username: null, email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue([]) } });
+    mocks.getAuthenticatedLedger.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", username: null, email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue([]) } });
     render(await SettingsPage({ searchParams: Promise.resolve({ saved: "1" }) }));
     expect(screen.getByText(/No repayment destinations yet\./)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Settings saved.");

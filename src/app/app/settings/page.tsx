@@ -1,8 +1,12 @@
 import { ThemeControl } from "@/components/theme/theme-provider";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
+import { UserAvatar } from "@/components/identity/user-avatar";
+import { AvatarSettings } from "@/components/settings/avatar-settings";
 import { RepaymentDestinationsSettings } from "@/components/settings/repayment-destinations-settings";
 import { UsernameSettings } from "@/components/settings/username-settings";
+import { getDatabase } from "@/db/client";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { getUserAvatarMetadata } from "@/server/user-avatars";
 import {
   createRepaymentDestinationAction,
   deleteRepaymentDestinationAction,
@@ -22,7 +26,7 @@ function first(value: string | string[] | undefined) {
 
 export default async function SettingsPage({ searchParams }: { searchParams?: Promise<SettingsSearchParams> }) {
   const { user, ledger } = await getAuthenticatedLedger();
-  const destinations = await ledger.listRepaymentDestinations();
+  const [destinations, avatar] = await Promise.all([ledger.listRepaymentDestinations(), getUserAvatarMetadata(getDatabase(), user.id)]);
   const query = searchParams ? await searchParams : {};
   const destinationEntries = destinations.map((destination) => ({
     id: destination.id,
@@ -50,8 +54,14 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
         <section className="settings-page__section" aria-labelledby="settings-profile-heading">
           <div className="settings-page__section-heading"><div><p className="technical-label">Profile</p><h2 id="settings-profile-heading">Account context</h2></div></div>
           <dl className="settings-page__profile">
-            <div><dt>Name</dt><dd>{user.name}</dd></div>
-            <div><dt>Username</dt><dd><UsernameSettings username={user.username} action={updateUsernameAction} /></dd></div>
+            <div className="settings-page__identity">
+              <UserAvatar userId={user.id} customAvatar={avatar} decorative size="md" />
+              <div className="settings-page__identity-details">
+                <dt>Name</dt><dd className="settings-page__identity-name">{user.name}</dd>
+                <dt>Username</dt><dd><UsernameSettings username={user.username} action={updateUsernameAction} /></dd>
+                <AvatarSettings userId={user.id} avatar={avatar} />
+              </div>
+            </div>
             <div><dt>Email</dt><dd>{user.email}</dd></div>
           </dl>
         </section>

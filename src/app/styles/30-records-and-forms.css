@@ -3920,7 +3920,30 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   margin: 1.25rem 0 0;
 }
 
-.settings-page__profile div {
+.settings-page__identity {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.settings-page__identity-details {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.settings-page__identity-name {
+  overflow-wrap: anywhere;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.settings-page__profile > div {
   display: grid;
   gap: 0.25rem;
 }
@@ -3941,6 +3964,81 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .settings-page__profile dd,
 .settings-page__identifier {
+  overflow-wrap: anywhere;
+}
+
+.user-avatar {
+  display: block;
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 3rem;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.user-avatar--sm {
+  width: 2rem;
+  height: 2rem;
+}
+
+.user-avatar--lg {
+  width: 4rem;
+  height: 4rem;
+}
+
+.user-avatar img,
+.user-avatar__default {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.user-avatar img {
+  object-fit: cover;
+}
+
+.settings-page__avatar-control {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  margin-top: 0.35rem;
+}
+
+.settings-page__avatar-copy {
+  min-width: 0;
+}
+
+.settings-page__avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings-page__avatar-action {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.75rem;
+  border-color: var(--rule);
+}
+
+.settings-page__avatar-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.settings-page__avatar-feedback {
+  min-height: 1.1rem;
+  margin: 0.35rem 0 0;
+  color: var(--error);
+  font-size: 0.75rem;
   overflow-wrap: anywhere;
 }
 
@@ -4288,6 +4386,10 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 @media (max-width: 767px) {
   .settings-page__profile {
     grid-template-columns: 1fr;
+  }
+
+  .settings-page__identity {
+    align-items: start;
   }
 
   .settings-page__section-heading,

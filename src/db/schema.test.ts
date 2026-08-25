@@ -46,6 +46,19 @@ function foreignKeyShape(table: unknown) {
 }
 
 describe("database schema", () => {
+  it("defines one nullable-by-absence normalized avatar per user", () => {
+    const table = getTableConfig(schema.userAvatars);
+    expect(table.name).toBe("user_avatars");
+    expect(table.columns.map((column) => column.name)).toEqual(["user_id", "media_type", "byte_size", "sha256", "content", "created_at", "updated_at"]);
+    expect(table.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "user_avatars_media_type_allowed",
+      "user_avatars_byte_size_valid",
+      "user_avatars_content_size_matches",
+      "user_avatars_sha256_hex",
+    ]));
+    expect(foreignKeyShape(schema.userAvatars)).toEqual([{ from: ["user_id"], to: "users", target: ["id"], onDelete: "cascade" }]);
+  });
+
   it("exports the twelve domain tables and four auth tables", () => {
     expect(
       [schema.friends, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations]

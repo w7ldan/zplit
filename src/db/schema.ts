@@ -38,6 +38,23 @@ export const users = pgTable("users", {
   uniqueIndex("users_username_uidx").on(table.username).where(sql`${table.username} IS NOT NULL`),
 ]);
 
+export const userAvatars = pgTable("user_avatars", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  mediaType: varchar("media_type", { length: 32 }).notNull(),
+  byteSize: integer("byte_size").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  content: bytea("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  check("user_avatars_media_type_allowed", sql`${table.mediaType} = 'image/webp'`),
+  check("user_avatars_byte_size_valid", sql`${table.byteSize} BETWEEN 1 AND 5242880`),
+  check("user_avatars_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
+  check("user_avatars_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+]);
+
 export const friends = pgTable(
   "friends",
   {
