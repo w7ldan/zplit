@@ -12,6 +12,7 @@ import { UnsavedChangesProvider } from "@/components/navigation/unsaved-changes"
 import { ThemeControl } from "@/components/theme/theme-provider";
 import { GlobalSearch } from "./global-search";
 import { RealtimeProvider } from "@/components/realtime/realtime-provider";
+import { InboxControl } from "@/components/notifications/inbox-control";
 
 const destinations = [
   ["Overview", "/app"],
@@ -27,6 +28,7 @@ type AppShellProps = {
     email: string;
   };
   canManageInvites?: boolean;
+  initialUnreadCount?: number;
   children: ReactNode;
 };
 
@@ -35,7 +37,7 @@ function isCurrent(pathname: string, href: string) {
   return href === "/app" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppShell({ user, canManageInvites, children }: AppShellProps) {
+export function AppShell({ user, canManageInvites, initialUnreadCount = 0, children }: AppShellProps) {
   const pathname = usePathname() ?? "";
 
   useEffect(() => {
@@ -74,6 +76,7 @@ export function AppShell({ user, canManageInvites, children }: AppShellProps) {
         actions={(
           <>
             <GlobalSearch />
+            <InboxControl initialUnreadCount={initialUnreadCount} active={isCurrent(pathname, "/app/inbox")} />
             <Link className="action-link action-link--primary app-shell__add-expense" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
             <details className="account-menu">
               <summary aria-label={`Open account menu for ${user.name}`}><span className="account-menu__name">{user.name}</span></summary>

@@ -9,12 +9,14 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   getDatabase: vi.fn(() => "database"),
   resolveInstallationOwner: vi.fn(),
+  getUnreadNotificationCount: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/auth/invitations", () => ({ resolveInstallationOwner: mocks.resolveInstallationOwner }));
+vi.mock("@/server/notifications", () => ({ getUnreadNotificationCountForUser: mocks.getUnreadNotificationCount }));
 vi.mock("@/auth/auth-client", () => ({ authClient: { signOut: mocks.signOut } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }), usePathname: () => "/app/expenses/expense-a" }));
 
@@ -27,6 +29,7 @@ describe("authenticated app shell", () => {
   it("renders active navigation, account menu, and the stable expense action", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "user-a", name: "Wildan", email: "owner@example.com" } });
     mocks.resolveInstallationOwner.mockResolvedValue({ id: "user-a" });
+    mocks.getUnreadNotificationCount.mockResolvedValue(0);
     render(await AppLayout({ children: <p>Private content</p> }));
 
     expect(screen.getByText("Zplit")).toBeInTheDocument();
@@ -53,6 +56,7 @@ describe("authenticated app shell", () => {
   it("does not expose invitation management to a non-owner", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "user-b", name: "Ada", email: "ada@example.com" } });
     mocks.resolveInstallationOwner.mockResolvedValue({ id: "user-a" });
+    mocks.getUnreadNotificationCount.mockResolvedValue(0);
     render(await AppLayout({ children: <p>Private content</p> }));
     expect(screen.queryByRole("link", { name: "Invitations" })).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Ledger navigation" }).querySelectorAll("a")).toHaveLength(5);

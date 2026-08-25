@@ -1215,6 +1215,50 @@ body.global-search-open {
   flex: 0 0 auto;
 }
 
+.inbox-control {
+  display: inline-flex;
+  position: relative;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--muted-ink);
+  text-decoration: none;
+  transition: background-color var(--motion-press) var(--ease-product), color var(--motion-press) var(--ease-product);
+}
+
+.inbox-control:hover,
+.inbox-control:focus-visible,
+.inbox-control--active {
+  background: var(--pastel-blue);
+  color: var(--ink);
+}
+
+.inbox-icon {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.inbox-control__count {
+  position: absolute;
+  top: 0.05rem;
+  right: -0.2rem;
+  min-width: 1.1rem;
+  padding: 0.12rem 0.25rem;
+  border: 1px solid var(--paper);
+  border-radius: 0.3rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+}
+
 .account-menu {
   position: relative;
   flex: 0 0 auto;

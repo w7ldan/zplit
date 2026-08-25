@@ -9,6 +9,7 @@ const domainTables = [
   "expense_shares",
   "expenses",
   "friends",
+  "notifications",
   "outings",
   "repayment_allocations",
   "repayment_destinations",
@@ -59,9 +60,9 @@ describe("database schema", () => {
     expect(foreignKeyShape(schema.userAvatars)).toEqual([{ from: ["user_id"], to: "users", target: ["id"], onDelete: "cascade" }]);
   });
 
-  it("exports the twelve domain tables and four auth tables", () => {
+  it("exports the thirteen domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations]
+      [schema.friends, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -71,6 +72,29 @@ describe("database schema", () => {
       "users",
       "verifications",
     ]);
+  });
+
+  it("keeps notifications recipient-owned, bounded, and queryable by unread/newest state", () => {
+    const table = getTableConfig(schema.notifications);
+    expect(table.name).toBe("notifications");
+    expect(table.columns.map((column) => column.name)).toEqual([
+      "id",
+      "recipient_user_id",
+      "type",
+      "metadata",
+      "created_at",
+      "read_at",
+      "dedupe_key",
+    ]);
+    expect(table.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "notifications_type_not_blank",
+      "notifications_metadata_bounded",
+    ]));
+    expect(foreignKeyShape(schema.notifications)).toEqual([
+      { from: ["recipient_user_id"], to: "users", target: ["id"], onDelete: "cascade" },
+    ]);
+    expect(indexColumns(schema.notifications, "notifications_recipient_created_idx")).toEqual(["recipient_user_id", "created_at", "id"]);
+    expect(indexColumns(schema.notifications, "notifications_unread_recipient_idx")).toEqual(["recipient_user_id"]);
   });
 
   it("defines owner-editable repayment destinations with safe bounds", () => {

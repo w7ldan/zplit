@@ -1,4 +1,5 @@
 import { relations, sql } from "drizzle-orm";
+import type { NotificationMetadata, NotificationType } from "@/domain/notifications";
 import {
   boolean,
   check,
@@ -7,6 +8,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -452,6 +454,28 @@ export const verifications = pgTable(
   (table) => [index("verifications_identifier_idx").on(table.identifier)],
 );
 
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    recipientUserId: text("recipient_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: varchar("type", { length: 64 }).notNull(),
+    metadata: jsonb("metadata").$type<NotificationMetadata[NotificationType]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    dedupeKey: varchar("dedupe_key", { length: 160 }),
+  },
+  (table) => [
+    check("notifications_type_not_blank", sql`btrim(${table.type}) <> ''`),
+    check("notifications_metadata_bounded", sql`pg_column_size(${table.metadata}) <= 2048`),
+    index("notifications_recipient_created_idx").on(table.recipientUserId, table.createdAt, table.id),
+    index("notifications_unread_recipient_idx").on(table.recipientUserId).where(sql`${table.readAt} IS NULL`),
+    index("notifications_recipient_dedupe_idx").on(table.recipientUserId, table.type, table.dedupeKey),
+  ],
+);
+
 export const accountInvitations = pgTable(
   "account_invitations",
   {
@@ -575,6 +599,7 @@ export const debtorShareReceipts = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   accounts: many(accounts),
+  notifications: many(notifications),
   createdInvitations: many(accountInvitations, { relationName: "createdInvitations" }),
   acceptedInvitations: many(accountInvitations, { relationName: "acceptedInvitations" }),
 }));
@@ -589,6 +614,13 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
 export const accountsRelations = relations(accounts, ({ one }) => ({
   users: one(users, {
     fields: [accounts.userId],
+    references: [users.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  recipient: one(users, {
+    fields: [notifications.recipientUserId],
     references: [users.id],
   }),
 }));
