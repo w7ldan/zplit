@@ -1145,6 +1145,31 @@ describe("ledger repository", () => {
     expect(queries[7].sql.toLowerCase().indexOf("limit")).toBeLessThan(queries[7].sql.toLowerCase().lastIndexOf('inner join "friends"'));
   });
 
+  it("unifies local Friends with accepted connections and suppresses linked duplicates", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      if (sql.includes('"friend_connections"')) return { rows: [
+        ["connection-b", owner, "user-b", "Alice Tan", "alice", "request-old", new Date("2026-01-01T00:00:00Z")],
+        ["connection-b", owner, "user-b", "Alice Tan", "alice", "request-new", new Date("2026-01-02T00:00:00Z")],
+        ["connection-c", owner, "user-c", "Carol Tan", "carol", "request-c", new Date("2026-01-03T00:00:00Z")],
+      ] };
+      if (sql.toLowerCase().startsWith('select "linked_user_id"')) return { rows: [["user-b"]] };
+      return { rows: [["friend-b", "Alice ledger", null, null, new Date("2026-01-04T00:00:00Z"), "user-b", "Alice Tan", "alice"]] };
+    });
+
+    const result = await createLedgerRepository(database as unknown as Database, owner).listFriendsExperience();
+
+    expect(result.items).toEqual([
+      { type: "local", friend: expect.objectContaining({ id: "friend-b", name: "Alice ledger", linkedUser: { displayName: "Alice Tan", username: "alice" } }) },
+      { type: "connection", connection: { type: "connection", id: "connection-c", userId: "user-c", name: "Carol Tan", username: "carol", requestId: "request-c" } },
+    ]);
+    expect(result.totalItems).toBe(2);
+    expect(queries).toHaveLength(3);
+    expect(queries.every(({ sql }) => !sql.includes('"email"'))).toBe(true);
+    expect(queries.every(({ params }) => params.includes(owner))).toBe(true);
+  });
+
   it("combines exact amount predicates with text search in both count and page queries", async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const database = drizzle(async (sql, params) => { queries.push({ sql, params }); return { rows: [] }; });

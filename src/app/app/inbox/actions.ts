@@ -44,4 +44,5 @@ export async function unlinkFriendLinkRequestAction(requestId: string) {
     // The Inbox refetches canonical state after a competing unlink.
   }
   revalidatePath("/app/inbox");
+  revalidatePath("/app/friends");
 }

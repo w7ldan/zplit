@@ -51,7 +51,22 @@ export type FriendListRecord = {
   phoneNumber: string | null;
   archivedAt: Date | null;
   createdAt: Date;
+  linkedUser?: {
+    displayName: string;
+    username: string;
+  };
 };
+export type FriendConnectionListRecord = {
+  type: "connection";
+  id: string;
+  userId: string;
+  name: string;
+  username: string;
+  requestId: string;
+};
+export type FriendListEntry =
+  | { type: "local"; friend: FriendListRecord }
+  | { type: "connection"; connection: FriendConnectionListRecord };
 export type TripListRecord = {
   id: string;
   name: string;

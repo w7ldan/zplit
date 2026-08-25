@@ -1,6 +1,6 @@
 import { and, asc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
-import { expenseShares, friends, repayments } from "../../db/schema";
+import { expenseShares, friendConnections, friendLinkRequests, friends, repayments, users } from "../../db/schema";
 import { literalContains, notFound, persistenceError, safeRetrievalInteger } from "./query-utils";
 import {
   clampPage,
@@ -12,7 +12,7 @@ import {
   type RecordPage,
 } from "../record-retrieval";
 import { assertFriendArchiveReversalReceipt, assertFriendId, assertFriendInput } from "./validation";
-import type { CreateFriendInput, FriendArchiveReversalReceipt, FriendListRecord, FriendSelectorOption, UpdateFriendInput } from "./types";
+import type { CreateFriendInput, FriendArchiveReversalReceipt, FriendConnectionListRecord, FriendListEntry, FriendListRecord, FriendSelectorOption, UpdateFriendInput } from "./types";
 
 export function createFriendsReadRepository(database: Database, owner: string) {
 async function getFriend(friendId: string) {
@@ -73,7 +73,7 @@ async function searchFriends(options: { q?: unknown; selectedId?: unknown; activ
     }
   }
 
-async function listFriendRecords(options: { archived?: unknown; q?: unknown; page?: unknown } = {}): Promise<RecordPage<FriendListRecord>> {
+  async function listFriendRecords(options: { archived?: unknown; q?: unknown; page?: unknown } = {}): Promise<RecordPage<FriendListRecord>> {
     const filters = normalizeFriendFilters(options);
     const conditions = [
       eq(friends.ownerUserId, owner),
@@ -100,7 +100,102 @@ async function listFriendRecords(options: { archived?: unknown; q?: unknown; pag
     }
   }
 
-  return { getFriend, listFriends, searchFriends, listFriendRecords };
+  async function listFriendsExperience(options: { archived?: unknown; q?: unknown; page?: unknown } = {}): Promise<RecordPage<FriendListEntry>> {
+    const filters = normalizeFriendFilters(options);
+    const localConditions = [
+      eq(friends.ownerUserId, owner),
+      filters.archived ? isNotNull(friends.archivedAt) : isNull(friends.archivedAt),
+      ...(filters.q ? [sql`(${literalContains(friends.name, filters.q)} OR ${literalContains(friends.phoneNumber, filters.q)})`] : []),
+    ];
+    try {
+      const [localRows, representedRows, connectionRows] = await Promise.all([
+        database
+          .select({
+            id: friends.id,
+            name: friends.name,
+            phoneNumber: friends.phoneNumber,
+            archivedAt: friends.archivedAt,
+            createdAt: friends.createdAt,
+            linkedUserId: friends.linkedUserId,
+            linkedDisplayName: users.name,
+            linkedUsername: users.username,
+          })
+          .from(friends)
+          .leftJoin(users, eq(users.id, friends.linkedUserId))
+          .where(and(...localConditions))
+          .orderBy(asc(friends.name), asc(friends.id)),
+        filters.archived
+          ? Promise.resolve([])
+          : database
+              .select({ linkedUserId: friends.linkedUserId })
+              .from(friends)
+              .where(and(eq(friends.ownerUserId, owner), isNotNull(friends.linkedUserId))),
+        filters.archived
+          ? Promise.resolve([])
+          : database
+              .select({
+                id: friendConnections.id,
+                userAId: friendConnections.userAId,
+                userBId: friendConnections.userBId,
+                name: users.name,
+                username: users.username,
+                requestId: friendLinkRequests.id,
+                requestAcceptedAt: friendLinkRequests.acceptedAt,
+              })
+              .from(friendConnections)
+              .innerJoin(users, or(
+                and(eq(friendConnections.userAId, owner), eq(users.id, friendConnections.userBId)),
+                and(eq(friendConnections.userBId, owner), eq(users.id, friendConnections.userAId)),
+              ))
+              .leftJoin(friendLinkRequests, and(
+                eq(friendLinkRequests.status, "accepted"),
+                or(
+                  and(eq(friendLinkRequests.ownerUserId, friendConnections.userAId), eq(friendLinkRequests.targetUserId, friendConnections.userBId)),
+                  and(eq(friendLinkRequests.ownerUserId, friendConnections.userBId), eq(friendLinkRequests.targetUserId, friendConnections.userAId)),
+                ),
+              ))
+              .where(and(
+                or(eq(friendConnections.userAId, owner), eq(friendConnections.userBId, owner)),
+                eq(friendConnections.status, "connected"),
+                ...(filters.q ? [or(literalContains(users.name, filters.q), literalContains(users.username, filters.q))] : []),
+              ))
+              .orderBy(asc(users.name), asc(users.id)),
+      ]);
+
+      const representedUserIds = new Set([...localRows, ...representedRows].map(({ linkedUserId }) => linkedUserId).filter((id): id is string => Boolean(id)));
+      const localEntries: FriendListEntry[] = localRows.map(({ linkedUserId, linkedDisplayName, linkedUsername, ...friend }) => ({
+        type: "local",
+        friend: {
+          ...friend,
+          ...(linkedUserId && linkedDisplayName && linkedUsername ? { linkedUser: { displayName: linkedDisplayName, username: linkedUsername } } : {}),
+        },
+      }));
+      const connectionById = new Map<string, { entry: FriendConnectionListRecord; acceptedAt: number }>();
+      for (const row of connectionRows) {
+        const userId = row.userAId === owner ? row.userBId : row.userAId;
+        if (representedUserIds.has(userId) || typeof row.username !== "string" || typeof row.requestId !== "string") continue;
+        const acceptedAt = row.requestAcceptedAt?.getTime() ?? -1;
+        const current = connectionById.get(row.id);
+        if (!current || acceptedAt > current.acceptedAt) {
+          connectionById.set(row.id, { acceptedAt, entry: { type: "connection", id: row.id, userId, name: row.name, username: row.username, requestId: row.requestId } });
+        }
+      }
+      const entries = [...localEntries, ...[...connectionById.values()].map(({ entry }) => ({ type: "connection" as const, connection: entry }))];
+      entries.sort((left, right) => {
+        const leftName = left.type === "local" ? left.friend.name : left.connection.name;
+        const rightName = right.type === "local" ? right.friend.name : right.connection.name;
+        return leftName.localeCompare(rightName) || (left.type === "local" ? left.friend.id : left.connection.id).localeCompare(right.type === "local" ? right.friend.id : right.connection.id);
+      });
+      const totalItems = entries.length;
+      const page = clampPage(filters.page, totalItems);
+      const offset = (page - 1) * RECORD_PAGE_SIZE;
+      return pageResult(entries.slice(offset, offset + RECORD_PAGE_SIZE), totalItems, page);
+    } catch (error) {
+      return persistenceError(error);
+    }
+  }
+
+  return { getFriend, listFriends, searchFriends, listFriendRecords, listFriendsExperience };
 }
 
 export function createFriendsMutationRepository(database: Database, owner: string) {

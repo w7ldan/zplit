@@ -50,9 +50,9 @@ export default async function FriendsPage({ searchParams = Promise.resolve({}) }
   const created = first(params?.created);
   const openCreate = first(params?.create) === "1";
   const repository = createLedgerRepository(getDatabase(), session.user.id);
-  const friendPage = await repository.listFriendRecords({ archived: view === "archived", q: first(params?.q), page: first(params?.page) });
-  const friends = friendPage.items;
-  const balances = new Map((await repository.getFriendBalances(friends.map((friend) => friend.id))).map((balance) => [balance.friendId, balance]));
+  const friendPage = await repository.listFriendsExperience({ archived: view === "archived", q: first(params?.q), page: first(params?.page) });
+  const localFriends = friendPage.items.flatMap((entry) => entry.type === "local" ? [entry.friend] : []);
+  const balances = new Map((localFriends.length > 0 ? await repository.getFriendBalances(localFriends.map((friend) => friend.id)) : []).map((balance) => [balance.friendId, balance]));
   const filtered = Boolean(filters.q);
   const listHref = recordHref("/app/friends", params);
 
@@ -77,7 +77,7 @@ export default async function FriendsPage({ searchParams = Promise.resolve({}) }
         </div>
         <div className="ledger-list" id="record-list">
           <div className="ledger-list__heading"><span className="technical-label">{view === "active" ? "ACTIVE RECORDS" : "ARCHIVED RECORDS"}</span><span className="technical-label">{friendPage.totalItems} entries</span></div>
-          {friends.length > 0 ? friends.map((friend) => <FriendRow key={friend.id} friend={friend} balance={balances.get(friend.id)} emphasized={created === friend.id} />) : (
+          {friendPage.items.length > 0 ? friendPage.items.map((entry) => entry.type === "local" ? <FriendRow key={entry.friend.id} friend={entry.friend} balance={balances.get(entry.friend.id)} emphasized={created === entry.friend.id} /> : <FriendRow key={`connection-${entry.connection.id}`} friend={entry.connection} />) : (
             <div className="ledger-empty"><h2>{filtered ? "No matching friends." : view === "active" ? "No active friends yet." : "No archived friends yet."}</h2><p>{filtered ? "Try a different name or phone number." : view === "active" ? "Add the first person to begin your private record." : "Archived records remain available here when you need them."}</p>{filtered || view === "archived" ? null : <Link className="text-link" href={recordHref("/app/friends", params, { create: "1" })} data-task-trigger="friend-create">Add friend <span aria-hidden="true">→</span></Link>}</div>
           )}
           <RecordPagination page={friendPage.page} pageSize={friendPage.pageSize} totalItems={friendPage.totalItems} totalPages={friendPage.totalPages} href={listHref} />

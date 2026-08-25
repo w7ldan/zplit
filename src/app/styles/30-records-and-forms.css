@@ -2247,6 +2247,10 @@
     gap: 1.25rem;
   }
 
+  .friend-row--connection {
+    grid-template-columns: minmax(0, 2fr) minmax(7rem, auto) minmax(5.5rem, auto);
+  }
+
   .outing-row {
     grid-template-columns: minmax(0, 2fr) minmax(7rem, 0.8fr) minmax(8rem, 0.8fr) minmax(10rem, 1fr) minmax(11rem, auto);
     gap: 1.25rem;
