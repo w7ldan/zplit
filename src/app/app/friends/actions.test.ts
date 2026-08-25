@@ -12,6 +12,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
+vi.mock("server-only", () => ({}));
+vi.mock("@/server/user-directory", () => ({ searchUsernameDirectory: vi.fn() }));
+vi.mock("@/server/friend-links", () => ({
+  cancelFriendLinkRequest: vi.fn(),
+  createFriendLinkRequest: vi.fn(),
+  FriendLinkError: class FriendLinkError extends Error {},
+}));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/domain/ledger-repository", async () => {
   const actual = await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository");

@@ -10,9 +10,12 @@ import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { formatRupiah } from "@/domain/rupiah";
 import { recordHref } from "@/domain/record-retrieval";
 import { RecordPagination } from "@/components/records/record-pagination";
-import { archiveFriendAction, restoreFriendAction, undoFriendArchiveAction, updateFriendAction } from "../actions";
+import { archiveFriendAction, cancelFriendLinkRequestAction, createFriendLinkRequestAction, restoreFriendAction, searchFriendLinkUserOptions, undoFriendArchiveAction, updateFriendAction } from "../actions";
 import { createDebtorShareLinkAction, revokeDebtorShareLinkAction, updateDebtorShareReceiptSelectionAction } from "./share-actions";
 import { getDebtorShareLinkStatus, getDebtorShareReceiptSelection } from "@/server/debtor-share-links";
+import { getFriendLinkStatus } from "@/server/friend-links";
+import { FriendLinkSection } from "@/components/friends/friend-link-section";
+import { FriendLinkLiveRefresh } from "@/components/realtime/friend-link-live-refresh";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Friend details" };
@@ -35,11 +38,12 @@ export default async function FriendRecordPage({ params, searchParams }: { param
   let balance = { assignedAmount: 0, repaidAmount: 0, outstandingAmount: 0 };
   let expenseSharePage;
   let repaymentPage;
+  let friendLinkStatus;
   try {
     const database = getDatabase();
     const repository = createLedgerRepository(database, session.user.id);
     friend = await repository.getFriend(friendId);
-    const [friendBalances, nextShareStatus, nextEligibleReceipts, nextSelectedReceiptIds, nextSharedDestinations, nextExpenseSharePage, nextRepaymentPage] = await Promise.all([
+    const [friendBalances, nextShareStatus, nextEligibleReceipts, nextSelectedReceiptIds, nextSharedDestinations, nextExpenseSharePage, nextRepaymentPage, nextFriendLinkStatus] = await Promise.all([
       repository.getFriendBalances([friend.id]),
       getDebtorShareLinkStatus(database, session.user.id, friendId),
       repository.listEligibleDebtorShareReceipts(friendId),
@@ -47,6 +51,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
       repository.listSharedRepaymentDestinations(),
       repository.listFriendExpenseShareRecords(friend.id, { page: first(query?.expensePage) }),
       repository.listRepaymentRecords({ friendId: friend.id, page: first(query?.repaymentPage) }),
+      getFriendLinkStatus(database, session.user.id, friend.id),
     ]);
     balance = friendBalances[0] ?? { assignedAmount: 0, repaidAmount: 0, outstandingAmount: 0 };
     shareStatus = nextShareStatus;
@@ -55,6 +60,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
     sharedDestinationNames = nextSharedDestinations.map((destination) => destination.name);
     expenseSharePage = nextExpenseSharePage;
     repaymentPage = nextRepaymentPage;
+    friendLinkStatus = nextFriendLinkStatus;
   } catch (error) {
     if (error instanceof LedgerNotFoundError) notFound();
     throw error;
@@ -64,6 +70,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
   const historyHref = recordHref(`/app/friends/${friend.id}`, query ?? {}, { saved: undefined });
   return (
     <section className="app-page friend-record" id="top">
+      <FriendLinkLiveRefresh friendId={friend.id} />
       <div className="editorial-grid editorial-shell friend-record__layout">
         <div className="friend-record__intro">
           <div className="friend-record__title">
@@ -101,6 +108,12 @@ export default async function FriendRecordPage({ params, searchParams }: { param
               action={updateFriendAction.bind(null, friend.id)}
               mode="edit"
               initialValues={{ name: friend.name, phoneNumber: friend.phoneNumber ?? "", notes: friend.notes ?? "" }}
+            />
+            <FriendLinkSection
+              status={friendLinkStatus}
+              search={searchFriendLinkUserOptions}
+              action={createFriendLinkRequestAction.bind(null, friend.id)}
+              cancelAction={friendLinkStatus.status === "pending" ? cancelFriendLinkRequestAction.bind(null, friend.id, friendLinkStatus.requestId) : undefined}
             />
             <FriendArchiveForm action={(archived ? restoreFriendAction : archiveFriendAction).bind(null, friend.id)} archived={archived} undoAction={undoFriendArchiveAction} />
           </div>

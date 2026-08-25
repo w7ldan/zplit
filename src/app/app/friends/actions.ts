@@ -7,6 +7,10 @@ import { validateFriendInput, type FriendFieldErrors, type FriendInputValues } f
 import { LedgerNotFoundError, type FriendArchiveReversalReceipt } from "@/domain/ledger-repository";
 import { addFriendToRepaymentReturnTarget, validateRepaymentReturnTarget } from "@/domain/repayment-return";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import type { SearchableOption } from "@/components/records/searchable-combobox";
+import { searchUsernameDirectory } from "@/server/user-directory";
+import { cancelFriendLinkRequest, createFriendLinkRequest, FriendLinkError } from "@/server/friend-links";
+import { getDatabase } from "@/db/client";
 
 export type FriendActionState = {
   fieldErrors: FriendFieldErrors;
@@ -19,11 +23,58 @@ export type FriendArchiveUndoState =
   | { ok: true }
   | { ok: false; message: string };
 
+export type FriendLinkActionState = { error: string };
+
 const initialFriendActionState: FriendActionState = {
   fieldErrors: {},
   formError: "",
   values: { name: "", phoneNumber: "", notes: "" },
 };
+
+export async function searchFriendLinkUserOptions(query = ""): Promise<SearchableOption[]> {
+  return (await searchUsernameDirectory(query)).map((user) => ({ id: user.id, label: `${user.displayName} · @${user.username}` }));
+}
+
+function friendLinkErrorMessage(error: unknown) {
+  if (!(error instanceof FriendLinkError)) return "Unable to update this Friend link.";
+  return {
+    not_found: "This Friend link request is no longer available.",
+    invalid_target: "Choose a Zplit account with a username.",
+    self: "You cannot link a Friend to your own account.",
+    already_linked: "This Friend or account is already linked.",
+    duplicate_request: "A request to this account is already waiting.",
+    resolved: "This Friend link request has already been resolved.",
+    conflict: "This account was linked to another Friend first.",
+  }[error.code];
+}
+
+export async function createFriendLinkRequestAction(
+  friendId: string,
+  _previousState: FriendLinkActionState,
+  formData: FormData,
+): Promise<FriendLinkActionState> {
+  const session = await requireSession();
+  const targetUserId = formData.get("targetUserId");
+  if (typeof targetUserId !== "string" || !targetUserId.trim()) return { error: "Choose a Zplit account first." };
+  try {
+    await createFriendLinkRequest(getDatabase(), session.user.id, friendId, targetUserId);
+  } catch (error) {
+    return { error: friendLinkErrorMessage(error) };
+  }
+  revalidatePath(`/app/friends/${friendId}`);
+  redirect(`/app/friends/${friendId}`);
+}
+
+export async function cancelFriendLinkRequestAction(friendId: string, requestId: string) {
+  const session = await requireSession();
+  try {
+    await cancelFriendLinkRequest(getDatabase(), session.user.id, requestId);
+  } catch {
+    // The page refetches the canonical pending/confirmed state below.
+  }
+  revalidatePath(`/app/friends/${friendId}`);
+  redirect(`/app/friends/${friendId}`);
+}
 
 function valuesFromForm(formData: FormData) {
   return validateFriendInput({

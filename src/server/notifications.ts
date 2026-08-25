@@ -6,6 +6,7 @@ import { normalizeNotificationMetadata, NOTIFICATION_STATE_CHANGED_EVENT, type N
 import { getDatabase } from "@/db/client";
 import { notifications } from "@/db/schema";
 import { publishRealtimeEvent } from "@/server/realtime";
+import type { Database } from "@/db/client";
 
 export const NOTIFICATIONS_PAGE_SIZE = 20;
 
@@ -50,12 +51,16 @@ export type CreateNotificationInput<T extends NotificationType = NotificationTyp
 };
 
 export async function createNotification<T extends NotificationType>(input: CreateNotificationInput<T>) {
+  return createNotificationInDatabase(getDatabase(), input);
+}
+
+export async function createNotificationInDatabase<T extends NotificationType>(database: Database, input: CreateNotificationInput<T>) {
   assertUserId(input.recipientUserId);
   if (input.dedupeKey !== undefined && input.dedupeKey !== null && (input.dedupeKey.trim() === "" || input.dedupeKey.length > 160)) {
     throw new TypeError("Notification dedupe key is invalid");
   }
 
-  const [created] = await getDatabase()
+  const [created] = await database
     .insert(notifications)
     .values({
       recipientUserId: input.recipientUserId,

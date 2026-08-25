@@ -1128,6 +1128,82 @@
   cursor: pointer;
 }
 
+.friend-link {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.friend-link__heading,
+.friend-link__identity,
+.friend-link__actions,
+.friend-link__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.friend-link__heading p,
+.friend-link__identity,
+.friend-link__confirm p,
+.friend-link__message {
+  margin: 0;
+}
+
+.friend-link__heading {
+  justify-content: space-between;
+}
+
+.friend-link__state,
+.friend-link__identity span,
+.friend-link__confirm span,
+.friend-link__message {
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.friend-link__identity {
+  overflow-wrap: anywhere;
+}
+
+.friend-link__disclosure {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.friend-link__disclosure > label {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.friend-link__confirm {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.friend-link__confirm .technical-label {
+  margin: 0;
+}
+
+.friend-link__actions {
+  justify-content: flex-end;
+}
+
+.notification-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.45rem;
+}
+
 .friend-form__submit:disabled,
 .friend-record__archive button:disabled {
   cursor: wait;
@@ -4571,6 +4647,10 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
   .notification-row__state {
     min-width: 4rem;
+  }
+
+  .notification-row__actions {
+    justify-content: flex-start;
   }
 
   .record-pagination__summary {

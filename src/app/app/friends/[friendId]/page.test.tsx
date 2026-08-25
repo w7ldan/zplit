@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => ({
   createLedgerRepository: vi.fn(),
   getDebtorShareLinkStatus: vi.fn(),
   getDebtorShareReceiptSelection: vi.fn(),
+  getFriendLinkStatus: vi.fn(),
   notFound: vi.fn(() => { throw new Error("not-found"); }),
 }));
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/domain/ledger-repository", async () => {
@@ -20,6 +22,8 @@ vi.mock("@/domain/ledger-repository", async () => {
 });
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound, useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/server/debtor-share-links", () => ({ getDebtorShareLinkStatus: mocks.getDebtorShareLinkStatus, getDebtorShareReceiptSelection: mocks.getDebtorShareReceiptSelection }));
+vi.mock("@/server/friend-links", () => ({ getFriendLinkStatus: mocks.getFriendLinkStatus }));
+vi.mock("@/components/realtime/friend-link-live-refresh", () => ({ FriendLinkLiveRefresh: () => null }));
 
 const friend = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -50,6 +54,7 @@ describe("friend record", () => {
     mocks.createLedgerRepository.mockReturnValue({ getFriend: vi.fn().mockResolvedValue(friend), getFriendBalances, listEligibleDebtorShareReceipts: vi.fn().mockResolvedValue([]), listSharedRepaymentDestinations: vi.fn().mockResolvedValue([{ name: "BCA" }, { name: "GoPay" }]), listFriendExpenseShareRecords, listRepaymentRecords });
     mocks.getDebtorShareLinkStatus.mockResolvedValue({ status: "none", expiresAt: null });
     mocks.getDebtorShareReceiptSelection.mockResolvedValue([]);
+    mocks.getFriendLinkStatus.mockResolvedValue({ status: "unlinked" });
     render(<ToastProvider>{await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) })}</ToastProvider>);
 
     expect(screen.getByText("Friend · editable record")).toBeInTheDocument();

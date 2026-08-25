@@ -3,8 +3,10 @@ import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { InboxLiveRefresh } from "@/components/notifications/inbox-live-refresh";
 import { InboxIcon } from "@/components/notifications/inbox-icon";
 import { RecordPagination } from "@/components/records/record-pagination";
-import { presentNotification } from "@/domain/notifications";
+import { getFriendLinkRequestMetadata, NOTIFICATION_TYPES, presentNotification } from "@/domain/notifications";
 import { getCurrentUserNotificationPage, getCurrentUserUnreadNotificationCount } from "@/server/notifications";
+import { getCurrentUserFriendLinkRequestStatuses } from "@/server/friend-links";
+import { FriendLinkRequestActions } from "@/components/notifications/friend-link-request";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,8 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
     getCurrentUserNotificationPage(first(query.page)),
     getCurrentUserUnreadNotificationCount(),
   ]);
+  const friendLinkRequestIds = page.rows.flatMap((notification) => notification.type === NOTIFICATION_TYPES.friendLinkRequest ? [getFriendLinkRequestMetadata(notification.metadata)?.requestId].filter((id): id is string => Boolean(id)) : []);
+  const friendLinkRequestStatuses = await getCurrentUserFriendLinkRequestStatuses(friendLinkRequestIds);
 
   return (
     <section className="app-page inbox-page" id="top">
@@ -54,6 +58,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
                     </div>
                     <div className="notification-row__state">
                       {unread ? <form action={markNotificationReadAction.bind(null, notification.id)}><button className="text-link" type="submit">Mark read</button></form> : <span>Read</span>}
+                      {notification.type === NOTIFICATION_TYPES.friendLinkRequest ? <FriendLinkRequestActions requestId={getFriendLinkRequestMetadata(notification.metadata)?.requestId ?? ""} status={friendLinkRequestStatuses.get(getFriendLinkRequestMetadata(notification.metadata)?.requestId ?? "")} /> : null}
                     </div>
                   </li>
                 );

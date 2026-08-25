@@ -7,14 +7,16 @@ const mocks = vi.hoisted(() => ({
   getUnread: vi.fn(),
   markAll: vi.fn(),
   markOne: vi.fn(),
+  getFriendLinkStatuses: vi.fn(),
 }));
 
 vi.mock("@/server/notifications", () => ({
   getCurrentUserNotificationPage: mocks.getPage,
   getCurrentUserUnreadNotificationCount: mocks.getUnread,
 }));
+vi.mock("@/server/friend-links", () => ({ getCurrentUserFriendLinkRequestStatuses: mocks.getFriendLinkStatuses }));
 vi.mock("@/components/notifications/inbox-live-refresh", () => ({ InboxLiveRefresh: () => null }));
-vi.mock("./actions", () => ({ markAllNotificationsReadAction: mocks.markAll, markNotificationReadAction: mocks.markOne }));
+vi.mock("./actions", () => ({ markAllNotificationsReadAction: mocks.markAll, markNotificationReadAction: mocks.markOne, acceptFriendLinkRequestAction: vi.fn(), declineFriendLinkRequestAction: vi.fn() }));
 
 describe("/app/inbox", () => {
   beforeEach(() => {
@@ -30,6 +32,7 @@ describe("/app/inbox", () => {
       totalPages: 2,
     });
     mocks.getUnread.mockResolvedValue(1);
+    mocks.getFriendLinkStatuses.mockResolvedValue(new Map());
   });
 
   it("renders bounded newest rows with safe text and explicit read actions", async () => {
@@ -50,5 +53,21 @@ describe("/app/inbox", () => {
     render(await InboxPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByText("You’re all caught up.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mark all as read" })).not.toBeInTheDocument();
+  });
+
+  it("renders a Friend-link request with safe identity-only actions", async () => {
+    mocks.getPage.mockResolvedValue({
+      rows: [{ id: "notification-link", type: "friend.link.request", metadata: { requestId: "11111111-1111-4111-8111-111111111111", requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" }, createdAt: new Date("2026-08-25T07:00:00Z"), readAt: null, recipientUserId: "user-a", dedupeKey: "friend-link-request:11111111-1111-4111-8111-111111111111" }],
+      page: 1,
+      pageSize: 20,
+      totalItems: 1,
+      totalPages: 1,
+    });
+    mocks.getFriendLinkStatuses.mockResolvedValue(new Map([["11111111-1111-4111-8111-111111111111", "pending"]]));
+    render(await InboxPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText("Owner @owner wants to link “Office”.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
+    expect(screen.queryByText(/email|balance|expense history/i)).not.toBeInTheDocument();
   });
 });

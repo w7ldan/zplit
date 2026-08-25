@@ -13,4 +13,14 @@ describe("notification catalog", () => {
     expect(presentNotification("future.unknown", { html: "<img>" })).toEqual({ label: "Update", primary: "You have a new notification." });
     expect(presentNotification("system.test", { message: "<not html>" })).toEqual({ label: "System", primary: "<not html>" });
   });
+
+  it("presents Friend-link requests without private account fields", () => {
+    expect(presentNotification("friend.link.request", {
+      requestId: "11111111-1111-4111-8111-111111111111",
+      requesterDisplayName: "Owner",
+      requesterUsername: "owner",
+      friendName: "Office",
+    })).toEqual({ label: "Friend link request", primary: "Owner @owner wants to link “Office”.", secondary: "Identity confirmation only." });
+    expect(() => normalizeNotificationMetadata("friend.link.request", { requesterUsername: "owner", email: "owner@example.com" })).toThrow("Invalid metadata");
+  });
 });

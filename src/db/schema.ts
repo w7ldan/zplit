@@ -64,6 +64,7 @@ export const friends = pgTable(
     ownerUserId: text("owner_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    linkedUserId: text("linked_user_id").references(() => users.id, { onDelete: "set null" }),
     name: varchar("name", { length: 120 }).notNull(),
     phoneNumber: varchar("phone_number", { length: 32 }),
     notes: text("notes"),
@@ -74,8 +75,48 @@ export const friends = pgTable(
   (table) => [
     check("friends_name_not_blank", sql`btrim(${table.name}) <> ''`),
     uniqueIndex("friends_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
+    uniqueIndex("friends_owner_linked_user_uidx")
+      .on(table.ownerUserId, table.linkedUserId)
+      .where(sql`${table.linkedUserId} IS NOT NULL`),
     index("friends_name_idx").on(table.ownerUserId, table.name),
+    index("friends_linked_user_idx").on(table.ownerUserId, table.linkedUserId),
     index("friends_archived_at_idx").on(table.ownerUserId, table.archivedAt),
+  ],
+);
+
+export const friendLinkRequests = pgTable(
+  "friend_link_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    friendId: uuid("friend_id").notNull(),
+    targetUserId: text("target_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 16 }).default("pending").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    declinedAt: timestamp("declined_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("friend_link_requests_status_allowed", sql`${table.status} IN ('pending', 'accepted', 'declined', 'cancelled')`),
+    check(
+      "friend_link_requests_transition_timestamps",
+      sql`(${table.status} = 'pending' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'accepted' AND ${table.acceptedAt} IS NOT NULL AND ${table.declinedAt} IS NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'declined' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NOT NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'cancelled' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NULL AND ${table.cancelledAt} IS NOT NULL)`,
+    ),
+    foreignKey({
+      columns: [table.ownerUserId, table.friendId],
+      foreignColumns: [friends.ownerUserId, friends.id],
+      name: "friend_link_requests_owner_friend_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("friend_link_requests_pending_uidx")
+      .on(table.ownerUserId, table.friendId, table.targetUserId)
+      .where(sql`${table.status} = 'pending'`),
+    index("friend_link_requests_owner_friend_idx").on(table.ownerUserId, table.friendId),
+    index("friend_link_requests_target_status_idx").on(table.targetUserId, table.status),
   ],
 );
 
@@ -600,8 +641,43 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   accounts: many(accounts),
   notifications: many(notifications),
+  ownedFriends: many(friends, { relationName: "ownedFriends" }),
+  linkedFriends: many(friends, { relationName: "linkedFriends" }),
+  friendLinkRequestOwners: many(friendLinkRequests, { relationName: "friendLinkRequestOwners" }),
+  friendLinkRequestTargets: many(friendLinkRequests, { relationName: "friendLinkRequestTargets" }),
   createdInvitations: many(accountInvitations, { relationName: "createdInvitations" }),
   acceptedInvitations: many(accountInvitations, { relationName: "acceptedInvitations" }),
+}));
+
+export const friendsRelations = relations(friends, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [friends.ownerUserId],
+    references: [users.id],
+    relationName: "ownedFriends",
+  }),
+  linkedUser: one(users, {
+    fields: [friends.linkedUserId],
+    references: [users.id],
+    relationName: "linkedFriends",
+  }),
+  linkRequests: many(friendLinkRequests),
+}));
+
+export const friendLinkRequestsRelations = relations(friendLinkRequests, ({ one }) => ({
+  owner: one(users, {
+    fields: [friendLinkRequests.ownerUserId],
+    references: [users.id],
+    relationName: "friendLinkRequestOwners",
+  }),
+  friend: one(friends, {
+    fields: [friendLinkRequests.ownerUserId, friendLinkRequests.friendId],
+    references: [friends.ownerUserId, friends.id],
+  }),
+  target: one(users, {
+    fields: [friendLinkRequests.targetUserId],
+    references: [users.id],
+    relationName: "friendLinkRequestTargets",
+  }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
