@@ -41,7 +41,7 @@ describe("AppShell", () => {
     expect(document.querySelectorAll(".toast-viewport")).toHaveLength(1);
   });
 
-  it.each(["/app/friends", "/app/outings", "/app/outings/outing-a", "/app/trips", "/app/trips/trip-a", "/app/expenses", "/app/repayments"])("marks Personal active for %s", (pathname) => {
+  it.each(["/app/friends", "/app/outings", "/app/outings/outing-a", "/app/trips", "/app/trips/trip-a", "/app/expenses", "/app/repayments", "/app/history", "/app/exports", "/app/exports/export-a"])("marks Personal active for %s", (pathname) => {
     pathState.value = pathname;
     render(<AppShell user={{ id: "user-a", name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     for (const label of ["Ledger navigation", "Mobile ledger navigation"]) {
@@ -66,6 +66,12 @@ describe("AppShell", () => {
     expect(screen.getByRole("link", { name: "History" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Exports" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+  });
+
+  it("does not render the retired global ledger subtitle", () => {
+    render(<AppShell user={{ id: "user-a", name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
+
+    expect(screen.queryByText("PRIVATE LEDGER")).not.toBeInTheDocument();
   });
 
   it("uses the shared detached-header behavior", () => {

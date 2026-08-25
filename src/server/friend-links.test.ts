@@ -167,12 +167,12 @@ describe("Friend ↔ Zplit-user linking", () => {
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetId, "resolved");
   });
 
-  it("lets either connected user unlink the same pair without deleting ledger-facing Friend rows", async () => {
+  it("lets either connected user unlink while preserving an archived ledger Friend row", async () => {
     const accepted = { id: requestId, ownerUserId: ownerId, friendId, targetUserId: targetId, status: "accepted" };
     const db = database([
       [accepted],
       [],
-      [{ id: friendId, ownerUserId: ownerId }],
+      [{ id: friendId, ownerUserId: ownerId, archivedAt: new Date("2026-08-01T00:00:00Z") }],
       [{ id: "connection", userAId: ownerId, userBId: targetId, status: "connected" }],
     ], [], [[{ id: friendId, ownerUserId: ownerId }], []]);
     await expect(unlinkFriendLink(db, targetId, { requestId })).resolves.toMatchObject({ changed: true, friendIds: [friendId] });

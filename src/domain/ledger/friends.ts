@@ -53,6 +53,7 @@ function friendExperienceCte(owner: string, filters: ReturnType<typeof normalize
       FROM friends f
       WHERE f.owner_user_id = ${owner}
         AND f.linked_user_id IS NOT NULL
+        AND f.archived_at IS NULL
     ),
     accepted_requests AS (
       SELECT DISTINCT ON (LEAST(r.owner_user_id, r.target_user_id), GREATEST(r.owner_user_id, r.target_user_id))

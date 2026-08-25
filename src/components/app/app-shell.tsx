@@ -21,7 +21,7 @@ const destinations = [
   ["Organizations", "/app/organizations"],
 ] as const;
 
-const personalPaths = ["/app/personal", "/app/friends", "/app/outings", "/app/trips", "/app/expenses", "/app/repayments"];
+const personalPaths = ["/app/personal", "/app/friends", "/app/outings", "/app/trips", "/app/expenses", "/app/repayments", "/app/history", "/app/exports"];
 
 type AppShellProps = {
   user: {
@@ -64,7 +64,6 @@ export function AppShell({ user, canManageInvites, initialUnreadCount = 0, child
         brand={(
           <Link href="/app" aria-label="Zplit overview">
             <span className="app-shell__wordmark">Zplit</span>
-            <span className="technical-label">PRIVATE LEDGER</span>
           </Link>
         )}
         navigation={(

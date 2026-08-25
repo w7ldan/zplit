@@ -1167,8 +1167,23 @@ describe("ledger repository", () => {
     expect(queries.every(({ sql }) => sql.toLowerCase().includes("union all"))).toBe(true);
     expect(queries.every(({ sql }) => sql.toLowerCase().includes("not exists"))).toBe(true);
     expect(queries.every(({ sql }) => sql.includes("represented_users"))).toBe(true);
+    expect(queries.every(({ sql }) => sql.toLowerCase().includes("f.archived_at is null"))).toBe(true);
     expect(queries.every(({ sql }) => !sql.includes('"email"'))).toBe(true);
     expect(queries.every(({ params }) => params.includes(owner))).toBe(true);
+  });
+
+  it("keeps an active registered Friend visible when its linked ledger Friend is archived", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      if (sql.toLowerCase().includes("count(*)")) return { rows: [{ total_items: 1 }] };
+      return { rows: [{ entry_type: "connection", entry_id: "connection-a", user_id: "user-a", request_id: "request-a", name: "Alice Tan", phone_number: null, archived_at: null, created_at: null, linked_display_name: null, linked_username: "alice" }] };
+    });
+
+    const result = await createLedgerRepository(database as unknown as Database, owner).listFriendsExperience();
+
+    expect(result.items).toEqual([{ type: "connection", connection: { type: "connection", id: "connection-a", userId: "user-a", name: "Alice Tan", username: "alice", requestId: "request-a" } }]);
+    expect(queries.every(({ sql }) => sql.toLowerCase().includes("f.archived_at is null"))).toBe(true);
   });
 
   it("counts the full unified result while fetching only the requested page", async () => {

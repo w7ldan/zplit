@@ -36,7 +36,7 @@ describe("authenticated app shell", () => {
     render(await AppLayout({ children: <p>Private content</p> }));
 
     expect(screen.getByText("Zplit")).toBeInTheDocument();
-    expect(screen.getByText("PRIVATE LEDGER")).toBeInTheDocument();
+    expect(screen.queryByText("PRIVATE LEDGER")).not.toBeInTheDocument();
     expect(screen.getAllByText("Wildan").length).toBeGreaterThan(0);
     expect(screen.getByText("owner@example.com")).toBeInTheDocument();
     const navigation = screen.getByRole("navigation", { name: "Ledger navigation" });
