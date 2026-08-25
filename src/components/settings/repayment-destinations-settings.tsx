@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition, type DragEvent } from "react";
+import { useRef, useState, useTransition, type DragEvent } from "react";
 import type { RepaymentDestinationFormAction, RepaymentDestinationOrderAction } from "@/app/app/settings/actions";
 import { destinationTypeLabel, type RepaymentDestinationType } from "@/domain/repayment-destination";
 import { RepaymentDestinationForm } from "./repayment-destination-form";
@@ -34,34 +34,50 @@ function serverSnapshot(destinations: SettingsRepaymentDestinationEntry[]) {
   return JSON.stringify(destinations.map(({ id, type, name, identifier, accountName, note, shareOnBalanceLinks }) => [id, type, name, identifier, accountName, note, shareOnBalanceLinks]));
 }
 
-function hasOrder(destinations: SettingsRepaymentDestinationEntry[], ids: string[]) {
-  return destinations.length === ids.length && destinations.every(({ id }, index) => id === ids[index]);
+function hasOrder(destinationIds: string[], ids: string[]) {
+  return destinationIds.length === ids.length && destinationIds.every((id, index) => id === ids[index]);
 }
 
+function reconcileOrder(destinationIds: string[], preferredIds: string[]) {
+  const availableIds = new Set(destinationIds);
+  const preferredSet = new Set(preferredIds);
+  return [
+    ...preferredIds.filter((id) => availableIds.has(id)),
+    ...destinationIds.filter((id) => !preferredSet.has(id)),
+  ];
+}
+
+type OrderOverlay =
+  | { kind: "optimistic"; ids: string[]; snapshot: string }
+  | { kind: "rollback"; ids: string[]; snapshot: string };
+
 export function RepaymentDestinationsSettings({ destinations, createAction, setOrderAction }: Props) {
-  const [orderedDestinations, setOrderedDestinations] = useState(destinations);
-  const confirmedOrder = useRef(destinations);
-  const lastServerSnapshot = useRef(serverSnapshot(destinations));
-  const pendingOrder = useRef<string[] | null>(null);
-  const [openForm, setOpenForm] = useState<string | null>(null);
+  const destinationIds = destinations.map(({ id }) => id);
+  const currentServerSnapshot = serverSnapshot(destinations);
+  const [orderOverlay, setOrderOverlay] = useState<OrderOverlay | null>(null);
+  const confirmedOrder = useRef(destinationIds);
+  const [openForm, setOpenForm] = useState<{ id: string; snapshot: string } | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
-  const [orderError, setOrderError] = useState("");
+  const [orderError, setOrderError] = useState<{ message: string; snapshot: string } | null>(null);
   const createTrigger = useRef<HTMLButtonElement>(null);
   const editTriggers = useRef<Record<string, HTMLButtonElement | null>>({});
   const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
-    const nextSnapshot = serverSnapshot(destinations);
-    if (nextSnapshot === lastServerSnapshot.current) return;
-    if (pendingOrder.current && !hasOrder(destinations, pendingOrder.current)) return;
-    lastServerSnapshot.current = nextSnapshot;
-    confirmedOrder.current = destinations;
-    pendingOrder.current = null;
-    setOrderedDestinations(destinations);
-    setOrderError("");
-    setOpenForm(null);
-  }, [destinations, isPending]);
+  const destinationsById = new Map(destinations.map((destination) => [destination.id, destination]));
+  const overlayIds = orderOverlay && (isPending || orderOverlay.snapshot === currentServerSnapshot)
+    ? orderOverlay.ids
+    : null;
+  const preferredOrderIds = overlayIds && !hasOrder(destinationIds, overlayIds) ? overlayIds : destinationIds;
+  const orderedDestinations = reconcileOrder(destinationIds, preferredOrderIds)
+    .map((id) => destinationsById.get(id))
+    .filter((destination): destination is SettingsRepaymentDestinationEntry => Boolean(destination));
+  const visibleOpenForm = openForm?.snapshot === currentServerSnapshot ? openForm.id : null;
+  const visibleOrderError = orderError?.snapshot === currentServerSnapshot ? orderError.message : "";
+
+  function openFormFor(id: string) {
+    setOpenForm({ id, snapshot: currentServerSnapshot });
+  }
 
   function closeForm(trigger?: HTMLButtonElement | null) {
     setOpenForm(null);
@@ -70,23 +86,22 @@ export function RepaymentDestinationsSettings({ destinations, createAction, setO
 
   function persistOrder(nextOrder: SettingsRepaymentDestinationEntry[]) {
     if (isPending) return;
-    setOrderedDestinations(nextOrder);
-    setOrderError("");
-    pendingOrder.current = nextOrder.map(({ id }) => id);
+    confirmedOrder.current = orderedDestinations.map(({ id }) => id);
+    const nextOrderIds = nextOrder.map(({ id }) => id);
+    setOrderOverlay({ kind: "optimistic", ids: nextOrderIds, snapshot: currentServerSnapshot });
+    setOrderError(null);
     startTransition(async () => {
       try {
-        const result = await setOrderAction(nextOrder.map(({ id }) => id));
+        const result = await setOrderAction(nextOrderIds);
         if (result.ok) {
-          if (pendingOrder.current) confirmedOrder.current = nextOrder;
+          confirmedOrder.current = nextOrderIds;
           return;
         }
-        pendingOrder.current = null;
-        setOrderedDestinations(confirmedOrder.current);
-        setOrderError(result.message);
+        setOrderOverlay({ kind: "rollback", ids: confirmedOrder.current, snapshot: currentServerSnapshot });
+        setOrderError({ message: result.message, snapshot: currentServerSnapshot });
       } catch {
-        pendingOrder.current = null;
-        setOrderedDestinations(confirmedOrder.current);
-        setOrderError("Unable to save repayment destination order.");
+        setOrderOverlay({ kind: "rollback", ids: confirmedOrder.current, snapshot: currentServerSnapshot });
+        setOrderError({ message: "Unable to save repayment destination order.", snapshot: currentServerSnapshot });
       }
     });
   }
@@ -163,17 +178,17 @@ export function RepaymentDestinationsSettings({ destinations, createAction, setO
                       ref={(element) => { editTriggers.current[destination.id] = element; }}
                       className="text-link"
                       type="button"
-                      aria-expanded={openForm === destination.id}
+                      aria-expanded={visibleOpenForm === destination.id}
                       aria-controls={editFormId}
                       aria-label={`Edit ${destination.name}`}
-                      onClick={() => setOpenForm(destination.id)}
+                      onClick={() => openFormFor(destination.id)}
                     >
                       Edit
                     </button>
                     <form action={destination.deleteAction}><button className="text-link" type="submit">Delete</button></form>
                   </div>
                 </div>
-                {openForm === destination.id ? (
+                {visibleOpenForm === destination.id ? (
                   <div className="settings-page__disclosure" id={editFormId} aria-labelledby={`${editFormId}-heading`}>
                     <p className="technical-label" id={`${editFormId}-heading`}>EDIT DESTINATION</p>
                     <RepaymentDestinationForm
@@ -190,10 +205,10 @@ export function RepaymentDestinationsSettings({ destinations, createAction, setO
           })}
         </div>
       ) : <p className="settings-page__empty">No repayment destinations yet. Add somewhere friends can send repayments.</p>}
-      {orderError ? <p className="settings-page__error" role="alert">{orderError}</p> : null}
+      {visibleOrderError ? <p className="settings-page__error" role="alert">{visibleOrderError}</p> : null}
       <div className="settings-page__add">
-        <button ref={createTrigger} className="text-link" type="button" aria-expanded={openForm === "create"} aria-controls={createFormId} onClick={() => setOpenForm("create")}>New destination</button>
-        {openForm === "create" ? (
+        <button ref={createTrigger} className="text-link" type="button" aria-expanded={visibleOpenForm === "create"} aria-controls={createFormId} onClick={() => openFormFor("create")}>New destination</button>
+        {visibleOpenForm === "create" ? (
           <div className="settings-page__disclosure" id={createFormId} aria-labelledby="repayment-destination-create-heading">
             <p className="technical-label" id="repayment-destination-create-heading">ADD DESTINATION</p>
             <RepaymentDestinationForm action={createAction} onCancel={() => closeForm(createTrigger.current)} />

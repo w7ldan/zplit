@@ -63,6 +63,7 @@ describe("RepaymentDestinationsSettings", () => {
     expect(screen.getByRole("button", { name: "Move GoPay down" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Move GoPay up" }));
     await waitFor(() => expect(setOrderAction).toHaveBeenNthCalledWith(1, [destinations[1]!.id, destinations[0]!.id]));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Move GoPay down" })).not.toBeDisabled());
     fireEvent.click(screen.getByRole("button", { name: "Move GoPay down" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Unable to save repayment destination order."));
     expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual(["GoPay", "BCA"]);
