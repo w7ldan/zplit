@@ -1151,7 +1151,7 @@ describe("ledger repository", () => {
       queries.push({ sql, params });
       if (sql.toLowerCase().includes("count(*)")) return { rows: [{ total_items: 2 }] };
       return { rows: [
-        { entry_type: "local", entry_id: "friend-b", user_id: "user-b", request_id: null, name: "Alice ledger", phone_number: null, archived_at: null, created_at: new Date("2026-01-04T00:00:00Z"), linked_display_name: "Alice Tan", linked_username: "alice" },
+        { entry_type: "local", entry_id: "friend-b", user_id: "user-b", request_id: null, name: "Alice ledger", phone_number: null, archived_at: null, created_at: "2026-01-04T00:00:00.000Z", linked_display_name: "Alice Tan", linked_username: "alice" },
         { entry_type: "connection", entry_id: "connection-c", user_id: "user-c", request_id: "request-c", name: "Carol Tan", phone_number: null, archived_at: null, created_at: null, linked_display_name: null, linked_username: "carol" },
       ] };
     });
@@ -1159,7 +1159,7 @@ describe("ledger repository", () => {
     const result = await createLedgerRepository(database as unknown as Database, owner).listFriendsExperience();
 
     expect(result.items).toEqual([
-      { type: "local", friend: expect.objectContaining({ id: "friend-b", name: "Alice ledger", linkedUser: { displayName: "Alice Tan", username: "alice" } }) },
+      { type: "local", friend: expect.objectContaining({ id: "friend-b", name: "Alice ledger", createdAt: new Date("2026-01-04T00:00:00.000Z"), linkedUser: { displayName: "Alice Tan", username: "alice" } }) },
       { type: "connection", connection: { type: "connection", id: "connection-c", userId: "user-c", name: "Carol Tan", username: "carol", requestId: "request-c" } },
     ]);
     expect(result.totalItems).toBe(2);

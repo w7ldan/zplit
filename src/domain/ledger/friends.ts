@@ -24,7 +24,7 @@ type FriendExperienceRow = {
   name: string;
   phone_number: string | null;
   archived_at: Date | null;
-  created_at: Date | null;
+  created_at: Date | string | null;
   linked_display_name: string | null;
   linked_username: string | null;
 };
@@ -122,7 +122,7 @@ function mapFriendExperienceRow(row: FriendExperienceRow): FriendListEntry {
         name: row.name,
         phoneNumber: row.phone_number,
         archivedAt: row.archived_at,
-        createdAt: row.created_at!,
+        createdAt: row.created_at instanceof Date ? row.created_at : new Date(row.created_at!),
         ...(row.linked_display_name && row.linked_username ? { linkedUser: { displayName: row.linked_display_name, username: row.linked_username } } : {}),
       },
     };

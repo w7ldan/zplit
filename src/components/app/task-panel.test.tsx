@@ -34,7 +34,7 @@ function panel(open = true) {
 
 describe("TaskPanel", () => {
   it("adds and removes product mode with the authenticated shell", () => {
-    const { unmount } = render(<AppShell user={{ name: "Wildan", email: "owner@example.com" }}><p>Content</p></AppShell>);
+    const { unmount } = render(<AppShell user={{ id: "user-a", name: "Wildan", email: "owner@example.com" }}><p>Content</p></AppShell>);
 
     expect(document.documentElement).toHaveClass("zplit-product-mode");
     unmount();
