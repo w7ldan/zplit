@@ -13,19 +13,22 @@ import { ThemeControl } from "@/components/theme/theme-provider";
 import { GlobalSearch } from "./global-search";
 import { RealtimeProvider } from "@/components/realtime/realtime-provider";
 import { InboxControl } from "@/components/notifications/inbox-control";
+import { UserAvatar, type AvatarReference } from "@/components/identity/user-avatar";
 
 const destinations = [
   ["Overview", "/app"],
-  ["Friends", "/app/friends"],
-  ["Outings", "/app/outings"],
-  ["Expenses", "/app/expenses"],
-  ["Repayments", "/app/repayments"],
+  ["Personal", "/app/personal"],
+  ["Organizations", "/app/organizations"],
 ] as const;
+
+const personalPaths = ["/app/personal", "/app/friends", "/app/outings", "/app/trips", "/app/expenses", "/app/repayments"];
 
 type AppShellProps = {
   user: {
+    id: string;
     name: string;
     email: string;
+    avatar?: AvatarReference | null;
   };
   canManageInvites?: boolean;
   initialUnreadCount?: number;
@@ -33,7 +36,7 @@ type AppShellProps = {
 };
 
 function isCurrent(pathname: string, href: string) {
-  if (href === "/app/outings" && (pathname === "/app/trips" || pathname.startsWith("/app/trips/"))) return true;
+  if (href === "/app/personal") return personalPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
   return href === "/app" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -79,7 +82,7 @@ export function AppShell({ user, canManageInvites, initialUnreadCount = 0, child
             <InboxControl initialUnreadCount={initialUnreadCount} active={isCurrent(pathname, "/app/inbox")} />
             <Link className="action-link action-link--primary app-shell__add-expense" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
             <details className="account-menu">
-              <summary aria-label={`Open account menu for ${user.name}`}><span className="account-menu__name">{user.name}</span></summary>
+              <summary aria-label={`Open account menu for ${user.name}`}><UserAvatar userId={user.id} customAvatar={user.avatar} size="sm" decorative /><span className="account-menu__name">{user.name}</span></summary>
               <div className="account-menu__panel">
                 <span className="technical-label">Signed in as</span>
                 <strong>{user.name}</strong>

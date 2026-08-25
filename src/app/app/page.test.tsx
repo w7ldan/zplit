@@ -44,8 +44,8 @@ describe("/app overview", () => {
     expect("listExpenses" in repository).toBe(false);
     expect("listRepayments" in repository).toBe(false);
     expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
-    expect(screen.getByText("Overview · your balances")).toBeInTheDocument();
-    expect(screen.getByText("See what friends still owe, what needs allocation, and your latest activity.")).toBeInTheDocument();
+    expect(screen.getByText("Overview · your Zplit")).toBeInTheDocument();
+    expect(screen.getByText("A concise view of your Personal ledger and the next thing that needs attention.")).toBeInTheDocument();
     const primary = document.querySelector<HTMLElement>(".overview-summary")!;
     expect(primary.querySelectorAll("strong")).toHaveLength(3);
     for (const label of ["Still owed to you", "Needs allocation", "Total spending"]) {

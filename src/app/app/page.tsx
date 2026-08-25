@@ -24,9 +24,9 @@ export default async function AppPage() {
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
-            <p className="technical-label">Overview · your balances</p>
+            <p className="technical-label">Overview · your Zplit</p>
             <h1>Overview</h1>
-            <p className="app-page__lede">See what friends still owe, what needs allocation, and your latest activity.</p>
+            <p className="app-page__lede">A concise view of your Personal ledger and the next thing that needs attention.</p>
           </div>
           <div className="app-page__actions">
             <Link className="action-link action-link--primary" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
@@ -95,6 +95,14 @@ export default async function AppPage() {
             {needsAttention.totalItems > displayedNeedsAttention.length ? <Link className="text-link" href="/app/repayments?allocation=needs">View all unresolved repayments <span aria-hidden="true">→</span></Link> : null}
           </section>
         ) : null}
+        <section className="future-section" aria-labelledby="groups-preview-heading">
+          <div className="ledger-section__heading"><h2 id="groups-preview-heading">Groups</h2><span className="technical-label">Personal</span></div>
+          <div className="future-section__empty"><p>Groups will appear here when they are available.</p><Link className="text-link" href="/app/personal">Open Personal <span aria-hidden="true">→</span></Link></div>
+        </section>
+        <section className="future-section" aria-labelledby="organizations-preview-heading">
+          <div className="ledger-section__heading"><h2 id="organizations-preview-heading">Organizations</h2><span className="technical-label">Coming later</span></div>
+          <div className="future-section__empty"><p>No organizations yet.</p><Link className="text-link" href="/app/organizations">View Organizations <span aria-hidden="true">→</span></Link></div>
+        </section>
       </div>
     </section>
   );
