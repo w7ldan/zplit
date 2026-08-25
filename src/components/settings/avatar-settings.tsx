@@ -9,7 +9,7 @@ function responseMessage(body: unknown, fallback: string) {
   return typeof body === "object" && body !== null && "error" in body && typeof body.error === "string" ? body.error : fallback;
 }
 
-export function AvatarSettings({ userId, avatar, endpoint = "/app/avatar", avatarUrl, children }: { userId: string; avatar: AvatarReference | null; endpoint?: string; avatarUrl?: string | ((avatar: AvatarReference) => string); children?: ReactNode }) {
+export function AvatarSettings({ userId, avatar, defaultAvatarSeed = userId, endpoint = "/app/avatar", avatarUrl, children }: { userId: string; avatar: AvatarReference | null; defaultAvatarSeed?: string; endpoint?: string; avatarUrl?: string | ((avatar: AvatarReference) => string); children?: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
   const [current, setCurrent] = useState<AvatarReference | null>(avatar);
   const [preview, setPreview] = useState<string | null>(null);
@@ -62,7 +62,7 @@ export function AvatarSettings({ userId, avatar, endpoint = "/app/avatar", avata
 
   return (
     <div className="settings-page__identity">
-      <UserAvatar userId={userId} customAvatar={current} customAvatarUrl={current && typeof avatarUrl === "function" ? avatarUrl(current) : typeof avatarUrl === "string" ? avatarUrl : undefined} previewSrc={preview} decorative size="md" />
+      <UserAvatar userId={defaultAvatarSeed} customAvatar={current} customAvatarUrl={current && typeof avatarUrl === "function" ? avatarUrl(current) : typeof avatarUrl === "string" ? avatarUrl : undefined} previewSrc={preview} decorative size="md" />
       <div className="settings-page__identity-details">
         {children}
         <div className="settings-page__avatar-control">

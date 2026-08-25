@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AvatarSettings } from "./avatar-settings";
+import { OrganizationAvatar, organizationAvatarSeed } from "@/components/organizations/organization-avatar";
 
 function response(body: unknown, ok = true, status = 200) {
   return { ok, status, json: vi.fn().mockResolvedValue(body) };
@@ -46,6 +47,17 @@ describe("AvatarSettings", () => {
     expect(container.querySelectorAll(".user-avatar")).toHaveLength(1);
     expect(container.querySelector("img")).not.toBeInTheDocument();
     expect(container.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("uses the canonical Organization motif after removing custom media", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response(null));
+    vi.stubGlobal("fetch", fetchMock);
+    const organizationId = "org-a";
+    const card = render(<OrganizationAvatar organizationId={organizationId} decorative />);
+    const cardMotif = card.container.querySelector("svg")?.outerHTML;
+    const profile = render(<AvatarSettings userId={organizationId} defaultAvatarSeed={organizationAvatarSeed(organizationId)} avatar={{ sha256: "a".repeat(64) }} />);
+    fireEvent.click(profile.getByRole("button", { name: "Remove photo" }));
+    await waitFor(() => expect(profile.container.querySelector("svg")?.outerHTML).toBe(cardMotif));
   });
 
   it("keeps a useful preview and local error after upload failure", async () => {

@@ -1,8 +1,12 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { OrganizationAvatar } from "./organization-avatar";
+import { OrganizationAvatar, organizationAvatarSeed } from "./organization-avatar";
 
 describe("OrganizationAvatar", () => {
+  it("keeps one canonical identity seed", () => {
+    expect(organizationAvatarSeed("org-a")).toBe("organization:org-a");
+  });
+
   it("uses an organization-specific deterministic default and private custom route", () => {
     const first = render(<OrganizationAvatar organizationId="org-a" decorative />);
     const firstMarkup = first.container.innerHTML;
