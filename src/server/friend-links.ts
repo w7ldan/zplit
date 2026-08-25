@@ -393,7 +393,7 @@ export async function unlinkFriendLink(database: Database, actorUserId: string, 
       }
     }
 
-    if (!targetUserId) return { changed: false, friendIds: [] as string[], userIds: [actorUserId], requestId: requestId ?? "", ownerUserId };
+    if (!targetUserId) return { changed: false, friendIds: [] as string[], friendMappings: [], userIds: [actorUserId], requestId: requestId ?? "", ownerUserId };
     const [userAId, userBId] = canonicalPair(ownerUserId, targetUserId);
     const mappingRows = await transaction
       .select({ id: friends.id, ownerUserId: friends.ownerUserId })
@@ -432,10 +432,16 @@ export async function unlinkFriendLink(database: Database, actorUserId: string, 
       });
     }
 
-    const friendIds = [...new Set([...mappingRows, ...cleared].map(({ id }) => id))];
+    const friendMappings = [...new Map(
+      [...mappingRows, ...cleared].map(({ id, ownerUserId: mappingOwnerUserId }) => [
+        `${mappingOwnerUserId}\u0000${id}`,
+        { ownerUserId: mappingOwnerUserId, friendId: id },
+      ]),
+    ).values()];
     return {
       changed: cleared.length > 0 || connection?.status === "connected",
-      friendIds,
+      friendIds: [...new Set(friendMappings.map(({ friendId }) => friendId))],
+      friendMappings,
       userIds: [userAId, userBId],
       requestId: requestId ?? "",
       ownerUserId,
@@ -444,7 +450,7 @@ export async function unlinkFriendLink(database: Database, actorUserId: string, 
 
   if (result.changed) {
     for (const userId of result.userIds) publishNotificationStateChange(userId, "resolved");
-    for (const friendId of result.friendIds) publishFriendLinkChange(result.ownerUserId ?? actorUserId, friendId, result.requestId, "disconnected");
+    for (const { ownerUserId, friendId } of result.friendMappings) publishFriendLinkChange(ownerUserId, friendId, result.requestId, "disconnected");
   }
   return result;
 }

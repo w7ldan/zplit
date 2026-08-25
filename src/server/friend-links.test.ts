@@ -179,6 +179,26 @@ describe("Friend ↔ Zplit-user linking", () => {
     expect(db.transactionDb.update).toHaveBeenCalledTimes(2);
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(ownerId, "resolved");
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetId, "resolved");
+    expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith(ownerId, expect.objectContaining({ type: "friend.link.state.changed", data: expect.objectContaining({ friendId, status: "disconnected" }) }));
+  });
+
+  it("refreshes each owner when unlink clears reciprocal Friend mappings", async () => {
+    const friendA = "33333333-3333-4333-8333-333333333333";
+    const friendB = "44444444-4444-4444-8444-444444444444";
+    const accepted = { id: requestId, ownerUserId: ownerId, friendId: friendA, targetUserId: targetId, status: "accepted" };
+    const db = database([
+      [accepted],
+      [],
+      [{ id: friendA, ownerUserId: ownerId }, { id: friendB, ownerUserId: targetId }],
+      [{ id: "connection", userAId: ownerId, userBId: targetId, status: "connected" }],
+    ], [], [[{ id: friendA, ownerUserId: ownerId }, { id: friendB, ownerUserId: targetId }], []]);
+
+    await expect(unlinkFriendLink(db, targetId, { requestId })).resolves.toMatchObject({ changed: true, friendIds: [friendA, friendB] });
+    expect(mocks.publishRealtimeEvent).toHaveBeenCalledTimes(2);
+    expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith(ownerId, expect.objectContaining({ data: expect.objectContaining({ friendId: friendA, status: "disconnected" }) }));
+    expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith(targetId, expect.objectContaining({ data: expect.objectContaining({ friendId: friendB, status: "disconnected" }) }));
+    expect(mocks.publishRealtimeEvent).not.toHaveBeenCalledWith(ownerId, expect.objectContaining({ data: expect.objectContaining({ friendId: friendB }) }));
+    expect(mocks.publishRealtimeEvent).not.toHaveBeenCalledWith(targetId, expect.objectContaining({ data: expect.objectContaining({ friendId: friendA }) }));
   });
 
   it("rejects unlink from an unrelated user and leaves the transaction untouched", async () => {

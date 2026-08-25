@@ -35,6 +35,29 @@ DROP INDEX "friend_link_requests_pending_uidx";--> statement-breakpoint
 ALTER TABLE "friend_connections" ADD CONSTRAINT "friend_connections_user_a_id_users_id_fk" FOREIGN KEY ("user_a_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "friend_connections" ADD CONSTRAINT "friend_connections_user_b_id_users_id_fk" FOREIGN KEY ("user_b_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "friend_connections_pair_uidx" ON "friend_connections" USING btree ("user_a_id","user_b_id");--> statement-breakpoint
+WITH existing_links AS (
+	SELECT
+		LEAST(f.owner_user_id, f.linked_user_id) AS user_a_id,
+		GREATEST(f.owner_user_id, f.linked_user_id) AS user_b_id,
+		COALESCE(MIN(r.accepted_at), MIN(f.updated_at), MIN(f.created_at), now()) AS connected_at
+	FROM friends AS f
+	LEFT JOIN friend_link_requests AS r
+		ON r.owner_user_id = f.owner_user_id
+		AND r.friend_id = f.id
+		AND r.target_user_id = f.linked_user_id
+		AND r.status = 'accepted'
+	WHERE f.linked_user_id IS NOT NULL
+		AND f.owner_user_id <> f.linked_user_id
+	GROUP BY 1, 2
+)
+INSERT INTO friend_connections (user_a_id, user_b_id, status, created_at, connected_at, updated_at)
+SELECT user_a_id, user_b_id, 'connected', connected_at, connected_at, connected_at
+FROM existing_links
+ON CONFLICT (user_a_id, user_b_id) DO UPDATE
+SET status = 'connected',
+	connected_at = LEAST(friend_connections.connected_at, EXCLUDED.connected_at),
+	disconnected_at = NULL,
+	updated_at = EXCLUDED.updated_at;--> statement-breakpoint
 CREATE INDEX "friend_connections_user_a_idx" ON "friend_connections" USING btree ("user_a_id");--> statement-breakpoint
 CREATE INDEX "friend_connections_user_b_idx" ON "friend_connections" USING btree ("user_b_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "friend_link_requests_pending_owner_friend_uidx" ON "friend_link_requests" USING btree ("owner_user_id","friend_id") WHERE "friend_link_requests"."status" = 'pending';--> statement-breakpoint
