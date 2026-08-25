@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { UserAvatar, type AvatarReference } from "@/components/identity/user-avatar";
 
 type AvatarResponse = { mediaType: "image/webp"; byteSize: number; sha256: string };
@@ -9,7 +9,7 @@ function responseMessage(body: unknown, fallback: string) {
   return typeof body === "object" && body !== null && "error" in body && typeof body.error === "string" ? body.error : fallback;
 }
 
-export function AvatarSettings({ userId, avatar }: { userId: string; avatar: AvatarReference | null }) {
+export function AvatarSettings({ userId, avatar, children }: { userId: string; avatar: AvatarReference | null; children?: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
   const [current, setCurrent] = useState<AvatarReference | null>(avatar);
   const [preview, setPreview] = useState<string | null>(null);
@@ -61,17 +61,22 @@ export function AvatarSettings({ userId, avatar }: { userId: string; avatar: Ava
   }
 
   return (
-    <div className="settings-page__avatar-control">
+    <div className="settings-page__identity">
       <UserAvatar userId={userId} customAvatar={current} previewSrc={preview} decorative size="md" />
-      <div className="settings-page__avatar-copy">
-        <div className="settings-page__avatar-actions">
-          <button className="action-link action-link--quiet settings-page__avatar-action" type="button" onClick={() => input.current?.click()} disabled={pending} aria-busy={pending}>
-            {pending ? "Saving…" : "Change photo"}
-          </button>
-          {current ? <button className="action-link action-link--quiet settings-page__avatar-action" type="button" onClick={remove} disabled={pending}>Remove photo</button> : null}
-          <input ref={input} className="settings-page__avatar-input" type="file" aria-label="Choose avatar image" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }} />
+      <div className="settings-page__identity-details">
+        {children}
+        <div className="settings-page__avatar-control">
+          <div className="settings-page__avatar-copy">
+            <div className="settings-page__avatar-actions">
+              <button className="action-link action-link--quiet settings-page__avatar-action" type="button" onClick={() => input.current?.click()} disabled={pending} aria-busy={pending}>
+                {pending ? "Saving…" : "Change photo"}
+              </button>
+              {current ? <button className="action-link action-link--quiet settings-page__avatar-action" type="button" onClick={remove} disabled={pending}>Remove photo</button> : null}
+              <input ref={input} className="settings-page__avatar-input" type="file" aria-label="Choose avatar image" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }} />
+            </div>
+            <p className="settings-page__avatar-feedback" role={error ? "alert" : undefined}>{error || "\u00a0"}</p>
+          </div>
         </div>
-        <p className="settings-page__avatar-feedback" role={error ? "alert" : undefined}>{error || "\u00a0"}</p>
       </div>
     </div>
   );

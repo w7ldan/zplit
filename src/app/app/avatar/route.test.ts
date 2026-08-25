@@ -23,11 +23,11 @@ vi.mock("@/server/user-avatars", () => ({
     "Cross-Origin-Resource-Policy": "same-origin",
   },
   MAX_AVATAR_BYTES: 5 * 1024 * 1024,
-  getUserAvatarForViewer: mocks.getAvatar,
   normalizeUserAvatar: mocks.normalize,
   saveUserAvatar: mocks.save,
   deleteUserAvatar: mocks.remove,
 }));
+vi.mock("@/server/user-avatar-access", () => ({ getUserAvatarForViewer: mocks.getAvatar }));
 
 import { DELETE, GET, POST } from "./route";
 

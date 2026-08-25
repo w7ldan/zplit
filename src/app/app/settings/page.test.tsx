@@ -41,7 +41,11 @@ describe("/app/settings", () => {
     render(await SettingsPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Account context" })).toBeInTheDocument();
+    expect(document.querySelectorAll(".settings-page__identity .user-avatar")).toHaveLength(1);
+    expect(document.querySelector(".settings-page__identity svg")).toBeInTheDocument();
+    expect(document.querySelector(".settings-page__identity-name")).toHaveTextContent("Wildan");
     expect(screen.getByText("@wildan")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change photo" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Repayment destinations" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Theme" })).toBeInTheDocument();
     expect(screen.getByText("BCA")).toBeInTheDocument();
@@ -56,6 +60,16 @@ describe("/app/settings", () => {
     expect(screen.getByRole("button", { name: "New destination" })).toBeInTheDocument();
     expect(screen.queryByText("ADD DESTINATION")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Theme" })).toBeInTheDocument();
+  });
+
+  it("renders custom avatar media in the same single profile position", async () => {
+    const sha256 = "a".repeat(64);
+    mocks.getAvatar.mockResolvedValue({ mediaType: "image/webp", byteSize: 4, sha256 });
+    render(await SettingsPage({ searchParams: Promise.resolve({}) }));
+    expect(document.querySelectorAll(".settings-page__identity .user-avatar")).toHaveLength(1);
+    expect(document.querySelector(".settings-page__identity img")).toHaveAttribute("src", `/app/avatar?userId=owner-a&v=${sha256}`);
+    expect(screen.getByRole("button", { name: "Remove photo" })).toBeInTheDocument();
+    expect(screen.getByText("@wildan")).toBeInTheDocument();
   });
 
   it("shows the empty destination state and save confirmation", async () => {

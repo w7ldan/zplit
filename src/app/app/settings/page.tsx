@@ -1,6 +1,5 @@
 import { ThemeControl } from "@/components/theme/theme-provider";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
-import { UserAvatar } from "@/components/identity/user-avatar";
 import { AvatarSettings } from "@/components/settings/avatar-settings";
 import { RepaymentDestinationsSettings } from "@/components/settings/repayment-destinations-settings";
 import { UsernameSettings } from "@/components/settings/username-settings";
@@ -54,14 +53,10 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
         <section className="settings-page__section" aria-labelledby="settings-profile-heading">
           <div className="settings-page__section-heading"><div><p className="technical-label">Profile</p><h2 id="settings-profile-heading">Account context</h2></div></div>
           <dl className="settings-page__profile">
-            <div className="settings-page__identity">
-              <UserAvatar userId={user.id} customAvatar={avatar} decorative size="md" />
-              <div className="settings-page__identity-details">
-                <dt>Name</dt><dd className="settings-page__identity-name">{user.name}</dd>
-                <dt>Username</dt><dd><UsernameSettings username={user.username} action={updateUsernameAction} /></dd>
-                <AvatarSettings userId={user.id} avatar={avatar} />
-              </div>
-            </div>
+            <AvatarSettings userId={user.id} avatar={avatar}>
+              <dt>Name</dt><dd className="settings-page__identity-name">{user.name}</dd>
+              <dt>Username</dt><dd><UsernameSettings username={user.username} action={updateUsernameAction} /></dd>
+            </AvatarSettings>
             <div><dt>Email</dt><dd>{user.email}</dd></div>
           </dl>
         </section>

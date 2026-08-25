@@ -30,8 +30,10 @@ describe("user avatar storage", () => {
     expect(() => validateAvatarFile({ bytes: new Uint8Array(MAX_AVATAR_BYTES + 1), filename: "large", mediaType: "image/png" })).toThrow("5 MiB or smaller");
   });
 
-  it("does not permit a viewer to read another user's avatar", async () => {
-    const { getUserAvatarForViewer } = await import("./user-avatars");
-    await expect(getUserAvatarForViewer({} as never, "user-a", "user-b")).resolves.toBeNull();
+  it("retrieves an avatar by subject identity without a viewer argument", async () => {
+    const avatar = { mediaType: "image/webp" as const, byteSize: 4, sha256: "a".repeat(64), content: Buffer.from([1, 2, 3, 4]) };
+    const database = { select: () => ({ from: () => ({ where: () => ({ limit: async () => [avatar] }) }) }) };
+    const { getUserAvatar } = await import("./user-avatars");
+    await expect(getUserAvatar(database as never, "user-b")).resolves.toEqual(avatar);
   });
 });

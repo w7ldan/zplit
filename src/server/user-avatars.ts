@@ -69,14 +69,12 @@ export async function getUserAvatarMetadata(database: Database, userId: string):
   return avatar ? { ...avatar, mediaType: AVATAR_MEDIA_TYPE } : null;
 }
 
-export async function getUserAvatarForViewer(database: Database, viewerUserId: string, subjectUserId: string): Promise<UserAvatarContent | null> {
-  assertUserId(viewerUserId);
-  assertUserId(subjectUserId);
-  if (viewerUserId !== subjectUserId) return null;
+export async function getUserAvatar(database: Database, userId: string): Promise<UserAvatarContent | null> {
+  assertUserId(userId);
   const [avatar] = await database
     .select({ ...metadataSelection(), content: userAvatars.content })
     .from(userAvatars)
-    .where(eq(userAvatars.userId, subjectUserId))
+    .where(eq(userAvatars.userId, userId))
     .limit(1);
   return avatar ? { ...avatar, mediaType: AVATAR_MEDIA_TYPE } : null;
 }

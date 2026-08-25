@@ -4000,10 +4000,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .settings-page__avatar-control {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.75rem;
+  display: block;
   min-width: 0;
   margin-top: 0.35rem;
 }

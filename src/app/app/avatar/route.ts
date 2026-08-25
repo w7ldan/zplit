@@ -7,10 +7,10 @@ import {
   AVATAR_READ_HEADERS,
   MAX_AVATAR_BYTES,
   deleteUserAvatar,
-  getUserAvatarForViewer,
   normalizeUserAvatar,
   saveUserAvatar,
 } from "@/server/user-avatars";
+import { getUserAvatarForViewer } from "@/server/user-avatar-access";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
