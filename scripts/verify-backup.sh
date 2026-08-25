@@ -80,10 +80,16 @@ network_created=1
 docker run -d --name "$container_name" --network "$network_name" --tmpfs /var/lib/postgresql/18/docker:rw,noexec,nosuid,size=1g -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD="$restore_password" -e POSTGRES_DB=postgres "$compose_image" >/dev/null
 container_started=1
 
+stable_probes=0
 for attempt in $(seq 1 60); do
-  if docker exec "$container_name" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -Atqc 'SELECT 1' >/dev/null 2>&1; then break; fi
+  if docker exec "$container_name" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -Atqc 'SELECT 1' >/dev/null 2>&1; then
+    stable_probes=$((stable_probes + 1))
+    if [[ $stable_probes -ge 3 ]]; then break; fi
+  else
+    stable_probes=0
+  fi
   if [[ $attempt -eq 60 ]]; then
-    echo "disposable PostgreSQL did not become ready" >&2
+    echo "disposable PostgreSQL did not become stably ready" >&2
     exit 1
   fi
   sleep 1
