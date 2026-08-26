@@ -21,6 +21,7 @@ import {
   type ShowcaseFixtureData,
   type ShowcaseState,
 } from "./showcase-fixture-data";
+import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
@@ -154,36 +155,36 @@ async function insertRows(client: PoolClient, table: string, columns: string[], 
   }
 }
 
-async function deleteShowcaseLedger(client: PoolClient, ownerUserId: string) {
-  await client.query("DELETE FROM debtor_share_receipts WHERE owner_user_id = $1", [ownerUserId]);
-  await client.query("DELETE FROM debtor_share_links WHERE owner_user_id = $1", [ownerUserId]);
-  await client.query("DELETE FROM repayment_allocations WHERE owner_user_id = $1", [ownerUserId]);
-  await client.query("DELETE FROM expense_receipts WHERE owner_user_id = $1", [ownerUserId]);
-  await client.query("DELETE FROM expense_shares WHERE owner_user_id = $1", [ownerUserId]);
-  await client.query("DELETE FROM repayments WHERE owner_user_id = $1", [ownerUserId]);
-  await client.query("DELETE FROM expenses WHERE owner_user_id = $1", [ownerUserId]);
-  await client.query("DELETE FROM outings WHERE owner_user_id = $1", [ownerUserId]);
-  await client.query("DELETE FROM friends WHERE owner_user_id = $1", [ownerUserId]);
+async function deleteShowcaseLedger(client: PoolClient, ledgerScopeId: string) {
+  await client.query("DELETE FROM debtor_share_receipts WHERE ledger_scope_id = $1", [ledgerScopeId]);
+  await client.query("DELETE FROM debtor_share_links WHERE ledger_scope_id = $1", [ledgerScopeId]);
+  await client.query("DELETE FROM repayment_allocations WHERE ledger_scope_id = $1", [ledgerScopeId]);
+  await client.query("DELETE FROM expense_receipts WHERE ledger_scope_id = $1", [ledgerScopeId]);
+  await client.query("DELETE FROM expense_shares WHERE ledger_scope_id = $1", [ledgerScopeId]);
+  await client.query("DELETE FROM repayments WHERE ledger_scope_id = $1", [ledgerScopeId]);
+  await client.query("DELETE FROM expenses WHERE ledger_scope_id = $1", [ledgerScopeId]);
+  await client.query("DELETE FROM outings WHERE ledger_scope_id = $1", [ledgerScopeId]);
+  await client.query("DELETE FROM friends WHERE ledger_scope_id = $1", [ledgerScopeId]);
 }
 
-async function insertShowcaseState(client: PoolClient, fixture: ShowcaseFixtureData, generateToken: typeof generateDebtorShareToken) {
-  await insertRows(client, "friends", ["id", "owner_user_id", "name", "phone_number", "notes", "archived_at", "created_at", "updated_at"], fixture.friends.map((row) => [row.id, row.ownerUserId, row.name, row.phoneNumber, row.notes, row.archivedAt, row.createdAt, row.updatedAt]));
-  await insertRows(client, "outings", ["id", "owner_user_id", "title", "occurred_at", "notes", "created_at", "updated_at"], fixture.outings.map((row) => [row.id, row.ownerUserId, row.title, row.occurredAt, row.notes, row.createdAt, row.updatedAt]));
-  await insertRows(client, "expenses", ["id", "owner_user_id", "outing_id", "description", "amount", "created_at", "updated_at"], fixture.expenses.map((row) => [row.id, row.ownerUserId, row.outingId, row.description, row.amount, row.createdAt, row.updatedAt]));
-  await insertRows(client, "expense_shares", ["id", "owner_user_id", "expense_id", "friend_id", "base_amount", "amount_owed", "created_at"], fixture.expenseShares.map((row) => [row.id, row.ownerUserId, row.expenseId, row.friendId, row.amountOwed, row.amountOwed, row.createdAt]));
-  await insertRows(client, "repayments", ["id", "owner_user_id", "friend_id", "amount", "paid_at", "payment_method", "notes", "created_at"], fixture.repayments.map((row) => [row.id, row.ownerUserId, row.friendId, row.amount, row.paidAt, row.paymentMethod, row.notes, row.createdAt]));
-  await insertRows(client, "repayment_allocations", ["owner_user_id", "repayment_id", "expense_share_id", "amount", "created_at"], fixture.repaymentAllocations.map((row) => [row.ownerUserId, row.repaymentId, row.expenseShareId, row.amount, row.createdAt]));
-  await insertRows(client, "expense_receipts", ["id", "owner_user_id", "expense_id", "original_filename", "media_type", "byte_size", "sha256", "content", "created_at"], fixture.receipts.map((row) => [row.id, row.ownerUserId, row.expenseId, row.originalFilename, row.mediaType, row.byteSize, row.sha256, row.content, row.createdAt]));
+async function insertShowcaseState(client: PoolClient, fixture: ShowcaseFixtureData, ledgerScopeId: string, generateToken: typeof generateDebtorShareToken) {
+  await insertRows(client, "friends", ["id", "ledger_scope_id", "name", "phone_number", "notes", "archived_at", "created_at", "updated_at"], fixture.friends.map((row) => [row.id, ledgerScopeId, row.name, row.phoneNumber, row.notes, row.archivedAt, row.createdAt, row.updatedAt]));
+  await insertRows(client, "outings", ["id", "ledger_scope_id", "title", "occurred_at", "notes", "created_at", "updated_at"], fixture.outings.map((row) => [row.id, ledgerScopeId, row.title, row.occurredAt, row.notes, row.createdAt, row.updatedAt]));
+  await insertRows(client, "expenses", ["id", "ledger_scope_id", "outing_id", "description", "amount", "created_at", "updated_at"], fixture.expenses.map((row) => [row.id, ledgerScopeId, row.outingId, row.description, row.amount, row.createdAt, row.updatedAt]));
+  await insertRows(client, "expense_shares", ["id", "ledger_scope_id", "expense_id", "friend_id", "base_amount", "amount_owed", "created_at"], fixture.expenseShares.map((row) => [row.id, ledgerScopeId, row.expenseId, row.friendId, row.amountOwed, row.amountOwed, row.createdAt]));
+  await insertRows(client, "repayments", ["id", "ledger_scope_id", "friend_id", "amount", "paid_at", "payment_method", "notes", "created_at"], fixture.repayments.map((row) => [row.id, ledgerScopeId, row.friendId, row.amount, row.paidAt, row.paymentMethod, row.notes, row.createdAt]));
+  await insertRows(client, "repayment_allocations", ["ledger_scope_id", "repayment_id", "expense_share_id", "amount", "created_at"], fixture.repaymentAllocations.map((row) => [ledgerScopeId, row.repaymentId, row.expenseShareId, row.amount, row.createdAt]));
+  await insertRows(client, "expense_receipts", ["id", "ledger_scope_id", "expense_id", "original_filename", "media_type", "byte_size", "sha256", "content", "created_at"], fixture.receipts.map((row) => [row.id, ledgerScopeId, row.expenseId, row.originalFilename, row.mediaType, row.byteSize, row.sha256, row.content, row.createdAt]));
   if (fixture.state === 6) {
     const token = generateToken();
     const createdAt = new Date(SHOWCASE_FIXED_TIMESTAMP);
     await client.query(
-      "INSERT INTO debtor_share_links (id, token_hash, owner_user_id, friend_id, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6)",
-      [SHOWCASE_IDS.shareLink, hashDebtorShareToken(token), fixture.ownerUserId, SHOWCASE_IDS.friends.dimas, createdAt, new Date(createdAt.getTime() + SHOWCASE_LINK_TTL_MS)],
+      "INSERT INTO debtor_share_links (id, token_hash, ledger_scope_id, friend_id, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6)",
+      [SHOWCASE_IDS.shareLink, hashDebtorShareToken(token), ledgerScopeId, SHOWCASE_IDS.friends.dimas, createdAt, new Date(createdAt.getTime() + SHOWCASE_LINK_TTL_MS)],
     );
     await client.query(
-      "INSERT INTO debtor_share_receipts (owner_user_id, debtor_share_link_id, expense_id, expense_receipt_id, created_at) VALUES ($1, $2, $3, $4, $5)",
-      [fixture.ownerUserId, SHOWCASE_IDS.shareLink, SHOWCASE_IDS.expenses.dinner, SHOWCASE_IDS.receipt, createdAt],
+      "INSERT INTO debtor_share_receipts (ledger_scope_id, debtor_share_link_id, expense_id, expense_receipt_id, created_at) VALUES ($1, $2, $3, $4, $5)",
+      [ledgerScopeId, SHOWCASE_IDS.shareLink, SHOWCASE_IDS.expenses.dinner, SHOWCASE_IDS.receipt, createdAt],
     );
     return token;
   }
@@ -203,8 +204,9 @@ async function replaceShowcaseState(
     transactionStarted = true;
     await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [showcaseFixtureLockKey]);
     const owner = await resolveShowcaseAccount(client, email);
-    await deleteShowcaseLedger(client, owner.id);
-    const token = state === undefined ? undefined : await insertShowcaseState(client, generateShowcaseFixture(owner.id, state), generateToken);
+    const ledgerScopeId = await getPersonalLedgerScopeId(drizzle(client, { schema }), owner.id);
+    await deleteShowcaseLedger(client, ledgerScopeId);
+    const token = state === undefined ? undefined : await insertShowcaseState(client, generateShowcaseFixture(owner.id, state), ledgerScopeId, generateToken);
     await client.query("COMMIT");
     transactionStarted = false;
     return { owner, token };
@@ -220,84 +222,84 @@ function dateValue(value: unknown) {
   return new Date(value as string | number | Date).toISOString();
 }
 
-async function countOwned(client: PoolClient, table: string, ownerUserId: string) {
-  const result = await client.query<{ count: string }>(`SELECT count(*)::text AS count FROM ${table} WHERE owner_user_id = $1`, [ownerUserId]);
+async function countOwned(client: PoolClient, table: string, ledgerScopeId: string) {
+  const result = await client.query<{ count: string }>(`SELECT count(*)::text AS count FROM ${table} WHERE ledger_scope_id = $1`, [ledgerScopeId]);
   return Number(result.rows[0]!.count);
 }
 
-async function verifyExactRows(client: PoolClient, fixture: ShowcaseFixtureData) {
-  const friendRows = await client.query("SELECT id, owner_user_id, name, phone_number, notes, archived_at, created_at, updated_at FROM friends WHERE owner_user_id = $1 ORDER BY id", [fixture.ownerUserId]);
+async function verifyExactRows(client: PoolClient, fixture: ShowcaseFixtureData, ledgerScopeId: string) {
+  const friendRows = await client.query("SELECT id, ledger_scope_id, name, phone_number, notes, archived_at, created_at, updated_at FROM friends WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
   assert(friendRows.rows.length === fixture.friends.length, "showcase friends are not exact");
   for (const expected of fixture.friends) {
     const row = friendRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.owner_user_id === fixture.ownerUserId && row.name === expected.name && row.phone_number === null && row.notes === null && row.archived_at === null && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase friend record is not exact");
+    assert(row?.ledger_scope_id === ledgerScopeId && row.name === expected.name && row.phone_number === null && row.notes === null && row.archived_at === null && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase friend record is not exact");
   }
-  const outingRows = await client.query("SELECT id, owner_user_id, title, occurred_at, notes, created_at, updated_at FROM outings WHERE owner_user_id = $1 ORDER BY id", [fixture.ownerUserId]);
+  const outingRows = await client.query("SELECT id, ledger_scope_id, title, occurred_at, notes, created_at, updated_at FROM outings WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
   assert(outingRows.rows.length === fixture.outings.length, "showcase outings are not exact");
   for (const expected of fixture.outings) {
     const row = outingRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.owner_user_id === fixture.ownerUserId && row.title === expected.title && dateValue(row.occurred_at) === expected.occurredAt.toISOString() && row.notes === null && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase outing record is not exact");
+    assert(row?.ledger_scope_id === ledgerScopeId && row.title === expected.title && dateValue(row.occurred_at) === expected.occurredAt.toISOString() && row.notes === null && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase outing record is not exact");
   }
-  const expenseRows = await client.query("SELECT id, owner_user_id, outing_id, description, amount, created_at, updated_at FROM expenses WHERE owner_user_id = $1 ORDER BY id", [fixture.ownerUserId]);
+  const expenseRows = await client.query("SELECT id, ledger_scope_id, outing_id, description, amount, created_at, updated_at FROM expenses WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
   assert(expenseRows.rows.length === fixture.expenses.length, "showcase expenses are not exact");
   for (const expected of fixture.expenses) {
     const row = expenseRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.owner_user_id === fixture.ownerUserId && row.outing_id === expected.outingId && row.description === expected.description && Number(row.amount) === expected.amount && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase expense record is not exact");
+    assert(row?.ledger_scope_id === ledgerScopeId && row.outing_id === expected.outingId && row.description === expected.description && Number(row.amount) === expected.amount && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase expense record is not exact");
   }
-  const shareRows = await client.query("SELECT id, owner_user_id, expense_id, friend_id, amount_owed, created_at FROM expense_shares WHERE owner_user_id = $1 ORDER BY id", [fixture.ownerUserId]);
+  const shareRows = await client.query("SELECT id, ledger_scope_id, expense_id, friend_id, amount_owed, created_at FROM expense_shares WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
   assert(shareRows.rows.length === fixture.expenseShares.length, "showcase shares are not exact");
   for (const expected of fixture.expenseShares) {
     const row = shareRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.owner_user_id === fixture.ownerUserId && row.expense_id === expected.expenseId && row.friend_id === expected.friendId && Number(row.amount_owed) === expected.amountOwed && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase share record is not exact");
+    assert(row?.ledger_scope_id === ledgerScopeId && row.expense_id === expected.expenseId && row.friend_id === expected.friendId && Number(row.amount_owed) === expected.amountOwed && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase share record is not exact");
   }
-  const repaymentRows = await client.query("SELECT id, owner_user_id, friend_id, amount, paid_at, payment_method, notes, created_at FROM repayments WHERE owner_user_id = $1 ORDER BY id", [fixture.ownerUserId]);
+  const repaymentRows = await client.query("SELECT id, ledger_scope_id, friend_id, amount, paid_at, payment_method, notes, created_at FROM repayments WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
   assert(repaymentRows.rows.length === fixture.repayments.length, "showcase repayments are not exact");
   for (const expected of fixture.repayments) {
     const row = repaymentRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.owner_user_id === fixture.ownerUserId && row.friend_id === expected.friendId && Number(row.amount) === expected.amount && dateValue(row.paid_at) === expected.paidAt.toISOString() && row.payment_method === expected.paymentMethod && row.notes === null && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase repayment record is not exact");
+    assert(row?.ledger_scope_id === ledgerScopeId && row.friend_id === expected.friendId && Number(row.amount) === expected.amount && dateValue(row.paid_at) === expected.paidAt.toISOString() && row.payment_method === expected.paymentMethod && row.notes === null && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase repayment record is not exact");
   }
-  const allocationRows = await client.query("SELECT owner_user_id, repayment_id, expense_share_id, amount, created_at FROM repayment_allocations WHERE owner_user_id = $1 ORDER BY repayment_id, expense_share_id", [fixture.ownerUserId]);
+  const allocationRows = await client.query("SELECT ledger_scope_id, repayment_id, expense_share_id, amount, created_at FROM repayment_allocations WHERE ledger_scope_id = $1 ORDER BY repayment_id, expense_share_id", [ledgerScopeId]);
   assert(allocationRows.rows.length === fixture.repaymentAllocations.length, "showcase repayment allocations are not exact");
   for (const expected of fixture.repaymentAllocations) {
     const row = allocationRows.rows.find((candidate) => candidate.repayment_id === expected.repaymentId && candidate.expense_share_id === expected.expenseShareId);
-    assert(row?.owner_user_id === fixture.ownerUserId && Number(row.amount) === expected.amount && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase allocation record is not exact");
+    assert(row?.ledger_scope_id === ledgerScopeId && Number(row.amount) === expected.amount && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase allocation record is not exact");
   }
-  const receiptRows = await client.query("SELECT id, owner_user_id, expense_id, original_filename, media_type, byte_size, sha256, content, created_at FROM expense_receipts WHERE owner_user_id = $1 ORDER BY id", [fixture.ownerUserId]);
+  const receiptRows = await client.query("SELECT id, ledger_scope_id, expense_id, original_filename, media_type, byte_size, sha256, content, created_at FROM expense_receipts WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
   assert(receiptRows.rows.length === fixture.receipts.length, "showcase receipts are not exact");
   for (const expected of fixture.receipts) {
     const row = receiptRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.owner_user_id === fixture.ownerUserId && row.expense_id === expected.expenseId && row.original_filename === expected.originalFilename && row.media_type === expected.mediaType && Number(row.byte_size) === expected.byteSize && row.sha256 === expected.sha256 && Buffer.from(row.content).equals(expected.content) && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase receipt record is not exact");
+    assert(row?.ledger_scope_id === ledgerScopeId && row.expense_id === expected.expenseId && row.original_filename === expected.originalFilename && row.media_type === expected.mediaType && Number(row.byte_size) === expected.byteSize && row.sha256 === expected.sha256 && Buffer.from(row.content).equals(expected.content) && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase receipt record is not exact");
   }
 }
 
-async function verifyRelationships(client: PoolClient, ownerUserId: string) {
+async function verifyRelationships(client: PoolClient, ledgerScopeId: string) {
   const checks = [
-    ["expense outing", "SELECT count(*)::text AS count FROM expenses e WHERE e.owner_user_id = $1 AND NOT EXISTS (SELECT 1 FROM outings o WHERE o.owner_user_id = e.owner_user_id AND o.id = e.outing_id)"],
-    ["share parents", "SELECT count(*)::text AS count FROM expense_shares s WHERE s.owner_user_id = $1 AND (NOT EXISTS (SELECT 1 FROM expenses e WHERE e.owner_user_id = s.owner_user_id AND e.id = s.expense_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.owner_user_id = s.owner_user_id AND f.id = s.friend_id))"],
-    ["repayment friends", "SELECT count(*)::text AS count FROM repayments r WHERE r.owner_user_id = $1 AND NOT EXISTS (SELECT 1 FROM friends f WHERE f.owner_user_id = r.owner_user_id AND f.id = r.friend_id)"],
-    ["receipt expenses", "SELECT count(*)::text AS count FROM expense_receipts r WHERE r.owner_user_id = $1 AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.owner_user_id = r.owner_user_id AND e.id = r.expense_id)"],
-    ["allocation parents", "SELECT count(*)::text AS count FROM repayment_allocations a WHERE a.owner_user_id = $1 AND (NOT EXISTS (SELECT 1 FROM repayments r WHERE r.owner_user_id = a.owner_user_id AND r.id = a.repayment_id) OR NOT EXISTS (SELECT 1 FROM expense_shares s WHERE s.owner_user_id = a.owner_user_id AND s.id = a.expense_share_id))"],
-    ["cross-friend allocations", "SELECT count(*)::text AS count FROM repayment_allocations a JOIN repayments r ON r.owner_user_id = a.owner_user_id AND r.id = a.repayment_id JOIN expense_shares s ON s.owner_user_id = a.owner_user_id AND s.id = a.expense_share_id WHERE a.owner_user_id = $1 AND r.friend_id <> s.friend_id"],
+    ["expense outing", "SELECT count(*)::text AS count FROM expenses e WHERE e.ledger_scope_id = $1 AND NOT EXISTS (SELECT 1 FROM outings o WHERE o.ledger_scope_id = e.ledger_scope_id AND o.id = e.outing_id)"],
+    ["share parents", "SELECT count(*)::text AS count FROM expense_shares s WHERE s.ledger_scope_id = $1 AND (NOT EXISTS (SELECT 1 FROM expenses e WHERE e.ledger_scope_id = s.ledger_scope_id AND e.id = s.expense_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.ledger_scope_id = s.ledger_scope_id AND f.id = s.friend_id))"],
+    ["repayment friends", "SELECT count(*)::text AS count FROM repayments r WHERE r.ledger_scope_id = $1 AND NOT EXISTS (SELECT 1 FROM friends f WHERE f.ledger_scope_id = r.ledger_scope_id AND f.id = r.friend_id)"],
+    ["receipt expenses", "SELECT count(*)::text AS count FROM expense_receipts r WHERE r.ledger_scope_id = $1 AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.ledger_scope_id = r.ledger_scope_id AND e.id = r.expense_id)"],
+    ["allocation parents", "SELECT count(*)::text AS count FROM repayment_allocations a WHERE a.ledger_scope_id = $1 AND (NOT EXISTS (SELECT 1 FROM repayments r WHERE r.ledger_scope_id = a.ledger_scope_id AND r.id = a.repayment_id) OR NOT EXISTS (SELECT 1 FROM expense_shares s WHERE s.ledger_scope_id = a.ledger_scope_id AND s.id = a.expense_share_id))"],
+    ["cross-friend allocations", "SELECT count(*)::text AS count FROM repayment_allocations a JOIN repayments r ON r.ledger_scope_id = a.ledger_scope_id AND r.id = a.repayment_id JOIN expense_shares s ON s.ledger_scope_id = a.ledger_scope_id AND s.id = a.expense_share_id WHERE a.ledger_scope_id = $1 AND r.friend_id <> s.friend_id"],
   ] as const;
   for (const [name, query] of checks) {
-    const result = await client.query<{ count: string }>(query, [ownerUserId]);
+    const result = await client.query<{ count: string }>(query, [ledgerScopeId]);
     assert(Number(result.rows[0]!.count) === 0, `${name} relationship invariant failed`);
   }
 }
 
-async function verifyFinancialInvariants(client: PoolClient, ownerUserId: string) {
+async function verifyFinancialInvariants(client: PoolClient, ledgerScopeId: string) {
   const checks = [
-    ["shares over expense", "SELECT count(*)::text AS count FROM (SELECT s.expense_id FROM expense_shares s JOIN expenses e ON e.owner_user_id = s.owner_user_id AND e.id = s.expense_id WHERE s.owner_user_id = $1 GROUP BY s.expense_id, e.amount HAVING sum(s.amount_owed) > e.amount) invalid"],
-    ["allocations over repayment", "SELECT count(*)::text AS count FROM (SELECT a.repayment_id FROM repayment_allocations a JOIN repayments r ON r.owner_user_id = a.owner_user_id AND r.id = a.repayment_id WHERE a.owner_user_id = $1 GROUP BY a.repayment_id, r.amount HAVING sum(a.amount) > r.amount) invalid"],
-    ["allocations over share", "SELECT count(*)::text AS count FROM (SELECT a.expense_share_id FROM repayment_allocations a JOIN expense_shares s ON s.owner_user_id = a.owner_user_id AND s.id = a.expense_share_id WHERE a.owner_user_id = $1 GROUP BY a.expense_share_id, s.amount_owed HAVING sum(a.amount) > s.amount_owed) invalid"],
+    ["shares over expense", "SELECT count(*)::text AS count FROM (SELECT s.expense_id FROM expense_shares s JOIN expenses e ON e.ledger_scope_id = s.ledger_scope_id AND e.id = s.expense_id WHERE s.ledger_scope_id = $1 GROUP BY s.expense_id, e.amount HAVING sum(s.amount_owed) > e.amount) invalid"],
+    ["allocations over repayment", "SELECT count(*)::text AS count FROM (SELECT a.repayment_id FROM repayment_allocations a JOIN repayments r ON r.ledger_scope_id = a.ledger_scope_id AND r.id = a.repayment_id WHERE a.ledger_scope_id = $1 GROUP BY a.repayment_id, r.amount HAVING sum(a.amount) > r.amount) invalid"],
+    ["allocations over share", "SELECT count(*)::text AS count FROM (SELECT a.expense_share_id FROM repayment_allocations a JOIN expense_shares s ON s.ledger_scope_id = a.ledger_scope_id AND s.id = a.expense_share_id WHERE a.ledger_scope_id = $1 GROUP BY a.expense_share_id, s.amount_owed HAVING sum(a.amount) > s.amount_owed) invalid"],
   ] as const;
   for (const [name, query] of checks) {
-    const result = await client.query<{ count: string }>(query, [ownerUserId]);
+    const result = await client.query<{ count: string }>(query, [ledgerScopeId]);
     assert(Number(result.rows[0]!.count) === 0, `${name} financial invariant failed`);
   }
 }
 
-async function verifyOwnerIsolation(client: PoolClient, fixture: ShowcaseFixtureData) {
+async function verifyOwnerIsolation(client: PoolClient, fixture: ShowcaseFixtureData, ledgerScopeId: string) {
   const tableIds = ids(fixture);
   for (const [table, values] of Object.entries({
     friends: tableIds.friends,
@@ -308,22 +310,22 @@ async function verifyOwnerIsolation(client: PoolClient, fixture: ShowcaseFixture
     expense_receipts: tableIds.receipts,
   })) {
     if (values.length === 0) continue;
-    const result = await client.query<{ other: string }>(`SELECT count(*) FILTER (WHERE owner_user_id <> $1)::text AS other FROM ${table} WHERE id = ANY($2::uuid[])`, [fixture.ownerUserId, values]);
+    const result = await client.query<{ other: string }>(`SELECT count(*) FILTER (WHERE ledger_scope_id <> $1)::text AS other FROM ${table} WHERE id = ANY($2::uuid[])`, [ledgerScopeId, values]);
     assert(Number(result.rows[0]!.other) === 0, `${table} owner isolation failed`);
   }
 }
 
-async function verifyScenario(client: PoolClient, fixture: ShowcaseFixtureData) {
+async function verifyScenario(client: PoolClient, fixture: ShowcaseFixtureData, ledgerScopeId: string) {
   const totals = showcaseTotals(fixture.state);
   const result = await client.query<{ spending: string; assigned: string }>(
-    "SELECT coalesce((SELECT sum(amount) FROM expenses WHERE owner_user_id = $1), 0)::text AS spending, coalesce((SELECT sum(amount_owed) FROM expense_shares WHERE owner_user_id = $1), 0)::text AS assigned",
-    [fixture.ownerUserId],
+    "SELECT coalesce((SELECT sum(amount) FROM expenses WHERE ledger_scope_id = $1), 0)::text AS spending, coalesce((SELECT sum(amount_owed) FROM expense_shares WHERE ledger_scope_id = $1), 0)::text AS assigned",
+    [ledgerScopeId],
   );
   assert(Number(result.rows[0]!.spending) === totals.totalSpending && Number(result.rows[0]!.assigned) === totals.assigned, "showcase totals are incorrect");
   assert(totals.totalSpending - totals.assigned === totals.ownerPortion, "showcase owner portion is incorrect");
   const balances = await client.query<{ friend_id: string; outstanding: string }>(
-    "SELECT f.id AS friend_id, coalesce(sum(s.amount_owed), 0) - coalesce((SELECT sum(a.amount) FROM repayment_allocations a JOIN expense_shares paid ON paid.id = a.expense_share_id AND paid.owner_user_id = a.owner_user_id WHERE a.owner_user_id = f.owner_user_id AND paid.friend_id = f.id), 0) AS outstanding FROM friends f LEFT JOIN expense_shares s ON s.owner_user_id = f.owner_user_id AND s.friend_id = f.id WHERE f.owner_user_id = $1 GROUP BY f.id ORDER BY f.id",
-    [fixture.ownerUserId],
+    "SELECT f.id AS friend_id, coalesce(sum(s.amount_owed), 0) - coalesce((SELECT sum(a.amount) FROM repayment_allocations a JOIN expense_shares paid ON paid.id = a.expense_share_id AND paid.ledger_scope_id = a.ledger_scope_id WHERE a.ledger_scope_id = f.ledger_scope_id AND paid.friend_id = f.id), 0) AS outstanding FROM friends f LEFT JOIN expense_shares s ON s.ledger_scope_id = f.ledger_scope_id AND s.friend_id = f.id WHERE f.ledger_scope_id = $1 GROUP BY f.id ORDER BY f.id",
+    [ledgerScopeId],
   );
   for (const balance of balances.rows) {
     const expected = balance.friend_id === SHOWCASE_IDS.friends.rani ? totals.raniOutstanding : balance.friend_id === SHOWCASE_IDS.friends.dimas ? totals.dimasOutstanding : null;
@@ -333,9 +335,9 @@ async function verifyScenario(client: PoolClient, fixture: ShowcaseFixtureData) 
   if (fixture.state >= 5) assert(balances.rows.find((row) => row.friend_id === SHOWCASE_IDS.friends.dimas)?.outstanding === "42500", "Dimas is not open at Rp 42.500");
 }
 
-async function verifyLinks(client: PoolClient, fixture: ShowcaseFixtureData) {
-  const links = await client.query<{ id: string; friend_id: string; revoked_at: Date | null; expires_at: Date; token_hash: string }>("SELECT id, friend_id, revoked_at, expires_at, token_hash FROM debtor_share_links WHERE owner_user_id = $1 ORDER BY id", [fixture.ownerUserId]);
-  const mappings = await client.query<{ debtor_share_link_id: string; expense_id: string; expense_receipt_id: string }>("SELECT debtor_share_link_id, expense_id, expense_receipt_id FROM debtor_share_receipts WHERE owner_user_id = $1 ORDER BY id", [fixture.ownerUserId]);
+async function verifyLinks(client: PoolClient, fixture: ShowcaseFixtureData, ledgerScopeId: string) {
+  const links = await client.query<{ id: string; friend_id: string; revoked_at: Date | null; expires_at: Date; token_hash: string }>("SELECT id, friend_id, revoked_at, expires_at, token_hash FROM debtor_share_links WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
+  const mappings = await client.query<{ debtor_share_link_id: string; expense_id: string; expense_receipt_id: string }>("SELECT debtor_share_link_id, expense_id, expense_receipt_id FROM debtor_share_receipts WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
   if (fixture.state < 6) {
     assert(links.rows.length === 0 && mappings.rows.length === 0, "showcase share link exists before state 6");
     return;
@@ -347,21 +349,22 @@ async function verifyLinks(client: PoolClient, fixture: ShowcaseFixtureData) {
 
 async function verifyShowcaseState(client: PoolClient, owner: ShowcaseAccount, state: ShowcaseState) {
   const fixture = generateShowcaseFixture(owner.id, state);
-  assert(await countOwned(client, "friends", owner.id) === fixture.friends.length, "showcase friend count is incorrect");
-  assert(await countOwned(client, "outings", owner.id) === fixture.outings.length, "showcase outing count is incorrect");
-  assert(await countOwned(client, "expenses", owner.id) === fixture.expenses.length, "showcase expense count is incorrect");
-  assert(await countOwned(client, "expense_shares", owner.id) === fixture.expenseShares.length, "showcase share count is incorrect");
-  assert(await countOwned(client, "repayments", owner.id) === fixture.repayments.length, "showcase repayment count is incorrect");
-  assert(await countOwned(client, "repayment_allocations", owner.id) === fixture.repaymentAllocations.length, "showcase allocation count is incorrect");
-  assert(await countOwned(client, "expense_receipts", owner.id) === fixture.receipts.length, "showcase receipt count is incorrect");
+  const ledgerScopeId = await getPersonalLedgerScopeId(drizzle(client, { schema }), owner.id);
+  assert(await countOwned(client, "friends", ledgerScopeId) === fixture.friends.length, "showcase friend count is incorrect");
+  assert(await countOwned(client, "outings", ledgerScopeId) === fixture.outings.length, "showcase outing count is incorrect");
+  assert(await countOwned(client, "expenses", ledgerScopeId) === fixture.expenses.length, "showcase expense count is incorrect");
+  assert(await countOwned(client, "expense_shares", ledgerScopeId) === fixture.expenseShares.length, "showcase share count is incorrect");
+  assert(await countOwned(client, "repayments", ledgerScopeId) === fixture.repayments.length, "showcase repayment count is incorrect");
+  assert(await countOwned(client, "repayment_allocations", ledgerScopeId) === fixture.repaymentAllocations.length, "showcase allocation count is incorrect");
+  assert(await countOwned(client, "expense_receipts", ledgerScopeId) === fixture.receipts.length, "showcase receipt count is incorrect");
   assert(state < 4 ? fixture.expenseShares.length === 0 : true, "shares exist before state 4");
   assert(state < 5 ? fixture.repayments.length === 0 : true, "repayment exists before state 5");
-  await verifyExactRows(client, fixture);
-  await verifyOwnerIsolation(client, fixture);
-  await verifyRelationships(client, owner.id);
-  await verifyFinancialInvariants(client, owner.id);
-  await verifyScenario(client, fixture);
-  await verifyLinks(client, fixture);
+  await verifyExactRows(client, fixture, ledgerScopeId);
+  await verifyOwnerIsolation(client, fixture, ledgerScopeId);
+  await verifyRelationships(client, ledgerScopeId);
+  await verifyFinancialInvariants(client, ledgerScopeId);
+  await verifyScenario(client, fixture, ledgerScopeId);
+  await verifyLinks(client, fixture, ledgerScopeId);
 }
 
 async function verifyState(pool: ReturnType<typeof createDatabasePool>, email: string, state: ShowcaseState) {

@@ -7,6 +7,7 @@ import { createAuth } from "../src/auth/factory";
 import { closeDatabase, createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { readSecretFile } from "../src/server/secret-file";
+import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 import { bootstrapOwner } from "./bootstrap-owner";
 
 const require = createRequire(import.meta.url);
@@ -146,8 +147,9 @@ async function runInvitationSmoke() {
     assert(Number(credentialCount.rows[0]?.count) === 1, "acceptance did not create exactly one credential account");
     const acceptedSessions = await client.query<{ count: string }>("SELECT count(*)::text AS count FROM sessions WHERE user_id = $1", [acceptedUser.id]);
     assert(Number(acceptedSessions.rows[0]?.count) === 0, "acceptance created a session");
+    const acceptedLedgerScopeId = await getPersonalLedgerScopeId(db, acceptedUser.id);
     for (const table of domainTables) {
-      const owned = await client.query<{ count: string }>(`SELECT count(*)::text AS count FROM "${table}" WHERE owner_user_id = $1`, [acceptedUser.id]);
+      const owned = await client.query<{ count: string }>(`SELECT count(*)::text AS count FROM "${table}" WHERE ledger_scope_id = $1`, [acceptedLedgerScopeId]);
       assert(Number(owned.rows[0]?.count) === 0, "accepted ledger was not empty");
     }
     const usedError = await expectUnavailable(() => acceptInvitation(db, accepted.token, { username: "again_user", name: "Again", password: ownerPassword }));

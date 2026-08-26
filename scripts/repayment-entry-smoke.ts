@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { createLedgerRepository } from "../src/domain/ledger-repository";
+import { ensurePersonalLedgerScope } from "../src/server/ledger-scopes";
 
 if (process.env.DB_NAME !== "zplit_test") throw new Error("repayment entry smoke requires DB_NAME=zplit_test");
 
@@ -38,40 +39,44 @@ async function run() {
   const shareA2 = randomUUID();
   const shareC = randomUUID();
   const shareB = randomUUID();
-  const repository = createLedgerRepository(db, ownerA);
-  const foreignRepository = createLedgerRepository(db, ownerB);
   const paidAt = new Date("2026-08-05T00:00:00.000Z");
   const repaymentInput = (friendId: string, amount: number) => ({ friendId, amount, paidAt, paymentMethod: "Cash", notes: null });
+  let scopeA = "";
+  let scopeB = "";
 
   try {
     await pool.query(
       "INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, true), ($4, $5, $6, true)",
       [ownerA, "Smoke Owner A", `repayment-a-${ownerA}@example.com`, ownerB, "Smoke Owner B", `repayment-b-${ownerB}@example.com`],
     );
+    scopeA = await ensurePersonalLedgerScope(db, ownerA);
+    scopeB = await ensurePersonalLedgerScope(db, ownerB);
+    const repository = createLedgerRepository(db, scopeA);
+    const foreignRepository = createLedgerRepository(db, scopeB);
     await pool.query(
-      "INSERT INTO friends (id, owner_user_id, name) VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)",
-      [friendA, ownerA, "Friend A", friendC, ownerA, "Friend C", friendB, ownerB, "Friend B"],
+      "INSERT INTO friends (id, ledger_scope_id, name) VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)",
+      [friendA, scopeA, "Friend A", friendC, scopeA, "Friend C", friendB, scopeB, "Friend B"],
     );
     await pool.query(
-      "INSERT INTO outings (id, owner_user_id, title, occurred_at) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)",
-      [outingA, ownerA, "Owner A outing", "2026-08-04T00:00:00Z", outingB, ownerB, "Owner B outing", "2026-08-04T00:00:00Z"],
+      "INSERT INTO outings (id, ledger_scope_id, title, occurred_at) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)",
+      [outingA, scopeA, "Owner A outing", "2026-08-04T00:00:00Z", outingB, scopeB, "Owner B outing", "2026-08-04T00:00:00Z"],
     );
     await pool.query(
-      "INSERT INTO expenses (id, owner_user_id, outing_id, description, amount) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ($11, $12, $13, $14, $15), ($16, $17, $18, $19, $20)",
+      "INSERT INTO expenses (id, ledger_scope_id, outing_id, description, amount) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ($11, $12, $13, $14, $15), ($16, $17, $18, $19, $20)",
       [
-        expenseA1, ownerA, outingA, "Dinner", 100_000,
-        expenseA2, ownerA, outingA, "Taxi", 60_000,
-        expenseC, ownerA, outingA, "Coffee", 20_000,
-        expenseB, ownerB, outingB, "Foreign dinner", 50_000,
+        expenseA1, scopeA, outingA, "Dinner", 100_000,
+        expenseA2, scopeA, outingA, "Taxi", 60_000,
+        expenseC, scopeA, outingA, "Coffee", 20_000,
+        expenseB, scopeB, outingB, "Foreign dinner", 50_000,
       ],
     );
     await pool.query(
-      "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12), ($13, $14, $15, $16, $17, $18), ($19, $20, $21, $22, $23, $24)",
+      "INSERT INTO expense_shares (id, ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12), ($13, $14, $15, $16, $17, $18), ($19, $20, $21, $22, $23, $24)",
       [
-        shareA1, ownerA, expenseA1, friendA, 100_000, 100_000,
-        shareA2, ownerA, expenseA2, friendA, 60_000, 60_000,
-        shareC, ownerA, expenseC, friendC, 20_000, 20_000,
-        shareB, ownerB, expenseB, friendB, 50_000, 50_000,
+        shareA1, scopeA, expenseA1, friendA, 100_000, 100_000,
+        shareA2, scopeA, expenseA2, friendA, 60_000, 60_000,
+        shareC, scopeA, expenseC, friendC, 20_000, 20_000,
+        shareB, scopeB, expenseB, friendB, 50_000, 50_000,
       ],
     );
 
@@ -99,7 +104,7 @@ async function run() {
     assert(afterAllocation.totalRepaidAmount === initialSummary.totalRepaidAmount + 120_000, "allocated repayment totals are wrong");
     assert(afterAllocation.totalOutstandingAmount === initialSummary.totalOutstandingAmount - 120_000, "allocated repayment outstanding total is wrong");
 
-    const beforeRejected = await pool.query("SELECT count(*)::int AS count FROM repayments WHERE owner_user_id = $1", [ownerA]);
+    const beforeRejected = await pool.query("SELECT count(*)::int AS count FROM repayments WHERE ledger_scope_id = $1", [scopeA]);
     await expectLedgerError(
       () => repository.createRepaymentWithAllocations(repaymentInput(friendA, 10_000), [{ expenseShareId: shareA1, amount: 11_000 }]),
       "REPAYMENT_ALLOCATION_AMOUNT_EXCEEDED",
@@ -128,9 +133,9 @@ async function run() {
       "NOT_FOUND",
       "invalid mixed allocation was accepted",
     );
-    const afterRejected = await pool.query("SELECT count(*)::int AS count FROM repayments WHERE owner_user_id = $1", [ownerA]);
+    const afterRejected = await pool.query("SELECT count(*)::int AS count FROM repayments WHERE ledger_scope_id = $1", [scopeA]);
     assert(afterRejected.rows[0]?.count === beforeRejected.rows[0]?.count, "failed allocation transaction left a repayment behind");
-    const allocationCount = await pool.query("SELECT count(*)::int AS count FROM repayment_allocations WHERE owner_user_id = $1", [ownerA]);
+    const allocationCount = await pool.query("SELECT count(*)::int AS count FROM repayment_allocations WHERE ledger_scope_id = $1", [scopeA]);
     assert(allocationCount.rows[0]?.count === 3, "failed allocation transaction changed existing allocations");
 
     const remaining = await repository.listOpenExpenseSharesByFriend();
@@ -138,12 +143,13 @@ async function run() {
     assert(remaining[friendA]?.find((share) => share.id === shareA2)?.remainingAmount === 10_000, "share A2 remaining capacity is wrong");
     console.log("repayment entry smoke passed: owner scope, optional allocation, invariants, rollback, and totals verified");
   } finally {
-    await pool.query("DELETE FROM repayment_allocations WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM repayments WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM expense_shares WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM expenses WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM outings WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM friends WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
+    await pool.query("DELETE FROM repayment_allocations WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM repayments WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM expense_shares WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM expenses WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM outings WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM friends WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM ledger_scopes WHERE id IN ($1, $2)", [scopeA, scopeB]);
     await pool.query("DELETE FROM users WHERE id IN ($1, $2)", [ownerA, ownerB]);
     await pool.end();
   }

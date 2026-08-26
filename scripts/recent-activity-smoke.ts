@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "../src/db/schema";
 import { createLedgerRepository } from "../src/domain/ledger-repository";
+import { ensurePersonalLedgerScope } from "../src/server/ledger-scopes";
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
 if (!databaseUrl) throw new Error("DATABASE_URL is required");
@@ -33,6 +34,8 @@ async function run() {
   const database = drizzle(pool, { schema });
   const repositoryOwner = randomUUID();
   const foreignOwner = randomUUID();
+  let scopeA = "";
+  let scopeB = "";
   const base = randomUUID().replaceAll("-", "");
   const friendA = id(base, 401);
   const friendB = id(base, 402);
@@ -59,46 +62,48 @@ async function run() {
       [repositoryOwner, "Recent Activity Owner", `${repositoryOwner}@example.invalid`, true],
       [foreignOwner, "Foreign Owner", `${foreignOwner}@example.invalid`, true],
     ]);
-    await insertRows("friends", "id, owner_user_id, name", [
-      [friendA, repositoryOwner, "Ari"],
-      [friendB, foreignOwner, "Foreign Friend"],
+    scopeA = await ensurePersonalLedgerScope(database, repositoryOwner);
+    scopeB = await ensurePersonalLedgerScope(database, foreignOwner);
+    await insertRows("friends", "id, ledger_scope_id, name", [
+      [friendA, scopeA, "Ari"],
+      [friendB, scopeB, "Foreign Friend"],
     ]);
-    await insertRows("outings", "id, owner_user_id, title, occurred_at", [
-      [outingA10, repositoryOwner, "Jakarta", "2026-08-10T00:00:00Z"],
-      [outingA9, repositoryOwner, "Bandung", "2026-08-09T00:00:00Z"],
-      [outingA8, repositoryOwner, "Bogor", "2026-08-08T00:00:00Z"],
-      [outingA7, repositoryOwner, "Depok", "2026-08-07T00:00:00Z"],
-      [outingB, foreignOwner, "Foreign outing", "2030-01-01T00:00:00Z"],
+    await insertRows("outings", "id, ledger_scope_id, title, occurred_at", [
+      [outingA10, scopeA, "Jakarta", "2026-08-10T00:00:00Z"],
+      [outingA9, scopeA, "Bandung", "2026-08-09T00:00:00Z"],
+      [outingA8, scopeA, "Bogor", "2026-08-08T00:00:00Z"],
+      [outingA7, scopeA, "Depok", "2026-08-07T00:00:00Z"],
+      [outingB, scopeB, "Foreign outing", "2030-01-01T00:00:00Z"],
     ]);
-    await insertRows("expenses", "id, owner_user_id, outing_id, description, amount, created_at", [
-      [expenseIds[0], repositoryOwner, outingA10, "Dinner", 8000, "2026-08-01T00:00:00Z"],
-      [expenseIds[1], repositoryOwner, outingA9, "Taxi", 7000, "2026-08-02T00:00:00Z"],
-      [expenseIds[2], repositoryOwner, outingA8, "Coffee", 6000, "2026-08-03T00:00:00Z"],
-      [expenseIds[3], repositoryOwner, outingA7, "Market", 5000, "2026-08-06T00:00:00Z"],
-      [expenseIds[4], repositoryOwner, outingA7, "Snacks", 4000, "2026-08-06T00:00:00Z"],
-      [expenseIds[5], repositoryOwner, outingA7, "Museum", 3000, "2026-08-07T00:00:00Z"],
-      [foreignExpense, foreignOwner, outingB, "Foreign dinner", 9000, "2029-12-01T00:00:00Z"],
+    await insertRows("expenses", "id, ledger_scope_id, outing_id, description, amount, created_at", [
+      [expenseIds[0], scopeA, outingA10, "Dinner", 8000, "2026-08-01T00:00:00Z"],
+      [expenseIds[1], scopeA, outingA9, "Taxi", 7000, "2026-08-02T00:00:00Z"],
+      [expenseIds[2], scopeA, outingA8, "Coffee", 6000, "2026-08-03T00:00:00Z"],
+      [expenseIds[3], scopeA, outingA7, "Market", 5000, "2026-08-06T00:00:00Z"],
+      [expenseIds[4], scopeA, outingA7, "Snacks", 4000, "2026-08-06T00:00:00Z"],
+      [expenseIds[5], scopeA, outingA7, "Museum", 3000, "2026-08-07T00:00:00Z"],
+      [foreignExpense, scopeB, outingB, "Foreign dinner", 9000, "2029-12-01T00:00:00Z"],
     ]);
-    await insertRows("expense_shares", "id, owner_user_id, expense_id, friend_id, base_amount, amount_owed", [
-      [shareE1, repositoryOwner, expenseIds[0], friendA, 1000, 1000],
-      [shareE3, repositoryOwner, expenseIds[2], friendA, 2000, 2000],
+    await insertRows("expense_shares", "id, ledger_scope_id, expense_id, friend_id, base_amount, amount_owed", [
+      [shareE1, scopeA, expenseIds[0], friendA, 1000, 1000],
+      [shareE3, scopeA, expenseIds[2], friendA, 2000, 2000],
     ]);
-    await insertRows("repayments", "id, owner_user_id, friend_id, amount, paid_at, created_at", [
-      [repaymentIds[0], repositoryOwner, friendA, 1000, "2026-08-10T00:00:00Z", "2026-08-01T00:00:00Z"],
-      [repaymentIds[1], repositoryOwner, friendA, 2000, "2026-08-09T00:00:00Z", "2026-08-02T00:00:00Z"],
-      [repaymentIds[2], repositoryOwner, friendA, 3000, "2026-08-06T00:00:00Z", "2026-08-04T00:00:00Z"],
-      [olderRepaymentIds[0], repositoryOwner, friendA, 4000, "2020-08-05T00:00:00Z", "2020-08-01T00:00:00Z"],
-      [olderRepaymentIds[1], repositoryOwner, friendA, 5000, "2020-08-04T00:00:00Z", "2020-08-02T00:00:00Z"],
-      [foreignRepayment, foreignOwner, friendB, 9000, "2030-01-01T00:00:00Z", "2030-01-01T00:00:00Z"],
+    await insertRows("repayments", "id, ledger_scope_id, friend_id, amount, paid_at, created_at", [
+      [repaymentIds[0], scopeA, friendA, 1000, "2026-08-10T00:00:00Z", "2026-08-01T00:00:00Z"],
+      [repaymentIds[1], scopeA, friendA, 2000, "2026-08-09T00:00:00Z", "2026-08-02T00:00:00Z"],
+      [repaymentIds[2], scopeA, friendA, 3000, "2026-08-06T00:00:00Z", "2026-08-04T00:00:00Z"],
+      [olderRepaymentIds[0], scopeA, friendA, 4000, "2020-08-05T00:00:00Z", "2020-08-01T00:00:00Z"],
+      [olderRepaymentIds[1], scopeA, friendA, 5000, "2020-08-04T00:00:00Z", "2020-08-02T00:00:00Z"],
+      [foreignRepayment, scopeB, friendB, 9000, "2030-01-01T00:00:00Z", "2030-01-01T00:00:00Z"],
     ]);
-    await insertRows("repayment_allocations", "owner_user_id, repayment_id, expense_share_id, amount", [
-      [repositoryOwner, repaymentIds[0], shareE1, 1000],
-      [repositoryOwner, repaymentIds[2], shareE3, 500],
-      [repositoryOwner, olderRepaymentIds[0], shareE1, 400],
-      [repositoryOwner, olderRepaymentIds[1], shareE3, 500],
+    await insertRows("repayment_allocations", "ledger_scope_id, repayment_id, expense_share_id, amount", [
+      [scopeA, repaymentIds[0], shareE1, 1000],
+      [scopeA, repaymentIds[2], shareE3, 500],
+      [scopeA, olderRepaymentIds[0], shareE1, 400],
+      [scopeA, olderRepaymentIds[1], shareE3, 500],
     ]);
 
-    const repository = createLedgerRepository(database, repositoryOwner);
+    const repository = createLedgerRepository(database, scopeA);
     const invalidLimit = await repository.listRecentActivity({ limit: 0 }).catch((error) => error);
     assert(invalidLimit instanceof Error && "code" in invalidLimit && invalidLimit.code === "INVALID_INPUT", "invalid limit was accepted");
 
@@ -127,12 +132,13 @@ async function run() {
     assert(newest.length === 1 && newest[0]?.id === expenseIds[0], "limit one did not return the newest owner record");
     console.log("recent activity smoke passed: bounded ordering, owner isolation, mapping, allocation details, and integrity checks verified");
   } finally {
-    await pool.query("DELETE FROM repayment_allocations WHERE owner_user_id IN ($1, $2)", [repositoryOwner, foreignOwner]);
-    await pool.query("DELETE FROM expense_shares WHERE owner_user_id IN ($1, $2)", [repositoryOwner, foreignOwner]);
-    await pool.query("DELETE FROM repayments WHERE owner_user_id IN ($1, $2)", [repositoryOwner, foreignOwner]);
-    await pool.query("DELETE FROM expenses WHERE owner_user_id IN ($1, $2)", [repositoryOwner, foreignOwner]);
-    await pool.query("DELETE FROM outings WHERE owner_user_id IN ($1, $2)", [repositoryOwner, foreignOwner]);
-    await pool.query("DELETE FROM friends WHERE owner_user_id IN ($1, $2)", [repositoryOwner, foreignOwner]);
+    await pool.query("DELETE FROM repayment_allocations WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM expense_shares WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM repayments WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM expenses WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM outings WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM friends WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM ledger_scopes WHERE id IN ($1, $2)", [scopeA, scopeB]);
     await pool.query("DELETE FROM users WHERE id IN ($1, $2)", [repositoryOwner, foreignOwner]);
     await pool.end();
   }

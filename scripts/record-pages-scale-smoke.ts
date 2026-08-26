@@ -6,6 +6,7 @@ import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client"
 import * as schema from "../src/db/schema";
 import { createLedgerRepository } from "../src/domain/ledger-repository";
 import { RECORD_PAGE_SIZE } from "../src/domain/record-retrieval";
+import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 import { SCALE_FIXTURE_CONFIRMATION, SCALE_FIXTURE_COUNTS, SCALE_FIXTURE_DATABASE, generateScaleFixture } from "./scale-fixture-data";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -72,9 +73,11 @@ async function run() {
     client = await pool.connect();
     await client.query("BEGIN READ ONLY");
     transactionStarted = true;
-    const ownerUserId = await resolveOwner(client, ownerEmail);
-    const fixture = generateScaleFixture(ownerUserId);
-    const repository = createLedgerRepository(drizzle(client, { schema }), ownerUserId);
+    const userId = await resolveOwner(client, ownerEmail);
+    const database = drizzle(client, { schema });
+    const ledgerScopeId = await getPersonalLedgerScopeId(database, userId);
+    const fixture = generateScaleFixture(userId);
+    const repository = createLedgerRepository(database, ledgerScopeId);
 
     await checkListing("Friends", fixture.friends.filter((friend) => friend.archivedAt === null).length, (page) => repository.listFriendRecords({ page }));
     await checkListing("Archived friends", fixture.friends.filter((friend) => friend.archivedAt !== null).length, (page) => repository.listFriendRecords({ archived: true, page }));

@@ -29,7 +29,7 @@ export type FixtureIdKind = keyof typeof kindCodes;
 
 export type FixtureFriend = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   name: string;
   phoneNumber: string | null;
   notes: string | null;
@@ -40,7 +40,7 @@ export type FixtureFriend = {
 
 export type FixtureOuting = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   title: string;
   occurredAt: Date;
   notes: string | null;
@@ -50,7 +50,7 @@ export type FixtureOuting = {
 
 export type FixtureExpense = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   outingId: string;
   description: string;
   amount: number;
@@ -60,7 +60,7 @@ export type FixtureExpense = {
 
 export type FixtureExpenseShare = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   expenseId: string;
   friendId: string;
   amountOwed: number;
@@ -69,7 +69,7 @@ export type FixtureExpenseShare = {
 
 export type FixtureRepayment = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   friendId: string;
   amount: number;
   paidAt: Date;
@@ -79,7 +79,7 @@ export type FixtureRepayment = {
 };
 
 export type FixtureRepaymentAllocation = {
-  ownerUserId: string;
+  userId: string;
   repaymentId: string;
   expenseShareId: string;
   amount: number;
@@ -88,7 +88,7 @@ export type FixtureRepaymentAllocation = {
 
 export type FixtureReceipt = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   expenseId: string;
   originalFilename: string;
   mediaType: "image/png";
@@ -100,7 +100,7 @@ export type FixtureReceipt = {
 
 export type ScaleFixtureData = {
   seed: number;
-  ownerUserId: string;
+  userId: string;
   friends: FixtureFriend[];
   outings: FixtureOuting[];
   expenses: FixtureExpense[];
@@ -207,8 +207,8 @@ function receiptContent() {
   return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
 }
 
-export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed = SCALE_FIXTURE_SEED): ScaleFixtureData {
-  if (!ownerUserId.trim()) throw new Error("ownerUserId is required");
+export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE_FIXTURE_SEED): ScaleFixtureData {
+  if (!userId.trim()) throw new Error("userId is required");
   if (!Number.isInteger(seed)) throw new Error("seed must be an integer");
   const next = random(seed);
   const fixedCreatedAt = date(createdAt);
@@ -222,7 +222,7 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
   for (let index = 0; index < SCALE_FIXTURE_COUNTS.friends; index += 1) {
     friends.push({
       id: fixtureId("friend", index),
-      ownerUserId,
+      userId,
       name: index === 0 ? `Long friend ${"x".repeat(108)}` : `Scale friend ${String(index + 1).padStart(3, "0")}`,
       phoneNumber: index % 3 === 0 ? `+62812${String(index).padStart(6, "0")}` : null,
       notes: index % 4 === 0 ? "Fixture contact with notes for list and detail rendering." : null,
@@ -236,7 +236,7 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
     const occurredAt = outingTimestamp(index, next);
     outings.push({
       id: fixtureId("outing", index),
-      ownerUserId,
+      userId,
       title: index === 0 ? `Long outing ${"y".repeat(148)}` : `Scale outing ${String(index + 1).padStart(3, "0")}`,
       occurredAt,
       notes: index % 6 === 0 ? "Historical fixture outing for list, filtering, and timeline rendering." : null,
@@ -249,7 +249,7 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
     const amount = index < 5 ? [12_000, 18_000, 22_000, 24_000, 26_000][index]! : 10_000 + integer(next, 90_001);
     expenses.push({
       id: fixtureId("expense", index),
-      ownerUserId,
+      userId,
       outingId: outings[index % outings.length]!.id,
       description: index === 0 ? `Long expense ${"z".repeat(187)}` : `Scale expense ${String(index + 1).padStart(4, "0")}`,
       amount,
@@ -271,7 +271,7 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
       remaining -= amountOwed;
       expenseShares.push({
         id: fixtureId("share", expenseShares.length),
-        ownerUserId,
+        userId,
         expenseId: expenses[index]!.id,
         friendId: friends[friendIndexes[offset]!]!.id,
         amountOwed,
@@ -302,7 +302,7 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
     const repaymentId = fixtureId("repayment", index);
     repayments.push({
       id: repaymentId,
-      ownerUserId,
+      userId,
       friendId: friends[friendIndex]!.id,
       amount,
       paidAt: repaymentTimestamp(index, next),
@@ -312,7 +312,7 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
     });
     if (allocation) {
       repaymentAllocations.push({
-        ownerUserId,
+        userId,
         repaymentId,
         expenseShareId: allocation.share.id,
         amount: allocation.amount,
@@ -342,7 +342,7 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
     const repaymentId = fixtureId("repayment", index);
     repayments.push({
       id: repaymentId,
-      ownerUserId,
+      userId,
       friendId: friends[friendIndex]!.id,
       amount,
       paidAt: repaymentTimestamp(index, next),
@@ -359,7 +359,7 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
       const allocationAmount = Math.min(remainingShare, budget, 500 + ((index * 1_237 + share.amountOwed) % 5_001));
       if (allocationAmount <= 0) continue;
       repaymentAllocations.push({
-        ownerUserId,
+        userId,
         repaymentId,
         expenseShareId: share.id,
         amount: allocationAmount,
@@ -375,7 +375,7 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
     const content = receiptContent();
     return {
       id: fixtureId("receipt", index),
-      ownerUserId,
+      userId,
       expenseId: expenses[expenseIndex]!.id,
       originalFilename: `scale-receipt-${String(index + 1).padStart(2, "0")}.png`,
       mediaType: "image/png" as const,
@@ -388,7 +388,7 @@ export function generateScaleFixture(ownerUserId = "scale-fixture-owner", seed =
 
   return {
     seed,
-    ownerUserId,
+    userId,
     friends,
     outings,
     expenses,

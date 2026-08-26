@@ -24,6 +24,7 @@ import {
 } from "../src/server/expense-receipts";
 import { createLedgerRepository, ExpenseDeletionInvariantError } from "../src/domain/ledger-repository";
 import { readSecretFile } from "../src/server/secret-file";
+import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 
 const suffix = randomBytes(6).toString("hex");
 const emailA = `receipt-smoke-a-${suffix}@example.com`;
@@ -60,14 +61,17 @@ async function cleanup(client: PoolClient) {
   const users = await client.query<{ id: string }>("SELECT id FROM users WHERE email = ANY($1::text[])", [[emailA, emailB]]);
   const ids = users.rows.map((user) => user.id);
   if (ids.length === 0) return;
-  await client.query("DELETE FROM repayment_allocations WHERE owner_user_id = ANY($1::text[])", [ids]);
-  await client.query("DELETE FROM debtor_share_links WHERE owner_user_id = ANY($1::text[])", [ids]);
-  await client.query("DELETE FROM expense_receipts WHERE owner_user_id = ANY($1::text[])", [ids]);
-  await client.query("DELETE FROM expense_shares WHERE owner_user_id = ANY($1::text[])", [ids]);
-  await client.query("DELETE FROM repayments WHERE owner_user_id = ANY($1::text[])", [ids]);
-  await client.query("DELETE FROM expenses WHERE owner_user_id = ANY($1::text[])", [ids]);
-  await client.query("DELETE FROM outings WHERE owner_user_id = ANY($1::text[])", [ids]);
-  await client.query("DELETE FROM friends WHERE owner_user_id = ANY($1::text[])", [ids]);
+  const scopes = await client.query<{ id: string }>("SELECT id FROM ledger_scopes WHERE kind = 'personal' AND user_id = ANY($1::text[])", [ids]);
+  const scopeIds = scopes.rows.map((scope) => scope.id);
+  await client.query("DELETE FROM repayment_allocations WHERE ledger_scope_id = ANY($1::uuid[])", [scopeIds]);
+  await client.query("DELETE FROM debtor_share_links WHERE ledger_scope_id = ANY($1::uuid[])", [scopeIds]);
+  await client.query("DELETE FROM expense_receipts WHERE ledger_scope_id = ANY($1::uuid[])", [scopeIds]);
+  await client.query("DELETE FROM expense_shares WHERE ledger_scope_id = ANY($1::uuid[])", [scopeIds]);
+  await client.query("DELETE FROM repayments WHERE ledger_scope_id = ANY($1::uuid[])", [scopeIds]);
+  await client.query("DELETE FROM expenses WHERE ledger_scope_id = ANY($1::uuid[])", [scopeIds]);
+  await client.query("DELETE FROM outings WHERE ledger_scope_id = ANY($1::uuid[])", [scopeIds]);
+  await client.query("DELETE FROM friends WHERE ledger_scope_id = ANY($1::uuid[])", [scopeIds]);
+  await client.query("DELETE FROM ledger_scopes WHERE id = ANY($1::uuid[])", [scopeIds]);
   await client.query("DELETE FROM users WHERE id = ANY($1::text[])", [ids]);
 }
 
@@ -93,8 +97,10 @@ export async function runReceiptSmoke() {
     const userA = users.rows.find((user) => user.email === emailA)?.id;
     const userB = users.rows.find((user) => user.email === emailB)?.id;
     assert(userA && userB, "smoke owners are missing");
-    const repositoryA = createLedgerRepository(db, userA);
-    const repositoryB = createLedgerRepository(db, userB);
+    const scopeA = await getPersonalLedgerScopeId(db, userA);
+    const scopeB = await getPersonalLedgerScopeId(db, userB);
+    const repositoryA = createLedgerRepository(db, scopeA);
+    const repositoryB = createLedgerRepository(db, scopeB);
     const now = new Date("2026-08-05T00:00:00.000Z");
     const outingA = await repositoryA.createOuting({ title: "Dinner", occurredAt: now, notes: null });
     const outingB = await repositoryB.createOuting({ title: "Lunch", occurredAt: now, notes: null });
@@ -158,10 +164,10 @@ export async function runReceiptSmoke() {
     const exportCsv = buildLedgerExportCsv("expense-shares.csv", await repositoryA.getLedgerExportSnapshot());
     assert(!/receipt|sha256|content/i.test(exportCsv), "export contains receipt data");
     await repositoryA.replaceRepaymentAllocations(repayment.id, []);
-    await repositoryA.deleteExpense(allocatedExpense.id);
+    await repositoryA.deleteExpense(allocatedExpense.id, { cascadeDependents: true });
     assert(await getExpenseReceipt(db, userA, allocatedExpense.id, allocatedReceipt.id) === null, "expense deletion did not cascade receipt");
 
-    await repositoryA.deleteExpense(expenseA.id);
+    await repositoryA.deleteExpense(expenseA.id, { cascadeDependents: true });
     assert((await listExpenseReceipts(db, userA, expenseA.id)).length === 0, "simple expense deletion did not cascade receipt");
   } finally {
     if (client) await cleanup(client);

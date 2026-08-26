@@ -7,6 +7,7 @@ import * as schema from "../src/db/schema";
 import { createLedgerRepository } from "../src/domain/ledger-repository";
 import { validateReceiptFile } from "../src/domain/receipt-file";
 import { createExpenseReceipt, getExpenseReceipt } from "../src/server/expense-receipts";
+import { ensurePersonalLedgerScope } from "../src/server/ledger-scopes";
 
 if (process.env.DB_NAME !== "zplit_test") throw new Error("shared receipts smoke requires DB_NAME=zplit_test");
 
@@ -32,15 +33,16 @@ function receipt(seed: number, filename: string) {
   return validateReceiptFile({ bytes, filename, mediaType: "image/png" });
 }
 
-async function cleanup(client: PoolClient, owners: string[]) {
-  await client.query("DELETE FROM debtor_share_receipts WHERE owner_user_id = ANY($1::text[])", [owners]);
-  await client.query("DELETE FROM debtor_share_links WHERE owner_user_id = ANY($1::text[])", [owners]);
-  await client.query("DELETE FROM expense_receipts WHERE owner_user_id = ANY($1::text[])", [owners]);
-  await client.query("DELETE FROM expense_shares WHERE owner_user_id = ANY($1::text[])", [owners]);
-  await client.query("DELETE FROM expenses WHERE owner_user_id = ANY($1::text[])", [owners]);
-  await client.query("DELETE FROM outings WHERE owner_user_id = ANY($1::text[])", [owners]);
-  await client.query("DELETE FROM friends WHERE owner_user_id = ANY($1::text[])", [owners]);
-  await client.query("DELETE FROM users WHERE id = ANY($1::text[])", [owners]);
+async function cleanup(client: PoolClient, ledgerScopeIds: string[], users: string[]) {
+  await client.query("DELETE FROM debtor_share_receipts WHERE ledger_scope_id = ANY($1::uuid[])", [ledgerScopeIds]);
+  await client.query("DELETE FROM debtor_share_links WHERE ledger_scope_id = ANY($1::uuid[])", [ledgerScopeIds]);
+  await client.query("DELETE FROM expense_receipts WHERE ledger_scope_id = ANY($1::uuid[])", [ledgerScopeIds]);
+  await client.query("DELETE FROM expense_shares WHERE ledger_scope_id = ANY($1::uuid[])", [ledgerScopeIds]);
+  await client.query("DELETE FROM expenses WHERE ledger_scope_id = ANY($1::uuid[])", [ledgerScopeIds]);
+  await client.query("DELETE FROM outings WHERE ledger_scope_id = ANY($1::uuid[])", [ledgerScopeIds]);
+  await client.query("DELETE FROM friends WHERE ledger_scope_id = ANY($1::uuid[])", [ledgerScopeIds]);
+  await client.query("DELETE FROM ledger_scopes WHERE id = ANY($1::uuid[])", [ledgerScopeIds]);
+  await client.query("DELETE FROM users WHERE id = ANY($1::text[])", [users]);
 }
 
 async function run() {
@@ -48,13 +50,17 @@ async function run() {
   const db = drizzle(pool, { schema });
   const ownerA = randomUUID();
   const ownerB = randomUUID();
+  let scopeA = "";
+  let scopeB = "";
   const now = new Date("2026-08-05T00:00:00.000Z");
   let client: PoolClient | undefined;
   try {
     client = await pool.connect();
     await client.query("INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, true), ($4, $5, $6, true)", [ownerA, "Shared A", `shared-a-${ownerA}@example.com`, ownerB, "Shared B", `shared-b-${ownerB}@example.com`]);
-    const repositoryA = createLedgerRepository(db, ownerA);
-    const repositoryB = createLedgerRepository(db, ownerB);
+    scopeA = await ensurePersonalLedgerScope(db, ownerA);
+    scopeB = await ensurePersonalLedgerScope(db, ownerB);
+    const repositoryA = createLedgerRepository(db, scopeA);
+    const repositoryB = createLedgerRepository(db, scopeB);
     const friendA = await repositoryA.createFriend({ name: "Friend A", phoneNumber: null, notes: null });
     const friendB = await repositoryB.createFriend({ name: "Friend B", phoneNumber: null, notes: null });
     const outingA = await repositoryA.createOuting({ title: "Owner A outing", occurredAt: now, notes: null });
@@ -122,7 +128,7 @@ async function run() {
     assert(!(await getSharedDebtorReceipt(db, randomUUID(), ownerBMapping.id, now)), "foreign token retrieved a receipt");
     console.log("shared receipts smoke passed: owner isolation, eligibility, selection, update, replacement, revocation, private access, and totals verified");
   } finally {
-    if (client) await cleanup(client, [ownerA, ownerB]);
+    if (client) await cleanup(client, [scopeA, scopeB], [ownerA, ownerB]);
     client?.release();
     await pool.end();
   }

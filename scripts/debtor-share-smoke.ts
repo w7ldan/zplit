@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client";
 import * as schema from "../src/db/schema";
+import { ensurePersonalLedgerScope } from "../src/server/ledger-scopes";
 
 if (process.env.DB_NAME !== "zplit_test") throw new Error("debtor share smoke requires DB_NAME=zplit_test");
 
@@ -37,34 +38,38 @@ async function runDebtorShareSmoke() {
   const repaymentPartial = randomUUID();
   const repaymentSettled = randomUUID();
   const now = new Date("2026-08-04T00:00:00.000Z");
+  let scopeA = "";
+  let scopeB = "";
 
   try {
     await pool.query("INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, true), ($4, $5, $6, true)", [
       ownerA, "Owner A Private", `debtor-a-${ownerA}@example.com`, ownerB, "Owner B Private", `debtor-b-${ownerB}@example.com`,
     ]);
+    scopeA = await ensurePersonalLedgerScope(db, ownerA);
+    scopeB = await ensurePersonalLedgerScope(db, ownerB);
     await pool.query(
-      "INSERT INTO friends (id, owner_user_id, name, phone_number, notes) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)",
-      [friendA, ownerA, "Friend A", "+62000000001", "private friend A note", friendB, ownerB, "Friend B", "+62000000002", "private friend B note"],
+      "INSERT INTO friends (id, ledger_scope_id, name, phone_number, notes) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)",
+      [friendA, scopeA, "Friend A", "+62000000001", "private friend A note", friendB, scopeB, "Friend B", "+62000000002", "private friend B note"],
     );
     await pool.query(
-      "INSERT INTO outings (id, owner_user_id, title, occurred_at) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)",
-      [outingA, ownerA, "Owner A dinner", "2026-08-03T00:00:00Z", outingB, ownerB, "Owner B outing", "2026-08-03T00:00:00Z"],
+      "INSERT INTO outings (id, ledger_scope_id, title, occurred_at) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)",
+      [outingA, scopeA, "Owner A dinner", "2026-08-03T00:00:00Z", outingB, scopeB, "Owner B outing", "2026-08-03T00:00:00Z"],
     );
     await pool.query(
-      "INSERT INTO expenses (id, owner_user_id, outing_id, description, amount) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)",
-      [expenseA, ownerA, outingA, "Open dinner share", 100_000, expenseB, ownerA, outingA, "Settled coffee share", 30_000],
+      "INSERT INTO expenses (id, ledger_scope_id, outing_id, description, amount) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)",
+      [expenseA, scopeA, outingA, "Open dinner share", 100_000, expenseB, scopeA, outingA, "Settled coffee share", 30_000],
     );
     await pool.query(
-      "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12)",
-      [shareOpen, ownerA, expenseA, friendA, 100_000, 100_000, shareSettled, ownerA, expenseB, friendA, 30_000, 30_000],
+      "INSERT INTO expense_shares (id, ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12)",
+      [shareOpen, scopeA, expenseA, friendA, 100_000, 100_000, shareSettled, scopeA, expenseB, friendA, 30_000, 30_000],
     );
     await pool.query(
-      "INSERT INTO repayments (id, owner_user_id, friend_id, amount, paid_at, payment_method, notes) VALUES ($1, $2, $3, $4, $5, $6, $7), ($8, $9, $10, $11, $12, $13, $14)",
-      [repaymentPartial, ownerA, friendA, 60_000, "2026-08-04T00:00:00Z", "private-method", "private repayment note", repaymentSettled, ownerA, friendA, 30_000, "2026-08-04T00:00:00Z", "cash", "another private note"],
+      "INSERT INTO repayments (id, ledger_scope_id, friend_id, amount, paid_at, payment_method, notes) VALUES ($1, $2, $3, $4, $5, $6, $7), ($8, $9, $10, $11, $12, $13, $14)",
+      [repaymentPartial, scopeA, friendA, 60_000, "2026-08-04T00:00:00Z", "private-method", "private repayment note", repaymentSettled, scopeA, friendA, 30_000, "2026-08-04T00:00:00Z", "cash", "another private note"],
     );
     await pool.query(
-      "INSERT INTO repayment_allocations (owner_user_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)",
-      [ownerA, repaymentPartial, shareOpen, 40_000, ownerA, repaymentSettled, shareSettled, 30_000],
+      "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)",
+      [scopeA, repaymentPartial, shareOpen, 40_000, scopeA, repaymentSettled, shareSettled, 30_000],
     );
     const first = await createDebtorShareLink(db, ownerA, friendA, now);
     const firstPublic = await resolveDebtorShareLink(db, first.token, now);
@@ -106,13 +111,14 @@ async function runDebtorShareSmoke() {
     assert(ownerBPublic.statement.items.length === 0, "owner B saw owner A shares");
     console.log("debtor share smoke passed: two owners isolated; create, replacement, revocation, expiry, arithmetic, and allowlist verified");
   } finally {
-    await pool.query("DELETE FROM debtor_share_links WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM repayment_allocations WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM repayments WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM expense_shares WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM expenses WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM outings WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-    await pool.query("DELETE FROM friends WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
+    await pool.query("DELETE FROM debtor_share_links WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM repayment_allocations WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM repayments WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM expense_shares WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM expenses WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM outings WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM friends WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+    await pool.query("DELETE FROM ledger_scopes WHERE id IN ($1, $2)", [scopeA, scopeB]);
     await pool.query("DELETE FROM users WHERE id IN ($1, $2)", [ownerA, ownerB]);
     await pool.end();
   }

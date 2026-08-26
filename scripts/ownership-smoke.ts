@@ -15,6 +15,7 @@ import {
 import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { readSecretFile } from "../src/server/secret-file";
+import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 
 const domainTables = [
   "friends",
@@ -41,11 +42,11 @@ function safeError(error: unknown, secrets: string[]) {
   return message.replace(/\s+/g, " ").slice(0, 240);
 }
 
-async function count(client: PoolClient, table: string, ownerUserId?: string) {
-  const query = ownerUserId
-    ? `SELECT count(*)::int AS count FROM "${table}" WHERE owner_user_id = $1`
+async function count(client: PoolClient, table: string, ledgerScopeId?: string) {
+  const query = ledgerScopeId
+    ? `SELECT count(*)::int AS count FROM "${table}" WHERE ledger_scope_id = $1`
     : `SELECT count(*)::int AS count FROM "${table}"`;
-  const result = await client.query<{ count: number }>(query, ownerUserId ? [ownerUserId] : []);
+  const result = await client.query<{ count: number }>(query, ledgerScopeId ? [ledgerScopeId] : []);
   return Number(result.rows[0]?.count);
 }
 
@@ -124,9 +125,11 @@ export async function runOwnershipSmoke() {
     const userA = users.rows.find((user) => user.email === emailA)?.id;
     const userB = users.rows.find((user) => user.email === emailB)?.id;
     assert(userA && userB, "smoke users are missing");
+    const scopeA = await getPersonalLedgerScopeId(db, userA);
+    const scopeB = await getPersonalLedgerScopeId(db, userB);
 
-    const repositoryA = createLedgerRepository(db, userA);
-    const repositoryB = createLedgerRepository(db, userB);
+    const repositoryA = createLedgerRepository(db, scopeA);
+    const repositoryB = createLedgerRepository(db, scopeB);
     const now = new Date("2026-01-02T10:30:00.000Z");
     const friendA = await repositoryA.createFriend({ name: "Friend A", phoneNumber: null, notes: null });
     const outingA = await repositoryA.createOuting({ title: "Outing A", occurredAt: now, notes: null });
@@ -317,8 +320,8 @@ export async function runOwnershipSmoke() {
     for (const table of domainTables) {
       const expectedA = table === "outings" ? 2 : table === "repayments" ? 4 : 1;
       const expectedB = table === "outings" ? 2 : 1;
-      assert(await count(client, table, userA) === expectedA, `${table} owner A row missing`);
-      assert(await count(client, table, userB) === expectedB, `${table} owner B row missing`);
+      assert(await count(client, table, scopeA) === expectedA, `${table} owner A row missing`);
+      assert(await count(client, table, scopeB) === expectedB, `${table} owner B row missing`);
     }
 
     await expectNotFound(() => repositoryA.createExpense({ outingId: outingB.id, description: "Cross", amount: 1 }));
@@ -347,71 +350,71 @@ export async function runOwnershipSmoke() {
     await expectConstraint(
       client,
       "23503",
-      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
-      [userA, expenseA.id, friendB.id, 1, 1],
+      "INSERT INTO expense_shares (ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [scopeA, expenseA.id, friendB.id, 1, 1],
       "cross_owner_share",
     );
     await expectConstraint(
       client,
       "23503",
-      "INSERT INTO repayments (owner_user_id, friend_id, amount, paid_at) VALUES ($1, $2, $3, $4)",
-      [userA, friendB.id, 1, now],
+      "INSERT INTO repayments (ledger_scope_id, friend_id, amount, paid_at) VALUES ($1, $2, $3, $4)",
+      [scopeA, friendB.id, 1, now],
       "cross_owner_repayment",
     );
     await expectConstraint(
       client,
       "23503",
-      "INSERT INTO repayment_allocations (owner_user_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
-      [userA, repaymentA.id, shareB.id, 1],
+      "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
+      [scopeA, repaymentA.id, shareB.id, 1],
       "cross_owner_allocation",
     );
     await expectConstraint(
       client,
       "23514",
-      "INSERT INTO expenses (owner_user_id, outing_id, description, amount) VALUES ($1, $2, $3, $4)",
-      [userA, outingA.id, "Invalid amount", 0],
+      "INSERT INTO expenses (ledger_scope_id, outing_id, description, amount) VALUES ($1, $2, $3, $4)",
+      [scopeA, outingA.id, "Invalid amount", 0],
       "amount_expense",
     );
     await expectConstraint(
       client,
       "23502",
-      "INSERT INTO expenses (owner_user_id, description, amount) VALUES ($1, $2, $3)",
-      [userA, "Missing outing", 1],
+      "INSERT INTO expenses (ledger_scope_id, description, amount) VALUES ($1, $2, $3)",
+      [scopeA, "Missing outing", 1],
       "required_expense_outing",
     );
     await expectConstraint(
       client,
       "23514",
-      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
-      [userA, expenseA.id, friendA.id, 0, 0],
+      "INSERT INTO expense_shares (ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [scopeA, expenseA.id, friendA.id, 0, 0],
       "amount_share",
     );
     await expectConstraint(
       client,
       "23514",
-      "INSERT INTO repayments (owner_user_id, friend_id, amount, paid_at) VALUES ($1, $2, $3, $4)",
-      [userA, friendA.id, 0, now],
+      "INSERT INTO repayments (ledger_scope_id, friend_id, amount, paid_at) VALUES ($1, $2, $3, $4)",
+      [scopeA, friendA.id, 0, now],
       "amount_repayment",
     );
     await expectConstraint(
       client,
       "23514",
-      "INSERT INTO repayment_allocations (owner_user_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
-      [userA, repaymentA.id, shareA.id, 0],
+      "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
+      [scopeA, repaymentA.id, shareA.id, 0],
       "amount_allocation",
     );
     await expectConstraint(
       client,
       "23505",
-      "INSERT INTO expense_shares (owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
-      [userA, expenseA.id, friendA.id, 1, 1],
+      "INSERT INTO expense_shares (ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [scopeA, expenseA.id, friendA.id, 1, 1],
       "duplicate_share",
     );
     await expectConstraint(
       client,
       "23505",
-      "INSERT INTO repayment_allocations (owner_user_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
-      [userA, repaymentA.id, shareA.id, 1],
+      "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
+      [scopeA, repaymentA.id, shareA.id, 1],
       "duplicate_allocation",
     );
     await client.query("ROLLBACK");

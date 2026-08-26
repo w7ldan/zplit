@@ -10,6 +10,7 @@ import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client"
 import * as schema from "../src/db/schema";
 import { buildLedgerSummary } from "../src/domain/ledger-summary";
 import { createLedgerRepository, type RecentActivityRecord } from "../src/domain/ledger-repository";
+import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 import { RECORD_PAGE_SIZE } from "../src/domain/record-retrieval";
 import {
   SCALE_FIXTURE_CONFIRMATION,
@@ -237,11 +238,11 @@ function assertRecentActivity(activity: RecentActivityRecord[], fixture: ReturnT
   assert(JSON.stringify(activity.map(({ kind, id }) => ({ kind, id }))) === JSON.stringify(expected.map(({ kind, id }) => ({ kind, id }))), "recent activity records do not match the deterministic fixture");
 }
 
-async function readDomainFingerprint(pool: ReturnType<typeof createDatabasePool>, ownerUserId: string) {
+async function readDomainFingerprint(pool: ReturnType<typeof createDatabasePool>, ledgerScopeId: string) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN READ ONLY");
-    const fingerprint = await domainFingerprint(client, ownerUserId);
+    const fingerprint = await domainFingerprint(client, ledgerScopeId);
     await client.query("COMMIT");
     return fingerprint;
   } catch (error) {
@@ -252,7 +253,7 @@ async function readDomainFingerprint(pool: ReturnType<typeof createDatabasePool>
   }
 }
 
-async function domainFingerprint(client: PoolClient, ownerUserId: string): Promise<DomainFingerprint> {
+async function domainFingerprint(client: PoolClient, ledgerScopeId: string): Promise<DomainFingerprint> {
   const tables = [
     ["friends", "t.id"],
     ["outings", "t.id"],
@@ -265,8 +266,8 @@ async function domainFingerprint(client: PoolClient, ownerUserId: string): Promi
   const result: DomainFingerprint = {};
   for (const [table, orderBy] of tables) {
     const row = (await client.query<{ count: number | string; digest: string }>(
-      `SELECT count(*)::int AS count, md5(coalesce(string_agg(md5(row_to_json(t)::text), '' ORDER BY ${orderBy}), '')) AS digest FROM "${table}" t WHERE t.owner_user_id = $1`,
-      [ownerUserId],
+      `SELECT count(*)::int AS count, md5(coalesce(string_agg(md5(row_to_json(t)::text), '' ORDER BY ${orderBy}), '')) AS digest FROM "${table}" t WHERE t.ledger_scope_id = $1`,
+      [ledgerScopeId],
     )).rows[0]!;
     result[table] = { count: Number(row.count), digest: row.digest };
   }
@@ -281,8 +282,10 @@ async function runDatabaseAcceptance(ownerEmail: string) {
     client = await pool.connect();
     await client.query("BEGIN READ ONLY");
     transactionStarted = true;
-    const ownerUserId = await resolveOwner(client, ownerEmail);
-    const fixture = generateScaleFixture(ownerUserId);
+    const userId = await resolveOwner(client, ownerEmail);
+    const database = drizzle(client, { schema });
+    const ledgerScopeId = await getPersonalLedgerScopeId(database, userId);
+    const fixture = generateScaleFixture(userId);
     const expected = buildLedgerSummary({
       friends: fixture.friends,
       expenses: fixture.expenses,
@@ -290,8 +293,8 @@ async function runDatabaseAcceptance(ownerEmail: string) {
       repayments: fixture.repayments,
       repaymentAllocations: fixture.repaymentAllocations,
     });
-    const repository = createLedgerRepository(drizzle(client, { schema }), ownerUserId);
-    const contextRepository = createLedgerRepository(drizzle(pool, { schema }), ownerUserId);
+    const repository = createLedgerRepository(database, ledgerScopeId);
+    const contextRepository = createLedgerRepository(drizzle(pool, { schema }), ledgerScopeId);
 
     const overview = await repository.getLedgerOverviewSummary();
     assertOverview(overview, expected);
@@ -354,7 +357,7 @@ async function runDatabaseAcceptance(ownerEmail: string) {
     await client.query("ROLLBACK");
     transactionStarted = false;
     console.log("database acceptance passed: bounded pages/selectors, deterministic totals, context, adjacent-page uniqueness, and read-only transaction verified");
-    return { ownerUserId };
+    return { userId, ledgerScopeId };
   } finally {
     if (client && transactionStarted) await client.query("ROLLBACK").catch(() => undefined);
     client?.release();
@@ -488,7 +491,7 @@ async function stopServer(child: ChildProcess) {
   if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
 }
 
-async function runProductionRuntime(ownerEmail: string, ownerUserId: string) {
+async function runProductionRuntime(ownerEmail: string, userId: string, ledgerScopeId: string) {
   const resourceSnapshot = readResourceGate();
   validateResourceGate(resourceSnapshot);
   console.log(`resource gate passed: memory=${Math.round(resourceSnapshot.availableMemoryBytes / 1024 / 1024)} MiB disk=${Math.round(resourceSnapshot.freeDiskBytes / 1024 / 1024 / 1024)} GiB`);
@@ -514,7 +517,7 @@ async function runProductionRuntime(ownerEmail: string, ownerUserId: string) {
   try {
     await waitForHealth(origin, server, exit);
     cookie = await signIn(origin, ownerEmail);
-    const before = await readDomainFingerprint(pool, ownerUserId);
+    const before = await readDomainFingerprint(pool, ledgerScopeId);
     for (const requestPath of SCALE_APP_PATHS) {
       serverRunning(server, exit);
       await waitForHealth(origin, server, exit);
@@ -527,7 +530,7 @@ async function runProductionRuntime(ownerEmail: string, ownerUserId: string) {
       sampleRss();
     }
     await waitForHealth(origin, server, exit);
-    const after = await readDomainFingerprint(pool, ownerUserId);
+    const after = await readDomainFingerprint(pool, ledgerScopeId);
     assert(JSON.stringify(after) === JSON.stringify(before), "authenticated production page queries changed domain data");
     await signOut(origin, cookie);
     cookie = "";
@@ -542,8 +545,8 @@ async function runProductionRuntime(ownerEmail: string, ownerUserId: string) {
 
 export async function runProductionScaleAcceptance(environment: Environment = process.env) {
   const { ownerEmail } = validateAcceptanceEnvironment(environment);
-  const { ownerUserId } = await runDatabaseAcceptance(ownerEmail);
-  await runProductionRuntime(ownerEmail, ownerUserId);
+  const { userId, ledgerScopeId } = await runDatabaseAcceptance(ownerEmail);
+  await runProductionRuntime(ownerEmail, userId, ledgerScopeId);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

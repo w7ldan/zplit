@@ -5,6 +5,7 @@ import type { PoolClient } from "pg";
 import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client";
 import * as schema from "../src/db/schema";
 import { createLedgerRepository } from "../src/domain/ledger-repository";
+import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 import { SCALE_FIXTURE_DATABASE, generateScaleFixture } from "./scale-fixture-data";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -51,10 +52,12 @@ async function run() {
     client = await pool.connect();
     await client.query("BEGIN READ ONLY");
     transactionStarted = true;
-    const ownerUserId = await resolveOwner(client, ownerEmail);
-    const repository = createLedgerRepository(drizzle(client, { schema }), ownerUserId);
-    const contextRepository = createLedgerRepository(drizzle(pool, { schema }), ownerUserId);
-    const fixture = generateScaleFixture(ownerUserId);
+    const userId = await resolveOwner(client, ownerEmail);
+    const database = drizzle(client, { schema });
+    const ledgerScopeId = await getPersonalLedgerScopeId(database, userId);
+    const repository = createLedgerRepository(database, ledgerScopeId);
+    const contextRepository = createLedgerRepository(drizzle(pool, { schema }), ledgerScopeId);
+    const fixture = generateScaleFixture(userId);
     const selectedOutingId = fixture.outings.at(-1)!.id;
     const selectedFriendId = fixture.friends.at(-1)!.id;
 

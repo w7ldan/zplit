@@ -36,7 +36,7 @@ export type ShowcaseState = 1 | 2 | 3 | 4 | 5 | 6;
 
 export type ShowcaseFriend = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   name: string;
   phoneNumber: null;
   notes: null;
@@ -47,7 +47,7 @@ export type ShowcaseFriend = {
 
 export type ShowcaseOuting = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   title: string;
   occurredAt: Date;
   notes: null;
@@ -57,7 +57,7 @@ export type ShowcaseOuting = {
 
 export type ShowcaseExpense = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   outingId: string;
   description: string;
   amount: number;
@@ -67,7 +67,7 @@ export type ShowcaseExpense = {
 
 export type ShowcaseExpenseShare = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   expenseId: string;
   friendId: string;
   amountOwed: number;
@@ -76,7 +76,7 @@ export type ShowcaseExpenseShare = {
 
 export type ShowcaseRepayment = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   friendId: string;
   amount: number;
   paidAt: Date;
@@ -86,7 +86,7 @@ export type ShowcaseRepayment = {
 };
 
 export type ShowcaseRepaymentAllocation = {
-  ownerUserId: string;
+  userId: string;
   repaymentId: string;
   expenseShareId: string;
   amount: number;
@@ -95,7 +95,7 @@ export type ShowcaseRepaymentAllocation = {
 
 export type ShowcaseReceipt = {
   id: string;
-  ownerUserId: string;
+  userId: string;
   expenseId: string;
   originalFilename: "showcase-dinner-receipt.png";
   mediaType: "image/png";
@@ -107,7 +107,7 @@ export type ShowcaseReceipt = {
 
 export type ShowcaseFixtureData = {
   state: ShowcaseState;
-  ownerUserId: string;
+  userId: string;
   friends: ShowcaseFriend[];
   outings: ShowcaseOuting[];
   expenses: ShowcaseExpense[];
@@ -155,7 +155,7 @@ function readReceipt(): ShowcaseReceipt {
   validatePngStructure(content);
   return {
     id: SHOWCASE_IDS.receipt,
-    ownerUserId: "",
+    userId: "",
     expenseId: SHOWCASE_IDS.expenses.dinner,
     originalFilename: "showcase-dinner-receipt.png",
     mediaType: "image/png",
@@ -174,30 +174,30 @@ export function parseShowcaseState(value: string | number): ShowcaseState {
   return state as ShowcaseState;
 }
 
-export function generateShowcaseFixture(ownerUserId = "showcase-fixture-owner", state: ShowcaseState = 6): ShowcaseFixtureData {
-  if (!ownerUserId.trim()) throw new Error("ownerUserId is required");
+export function generateShowcaseFixture(userId = "showcase-fixture-user", state: ShowcaseState = 6): ShowcaseFixtureData {
+  if (!userId.trim()) throw new Error("userId is required");
   const createdAt = fixedDate();
   const friends: ShowcaseFriend[] = [
-    { id: SHOWCASE_IDS.friends.rani, ownerUserId, name: "Rani", phoneNumber: null, notes: null, archivedAt: null, createdAt, updatedAt: new Date(createdAt) },
-    { id: SHOWCASE_IDS.friends.dimas, ownerUserId, name: "Dimas", phoneNumber: null, notes: null, archivedAt: null, createdAt: new Date(createdAt), updatedAt: new Date(createdAt) },
+    { id: SHOWCASE_IDS.friends.rani, userId, name: "Rani", phoneNumber: null, notes: null, archivedAt: null, createdAt, updatedAt: new Date(createdAt) },
+    { id: SHOWCASE_IDS.friends.dimas, userId, name: "Dimas", phoneNumber: null, notes: null, archivedAt: null, createdAt: new Date(createdAt), updatedAt: new Date(createdAt) },
   ];
-  const outings: ShowcaseOuting[] = state >= 2 ? [{ id: SHOWCASE_IDS.outing, ownerUserId, title: "Bandung day out", occurredAt: new Date(createdAt), notes: null, createdAt: new Date(createdAt), updatedAt: new Date(createdAt) }] : [];
+  const outings: ShowcaseOuting[] = state >= 2 ? [{ id: SHOWCASE_IDS.outing, userId, title: "Bandung day out", occurredAt: new Date(createdAt), notes: null, createdAt: new Date(createdAt), updatedAt: new Date(createdAt) }] : [];
   const expenses: ShowcaseExpense[] = state >= 3 ? [
-    { id: SHOWCASE_IDS.expenses.dinner, ownerUserId, outingId: SHOWCASE_IDS.outing, description: "Dinner", amount: 240_000, createdAt: new Date(createdAt), updatedAt: new Date(createdAt) },
-    { id: SHOWCASE_IDS.expenses.taxi, ownerUserId, outingId: SHOWCASE_IDS.outing, description: "Taxi", amount: 120_000, createdAt: new Date(createdAt), updatedAt: new Date(createdAt) },
+    { id: SHOWCASE_IDS.expenses.dinner, userId, outingId: SHOWCASE_IDS.outing, description: "Dinner", amount: 240_000, createdAt: new Date(createdAt), updatedAt: new Date(createdAt) },
+    { id: SHOWCASE_IDS.expenses.taxi, userId, outingId: SHOWCASE_IDS.outing, description: "Taxi", amount: 120_000, createdAt: new Date(createdAt), updatedAt: new Date(createdAt) },
   ] : [];
   const expenseShares: ShowcaseExpenseShare[] = state >= 4 ? [
-    { id: SHOWCASE_IDS.shares.dinnerRani, ownerUserId, expenseId: SHOWCASE_IDS.expenses.dinner, friendId: SHOWCASE_IDS.friends.rani, amountOwed: 84_000, createdAt: new Date(createdAt) },
-    { id: SHOWCASE_IDS.shares.dinnerDimas, ownerUserId, expenseId: SHOWCASE_IDS.expenses.dinner, friendId: SHOWCASE_IDS.friends.dimas, amountOwed: 42_500, createdAt: new Date(createdAt) },
-    { id: SHOWCASE_IDS.shares.taxiRani, ownerUserId, expenseId: SHOWCASE_IDS.expenses.taxi, friendId: SHOWCASE_IDS.friends.rani, amountOwed: 42_500, createdAt: new Date(createdAt) },
+    { id: SHOWCASE_IDS.shares.dinnerRani, userId, expenseId: SHOWCASE_IDS.expenses.dinner, friendId: SHOWCASE_IDS.friends.rani, amountOwed: 84_000, createdAt: new Date(createdAt) },
+    { id: SHOWCASE_IDS.shares.dinnerDimas, userId, expenseId: SHOWCASE_IDS.expenses.dinner, friendId: SHOWCASE_IDS.friends.dimas, amountOwed: 42_500, createdAt: new Date(createdAt) },
+    { id: SHOWCASE_IDS.shares.taxiRani, userId, expenseId: SHOWCASE_IDS.expenses.taxi, friendId: SHOWCASE_IDS.friends.rani, amountOwed: 42_500, createdAt: new Date(createdAt) },
   ] : [];
-  const repayments: ShowcaseRepayment[] = state >= 5 ? [{ id: SHOWCASE_IDS.repayment, ownerUserId, friendId: SHOWCASE_IDS.friends.rani, amount: 126_500, paidAt: new Date(createdAt), paymentMethod: "bank transfer", notes: null, createdAt: new Date(createdAt) }] : [];
+  const repayments: ShowcaseRepayment[] = state >= 5 ? [{ id: SHOWCASE_IDS.repayment, userId, friendId: SHOWCASE_IDS.friends.rani, amount: 126_500, paidAt: new Date(createdAt), paymentMethod: "bank transfer", notes: null, createdAt: new Date(createdAt) }] : [];
   const repaymentAllocations: ShowcaseRepaymentAllocation[] = state >= 5 ? [
-    { ownerUserId, repaymentId: SHOWCASE_IDS.repayment, expenseShareId: SHOWCASE_IDS.shares.dinnerRani, amount: 84_000, createdAt: new Date(createdAt) },
-    { ownerUserId, repaymentId: SHOWCASE_IDS.repayment, expenseShareId: SHOWCASE_IDS.shares.taxiRani, amount: 42_500, createdAt: new Date(createdAt) },
+    { userId, repaymentId: SHOWCASE_IDS.repayment, expenseShareId: SHOWCASE_IDS.shares.dinnerRani, amount: 84_000, createdAt: new Date(createdAt) },
+    { userId, repaymentId: SHOWCASE_IDS.repayment, expenseShareId: SHOWCASE_IDS.shares.taxiRani, amount: 42_500, createdAt: new Date(createdAt) },
   ] : [];
-  const receipts: ShowcaseReceipt[] = state >= 4 ? [{ ...receipt, ownerUserId, createdAt: new Date(createdAt), content: Buffer.from(receipt.content) }] : [];
-  return { state, ownerUserId, friends, outings, expenses, expenseShares, repayments, repaymentAllocations, receipts };
+  const receipts: ShowcaseReceipt[] = state >= 4 ? [{ ...receipt, userId, createdAt: new Date(createdAt), content: Buffer.from(receipt.content) }] : [];
+  return { state, userId, friends, outings, expenses, expenseShares, repayments, repaymentAllocations, receipts };
 }
 
 export function showcaseTotals(state: ShowcaseState) {

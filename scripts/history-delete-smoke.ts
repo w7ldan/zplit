@@ -8,6 +8,7 @@ import {
   LedgerDeletionConfirmationRequiredError,
   LedgerNotFoundError,
 } from "../src/domain/ledger-repository";
+import { ensurePersonalLedgerScope } from "../src/server/ledger-scopes";
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
 if (!databaseUrl) throw new Error("history-delete smoke requires DATABASE_URL");
@@ -23,8 +24,8 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-async function count(pool: Pool, table: string, owner: string) {
-  const result = await pool.query<{ count: string }>(`SELECT count(*)::text AS count FROM ${table} WHERE owner_user_id = $1`, [owner]);
+async function count(pool: Pool, table: string, ledgerScopeId: string) {
+  const result = await pool.query<{ count: string }>(`SELECT count(*)::text AS count FROM ${table} WHERE ledger_scope_id = $1`, [ledgerScopeId]);
   return Number(result.rows[0]?.count ?? 0);
 }
 
@@ -74,68 +75,71 @@ const repaymentExpense = randomUUID();
 const repaymentToDelete = randomUUID();
 const repaymentB = randomUUID();
 const now = new Date("2026-08-04T00:00:00.000Z");
-
-const repositoryA = createLedgerRepository(database, ownerA);
-const repositoryB = createLedgerRepository(database, ownerB);
+let scopeA = "";
+let scopeB = "";
 
 try {
   await pool.query(
     "INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, true), ($4, $5, $6, true)",
     [ownerA, "Owner A Private", `history-a-${ownerA}@example.com`, ownerB, "Owner B Private", `history-b-${ownerB}@example.com`],
   );
+  scopeA = await ensurePersonalLedgerScope(database, ownerA);
+  scopeB = await ensurePersonalLedgerScope(database, ownerB);
+  const repositoryA = createLedgerRepository(database, scopeA);
+  const repositoryB = createLedgerRepository(database, scopeB);
   await pool.query(
-    "INSERT INTO friends (id, owner_user_id, name) VALUES ($1, $2, $3), ($4, $5, $6)",
-    [friendA, ownerA, "Friend A", friendB, ownerB, "Friend B"],
+    "INSERT INTO friends (id, ledger_scope_id, name) VALUES ($1, $2, $3), ($4, $5, $6)",
+    [friendA, scopeA, "Friend A", friendB, scopeB, "Friend B"],
   );
   await pool.query(
-    "INSERT INTO outings (id, owner_user_id, title, occurred_at) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8), ($9, $10, $11, $12), ($13, $14, $15, $16), ($17, $18, $19, $20)",
+    "INSERT INTO outings (id, ledger_scope_id, title, occurred_at) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8), ($9, $10, $11, $12), ($13, $14, $15, $16), ($17, $18, $19, $20)",
     [
-      outingEmpty, ownerA, "Empty outing", "2026-08-01T00:00:00Z",
-      outingCascade, ownerA, "Cascading outing", "2026-08-02T00:00:00Z",
-      outingExpense, ownerA, "Expense cascade outing", "2026-08-03T00:00:00Z",
-      outingRepayment, ownerA, "Repayment cascade outing", "2026-08-04T00:00:00Z",
-      outingB, ownerB, "Owner B outing", "2026-08-04T00:00:00Z",
+      outingEmpty, scopeA, "Empty outing", "2026-08-01T00:00:00Z",
+      outingCascade, scopeA, "Cascading outing", "2026-08-02T00:00:00Z",
+      outingExpense, scopeA, "Expense cascade outing", "2026-08-03T00:00:00Z",
+      outingRepayment, scopeA, "Repayment cascade outing", "2026-08-04T00:00:00Z",
+      outingB, scopeB, "Owner B outing", "2026-08-04T00:00:00Z",
     ],
   );
   await pool.query(
-    "INSERT INTO expenses (id, owner_user_id, outing_id, description, amount) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ($11, $12, $13, $14, $15), ($16, $17, $18, $19, $20), ($21, $22, $23, $24, $25)",
+    "INSERT INTO expenses (id, ledger_scope_id, outing_id, description, amount) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ($11, $12, $13, $14, $15), ($16, $17, $18, $19, $20), ($21, $22, $23, $24, $25)",
     [
-      expenseOne, ownerA, outingCascade, "First expense", 10000,
-      expenseTwo, ownerA, outingCascade, "Second expense", 20000,
-      expenseCascade, ownerA, outingExpense, "Expense subtree", 30000,
-      expenseRepayment, ownerA, outingRepayment, "Repayment subtree", 40000,
-      expenseB, ownerB, outingB, "Owner B expense", 5000,
+      expenseOne, scopeA, outingCascade, "First expense", 10000,
+      expenseTwo, scopeA, outingCascade, "Second expense", 20000,
+      expenseCascade, scopeA, outingExpense, "Expense subtree", 30000,
+      expenseRepayment, scopeA, outingRepayment, "Repayment subtree", 40000,
+      expenseB, scopeB, outingB, "Owner B expense", 5000,
     ],
   );
   await pool.query(
-    "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12), ($13, $14, $15, $16, $17, $18), ($19, $20, $21, $22, $23, $24), ($25, $26, $27, $28, $29, $30)",
+    "INSERT INTO expense_shares (id, ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12), ($13, $14, $15, $16, $17, $18), ($19, $20, $21, $22, $23, $24), ($25, $26, $27, $28, $29, $30)",
     [
-      shareOne, ownerA, expenseOne, friendA, 6000, 6000,
-      shareTwo, ownerA, expenseTwo, friendA, 7000, 7000,
-      shareCascade, ownerA, expenseCascade, friendA, 10000, 10000,
-      shareRepayment, ownerA, expenseRepayment, friendA, 12000, 12000,
-      shareB, ownerB, expenseB, friendB, 5000, 5000,
+      shareOne, scopeA, expenseOne, friendA, 6000, 6000,
+      shareTwo, scopeA, expenseTwo, friendA, 7000, 7000,
+      shareCascade, scopeA, expenseCascade, friendA, 10000, 10000,
+      shareRepayment, scopeA, expenseRepayment, friendA, 12000, 12000,
+      shareB, scopeB, expenseB, friendB, 5000, 5000,
     ],
   );
   await pool.query(
-    "INSERT INTO expense_receipts (id, owner_user_id, expense_id, original_filename, media_type, byte_size, sha256, content) VALUES ($1, $2, $3, 'one.png', 'image/png', 4, repeat('a', 64), decode('01020304', 'hex')), ($4, $5, $6, 'two.png', 'image/png', 4, repeat('b', 64), decode('05060708', 'hex')), ($7, $8, $9, 'cascade.png', 'image/png', 4, repeat('c', 64), decode('090a0b0c', 'hex')), ($10, $11, $12, 'repayment.png', 'image/png', 4, repeat('d', 64), decode('0d0e0f10', 'hex'))",
-    [receiptOne, ownerA, expenseOne, receiptTwo, ownerA, expenseTwo, receiptCascade, ownerA, expenseCascade, receiptRepayment, ownerA, expenseRepayment],
+    "INSERT INTO expense_receipts (id, ledger_scope_id, expense_id, original_filename, media_type, byte_size, sha256, content) VALUES ($1, $2, $3, 'one.png', 'image/png', 4, repeat('a', 64), decode('01020304', 'hex')), ($4, $5, $6, 'two.png', 'image/png', 4, repeat('b', 64), decode('05060708', 'hex')), ($7, $8, $9, 'cascade.png', 'image/png', 4, repeat('c', 64), decode('090a0b0c', 'hex')), ($10, $11, $12, 'repayment.png', 'image/png', 4, repeat('d', 64), decode('0d0e0f10', 'hex'))",
+    [receiptOne, scopeA, expenseOne, receiptTwo, scopeA, expenseTwo, receiptCascade, scopeA, expenseCascade, receiptRepayment, scopeA, expenseRepayment],
   );
   await pool.query(
-    "INSERT INTO debtor_share_links (id, token_hash, owner_user_id, friend_id, expires_at) VALUES ($1, repeat('e', 64), $2, $3, $4)",
-    [debtorLink, ownerA, friendA, new Date("2027-01-01T00:00:00Z")],
+    "INSERT INTO debtor_share_links (id, token_hash, ledger_scope_id, friend_id, expires_at) VALUES ($1, repeat('e', 64), $2, $3, $4)",
+    [debtorLink, scopeA, friendA, new Date("2027-01-01T00:00:00Z")],
   );
   await pool.query(
-    "INSERT INTO debtor_share_receipts (id, owner_user_id, debtor_share_link_id, expense_id, expense_receipt_id) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)",
-    [publicReceiptOne, ownerA, debtorLink, expenseOne, receiptOne, publicReceiptCascade, ownerA, debtorLink, expenseCascade, receiptCascade],
+    "INSERT INTO debtor_share_receipts (id, ledger_scope_id, debtor_share_link_id, expense_id, expense_receipt_id) VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)",
+    [publicReceiptOne, scopeA, debtorLink, expenseOne, receiptOne, publicReceiptCascade, scopeA, debtorLink, expenseCascade, receiptCascade],
   );
   await pool.query(
-    "INSERT INTO repayments (id, owner_user_id, friend_id, amount, paid_at, payment_method, notes) VALUES ($1, $2, $3, 4000, $4, 'cash', null), ($5, $6, $7, 5000, $8, 'cash', null), ($9, $10, $11, 3000, $12, 'cash', null), ($13, $14, $15, 2000, $16, 'cash', null), ($17, $18, $19, 1000, $20, 'cash', null)",
-    [repaymentOne, ownerA, friendA, now, repaymentTwo, ownerA, friendA, now, repaymentExpense, ownerA, friendA, now, repaymentToDelete, ownerA, friendA, now, repaymentB, ownerB, friendB, now],
+    "INSERT INTO repayments (id, ledger_scope_id, friend_id, amount, paid_at, payment_method, notes) VALUES ($1, $2, $3, 4000, $4, 'cash', null), ($5, $6, $7, 5000, $8, 'cash', null), ($9, $10, $11, 3000, $12, 'cash', null), ($13, $14, $15, 2000, $16, 'cash', null), ($17, $18, $19, 1000, $20, 'cash', null)",
+    [repaymentOne, scopeA, friendA, now, repaymentTwo, scopeA, friendA, now, repaymentExpense, scopeA, friendA, now, repaymentToDelete, scopeA, friendA, now, repaymentB, scopeB, friendB, now],
   );
   await pool.query(
-    "INSERT INTO repayment_allocations (owner_user_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, 4000), ($4, $5, $6, 5000), ($7, $8, $9, 3000), ($10, $11, $12, 2000)",
-    [ownerA, repaymentOne, shareOne, ownerA, repaymentTwo, shareTwo, ownerA, repaymentExpense, shareCascade, ownerA, repaymentToDelete, shareRepayment],
+    "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, 4000), ($4, $5, $6, 5000), ($7, $8, $9, 3000), ($10, $11, $12, 2000)",
+    [scopeA, repaymentOne, shareOne, scopeA, repaymentTwo, shareTwo, scopeA, repaymentExpense, shareCascade, scopeA, repaymentToDelete, shareRepayment],
   );
 
   const outingImpact = await repositoryA.getOutingDeletionImpact(outingCascade);
@@ -144,23 +148,23 @@ try {
   assert(outingImpact.affectedRepaymentCount === 2 && outingImpact.affectedFriendIds.length === 1, "outing impact dependencies are wrong");
   const outingRevision = deletionImpactRevision(outingImpact);
   await pool.query(
-    "INSERT INTO expenses (id, owner_user_id, outing_id, description, amount) VALUES ($1, $2, $3, $4, $5)",
-    [expenseRace, ownerA, outingCascade, "Race expense", 11000],
+    "INSERT INTO expenses (id, ledger_scope_id, outing_id, description, amount) VALUES ($1, $2, $3, $4, $5)",
+    [expenseRace, scopeA, outingCascade, "Race expense", 11000],
   );
   await pool.query(
-    "INSERT INTO expense_shares (id, owner_user_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6)",
-    [shareRace, ownerA, expenseRace, friendA, 11000, 11000],
+    "INSERT INTO expense_shares (id, ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5, $6)",
+    [shareRace, scopeA, expenseRace, friendA, 11000, 11000],
   );
   await pool.query(
-    "INSERT INTO repayment_allocations (owner_user_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
-    [ownerA, repaymentTwo, shareRace, 11000],
+    "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
+    [scopeA, repaymentTwo, shareRace, 11000],
   );
   await expectError(() => repositoryA.deleteOuting(outingCascade, { cascadeDependents: true, expectedImpactRevision: outingRevision }), LedgerDeletionConfirmationRequiredError);
   assert((await repositoryA.getOuting(outingCascade)).id === outingCascade, "stale outing deletion removed the parent");
   assert((await repositoryA.getExpense(expenseRace)).id === expenseRace, "stale outing deletion removed the new dependent");
-  assert(await count(pool, "expenses", ownerA) === 5, "stale outing deletion changed dependent expenses");
-  assert(await count(pool, "expense_shares", ownerA) === 5, "stale outing deletion changed dependent shares");
-  assert(await count(pool, "repayment_allocations", ownerA) === 5, "stale outing deletion changed dependent allocations");
+  assert(await count(pool, "expenses", scopeA) === 5, "stale outing deletion changed dependent expenses");
+  assert(await count(pool, "expense_shares", scopeA) === 5, "stale outing deletion changed dependent shares");
+  assert(await count(pool, "repayment_allocations", scopeA) === 5, "stale outing deletion changed dependent allocations");
   const updatedOutingImpact = await repositoryA.getOutingDeletionImpact(outingCascade);
   const updatedOutingRevision = deletionImpactRevision(updatedOutingImpact);
   assert(updatedOutingRevision !== outingRevision, "stale outing revision did not change");
@@ -170,11 +174,11 @@ try {
   assert(repaymentAfterRace.unallocatedAmount === repaymentAfterRace.amount, "affected repayment did not remain and become unallocated");
   assert((await repositoryB.getExpense(expenseB)).id === expenseB, "unrelated owner record did not survive the race deletion");
   await repositoryA.deleteOuting(outingEmpty);
-  assert(await count(pool, "expenses", ownerA) === 2, "outing cascade did not remove its expenses");
-  assert(await count(pool, "expense_receipts", ownerA) === 2, "outing cascade did not remove receipts");
-  assert(await count(pool, "expense_shares", ownerA) === 2, "outing cascade did not remove shares");
-  assert(await count(pool, "debtor_share_receipts", ownerA) === 1, "outing cascade removed unrelated public receipts");
-  assert(await count(pool, "repayment_allocations", ownerA) === 2, "outing cascade removed unrelated allocations");
+  assert(await count(pool, "expenses", scopeA) === 2, "outing cascade did not remove its expenses");
+  assert(await count(pool, "expense_receipts", scopeA) === 2, "outing cascade did not remove receipts");
+  assert(await count(pool, "expense_shares", scopeA) === 2, "outing cascade did not remove shares");
+  assert(await count(pool, "debtor_share_receipts", scopeA) === 1, "outing cascade removed unrelated public receipts");
+  assert(await count(pool, "repayment_allocations", scopeA) === 2, "outing cascade did not remove unrelated allocations");
   const repaymentAfterOuting = await repositoryA.getRepayment(repaymentOne);
   assert(repaymentAfterOuting.unallocatedAmount === repaymentAfterOuting.amount, "affected repayment did not become unallocated");
   assert((await repositoryB.getExpense(expenseB)).id === expenseB, "unrelated owner record did not survive");
@@ -183,16 +187,17 @@ try {
   assert(expenseImpact.receiptCount === 1 && expenseImpact.shareCount === 1 && expenseImpact.allocationCount === 1, "expense impact is wrong");
   await expectError(() => repositoryA.deleteExpense(expenseCascade), LedgerDeletionConfirmationRequiredError);
   await repositoryA.deleteExpense(expenseCascade, { cascadeDependents: true });
-  assert(await count(pool, "expense_receipts", ownerA) === 1, "expense cascade did not remove its receipt");
-  assert(await count(pool, "expense_shares", ownerA) === 1, "expense cascade did not remove its share");
-  assert(await count(pool, "repayment_allocations", ownerA) === 1, "expense cascade did not remove its allocation");
-  assert((await repositoryA.getRepayment(repaymentExpense)).unallocatedAmount === 3000, "expense cascade did not unallocate repayment");
+  assert(await count(pool, "expense_receipts", scopeA) === 1, "expense cascade did not remove its receipt");
+  assert(await count(pool, "expense_shares", scopeA) === 1, "expense cascade did not remove its share");
+  assert(await count(pool, "repayment_allocations", scopeA) === 2, "expense cascade did not reconcile its allocation");
+  assert((await repositoryA.getRepayment(repaymentExpense)).unallocatedAmount === 0, "expense cascade did not reallocate repayment");
 
   const repaymentImpact = await repositoryA.getRepaymentDeletionImpact(repaymentToDelete);
   assert(repaymentImpact.allocationCount === 1 && repaymentImpact.friendId === friendA, "repayment impact is wrong");
   await expectError(() => repositoryA.deleteRepayment(repaymentToDelete), LedgerDeletionConfirmationRequiredError);
   await repositoryA.deleteRepayment(repaymentToDelete, { cascadeDependents: true });
-  assert(await count(pool, "repayment_allocations", ownerA) === 0, "repayment cascade did not remove its allocations");
+  assert(await count(pool, "repayment_allocations", scopeA) === 1, "repayment cascade did not remove its allocations");
+  assert((await repositoryA.getRepayment(repaymentExpense)).unallocatedAmount === 0, "repayment cascade changed the reconciled repayment");
   assert((await repositoryA.getExpense(expenseRepayment)).id === expenseRepayment, "repayment cascade deleted the expense");
   assert((await repositoryA.listExpenseShares(expenseRepayment)).some((share) => share.id === shareRepayment), "repayment cascade deleted the share");
 
@@ -200,16 +205,17 @@ try {
   await expectError(() => repositoryB.deleteRepayment(repaymentToDelete, { cascadeDependents: true }), LedgerNotFoundError);
   await expectError(() => repositoryA.getOutingDeletionImpact(randomUUID()), LedgerNotFoundError);
   console.log("history-delete smoke passed: owner-isolated impacts, transactional confirmation, outing/expense/repayment cascades, public receipts, and unallocated repayments verified");
-} finally {
-  await pool.query("DELETE FROM debtor_share_receipts WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-  await pool.query("DELETE FROM debtor_share_links WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-  await pool.query("DELETE FROM repayment_allocations WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-  await pool.query("DELETE FROM repayments WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-  await pool.query("DELETE FROM expense_receipts WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-  await pool.query("DELETE FROM expense_shares WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-  await pool.query("DELETE FROM expenses WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-  await pool.query("DELETE FROM outings WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
-  await pool.query("DELETE FROM friends WHERE owner_user_id IN ($1, $2)", [ownerA, ownerB]);
+  } finally {
+  await pool.query("DELETE FROM debtor_share_receipts WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+  await pool.query("DELETE FROM debtor_share_links WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+  await pool.query("DELETE FROM repayment_allocations WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+  await pool.query("DELETE FROM repayments WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+  await pool.query("DELETE FROM expense_receipts WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+  await pool.query("DELETE FROM expense_shares WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+  await pool.query("DELETE FROM expenses WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+  await pool.query("DELETE FROM outings WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+  await pool.query("DELETE FROM friends WHERE ledger_scope_id IN ($1, $2)", [scopeA, scopeB]);
+  await pool.query("DELETE FROM ledger_scopes WHERE id IN ($1, $2)", [scopeA, scopeB]);
   await pool.query("DELETE FROM users WHERE id IN ($1, $2)", [ownerA, ownerB]);
   await pool.end();
 }

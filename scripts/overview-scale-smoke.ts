@@ -6,6 +6,7 @@ import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client"
 import * as schema from "../src/db/schema";
 import { buildLedgerSummary } from "../src/domain/ledger-summary";
 import { createLedgerRepository } from "../src/domain/ledger-repository";
+import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 import { SCALE_FIXTURE_CONFIRMATION, SCALE_FIXTURE_DATABASE, generateScaleFixture } from "./scale-fixture-data";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -53,8 +54,10 @@ async function run() {
     client = await pool.connect();
     await client.query("BEGIN READ ONLY");
     transactionStarted = true;
-    const ownerUserId = await resolveOwner(client, ownerEmail);
-    const fixture = generateScaleFixture(ownerUserId);
+    const userId = await resolveOwner(client, ownerEmail);
+    const database = drizzle(client, { schema });
+    const ledgerScopeId = await getPersonalLedgerScopeId(database, userId);
+    const fixture = generateScaleFixture(userId);
     const expected = buildLedgerSummary({
       friends: fixture.friends,
       expenses: fixture.expenses,
@@ -62,7 +65,7 @@ async function run() {
       repayments: fixture.repayments,
       repaymentAllocations: fixture.repaymentAllocations,
     });
-    const repository = createLedgerRepository(drizzle(client, { schema }), ownerUserId);
+    const repository = createLedgerRepository(database, ledgerScopeId);
     const overview = await repository.getLedgerOverviewSummary();
     const activity = await repository.listRecentActivity({ limit: 6 });
 
