@@ -23,10 +23,10 @@ class FakeEventSource {
 }
 
 function Consumer() {
-  const { connection, openCount, subscribe } = useRealtime();
+  const { connection, openCount, notificationStateVersion, subscribe } = useRealtime();
   const [events, setEvents] = useState<string[]>([]);
   useEffect(() => subscribe("state.invalidated", (event) => setEvents((current) => [...current, String(event.data.scope)])), [subscribe]);
-  return <output data-testid="state">{connection}:{openCount}:{events.join(",")}</output>;
+  return <output data-testid="state">{connection}:{openCount}:{notificationStateVersion}:{events.join(",")}</output>;
 }
 
 afterEach(() => {
@@ -43,8 +43,9 @@ describe("RealtimeProvider", () => {
 
     act(() => FakeEventSource.instances[0].open());
     act(() => FakeEventSource.instances[0].message({ type: "state.invalidated", id: "r-1", sequence: 1, occurredAt: new Date().toISOString(), data: { scope: "settings" } }));
-    expect(screen.getAllByTestId("state")[0]).toHaveTextContent("open:1:settings");
-    expect(screen.getAllByTestId("state")[1]).toHaveTextContent("open:1:settings");
+    act(() => FakeEventSource.instances[0].message({ type: "notification.state.changed", id: "r-2", sequence: 2, occurredAt: new Date().toISOString(), data: { reason: "created" } }));
+    expect(screen.getAllByTestId("state")[0]).toHaveTextContent("open:1:1:settings");
+    expect(screen.getAllByTestId("state")[1]).toHaveTextContent("open:1:1:settings");
 
     unmount();
     expect(FakeEventSource.instances[0].close).toHaveBeenCalledOnce();

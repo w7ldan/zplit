@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRealtime } from "@/components/realtime/realtime-provider";
-import { NOTIFICATION_STATE_CHANGED_EVENT } from "@/domain/notifications";
 import { InboxIcon } from "./inbox-icon";
 
 type InboxControlProps = {
@@ -16,7 +15,7 @@ function displayUnreadCount(count: number) {
 }
 
 export function InboxControl({ initialUnreadCount, active = false }: InboxControlProps) {
-  const { openCount, subscribe } = useRealtime();
+  const { openCount, notificationStateVersion } = useRealtime();
   const [unreadCount, setUnreadCount] = useState(Math.max(0, initialUnreadCount));
   const refreshUnread = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch("/api/notifications/unread", { cache: "no-store", signal });
@@ -34,7 +33,12 @@ export function InboxControl({ initialUnreadCount, active = false }: InboxContro
     return () => controller.abort();
   }, [openCount, refreshUnread]);
 
-  useEffect(() => subscribe(NOTIFICATION_STATE_CHANGED_EVENT, () => { void refreshUnread().catch(() => undefined); }), [refreshUnread, subscribe]);
+  useEffect(() => {
+    if (notificationStateVersion > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- this is an async canonical-state refetch.
+      void refreshUnread().catch(() => undefined);
+    }
+  }, [notificationStateVersion, refreshUnread]);
 
   const label = unreadCount > 0 ? `Inbox, ${unreadCount} unread` : "Inbox";
   return (

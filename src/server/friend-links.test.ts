@@ -16,7 +16,7 @@ vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession 
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/ledger-scopes", () => ({ getPersonalLedgerScopeId: vi.fn(async (_database: unknown, userId: string) => `scope-${userId}`) }));
 
-import { cancelFriendLinkRequest, createFriendLinkRequest, respondToFriendLinkRequest, unlinkFriendLink } from "./friend-links";
+import { cancelFriendLinkRequest, createFriendLinkRequest, getFriendLinkRequestStatuses, respondToFriendLinkRequest, unlinkFriendLink } from "./friend-links";
 
 function builder(result: unknown) {
   const current: Record<string, ReturnType<typeof vi.fn> | ((resolve: (value: unknown) => void, reject: (reason?: unknown) => void) => void)> = {};
@@ -27,7 +27,7 @@ function builder(result: unknown) {
   return chain;
 }
 
-type FakeDatabase = Database & { transactionDb: { update: ReturnType<typeof vi.fn>; insert: ReturnType<typeof vi.fn> } };
+type FakeDatabase = Database & { select: ReturnType<typeof vi.fn>; transactionDb: { update: ReturnType<typeof vi.fn>; insert: ReturnType<typeof vi.fn> } };
 
 function database(selectResults: unknown[][], insertResults: unknown[][] = [], updateResults: unknown[][] = []): FakeDatabase {
   const selects = [...selectResults];
@@ -40,6 +40,7 @@ function database(selectResults: unknown[][], insertResults: unknown[][] = [], u
   };
   const run = vi.fn(async (callback: (value: typeof transaction) => unknown) => callback(transaction));
   return {
+    select: vi.fn(() => builder(selects.shift() ?? [])),
     transaction: run,
     transactionDb: transaction,
   } as unknown as FakeDatabase;
@@ -71,8 +72,23 @@ describe("Friend ↔ Zplit-user linking", () => {
       recipientUserId: targetId,
       type: "friend.link.request",
       metadata: { requestId, requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" },
+      dedupeKey: `friend-link-request:${requestId}`,
     }));
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetId, "created");
+  });
+
+  it("keeps repeated requests distinct by request identity", async () => {
+    const secondRequestId = "33333333-3333-4333-8333-333333333333";
+    const available = [[{ id: friendId, name: "Office", linkedUserId: null }], [{ id: targetId, name: "Alice", username: "alice" }], [{ name: "Owner", username: "owner" }], [], [], []];
+    const db = database([...available, ...available], [[{ id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" }], [{ id: secondRequestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" }]]);
+
+    await createFriendLinkRequest(db, ownerId, friendId, targetId);
+    await createFriendLinkRequest(db, ownerId, friendId, targetId);
+
+    expect(mocks.createNotificationInDatabase.mock.calls.map(([, input]) => input.dedupeKey)).toEqual([
+      `friend-link-request:${requestId}`,
+      `friend-link-request:${secondRequestId}`,
+    ]);
   });
 
   it("rolls back the request path when durable notification insertion fails", async () => {
@@ -155,6 +171,14 @@ describe("Friend ↔ Zplit-user linking", () => {
 
     await expect(respondToFriendLinkRequest(db, targetId, requestId, "decline")).resolves.toMatchObject({ status: "declined" });
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith(ownerId, expect.objectContaining({ type: "friend.link.state.changed", data: expect.objectContaining({ status: "declined" }) }));
+  });
+
+  it("resolves historical notification states by request id, not the current pair connection", async () => {
+    const secondRequestId = "33333333-3333-4333-8333-333333333333";
+    const db = database([[{ id: requestId, ownerUserId: ownerId, targetUserId: targetId, status: "accepted" }, { id: secondRequestId, ownerUserId: ownerId, targetUserId: targetId, status: "pending" }], [{ userAId: ownerId, userBId: targetId, status: "connected" }]]);
+
+    await expect(getFriendLinkRequestStatuses(db, targetId, [requestId, secondRequestId])).resolves.toEqual(new Map([[requestId, "accepted"], [secondRequestId, "pending"]]));
+    expect(db.select).toHaveBeenCalledOnce();
   });
 
   it("rejects duplicate active requests before notification creation", async () => {

@@ -74,21 +74,27 @@ describe("/app/inbox", () => {
     expect(screen.queryByText(/email|private ledger|expense history/i)).not.toBeInTheDocument();
   });
 
-  it("shows the target-side connected state and unlink consequence without ledger details", async () => {
+  it("keeps accepted history terminal while a later request stays independently actionable", async () => {
+    const firstRequestId = "11111111-1111-4111-8111-111111111111";
+    const laterRequestId = "22222222-2222-4222-8222-222222222222";
     mocks.getPage.mockResolvedValue({
-      rows: [{ id: "notification-link", type: "friend.link.request", metadata: { requestId: "11111111-1111-4111-8111-111111111111", requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" }, createdAt: new Date("2026-08-25T07:00:00Z"), readAt: new Date("2026-08-25T08:00:00Z"), recipientUserId: "user-a", dedupeKey: "friend-link-request:11111111-1111-4111-8111-111111111111" }],
+      rows: [
+        { id: "notification-r2", type: "friend.link.request", metadata: { requestId: laterRequestId, requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" }, createdAt: new Date("2026-08-26T07:00:00Z"), readAt: null, recipientUserId: "user-a", dedupeKey: `friend-link-request:${laterRequestId}` },
+        { id: "notification-r1", type: "friend.link.request", metadata: { requestId: firstRequestId, requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" }, createdAt: new Date("2026-08-25T07:00:00Z"), readAt: new Date("2026-08-25T08:00:00Z"), recipientUserId: "user-a", dedupeKey: `friend-link-request:${firstRequestId}` },
+      ],
       page: 1,
       pageSize: 20,
-      totalItems: 1,
+      totalItems: 2,
       totalPages: 1,
     });
     mocks.getUnread.mockResolvedValue(0);
-    mocks.getFriendLinkStatuses.mockResolvedValue(new Map([["11111111-1111-4111-8111-111111111111", "connected"]]));
+    mocks.getFriendLinkStatuses.mockResolvedValue(new Map([[firstRequestId, "accepted"], [laterRequestId, "pending"]]));
     render(await InboxPage({ searchParams: Promise.resolve({}) }));
-    expect(screen.getByText("Active friend")).toBeInTheDocument();
-    expect(screen.getByText("Unlink", { selector: "summary" })).toBeInTheDocument();
-    expect(screen.getByText("Unlink @owner?")).toBeInTheDocument();
-    expect(screen.getByText(/Existing Friend balances and history remain unchanged/)).toBeInTheDocument();
+    expect(screen.getByText("Accepted")).toBeInTheDocument();
+    expect(screen.queryByText("Active friend")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unlink", { selector: "summary" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Accept" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Decline" })).toHaveLength(1);
     expect(screen.queryByText(/email|private ledger|expense history/i)).not.toBeInTheDocument();
   });
 

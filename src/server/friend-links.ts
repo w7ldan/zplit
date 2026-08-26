@@ -506,23 +506,10 @@ export async function getFriendLinkRequestStatuses(database: Database, targetUse
   const ids = [...new Set(requestIds.map(normalizeUuid).filter((id): id is string => Boolean(id)))];
   if (ids.length === 0) return new Map<string, FriendLinkRequestStatus>();
   const rows = await database
-    .select({ id: friendLinkRequests.id, status: friendLinkRequests.status, ownerUserId: friendLinkRequests.ownerUserId, targetUserId: friendLinkRequests.targetUserId })
+    .select({ id: friendLinkRequests.id, status: friendLinkRequests.status })
     .from(friendLinkRequests)
     .where(and(eq(friendLinkRequests.targetUserId, targetUserId), inArray(friendLinkRequests.id, ids)));
-  const pairs = [...new Set(rows.map(({ ownerUserId, targetUserId: target }) => canonicalPair(ownerUserId, target).join("\u0000")))];
-  const connections = pairs.length === 0 ? [] : await database
-    .select({ userAId: friendConnections.userAId, userBId: friendConnections.userBId, status: friendConnections.status })
-    .from(friendConnections)
-    .where(or(...pairs.map((key) => {
-      const [userAId, userBId] = key.split("\u0000");
-      return connectionWhere(userAId!, userBId!);
-    })));
-  const connectionStates = new Map(connections.map((connection) => [`${connection.userAId}\u0000${connection.userBId}`, connection.status]));
-  return new Map(rows.map((row) => {
-    const pair = canonicalPair(row.ownerUserId, row.targetUserId).join("\u0000");
-    const status = row.status === "accepted" ? connectionStates.get(pair) === "connected" ? "connected" : "disconnected" : row.status;
-    return [row.id, status as FriendLinkRequestStatus];
-  }));
+  return new Map(rows.map((row) => [row.id, row.status as FriendLinkRequestStatus]));
 }
 
 export async function getCurrentUserFriendLinkRequestStatuses(requestIds: string[]) {

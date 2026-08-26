@@ -66,7 +66,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
                     </div>
                     <div className="notification-row__state">
                       {unread ? <form action={markNotificationReadAction.bind(null, notification.id)}><button className="text-link" type="submit">Mark read</button></form> : <span>Read</span>}
-                      {linkMetadata ? <FriendLinkRequestActions requestId={linkMetadata.requestId} requesterUsername={linkMetadata.requesterUsername} status={friendLinkRequestStatuses.get(linkMetadata.requestId)} /> : null}
+                      {linkMetadata ? <FriendLinkRequestActions requestId={linkMetadata.requestId} status={friendLinkRequestStatuses.get(linkMetadata.requestId)} /> : null}
                       {invitationMetadata ? <OrganizationInvitationActions invitationId={invitationMetadata.invitationId} status={organizationInvitationStatuses.get(invitationMetadata.invitationId)} /> : null}
                     </div>
                   </li>

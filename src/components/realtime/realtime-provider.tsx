@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { NOTIFICATION_STATE_CHANGED_EVENT } from "@/domain/notifications";
 
 export type RealtimeEnvelope = {
   type: string;
@@ -16,6 +17,8 @@ type RealtimeContextValue = {
   connection: RealtimeConnectionState;
   /** Increments on every successful open; consumers can refetch canonical state after reconnect. */
   openCount: number;
+  /** Increments for every notification invalidation received by the shared connection. */
+  notificationStateVersion: number;
   subscribe: (type: string, listener: RealtimeListener) => () => void;
 };
 
@@ -34,6 +37,7 @@ export function RealtimeProvider({ children }: Readonly<{ children: ReactNode }>
   const source = useRef<EventSource | null>(null);
   const [connection, setConnection] = useState<RealtimeConnectionState>(() => typeof EventSource === "undefined" ? "closed" : "connecting");
   const [openCount, setOpenCount] = useState(0);
+  const [notificationStateVersion, setNotificationStateVersion] = useState(0);
 
   useEffect(() => {
     if (typeof EventSource === "undefined") {
@@ -56,6 +60,7 @@ export function RealtimeProvider({ children }: Readonly<{ children: ReactNode }>
       }
       const event = parseEnvelope(parsed);
       if (!event) return;
+      if (event.type === NOTIFICATION_STATE_CHANGED_EVENT) setNotificationStateVersion((version) => version + 1);
       for (const listener of [...(listeners.current.get(event.type) ?? [])]) {
         try {
           listener(event);
@@ -84,7 +89,7 @@ export function RealtimeProvider({ children }: Readonly<{ children: ReactNode }>
     };
   }, []);
 
-  return <RealtimeContext.Provider value={{ connection, openCount, subscribe }}>{children}</RealtimeContext.Provider>;
+  return <RealtimeContext.Provider value={{ connection, openCount, notificationStateVersion, subscribe }}>{children}</RealtimeContext.Provider>;
 }
 
 export function useRealtime() {
