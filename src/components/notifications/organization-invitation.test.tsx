@@ -19,6 +19,8 @@ describe("OrganizationInvitationActions", () => {
     render(<OrganizationInvitationActions invitationId={invitation.id} status={{ ...invitation, status: "pending" }} />);
     expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
+    expect(screen.getByText("Expires")).toBeInTheDocument();
+    expect(screen.getByRole("time")).toHaveAttribute("dateTime", invitation.expiresAt.toISOString());
   });
 
   it.each(["declined", "revoked", "expired"] as const)("renders %s without actionable controls", (status) => {
@@ -26,6 +28,8 @@ describe("OrganizationInvitationActions", () => {
     expect(screen.getByText(status[0]!.toUpperCase() + status.slice(1))).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Decline" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Expires")).not.toBeInTheDocument();
+    expect(screen.queryByRole("time")).not.toBeInTheDocument();
   });
 
   it("links accepted membership to the canonical Organization", () => {

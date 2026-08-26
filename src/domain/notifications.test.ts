@@ -33,7 +33,7 @@ describe("notification catalog", () => {
       role: "treasurer",
       expiresAt: "2026-09-01T00:00:00.000Z",
     } as const;
-    expect(presentNotification("organization.invitation", metadata)).toMatchObject({
+    expect(presentNotification("organization.invitation", metadata)).toEqual({
       label: "Organization invitation",
       primary: "Wildan invited you to join Zplit Team as Treasurer.",
     });

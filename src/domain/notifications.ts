@@ -118,7 +118,6 @@ export const notificationCatalog = {
     present: (metadata: NotificationMetadata["organization.invitation"]): NotificationPresentation => ({
       label: "Organization invitation",
       primary: `${metadata.inviterDisplayName} invited you to join ${metadata.organizationName} as ${roleLabel(metadata.role)}.`,
-      secondary: `Expires ${new Date(metadata.expiresAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })} UTC.`,
     }),
   },
 } as const;

@@ -107,6 +107,8 @@ describe("/app/inbox", () => {
     expect(screen.getByText("Wildan invited you to join Zplit Team as Treasurer.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
+    expect(screen.getAllByRole("time").map((time) => time.getAttribute("dateTime"))).toContain("2026-09-01T00:00:00.000Z");
+    expect(screen.queryByText(/Expires .* UTC\./)).not.toBeInTheDocument();
     expect(screen.queryByText(/email|example\.com/i)).not.toBeInTheDocument();
   });
 });

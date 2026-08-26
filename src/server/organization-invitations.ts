@@ -3,7 +3,7 @@ import "server-only";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { getDatabase } from "@/db/client";
-import { organizationInvitations, organizationMemberships, organizations, notifications, userAvatars, users } from "@/db/schema";
+import { organizationInvitations, organizationMemberships, organizations, notifications, users } from "@/db/schema";
 import {
   canGrantOrganizationInvitationRole,
   isOrganizationInvitationRole,
@@ -31,7 +31,6 @@ export type OrganizationMember = {
   displayName: string;
   username: string | null;
   role: OrganizationRole;
-  avatar: { sha256: string } | null;
 };
 
 export type OrganizationInvitationSummary = {
@@ -145,14 +144,12 @@ export async function listOrganizationMembers(database: Database, organizationId
       displayName: users.name,
       username: users.username,
       role: organizationMemberships.role,
-      avatarSha256: userAvatars.sha256,
     })
     .from(organizationMemberships)
     .innerJoin(users, eq(users.id, organizationMemberships.userId))
-    .leftJoin(userAvatars, eq(userAvatars.userId, users.id))
     .where(eq(organizationMemberships.organizationId, organizationId))
     .orderBy(asc(users.name), asc(users.id));
-  return rows.map((row) => ({ ...row, role: row.role as OrganizationRole, avatar: row.avatarSha256 ? { sha256: row.avatarSha256 } : null }));
+  return rows.map((row) => ({ ...row, role: row.role as OrganizationRole }));
 }
 
 export async function listPendingOrganizationInvitations(database: Database, organizationId: string, viewerUserId: string): Promise<OrganizationInvitationSummary[]> {

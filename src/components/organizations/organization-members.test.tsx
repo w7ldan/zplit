@@ -10,9 +10,9 @@ import { OrganizationMembers } from "./organization-members";
 
 describe("OrganizationMembers", () => {
   it("shows identity-only roster data and capability-derived invite roles", () => {
-    render(<OrganizationMembers
+    const { container } = render(<OrganizationMembers
       organizationId="11111111-1111-4111-8111-111111111111"
-      members={[{ id: "user-a", displayName: "Alice Tan", username: "alice", role: "member", avatar: null }]}
+      members={[{ id: "user-a", displayName: "Alice Tan", username: "alice", role: "member" }]}
       pendingInvitations={[]}
       invitationRoles={["admin", "treasurer", "member"]}
     />);
@@ -20,6 +20,9 @@ describe("OrganizationMembers", () => {
     expect(screen.getByText("Alice Tan")).toBeInTheDocument();
     expect(screen.getByText("@alice")).toBeInTheDocument();
     expect(screen.getByText("Member", { selector: ".organization-members__role" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Alice Tan avatar" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Alice Tan avatar" }).tagName).toBe("svg");
+    expect(container.querySelector('img[src*="/app/avatar?userId=user-a"]')).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Role" })).toHaveValue("member");
     expect(screen.getByRole("option", { name: "Admin" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Treasurer" })).toBeInTheDocument();
