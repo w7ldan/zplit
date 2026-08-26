@@ -1,0 +1,80 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Database } from "@/db/client";
+import { groupMemberships, groupParticipants, groups } from "@/db/schema";
+import { createExternalParticipant, createGroup, GroupError, requireGroupAccess, updateExternalParticipant } from "./groups";
+
+vi.mock("server-only", () => ({}));
+
+function chain(result: unknown) {
+  const query = {} as Record<string, unknown> & { then: Promise<unknown>["then"] };
+  for (const method of ["from", "innerJoin", "leftJoin", "where", "limit", "orderBy", "set", "values", "onConflictDoUpdate"]) query[method] = vi.fn(() => query);
+  query.returning = vi.fn(async () => result);
+  query.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
+  return query;
+}
+
+function insertBuilder(table: unknown, calls: Array<{ table: unknown; values: unknown }>, result: unknown[]) {
+  const query = chain(result);
+  query.values = vi.fn((values: unknown) => { calls.push({ table, values }); return query; });
+  return query;
+}
+
+const groupId = "11111111-1111-4111-8111-111111111111";
+const otherGroupId = "22222222-2222-4222-8222-222222222222";
+
+describe("groups", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("creates the Group, registered participant, and Owner membership atomically", async () => {
+    const calls: Array<{ table: unknown; values: unknown }> = [];
+    const group = { id: groupId, name: "Trip", description: null, createdByUserId: "user-a" };
+    const participant = { id: "33333333-3333-4333-8333-333333333333" };
+    const transaction = { insert: vi.fn((table: unknown) => insertBuilder(table, calls, table === groups ? [group] : table === groupParticipants ? [participant] : [{ groupId, userId: "user-a", participantId: participant.id, role: "owner" }])) };
+    const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
+
+    await expect(createGroup(database, "user-a", { name: " Trip " })).resolves.toEqual(group);
+    expect(database.transaction).toHaveBeenCalledOnce();
+    expect(calls.map(({ table }) => table)).toEqual([groups, groupParticipants, groupMemberships]);
+    expect(calls[1]?.values).toMatchObject({ groupId, userId: "user-a" });
+    expect(calls[2]?.values).toMatchObject({ groupId, userId: "user-a", participantId: participant.id, role: "owner" });
+  });
+
+  it("fails closed for guessed IDs and derives only the membership role", async () => {
+    const database = { select: vi.fn(() => chain([])) } as unknown as Database;
+    await expect(requireGroupAccess(database, groupId, "outsider")).rejects.toMatchObject({ code: "not_member" });
+    await expect(requireGroupAccess(database, otherGroupId, "user-a")).rejects.toMatchObject({ code: "not_member" });
+  });
+
+  it.each([
+    ["owner", true, true, true],
+    ["admin", false, true, false],
+    ["member", false, false, false],
+  ] as const)("enforces the %s management boundary", async (role, isOwner, canManageParticipants, canDelete) => {
+    const database = { select: vi.fn(() => chain([{ role }])) } as unknown as Database;
+    const access = await requireGroupAccess(database, groupId, "user-a");
+    expect(access).toMatchObject({ role, isOwner, canManageParticipants, canDelete });
+  });
+
+  it("allows duplicate external names while preserving local labels", async () => {
+    const calls: Array<{ table: unknown; values: unknown }> = [];
+    const database = {
+      select: vi.fn(() => chain([{ role: "admin" }])),
+      insert: vi.fn(() => insertBuilder(groupParticipants, calls, [{ id: "p" }])),
+    } as unknown as Database;
+    await createExternalParticipant(database, groupId, "admin-a", { displayName: "Alice", label: "Fasilkom" });
+    await createExternalParticipant(database, groupId, "admin-a", { displayName: "Alice", label: "SMA" });
+    expect(calls.map(({ values }) => values)).toEqual([
+      { groupId, displayName: "Alice", label: "Fasilkom" },
+      { groupId, displayName: "Alice", label: "SMA" },
+    ]);
+  });
+
+  it("cannot update a participant from another Group or edit a registered identity", async () => {
+    const isolated = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([])) } as unknown as Database;
+    await expect(updateExternalParticipant(isolated, groupId, "admin-a", "foreign-participant", { displayName: "Alice" })).rejects.toMatchObject({ code: "participant_not_found" });
+
+    const registered = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([{ userId: "user-b" }])) } as unknown as Database;
+    await expect(updateExternalParticipant(registered, groupId, "admin-a", "registered-participant", { displayName: "Alice" })).rejects.toMatchObject({ code: "registered_participant" });
+    expect(new GroupError("forbidden")).toBeInstanceOf(Error);
+  });
+});

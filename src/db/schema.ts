@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import type { NotificationMetadata, NotificationType } from "@/domain/notifications";
+import type { GroupRole } from "@/domain/group-permissions";
 import type { OrganizationCapability, OrganizationInvitationRole } from "@/domain/organization-permissions";
 import {
   boolean,
@@ -14,6 +15,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
@@ -272,6 +274,98 @@ export const organizationAvatars = pgTable("organization_avatars", {
   check("organization_avatars_byte_size_valid", sql`${table.byteSize} BETWEEN 1 AND 5242880`),
   check("organization_avatars_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
   check("organization_avatars_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+]);
+
+export const groups = pgTable(
+  "groups",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: varchar("name", { length: 160 }).notNull(),
+    description: text("description"),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("groups_name_not_blank", sql`btrim(${table.name}) <> ''`),
+    check("groups_description_not_blank", sql`${table.description} IS NULL OR btrim(${table.description}) <> ''`),
+    index("groups_name_idx").on(table.name),
+    index("groups_created_by_user_idx").on(table.createdByUserId),
+  ],
+);
+
+export const groupParticipants = pgTable(
+  "group_participants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => users.id, { onDelete: "restrict" }),
+    displayName: varchar("display_name", { length: 160 }),
+    label: varchar("label", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("group_participants_identity_shape", sql`(${table.userId} IS NOT NULL AND ${table.displayName} IS NULL) OR (${table.userId} IS NULL AND ${table.displayName} IS NOT NULL AND btrim(${table.displayName}) <> '')`),
+    check("group_participants_label_not_blank", sql`${table.label} IS NULL OR btrim(${table.label}) <> ''`),
+    unique("group_participants_group_id_id_unique").on(table.groupId, table.id),
+    unique("group_participants_group_user_id_unique").on(table.groupId, table.userId, table.id),
+    uniqueIndex("group_participants_registered_user_uidx").on(table.groupId, table.userId).where(sql`${table.userId} IS NOT NULL`),
+    index("group_participants_group_idx").on(table.groupId),
+  ],
+);
+
+export const groupMemberships = pgTable(
+  "group_memberships",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    participantId: uuid("participant_id").notNull(),
+    role: varchar("role", { length: 16 }).$type<GroupRole>().default("member").notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.groupId, table.userId] }),
+    check("group_memberships_role_allowed", sql`${table.role} IN ('owner', 'admin', 'member')`),
+    foreignKey({
+      columns: [table.groupId, table.participantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_memberships_participant_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.groupId, table.userId, table.participantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.userId, groupParticipants.id],
+      name: "group_memberships_registered_participant_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("group_memberships_group_participant_uidx").on(table.groupId, table.participantId),
+    uniqueIndex("group_memberships_one_owner_uidx").on(table.groupId).where(sql`${table.role} = 'owner'`),
+    index("group_memberships_user_idx").on(table.userId),
+  ],
+);
+
+export const groupAvatars = pgTable("group_avatars", {
+  groupId: uuid("group_id")
+    .primaryKey()
+    .references(() => groups.id, { onDelete: "cascade" }),
+  mediaType: varchar("media_type", { length: 32 }).notNull(),
+  byteSize: integer("byte_size").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  content: bytea("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  check("group_avatars_media_type_allowed", sql`${table.mediaType} = 'image/webp'`),
+  check("group_avatars_byte_size_valid", sql`${table.byteSize} BETWEEN 1 AND 5242880`),
+  check("group_avatars_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
+  check("group_avatars_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
 ]);
 
 export const trips = pgTable(
@@ -804,6 +898,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   createdInvitations: many(accountInvitations, { relationName: "createdInvitations" }),
   acceptedInvitations: many(accountInvitations, { relationName: "acceptedInvitations" }),
   organizationMemberships: many(organizationMemberships),
+  groupMemberships: many(groupMemberships),
+  groupParticipants: many(groupParticipants),
   organizationInvitationsReceived: many(organizationInvitations, { relationName: "organizationInvitationTargets" }),
   organizationInvitationsSent: many(organizationInvitations, { relationName: "organizationInvitationInviters" }),
 }));
@@ -902,6 +998,29 @@ export const organizationAvatarsRelations = relations(organizationAvatars, ({ on
     fields: [organizationAvatars.organizationId],
     references: [organizations.id],
   }),
+}));
+
+export const groupsRelations = relations(groups, ({ one, many }) => ({
+  creator: one(users, { fields: [groups.createdByUserId], references: [users.id] }),
+  participants: many(groupParticipants),
+  memberships: many(groupMemberships),
+  avatar: one(groupAvatars),
+}));
+
+export const groupParticipantsRelations = relations(groupParticipants, ({ one }) => ({
+  group: one(groups, { fields: [groupParticipants.groupId], references: [groups.id] }),
+  user: one(users, { fields: [groupParticipants.userId], references: [users.id] }),
+  membership: one(groupMemberships),
+}));
+
+export const groupMembershipsRelations = relations(groupMemberships, ({ one }) => ({
+  group: one(groups, { fields: [groupMemberships.groupId], references: [groups.id] }),
+  user: one(users, { fields: [groupMemberships.userId], references: [users.id] }),
+  participant: one(groupParticipants, { fields: [groupMemberships.groupId, groupMemberships.participantId], references: [groupParticipants.groupId, groupParticipants.id] }),
+}));
+
+export const groupAvatarsRelations = relations(groupAvatars, ({ one }) => ({
+  group: one(groups, { fields: [groupAvatars.groupId], references: [groups.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({

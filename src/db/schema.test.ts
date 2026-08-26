@@ -11,6 +11,10 @@ const domainTables = [
   "friend_connections",
   "friend_link_requests",
   "friends",
+  "group_avatars",
+  "group_memberships",
+  "group_participants",
+  "groups",
   "ledger_scopes",
   "notifications",
   "organization_avatars",
@@ -69,7 +73,7 @@ describe("database schema", () => {
 
   it("exports the domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes]
+      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -79,6 +83,24 @@ describe("database schema", () => {
       "users",
       "verifications",
     ]);
+  });
+
+  it("defines stable Group participants and membership scope constraints", () => {
+    const group = getTableConfig(schema.groups);
+    expect(group.columns.map((column) => column.name)).toEqual(["id", "name", "description", "created_by_user_id", "created_at", "updated_at"]);
+    const participants = getTableConfig(schema.groupParticipants);
+    expect(participants.columns.map((column) => column.name)).toEqual(["id", "group_id", "user_id", "display_name", "label", "created_at", "updated_at"]);
+    expect(participants.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_participants_identity_shape", "group_participants_label_not_blank"]));
+    expect(indexColumns(schema.groupParticipants, "group_participants_registered_user_uidx")).toEqual(["group_id", "user_id"]);
+    const memberships = getTableConfig(schema.groupMemberships);
+    expect(memberships.columns.map((column) => column.name)).toEqual(["group_id", "user_id", "participant_id", "role", "joined_at"]);
+    expect(memberships.checks.map((check) => check.name)).toContain("group_memberships_role_allowed");
+    expect(indexColumns(schema.groupMemberships, "group_memberships_one_owner_uidx")).toEqual(["group_id"]);
+    expect(foreignKeyShape(schema.groupMemberships)).toEqual(expect.arrayContaining([
+      { from: ["group_id", "participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+      { from: ["group_id", "user_id", "participant_id"], to: "group_participants", target: ["group_id", "user_id", "id"], onDelete: "restrict" },
+    ]));
+    expect(getTableConfig(schema.groupAvatars).checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_avatars_media_type_allowed", "group_avatars_content_size_matches"]));
   });
 
   it("keeps Friend identity linking nullable and request state constrained", () => {
