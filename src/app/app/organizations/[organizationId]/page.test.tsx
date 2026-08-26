@@ -36,10 +36,10 @@ describe("Organization detail capability gating", () => {
     render(await OrganizationDetailPage({ params: Promise.resolve({ organizationId: organization.id }) }));
   }
 
-  it("shows profile controls from organization.update and deletion from organization.delete", async () => {
+  it("keeps management controls out of the overview surface", async () => {
     await renderPage({ canUpdate: true, canDelete: false });
-    expect(screen.getByRole("heading", { level: 2, name: "Organization profile" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+    expect(screen.getByText("This Organization workspace is ready for the capabilities available to you.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "Organization profile" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete organization" })).not.toBeInTheDocument();
   });
 
@@ -49,9 +49,10 @@ describe("Organization detail capability gating", () => {
     expect(screen.queryByRole("button", { name: "Delete organization" })).not.toBeInTheDocument();
   });
 
-  it("renders deletion only when the server-derived deletion capability is granted", async () => {
+  it("keeps the overview focused on navigation when deletion is granted", async () => {
     await renderPage({ canUpdate: false, canDelete: true });
-    expect(screen.getByRole("button", { name: "Delete organization" })).toBeInTheDocument();
+    expect(screen.getByText("This Organization workspace is ready for the capabilities available to you.")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: "Organization profile" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete organization" })).not.toBeInTheDocument();
   });
 });

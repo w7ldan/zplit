@@ -4096,7 +4096,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .settings-page__section {
   min-width: 0;
-  padding-block: 1.25rem;
+  padding-block: 1.5rem;
   border-block: 1px solid var(--ink);
 }
 
@@ -4122,6 +4122,22 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   max-width: 38rem;
   margin: 0.65rem 0 0;
   color: var(--muted-ink);
+}
+
+.settings-page .app-page__layout {
+  gap: 1.5rem;
+  padding-block: 2rem 4rem;
+}
+
+.organization-settings__profile .organization-detail__owner-tools {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.organization-settings__profile .organization-form,
+.organization-settings__profile .settings-page__avatar-control {
+  max-width: 42rem;
 }
 
 .settings-page__profile {
@@ -4593,6 +4609,11 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 @media (max-width: 767px) {
+  .settings-page .app-page__layout {
+    gap: 1rem;
+    padding-block: 1rem 2.5rem;
+  }
+
   .settings-page__profile {
     grid-template-columns: 1fr;
   }

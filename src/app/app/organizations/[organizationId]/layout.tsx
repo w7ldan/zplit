@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getOrganizationForMember } from "@/server/organizations";
-import { OrganizationIdentity } from "@/components/organizations/organization-detail";
+import { OrganizationIdentity, OrganizationNavigation } from "@/components/organizations/organization-detail";
 
 export const dynamic = "force-dynamic";
 
@@ -17,18 +17,12 @@ export default async function OrganizationLayout({ children, params }: { childre
   } catch {
     notFound();
   }
-  const base = `/app/organizations/${organizationId}`;
-  const links = [
-    ["Overview", base],
-    ...(organization.canViewLedger ? [["Friends", `${base}/friends`], ["Trips", `${base}/trips`], ["Outings", `${base}/outings`], ["Expenses", `${base}/expenses`], ["Repayments", `${base}/repayments`]] : []),
-    ...(organization.canExport ? [["Exports", `${base}/exports`]] : []),
-    ...(organization.canViewLedger ? [["Settings", `${base}/settings`]] : []),
-  ];
   return <>
     <header className="organization-context editorial-shell">
-      <div className="organization-context__identity"><Link href="/app/organizations" className="organization-detail__back text-link">← Organizations</Link><OrganizationIdentity organization={organization} /><div className="organization-detail__facts"><span><span className="technical-label">ROLE</span>{organization.role[0]?.toUpperCase()}{organization.role.slice(1)}</span><span><span className="technical-label">MEMBERS</span>{organization.memberCount}</span></div></div>
+      <Link href="/app/organizations" className="organization-detail__back text-link">← Organizations</Link>
+      <div className="organization-context__identity"><OrganizationIdentity organization={organization} /><div className="organization-context__facts"><span><span className="technical-label">ROLE</span>{organization.role[0]?.toUpperCase()}{organization.role.slice(1)}</span><span><span className="technical-label">MEMBERS</span>{organization.memberCount}</span></div></div>
       {organization.description ? <p className="organization-detail__description">{organization.description}</p> : null}
-      <nav className="organization-context__nav" aria-label="Organization ledger navigation">{links.map(([label, href]) => <Link href={href} key={href}>{label}</Link>)}</nav>
+      <OrganizationNavigation organizationId={organizationId} canViewLedger={organization.canViewLedger} canViewPeople={organization.canViewMembers || organization.canViewLedger} canViewSettings={organization.canViewLedger} />
     </header>
     {children}
   </>;
