@@ -12,6 +12,7 @@ import {
   getOrganizationForMember,
   OrganizationError,
   requireOrganizationAccess,
+  requireOrganizationLedgerAccess,
   saveOrganizationAvatar,
   updateOrganization,
 } from "./organizations";
@@ -146,6 +147,39 @@ describe("organizations", () => {
 
     expect(organizationA.can("expenses.create")).toBe(true);
     expect(organizationB.can("expenses.create")).toBe(false);
+  });
+
+  it.each([
+    ["owner", undefined, true],
+    ["admin", undefined, true],
+    ["treasurer", undefined, true],
+    ["member", undefined, false],
+    ["custom", ["expenses.create"], true],
+    ["custom", [], false],
+  ] as const)("gates Organization ledger mutations by capability for %s", async (role, customCapabilities, allowed) => {
+    const database = { select: vi.fn()
+      .mockImplementationOnce(() => queryBuilder([{ role, customCapabilities }]))
+      .mockImplementationOnce(() => queryBuilder([{ id: "scope-a" }])) } as unknown as Database;
+    const result = requireOrganizationLedgerAccess(database, organizationId, "user-a", "expenses.create");
+    if (allowed) {
+      const access = await result;
+      expect(access.ledgerScopeId).toBe("scope-a");
+    } else {
+      await expect(result).rejects.toMatchObject({ code: "forbidden" });
+      expect(database.select).toHaveBeenCalledOnce();
+    }
+  });
+
+  it("binds each Organization ledger access to its own scope", async () => {
+    const database = { select: vi.fn()
+      .mockImplementationOnce(() => queryBuilder([{ role: "owner", customCapabilities: [] }]))
+      .mockImplementationOnce(() => queryBuilder([{ id: "scope-a" }]))
+      .mockImplementationOnce(() => queryBuilder([{ role: "owner", customCapabilities: [] }]))
+      .mockImplementationOnce(() => queryBuilder([{ id: "scope-b" }])) } as unknown as Database;
+    const accessA = await requireOrganizationLedgerAccess(database, organizationId, "user-a", "ledger.view");
+    const accessB = await requireOrganizationLedgerAccess(database, "22222222-2222-4222-8222-222222222222", "user-a", "ledger.view");
+    expect(accessA.ledgerScopeId).toBe("scope-a");
+    expect(accessB.ledgerScopeId).toBe("scope-b");
   });
 
   it("fails closed for invalid IDs, non-members, and unknown roles", async () => {

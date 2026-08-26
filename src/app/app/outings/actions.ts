@@ -10,6 +10,7 @@ import type { DeleteRecordActionState } from "@/components/app/delete-record-for
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 import { parseCascadeConfirmation, parseImpactRevision } from "@/domain/deletion-confirmation";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { getLedgerForAction, ledgerPath } from "@/server/organization-ledger";
 
 export type OutingActionState = {
   fieldErrors: OutingFieldErrors;
@@ -18,6 +19,8 @@ export type OutingActionState = {
 };
 
 export type OutingDeleteActionState = DeleteRecordActionState;
+
+const actionLedger = (session: Awaited<ReturnType<typeof requireSession>>, formData: FormData, capability: "outings.manage") => getLedgerForAction(session, formData, capability, () => getAuthenticatedLedger(session));
 
 export async function searchTripOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
   const { ledger } = await getAuthenticatedLedger();
@@ -79,18 +82,18 @@ export async function createOutingAction(
 
   let outing;
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = await actionLedger(session, formData, "outings.manage");
     outing = await ledger.createOuting(result.value);
   } catch (error) {
     return error instanceof LedgerNotFoundError ? unavailableTripState(result.values) : errorState(error, result.values);
   }
-  revalidatePath("/app");
-  revalidatePath("/app/outings");
-  revalidatePath("/app/trips");
-  if (result.value.tripId) revalidatePath(`/app/trips/${result.value.tripId}`);
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(ledgerPath(formData, "/outings"));
+  revalidatePath(ledgerPath(formData, "/trips"));
+  if (result.value.tripId) revalidatePath(`${ledgerPath(formData, "/trips")}/${result.value.tripId}`);
   const returnTarget = returnTo ? addOutingToExpenseReturnTarget(returnTo, outing.id) : undefined;
   if (returnTarget) redirect(addTimezoneOffset(returnTarget, result.values.timezoneOffsetMinutes));
-  redirect(`/app/outings?created=${encodeURIComponent(outing.id)}&tz=${encodeURIComponent(result.values.timezoneOffsetMinutes)}`);
+  redirect(`${ledgerPath(formData, "/outings")}?created=${encodeURIComponent(outing.id)}&tz=${encodeURIComponent(result.values.timezoneOffsetMinutes)}`);
 }
 
 export async function updateOutingAction(
@@ -102,7 +105,7 @@ export async function updateOutingAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
 
-  const { ledger: repository } = await getAuthenticatedLedger(session);
+  const { ledger: repository } = await actionLedger(session, formData, "outings.manage");
   try {
     await repository.updateOuting(outingId, result.value);
   } catch (error) {
@@ -117,10 +120,11 @@ export async function updateOutingAction(
     return errorState(error, result.values);
   }
 
-  revalidatePath("/app");
-  revalidatePath("/app/outings");
-  revalidatePath("/app/trips");
-  redirect(`/app/outings/${outingId}?saved=1`);
+  const outingsPath = ledgerPath(formData, "/outings");
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(outingsPath);
+  revalidatePath(ledgerPath(formData, "/trips"));
+  redirect(`${outingsPath}/${outingId}?saved=1`);
 }
 
 export async function deleteOutingAction(
@@ -133,7 +137,7 @@ export async function deleteOutingAction(
   const expectedImpactRevision = parseImpactRevision(formData);
   if (!expectedImpactRevision) return { formError: "Impact revision is invalid." };
 
-  const { ledger: repository } = await getAuthenticatedLedger(session);
+  const { ledger: repository } = await actionLedger(session, formData, "outings.manage");
   let result;
   try {
     let cascadeDependents;
@@ -156,14 +160,14 @@ export async function deleteOutingAction(
     };
   }
 
-  revalidatePath("/app");
-  revalidatePath("/app/history");
-  revalidatePath("/app/outings");
-  revalidatePath("/app/expenses");
-  revalidatePath("/app/repayments");
-  revalidatePath("/app/friends");
-  for (const friendId of result.friendIds) revalidatePath(`/app/friends/${friendId}`);
-  for (const repaymentId of result.repaymentIds) revalidatePath(`/app/repayments/${repaymentId}`);
-  revalidatePath("/share/[token]", "page");
-  redirect("/app/outings?deleted=1");
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(ledgerPath(formData, "/history"));
+  revalidatePath(ledgerPath(formData, "/outings"));
+  revalidatePath(ledgerPath(formData, "/expenses"));
+  revalidatePath(ledgerPath(formData, "/repayments"));
+  revalidatePath(ledgerPath(formData, "/friends"));
+  for (const friendId of result.friendIds) revalidatePath(`${ledgerPath(formData, "/friends")}/${friendId}`);
+  for (const repaymentId of result.repaymentIds) revalidatePath(`${ledgerPath(formData, "/repayments")}/${repaymentId}`);
+  if (!formData.get("organizationId")) revalidatePath("/share/[token]", "page");
+  redirect(`${ledgerPath(formData, "/outings")}?deleted=1`);
 }

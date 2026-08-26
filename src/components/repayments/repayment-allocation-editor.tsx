@@ -125,7 +125,7 @@ function RemoveAllocationForm({ action, undoAction, onRemoved, onUndone }: { act
   );
 }
 
-export function RepaymentAllocationEditor({ action, plan, allocationQuery, allocationPage: requestedAllocationPage, removeAction, undoAction }: RepaymentAllocationEditorProps) {
+export function RepaymentAllocationEditor({ action, plan, allocationQuery, allocationPage: requestedAllocationPage, removeAction, undoAction, basePath = "/app" }: RepaymentAllocationEditorProps & { basePath?: string }) {
   const allocationPage = plan.sharePage ?? { items: plan.shares, page: requestedAllocationPage ?? 1, pageSize: 10, totalItems: plan.shares.length, totalPages: 1 };
   const values = initialValues(plan);
   const [state, formAction] = useActionState(action, { ...emptyActionState, values });
@@ -165,7 +165,7 @@ export function RepaymentAllocationEditor({ action, plan, allocationQuery, alloc
         <p className="technical-label">REPAYMENT ALLOCATIONS</p>
         {search}
         <p>{allocationQuery ? "No matching expense shares." : "No outstanding shares for this friend."}</p>
-        {allocationQuery ? <Link className="action-link" href={`/app/repayments/${plan.id}#repayment-allocations`}>Clear search</Link> : <Link className="action-link" href="/app/expenses">Go to Expenses <span aria-hidden="true">→</span></Link>}
+        {allocationQuery ? <Link className="action-link" href={`${basePath}/repayments/${plan.id}#repayment-allocations`}>Clear search</Link> : <Link className="action-link" href={`${basePath}/expenses`}>Go to Expenses <span aria-hidden="true">→</span></Link>}
       </div>
     );
   }
@@ -234,7 +234,7 @@ export function RepaymentAllocationEditor({ action, plan, allocationQuery, alloc
         <p className="repayment-allocation-editor__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
         <SubmitButton />
       </form>
-      <RecordPagination page={allocationPage.page} pageSize={allocationPage.pageSize} totalItems={allocationPage.totalItems} totalPages={allocationPage.totalPages} href={`/app/repayments/${plan.id}${allocationQuery ? `?q=${encodeURIComponent(allocationQuery)}` : ""}`} anchor="repayment-allocations" />
+      <RecordPagination page={allocationPage.page} pageSize={allocationPage.pageSize} totalItems={allocationPage.totalItems} totalPages={allocationPage.totalPages} href={`${basePath}/repayments/${plan.id}${allocationQuery ? `?q=${encodeURIComponent(allocationQuery)}` : ""}`} anchor="repayment-allocations" />
     </div>
   );
 }

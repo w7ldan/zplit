@@ -6,7 +6,7 @@ import { formatRupiah } from "@/domain/rupiah";
 
 type FriendBalance = { assignedAmount: number; repaidAmount: number; outstandingAmount: number };
 
-export function FriendRow({ friend, balance, emphasized = false }: { friend: FriendListRecord | FriendConnectionListRecord; balance?: FriendBalance; emphasized?: boolean }) {
+export function FriendRow({ friend, balance, emphasized = false, basePath = "/app/friends" }: { friend: FriendListRecord | FriendConnectionListRecord; balance?: FriendBalance; emphasized?: boolean; basePath?: string }) {
   if ("requestId" in friend) {
     return <article className="friend-row" data-connection-id={friend.id}>
       <div className="friend-row__primary">
@@ -31,7 +31,7 @@ export function FriendRow({ friend, balance, emphasized = false }: { friend: Fri
       <div className="friend-row__primary">
         <span className="friend-row__index technical-label" aria-hidden="true">FRIEND</span>
         <div>
-          <h2><Link href={`/app/friends/${friend.id}`}>{friend.name}</Link></h2>
+          <h2><Link href={`${basePath}/${friend.id}`}>{friend.name}</Link></h2>
           {friend.phoneNumber ? <p className="friend-row__phone">{friend.phoneNumber}</p> : null}
           {friend.linkedUser ? <p className="friend-row__phone">@{friend.linkedUser.username}</p> : <p className="friend-row__phone">External</p>}
         </div>
@@ -40,7 +40,7 @@ export function FriendRow({ friend, balance, emphasized = false }: { friend: Fri
         <span className="friend-row__state"><span className="technical-label">State</span>{archived ? "ARCHIVED" : "ACTIVE"}</span>
         <span className="friend-row__created"><span className="technical-label">Created</span><LocalDateTime iso={friend.createdAt.toISOString()} mode="date" /></span>
         {balance ? <span className="friend-row__outstanding"><span className="technical-label">Outstanding</span><strong>{formatRupiah(balance.outstandingAmount)}</strong></span> : <span className="friend-row__outstanding" />}
-        <Link className="friend-row__edit" href={`/app/friends/${friend.id}`}>Edit record <span aria-hidden="true">→</span></Link>
+        <Link className="friend-row__edit" href={`${basePath}/${friend.id}`}>Edit record <span aria-hidden="true">→</span></Link>
       </div>
     </article>
   );

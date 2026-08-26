@@ -13,6 +13,7 @@ import {
 } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { createOrganizationLedgerScope } from "@/server/ledger-scopes";
+import { createLedgerRepository } from "@/domain/ledger-repository";
 
 export type { OrganizationRole } from "@/domain/organization-permissions";
 export type OrganizationAvatarMetadata = { mediaType: "image/webp"; byteSize: number; sha256: string };
@@ -24,7 +25,7 @@ export type OrganizationSummary = {
   memberCount: number;
   avatar: OrganizationAvatarMetadata | null;
 };
-export type OrganizationDetail = OrganizationSummary & { canUpdate: boolean; canDelete: boolean; canViewMembers: boolean; invitationRoles: OrganizationInvitationRole[] };
+export type OrganizationDetail = OrganizationSummary & { canUpdate: boolean; canDelete: boolean; canViewMembers: boolean; canViewLedger: boolean; canExport: boolean; invitationRoles: OrganizationInvitationRole[] };
 
 export class OrganizationError extends Error {
   constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden" | "ledger_not_empty") {
@@ -66,6 +67,12 @@ export type OrganizationAccess = {
   require(capability: OrganizationCapability): void;
 };
 
+export type OrganizationLedgerAccess = OrganizationAccess & {
+  organizationId: string;
+  ledgerScopeId: string;
+  ledger: ReturnType<typeof createLedgerRepository>;
+};
+
 export async function requireOrganizationAccess(database: Database, organizationId: string, userId: string): Promise<OrganizationAccess> {
   assertOrganizationId(organizationId);
   const [membership] = await database
@@ -83,6 +90,23 @@ export async function requireOrganizationAccess(database: Database, organization
       if (!capabilities.has(capability)) throw new OrganizationError("forbidden");
     },
   };
+}
+
+export async function requireOrganizationLedgerAccess(
+  database: Database,
+  organizationId: string,
+  userId: string,
+  capability: OrganizationCapability,
+): Promise<OrganizationLedgerAccess> {
+  const access = await requireOrganizationAccess(database, organizationId, userId);
+  access.require(capability);
+  const [scope] = await database
+    .select({ id: ledgerScopes.id })
+    .from(ledgerScopes)
+    .where(and(eq(ledgerScopes.kind, "organization"), eq(ledgerScopes.organizationId, organizationId)))
+    .limit(1);
+  if (!scope) throw new OrganizationError("not_found");
+  return { ...access, organizationId, ledgerScopeId: scope.id, ledger: createLedgerRepository(database, scope.id) };
 }
 
 export async function listOrganizations(database: Database, userId: string): Promise<OrganizationSummary[]> {
@@ -132,6 +156,8 @@ export async function getOrganizationForMember(database: Database, organizationI
     canUpdate: access.can("organization.update"),
     canDelete: access.can("organization.delete"),
     canViewMembers: access.can("members.view"),
+    canViewLedger: access.can("ledger.view"),
+    canExport: access.can("exports.create"),
     invitationRoles: getOrganizationInvitationRoles(access.can),
   };
 }

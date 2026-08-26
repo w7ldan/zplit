@@ -58,7 +58,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="expense-share-editor__field-error" id={id} role={message ? "alert" : undefined}>{message || "\u00a0"}</p>;
 }
 
-export function ExpenseShareEditor({ action, expenseAmount, friends: initialFriends, charges: initialChargeDefinitions = [], friendOptions: initialFriendOptions = [], searchFriends = emptySearch, previousSplit }: ExpenseShareEditorProps) {
+export function ExpenseShareEditor({ action, expenseAmount, friends: initialFriends, charges: initialChargeDefinitions = [], friendOptions: initialFriendOptions = [], searchFriends = emptySearch, previousSplit, basePath = "/app" }: ExpenseShareEditorProps & { basePath?: string }) {
   const submissionReleaseRef = useRef<(() => void) | null>(null);
   const submitAction = useCallback(async (previousState: ExpenseShareActionState, formData: FormData) => {
     const nextState = await action(previousState, formData);
@@ -151,7 +151,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
       <div className="expense-share-editor expense-share-editor--empty">
         <p className="technical-label">FRIEND SHARES</p>
         <p>Add an active friend before assigning a share.</p>
-        <Link className="action-link" href="/app/friends">Go to friends <span aria-hidden="true">→</span></Link>
+        <Link className="action-link" href={`${basePath}/friends`}>Go to friends <span aria-hidden="true">→</span></Link>
       </div>
     );
   }
@@ -276,7 +276,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
                 </label>
                 <button className="text-link" type="button" onClick={() => removeFriend(friend.id)} aria-label={`Remove ${friend.name}`}>Remove</button>
               </div>
-              {friend.expenseShareId && (friend.remainingAmount ?? 0) > 0 ? <Link className="text-link" href={`/app/repayments?create=1&friendId=${encodeURIComponent(friend.id)}&expenseShareId=${encodeURIComponent(friend.expenseShareId)}`}>Record repayment</Link> : null}
+              {friend.expenseShareId && (friend.remainingAmount ?? 0) > 0 ? <Link className="text-link" href={`${basePath}/repayments?create=1&friendId=${encodeURIComponent(friend.id)}&expenseShareId=${encodeURIComponent(friend.expenseShareId)}`}>Record repayment</Link> : null}
               <input
                 ref={(element) => { if (element) amountRefs.current.set(friend.id, element); else amountRefs.current.delete(friend.id); }}
                 id={`expense-share-${friend.id}`}

@@ -74,13 +74,19 @@ function databaseCode(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
 }
 
-function assertOwner(ownerUserId: string) {
-  if (typeof ownerUserId !== "string" || !ownerUserId.trim()) throw new Error("A receipt owner is required");
+type LedgerOwner = string | { ledgerScopeId: string };
+
+async function getLedgerScopeId(database: Database, owner: LedgerOwner) {
+  if (typeof owner === "string") {
+    if (!owner.trim()) throw new Error("A receipt owner is required");
+    return getPersonalLedgerScopeId(database, owner);
+  }
+  if (!owner.ledgerScopeId?.trim()) throw new Error("A receipt scope is required");
+  return owner.ledgerScopeId;
 }
 
-export async function listExpenseReceipts(database: Database, ownerUserId: string, expenseId: string): Promise<ExpenseReceiptMetadata[]> {
-  assertOwner(ownerUserId);
-  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
+export async function listExpenseReceipts(database: Database, owner: LedgerOwner, expenseId: string): Promise<ExpenseReceiptMetadata[]> {
+  const ledgerScopeId = await getLedgerScopeId(database, owner);
   return database
     .select(metadataSelection())
     .from(expenseReceipts)
@@ -90,12 +96,11 @@ export async function listExpenseReceipts(database: Database, ownerUserId: strin
 
 export async function createExpenseReceipt(
   database: Database,
-  ownerUserId: string,
+  owner: LedgerOwner,
   expenseId: string,
   validatedFile: ValidatedReceiptFile,
 ): Promise<ExpenseReceiptMetadata> {
-  assertOwner(ownerUserId);
-  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
+  const ledgerScopeId = await getLedgerScopeId(database, owner);
   try {
     return await database.transaction(async (transaction) => {
       const [expense] = await transaction
@@ -140,9 +145,8 @@ export async function createExpenseReceipt(
   }
 }
 
-export async function getExpenseReceipt(database: Database, ownerUserId: string, expenseId: string, receiptId: string): Promise<ExpenseReceiptContent | null> {
-  assertOwner(ownerUserId);
-  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
+export async function getExpenseReceipt(database: Database, owner: LedgerOwner, expenseId: string, receiptId: string): Promise<ExpenseReceiptContent | null> {
+  const ledgerScopeId = await getLedgerScopeId(database, owner);
   const [receipt] = await database
     .select({ id: expenseReceipts.id, mediaType: expenseReceipts.mediaType, byteSize: expenseReceipts.byteSize, content: expenseReceipts.content })
     .from(expenseReceipts)
@@ -157,9 +161,8 @@ export async function getExpenseReceipt(database: Database, ownerUserId: string,
   return receipt ?? null;
 }
 
-export async function deleteExpenseReceipt(database: Database, ownerUserId: string, expenseId: string, receiptId: string) {
-  assertOwner(ownerUserId);
-  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
+export async function deleteExpenseReceipt(database: Database, owner: LedgerOwner, expenseId: string, receiptId: string) {
+  const ledgerScopeId = await getLedgerScopeId(database, owner);
   const deleted = await database
     .delete(expenseReceipts)
     .where(
@@ -172,3 +175,5 @@ export async function deleteExpenseReceipt(database: Database, ownerUserId: stri
     .returning({ id: expenseReceipts.id });
   return deleted.length > 0;
 }
+
+export const listExpenseReceiptsForScope = (database: Database, ledgerScopeId: string, expenseId: string) => listExpenseReceipts(database, { ledgerScopeId }, expenseId);

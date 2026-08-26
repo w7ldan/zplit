@@ -7,6 +7,7 @@ import { validateFriendInput, type FriendFieldErrors, type FriendInputValues } f
 import { LedgerNotFoundError, type FriendArchiveReversalReceipt } from "@/domain/ledger-repository";
 import { addFriendToRepaymentReturnTarget, validateRepaymentReturnTarget } from "@/domain/repayment-return";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { getLedgerForAction, ledgerPath } from "@/server/organization-ledger";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 import { searchUsernameDirectory } from "@/server/user-directory";
 import { cancelFriendLinkRequest, createFriendLinkRequest, FriendLinkError, unlinkFriendLink } from "@/server/friend-links";
@@ -30,6 +31,8 @@ const initialFriendActionState: FriendActionState = {
   formError: "",
   values: { name: "", phoneNumber: "", notes: "" },
 };
+
+const actionLedger = (session: Awaited<ReturnType<typeof requireSession>>, formData: FormData, capability: "friends.manage") => getLedgerForAction(session, formData, capability, () => getAuthenticatedLedger(session));
 
 export async function searchFriendLinkUserOptions(query = ""): Promise<SearchableOption[]> {
   return (await searchUsernameDirectory(query)).map((user) => ({ id: user.id, label: `${user.displayName} · @${user.username}` }));
@@ -127,16 +130,16 @@ export async function createFriendAction(
 
   let friend;
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = await actionLedger(session, formData, "friends.manage");
     friend = await ledger.createFriend(result.value);
   } catch (error) {
     return errorState(error, "save");
   }
-  revalidatePath("/app");
-  revalidatePath("/app/friends");
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(ledgerPath(formData, "/friends"));
   const returnTarget = returnTo ? addFriendToRepaymentReturnTarget(returnTo, friend.id) : undefined;
   if (returnTarget) redirect(returnTarget);
-  redirect(`/app/friends?created=${encodeURIComponent(friend.id)}`);
+  redirect(`${ledgerPath(formData, "/friends")}?created=${encodeURIComponent(friend.id)}`);
 }
 
 export async function updateFriendAction(
@@ -149,31 +152,32 @@ export async function updateFriendAction(
   if (!result.ok) return invalidState(result);
 
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = await actionLedger(session, formData, "friends.manage");
     await ledger.updateFriend(friendId, result.value);
   } catch (error) {
     return errorState(error, "save");
   }
 
-  revalidatePath("/app/friends");
-  revalidatePath(`/app/friends/${friendId}`);
-  redirect(`/app/friends/${friendId}?saved=1`);
+  const friendsPath = ledgerPath(formData, "/friends");
+  revalidatePath(friendsPath);
+  revalidatePath(`${friendsPath}/${friendId}`);
+  redirect(`${friendsPath}/${friendId}?saved=1`);
 }
 
 export async function archiveFriendAction(
   friendId: string,
   _previousState: FriendActionState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<FriendActionState> {
   void _previousState;
-  void _formData;
   const session = await requireSession();
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = await actionLedger(session, formData, "friends.manage");
     const result = await ledger.archiveFriend(friendId);
-    revalidatePath("/app");
-    revalidatePath("/app/friends");
-    revalidatePath(`/app/friends/${friendId}`);
+    const friendsPath = ledgerPath(formData, "/friends");
+    revalidatePath(ledgerPath(formData, "/app"));
+    revalidatePath(friendsPath);
+    revalidatePath(`${friendsPath}/${friendId}`);
     return { ...initialFriendActionState, archiveReceipt: result.reversalReceipt };
   } catch (error) {
     return errorState(error, "archive");
@@ -183,21 +187,21 @@ export async function archiveFriendAction(
 export async function restoreFriendAction(
   friendId: string,
   _previousState: FriendActionState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<FriendActionState> {
   void _previousState;
-  void _formData;
-  return setArchived(friendId, false);
+  return setArchived(friendId, false, formData);
 }
 
-export async function undoFriendArchiveAction(receipt: FriendArchiveReversalReceipt): Promise<FriendArchiveUndoState> {
+export async function undoFriendArchiveAction(receipt: FriendArchiveReversalReceipt, formData?: FormData): Promise<FriendArchiveUndoState> {
   const session = await requireSession();
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = formData ? await actionLedger(session, formData, "friends.manage") : await getAuthenticatedLedger(session);
     await ledger.undoFriendArchive(receipt);
-    revalidatePath("/app");
-    revalidatePath("/app/friends");
-    revalidatePath(`/app/friends/${receipt.friendId}`);
+    const friendsPath = formData ? ledgerPath(formData, "/friends") : "/app/friends";
+    revalidatePath(formData ? ledgerPath(formData, "/app") : "/app");
+    revalidatePath(friendsPath);
+    revalidatePath(`${friendsPath}/${receipt.friendId}`);
     return { ok: true };
   } catch (error) {
     return {
@@ -209,16 +213,17 @@ export async function undoFriendArchiveAction(receipt: FriendArchiveReversalRece
   }
 }
 
-async function setArchived(friendId: string, archived: boolean): Promise<FriendActionState> {
+async function setArchived(friendId: string, archived: boolean, formData?: FormData): Promise<FriendActionState> {
   const session = await requireSession();
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = formData ? await actionLedger(session, formData, "friends.manage") : await getAuthenticatedLedger(session);
     await ledger.setFriendArchived(friendId, archived);
   } catch (error) {
     return errorState(error, "archive");
   }
 
-  revalidatePath("/app/friends");
-  revalidatePath(`/app/friends/${friendId}`);
-  redirect(`/app/friends/${friendId}?saved=1`);
+  const friendsPath = formData ? ledgerPath(formData, "/friends") : "/app/friends";
+  revalidatePath(friendsPath);
+  revalidatePath(`${friendsPath}/${friendId}`);
+  redirect(`${friendsPath}/${friendId}?saved=1`);
 }

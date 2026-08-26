@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { getDatabase } from "@/db/client";
 import { users } from "@/db/schema";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { getLedgerForAction, ledgerPath } from "@/server/organization-ledger";
 
 export type RepaymentDestinationActionState = {
   fieldErrors: RepaymentDestinationFieldErrors;
@@ -27,6 +28,8 @@ export type RepaymentDestinationOrderAction = (orderedIds: string[]) => Promise<
 
 export type UsernameActionState = { error: string; value: string };
 export type UsernameFormAction = (previousState: UsernameActionState, formData: FormData) => Promise<UsernameActionState>;
+
+const actionLedger = (session: Awaited<ReturnType<typeof requireSession>>, formData: FormData) => getLedgerForAction(session, formData, "repayment_destinations.manage", () => getAuthenticatedLedger(session));
 
 function valuesFromForm(formData: FormData) {
   return parseRepaymentDestination({
@@ -51,8 +54,8 @@ function errorState(error: unknown, values: RepaymentDestinationFormValues): Rep
   };
 }
 
-function settingsPath() {
-  return "/app/settings?saved=1#repays-to";
+function settingsPath(formData?: FormData) {
+  return formData ? ledgerPath(formData, "/settings?saved=1#repays-to") : "/app/settings?saved=1#repays-to";
 }
 
 function isUniqueViolation(error: unknown) {
@@ -83,11 +86,12 @@ export async function updateUsernameAction(
   redirect("/app/settings?saved=1#settings-profile-heading");
 }
 
-async function persistRepaymentDestinationOrder(orderedIds: string[]) {
+async function persistRepaymentDestinationOrder(orderedIds: string[], formData?: FormData) {
   const session = await requireSession();
-  await (await getAuthenticatedLedger(session)).ledger.reorderRepaymentDestinations(orderedIds);
-  revalidatePath("/app/settings");
-  revalidatePath("/app/friends");
+  const access = formData ? await actionLedger(session, formData) : await getAuthenticatedLedger(session);
+  await access.ledger.reorderRepaymentDestinations(orderedIds);
+  revalidatePath(formData ? ledgerPath(formData, "/settings") : "/app/settings");
+  revalidatePath(formData ? ledgerPath(formData, "/friends") : "/app/friends");
 }
 
 export async function createRepaymentDestinationAction(
@@ -98,13 +102,13 @@ export async function createRepaymentDestinationAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
   try {
-    await (await getAuthenticatedLedger(session)).ledger.createRepaymentDestination(result.value);
+    await (await actionLedger(session, formData)).ledger.createRepaymentDestination(result.value);
   } catch (error) {
     return errorState(error, result.values);
   }
-  revalidatePath("/app/settings");
-  revalidatePath("/app/friends");
-  redirect(settingsPath());
+  revalidatePath(ledgerPath(formData, "/settings"));
+  revalidatePath(ledgerPath(formData, "/friends"));
+  redirect(settingsPath(formData));
 }
 
 export async function updateRepaymentDestinationAction(
@@ -116,26 +120,25 @@ export async function updateRepaymentDestinationAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
   try {
-    await (await getAuthenticatedLedger(session)).ledger.updateRepaymentDestination(destinationId, result.value);
+    await (await actionLedger(session, formData)).ledger.updateRepaymentDestination(destinationId, result.value);
   } catch (error) {
     return errorState(error, result.values);
   }
-  revalidatePath("/app/settings");
-  revalidatePath("/app/friends");
-  redirect(settingsPath());
+  revalidatePath(ledgerPath(formData, "/settings"));
+  revalidatePath(ledgerPath(formData, "/friends"));
+  redirect(settingsPath(formData));
 }
 
-export async function deleteRepaymentDestinationAction(destinationId: string, _formData: FormData) {
-  void _formData;
+export async function deleteRepaymentDestinationAction(destinationId: string, formData: FormData) {
   const session = await requireSession();
   try {
-    await (await getAuthenticatedLedger(session)).ledger.deleteRepaymentDestination(destinationId);
+    await (await actionLedger(session, formData)).ledger.deleteRepaymentDestination(destinationId);
   } catch {
-    redirect("/app/settings?error=1#repays-to");
+    redirect(`${ledgerPath(formData, "/settings")}?error=1#repays-to`);
   }
-  revalidatePath("/app/settings");
-  revalidatePath("/app/friends");
-  redirect(settingsPath());
+  revalidatePath(ledgerPath(formData, "/settings"));
+  revalidatePath(ledgerPath(formData, "/friends"));
+  redirect(settingsPath(formData));
 }
 
 export async function reorderRepaymentDestinationsAction(formData: FormData) {
@@ -143,19 +146,19 @@ export async function reorderRepaymentDestinationsAction(formData: FormData) {
   const movingId = formData.get("movingId");
   const direction = formData.get("direction");
   if (typeof movingId !== "string" || (direction !== "up" && direction !== "down") || ids.some((id) => typeof id !== "string")) {
-    redirect("/app/settings?error=1#repays-to");
+    redirect(`${ledgerPath(formData, "/settings")}?error=1#repays-to`);
   }
   const orderedIds = ids as string[];
   const index = orderedIds.indexOf(movingId as string);
   const nextIndex = direction === "up" ? index - 1 : index + 1;
-  if (index < 0 || nextIndex < 0 || nextIndex >= orderedIds.length) redirect("/app/settings?error=1#repays-to");
+  if (index < 0 || nextIndex < 0 || nextIndex >= orderedIds.length) redirect(`${ledgerPath(formData, "/settings")}?error=1#repays-to`);
   [orderedIds[index], orderedIds[nextIndex]] = [orderedIds[nextIndex]!, orderedIds[index]!];
   try {
-    await persistRepaymentDestinationOrder(orderedIds);
+    await persistRepaymentDestinationOrder(orderedIds, formData);
   } catch {
-    redirect("/app/settings?error=1#repays-to");
+    redirect(`${ledgerPath(formData, "/settings")}?error=1#repays-to`);
   }
-  redirect(settingsPath());
+  redirect(settingsPath(formData));
 }
 
 export async function setRepaymentDestinationOrderAction(orderedIds: string[]): Promise<RepaymentDestinationOrderResult> {

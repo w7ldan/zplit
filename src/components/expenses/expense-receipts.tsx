@@ -15,6 +15,8 @@ export type ExpenseReceipt = {
 type ExpenseReceiptsProps = {
   expenseId: string;
   initialReceipts: ExpenseReceipt[];
+  basePath?: string;
+  canEdit?: boolean;
 };
 
 function formatBytes(bytes: number) {
@@ -28,7 +30,7 @@ function ReceiptDate({ value }: { value: Date | string }) {
   return Number.isNaN(date.getTime()) ? <>Unknown date</> : <LocalDateTime iso={date.toISOString()} mode="date" />;
 }
 
-export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsProps) {
+export function ExpenseReceipts({ expenseId, initialReceipts, basePath = "/app/expenses", canEdit = true }: ExpenseReceiptsProps) {
   const [receipts, setReceipts] = useState(initialReceipts);
   const [uploading, setUploading] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsP
     setError("");
     setStatus("");
     try {
-      const response = await fetch(`/app/expenses/${encodeURIComponent(expenseId)}/receipts`, {
+      const response = await fetch(`${basePath}/${encodeURIComponent(expenseId)}/receipts`, {
         method: "POST",
         body: new FormData(form),
         credentials: "same-origin",
@@ -78,7 +80,7 @@ export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsP
     setError("");
     setStatus("");
     try {
-      const response = await fetch(`/app/expenses/${encodeURIComponent(expenseId)}/receipts/${encodeURIComponent(receiptId)}`, {
+      const response = await fetch(`${basePath}/${encodeURIComponent(expenseId)}/receipts/${encodeURIComponent(receiptId)}`, {
         method: "DELETE",
         credentials: "same-origin",
       });
@@ -106,7 +108,7 @@ export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsP
         </div>
         <span className="technical-label">{receipts.length}/5 · {formatBytes(totalBytes)}/15 MiB</span>
       </div>
-      <form className="expense-receipts__upload" onSubmit={upload}>
+      {canEdit ? <form className="expense-receipts__upload" onSubmit={upload}>
         <div className="expense-receipts__file-picker">
           <label className="action-link action-link--quiet" htmlFor="expense-receipt-file">{selectedFilename ? "Change" : "Choose receipt image"}</label>
           {selectedFilename ? <><span className="expense-receipts__filename">{selectedFilename}</span><button className="text-link" type="button" onClick={() => { if (fileInput.current) fileInput.current.value = ""; setSelectedFilename(""); }}>Clear</button></> : null}
@@ -115,7 +117,7 @@ export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsP
         <p className="expense-receipts__help" id="expense-receipt-help">The file signature is checked before it is stored.</p>
         <p className="expense-receipts__error" id="expense-receipt-error" role={error ? "alert" : undefined} aria-live="polite">{error || "\u00a0"}</p>
         <button className="action-link action-link--primary" type="submit" disabled={uploading || !selectedFilename} aria-busy={uploading}>{uploading ? "Uploading receipt…" : "Upload receipt"}</button>
-      </form>
+      </form> : null}
       <p className="expense-receipts__status" role="status" aria-live="polite">{status || "\u00a0"}</p>
       {receipts.length > 0 ? (
         <div className="expense-receipts__list" aria-label="Expense receipts">
@@ -129,13 +131,13 @@ export function ExpenseReceipts({ expenseId, initialReceipts }: ExpenseReceiptsP
                   <span>{receipt.mediaType} · {formatBytes(receipt.byteSize)} · <ReceiptDate value={receipt.createdAt} /></span>
                 </div>
                 <div className="expense-receipts__actions">
-                  <ReceiptPreview href={`/app/expenses/${encodeURIComponent(expenseId)}/receipts/${encodeURIComponent(receipt.id)}`} filename={receipt.originalFilename} mediaType={receipt.mediaType} />
-                  {confirming ? (
+                  <ReceiptPreview href={`${basePath}/${encodeURIComponent(expenseId)}/receipts/${encodeURIComponent(receipt.id)}`} filename={receipt.originalFilename} mediaType={receipt.mediaType} />
+                  {canEdit && confirming ? (
                     <>
                       <button className="text-link expense-receipts__remove" type="button" onClick={() => remove(receipt.id)} disabled={removing} aria-busy={removing}>{removing ? "Removing…" : "Remove"}</button>
                       <button className="text-link" type="button" onClick={() => setPendingRemovalId(null)} disabled={removing}>Cancel</button>
                     </>
-                  ) : <button className="text-link expense-receipts__remove" type="button" onClick={() => { setPendingRemovalId(receipt.id); setError(""); }}>Remove</button>}
+                  ) : canEdit ? <button className="text-link expense-receipts__remove" type="button" onClick={() => { setPendingRemovalId(receipt.id); setError(""); }}>Remove</button> : null}
                 </div>
               </div>
             );

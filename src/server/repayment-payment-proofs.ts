@@ -49,8 +49,15 @@ function databaseCode(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
 }
 
-function assertOwner(ownerUserId: string) {
-  if (typeof ownerUserId !== "string" || !ownerUserId.trim()) throw new Error("A payment proof owner is required");
+type LedgerOwner = string | { ledgerScopeId: string };
+
+async function getLedgerScopeId(database: Database, owner: LedgerOwner) {
+  if (typeof owner === "string") {
+    if (!owner.trim()) throw new Error("A payment proof owner is required");
+    return getPersonalLedgerScopeId(database, owner);
+  }
+  if (!owner.ledgerScopeId?.trim()) throw new Error("A payment proof scope is required");
+  return owner.ledgerScopeId;
 }
 
 function repaymentOwnerWhere(ledgerScopeId: string, repaymentId: string) {
@@ -65,9 +72,8 @@ function proofOwnerWhere(ledgerScopeId: string, repaymentId: string, proofId?: s
   );
 }
 
-export async function getRepaymentPaymentProofMetadata(database: Database, ownerUserId: string, repaymentId: string): Promise<RepaymentPaymentProofMetadata | null> {
-  assertOwner(ownerUserId);
-  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
+export async function getRepaymentPaymentProofMetadata(database: Database, owner: LedgerOwner, repaymentId: string): Promise<RepaymentPaymentProofMetadata | null> {
+  const ledgerScopeId = await getLedgerScopeId(database, owner);
   const [proof] = await database
     .select(metadataSelection())
     .from(repaymentProofs)
@@ -79,12 +85,11 @@ export async function getRepaymentPaymentProofMetadata(database: Database, owner
 
 export async function createRepaymentPaymentProof(
   database: Database,
-  ownerUserId: string,
+  owner: LedgerOwner,
   repaymentId: string,
   validatedFile: ValidatedReceiptFile,
 ): Promise<RepaymentPaymentProofMetadata> {
-  assertOwner(ownerUserId);
-  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
+  const ledgerScopeId = await getLedgerScopeId(database, owner);
   try {
     return await database.transaction(async (transaction) => {
       const [repayment] = await transaction
@@ -127,12 +132,11 @@ export async function createRepaymentPaymentProof(
 
 export async function replaceRepaymentPaymentProof(
   database: Database,
-  ownerUserId: string,
+  owner: LedgerOwner,
   repaymentId: string,
   validatedFile: ValidatedReceiptFile,
 ): Promise<RepaymentPaymentProofMetadata> {
-  assertOwner(ownerUserId);
-  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
+  const ledgerScopeId = await getLedgerScopeId(database, owner);
   return database.transaction(async (transaction) => {
     const [repayment] = await transaction
       .select({ id: repayments.id })
@@ -181,9 +185,8 @@ export async function replaceRepaymentPaymentProof(
   });
 }
 
-export async function getRepaymentPaymentProof(database: Database, ownerUserId: string, repaymentId: string, proofId: string): Promise<RepaymentPaymentProofContent | null> {
-  assertOwner(ownerUserId);
-  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
+export async function getRepaymentPaymentProof(database: Database, owner: LedgerOwner, repaymentId: string, proofId: string): Promise<RepaymentPaymentProofContent | null> {
+  const ledgerScopeId = await getLedgerScopeId(database, owner);
   const [proof] = await database
     .select({ id: repaymentProofs.id, mediaType: repaymentProofs.mediaType, byteSize: repaymentProofs.byteSize, content: repaymentProofs.content })
     .from(repaymentProofs)
@@ -193,9 +196,8 @@ export async function getRepaymentPaymentProof(database: Database, ownerUserId: 
   return proof ?? null;
 }
 
-export async function deleteRepaymentPaymentProof(database: Database, ownerUserId: string, repaymentId: string, proofId: string) {
-  assertOwner(ownerUserId);
-  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
+export async function deleteRepaymentPaymentProof(database: Database, owner: LedgerOwner, repaymentId: string, proofId: string) {
+  const ledgerScopeId = await getLedgerScopeId(database, owner);
   return database.transaction(async (transaction) => {
     const [repayment] = await transaction
       .select({ id: repayments.id })
@@ -211,3 +213,5 @@ export async function deleteRepaymentPaymentProof(database: Database, ownerUserI
     return deleted.length > 0;
   });
 }
+
+export const getRepaymentPaymentProofMetadataForScope = (database: Database, ledgerScopeId: string, repaymentId: string) => getRepaymentPaymentProofMetadata(database, { ledgerScopeId }, repaymentId);

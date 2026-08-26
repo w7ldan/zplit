@@ -15,6 +15,8 @@ export type RepaymentPaymentProof = {
 type RepaymentPaymentProofProps = {
   repaymentId: string;
   initialPaymentProof: RepaymentPaymentProof | null;
+  basePath?: string;
+  canEdit?: boolean;
 };
 
 function formatBytes(bytes: number) {
@@ -28,7 +30,7 @@ function ProofDate({ value }: { value: Date | string }) {
   return Number.isNaN(date.getTime()) ? <>Unknown date</> : <LocalDateTime iso={date.toISOString()} mode="date" />;
 }
 
-export function RepaymentPaymentProof({ repaymentId, initialPaymentProof }: RepaymentPaymentProofProps) {
+export function RepaymentPaymentProof({ repaymentId, initialPaymentProof, basePath = "/app/repayments", canEdit = true }: RepaymentPaymentProofProps) {
   const [paymentProof, setPaymentProof] = useState(initialPaymentProof);
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -54,7 +56,7 @@ export function RepaymentPaymentProof({ repaymentId, initialPaymentProof }: Repa
     setError("");
     setStatus("");
     try {
-      const response = await fetch(`/app/repayments/${encodeURIComponent(repaymentId)}/payment-proof`, {
+      const response = await fetch(`${basePath}/${encodeURIComponent(repaymentId)}/payment-proof`, {
         method: replacing ? "PUT" : "POST",
         body: new FormData(form),
         credentials: "same-origin",
@@ -78,7 +80,7 @@ export function RepaymentPaymentProof({ repaymentId, initialPaymentProof }: Repa
     setError("");
     setStatus("");
     try {
-      const response = await fetch(`/app/repayments/${encodeURIComponent(repaymentId)}/payment-proof/${encodeURIComponent(paymentProof.id)}`, {
+      const response = await fetch(`${basePath}/${encodeURIComponent(repaymentId)}/payment-proof/${encodeURIComponent(paymentProof.id)}`, {
         method: "DELETE",
         credentials: "same-origin",
       });
@@ -105,7 +107,7 @@ export function RepaymentPaymentProof({ repaymentId, initialPaymentProof }: Repa
           <p>Private to you. JPEG, PNG, or WebP, up to 5 MiB.</p>
         </div>
       </div>
-      <form className="expense-receipts__upload" onSubmit={upload}>
+      {canEdit ? <form className="expense-receipts__upload" onSubmit={upload}>
         <div className="expense-receipts__file-picker">
           <label className="action-link action-link--quiet" htmlFor="repayment-payment-proof-file">{selectedFilename ? "Change" : "Choose payment proof image"}</label>
           {selectedFilename ? <><span className="expense-receipts__filename">{selectedFilename}</span><button className="text-link" type="button" onClick={() => { if (fileInput.current) fileInput.current.value = ""; setSelectedFilename(""); }}>Clear</button></> : null}
@@ -114,7 +116,7 @@ export function RepaymentPaymentProof({ repaymentId, initialPaymentProof }: Repa
         <p className="expense-receipts__help" id="repayment-payment-proof-help">The file signature is checked before it is stored.</p>
         <p className="expense-receipts__error" id="repayment-payment-proof-error" role={error ? "alert" : undefined} aria-live="polite">{error || "\u00a0"}</p>
         <button className="action-link action-link--primary" type="submit" disabled={uploading || !selectedFilename} aria-busy={uploading}>{uploading ? paymentProof ? "Replacing payment proof…" : "Uploading payment proof…" : paymentProof ? "Replace payment proof" : "Add payment proof"}</button>
-      </form>
+      </form> : null}
       <p className="expense-receipts__status" role="status" aria-live="polite">{status || "\u00a0"}</p>
       {paymentProof ? (
         <div className="expense-receipts__list" aria-label="Repayment payment proof">
@@ -125,17 +127,17 @@ export function RepaymentPaymentProof({ repaymentId, initialPaymentProof }: Repa
             </div>
             <div className="expense-receipts__actions">
               <ReceiptPreview
-                href={`/app/repayments/${encodeURIComponent(repaymentId)}/payment-proof/${encodeURIComponent(paymentProof.id)}`}
+                href={`${basePath}/${encodeURIComponent(repaymentId)}/payment-proof/${encodeURIComponent(paymentProof.id)}`}
                 filename={paymentProof.originalFilename}
                 mediaType={paymentProof.mediaType}
                 previewLabel="payment proof"
               />
-              {pendingRemoval ? (
+              {canEdit && pendingRemoval ? (
                 <>
                   <button className="text-link expense-receipts__remove" type="button" onClick={remove} disabled={removing} aria-busy={removing}>{removing ? "Removing…" : "Remove"}</button>
                   <button className="text-link" type="button" onClick={() => setPendingRemoval(false)} disabled={removing}>Cancel</button>
                 </>
-              ) : <button className="text-link expense-receipts__remove" type="button" onClick={() => { setPendingRemoval(true); setError(""); }}>Remove</button>}
+              ) : canEdit ? <button className="text-link expense-receipts__remove" type="button" onClick={() => { setPendingRemoval(true); setError(""); }}>Remove</button> : null}
             </div>
           </div>
         </div>

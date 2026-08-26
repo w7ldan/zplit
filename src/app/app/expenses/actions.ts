@@ -10,6 +10,7 @@ import type { DeleteRecordActionState } from "@/components/app/delete-record-for
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 import { parseCascadeConfirmation, parseImpactRevision } from "@/domain/deletion-confirmation";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { getLedgerForAction, ledgerPath } from "@/server/organization-ledger";
 
 export type ExpenseSubmitIntent = "add" | "continue";
 export type ExpenseActionSuccess = { expenseId: string; amount: number };
@@ -30,6 +31,8 @@ export type ExpenseShareActionState = {
 };
 
 export type ExpenseDeleteActionState = DeleteRecordActionState;
+
+const actionLedger = (session: Awaited<ReturnType<typeof requireSession>>, formData: FormData, capability: "expenses.create" | "expenses.edit" | "expenses.delete") => getLedgerForAction(session, formData, capability, () => getAuthenticatedLedger(session));
 
 export async function searchOutingOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
   const { ledger } = await getAuthenticatedLedger();
@@ -124,13 +127,13 @@ export async function createExpenseAction(
 
   let expense;
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = await actionLedger(session, formData, "expenses.create");
     expense = await ledger.createExpense(result.value);
   } catch (error) {
     return errorState(error, result.values, intent);
   }
-  revalidatePath("/app");
-  revalidatePath("/app/expenses");
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(ledgerPath(formData, "/expenses"));
   if (intent === "continue") {
     return {
       fieldErrors: {},
@@ -139,7 +142,7 @@ export async function createExpenseAction(
       success: { expenseId: expense.id, amount: expense.amount },
     };
   }
-  redirect(`/app/expenses/${encodeURIComponent(expense.id)}?created=1#friend-shares`);
+  redirect(`${ledgerPath(formData, "/expenses")}/${encodeURIComponent(expense.id)}?created=1#friend-shares`);
 }
 
 export async function updateExpenseAction(
@@ -152,16 +155,17 @@ export async function updateExpenseAction(
   if (!result.ok) return invalidState(result);
 
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = await actionLedger(session, formData, "expenses.edit");
     await ledger.updateExpense(expenseId, result.value);
   } catch (error) {
     return errorState(error, result.values);
   }
 
-  revalidatePath("/app");
-  revalidatePath("/app/expenses");
-  revalidatePath(`/app/expenses/${expenseId}`);
-  redirect(`/app/expenses/${expenseId}?updated=1#expense-details`);
+  const expensesPath = ledgerPath(formData, "/expenses");
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(expensesPath);
+  revalidatePath(`${expensesPath}/${expenseId}`);
+  redirect(`${expensesPath}/${expenseId}?updated=1#expense-details`);
 }
 
 export async function replaceExpenseSharesAction(
@@ -191,7 +195,7 @@ export async function replaceExpenseSharesAction(
   }
 
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = await actionLedger(session, formData, "expenses.edit");
     await ledger.replaceExpenseShares(expenseId, result.value, chargeResult.value);
   } catch (error) {
     return {
@@ -208,8 +212,9 @@ export async function replaceExpenseSharesAction(
     };
   }
 
-  revalidatePath(`/app/expenses/${expenseId}`);
-  redirect(`/app/expenses/${expenseId}?splitSaved=1#friend-shares`);
+  const expensePath = `${ledgerPath(formData, "/expenses")}/${expenseId}`;
+  revalidatePath(expensePath);
+  redirect(`${expensePath}?splitSaved=1#friend-shares`);
 }
 
 export async function deleteExpenseAction(
@@ -222,7 +227,7 @@ export async function deleteExpenseAction(
   const expectedImpactRevision = parseImpactRevision(formData);
   if (!expectedImpactRevision) return { formError: "Impact revision is invalid." };
 
-  const { ledger: repository } = await getAuthenticatedLedger(session);
+  const { ledger: repository } = await actionLedger(session, formData, "expenses.delete");
   let result;
   try {
     let cascadeDependents;
@@ -245,23 +250,23 @@ export async function deleteExpenseAction(
     };
   }
 
-  revalidatePath("/app");
-  revalidatePath("/app/history");
-  revalidatePath("/app/expenses");
-  revalidatePath("/app/outings");
-  revalidatePath("/app/repayments");
-  revalidatePath("/app/friends");
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(ledgerPath(formData, "/history"));
+  revalidatePath(ledgerPath(formData, "/expenses"));
+  revalidatePath(ledgerPath(formData, "/outings"));
+  revalidatePath(ledgerPath(formData, "/repayments"));
+  revalidatePath(ledgerPath(formData, "/friends"));
   for (const friendId of result.friendIds) {
-    revalidatePath(`/app/friends/${friendId}`);
+    revalidatePath(`${ledgerPath(formData, "/friends")}/${friendId}`);
   }
   for (const repaymentId of result.repaymentIds) {
-    revalidatePath(`/app/repayments/${repaymentId}`);
+    revalidatePath(`${ledgerPath(formData, "/repayments")}/${repaymentId}`);
   }
-  revalidatePath("/share/[token]", "page");
+  if (!formData.get("organizationId")) revalidatePath("/share/[token]", "page");
   const feedback = new URLSearchParams({ deleted: "1" });
   if (result.reallocatedAmount > 0 || result.unallocatedAmount > 0) {
     feedback.set("reallocated", String(result.reallocatedAmount));
     feedback.set("unallocated", String(result.unallocatedAmount));
   }
-  redirect(`/app/expenses?${feedback.toString()}`);
+  redirect(`${ledgerPath(formData, "/expenses")}?${feedback.toString()}`);
 }

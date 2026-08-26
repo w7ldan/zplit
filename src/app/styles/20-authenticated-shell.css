@@ -2147,3 +2147,57 @@ body.global-search-open {
   background: var(--surface);
   color: var(--ink);
 }
+
+.organization-context {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem 4rem 0;
+}
+
+.organization-context__identity {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.organization-context__identity .organization-detail__identity h1 {
+  font-size: 1.5rem;
+}
+
+.organization-context__nav {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.75rem;
+}
+
+.organization-context__nav a {
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+
+.organization-context__nav a:hover,
+.organization-context__nav a:focus-visible {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.organization-ledger-summary {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.organization-ledger-summary div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+@media (max-width: 767px) {
+  .organization-context {
+    padding: 1rem;
+  }
+}

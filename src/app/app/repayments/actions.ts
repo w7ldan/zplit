@@ -26,6 +26,7 @@ import { paymentMethodFormState, parsePaymentMethodFields, type PaymentMethodFor
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { parseCascadeConfirmation, parseImpactRevision } from "@/domain/deletion-confirmation";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { getLedgerForAction, ledgerPath } from "@/server/organization-ledger";
 
 export type RepaymentActionState = {
   fieldErrors: RepaymentFieldErrors;
@@ -52,6 +53,8 @@ export type RepaymentAllocationUndoState =
   | { ok: false; message: string };
 
 export type RepaymentDeleteActionState = DeleteRecordActionState;
+
+const actionLedger = (session: Awaited<ReturnType<typeof requireSession>>, formData: FormData, capability: "repayments.create" | "repayments.edit" | "repayments.delete") => getLedgerForAction(session, formData, capability, () => getAuthenticatedLedger(session));
 
 export async function searchFriendOptions(query = "", selectedId?: string): Promise<SearchableOption[]> {
   const { ledger } = await getAuthenticatedLedger();
@@ -129,14 +132,15 @@ function allocationValuesFromForm(formData: FormData) {
   return validateRepaymentAllocationInput(values);
 }
 
-function revalidateAllocationRoutes({ repaymentId, expenseId, friendId }: { repaymentId: string; expenseId: string; friendId: string }) {
-  revalidatePath("/app");
-  revalidatePath("/app/history");
-  revalidatePath("/app/repayments");
-  revalidatePath("/app/expenses");
-  revalidatePath(`/app/repayments/${repaymentId}`);
-  revalidatePath(`/app/expenses/${expenseId}`);
-  revalidatePath(`/app/friends/${friendId}`);
+function revalidateAllocationRoutes({ repaymentId, expenseId, friendId }: { repaymentId: string; expenseId: string; friendId: string }, formData?: FormData) {
+  const path = (suffix: string) => formData ? ledgerPath(formData, suffix) : `/app${suffix}`;
+  revalidatePath(path(""));
+  revalidatePath(path("/history"));
+  revalidatePath(path("/repayments"));
+  revalidatePath(path("/expenses"));
+  revalidatePath(`${path("/repayments")}/${repaymentId}`);
+  revalidatePath(`${path("/expenses")}/${expenseId}`);
+  revalidatePath(`${path("/friends")}/${friendId}`);
 }
 
 export async function createRepaymentAction(
@@ -149,7 +153,7 @@ export async function createRepaymentAction(
   if (!result.ok) return { ...invalidState(result, paymentMethodForm), allocations: allocationResult.ok ? allocationResult.values : allocationResult.values, allocationFieldErrors: allocationResult.ok ? {} : allocationResult.errors };
   if (!allocationResult.ok) return { fieldErrors: {}, formError: "Please correct the marked fields.", values: result.values, allocations: allocationResult.values, allocationFieldErrors: allocationResult.errors, paymentMethodForm };
 
-  const { ledger: repository } = await getAuthenticatedLedger(session);
+  const { ledger: repository } = await actionLedger(session, formData, "repayments.create");
   let contextTripId: string | undefined;
   const requestedTripId = normalizeUuid(typeof formData.get("tripId") === "string" ? formData.get("tripId") : undefined);
   if (requestedTripId) {
@@ -178,12 +182,12 @@ export async function createRepaymentAction(
   } catch (error) {
     return errorState(error, result.values, allocationResult.values, {}, paymentMethodForm);
   }
-  revalidatePath("/app");
-  revalidatePath("/app/repayments");
-  if (contextTripId) revalidatePath(`/app/trips/${contextTripId}`);
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(ledgerPath(formData, "/repayments"));
+  if (contextTripId) revalidatePath(`${ledgerPath(formData, "/trips")}/${contextTripId}`);
   const redirectQuery = new URLSearchParams({ created: "1" });
   if (contextTripId) redirectQuery.set("tripId", contextTripId);
-  redirect(`/app/repayments/${encodeURIComponent(repayment.id)}?${redirectQuery.toString()}`);
+  redirect(`${ledgerPath(formData, "/repayments")}/${encodeURIComponent(repayment.id)}?${redirectQuery.toString()}`);
 }
 
 export async function updateRepaymentAction(
@@ -196,16 +200,17 @@ export async function updateRepaymentAction(
   if (!result.ok) return invalidState(result, paymentMethodForm);
 
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = await actionLedger(session, formData, "repayments.edit");
     await ledger.updateRepayment(repaymentId, result.value);
   } catch (error) {
     return errorState(error, result.values, [], {}, paymentMethodForm);
   }
 
-  revalidatePath("/app");
-  revalidatePath("/app/repayments");
-  revalidatePath(`/app/repayments/${repaymentId}`);
-  redirect(`/app/repayments/${repaymentId}?saved=1`);
+  const repaymentsPath = ledgerPath(formData, "/repayments");
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(repaymentsPath);
+  revalidatePath(`${repaymentsPath}/${repaymentId}`);
+  redirect(`${repaymentsPath}/${repaymentId}?saved=1`);
 }
 
 export async function replaceRepaymentAllocationsAction(
@@ -221,7 +226,7 @@ export async function replaceRepaymentAllocationsAction(
   const allocationPage = formData.get("allocationPage");
   const hasAllocationContext = allocationQuery !== null || allocationPage !== null;
   try {
-    const { ledger: repository } = await getAuthenticatedLedger(session);
+    const { ledger: repository } = await actionLedger(session, formData, "repayments.edit");
     if (hasAllocationContext) {
       await repository.replaceRepaymentAllocations(repaymentId, result.value, { q: allocationQuery, page: allocationPage });
     } else {
@@ -239,29 +244,28 @@ export async function replaceRepaymentAllocationsAction(
     };
   }
 
-  revalidatePath("/app");
-  revalidatePath("/app/repayments");
-  revalidatePath(`/app/repayments/${repaymentId}`);
-  if (!hasAllocationContext) redirect(`/app/repayments/${repaymentId}?saved=1`);
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(ledgerPath(formData, "/repayments"));
+  revalidatePath(`${ledgerPath(formData, "/repayments")}/${repaymentId}`);
+  if (!hasAllocationContext) redirect(`${ledgerPath(formData, "/repayments")}/${repaymentId}?saved=1`);
   const query = new URLSearchParams({ saved: "1" });
   if (typeof allocationQuery === "string" && allocationQuery.trim()) query.set("q", allocationQuery.trim());
   if (typeof allocationPage === "string" && /^[1-9]\d*$/.test(allocationPage)) query.set("page", allocationPage);
-  redirect(`/app/repayments/${repaymentId}?${query.toString()}#repayment-allocations`);
+  redirect(`${ledgerPath(formData, "/repayments")}/${repaymentId}?${query.toString()}#repayment-allocations`);
 }
 
 export async function removeRepaymentAllocationAction(
   repaymentId: string,
   expenseShareId: string,
   _previousState: RepaymentAllocationRemovalActionState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<RepaymentAllocationRemovalActionState> {
   void _previousState;
-  void _formData;
   const session = await requireSession();
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = await actionLedger(session, formData, "repayments.edit");
     const result = await ledger.removeRepaymentAllocation(repaymentId, expenseShareId);
-    revalidateAllocationRoutes(result);
+    revalidateAllocationRoutes(result, formData);
     return { formError: "", removalReceipt: result.reversalReceipt };
   } catch (error) {
     return {
@@ -272,12 +276,12 @@ export async function removeRepaymentAllocationAction(
   }
 }
 
-export async function undoRepaymentAllocationAction(receipt: RepaymentAllocationReversalReceipt): Promise<RepaymentAllocationUndoState> {
+export async function undoRepaymentAllocationAction(receipt: RepaymentAllocationReversalReceipt, formData?: FormData): Promise<RepaymentAllocationUndoState> {
   const session = await requireSession();
   try {
-    const { ledger } = await getAuthenticatedLedger(session);
+    const { ledger } = formData ? await actionLedger(session, formData, "repayments.edit") : await getAuthenticatedLedger(session);
     const result = await ledger.undoRepaymentAllocation(receipt);
-    revalidateAllocationRoutes(result);
+    revalidateAllocationRoutes(result, formData);
     return { ok: true };
   } catch (error) {
     return {
@@ -301,7 +305,7 @@ export async function deleteRepaymentAction(
   const expectedImpactRevision = parseImpactRevision(formData);
   if (!expectedImpactRevision) return { formError: "Impact revision is invalid." };
 
-  const { ledger: repository } = await getAuthenticatedLedger(session);
+  const { ledger: repository } = await actionLedger(session, formData, "repayments.delete");
   let result;
   try {
     let cascadeDependents;
@@ -324,14 +328,14 @@ export async function deleteRepaymentAction(
     };
   }
 
-  revalidatePath("/app");
-  revalidatePath("/app/history");
-  revalidatePath("/app/repayments");
-  revalidatePath("/app/expenses");
-  revalidatePath("/app/friends");
+  revalidatePath(ledgerPath(formData, "/app"));
+  revalidatePath(ledgerPath(formData, "/history"));
+  revalidatePath(ledgerPath(formData, "/repayments"));
+  revalidatePath(ledgerPath(formData, "/expenses"));
+  revalidatePath(ledgerPath(formData, "/friends"));
   for (const friendId of result.friendIds) {
-    revalidatePath(`/app/friends/${friendId}`);
+    revalidatePath(`${ledgerPath(formData, "/friends")}/${friendId}`);
   }
-  revalidatePath("/share/[token]", "page");
-  redirect("/app/repayments?deleted=1");
+  if (!formData.get("organizationId")) revalidatePath("/share/[token]", "page");
+  redirect(`${ledgerPath(formData, "/repayments")}?deleted=1`);
 }
