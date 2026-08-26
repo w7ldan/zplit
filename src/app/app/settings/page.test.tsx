@@ -49,6 +49,10 @@ describe("/app/settings", () => {
     expect(document.querySelector(".settings-page__identity > .user-avatar")).toBeInTheDocument();
     expect(document.querySelector(".settings-page__identity > .settings-page__identity-details .settings-page__avatar-control")).toBeInTheDocument();
     expect(document.querySelector(".settings-page__identity-name")).toHaveTextContent("Wildan");
+    const nameTerm = screen.getByText("Name", { selector: "dt" });
+    const usernameTerm = screen.getByText("Username", { selector: "dt" });
+    expect(nameTerm.closest("dl")).toContainElement(screen.getByText("Wildan", { selector: "dd" }));
+    expect(usernameTerm.closest("dl")).toContainElement(screen.getByText("@wildan").closest("dd"));
     expect(screen.getByText("@wildan")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Change photo" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Repayment destinations" })).toBeInTheDocument();

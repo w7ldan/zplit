@@ -4171,6 +4171,11 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   border-top: 1px solid var(--rule);
 }
 
+.settings-page__profile-block + .settings-page__profile-block--appearance {
+  padding-top: 0;
+  border-top: 0;
+}
+
 .settings-page__account-details {
   margin: 0.75rem 0 0;
 }
@@ -4194,6 +4199,13 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   display: grid;
   min-width: 0;
   gap: 0.2rem;
+}
+
+.settings-page__identity-details-list {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+  margin: 0;
 }
 
 .settings-page__identity-name {

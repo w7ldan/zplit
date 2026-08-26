@@ -56,8 +56,10 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
             <div className="settings-page__profile-column settings-page__profile-column--identity">
               <p className="technical-label">Identity</p>
               <AvatarSettings userId={user.id} avatar={avatar}>
-                <dt>Name</dt><dd className="settings-page__identity-name">{user.name}</dd>
-                <dt>Username</dt><dd><UsernameSettings username={user.username} action={updateUsernameAction} /></dd>
+                <dl className="settings-page__identity-details-list">
+                  <dt>Name</dt><dd className="settings-page__identity-name">{user.name}</dd>
+                  <dt>Username</dt><dd><UsernameSettings username={user.username} action={updateUsernameAction} /></dd>
+                </dl>
               </AvatarSettings>
             </div>
             <div className="settings-page__profile-column settings-page__profile-column--account">
@@ -65,7 +67,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
                 <p className="technical-label">Account</p>
                 <dl className="settings-page__account-details"><div><dt>Sign-in email</dt><dd>{user.email}</dd></div></dl>
               </div>
-              <div className="settings-page__profile-block">
+              <div className="settings-page__profile-block settings-page__profile-block--appearance">
                 <p className="technical-label">Appearance</p>
                 <ThemeControl />
               </div>
