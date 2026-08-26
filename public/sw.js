@@ -1,4 +1,4 @@
-const CACHE_NAME = "zplit-static-v1";
+const CACHE_NAME = "zplit-static-v2";
 const PRECACHE_URLS = [
   "/offline",
   "/icons/favicon.svg",

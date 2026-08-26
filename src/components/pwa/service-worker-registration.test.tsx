@@ -28,7 +28,7 @@ describe("service worker registration", () => {
     Object.defineProperty(navigator, "serviceWorker", { configurable: true, value: { register } });
 
     render(<ServiceWorkerRegistration />);
-    await waitFor(() => expect(register).toHaveBeenCalledWith("/sw.js", { scope: "/" }));
+    await waitFor(() => expect(register).toHaveBeenCalledWith("/sw.js?v=2", { scope: "/" }));
     vi.unstubAllEnvs();
   });
 });
@@ -61,13 +61,14 @@ describe("service worker policy", () => {
     const deleted = vi.fn().mockResolvedValue(true);
     const waitUntil = vi.fn();
     const listeners = loadWorker({
-      caches: { keys: vi.fn().mockResolvedValue(["zplit-static-v0", "zplit-static-v1", "other-cache"]), delete: deleted },
+      caches: { keys: vi.fn().mockResolvedValue(["zplit-static-v0", "zplit-static-v1", "zplit-static-v2", "other-cache"]), delete: deleted },
     });
     listeners.activate({ waitUntil });
 
     await waitUntil.mock.calls[0][0];
     expect(deleted).toHaveBeenCalledWith("zplit-static-v0");
-    expect(deleted).not.toHaveBeenCalledWith("zplit-static-v1");
+    expect(deleted).toHaveBeenCalledWith("zplit-static-v1");
+    expect(deleted).not.toHaveBeenCalledWith("zplit-static-v2");
     expect(deleted).not.toHaveBeenCalledWith("other-cache");
   });
 });

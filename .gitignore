@@ -22,3 +22,5 @@ zplit.zip
 .env
 .env.*
 !.env.example
+
+AGENTS.md

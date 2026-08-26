@@ -28,7 +28,7 @@ export function ServiceWorkerRegistration() {
       return () => { cancelled = true; };
     }
 
-    void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((error: unknown) => {
+    void navigator.serviceWorker.register("/sw.js?v=2", { scope: "/" }).catch((error: unknown) => {
       if (!cancelled && process.env.NODE_ENV !== "production") console.warn("Zplit service worker registration failed", error);
     });
     return () => { cancelled = true; };
