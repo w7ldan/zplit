@@ -78,8 +78,6 @@ export function AppShell({ user, canManageInvites, initialUnreadCount = 0, child
         actions={(
           <>
             <GlobalSearch />
-            <InboxControl initialUnreadCount={initialUnreadCount} active={isCurrent(pathname, "/app/inbox")} />
-            <Link className="action-link action-link--primary app-shell__add-expense" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
             <details className="account-menu">
               <summary aria-label={`Open account menu for ${user.name}`}><UserAvatar userId={user.id} customAvatar={user.avatar} size="sm" decorative /><span className="account-menu__name">{user.name}</span></summary>
               <div className="account-menu__panel">
@@ -94,6 +92,7 @@ export function AppShell({ user, canManageInvites, initialUnreadCount = 0, child
                 <SignOutButton />
               </div>
             </details>
+            <InboxControl initialUnreadCount={initialUnreadCount} active={isCurrent(pathname, "/app/inbox")} />
           </>
         )}
       />

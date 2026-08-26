@@ -4142,15 +4142,13 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .settings-page__profile {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   gap: 1rem;
-  max-width: 40rem;
   margin: 1.25rem 0 0;
 }
 
 .settings-page__identity {
   display: grid;
-  grid-column: 1 / -1;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: 1rem;

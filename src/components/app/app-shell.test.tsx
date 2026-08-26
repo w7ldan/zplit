@@ -33,7 +33,9 @@ describe("AppShell", () => {
       "/app/organizations",
     ]);
     expect(within(primary).queryByRole("link", { name: "Trips" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
+    const actions = document.querySelector<HTMLElement>(".app-shell__actions")!;
+    expect(Array.from(actions.children).map((child) => child.className)).toEqual(["global-search-trigger", "account-menu", "inbox-control"]);
+    expect(within(actions).queryByRole("link", { name: "Add expense" })).not.toBeInTheDocument();
     expect(within(primary).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");
     expect(screen.getByRole("link", { name: "Exports" })).toHaveAttribute("href", "/app/exports");

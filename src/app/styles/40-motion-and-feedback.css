@@ -389,16 +389,6 @@
     display: none;
   }
 
-  .app-shell__add-expense {
-    order: 2;
-    min-height: 2.5rem;
-    padding-inline: 0.7rem;
-  }
-
-  .account-menu {
-    order: 3;
-  }
-
   .account-menu__name {
     max-width: 5rem;
   }

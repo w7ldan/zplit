@@ -28,7 +28,7 @@ describe("authenticated app shell", () => {
     await expect(AppLayout({ children: <p>Private content</p> })).rejects.toThrow("redirect:/login");
   });
 
-  it("renders active navigation, account menu, and the stable expense action", async () => {
+  it("renders active navigation and the account menu without a global expense action", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "user-a", name: "Wildan", email: "owner@example.com" } });
     mocks.resolveInstallationOwner.mockResolvedValue({ id: "user-a" });
     mocks.getUnreadNotificationCount.mockResolvedValue(0);
@@ -46,7 +46,7 @@ describe("authenticated app shell", () => {
     expect(within(navigation).getByRole("link", { name: "Organizations" })).toHaveAttribute("href", "/app/organizations");
     expect(screen.getByRole("link", { name: "Invitations" })).toHaveAttribute("href", "/app/invites");
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");
-    expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", "/app/expenses?create=1");
+    expect(screen.queryByRole("link", { name: "Add expense" })).not.toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Personal" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("navigation", { name: "Mobile ledger navigation" }).querySelectorAll("a")).toHaveLength(3);
     expect(screen.getByText("owner@example.com")).toBeInTheDocument();
