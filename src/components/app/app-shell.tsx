@@ -77,6 +77,7 @@ export function AppShell({ user, canManageInvites, initialUnreadCount = 0, child
         )}
         actions={(
           <>
+            <InboxControl initialUnreadCount={initialUnreadCount} active={isCurrent(pathname, "/app/inbox")} />
             <GlobalSearch />
             <details className="account-menu">
               <summary aria-label={`Open account menu for ${user.name}`}><UserAvatar userId={user.id} customAvatar={user.avatar} size="sm" decorative /><span className="account-menu__name">{user.name}</span></summary>
@@ -92,7 +93,6 @@ export function AppShell({ user, canManageInvites, initialUnreadCount = 0, child
                 <SignOutButton />
               </div>
             </details>
-            <InboxControl initialUnreadCount={initialUnreadCount} active={isCurrent(pathname, "/app/inbox")} />
           </>
         )}
       />

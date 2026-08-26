@@ -4142,9 +4142,42 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .settings-page__profile {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 2rem;
   margin: 1.25rem 0 0;
+}
+
+.settings-page__profile-column {
+  min-width: 0;
+}
+
+.settings-page__profile-column--identity > .technical-label,
+.settings-page__profile-block > .technical-label {
+  margin: 0;
+}
+
+.settings-page__profile-column--identity > .technical-label {
+  margin-bottom: 0.75rem;
+}
+
+.settings-page__profile-column--account {
+  display: grid;
+  align-content: start;
+  gap: 1.25rem;
+}
+
+.settings-page__profile-block + .settings-page__profile-block {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+
+.settings-page__account-details {
+  margin: 0.75rem 0 0;
+}
+
+.settings-page__account-details > div {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .settings-page__identity {
@@ -4167,11 +4200,6 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   overflow-wrap: anywhere;
   font-size: 1.15rem;
   font-weight: 700;
-}
-
-.settings-page__profile > div {
-  display: grid;
-  gap: 0.25rem;
 }
 
 .settings-page__profile dt,
@@ -4614,6 +4642,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
   .settings-page__profile {
     grid-template-columns: 1fr;
+    gap: 1.25rem;
   }
 
   .settings-page__section-heading,

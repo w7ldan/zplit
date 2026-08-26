@@ -37,10 +37,13 @@ describe("/app/settings", () => {
     mocks.getAuthenticatedLedger.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", username: "wildan", email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue(destinations) } });
   });
 
-  it("renders modular profile, repayment, and appearance sections", async () => {
+  it("renders the two-column account workspace and repayment destinations", async () => {
     render(await SettingsPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Account context" })).toBeInTheDocument();
+    expect(document.querySelector(".settings-page__profile-column--identity")).toContainElement(screen.getByText("Identity", { selector: "p" }));
+    expect(document.querySelector(".settings-page__profile-column--account")).toContainElement(screen.getByText("Account", { selector: "p" }));
+    expect(document.querySelector(".settings-page__profile-column--account")).toContainElement(screen.getByText("Appearance", { selector: "p" }));
     expect(document.querySelectorAll(".settings-page__identity .user-avatar")).toHaveLength(1);
     expect(document.querySelector(".settings-page__identity svg")).toBeInTheDocument();
     expect(document.querySelector(".settings-page__identity > .user-avatar")).toBeInTheDocument();
@@ -49,7 +52,8 @@ describe("/app/settings", () => {
     expect(screen.getByText("@wildan")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Change photo" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Repayment destinations" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Theme" })).toBeInTheDocument();
+    expect(screen.getByText("Sign-in email")).toBeInTheDocument();
+    expect(screen.getByText("owner@example.com")).toBeInTheDocument();
     expect(screen.getByText("BCA")).toBeInTheDocument();
     expect(screen.getByText("GoPay")).toBeInTheDocument();
     expect(screen.getByText("Shown on balance links")).toBeInTheDocument();
@@ -61,6 +65,7 @@ describe("/app/settings", () => {
     expect(screen.getAllByText("Edit", { exact: true })).toHaveLength(3);
     expect(screen.getByRole("button", { name: "New destination" })).toBeInTheDocument();
     expect(screen.queryByText("ADD DESTINATION")).not.toBeInTheDocument();
+    expect(document.querySelectorAll(".theme-control")).toHaveLength(1);
     expect(screen.getByRole("combobox", { name: "Theme" })).toBeInTheDocument();
   });
 

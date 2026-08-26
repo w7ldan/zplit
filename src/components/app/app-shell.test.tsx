@@ -34,7 +34,7 @@ describe("AppShell", () => {
     ]);
     expect(within(primary).queryByRole("link", { name: "Trips" })).not.toBeInTheDocument();
     const actions = document.querySelector<HTMLElement>(".app-shell__actions")!;
-    expect(Array.from(actions.children).map((child) => child.className)).toEqual(["global-search-trigger", "account-menu", "inbox-control"]);
+    expect(Array.from(actions.children).map((child) => child.className)).toEqual(["inbox-control", "global-search-trigger", "account-menu"]);
     expect(within(actions).queryByRole("link", { name: "Add expense" })).not.toBeInTheDocument();
     expect(within(primary).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");

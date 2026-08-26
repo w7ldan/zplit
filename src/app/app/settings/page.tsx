@@ -52,21 +52,29 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
         {first(query.error) === "1" ? <p className="settings-page__error" role="alert">Unable to save that settings change.</p> : null}
         <section className="settings-page__section" aria-labelledby="settings-profile-heading">
           <div className="settings-page__section-heading"><div><p className="technical-label">Profile</p><h2 id="settings-profile-heading">Account context</h2></div></div>
-          <dl className="settings-page__profile">
-            <AvatarSettings userId={user.id} avatar={avatar}>
-              <dt>Name</dt><dd className="settings-page__identity-name">{user.name}</dd>
-              <dt>Username</dt><dd><UsernameSettings username={user.username} action={updateUsernameAction} /></dd>
-            </AvatarSettings>
-            <div><dt>Email</dt><dd>{user.email}</dd></div>
-          </dl>
+          <div className="settings-page__profile">
+            <div className="settings-page__profile-column settings-page__profile-column--identity">
+              <p className="technical-label">Identity</p>
+              <AvatarSettings userId={user.id} avatar={avatar}>
+                <dt>Name</dt><dd className="settings-page__identity-name">{user.name}</dd>
+                <dt>Username</dt><dd><UsernameSettings username={user.username} action={updateUsernameAction} /></dd>
+              </AvatarSettings>
+            </div>
+            <div className="settings-page__profile-column settings-page__profile-column--account">
+              <div className="settings-page__profile-block">
+                <p className="technical-label">Account</p>
+                <dl className="settings-page__account-details"><div><dt>Sign-in email</dt><dd>{user.email}</dd></div></dl>
+              </div>
+              <div className="settings-page__profile-block">
+                <p className="technical-label">Appearance</p>
+                <ThemeControl />
+              </div>
+            </div>
+          </div>
         </section>
         <section className="settings-page__section ledger-section" id="repays-to" aria-labelledby="settings-repayment-heading">
           <div className="settings-page__section-heading"><div><p className="technical-label">Repays to</p><h2 id="settings-repayment-heading">Repayment destinations</h2><p>Choose where friends can repay you. Destinations marked as shared appear on active balance links.</p></div><span className="technical-label">{destinations.length} destinations</span></div>
           <RepaymentDestinationsSettings destinations={destinationEntries} createAction={createRepaymentDestinationAction} setOrderAction={setRepaymentDestinationOrderAction} />
-        </section>
-        <section className="settings-page__section" aria-labelledby="settings-appearance-heading">
-          <div className="settings-page__section-heading"><div><p className="technical-label">Appearance</p><h2 id="settings-appearance-heading">Theme</h2><p>The same theme preference is available from your account menu.</p></div></div>
-          <ThemeControl />
         </section>
       </div>
     </section>
