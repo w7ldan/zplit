@@ -22,7 +22,7 @@ export default async function OrganizationLayout({ children, params }: { childre
       <Link href="/app/organizations" className="organization-detail__back text-link">← Organizations</Link>
       <div className="organization-context__identity"><OrganizationIdentity organization={organization} /><div className="organization-context__facts"><span><span className="technical-label">ROLE</span>{organization.role[0]?.toUpperCase()}{organization.role.slice(1)}</span><span><span className="technical-label">MEMBERS</span>{organization.memberCount}</span></div></div>
       {organization.description ? <p className="organization-detail__description">{organization.description}</p> : null}
-      <OrganizationNavigation organizationId={organizationId} canViewLedger={organization.canViewLedger} canViewPeople={organization.canViewMembers || organization.canViewLedger} canViewSettings={organization.canViewLedger} />
+      <OrganizationNavigation organizationId={organizationId} canViewLedger={organization.canViewLedger} canViewPeople={organization.canViewMembers || organization.canViewLedger} canViewSettings={organization.canUpdate || organization.canDelete || organization.canManageRepaymentDestinations || organization.canExport} />
     </header>
     {children}
   </>;

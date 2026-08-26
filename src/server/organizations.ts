@@ -25,7 +25,7 @@ export type OrganizationSummary = {
   memberCount: number;
   avatar: OrganizationAvatarMetadata | null;
 };
-export type OrganizationDetail = OrganizationSummary & { canUpdate: boolean; canDelete: boolean; canViewMembers: boolean; canViewLedger: boolean; canExport: boolean; invitationRoles: OrganizationInvitationRole[] };
+export type OrganizationDetail = OrganizationSummary & { canUpdate: boolean; canDelete: boolean; canViewMembers: boolean; canViewLedger: boolean; canManageRepaymentDestinations: boolean; canExport: boolean; invitationRoles: OrganizationInvitationRole[] };
 
 export class OrganizationError extends Error {
   constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden" | "ledger_not_empty") {
@@ -157,6 +157,7 @@ export async function getOrganizationForMember(database: Database, organizationI
     canDelete: access.can("organization.delete"),
     canViewMembers: access.can("members.view"),
     canViewLedger: access.can("ledger.view"),
+    canManageRepaymentDestinations: access.can("repayment_destinations.manage"),
     canExport: access.can("exports.create"),
     invitationRoles: getOrganizationInvitationRoles(access.can),
   };

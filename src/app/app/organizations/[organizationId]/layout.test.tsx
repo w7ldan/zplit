@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => mocks.
 
 import OrganizationLayout from "./layout";
 
-const organization = { id: "org-a", name: "Studio", description: "Shared work", role: "admin" as OrganizationRole, memberCount: 3, avatar: null, canViewLedger: true, canViewMembers: true, canExport: true, canUpdate: true, canDelete: false, invitationRoles: ["member"] };
+const organization = { id: "org-a", name: "Studio", description: "Shared work", role: "admin" as OrganizationRole, memberCount: 3, avatar: null, canViewLedger: true, canViewMembers: true, canManageRepaymentDestinations: true, canExport: true, canUpdate: true, canDelete: false, invitationRoles: ["member"] };
 
 describe("Organization navigation", () => {
   beforeEach(() => {
@@ -34,10 +34,16 @@ describe("Organization navigation", () => {
   });
 
   it("does not expose ledger navigation without ledger access", async () => {
-    mocks.getOrganizationForMember.mockResolvedValue({ ...organization, canViewLedger: false, canViewMembers: true, canExport: false, canUpdate: false });
+    mocks.getOrganizationForMember.mockResolvedValue({ ...organization, canViewLedger: false, canViewMembers: true, canManageRepaymentDestinations: false, canExport: false, canUpdate: false });
     render(await OrganizationLayout({ params: Promise.resolve({ organizationId: "org-a" }), children: <p>Content</p> }));
     const navigation = screen.getByRole("navigation", { name: "Organization navigation" });
     expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "People"]);
     expect(screen.queryByRole("navigation", { name: "Organization activity navigation" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Settings discoverable for organization.update without ledger.view", async () => {
+    mocks.getOrganizationForMember.mockResolvedValue({ ...organization, canViewLedger: false, canViewMembers: false, canManageRepaymentDestinations: false, canExport: false, canUpdate: true });
+    render(await OrganizationLayout({ params: Promise.resolve({ organizationId: "org-a" }), children: <p>Content</p> }));
+    expect(within(screen.getByRole("navigation", { name: "Organization navigation" })).getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "Settings"]);
   });
 });
