@@ -10,6 +10,7 @@ import {
   expenseShares,
   expenses,
   friends,
+  ledgerScopes,
   outings,
   repaymentAllocations,
   repayments,
@@ -243,12 +244,12 @@ async function findMatchingCredentialAccount(db: Database, email: string): Promi
 
 async function hasDomainRows(db: Database, userId: string) {
   const result = await db.execute(sql`
-    SELECT EXISTS (SELECT 1 FROM ${friends} WHERE ${friends.ownerUserId} = ${userId})
-      OR EXISTS (SELECT 1 FROM ${outings} WHERE ${outings.ownerUserId} = ${userId})
-      OR EXISTS (SELECT 1 FROM ${expenses} WHERE ${expenses.ownerUserId} = ${userId})
-      OR EXISTS (SELECT 1 FROM ${expenseShares} WHERE ${expenseShares.ownerUserId} = ${userId})
-      OR EXISTS (SELECT 1 FROM ${repayments} WHERE ${repayments.ownerUserId} = ${userId})
-      OR EXISTS (SELECT 1 FROM ${repaymentAllocations} WHERE ${repaymentAllocations.ownerUserId} = ${userId})
+    SELECT EXISTS (SELECT 1 FROM ${friends} WHERE ${friends.ledgerScopeId} = (SELECT id FROM ${ledgerScopes} WHERE ${ledgerScopes.kind} = 'personal' AND ${ledgerScopes.userId} = ${userId}))
+      OR EXISTS (SELECT 1 FROM ${outings} WHERE ${outings.ledgerScopeId} = (SELECT id FROM ${ledgerScopes} WHERE ${ledgerScopes.kind} = 'personal' AND ${ledgerScopes.userId} = ${userId}))
+      OR EXISTS (SELECT 1 FROM ${expenses} WHERE ${expenses.ledgerScopeId} = (SELECT id FROM ${ledgerScopes} WHERE ${ledgerScopes.kind} = 'personal' AND ${ledgerScopes.userId} = ${userId}))
+      OR EXISTS (SELECT 1 FROM ${expenseShares} WHERE ${expenseShares.ledgerScopeId} = (SELECT id FROM ${ledgerScopes} WHERE ${ledgerScopes.kind} = 'personal' AND ${ledgerScopes.userId} = ${userId}))
+      OR EXISTS (SELECT 1 FROM ${repayments} WHERE ${repayments.ledgerScopeId} = (SELECT id FROM ${ledgerScopes} WHERE ${ledgerScopes.kind} = 'personal' AND ${ledgerScopes.userId} = ${userId}))
+      OR EXISTS (SELECT 1 FROM ${repaymentAllocations} WHERE ${repaymentAllocations.ledgerScopeId} = (SELECT id FROM ${ledgerScopes} WHERE ${ledgerScopes.kind} = 'personal' AND ${ledgerScopes.userId} = ${userId}))
       AS has_rows
   `);
   return Boolean((result.rows[0] as { has_rows?: boolean } | undefined)?.has_rows);

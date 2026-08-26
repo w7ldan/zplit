@@ -8,7 +8,8 @@ import { RepaymentAllocationEditor } from "@/components/repayments/repayment-all
 import { RepaymentPaymentProof } from "@/components/repayments/repayment-payment-proof";
 import { formatRupiah } from "@/domain/rupiah";
 import { normalizeUuid } from "@/domain/record-retrieval";
-import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { loadRepaymentFriendContext, removeRepaymentAllocationAction, replaceRepaymentAllocationsAction, searchFriendOptions, undoRepaymentAllocationAction, updateRepaymentAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
@@ -27,7 +28,7 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
   const { repaymentId } = await params;
   const query = await searchParams;
   const database = getDatabase();
-  const repository = createLedgerRepository(database, session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   let plan;
   try {
     plan = await repository.getRepaymentAllocationPlan(repaymentId, { q: first(query?.q), page: first(query?.page) });

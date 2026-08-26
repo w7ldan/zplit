@@ -137,7 +137,7 @@ export type RepaymentAllocationReversalReceipt = {
 };
 export type RepaymentRecord = {
   id: string;
-  ownerUserId: string;
+  ledgerScopeId: string;
   friendId: string;
   amount: number;
   paidAt: Date;

@@ -10,11 +10,11 @@ import { clampPage, monthStart, nextMonthStart, normalizeExpenseFilters, normali
 import { assertExpenseChargesInput, assertExpenseId, assertExpenseInput, assertExpenseSharesInput, assertFriendId, assertTripId, shareBaseAmount } from "./validation";
 import type { CreateExpenseInput, DeleteRecordOptions, ExpenseChargeInput, ExpenseChargeRecord, ExpenseDeletionImpact, ExpenseDeletionResult, ExpenseListRecord, ExpenseShareInput, ExpenseSplitDefinition, FriendExpenseShareRecord, OpenExpenseSharesByFriend, UpdateExpenseInput } from "./types";
 
-export function createExpenseReadRepository(database: Database, owner: string) {
+export function createExpenseReadRepository(database: Database, scope: string) {
 function expenseSelection() {
     return {
       id: expenses.id,
-      ownerUserId: expenses.ownerUserId,
+      ledgerScopeId: expenses.ledgerScopeId,
       outingId: expenses.outingId,
       description: expenses.description,
       amount: expenses.amount,
@@ -47,16 +47,16 @@ async function listExpenseChargesFor(transaction: Pick<Database, "select">, expe
       })
       .from(expenseCharges)
       .leftJoin(expenseChargeTargets, and(
-        eq(expenseChargeTargets.ownerUserId, owner),
+        eq(expenseChargeTargets.ledgerScopeId, scope),
         eq(expenseChargeTargets.expenseId, expenseId),
         eq(expenseChargeTargets.expenseChargeId, expenseCharges.id),
       ))
       .leftJoin(expenseShares, and(
-        eq(expenseShares.ownerUserId, owner),
+        eq(expenseShares.ledgerScopeId, scope),
         eq(expenseShares.expenseId, expenseId),
         eq(expenseShares.id, expenseChargeTargets.expenseShareId),
       ))
-      .where(and(eq(expenseCharges.ownerUserId, owner), eq(expenseCharges.expenseId, expenseId)))
+      .where(and(eq(expenseCharges.ledgerScopeId, scope), eq(expenseCharges.expenseId, expenseId)))
       .orderBy(asc(expenseCharges.createdAt), asc(expenseCharges.id), asc(expenseShares.friendId));
     const charges = new Map<string, ExpenseChargeRecord>();
     for (const row of rows) {
@@ -76,21 +76,21 @@ async function listExpenseChargesFor(transaction: Pick<Database, "select">, expe
 async function listExpenseSharesFor(transaction: Pick<Database, "select">, expenseId: string) {
     const allocationTotals = transaction
       .select({
-        ownerUserId: repaymentAllocations.ownerUserId,
+        ledgerScopeId: repaymentAllocations.ledgerScopeId,
         expenseShareId: repaymentAllocations.expenseShareId,
         appliedAmount: sql<number>`sum(${repaymentAllocations.amount})`.mapWith(Number).as("applied_amount"),
       })
       .from(repaymentAllocations)
-      .where(eq(repaymentAllocations.ownerUserId, owner))
-      .groupBy(repaymentAllocations.ownerUserId, repaymentAllocations.expenseShareId)
+      .where(eq(repaymentAllocations.ledgerScopeId, scope))
+      .groupBy(repaymentAllocations.ledgerScopeId, repaymentAllocations.expenseShareId)
       .as("expense_share_allocations");
     const appliedAmount = sql<number>`coalesce(${allocationTotals.appliedAmount}, 0)`.mapWith(Number);
     const rows = await transaction
       .select({ ...shareSelection(), appliedAmount })
       .from(expenseShares)
-      .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
-      .leftJoin(allocationTotals, and(eq(allocationTotals.ownerUserId, owner), eq(allocationTotals.expenseShareId, expenseShares.id)))
-      .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)))
+      .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, expenseShares.friendId)))
+      .leftJoin(allocationTotals, and(eq(allocationTotals.ledgerScopeId, scope), eq(allocationTotals.expenseShareId, expenseShares.id)))
+      .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId)))
       .orderBy(asc(friends.name), asc(expenseShares.id));
     return rows.map((share) => {
       if (share.appliedAmount > share.amountOwed) throw new LedgerIntegrityError(`Allocations exceed expense share ${share.id}.`);
@@ -104,8 +104,8 @@ async function getExpense(expenseId: string) {
       const [expense] = await database
         .select(expenseSelection())
         .from(expenses)
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
         .limit(1);
       if (!expense) return notFound();
       return expense;
@@ -119,8 +119,8 @@ async function listExpenses() {
       return await database
         .select(expenseSelection())
         .from(expenses)
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .where(eq(expenses.ownerUserId, owner))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .where(eq(expenses.ledgerScopeId, scope))
         .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id));
     } catch (error) {
       return persistenceError(error);
@@ -133,8 +133,8 @@ async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; mo
     const assignmentCondition = filters.assignment === "all"
       ? undefined
       : filters.assignment === "assigned"
-        ? sql`exists (select 1 from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.expenseId} = ${expenses.id})`
-        : sql`not exists (select 1 from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.expenseId} = ${expenses.id})`;
+        ? sql`exists (select 1 from ${expenseShares} where ${expenseShares.ledgerScopeId} = ${scope} and ${expenseShares.expenseId} = ${expenses.id})`
+        : sql`not exists (select 1 from ${expenseShares} where ${expenseShares.ledgerScopeId} = ${scope} and ${expenseShares.expenseId} = ${expenses.id})`;
     const amount = parseAmountSearch(filters.q);
     const queryCondition = filters.q
       ? amount === undefined
@@ -142,8 +142,8 @@ async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; mo
         : sql`(${literalContains(expenses.description, filters.q)} OR ${literalContains(outings.title, filters.q)} OR ${eq(expenses.amount, amount)})`
       : undefined;
     const conditions = [
-      eq(expenses.ownerUserId, owner),
-      eq(outings.ownerUserId, owner),
+      eq(expenses.ledgerScopeId, scope),
+      eq(outings.ledgerScopeId, scope),
       ...(queryCondition ? [queryCondition] : []),
       ...(filters.outingId ? [eq(expenses.outingId, filters.outingId)] : []),
       ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
@@ -153,14 +153,14 @@ async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; mo
       const [{ count = 0 } = {}] = await database
         .select({ count: sql<number>`count(*)`.mapWith(Number) })
         .from(expenses)
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
         .where(and(...conditions));
       const totalItems = safeRetrievalInteger(count, "Expense count");
       const page = clampPage(filters.page, totalItems);
       const pageExpenses = database
-        .select({ id: expenses.id, ownerUserId: expenses.ownerUserId })
+        .select({ id: expenses.id, ledgerScopeId: expenses.ledgerScopeId })
         .from(expenses)
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
         .where(and(...conditions))
         .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id))
         .limit(RECORD_PAGE_SIZE)
@@ -169,9 +169,9 @@ async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; mo
       const items = await database
         .select(expenseSelection())
         .from(expenses)
-        .innerJoin(pageExpenses, and(eq(pageExpenses.id, expenses.id), eq(pageExpenses.ownerUserId, expenses.ownerUserId)))
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .where(eq(expenses.ownerUserId, owner))
+        .innerJoin(pageExpenses, and(eq(pageExpenses.id, expenses.id), eq(pageExpenses.ledgerScopeId, expenses.ledgerScopeId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .where(eq(expenses.ledgerScopeId, scope))
         .orderBy(desc(outings.occurredAt), desc(expenses.createdAt), asc(expenses.id));
       return pageResult(items, totalItems, page);
     } catch (error) {
@@ -184,28 +184,28 @@ async function listFriendExpenseShareRecords(friendId: string, options: { page?:
     const page = normalizePage(options.page);
     const allocationTotals = database
       .select({
-        ownerUserId: repaymentAllocations.ownerUserId,
+        ledgerScopeId: repaymentAllocations.ledgerScopeId,
         expenseShareId: repaymentAllocations.expenseShareId,
         appliedAmount: sql<number>`sum(${repaymentAllocations.amount})`.mapWith(Number).as("applied_amount"),
       })
       .from(repaymentAllocations)
-      .where(eq(repaymentAllocations.ownerUserId, owner))
-      .groupBy(repaymentAllocations.ownerUserId, repaymentAllocations.expenseShareId)
+      .where(eq(repaymentAllocations.ledgerScopeId, scope))
+      .groupBy(repaymentAllocations.ledgerScopeId, repaymentAllocations.expenseShareId)
       .as("friend_expense_share_allocations");
     const conditions = [
-      eq(expenseShares.ownerUserId, owner),
+      eq(expenseShares.ledgerScopeId, scope),
       eq(expenseShares.friendId, friendId.trim().toLowerCase()),
-      eq(expenses.ownerUserId, owner),
-      eq(outings.ownerUserId, owner),
-      eq(friends.ownerUserId, owner),
+      eq(expenses.ledgerScopeId, scope),
+      eq(outings.ledgerScopeId, scope),
+      eq(friends.ledgerScopeId, scope),
     ];
     try {
       const [{ count = 0 } = {}] = await database
         .select({ count: sql<number>`count(*)`.mapWith(Number) })
         .from(expenseShares)
-        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
+        .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseShares.expenseId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, expenseShares.friendId)))
         .where(and(...conditions));
       const totalItems = safeRetrievalInteger(count, "Friend expense share count");
       const requestedPage = clampPage(page, totalItems);
@@ -221,10 +221,10 @@ async function listFriendExpenseShareRecords(friendId: string, options: { page?:
           appliedAmount,
         })
         .from(expenseShares)
-        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
-        .leftJoin(allocationTotals, and(eq(allocationTotals.ownerUserId, owner), eq(allocationTotals.expenseShareId, expenseShares.id)))
+        .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseShares.expenseId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, expenseShares.friendId)))
+        .leftJoin(allocationTotals, and(eq(allocationTotals.ledgerScopeId, scope), eq(allocationTotals.expenseShareId, expenseShares.id)))
         .where(and(...conditions))
         .orderBy(
           sql`case when ${appliedAmount} < ${expenseShares.amountOwed} then 0 else 1 end`,
@@ -259,7 +259,7 @@ async function listExpenseShares(expenseId: string) {
       const [expense] = await database
         .select({ id: expenses.id })
         .from(expenses)
-        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
         .limit(1);
       if (!expense) return notFound();
       return await listExpenseSharesFor(database, expenseId);
@@ -274,7 +274,7 @@ async function listExpenseCharges(expenseId: string) {
       const [expense] = await database
         .select({ id: expenses.id })
         .from(expenses)
-        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
         .limit(1);
       if (!expense) return notFound();
       return await listExpenseChargesFor(database, expenseId);
@@ -289,24 +289,24 @@ async function getPreviousExpenseSplit(expenseId: string): Promise<ExpenseSplitD
       const [current] = await database
         .select({ outingId: expenses.outingId })
         .from(expenses)
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
         .limit(1);
       if (!current) return notFound();
 
       const [previous] = await database
         .select({ id: expenses.id })
         .from(expenses)
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
         .where(and(
-          eq(expenses.ownerUserId, owner),
+          eq(expenses.ledgerScopeId, scope),
           eq(expenses.outingId, current.outingId),
           ne(expenses.id, expenseId),
           sql`exists (
             select 1
             from ${expenseShares} previous_shares
-            inner join ${friends} reusable_friends on reusable_friends.owner_user_id = ${owner} and reusable_friends.id = previous_shares.friend_id
-            where previous_shares.owner_user_id = ${owner}
+            inner join ${friends} reusable_friends on reusable_friends.ledger_scope_id = ${scope} and reusable_friends.id = previous_shares.friend_id
+            where previous_shares.ledger_scope_id = ${scope}
               and previous_shares.expense_id = ${expenses.id}
               and reusable_friends.archived_at is null
           )`,
@@ -319,8 +319,8 @@ async function getPreviousExpenseSplit(expenseId: string): Promise<ExpenseSplitD
         database
           .select({ friendId: friends.id, friendName: friends.name, friendArchivedAt: friends.archivedAt, baseAmount: expenseShares.baseAmount })
           .from(expenseShares)
-          .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
-          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, previous.id)))
+          .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, expenseShares.friendId)))
+          .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, previous.id)))
           .orderBy(asc(friends.name), asc(expenseShares.id)),
         listExpenseChargesFor(database, previous.id),
       ]);
@@ -349,17 +349,17 @@ async function listOpenExpenseSharesByFriend(friendId?: string, tripId?: string)
           amountOwed: expenseShares.amountOwed,
         })
         .from(expenseShares)
-        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
-        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .leftJoin(trips, and(eq(trips.ownerUserId, owner), eq(trips.id, outings.tripId)))
-        .where(and(eq(expenseShares.ownerUserId, owner), ...(friendId ? [eq(expenseShares.friendId, friendId)] : []), ...(tripId ? [eq(trips.id, tripId)] : [])))
+        .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, expenseShares.friendId)))
+        .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseShares.expenseId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .leftJoin(trips, and(eq(trips.ledgerScopeId, scope), eq(trips.id, outings.tripId)))
+        .where(and(eq(expenseShares.ledgerScopeId, scope), ...(friendId ? [eq(expenseShares.friendId, friendId)] : []), ...(tripId ? [eq(trips.id, tripId)] : [])))
         .orderBy(asc(friends.name), asc(outings.occurredAt), asc(expenses.createdAt), asc(expenseShares.id));
       const allocations = shares.length
         ? await database
             .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
             .from(repaymentAllocations)
-            .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shares.map((share) => share.id))))
+            .where(and(eq(repaymentAllocations.ledgerScopeId, scope), inArray(repaymentAllocations.expenseShareId, shares.map((share) => share.id))))
         : [];
       const repaidByShare = new Map<string, number>();
       for (const allocation of allocations) {
@@ -399,7 +399,7 @@ async function listOpenExpenseSharesByFriend(friendId?: string, tripId?: string)
 
 export function createExpenseMutationRepository(
   database: Database,
-  owner: string,
+  scope: string,
   read: Pick<ReturnType<typeof createExpenseReadRepository>, "expenseSelection" | "listExpenseChargesFor" | "listExpenseSharesFor">,
   allocations: Pick<RepaymentAllocationRepository, "lockRepaymentAllocationsForShares" | "reconcileDeletedExpenseAllocations">,
 ) {
@@ -413,19 +413,19 @@ async function lockExpenseDependents(
   const receipts = await transaction
     .select({ id: expenseReceipts.id })
     .from(expenseReceipts)
-    .where(and(eq(expenseReceipts.ownerUserId, owner), inArray(expenseReceipts.expenseId, expenseIds)))
+    .where(and(eq(expenseReceipts.ledgerScopeId, scope), inArray(expenseReceipts.expenseId, expenseIds)))
     .orderBy(asc(expenseReceipts.id))
     .for("update");
   const publicReceipts = await transaction
     .select({ id: debtorShareReceipts.id })
     .from(debtorShareReceipts)
-    .where(and(eq(debtorShareReceipts.ownerUserId, owner), inArray(debtorShareReceipts.expenseId, expenseIds)))
+    .where(and(eq(debtorShareReceipts.ledgerScopeId, scope), inArray(debtorShareReceipts.expenseId, expenseIds)))
     .orderBy(asc(debtorShareReceipts.id))
     .for("update");
   const shares = await transaction
     .select({ id: expenseShares.id, friendId: expenseShares.friendId })
     .from(expenseShares)
-    .where(and(eq(expenseShares.ownerUserId, owner), inArray(expenseShares.expenseId, expenseIds)))
+    .where(and(eq(expenseShares.ledgerScopeId, scope), inArray(expenseShares.expenseId, expenseIds)))
     .orderBy(asc(expenseShares.id))
     .for("update");
   const shareIds = safeDeletionIds(shares.map((share) => share.id), "Expense share ID");
@@ -437,7 +437,7 @@ async function assertOwnedOuting(transaction: Parameters<Parameters<Database["tr
     const [outing] = await transaction
       .select({ id: outings.id })
       .from(outings)
-      .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+      .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
       .limit(1);
     if (!outing) return notFound();
   }
@@ -447,13 +447,13 @@ async function createExpense(input: CreateExpenseInput) {
     try {
       return await database.transaction(async (transaction) => {
         await assertOwnedOuting(transaction, input.outingId);
-        const [expense] = await transaction.insert(expenses).values({ ...input, ownerUserId: owner }).returning();
+        const [expense] = await transaction.insert(expenses).values({ ...input, ledgerScopeId: scope }).returning();
         if (!expense) return persistenceError(new Error("expense insert returned no row"));
         const [created] = await transaction
           .select(expenseSelection())
           .from(expenses)
-          .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expense.id)))
+          .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+          .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expense.id)))
           .limit(1);
         if (!created) return persistenceError(new Error("expense insert lookup returned no row"));
         return created;
@@ -471,7 +471,7 @@ async function updateExpense(expenseId: string, input: UpdateExpenseInput) {
         const [currentExpense] = await transaction
           .select({ id: expenses.id, amount: expenses.amount })
           .from(expenses)
-          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
           .limit(1)
           .for("update");
         if (!currentExpense) return notFound();
@@ -479,7 +479,7 @@ async function updateExpense(expenseId: string, input: UpdateExpenseInput) {
         const currentShares = await transaction
           .select({ amountOwed: expenseShares.amountOwed })
           .from(expenseShares)
-          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)));
+          .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId)));
         const assignedTotal = currentShares.reduce((total, share) => total + share.amountOwed, 0);
         if (input.amount < assignedTotal) throw new ExpenseShareInvariantError();
 
@@ -487,14 +487,14 @@ async function updateExpense(expenseId: string, input: UpdateExpenseInput) {
         const [expense] = await transaction
           .update(expenses)
           .set({ ...input, updatedAt: new Date() })
-          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
           .returning();
         if (!expense) return notFound();
         const [updated] = await transaction
           .select(expenseSelection())
           .from(expenses)
-          .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+          .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
           .limit(1);
         if (!updated) return persistenceError(new Error("expense update returned no row"));
         return updated;
@@ -510,16 +510,16 @@ async function getExpenseDeletionImpact(expenseId: string): Promise<ExpenseDelet
       const [expense] = await database
         .select({ id: expenses.id })
         .from(expenses)
-        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+        .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
         .limit(1);
       if (!expense) return notFound();
       const [receiptRows, shareRows] = await Promise.all([
-        database.select({ id: expenseReceipts.id }).from(expenseReceipts).where(and(eq(expenseReceipts.ownerUserId, owner), eq(expenseReceipts.expenseId, expenseId))),
-        database.select({ id: expenseShares.id, friendId: expenseShares.friendId }).from(expenseShares).where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId))),
+        database.select({ id: expenseReceipts.id }).from(expenseReceipts).where(and(eq(expenseReceipts.ledgerScopeId, scope), eq(expenseReceipts.expenseId, expenseId))),
+        database.select({ id: expenseShares.id, friendId: expenseShares.friendId }).from(expenseShares).where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId))),
       ]);
       const shareIds = safeDeletionIds(shareRows.map((share) => share.id), "Expense share ID");
       const allocationRows = shareIds.length
-        ? await database.select({ repaymentId: repaymentAllocations.repaymentId }).from(repaymentAllocations).where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+        ? await database.select({ repaymentId: repaymentAllocations.repaymentId }).from(repaymentAllocations).where(and(eq(repaymentAllocations.ledgerScopeId, scope), inArray(repaymentAllocations.expenseShareId, shareIds)))
         : [];
       const affectedRepaymentIds = safeDeletionIds(allocationRows.map((allocation) => allocation.repaymentId), "Affected repayment ID");
       return {
@@ -544,7 +544,7 @@ async function deleteExpense(expenseId: string, options: DeleteRecordOptions = {
         const [expense] = await transaction
           .select({ id: expenses.id })
           .from(expenses)
-          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
           .limit(1)
           .for("update");
         if (!expense) return notFound();
@@ -563,7 +563,7 @@ async function deleteExpense(expenseId: string, options: DeleteRecordOptions = {
         const reconciliation = await reconcileDeletedExpenseAllocations(transaction, expenseId, dependents.shares, dependents.allocations);
         const deleted = await transaction
           .delete(expenses)
-          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
           .returning({ id: expenses.id });
         if (deleted.length === 0) return notFound();
         return {
@@ -587,7 +587,7 @@ async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput
         const [expense] = await transaction
           .select({ id: expenses.id, amount: expenses.amount })
           .from(expenses)
-          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseId)))
+          .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
           .limit(1)
           .for("update");
         if (!expense) return notFound();
@@ -595,7 +595,7 @@ async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput
         const currentShares = await transaction
           .select({ id: expenseShares.id, friendId: expenseShares.friendId, baseAmount: expenseShares.baseAmount, amountOwed: expenseShares.amountOwed })
           .from(expenseShares)
-          .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)));
+          .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId)));
         const currentByFriend = new Map(currentShares.map((share) => [share.friendId, share]));
         const requested = shares.map((share) => ({ friendId: share.friendId.trim().toLowerCase(), baseAmount: shareBaseAmount(share) }));
         const storedCharges = charges === undefined ? await listExpenseChargesFor(transaction, expenseId) : [];
@@ -606,7 +606,7 @@ async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput
           ? await transaction
               .select({ id: friends.id, archivedAt: friends.archivedAt })
               .from(friends)
-              .where(and(eq(friends.ownerUserId, owner), inArray(friends.id, friendIds)))
+              .where(and(eq(friends.ledgerScopeId, scope), inArray(friends.id, friendIds)))
           : [];
         if (ownedFriends.length !== new Set(friendIds).size) return notFound();
         for (const friend of ownedFriends) {
@@ -634,7 +634,7 @@ async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput
           ? await transaction
               .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: sql<number>`coalesce(sum(${repaymentAllocations.amount}), 0)` })
               .from(repaymentAllocations)
-              .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, currentShares.map((share) => share.id))))
+              .where(and(eq(repaymentAllocations.ledgerScopeId, scope), inArray(repaymentAllocations.expenseShareId, currentShares.map((share) => share.id))))
               .groupBy(repaymentAllocations.expenseShareId)
           : [];
         const allocatedByShare = new Map(allocationTotals.map((allocation) => [allocation.expenseShareId, Number(allocation.amount)]));
@@ -654,14 +654,14 @@ async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput
             await transaction
               .update(expenseShares)
               .set({ baseAmount: requestedShare.baseAmount, amountOwed })
-              .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.id, current.id)));
+              .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.id, current.id)));
           }
         }
 
         const newShares = requested.filter((share) => !currentByFriend.has(share.friendId));
         if (newShares.length > 0) {
           await transaction.insert(expenseShares).values(
-            newShares.map((share) => ({ ownerUserId: owner, expenseId, friendId: share.friendId, baseAmount: share.baseAmount, amountOwed: finalByFriend.get(share.friendId)! })),
+            newShares.map((share) => ({ ledgerScopeId: scope, expenseId, friendId: share.friendId, baseAmount: share.baseAmount, amountOwed: finalByFriend.get(share.friendId)! })),
           );
         }
 
@@ -669,26 +669,26 @@ async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput
         if (omittedIds.length > 0) {
           await transaction
             .delete(expenseShares)
-            .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId), inArray(expenseShares.id, omittedIds)));
+            .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId), inArray(expenseShares.id, omittedIds)));
         }
 
         if (charges !== undefined) {
-          await transaction.delete(expenseCharges).where(and(eq(expenseCharges.ownerUserId, owner), eq(expenseCharges.expenseId, expenseId)));
+          await transaction.delete(expenseCharges).where(and(eq(expenseCharges.ledgerScopeId, scope), eq(expenseCharges.expenseId, expenseId)));
           const shareRows = requested.length
             ? await transaction
                 .select({ id: expenseShares.id, friendId: expenseShares.friendId })
                 .from(expenseShares)
-                .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.expenseId, expenseId)))
+                .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId)))
             : [];
           const shareIdByFriend = new Map(shareRows.map((share) => [share.friendId, share.id]));
           const createdCharges = requestedCharges.length
             ? await transaction
                 .insert(expenseCharges)
-                .values(requestedCharges.map((charge) => ({ ownerUserId: owner, expenseId, name: charge.name.trim(), percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope })))
+                .values(requestedCharges.map((charge) => ({ ledgerScopeId: scope, expenseId, name: charge.name.trim(), percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope })))
                 .returning({ id: expenseCharges.id })
             : [];
           const targetRows = requestedCharges.flatMap((charge, index) => charge.scope === "selected"
-            ? charge.friendIds.map((friendId) => ({ ownerUserId: owner, expenseId, expenseChargeId: createdCharges[index]!.id, expenseShareId: shareIdByFriend.get(friendId.toLowerCase())! }))
+            ? charge.friendIds.map((friendId) => ({ ledgerScopeId: scope, expenseId, expenseChargeId: createdCharges[index]!.id, expenseShareId: shareIdByFriend.get(friendId.toLowerCase())! }))
             : []);
           if (targetRows.length > 0) await transaction.insert(expenseChargeTargets).values(targetRows);
         }

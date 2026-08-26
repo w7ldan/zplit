@@ -14,6 +14,7 @@ vi.mock("@/server/notifications", () => ({ createNotificationInDatabase: mocks.c
 vi.mock("@/server/realtime", () => ({ publishRealtimeEvent: mocks.publishRealtimeEvent }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
+vi.mock("@/server/ledger-scopes", () => ({ getPersonalLedgerScopeId: vi.fn(async (_database: unknown, userId: string) => `scope-${userId}`) }));
 
 import { cancelFriendLinkRequest, createFriendLinkRequest, respondToFriendLinkRequest, unlinkFriendLink } from "./friend-links";
 
@@ -62,7 +63,7 @@ describe("Friend ↔ Zplit-user linking", () => {
       [{ name: "Owner", username: "owner" }],
       [],
       [],
-    ], [[{ id: requestId, ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" }]]);
+    ], [[{ id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" }]]);
 
     await expect(createFriendLinkRequest(db, ownerId, friendId, targetId)).resolves.toMatchObject({ id: requestId, status: "pending" });
     expect(db.transaction).toHaveBeenCalledOnce();
@@ -82,7 +83,7 @@ describe("Friend ↔ Zplit-user linking", () => {
       [],
       [],
       [],
-    ], [[{ id: requestId, ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" }]]);
+    ], [[{ id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" }]]);
     mocks.createNotificationInDatabase.mockRejectedValueOnce(new Error("notification insert failed"));
     await expect(createFriendLinkRequest(db, ownerId, friendId, targetId)).rejects.toThrow("notification insert failed");
     expect(db.transaction).toHaveBeenCalledOnce();
@@ -99,7 +100,7 @@ describe("Friend ↔ Zplit-user linking", () => {
   });
 
   it("accepts transactionally, keeps the request target-scoped, and publishes freshness after persistence", async () => {
-    const request = { id: requestId, ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" };
+    const request = { id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" };
     const accepted = { ...request, status: "accepted" };
     const db = database([
       [request],
@@ -119,7 +120,7 @@ describe("Friend ↔ Zplit-user linking", () => {
   });
 
   it("reuses and reactivates the reciprocal Friend instead of creating a duplicate", async () => {
-    const request = { id: requestId, ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" };
+    const request = { id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" };
     const accepted = { ...request, status: "accepted" };
     const reciprocalId = "33333333-3333-4333-8333-333333333333";
     const db = database([
@@ -145,7 +146,7 @@ describe("Friend ↔ Zplit-user linking", () => {
   });
 
   it("declines without changing the Friend", async () => {
-    const request = { id: requestId, ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" };
+    const request = { id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" };
     const declined = { ...request, status: "declined" };
     const db = database([
       [request],
@@ -182,7 +183,7 @@ describe("Friend ↔ Zplit-user linking", () => {
   });
 
   it("cancels only a pending owner request and refreshes the target Inbox", async () => {
-    const request = { id: requestId, ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" };
+    const request = { id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" };
     const cancelled = { ...request, status: "cancelled" };
     const db = database([[request]], [], [[cancelled], []]);
     await expect(cancelFriendLinkRequest(db, ownerId, requestId)).resolves.toMatchObject({ status: "cancelled" });
@@ -190,13 +191,13 @@ describe("Friend ↔ Zplit-user linking", () => {
   });
 
   it("lets either connected user unlink while preserving an archived ledger Friend row", async () => {
-    const accepted = { id: requestId, ownerUserId: ownerId, friendId, targetUserId: targetId, status: "accepted" };
+    const accepted = { id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "accepted" };
     const db = database([
       [accepted],
       [],
-      [{ id: friendId, ownerUserId: ownerId, archivedAt: new Date("2026-08-01T00:00:00Z") }],
+      [{ id: friendId, ledgerScopeId: "scope-owner-user", archivedAt: new Date("2026-08-01T00:00:00Z") }],
       [{ id: "connection", userAId: ownerId, userBId: targetId, status: "connected" }],
-    ], [], [[{ id: friendId, ownerUserId: ownerId }], []]);
+    ], [], [[{ id: friendId, ledgerScopeId: "scope-owner-user" }], []]);
     await expect(unlinkFriendLink(db, targetId, { requestId })).resolves.toMatchObject({ changed: true, friendIds: [friendId] });
     expect(db.transactionDb.update).toHaveBeenCalledTimes(2);
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(ownerId, "resolved");
@@ -207,13 +208,13 @@ describe("Friend ↔ Zplit-user linking", () => {
   it("refreshes each owner when unlink clears reciprocal Friend mappings", async () => {
     const friendA = "33333333-3333-4333-8333-333333333333";
     const friendB = "44444444-4444-4444-8444-444444444444";
-    const accepted = { id: requestId, ownerUserId: ownerId, friendId: friendA, targetUserId: targetId, status: "accepted" };
+    const accepted = { id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId: friendA, targetUserId: targetId, status: "accepted" };
     const db = database([
       [accepted],
       [],
-      [{ id: friendA, ownerUserId: ownerId }, { id: friendB, ownerUserId: targetId }],
+      [{ id: friendA, ledgerScopeId: "scope-owner-user" }, { id: friendB, ledgerScopeId: "scope-target-user" }],
       [{ id: "connection", userAId: ownerId, userBId: targetId, status: "connected" }],
-    ], [], [[{ id: friendA, ownerUserId: ownerId }, { id: friendB, ownerUserId: targetId }], []]);
+    ], [], [[{ id: friendA, ledgerScopeId: "scope-owner-user" }, { id: friendB, ledgerScopeId: "scope-target-user" }], []]);
 
     await expect(unlinkFriendLink(db, targetId, { requestId })).resolves.toMatchObject({ changed: true, friendIds: [friendA, friendB] });
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledTimes(2);
@@ -230,7 +231,7 @@ describe("Friend ↔ Zplit-user linking", () => {
   });
 
   it("makes a repeated unlink idempotent after the connection is disconnected", async () => {
-    const accepted = { id: requestId, ownerUserId: ownerId, friendId, targetUserId: targetId, status: "accepted" };
+    const accepted = { id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "accepted" };
     const db = database([
       [accepted],
       [],

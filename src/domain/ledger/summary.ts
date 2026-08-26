@@ -102,53 +102,53 @@ function parseLedgerAggregate(row: LedgerAggregateRow): LedgerOverviewSummary {
   };
 }
 
-function ledgerAggregateQuery(owner: string, friendLimit?: number) {
+function ledgerAggregateQuery(scope: string, friendLimit?: number) {
   const limit = friendLimit === undefined ? sql`` : sql`LIMIT ${friendLimit}`;
   return sql<LedgerAggregateRow>`
     WITH expense_totals AS (
       SELECT e.id, e.amount::numeric AS amount, COALESCE(SUM(s.amount_owed::numeric), 0) AS assigned_amount
       FROM expenses e
       LEFT JOIN expense_shares s
-        ON s.owner_user_id = e.owner_user_id
+        ON s.ledger_scope_id = e.ledger_scope_id
         AND s.expense_id = e.id
-      WHERE e.owner_user_id = ${owner}
+      WHERE e.ledger_scope_id = ${scope}
       GROUP BY e.id, e.amount
     ),
     share_allocation_totals AS (
       SELECT s.id, s.friend_id, s.amount_owed::numeric AS amount_owed, COALESCE(SUM(a.amount::numeric), 0) AS allocated_amount
       FROM expense_shares s
       LEFT JOIN repayment_allocations a
-        ON a.owner_user_id = s.owner_user_id
+        ON a.ledger_scope_id = s.ledger_scope_id
         AND a.expense_share_id = s.id
-      WHERE s.owner_user_id = ${owner}
+      WHERE s.ledger_scope_id = ${scope}
       GROUP BY s.id, s.friend_id, s.amount_owed
     ),
     repayment_allocation_totals AS (
       SELECT r.id, r.amount::numeric AS amount, COALESCE(SUM(a.amount::numeric), 0) AS allocated_amount
       FROM repayments r
       LEFT JOIN repayment_allocations a
-        ON a.owner_user_id = r.owner_user_id
+        ON a.ledger_scope_id = r.ledger_scope_id
         AND a.repayment_id = r.id
-      WHERE r.owner_user_id = ${owner}
+      WHERE r.ledger_scope_id = ${scope}
       GROUP BY r.id, r.amount
     ),
     allocation_links AS (
       SELECT a.repayment_id, a.expense_share_id, r.friend_id AS repayment_friend_id, s.friend_id AS share_friend_id
       FROM repayment_allocations a
       LEFT JOIN repayments r
-        ON r.owner_user_id = a.owner_user_id
+        ON r.ledger_scope_id = a.ledger_scope_id
         AND r.id = a.repayment_id
       LEFT JOIN expense_shares s
-        ON s.owner_user_id = a.owner_user_id
+        ON s.ledger_scope_id = a.ledger_scope_id
         AND s.id = a.expense_share_id
-      WHERE a.owner_user_id = ${owner}
+      WHERE a.ledger_scope_id = ${scope}
     ),
     friend_totals AS (
       SELECT f.id, f.name, f.archived_at,
-        COALESCE((SELECT SUM(s.amount_owed::numeric) FROM expense_shares s WHERE s.owner_user_id = f.owner_user_id AND s.friend_id = f.id), 0) AS assigned_amount,
-        COALESCE((SELECT SUM(a.amount::numeric) FROM repayment_allocations a INNER JOIN expense_shares s ON s.owner_user_id = a.owner_user_id AND s.id = a.expense_share_id WHERE a.owner_user_id = f.owner_user_id AND s.friend_id = f.id), 0) AS repaid_amount
+        COALESCE((SELECT SUM(s.amount_owed::numeric) FROM expense_shares s WHERE s.ledger_scope_id = f.ledger_scope_id AND s.friend_id = f.id), 0) AS assigned_amount,
+        COALESCE((SELECT SUM(a.amount::numeric) FROM repayment_allocations a INNER JOIN expense_shares s ON s.ledger_scope_id = a.ledger_scope_id AND s.id = a.expense_share_id WHERE a.ledger_scope_id = f.ledger_scope_id AND s.friend_id = f.id), 0) AS repaid_amount
       FROM friends f
-      WHERE f.owner_user_id = ${owner}
+      WHERE f.ledger_scope_id = ${scope}
     ),
     friend_balances AS (
       SELECT id, name, archived_at, assigned_amount, repaid_amount, assigned_amount - repaid_amount AS outstanding_amount
@@ -167,7 +167,7 @@ function ledgerAggregateQuery(owner: string, friendLimit?: number) {
         COALESCE((SELECT SUM(amount) FROM expense_totals), 0)::text AS total_expense_amount,
         COALESCE((SELECT SUM(amount_owed) FROM share_allocation_totals), 0)::text AS total_assigned_amount,
         COALESCE((SELECT SUM(allocated_amount) FROM repayment_allocation_totals), 0)::text AS total_repaid_amount,
-        COALESCE((SELECT SUM(amount::numeric) FROM repayments WHERE owner_user_id = ${owner}), 0)::text AS total_received_amount,
+        COALESCE((SELECT SUM(amount::numeric) FROM repayments WHERE ledger_scope_id = ${scope}), 0)::text AS total_received_amount,
         COALESCE((SELECT SUM(amount - assigned_amount) FROM expense_totals), 0)::text AS owner_portion_amount
     )
     SELECT totals.*, (SELECT COUNT(*) FROM friend_balances)::text AS total_assigned_friend_count,
@@ -189,47 +189,47 @@ function ledgerAggregateQuery(owner: string, friendLimit?: number) {
   `;
 }
 
-function friendBalancesQuery(owner: string, friendIds: string[]) {
+function friendBalancesQuery(scope: string, friendIds: string[]) {
   const friendFilter = sql.join(friendIds.map((friendId) => sql`${friendId}`), sql`, `);
   return sql<LedgerAggregateRow>`
     WITH selected_friends AS (
       SELECT f.id, f.name, f.archived_at
       FROM friends f
-      WHERE f.owner_user_id = ${owner} AND f.id IN (${friendFilter})
+      WHERE f.ledger_scope_id = ${scope} AND f.id IN (${friendFilter})
     ),
     share_allocation_totals AS (
       SELECT s.id, s.friend_id, s.amount_owed::numeric AS amount_owed, COALESCE(SUM(a.amount::numeric), 0) AS allocated_amount
       FROM expense_shares s
       INNER JOIN selected_friends f ON f.id = s.friend_id
       LEFT JOIN repayment_allocations a
-        ON a.owner_user_id = s.owner_user_id
+        ON a.ledger_scope_id = s.ledger_scope_id
         AND a.expense_share_id = s.id
-      WHERE s.owner_user_id = ${owner}
+      WHERE s.ledger_scope_id = ${scope}
       GROUP BY s.id, s.friend_id, s.amount_owed
     ),
     repayment_ids AS (
       SELECT DISTINCT a.repayment_id
       FROM repayment_allocations a
       INNER JOIN share_allocation_totals s ON s.id = a.expense_share_id
-      WHERE a.owner_user_id = ${owner}
+      WHERE a.ledger_scope_id = ${scope}
     ),
     repayment_allocation_totals AS (
       SELECT r.id, r.amount::numeric AS amount, COALESCE(SUM(a.amount::numeric), 0) AS allocated_amount
       FROM repayments r
       INNER JOIN repayment_ids ids ON ids.repayment_id = r.id
       LEFT JOIN repayment_allocations a
-        ON a.owner_user_id = r.owner_user_id
+        ON a.ledger_scope_id = r.ledger_scope_id
         AND a.repayment_id = r.id
-      WHERE r.owner_user_id = ${owner}
+      WHERE r.ledger_scope_id = ${scope}
       GROUP BY r.id, r.amount
     ),
     allocation_links AS (
       SELECT a.repayment_id, a.expense_share_id, r.friend_id AS repayment_friend_id, s.friend_id AS share_friend_id
       FROM repayment_allocations a
       INNER JOIN repayment_ids ids ON ids.repayment_id = a.repayment_id
-      LEFT JOIN repayments r ON r.owner_user_id = a.owner_user_id AND r.id = a.repayment_id
-      LEFT JOIN expense_shares s ON s.owner_user_id = a.owner_user_id AND s.id = a.expense_share_id
-      WHERE a.owner_user_id = ${owner}
+      LEFT JOIN repayments r ON r.ledger_scope_id = a.ledger_scope_id AND r.id = a.repayment_id
+      LEFT JOIN expense_shares s ON s.ledger_scope_id = a.ledger_scope_id AND s.id = a.expense_share_id
+      WHERE a.ledger_scope_id = ${scope}
     ),
     friend_balances AS (
       SELECT f.id, f.name, f.archived_at,
@@ -272,10 +272,10 @@ function friendBalancesQuery(owner: string, friendIds: string[]) {
   `;
 }
 
-export function createLedgerSummaryRepository(database: Database, owner: string) {
+export function createLedgerSummaryRepository(database: Database, scope: string) {
   async function getLedgerSummary() {
     try {
-      const result = await database.execute(ledgerAggregateQuery(owner));
+      const result = await database.execute(ledgerAggregateQuery(scope));
       const [row] = (Array.isArray(result) ? result : result.rows) as LedgerAggregateRow[];
       const aggregate = parseLedgerAggregate(row ?? emptyLedgerAggregate());
       return {
@@ -295,7 +295,7 @@ export function createLedgerSummaryRepository(database: Database, owner: string)
 
   async function getLedgerOverviewSummary(): Promise<LedgerOverviewSummary> {
     try {
-      const result = await database.execute(ledgerAggregateQuery(owner, 8));
+      const result = await database.execute(ledgerAggregateQuery(scope, 8));
       const [row] = (Array.isArray(result) ? result : result.rows) as LedgerAggregateRow[];
       return parseLedgerAggregate(row ?? emptyLedgerAggregate());
     } catch (error) {
@@ -310,7 +310,7 @@ export function createLedgerSummaryRepository(database: Database, owner: string)
     }))];
     if (normalizedIds.length === 0) return [];
     try {
-      const result = await database.execute(friendBalancesQuery(owner, normalizedIds));
+      const result = await database.execute(friendBalancesQuery(scope, normalizedIds));
       const [row] = (Array.isArray(result) ? result : result.rows) as LedgerAggregateRow[];
       return parseLedgerAggregate(row ?? emptyLedgerAggregate()).friendBalances;
     } catch (error) {

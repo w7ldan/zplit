@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("./ledger-scopes", () => ({ getPersonalLedgerScopeId: vi.fn().mockResolvedValue("owner-a") }));
 
 const {
   createRepaymentPaymentProof,
@@ -52,7 +53,7 @@ describe("repayment payment proof service", () => {
     const created = { id: "proof-a", originalFilename: file.originalFilename, mediaType: file.mediaType, byteSize: file.byteSize, createdAt: new Date() };
     const add = databaseFor([[{ id: "repayment-a" }], []], [created]);
     await expect(createRepaymentPaymentProof(add.database, "owner-a", "repayment-a", file)).resolves.toEqual(created);
-    expect(add.transaction.insert.mock.results[0]?.value.values).toHaveBeenCalledWith(expect.objectContaining({ ownerUserId: "owner-a", repaymentId: "repayment-a", content: expect.any(Buffer) }));
+    expect(add.transaction.insert.mock.results[0]?.value.values).toHaveBeenCalledWith(expect.objectContaining({ ledgerScopeId: "owner-a", repaymentId: "repayment-a", content: expect.any(Buffer) }));
     expect(add.transaction.insert.mock.results[0]?.value.values.mock.calls[0]?.[0]).not.toHaveProperty("amount");
 
     const metadata = databaseFor([[created]]);

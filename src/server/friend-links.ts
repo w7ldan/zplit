@@ -10,6 +10,7 @@ import { FRIEND_LINK_STATE_CHANGED_EVENT } from "@/domain/friend-links";
 import { createNotificationInDatabase, publishNotificationStateChange } from "@/server/notifications";
 import { publishRealtimeEvent } from "@/server/realtime";
 import { requireSession } from "@/auth/require-session";
+import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
 
 export type FriendLinkRequestStatus = "pending" | "accepted" | "declined" | "cancelled" | "connected" | "disconnected";
 
@@ -47,10 +48,10 @@ function connectionWhere(userAId: string, userBId: string) {
   return and(eq(friendConnections.userAId, userAId), eq(friendConnections.userBId, userBId));
 }
 
-function mappingWhere(userAId: string, userBId: string) {
+function mappingWhere(userAScopeId: string, userAId: string, userBScopeId: string, userBId: string) {
   return or(
-    and(eq(friends.ownerUserId, userAId), eq(friends.linkedUserId, userBId)),
-    and(eq(friends.ownerUserId, userBId), eq(friends.linkedUserId, userAId)),
+    and(eq(friends.ledgerScopeId, userAScopeId), eq(friends.linkedUserId, userBId)),
+    and(eq(friends.ledgerScopeId, userBScopeId), eq(friends.linkedUserId, userAId)),
   );
 }
 
@@ -80,11 +81,12 @@ async function resolveRequestNotification(database: Database, targetUserId: stri
 export async function getFriendLinkStatus(database: Database, ownerUserId: string, friendId: string): Promise<FriendLinkStatus> {
   assertUserId(ownerUserId);
   assertFriendId(friendId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const [friend] = await database
     .select({ linkedUserId: friends.linkedUserId, linkedName: users.name, linkedUsername: users.username })
     .from(friends)
     .leftJoin(users, eq(users.id, friends.linkedUserId))
-    .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.id, friendId)))
+    .where(and(eq(friends.ledgerScopeId, ledgerScopeId), eq(friends.id, friendId)))
     .limit(1);
   if (!friend) throw new FriendLinkError("not_found");
   if (friend.linkedUserId && friend.linkedName && friend.linkedUsername) {
@@ -98,6 +100,7 @@ export async function getFriendLinkStatus(database: Database, ownerUserId: strin
     .where(and(
       eq(friendLinkRequests.ownerUserId, ownerUserId),
       eq(friendLinkRequests.friendId, friendId),
+      eq(friendLinkRequests.friendLedgerScopeId, ledgerScopeId),
       eq(friendLinkRequests.status, "pending"),
     ))
     .limit(1);
@@ -109,11 +112,12 @@ export async function createFriendLinkRequest(database: Database, ownerUserId: s
   assertUserId(ownerUserId);
   assertFriendId(friendId);
   assertUserId(targetUserId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const created = await database.transaction(async (transaction) => {
     const [friend] = await transaction
       .select({ id: friends.id, name: friends.name, linkedUserId: friends.linkedUserId })
       .from(friends)
-      .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.id, friendId)))
+      .where(and(eq(friends.ledgerScopeId, ledgerScopeId), eq(friends.id, friendId)))
       .limit(1)
       .for("update");
     if (!friend) throw new FriendLinkError("not_found");
@@ -137,7 +141,7 @@ export async function createFriendLinkRequest(database: Database, ownerUserId: s
     const [existingLink] = await transaction
       .select({ id: friends.id })
       .from(friends)
-      .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.linkedUserId, targetUserId)))
+      .where(and(eq(friends.ledgerScopeId, ledgerScopeId), eq(friends.linkedUserId, targetUserId)))
       .limit(1);
     if (existingLink) throw new FriendLinkError("already_linked");
 
@@ -165,7 +169,7 @@ export async function createFriendLinkRequest(database: Database, ownerUserId: s
 
     const [request] = await transaction
       .insert(friendLinkRequests)
-      .values({ ownerUserId, friendId, targetUserId })
+      .values({ ownerUserId, friendId, friendLedgerScopeId: ledgerScopeId, targetUserId })
       .returning();
     if (!request) throw new Error("Friend link request was not created");
 
@@ -244,18 +248,18 @@ async function lockOrCreateConnection(transaction: Database, userAId: string, us
   return connection;
 }
 
-async function ensureActiveLinkedFriend(transaction: Database, ownerUserId: string, linkedUserId: string, name: string, preferredFriendId?: string) {
+async function ensureActiveLinkedFriend(transaction: Database, ledgerScopeId: string, linkedUserId: string, name: string, preferredFriendId?: string) {
   const [existing] = await transaction
     .select({ id: friends.id })
     .from(friends)
-    .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.linkedUserId, linkedUserId)))
+    .where(and(eq(friends.ledgerScopeId, ledgerScopeId), eq(friends.linkedUserId, linkedUserId)))
     .limit(1)
     .for("update");
   if (existing) {
     await transaction
       .update(friends)
       .set({ archivedAt: null, updatedAt: new Date() })
-      .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.id, existing.id)));
+      .where(and(eq(friends.ledgerScopeId, ledgerScopeId), eq(friends.id, existing.id)));
     return existing.id;
   }
 
@@ -263,7 +267,7 @@ async function ensureActiveLinkedFriend(transaction: Database, ownerUserId: stri
     const [linked] = await transaction
       .update(friends)
       .set({ linkedUserId, archivedAt: null, updatedAt: new Date() })
-      .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.id, preferredFriendId), or(isNull(friends.linkedUserId), eq(friends.linkedUserId, linkedUserId))))
+      .where(and(eq(friends.ledgerScopeId, ledgerScopeId), eq(friends.id, preferredFriendId), or(isNull(friends.linkedUserId), eq(friends.linkedUserId, linkedUserId))))
       .returning({ id: friends.id });
     if (!linked) throw new FriendLinkError("conflict");
     return linked.id;
@@ -271,7 +275,7 @@ async function ensureActiveLinkedFriend(transaction: Database, ownerUserId: stri
 
   const [created] = await transaction
     .insert(friends)
-    .values({ ownerUserId, linkedUserId, name })
+    .values({ ledgerScopeId, linkedUserId, name })
     .returning({ id: friends.id });
   if (!created) throw new FriendLinkError("conflict");
   return created.id;
@@ -293,7 +297,7 @@ export async function respondToFriendLinkRequest(database: Database, targetUserI
     const [friend] = await transaction
       .select({ id: friends.id, linkedUserId: friends.linkedUserId })
       .from(friends)
-      .where(and(eq(friends.ownerUserId, request.ownerUserId), eq(friends.id, request.friendId)))
+      .where(and(eq(friends.ledgerScopeId, request.friendLedgerScopeId), eq(friends.id, request.friendId)))
       .limit(1)
       .for("update");
     if (!friend) throw new FriendLinkError("not_found");
@@ -317,11 +321,12 @@ export async function respondToFriendLinkRequest(database: Database, targetUserI
     const requester = linkUsers.find((user) => user.id === request.ownerUserId);
     const target = linkUsers.find((user) => user.id === targetUserId);
     if (!requester || !target) throw new FriendLinkError("not_found");
+    const targetLedgerScopeId = await getPersonalLedgerScopeId(transaction as Database, targetUserId);
 
     const [existingLink] = await transaction
       .select({ id: friends.id })
       .from(friends)
-      .where(and(eq(friends.ownerUserId, request.ownerUserId), eq(friends.linkedUserId, targetUserId), ne(friends.id, request.friendId)))
+      .where(and(eq(friends.ledgerScopeId, request.friendLedgerScopeId), eq(friends.linkedUserId, targetUserId), ne(friends.id, request.friendId)))
       .limit(1);
     if (existingLink || friend.linkedUserId && friend.linkedUserId !== targetUserId) {
       const [cancelled] = await transaction
@@ -337,8 +342,8 @@ export async function respondToFriendLinkRequest(database: Database, targetUserI
     const [userAId, userBId] = canonicalPair(request.ownerUserId, targetUserId);
     await lockOrCreateConnection(transaction as Database, userAId, userBId, now);
     try {
-      await ensureActiveLinkedFriend(transaction as Database, request.ownerUserId, targetUserId, target.name, request.friendId);
-      await ensureActiveLinkedFriend(transaction as Database, targetUserId, request.ownerUserId, requester.name);
+      await ensureActiveLinkedFriend(transaction as Database, request.friendLedgerScopeId, targetUserId, target.name, request.friendId);
+      await ensureActiveLinkedFriend(transaction as Database, targetLedgerScopeId, request.ownerUserId, requester.name);
     } catch (error) {
       if (error instanceof FriendLinkError) throw error;
       if (databaseCode(error) === "23505") throw new FriendLinkError("conflict");
@@ -387,11 +392,13 @@ export async function unlinkFriendLink(database: Database, actorUserId: string, 
   if (Boolean(input.friendId) === Boolean(input.requestId)) throw new FriendLinkError("not_found");
   if (input.friendId) assertFriendId(input.friendId);
   if (input.requestId) assertFriendId(input.requestId);
+  const actorLedgerScopeId = await getPersonalLedgerScopeId(database, actorUserId);
 
   const result = await database.transaction(async (transaction) => {
     let friendId = input.friendId;
     let requestId = input.requestId;
     let ownerUserId = actorUserId;
+    let ownerLedgerScopeId = actorLedgerScopeId;
     let targetUserId: string | null = null;
 
     if (requestId) {
@@ -403,6 +410,7 @@ export async function unlinkFriendLink(database: Database, actorUserId: string, 
         .for("update");
       if (!request) throw new FriendLinkError("not_found");
       ownerUserId = request.ownerUserId;
+      ownerLedgerScopeId = request.friendLedgerScopeId;
       targetUserId = request.targetUserId;
       friendId = request.friendId;
     }
@@ -411,7 +419,7 @@ export async function unlinkFriendLink(database: Database, actorUserId: string, 
     const [friend] = await transaction
       .select({ id: friends.id, linkedUserId: friends.linkedUserId })
       .from(friends)
-      .where(and(eq(friends.ownerUserId, actorUserId), eq(friends.id, friendId)))
+      .where(and(eq(friends.ledgerScopeId, input.requestId ? ownerLedgerScopeId : actorLedgerScopeId), eq(friends.id, friendId)))
       .limit(1)
       .for("update");
 
@@ -422,7 +430,7 @@ export async function unlinkFriendLink(database: Database, actorUserId: string, 
         const [accepted] = await transaction
           .select({ id: friendLinkRequests.id, targetUserId: friendLinkRequests.targetUserId })
           .from(friendLinkRequests)
-          .where(and(eq(friendLinkRequests.ownerUserId, actorUserId), eq(friendLinkRequests.friendId, friendId), eq(friendLinkRequests.status, "accepted")))
+          .where(and(eq(friendLinkRequests.ownerUserId, actorUserId), eq(friendLinkRequests.friendId, friendId), eq(friendLinkRequests.friendLedgerScopeId, actorLedgerScopeId), eq(friendLinkRequests.status, "accepted")))
           .orderBy(desc(friendLinkRequests.acceptedAt), desc(friendLinkRequests.id))
           .limit(1);
         targetUserId = accepted?.targetUserId ?? null;
@@ -431,18 +439,19 @@ export async function unlinkFriendLink(database: Database, actorUserId: string, 
     }
 
     if (!targetUserId) return { changed: false, friendIds: [] as string[], friendMappings: [], userIds: [actorUserId], requestId: requestId ?? "", ownerUserId };
+    const targetLedgerScopeId = await getPersonalLedgerScopeId(transaction as Database, targetUserId);
     const [userAId, userBId] = canonicalPair(ownerUserId, targetUserId);
     const mappingRows = await transaction
-      .select({ id: friends.id, ownerUserId: friends.ownerUserId })
+      .select({ id: friends.id, ledgerScopeId: friends.ledgerScopeId })
       .from(friends)
-      .where(mappingWhere(userAId, userBId))
+      .where(mappingWhere(ownerLedgerScopeId, ownerUserId, targetLedgerScopeId, targetUserId))
       .for("update");
     const now = new Date();
     const cleared = await transaction
       .update(friends)
       .set({ linkedUserId: null, updatedAt: now })
-      .where(mappingWhere(userAId, userBId))
-      .returning({ id: friends.id, ownerUserId: friends.ownerUserId });
+      .where(mappingWhere(ownerLedgerScopeId, ownerUserId, targetLedgerScopeId, targetUserId))
+      .returning({ id: friends.id, ledgerScopeId: friends.ledgerScopeId });
 
     const [connection] = await transaction
       .select()
@@ -470,9 +479,9 @@ export async function unlinkFriendLink(database: Database, actorUserId: string, 
     }
 
     const friendMappings = [...new Map(
-      [...mappingRows, ...cleared].map(({ id, ownerUserId: mappingOwnerUserId }) => [
-        `${mappingOwnerUserId}\u0000${id}`,
-        { ownerUserId: mappingOwnerUserId, friendId: id },
+      [...mappingRows, ...cleared].map(({ id, ledgerScopeId }) => [
+        `${ledgerScopeId}\u0000${id}`,
+        { ownerUserId: ledgerScopeId === ownerLedgerScopeId ? ownerUserId : targetUserId, friendId: id },
       ]),
     ).values()];
     return {

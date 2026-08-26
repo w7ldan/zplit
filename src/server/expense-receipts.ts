@@ -6,6 +6,7 @@ import {
   MAX_RECEIPTS_PER_EXPENSE,
   type ValidatedReceiptFile,
 } from "../domain/receipt-file";
+import { getPersonalLedgerScopeId } from "./ledger-scopes";
 
 export const RECEIPT_COUNT_LIMIT_MESSAGE = "An expense can have up to 5 receipts.";
 export const RECEIPT_TOTAL_LIMIT_MESSAGE = "Receipts for one expense cannot exceed 15 MiB.";
@@ -79,10 +80,11 @@ function assertOwner(ownerUserId: string) {
 
 export async function listExpenseReceipts(database: Database, ownerUserId: string, expenseId: string): Promise<ExpenseReceiptMetadata[]> {
   assertOwner(ownerUserId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   return database
     .select(metadataSelection())
     .from(expenseReceipts)
-    .where(and(eq(expenseReceipts.ownerUserId, ownerUserId), eq(expenseReceipts.expenseId, expenseId)))
+    .where(and(eq(expenseReceipts.ledgerScopeId, ledgerScopeId), eq(expenseReceipts.expenseId, expenseId)))
     .orderBy(asc(expenseReceipts.createdAt), asc(expenseReceipts.id));
 }
 
@@ -93,12 +95,13 @@ export async function createExpenseReceipt(
   validatedFile: ValidatedReceiptFile,
 ): Promise<ExpenseReceiptMetadata> {
   assertOwner(ownerUserId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   try {
     return await database.transaction(async (transaction) => {
       const [expense] = await transaction
         .select({ id: expenses.id })
         .from(expenses)
-        .where(and(eq(expenses.ownerUserId, ownerUserId), eq(expenses.id, expenseId)))
+        .where(and(eq(expenses.ledgerScopeId, ledgerScopeId), eq(expenses.id, expenseId)))
         .limit(1)
         .for("update");
       if (!expense) throw new ExpenseReceiptUnavailableError();
@@ -106,7 +109,7 @@ export async function createExpenseReceipt(
       const existing = await transaction
         .select({ id: expenseReceipts.id, byteSize: expenseReceipts.byteSize, sha256: expenseReceipts.sha256 })
         .from(expenseReceipts)
-        .where(and(eq(expenseReceipts.ownerUserId, ownerUserId), eq(expenseReceipts.expenseId, expenseId)))
+        .where(and(eq(expenseReceipts.ledgerScopeId, ledgerScopeId), eq(expenseReceipts.expenseId, expenseId)))
         .orderBy(asc(expenseReceipts.id))
         .for("update");
       if (existing.length >= MAX_RECEIPTS_PER_EXPENSE) throw new ExpenseReceiptCountError();
@@ -118,7 +121,7 @@ export async function createExpenseReceipt(
       const [created] = await transaction
         .insert(expenseReceipts)
         .values({
-          ownerUserId,
+          ledgerScopeId,
           expenseId,
           originalFilename: validatedFile.originalFilename,
           mediaType: validatedFile.mediaType,
@@ -139,12 +142,13 @@ export async function createExpenseReceipt(
 
 export async function getExpenseReceipt(database: Database, ownerUserId: string, expenseId: string, receiptId: string): Promise<ExpenseReceiptContent | null> {
   assertOwner(ownerUserId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const [receipt] = await database
     .select({ id: expenseReceipts.id, mediaType: expenseReceipts.mediaType, byteSize: expenseReceipts.byteSize, content: expenseReceipts.content })
     .from(expenseReceipts)
     .where(
       and(
-        eq(expenseReceipts.ownerUserId, ownerUserId),
+        eq(expenseReceipts.ledgerScopeId, ledgerScopeId),
         eq(expenseReceipts.expenseId, expenseId),
         eq(expenseReceipts.id, receiptId),
       ),
@@ -155,11 +159,12 @@ export async function getExpenseReceipt(database: Database, ownerUserId: string,
 
 export async function deleteExpenseReceipt(database: Database, ownerUserId: string, expenseId: string, receiptId: string) {
   assertOwner(ownerUserId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const deleted = await database
     .delete(expenseReceipts)
     .where(
       and(
-        eq(expenseReceipts.ownerUserId, ownerUserId),
+        eq(expenseReceipts.ledgerScopeId, ledgerScopeId),
         eq(expenseReceipts.expenseId, expenseId),
         eq(expenseReceipts.id, receiptId),
       ),

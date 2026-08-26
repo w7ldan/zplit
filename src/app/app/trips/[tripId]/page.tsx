@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { LedgerNotFoundError } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { TripForm } from "@/components/trips/trip-form";
 import { TripDeleteForm } from "@/components/trips/trip-delete-form";
 import { OutingRow } from "@/components/outings/outing-row";
@@ -39,7 +39,7 @@ export default async function TripRecordPage({ params, searchParams }: { params:
   let summary;
   let outingPage;
   try {
-    const repository = createLedgerRepository(getDatabase(), session.user.id);
+    const { ledger: repository } = await getAuthenticatedLedger(session);
     trip = await repository.getTrip(tripId);
     [summary, outingPage] = await Promise.all([
       repository.getTripSummary(trip.id),

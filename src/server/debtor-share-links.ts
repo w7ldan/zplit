@@ -5,6 +5,7 @@ import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { Database } from "../db/client";
 import { debtorShareLinks, debtorShareReceipts, expenseReceipts, expenseShares, expenses, friends } from "../db/schema";
 import { createLedgerRepository, LedgerNotFoundError, type DebtorStatementPageOptions } from "../domain/ledger-repository";
+import { getPersonalLedgerScopeId } from "./ledger-scopes";
 
 export const DEBTOR_SHARE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const DEBTOR_SHARE_UNAVAILABLE = "This balance link is unavailable.";
@@ -67,7 +68,7 @@ function selectionAndTime(value: string[] | Date | undefined, time: Date) {
 
 async function lockEligibleReceipts(
   transaction: Parameters<Parameters<Database["transaction"]>[0]>[0],
-  ownerUserId: string,
+  ledgerScopeId: string,
   friendId: string,
   selectedReceiptIds: string[],
 ) {
@@ -75,7 +76,7 @@ async function lockEligibleReceipts(
   const locked = await transaction
     .select({ id: expenseReceipts.id, expenseId: expenseReceipts.expenseId })
     .from(expenseReceipts)
-    .where(and(eq(expenseReceipts.ownerUserId, ownerUserId), inArray(expenseReceipts.id, selectedReceiptIds)))
+    .where(and(eq(expenseReceipts.ledgerScopeId, ledgerScopeId), inArray(expenseReceipts.id, selectedReceiptIds)))
     .orderBy(asc(expenseReceipts.id))
     .for("update");
   if (locked.length !== selectedReceiptIds.length) throw new DebtorShareReceiptSelectionError();
@@ -83,13 +84,13 @@ async function lockEligibleReceipts(
   const eligible = await transaction
     .select({ id: expenseReceipts.id })
     .from(expenseReceipts)
-    .innerJoin(expenses, and(eq(expenses.ownerUserId, ownerUserId), eq(expenses.id, expenseReceipts.expenseId)))
+    .innerJoin(expenses, and(eq(expenses.ledgerScopeId, ledgerScopeId), eq(expenses.id, expenseReceipts.expenseId)))
     .innerJoin(expenseShares, and(
-      eq(expenseShares.ownerUserId, ownerUserId),
+      eq(expenseShares.ledgerScopeId, ledgerScopeId),
       eq(expenseShares.expenseId, expenses.id),
       eq(expenseShares.friendId, friendId),
     ))
-    .where(and(eq(expenseReceipts.ownerUserId, ownerUserId), inArray(expenseReceipts.id, selectedReceiptIds)))
+    .where(and(eq(expenseReceipts.ledgerScopeId, ledgerScopeId), inArray(expenseReceipts.id, selectedReceiptIds)))
     .orderBy(asc(expenseReceipts.id));
   if (eligible.length !== selectedReceiptIds.length) throw new DebtorShareReceiptSelectionError();
   return locked;
@@ -97,14 +98,14 @@ async function lockEligibleReceipts(
 
 async function replaceReceiptMappings(
   transaction: Parameters<Parameters<Database["transaction"]>[0]>[0],
-  ownerUserId: string,
+  ledgerScopeId: string,
   linkId: string,
   receipts: Array<{ id: string; expenseId: string }>,
 ) {
-  await transaction.delete(debtorShareReceipts).where(and(eq(debtorShareReceipts.ownerUserId, ownerUserId), eq(debtorShareReceipts.debtorShareLinkId, linkId)));
+  await transaction.delete(debtorShareReceipts).where(and(eq(debtorShareReceipts.ledgerScopeId, ledgerScopeId), eq(debtorShareReceipts.debtorShareLinkId, linkId)));
   if (receipts.length > 0) {
     await transaction.insert(debtorShareReceipts).values(receipts.map((receipt) => ({
-      ownerUserId,
+      ledgerScopeId,
       debtorShareLinkId: linkId,
       expenseId: receipt.expenseId,
       expenseReceiptId: receipt.id,
@@ -120,6 +121,7 @@ export async function createDebtorShareLink(
   now = new Date(),
 ): Promise<CreatedDebtorShareLink> {
   assertOwnerAndFriend(ownerUserId, friendId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const selection = selectionAndTime(selectedReceiptIdsOrNow, now);
   const token = generateDebtorShareToken();
   const expiresAt = new Date(selection.now.getTime() + DEBTOR_SHARE_LINK_TTL_MS);
@@ -128,38 +130,38 @@ export async function createDebtorShareLink(
     const [friend] = await transaction
       .select({ id: friends.id })
       .from(friends)
-      .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.id, friendId)))
+      .where(and(eq(friends.ledgerScopeId, ledgerScopeId), eq(friends.id, friendId)))
       .limit(1)
       .for("update");
     if (!friend) throw new LedgerNotFoundError();
 
-    const selectedReceipts = await lockEligibleReceipts(transaction, ownerUserId, friendId, selection.selectedReceiptIds);
+    const selectedReceipts = await lockEligibleReceipts(transaction, ledgerScopeId, friendId, selection.selectedReceiptIds);
 
     const revoked = await transaction
       .update(debtorShareLinks)
       .set({ revokedAt: selection.now })
       .where(
         and(
-          eq(debtorShareLinks.ownerUserId, ownerUserId),
+          eq(debtorShareLinks.ledgerScopeId, ledgerScopeId),
           eq(debtorShareLinks.friendId, friendId),
           isNull(debtorShareLinks.revokedAt),
         ),
       )
       .returning({ id: debtorShareLinks.id });
-    for (const link of revoked) await replaceReceiptMappings(transaction, ownerUserId, link.id, []);
+    for (const link of revoked) await replaceReceiptMappings(transaction, ledgerScopeId, link.id, []);
 
     const [created] = await transaction
       .insert(debtorShareLinks)
       .values({
         tokenHash: hashDebtorShareToken(token),
-        ownerUserId,
+        ledgerScopeId,
         friendId,
         createdAt: selection.now,
         expiresAt,
       })
       .returning({ id: debtorShareLinks.id, expiresAt: debtorShareLinks.expiresAt });
     if (!created) throw new Error("Debtor share link was not created");
-    await replaceReceiptMappings(transaction, ownerUserId, created.id, selectedReceipts);
+    await replaceReceiptMappings(transaction, ledgerScopeId, created.id, selectedReceipts);
     return { token, expiresAt: created.expiresAt, selectedReceiptIds: selectedReceipts.map((receipt) => receipt.id) };
   });
 }
@@ -172,12 +174,13 @@ export async function updateDebtorShareReceiptSelection(
   now = new Date(),
 ) {
   assertOwnerAndFriend(ownerUserId, friendId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const normalizedIds = normalizeReceiptIds(selectedReceiptIds);
   return database.transaction(async (transaction) => {
     const [friend] = await transaction
       .select({ id: friends.id })
       .from(friends)
-      .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.id, friendId)))
+      .where(and(eq(friends.ledgerScopeId, ledgerScopeId), eq(friends.id, friendId)))
       .limit(1)
       .for("update");
     if (!friend) throw new LedgerNotFoundError();
@@ -185,7 +188,7 @@ export async function updateDebtorShareReceiptSelection(
       .select({ id: debtorShareLinks.id })
       .from(debtorShareLinks)
       .where(and(
-        eq(debtorShareLinks.ownerUserId, ownerUserId),
+        eq(debtorShareLinks.ledgerScopeId, ledgerScopeId),
         eq(debtorShareLinks.friendId, friendId),
         isNull(debtorShareLinks.revokedAt),
         gt(debtorShareLinks.expiresAt, now),
@@ -194,8 +197,8 @@ export async function updateDebtorShareReceiptSelection(
       .limit(1)
       .for("update");
     if (!link) throw new LedgerNotFoundError();
-    const receipts = await lockEligibleReceipts(transaction, ownerUserId, friendId, normalizedIds);
-    await replaceReceiptMappings(transaction, ownerUserId, link.id, receipts);
+    const receipts = await lockEligibleReceipts(transaction, ledgerScopeId, friendId, normalizedIds);
+    await replaceReceiptMappings(transaction, ledgerScopeId, link.id, receipts);
     return receipts.map((receipt) => receipt.id);
   });
 }
@@ -207,11 +210,12 @@ export async function revokeDebtorShareLink(
   now = new Date(),
 ) {
   assertOwnerAndFriend(ownerUserId, friendId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   return database.transaction(async (transaction) => {
     const [friend] = await transaction
       .select({ id: friends.id })
       .from(friends)
-      .where(and(eq(friends.ownerUserId, ownerUserId), eq(friends.id, friendId)))
+      .where(and(eq(friends.ledgerScopeId, ledgerScopeId), eq(friends.id, friendId)))
       .limit(1)
       .for("update");
     if (!friend) return false;
@@ -221,14 +225,14 @@ export async function revokeDebtorShareLink(
       .set({ revokedAt: now })
       .where(
         and(
-          eq(debtorShareLinks.ownerUserId, ownerUserId),
+          eq(debtorShareLinks.ledgerScopeId, ledgerScopeId),
           eq(debtorShareLinks.friendId, friendId),
           isNull(debtorShareLinks.revokedAt),
           gt(debtorShareLinks.expiresAt, now),
         ),
       )
       .returning({ id: debtorShareLinks.id });
-    for (const link of revoked) await replaceReceiptMappings(transaction, ownerUserId, link.id, []);
+    for (const link of revoked) await replaceReceiptMappings(transaction, ledgerScopeId, link.id, []);
     return revoked.length > 0;
   });
 }
@@ -240,10 +244,11 @@ export async function getDebtorShareLinkStatus(
   now = new Date(),
 ): Promise<DebtorShareLinkStatus> {
   assertOwnerAndFriend(ownerUserId, friendId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const [link] = await database
     .select({ expiresAt: debtorShareLinks.expiresAt, revokedAt: debtorShareLinks.revokedAt })
     .from(debtorShareLinks)
-    .where(and(eq(debtorShareLinks.ownerUserId, ownerUserId), eq(debtorShareLinks.friendId, friendId)))
+    .where(and(eq(debtorShareLinks.ledgerScopeId, ledgerScopeId), eq(debtorShareLinks.friendId, friendId)))
     .orderBy(desc(debtorShareLinks.createdAt), desc(debtorShareLinks.id))
     .limit(1);
   if (!link) return { status: "none", expiresAt: null };
@@ -254,17 +259,18 @@ export async function getDebtorShareLinkStatus(
 
 export async function getDebtorShareReceiptSelection(database: Database, ownerUserId: string, friendId: string, now = new Date()) {
   assertOwnerAndFriend(ownerUserId, friendId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const [link] = await database
     .select({ id: debtorShareLinks.id })
     .from(debtorShareLinks)
-    .where(and(eq(debtorShareLinks.ownerUserId, ownerUserId), eq(debtorShareLinks.friendId, friendId), isNull(debtorShareLinks.revokedAt), gt(debtorShareLinks.expiresAt, now)))
+    .where(and(eq(debtorShareLinks.ledgerScopeId, ledgerScopeId), eq(debtorShareLinks.friendId, friendId), isNull(debtorShareLinks.revokedAt), gt(debtorShareLinks.expiresAt, now)))
     .orderBy(desc(debtorShareLinks.createdAt), desc(debtorShareLinks.id))
     .limit(1);
   if (!link) return [];
   const rows = await database
     .select({ id: debtorShareReceipts.expenseReceiptId })
     .from(debtorShareReceipts)
-    .where(and(eq(debtorShareReceipts.ownerUserId, ownerUserId), eq(debtorShareReceipts.debtorShareLinkId, link.id)))
+    .where(and(eq(debtorShareReceipts.ledgerScopeId, ledgerScopeId), eq(debtorShareReceipts.debtorShareLinkId, link.id)))
     .orderBy(asc(debtorShareReceipts.expenseReceiptId));
   return rows.map((row) => row.id);
 }
@@ -272,7 +278,7 @@ export async function getDebtorShareReceiptSelection(database: Database, ownerUs
 export async function resolveDebtorShareLink(database: Database, token: string, now = new Date(), options: DebtorStatementPageOptions = {}) {
   if (!isCanonicalDebtorShareToken(token)) return null;
   const [link] = await database
-    .select({ id: debtorShareLinks.id, ownerUserId: debtorShareLinks.ownerUserId, friendId: debtorShareLinks.friendId, expiresAt: debtorShareLinks.expiresAt })
+    .select({ id: debtorShareLinks.id, ledgerScopeId: debtorShareLinks.ledgerScopeId, friendId: debtorShareLinks.friendId, expiresAt: debtorShareLinks.expiresAt })
     .from(debtorShareLinks)
     .where(
       and(
@@ -286,7 +292,7 @@ export async function resolveDebtorShareLink(database: Database, token: string, 
 
   try {
     return {
-      statement: await createLedgerRepository(database, link.ownerUserId).getPublicFriendDebtorStatement(link.friendId, now, link.id, options),
+      statement: await createLedgerRepository(database, link.ledgerScopeId).getPublicFriendDebtorStatement(link.friendId, now, link.id, options),
       expiresAt: link.expiresAt,
     };
   } catch (error) {
@@ -309,17 +315,17 @@ export async function getSharedDebtorReceipt(database: Database, token: string, 
     .from(debtorShareReceipts)
     .innerJoin(debtorShareLinks, and(
       eq(debtorShareLinks.id, debtorShareReceipts.debtorShareLinkId),
-      eq(debtorShareLinks.ownerUserId, debtorShareReceipts.ownerUserId),
+      eq(debtorShareLinks.ledgerScopeId, debtorShareReceipts.ledgerScopeId),
       isNull(debtorShareLinks.revokedAt),
       gt(debtorShareLinks.expiresAt, now),
     ))
     .innerJoin(expenseReceipts, and(
-      eq(expenseReceipts.ownerUserId, debtorShareReceipts.ownerUserId),
+      eq(expenseReceipts.ledgerScopeId, debtorShareReceipts.ledgerScopeId),
       eq(expenseReceipts.expenseId, debtorShareReceipts.expenseId),
       eq(expenseReceipts.id, debtorShareReceipts.expenseReceiptId),
     ))
     .innerJoin(expenseShares, and(
-      eq(expenseShares.ownerUserId, debtorShareReceipts.ownerUserId),
+      eq(expenseShares.ledgerScopeId, debtorShareReceipts.ledgerScopeId),
       eq(expenseShares.expenseId, debtorShareReceipts.expenseId),
       eq(expenseShares.friendId, debtorShareLinks.friendId),
     ))

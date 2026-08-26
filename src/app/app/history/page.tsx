@@ -1,6 +1,5 @@
 import { requireSession } from "@/auth/require-session";
-import { getDatabase } from "@/db/client";
-import { createLedgerRepository } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { LedgerHistory } from "@/components/history/ledger-history";
 import type { LedgerHistoryType } from "@/domain/ledger-history";
 
@@ -23,7 +22,8 @@ export default async function HistoryPage({ searchParams = Promise.resolve({}) }
   const params = await searchParams;
   const type = historyType(first(params.type));
   const cursor = first(params.cursor);
-  const history = await createLedgerRepository(getDatabase(), session.user.id).listLedgerHistory({ cursor, type });
+  const { ledger } = await getAuthenticatedLedger(session);
+  const history = await ledger.listLedgerHistory({ cursor, type });
 
   return (
     <section className="app-page history-page" id="top">

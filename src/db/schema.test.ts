@@ -11,6 +11,7 @@ const domainTables = [
   "friend_connections",
   "friend_link_requests",
   "friends",
+  "ledger_scopes",
   "notifications",
   "organization_avatars",
   "organization_invitations",
@@ -66,9 +67,9 @@ describe("database schema", () => {
     expect(foreignKeyShape(schema.userAvatars)).toEqual([{ from: ["user_id"], to: "users", target: ["id"], onDelete: "cascade" }]);
   });
 
-  it("exports the nineteen domain tables and four auth tables", () => {
+  it("exports the domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars]
+      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -86,17 +87,19 @@ describe("database schema", () => {
     expect(foreignKeyShape(schema.friends)).toEqual(expect.arrayContaining([
       { from: ["linked_user_id"], to: "users", target: ["id"], onDelete: "set null" },
     ]));
-    expect(indexColumns(schema.friends, "friends_owner_linked_user_uidx")).toEqual(["owner_user_id", "linked_user_id"]);
+    expect(indexColumns(schema.friends, "friends_ledger_scope_linked_user_uidx")).toEqual(["ledger_scope_id", "linked_user_id"]);
     const requests = getTableConfig(schema.friendLinkRequests);
     expect(requests.columns.map((column) => column.name)).toEqual([
-      "id", "owner_user_id", "friend_id", "target_user_id", "status", "created_at", "accepted_at", "declined_at", "cancelled_at",
+      "id", "owner_user_id", "friend_id", "friend_ledger_scope_id", "target_user_id", "status", "created_at", "accepted_at", "declined_at", "cancelled_at",
     ]);
     expect(requests.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
       "friend_link_requests_status_allowed",
       "friend_link_requests_transition_timestamps",
     ]));
     expect(foreignKeyShape(schema.friendLinkRequests)).toEqual(expect.arrayContaining([
-      { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
+      { from: ["friend_ledger_scope_id", "friend_id"], to: "friends", target: ["ledger_scope_id", "id"], onDelete: "restrict" },
+      { from: ["friend_ledger_scope_id", "owner_user_id"], to: "ledger_scopes", target: ["id", "user_id"], onDelete: "restrict" },
+      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
       { from: ["target_user_id"], to: "users", target: ["id"], onDelete: "cascade" },
     ]));
     expect(indexColumns(schema.friendLinkRequests, "friend_link_requests_pending_owner_friend_uidx")).toEqual(["owner_user_id", "friend_id"]);
@@ -142,6 +145,18 @@ describe("database schema", () => {
     expect(indexColumns(schema.organizationInvitations, "organization_invitations_pending_organization_target_uidx")).toEqual(["organization_id", "target_user_id"]);
   });
 
+  it("defines ledger scopes with subject XOR and one-scope-per-subject indexes", () => {
+    const table = getTableConfig(schema.ledgerScopes);
+    expect(table.columns.map((column) => column.name)).toEqual(["id", "kind", "user_id", "organization_id", "created_at"]);
+    expect(table.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["ledger_scopes_kind_allowed", "ledger_scopes_subject_xor"]));
+    expect(indexColumns(schema.ledgerScopes, "ledger_scopes_personal_user_uidx")).toEqual(["user_id"]);
+    expect(indexColumns(schema.ledgerScopes, "ledger_scopes_organization_uidx")).toEqual(["organization_id"]);
+    expect(foreignKeyShape(schema.ledgerScopes)).toEqual(expect.arrayContaining([
+      { from: ["user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      { from: ["organization_id"], to: "organizations", target: ["id"], onDelete: "restrict" },
+    ]));
+  });
+
   it("keeps notifications recipient-owned, bounded, and queryable by unread/newest state", () => {
     const table = getTableConfig(schema.notifications);
     expect(table.name).toBe("notifications");
@@ -170,7 +185,7 @@ describe("database schema", () => {
     expect(table.name).toBe("repayment_destinations");
     expect(table.columns.map((column) => column.name)).toEqual([
       "id",
-      "owner_user_id",
+      "ledger_scope_id",
       "type",
       "name",
       "identifier",
@@ -188,9 +203,9 @@ describe("database schema", () => {
       "repayment_destinations_sort_order_nonnegative",
     ]));
     expect(foreignKeyShape(schema.repaymentDestinations)).toEqual(expect.arrayContaining([
-      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "cascade" },
+      { from: ["ledger_scope_id"], to: "ledger_scopes", target: ["id"], onDelete: "restrict" },
     ]));
-    expect(indexColumns(schema.repaymentDestinations, "repayment_destinations_owner_order_idx")).toEqual(["owner_user_id", "sort_order", "id"]);
+    expect(indexColumns(schema.repaymentDestinations, "repayment_destinations_owner_order_idx")).toEqual(["ledger_scope_id", "sort_order", "id"]);
   });
 
   it("defines one owner-private payment proof per repayment", () => {
@@ -198,7 +213,7 @@ describe("database schema", () => {
     expect(table.name).toBe("repayment_proofs");
     expect(table.columns.map((column) => column.name)).toEqual([
       "id",
-      "owner_user_id",
+      "ledger_scope_id",
       "repayment_id",
       "original_filename",
       "media_type",
@@ -215,10 +230,10 @@ describe("database schema", () => {
       "repayment_proofs_sha256_hex",
     ]));
     expect(foreignKeyShape(schema.repaymentProofs)).toEqual(expect.arrayContaining([
-      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
-      { from: ["owner_user_id", "repayment_id"], to: "repayments", target: ["owner_user_id", "id"], onDelete: "cascade" },
+      { from: ["ledger_scope_id"], to: "ledger_scopes", target: ["id"], onDelete: "restrict" },
+      { from: ["ledger_scope_id", "repayment_id"], to: "repayments", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
     ]));
-    expect(indexColumns(schema.repaymentProofs, "repayment_proofs_owner_repayment_uidx")).toEqual(["owner_user_id", "repayment_id"]);
+    expect(indexColumns(schema.repaymentProofs, "repayment_proofs_owner_repayment_uidx")).toEqual(["ledger_scope_id", "repayment_id"]);
   });
 
   it("defines private receipt storage constraints and indexes", () => {
@@ -226,7 +241,7 @@ describe("database schema", () => {
     expect(table.name).toBe("expense_receipts");
     expect(table.columns.map((column) => column.name)).toEqual([
       "id",
-      "owner_user_id",
+      "ledger_scope_id",
       "expense_id",
       "original_filename",
       "media_type",
@@ -246,11 +261,11 @@ describe("database schema", () => {
       "expense_receipts_sha256_hex",
     ]));
     expect(foreignKeyShape(schema.expenseReceipts)).toEqual(expect.arrayContaining([
-      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
-      { from: ["owner_user_id", "expense_id"], to: "expenses", target: ["owner_user_id", "id"], onDelete: "cascade" },
+      { from: ["ledger_scope_id"], to: "ledger_scopes", target: ["id"], onDelete: "restrict" },
+      { from: ["ledger_scope_id", "expense_id"], to: "expenses", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
     ]));
-    expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_sha256_uidx")).toEqual(["owner_user_id", "expense_id", "sha256"]);
-    expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_created_id_idx")).toEqual(["owner_user_id", "expense_id", "created_at", "id"]);
+    expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_sha256_uidx")).toEqual(["ledger_scope_id", "expense_id", "sha256"]);
+    expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_created_id_idx")).toEqual(["ledger_scope_id", "expense_id", "created_at", "id"]);
   });
 
   it("defines one-time account invitations with bounded, linked fields", () => {
@@ -304,7 +319,7 @@ describe("database schema", () => {
     expect(table.columns.map((column) => column.name)).toEqual([
       "id",
       "token_hash",
-      "owner_user_id",
+      "ledger_scope_id",
       "friend_id",
       "created_at",
       "expires_at",
@@ -321,8 +336,8 @@ describe("database schema", () => {
     );
     expect(foreignKeyShape(schema.debtorShareLinks)).toEqual(
       expect.arrayContaining([
-        { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
-        { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
+        { from: ["ledger_scope_id"], to: "ledger_scopes", target: ["id"], onDelete: "restrict" },
+        { from: ["ledger_scope_id", "friend_id"], to: "friends", target: ["ledger_scope_id", "id"], onDelete: "restrict" },
       ]),
     );
     expect(table.checks.map((check) => check.name)).toEqual(
@@ -365,41 +380,41 @@ describe("database schema", () => {
       schema.repaymentAllocations,
     ];
     for (const table of domainTables) {
-      const ownerColumn = getTableConfig(table).columns.find((column) => column.name === "owner_user_id");
+      const ownerColumn = getTableConfig(table).columns.find((column) => column.name === "ledger_scope_id");
       expect(ownerColumn).toBeDefined();
       expect(ownerColumn?.notNull).toBe(true);
-      expect(ownerColumn?.columnType).toBe(schema.users.id.columnType);
+      expect(ownerColumn?.columnType).toBe(schema.ledgerScopes.id.columnType);
       expect(
         foreignKeyShape(table).some(
           ({ from, to, target, onDelete }) =>
-            from.join(",") === "owner_user_id" && to === "users" && target.join(",") === "id" && onDelete === "restrict",
+            from.join(",") === "ledger_scope_id" && to === "ledger_scopes" && target.join(",") === "id" && onDelete === "restrict",
         ),
       ).toBe(true);
     }
 
     for (const [table, name] of [
-      [schema.friends, "friends_owner_user_id_id_uidx"],
-      [schema.outings, "outings_owner_user_id_id_uidx"],
-      [schema.expenses, "expenses_owner_user_id_id_uidx"],
-      [schema.expenseShares, "expense_shares_owner_user_id_id_uidx"],
-      [schema.expenseCharges, "expense_charges_owner_user_id_id_uidx"],
-      [schema.repayments, "repayments_owner_user_id_id_uidx"],
-      [schema.trips, "trips_owner_user_id_id_uidx"],
+      [schema.friends, "friends_ledger_scope_id_id_uidx"],
+      [schema.outings, "outings_ledger_scope_id_id_uidx"],
+      [schema.expenses, "expenses_ledger_scope_id_id_uidx"],
+      [schema.expenseShares, "expense_shares_ledger_scope_id_id_uidx"],
+      [schema.expenseCharges, "expense_charges_ledger_scope_id_id_uidx"],
+      [schema.repayments, "repayments_ledger_scope_id_id_uidx"],
+      [schema.trips, "trips_ledger_scope_id_id_uidx"],
     ] as const) {
-      expect(indexColumns(table, name)).toEqual(["owner_user_id", "id"]);
+      expect(indexColumns(table, name)).toEqual(["ledger_scope_id", "id"]);
     }
   });
 
   it("uses owner-aware composite foreign keys for domain relationships", () => {
     const references = [
-      [schema.expenseShares, ["owner_user_id", "expense_id"], "expenses", ["owner_user_id", "id"], "cascade"],
-      [schema.expenseChargeTargets, ["owner_user_id", "expense_id", "expense_charge_id"], "expense_charges", ["owner_user_id", "expense_id", "id"], "cascade"],
-      [schema.expenseChargeTargets, ["owner_user_id", "expense_id", "expense_share_id"], "expense_shares", ["owner_user_id", "expense_id", "id"], "cascade"],
-      [schema.outings, ["owner_user_id", "trip_id"], "trips", ["owner_user_id", "id"], "restrict"],
-      [schema.expenseShares, ["owner_user_id", "friend_id"], "friends", ["owner_user_id", "id"], "restrict"],
-      [schema.repayments, ["owner_user_id", "friend_id"], "friends", ["owner_user_id", "id"], "restrict"],
-      [schema.repaymentAllocations, ["owner_user_id", "repayment_id"], "repayments", ["owner_user_id", "id"], "cascade"],
-      [schema.repaymentAllocations, ["owner_user_id", "expense_share_id"], "expense_shares", ["owner_user_id", "id"], "cascade"],
+      [schema.expenseShares, ["ledger_scope_id", "expense_id"], "expenses", ["ledger_scope_id", "id"], "cascade"],
+      [schema.expenseChargeTargets, ["ledger_scope_id", "expense_id", "expense_charge_id"], "expense_charges", ["ledger_scope_id", "expense_id", "id"], "cascade"],
+      [schema.expenseChargeTargets, ["ledger_scope_id", "expense_id", "expense_share_id"], "expense_shares", ["ledger_scope_id", "expense_id", "id"], "cascade"],
+      [schema.outings, ["ledger_scope_id", "trip_id"], "trips", ["ledger_scope_id", "id"], "restrict"],
+      [schema.expenseShares, ["ledger_scope_id", "friend_id"], "friends", ["ledger_scope_id", "id"], "restrict"],
+      [schema.repayments, ["ledger_scope_id", "friend_id"], "friends", ["ledger_scope_id", "id"], "restrict"],
+      [schema.repaymentAllocations, ["ledger_scope_id", "repayment_id"], "repayments", ["ledger_scope_id", "id"], "cascade"],
+      [schema.repaymentAllocations, ["ledger_scope_id", "expense_share_id"], "expense_shares", ["ledger_scope_id", "id"], "cascade"],
     ] as const;
     for (const [table, from, to, target, onDelete] of references) {
       expect(foreignKeyShape(table)).toEqual(expect.arrayContaining([{ from, to, target, onDelete }]));
@@ -447,7 +462,7 @@ describe("database schema", () => {
     ).toBe(true);
 
     const allocationPrimaryKey = getTableConfig(schema.repaymentAllocations).primaryKeys[0];
-    expect(columnNames(allocationPrimaryKey.columns)).toEqual(["repayment_id", "expense_share_id"]);
+    expect(columnNames(allocationPrimaryKey.columns)).toEqual(["ledger_scope_id", "repayment_id", "expense_share_id"]);
   });
 
   it("defines owner-bound receipt visibility mappings with cascading cleanup", () => {
@@ -455,20 +470,20 @@ describe("database schema", () => {
     expect(table.name).toBe("debtor_share_receipts");
     expect(table.columns.map((column) => column.name)).toEqual([
       "id",
-      "owner_user_id",
+      "ledger_scope_id",
       "debtor_share_link_id",
       "expense_id",
       "expense_receipt_id",
       "created_at",
     ]);
     expect(foreignKeyShape(schema.debtorShareReceipts)).toEqual(expect.arrayContaining([
-      { from: ["owner_user_id", "debtor_share_link_id"], to: "debtor_share_links", target: ["owner_user_id", "id"], onDelete: "cascade" },
-      { from: ["owner_user_id", "expense_id", "expense_receipt_id"], to: "expense_receipts", target: ["owner_user_id", "expense_id", "id"], onDelete: "cascade" },
+      { from: ["ledger_scope_id", "debtor_share_link_id"], to: "debtor_share_links", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
+      { from: ["ledger_scope_id", "expense_id", "expense_receipt_id"], to: "expense_receipts", target: ["ledger_scope_id", "expense_id", "id"], onDelete: "cascade" },
     ]));
-    expect(indexColumns(schema.debtorShareReceipts, "debtor_share_receipts_link_idx")).toEqual(["owner_user_id", "debtor_share_link_id"]);
+    expect(indexColumns(schema.debtorShareReceipts, "debtor_share_receipts_link_idx")).toEqual(["ledger_scope_id", "debtor_share_link_id"]);
     expect(indexColumns(schema.debtorShareReceipts, "debtor_share_receipts_public_id_idx")).toEqual(["id"]);
-    expect(indexColumns(schema.debtorShareLinks, "debtor_share_links_owner_user_id_id_uidx")).toEqual(["owner_user_id", "id"]);
-    expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_id_uidx")).toEqual(["owner_user_id", "expense_id", "id"]);
+    expect(indexColumns(schema.debtorShareLinks, "debtor_share_links_ledger_scope_id_id_uidx")).toEqual(["ledger_scope_id", "id"]);
+    expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_id_uidx")).toEqual(["ledger_scope_id", "expense_id", "id"]);
   });
 
   it("defines the required foreign-key delete actions", () => {
@@ -482,51 +497,51 @@ describe("database schema", () => {
     ];
     expect(actions).toEqual(
       expect.arrayContaining([
-        { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "cascade" },
-        { from: ["owner_user_id", "expense_id"], to: "expenses", target: ["owner_user_id", "id"], onDelete: "cascade" },
-        { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
-        { from: ["owner_user_id", "repayment_id"], to: "repayments", target: ["owner_user_id", "id"], onDelete: "cascade" },
-        { from: ["owner_user_id", "expense_share_id"], to: "expense_shares", target: ["owner_user_id", "id"], onDelete: "cascade" },
-        { from: ["owner_user_id", "expense_id"], to: "expenses", target: ["owner_user_id", "id"], onDelete: "cascade" },
-        { from: ["owner_user_id", "expense_id", "expense_charge_id"], to: "expense_charges", target: ["owner_user_id", "expense_id", "id"], onDelete: "cascade" },
-        { from: ["owner_user_id", "expense_id", "expense_share_id"], to: "expense_shares", target: ["owner_user_id", "expense_id", "id"], onDelete: "cascade" },
+        { from: ["ledger_scope_id", "outing_id"], to: "outings", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
+        { from: ["ledger_scope_id", "expense_id"], to: "expenses", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
+        { from: ["ledger_scope_id", "friend_id"], to: "friends", target: ["ledger_scope_id", "id"], onDelete: "restrict" },
+        { from: ["ledger_scope_id", "repayment_id"], to: "repayments", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
+        { from: ["ledger_scope_id", "expense_share_id"], to: "expense_shares", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
+        { from: ["ledger_scope_id", "expense_id"], to: "expenses", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
+        { from: ["ledger_scope_id", "expense_id", "expense_charge_id"], to: "expense_charges", target: ["ledger_scope_id", "expense_id", "id"], onDelete: "cascade" },
+        { from: ["ledger_scope_id", "expense_id", "expense_share_id"], to: "expense_shares", target: ["ledger_scope_id", "expense_id", "id"], onDelete: "cascade" },
       ]),
     );
-    expect(actions.filter(({ from, to }) => from.join(",") === "owner_user_id,friend_id" && to === "friends")).toHaveLength(2);
+    expect(actions.filter(({ from, to }) => from.join(",") === "ledger_scope_id,friend_id" && to === "friends")).toHaveLength(2);
   });
 
   it("keeps the ownership cascade graph exact", () => {
     expect(foreignKeyShape(schema.expenses)).toEqual([
-      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
-      { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "cascade" },
+      { from: ["ledger_scope_id"], to: "ledger_scopes", target: ["id"], onDelete: "restrict" },
+      { from: ["ledger_scope_id", "outing_id"], to: "outings", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
     ]);
     expect(foreignKeyShape(schema.expenseShares)).toEqual([
-      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
-      { from: ["owner_user_id", "expense_id"], to: "expenses", target: ["owner_user_id", "id"], onDelete: "cascade" },
-      { from: ["owner_user_id", "friend_id"], to: "friends", target: ["owner_user_id", "id"], onDelete: "restrict" },
+      { from: ["ledger_scope_id"], to: "ledger_scopes", target: ["id"], onDelete: "restrict" },
+      { from: ["ledger_scope_id", "expense_id"], to: "expenses", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
+      { from: ["ledger_scope_id", "friend_id"], to: "friends", target: ["ledger_scope_id", "id"], onDelete: "restrict" },
     ]);
     expect(foreignKeyShape(schema.repaymentAllocations)).toEqual([
-      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
-      { from: ["owner_user_id", "repayment_id"], to: "repayments", target: ["owner_user_id", "id"], onDelete: "cascade" },
-      { from: ["owner_user_id", "expense_share_id"], to: "expense_shares", target: ["owner_user_id", "id"], onDelete: "cascade" },
+      { from: ["ledger_scope_id"], to: "ledger_scopes", target: ["id"], onDelete: "restrict" },
+      { from: ["ledger_scope_id", "repayment_id"], to: "repayments", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
+      { from: ["ledger_scope_id", "expense_share_id"], to: "expense_shares", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
     ]);
   });
 
   it("defines the expected lookup indexes", () => {
     const indexes = [
-      [schema.friends, "friends_name_idx", ["owner_user_id", "name"]],
-      [schema.friends, "friends_archived_at_idx", ["owner_user_id", "archived_at"]],
-      [schema.outings, "outings_occurred_at_idx", ["owner_user_id", "occurred_at"]],
-      [schema.outings, "outings_owner_user_id_trip_id_idx", ["owner_user_id", "trip_id"]],
-      [schema.trips, "trips_owner_user_id_name_idx", ["owner_user_id", "name"]],
-      [schema.trips, "trips_owner_user_id_dates_idx", ["owner_user_id", "starts_on", "ends_on"]],
-      [schema.expenses, "expenses_outing_id_idx", ["owner_user_id", "outing_id"]],
-      [schema.expenseShares, "expense_shares_friend_id_idx", ["owner_user_id", "friend_id"]],
-      [schema.expenseCharges, "expense_charges_owner_expense_id_idx", ["owner_user_id", "expense_id"]],
-      [schema.expenseChargeTargets, "expense_charge_targets_owner_share_idx", ["owner_user_id", "expense_share_id"]],
-      [schema.repayments, "repayments_friend_id_idx", ["owner_user_id", "friend_id"]],
-      [schema.repayments, "repayments_paid_at_idx", ["owner_user_id", "paid_at"]],
-      [schema.repaymentAllocations, "repayment_allocations_expense_share_id_idx", ["owner_user_id", "expense_share_id"]],
+      [schema.friends, "friends_name_idx", ["ledger_scope_id", "name"]],
+      [schema.friends, "friends_archived_at_idx", ["ledger_scope_id", "archived_at"]],
+      [schema.outings, "outings_occurred_at_idx", ["ledger_scope_id", "occurred_at"]],
+      [schema.outings, "outings_ledger_scope_id_trip_id_idx", ["ledger_scope_id", "trip_id"]],
+      [schema.trips, "trips_ledger_scope_id_name_idx", ["ledger_scope_id", "name"]],
+      [schema.trips, "trips_ledger_scope_id_dates_idx", ["ledger_scope_id", "starts_on", "ends_on"]],
+      [schema.expenses, "expenses_outing_id_idx", ["ledger_scope_id", "outing_id"]],
+      [schema.expenseShares, "expense_shares_friend_id_idx", ["ledger_scope_id", "friend_id"]],
+      [schema.expenseCharges, "expense_charges_owner_expense_id_idx", ["ledger_scope_id", "expense_id"]],
+      [schema.expenseChargeTargets, "expense_charge_targets_owner_share_idx", ["ledger_scope_id", "expense_share_id"]],
+      [schema.repayments, "repayments_friend_id_idx", ["ledger_scope_id", "friend_id"]],
+      [schema.repayments, "repayments_paid_at_idx", ["ledger_scope_id", "paid_at"]],
+      [schema.repaymentAllocations, "repayment_allocations_expense_share_id_idx", ["ledger_scope_id", "expense_share_id"]],
     ] as const;
     for (const [table, name, columns] of indexes) expect(indexColumns(table, name)).toEqual(columns);
   });
@@ -538,7 +553,7 @@ describe("database schema", () => {
     expect(getTableConfig(schema.expenses).indexes.some((index) => index.config.name === "expenses_occurred_at_idx")).toBe(false);
     expect(foreignKeyShape(schema.expenses)).toEqual(
       expect.arrayContaining([
-        { from: ["owner_user_id", "outing_id"], to: "outings", target: ["owner_user_id", "id"], onDelete: "cascade" },
+        { from: ["ledger_scope_id", "outing_id"], to: "outings", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
       ]),
     );
   });
@@ -547,7 +562,7 @@ describe("database schema", () => {
     const table = getTableConfig(schema.trips);
     expect(table.columns.map((column) => column.name)).toEqual([
       "id",
-      "owner_user_id",
+      "ledger_scope_id",
       "name",
       "starts_on",
       "ends_on",
@@ -561,10 +576,10 @@ describe("database schema", () => {
     expect(table.columns.find((column) => column.name === "ends_on")?.columnType).toBe("PgDateString");
     expect(table.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["trips_name_not_blank", "trips_date_range_valid"]));
     expect(foreignKeyShape(schema.trips)).toEqual(expect.arrayContaining([
-      { from: ["owner_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      { from: ["ledger_scope_id"], to: "ledger_scopes", target: ["id"], onDelete: "restrict" },
     ]));
     expect(foreignKeyShape(schema.outings)).toEqual(expect.arrayContaining([
-      { from: ["owner_user_id", "trip_id"], to: "trips", target: ["owner_user_id", "id"], onDelete: "restrict" },
+      { from: ["ledger_scope_id", "trip_id"], to: "trips", target: ["ledger_scope_id", "id"], onDelete: "restrict" },
     ]));
     expect(getTableConfig(schema.outings).columns.find((column) => column.name === "trip_id")?.notNull).toBe(false);
   });

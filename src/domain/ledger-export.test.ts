@@ -69,7 +69,7 @@ describe("ledger export CSV", () => {
     expect(csv).toContain("\"'-Dinner, \"\"late\"\"\nnow\"");
     expect(csv).toContain("\"'=Ada, \"\"One\"\"\nTwo\"");
     expect(csv).not.toContain("'1000");
-    expect(csv).not.toMatch(/ownerUserId|phoneNumber|notes|tokenHash|expenseShareId/);
+    expect(csv).not.toMatch(/ledgerScopeId|phoneNumber|notes|tokenHash|expenseShareId/);
   });
 
   it.each([

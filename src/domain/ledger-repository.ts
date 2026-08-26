@@ -39,21 +39,21 @@ import { createExpenseMutationRepository } from "./ledger/expenses";
 import { createRepaymentMutationRepository } from "./ledger/repayments";
 import { createRepaymentDestinationRepository } from "./ledger/repayment-destinations";
 
-export function createLedgerRepository(database: Database, ownerUserId: string) {
-  const owner = ownerUserId.trim();
-  if (!owner) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger owner is required");
-  const allocationRepository = createRepaymentAllocationRepository(database, owner);
+export function createLedgerRepository(database: Database, ledgerScopeId: string) {
+  const scope = ledgerScopeId.trim();
+  if (!scope) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger scope is required");
+  const allocationRepository = createRepaymentAllocationRepository(database, scope);
 
-  const friendsReads = createFriendsReadRepository(database, owner);
+  const friendsReads = createFriendsReadRepository(database, scope);
   const { getFriend, ...friendReads } = friendsReads;
-  const tripsReads = createTripsReadRepository(database, owner);
-  const outingsReads = createOutingsReadRepository(database, owner);
-  const searchReads = createLedgerSearchRepository(database, owner);
-  const historyReads = createLedgerHistoryRepository(database, owner);
-  const summaryReads = createLedgerSummaryRepository(database, owner);
+  const tripsReads = createTripsReadRepository(database, scope);
+  const outingsReads = createOutingsReadRepository(database, scope);
+  const searchReads = createLedgerSearchRepository(database, scope);
+  const historyReads = createLedgerHistoryRepository(database, scope);
+  const summaryReads = createLedgerSummaryRepository(database, scope);
   const { getFriendBalances, ...summaryReadMethods } = summaryReads;
-  const statementsReads = createLedgerStatementRepository(database, owner);
-  const expenseReads = createExpenseReadRepository(database, owner);
+  const statementsReads = createLedgerStatementRepository(database, scope);
+  const expenseReads = createExpenseReadRepository(database, scope);
   const {
     expenseSelection,
     listExpenseChargesFor,
@@ -61,19 +61,19 @@ export function createLedgerRepository(database: Database, ownerUserId: string) 
     listOpenExpenseSharesByFriend,
     ...expenseReadMethods
   } = expenseReads;
-  const repaymentReadMethods = createRepaymentReadRepository(database, owner, allocationRepository);
+  const repaymentReadMethods = createRepaymentReadRepository(database, scope, allocationRepository);
 
-  const expenseMutations = createExpenseMutationRepository(database, owner, {
+  const expenseMutations = createExpenseMutationRepository(database, scope, {
     expenseSelection,
     listExpenseChargesFor,
     listExpenseSharesFor,
   }, allocationRepository);
   const { lockExpenseDependents, ...expenseMutationMethods } = expenseMutations;
-  const outingsMutations = createOutingsMutationRepository(database, owner, { lockExpenseDependents });
-  const friendsMutationMethods = createFriendsMutationRepository(database, owner);
-  const tripsMutationMethods = createTripsMutationRepository(database, owner);
-  const repaymentMutationMethods = createRepaymentMutationRepository(database, owner, allocationRepository);
-  const repaymentDestinationMethods = createRepaymentDestinationRepository(database, owner);
+  const outingsMutations = createOutingsMutationRepository(database, scope, { lockExpenseDependents });
+  const friendsMutationMethods = createFriendsMutationRepository(database, scope);
+  const tripsMutationMethods = createTripsMutationRepository(database, scope);
+  const repaymentMutationMethods = createRepaymentMutationRepository(database, scope, allocationRepository);
+  const repaymentDestinationMethods = createRepaymentDestinationRepository(database, scope);
 
   async function getRepaymentFriendContext(friendId: string, includeOpenExpenseShares = false, tripId?: string): Promise<RepaymentFriendContext> {
     assertFriendId(friendId);

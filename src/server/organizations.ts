@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, count, eq, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { organizationAvatars, organizationMemberships, organizations } from "@/db/schema";
+import { ledgerScopes, organizationAvatars, organizationMemberships, organizations } from "@/db/schema";
 import {
   isOrganizationRole,
   getOrganizationInvitationRoles,
@@ -12,6 +12,7 @@ import {
   type OrganizationRole,
 } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
+import { createOrganizationLedgerScope } from "@/server/ledger-scopes";
 
 export type { OrganizationRole } from "@/domain/organization-permissions";
 export type OrganizationAvatarMetadata = { mediaType: "image/webp"; byteSize: number; sha256: string };
@@ -26,7 +27,7 @@ export type OrganizationSummary = {
 export type OrganizationDetail = OrganizationSummary & { canUpdate: boolean; canDelete: boolean; canViewMembers: boolean; invitationRoles: OrganizationInvitationRole[] };
 
 export class OrganizationError extends Error {
-  constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden") {
+  constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden" | "ledger_not_empty") {
     super(code);
     this.name = "OrganizationError";
   }
@@ -34,6 +35,10 @@ export class OrganizationError extends Error {
 
 function assertOrganizationId(organizationId: string) {
   if (!normalizeUuid(organizationId)) throw new OrganizationError("invalid_id");
+}
+
+function databaseCode(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
 }
 
 function cleanInput(input: { name: string; description?: string | null }) {
@@ -140,6 +145,7 @@ export async function createOrganization(
   return database.transaction(async (transaction) => {
     const [organization] = await transaction.insert(organizations).values(values).returning();
     if (!organization) throw new Error("Organization was not created");
+    await createOrganizationLedgerScope(transaction as Database, organization.id);
     await transaction.insert(organizationMemberships).values({ organizationId: organization.id, userId, role: "owner" });
     if (input.avatar) {
       await transaction.insert(organizationAvatars).values({ ...input.avatar, organizationId: organization.id, content: Buffer.from(input.avatar.content) });
@@ -163,8 +169,23 @@ export async function updateOrganization(database: Database, organizationId: str
 export async function deleteOrganization(database: Database, organizationId: string, userId: string) {
   const access = await requireOrganizationAccess(database, organizationId, userId);
   access.require("organization.delete");
-  const deleted = await database.delete(organizations).where(eq(organizations.id, organizationId)).returning({ id: organizations.id });
-  return deleted.length > 0;
+  return database.transaction(async (transaction) => {
+    const [scope] = await transaction
+      .select({ id: ledgerScopes.id })
+      .from(ledgerScopes)
+      .where(and(eq(ledgerScopes.kind, "organization"), eq(ledgerScopes.organizationId, organizationId)))
+      .limit(1);
+    if (scope) {
+      try {
+        await transaction.delete(ledgerScopes).where(eq(ledgerScopes.id, scope.id));
+      } catch (error) {
+        if (databaseCode(error) === "23503") throw new OrganizationError("ledger_not_empty");
+        throw error;
+      }
+    }
+    const deleted = await transaction.delete(organizations).where(eq(organizations.id, organizationId)).returning({ id: organizations.id });
+    return deleted.length > 0;
+  });
 }
 
 export async function getOrganizationAvatar(database: Database, organizationId: string, userId: string) {

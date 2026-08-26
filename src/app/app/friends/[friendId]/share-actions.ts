@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
-import { createLedgerRepository } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import {
   createDebtorShareLink,
   DebtorShareReceiptSelectionError,
@@ -58,7 +58,8 @@ export async function createDebtorShareLinkAction(
       ? await createDebtorShareLink(database, session.user.id, friendId, selected)
       : await createDebtorShareLink(database, session.user.id, friendId);
     replacementCommitted = true;
-    const statement = await createLedgerRepository(database, session.user.id).getFriendDebtorStatement(friendId);
+    const { ledger } = await getAuthenticatedLedger(session);
+    const statement = await ledger.getFriendDebtorStatement(friendId);
     revalidatePath(`/app/friends/${friendId}`);
     return {
       error: "",

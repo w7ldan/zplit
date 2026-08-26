@@ -7,7 +7,8 @@ import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ExpenseShareEditor } from "@/components/expenses/expense-share-editor";
 import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
 import { formatRupiah } from "@/domain/rupiah";
-import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { listExpenseReceipts } from "@/server/expense-receipts";
 import { replaceExpenseSharesAction, searchExpenseFriendOptions, searchOutingOptions, updateExpenseAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
@@ -22,7 +23,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
   const { expenseId } = await params;
   const query = await searchParams;
   const database = getDatabase();
-  const repository = createLedgerRepository(database, session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   let expense;
   try {
     expense = await repository.getExpense(expenseId);

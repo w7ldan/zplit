@@ -3,6 +3,7 @@ import type { Database } from "../db/client";
 import { repaymentProofs, repayments } from "../db/schema";
 import { type ValidatedReceiptFile } from "../domain/receipt-file";
 import { RECEIPT_READ_HEADERS } from "./expense-receipts";
+import { getPersonalLedgerScopeId } from "./ledger-scopes";
 
 export const PAYMENT_PROOF_UNAVAILABLE_MESSAGE = "This repayment or payment proof is no longer available.";
 export const PAYMENT_PROOF_ALREADY_ATTACHED_MESSAGE = "This repayment already has a payment proof.";
@@ -52,13 +53,13 @@ function assertOwner(ownerUserId: string) {
   if (typeof ownerUserId !== "string" || !ownerUserId.trim()) throw new Error("A payment proof owner is required");
 }
 
-function repaymentOwnerWhere(ownerUserId: string, repaymentId: string) {
-  return and(eq(repayments.ownerUserId, ownerUserId), eq(repayments.id, repaymentId));
+function repaymentOwnerWhere(ledgerScopeId: string, repaymentId: string) {
+  return and(eq(repayments.ledgerScopeId, ledgerScopeId), eq(repayments.id, repaymentId));
 }
 
-function proofOwnerWhere(ownerUserId: string, repaymentId: string, proofId?: string) {
+function proofOwnerWhere(ledgerScopeId: string, repaymentId: string, proofId?: string) {
   return and(
-    eq(repaymentProofs.ownerUserId, ownerUserId),
+    eq(repaymentProofs.ledgerScopeId, ledgerScopeId),
     eq(repaymentProofs.repaymentId, repaymentId),
     ...(proofId ? [eq(repaymentProofs.id, proofId)] : []),
   );
@@ -66,11 +67,12 @@ function proofOwnerWhere(ownerUserId: string, repaymentId: string, proofId?: str
 
 export async function getRepaymentPaymentProofMetadata(database: Database, ownerUserId: string, repaymentId: string): Promise<RepaymentPaymentProofMetadata | null> {
   assertOwner(ownerUserId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const [proof] = await database
     .select(metadataSelection())
     .from(repaymentProofs)
-    .innerJoin(repayments, and(eq(repayments.ownerUserId, repaymentProofs.ownerUserId), eq(repayments.id, repaymentProofs.repaymentId)))
-    .where(and(proofOwnerWhere(ownerUserId, repaymentId), repaymentOwnerWhere(ownerUserId, repaymentId)))
+    .innerJoin(repayments, and(eq(repayments.ledgerScopeId, repaymentProofs.ledgerScopeId), eq(repayments.id, repaymentProofs.repaymentId)))
+    .where(and(proofOwnerWhere(ledgerScopeId, repaymentId), repaymentOwnerWhere(ledgerScopeId, repaymentId)))
     .limit(1);
   return proof ?? null;
 }
@@ -82,12 +84,13 @@ export async function createRepaymentPaymentProof(
   validatedFile: ValidatedReceiptFile,
 ): Promise<RepaymentPaymentProofMetadata> {
   assertOwner(ownerUserId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   try {
     return await database.transaction(async (transaction) => {
       const [repayment] = await transaction
         .select({ id: repayments.id })
         .from(repayments)
-        .where(repaymentOwnerWhere(ownerUserId, repaymentId))
+        .where(repaymentOwnerWhere(ledgerScopeId, repaymentId))
         .limit(1)
         .for("update");
       if (!repayment) throw new RepaymentPaymentProofUnavailableError();
@@ -95,7 +98,7 @@ export async function createRepaymentPaymentProof(
       const [existing] = await transaction
         .select({ id: repaymentProofs.id })
         .from(repaymentProofs)
-        .where(proofOwnerWhere(ownerUserId, repaymentId))
+        .where(proofOwnerWhere(ledgerScopeId, repaymentId))
         .limit(1)
         .for("update");
       if (existing) throw new RepaymentPaymentProofAlreadyAttachedError();
@@ -103,7 +106,7 @@ export async function createRepaymentPaymentProof(
       const [created] = await transaction
         .insert(repaymentProofs)
         .values({
-          ownerUserId,
+          ledgerScopeId,
           repaymentId,
           originalFilename: validatedFile.originalFilename,
           mediaType: validatedFile.mediaType,
@@ -129,11 +132,12 @@ export async function replaceRepaymentPaymentProof(
   validatedFile: ValidatedReceiptFile,
 ): Promise<RepaymentPaymentProofMetadata> {
   assertOwner(ownerUserId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   return database.transaction(async (transaction) => {
     const [repayment] = await transaction
       .select({ id: repayments.id })
       .from(repayments)
-      .where(repaymentOwnerWhere(ownerUserId, repaymentId))
+      .where(repaymentOwnerWhere(ledgerScopeId, repaymentId))
       .limit(1)
       .for("update");
     if (!repayment) throw new RepaymentPaymentProofUnavailableError();
@@ -141,7 +145,7 @@ export async function replaceRepaymentPaymentProof(
     const [existing] = await transaction
       .select({ id: repaymentProofs.id })
       .from(repaymentProofs)
-      .where(proofOwnerWhere(ownerUserId, repaymentId))
+      .where(proofOwnerWhere(ledgerScopeId, repaymentId))
       .limit(1)
       .for("update");
     if (existing) {
@@ -154,7 +158,7 @@ export async function replaceRepaymentPaymentProof(
           sha256: validatedFile.sha256,
           content: Buffer.from(validatedFile.content),
         })
-        .where(proofOwnerWhere(ownerUserId, repaymentId, existing.id))
+        .where(proofOwnerWhere(ledgerScopeId, repaymentId, existing.id))
         .returning(metadataSelection());
       if (!replaced) throw new Error("Payment proof was not replaced");
       return replaced;
@@ -163,7 +167,7 @@ export async function replaceRepaymentPaymentProof(
     const [created] = await transaction
       .insert(repaymentProofs)
       .values({
-        ownerUserId,
+        ledgerScopeId,
         repaymentId,
         originalFilename: validatedFile.originalFilename,
         mediaType: validatedFile.mediaType,
@@ -179,28 +183,30 @@ export async function replaceRepaymentPaymentProof(
 
 export async function getRepaymentPaymentProof(database: Database, ownerUserId: string, repaymentId: string, proofId: string): Promise<RepaymentPaymentProofContent | null> {
   assertOwner(ownerUserId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const [proof] = await database
     .select({ id: repaymentProofs.id, mediaType: repaymentProofs.mediaType, byteSize: repaymentProofs.byteSize, content: repaymentProofs.content })
     .from(repaymentProofs)
-    .innerJoin(repayments, and(eq(repayments.ownerUserId, repaymentProofs.ownerUserId), eq(repayments.id, repaymentProofs.repaymentId)))
-    .where(and(proofOwnerWhere(ownerUserId, repaymentId, proofId), repaymentOwnerWhere(ownerUserId, repaymentId)))
+    .innerJoin(repayments, and(eq(repayments.ledgerScopeId, repaymentProofs.ledgerScopeId), eq(repayments.id, repaymentProofs.repaymentId)))
+    .where(and(proofOwnerWhere(ledgerScopeId, repaymentId, proofId), repaymentOwnerWhere(ledgerScopeId, repaymentId)))
     .limit(1);
   return proof ?? null;
 }
 
 export async function deleteRepaymentPaymentProof(database: Database, ownerUserId: string, repaymentId: string, proofId: string) {
   assertOwner(ownerUserId);
+  const ledgerScopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   return database.transaction(async (transaction) => {
     const [repayment] = await transaction
       .select({ id: repayments.id })
       .from(repayments)
-      .where(repaymentOwnerWhere(ownerUserId, repaymentId))
+      .where(repaymentOwnerWhere(ledgerScopeId, repaymentId))
       .limit(1)
       .for("update");
     if (!repayment) return false;
     const deleted = await transaction
       .delete(repaymentProofs)
-      .where(proofOwnerWhere(ownerUserId, repaymentId, proofId))
+      .where(proofOwnerWhere(ledgerScopeId, repaymentId, proofId))
       .returning({ id: repaymentProofs.id });
     return deleted.length > 0;
   });

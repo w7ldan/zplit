@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { and, eq, inArray } from "drizzle-orm";
 import { closeDatabase, getDatabase } from "@/db/client";
-import { expenseShares, expenses, friends, outings, repaymentAllocations, repayments, users } from "@/db/schema";
+import { expenseShares, expenses, friends, ledgerScopes, outings, repaymentAllocations, repayments, users } from "@/db/schema";
 import { createLedgerRepository } from "@/domain/ledger-repository";
+import { ensurePersonalLedgerScope } from "@/server/ledger-scopes";
 
 if (process.env.DB_NAME !== "zplit_test") {
   console.error("FAIL");
@@ -12,6 +13,8 @@ if (process.env.DB_NAME !== "zplit_test") {
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const ownerA = `record-retrieval-a-${suffix}`;
 const ownerB = `record-retrieval-b-${suffix}`;
+let scopeA = "";
+let scopeB = "";
 
 async function main() {
   const database = getDatabase();
@@ -20,8 +23,10 @@ async function main() {
       { id: ownerA, name: "Smoke A", email: `${ownerA}@invalid.test` },
       { id: ownerB, name: "Smoke B", email: `${ownerB}@invalid.test` },
     ]);
-    const ownerRepository = createLedgerRepository(database, ownerA);
-    const otherRepository = createLedgerRepository(database, ownerB);
+    scopeA = await ensurePersonalLedgerScope(database, ownerA);
+    scopeB = await ensurePersonalLedgerScope(database, ownerB);
+    const ownerRepository = createLedgerRepository(database, scopeA);
+    const otherRepository = createLedgerRepository(database, scopeB);
     assert.equal(typeof ownerRepository.listFriends, "function");
     assert.equal(typeof ownerRepository.listOutings, "function");
     assert.equal(typeof ownerRepository.listExpenses, "function");
@@ -88,12 +93,13 @@ async function main() {
 
     console.log(`PASS friends=${friendSearch.totalItems} outings=${firstOutings.totalItems} expenses=2 repayments=${repaymentSearch.totalItems}`);
   } finally {
-    await database.delete(repaymentAllocations).where(inArray(repaymentAllocations.ownerUserId, [ownerA, ownerB]));
-    await database.delete(expenseShares).where(inArray(expenseShares.ownerUserId, [ownerA, ownerB]));
-    await database.delete(repayments).where(inArray(repayments.ownerUserId, [ownerA, ownerB]));
-    await database.delete(expenses).where(inArray(expenses.ownerUserId, [ownerA, ownerB]));
-    await database.delete(outings).where(inArray(outings.ownerUserId, [ownerA, ownerB]));
-    await database.delete(friends).where(inArray(friends.ownerUserId, [ownerA, ownerB]));
+    await database.delete(repaymentAllocations).where(inArray(repaymentAllocations.ledgerScopeId, [scopeA, scopeB]));
+    await database.delete(expenseShares).where(inArray(expenseShares.ledgerScopeId, [scopeA, scopeB]));
+    await database.delete(repayments).where(inArray(repayments.ledgerScopeId, [scopeA, scopeB]));
+    await database.delete(expenses).where(inArray(expenses.ledgerScopeId, [scopeA, scopeB]));
+    await database.delete(outings).where(inArray(outings.ledgerScopeId, [scopeA, scopeB]));
+    await database.delete(friends).where(inArray(friends.ledgerScopeId, [scopeA, scopeB]));
+    await database.delete(ledgerScopes).where(inArray(ledgerScopes.id, [scopeA, scopeB]));
     await database.delete(users).where(and(eq(users.id, ownerA), eq(users.email, `${ownerA}@invalid.test`)));
     await database.delete(users).where(and(eq(users.id, ownerB), eq(users.email, `${ownerB}@invalid.test`)));
     await closeDatabase();

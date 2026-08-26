@@ -62,9 +62,9 @@ export const friends = pgTable(
   "friends",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     linkedUserId: text("linked_user_id").references(() => users.id, { onDelete: "set null" }),
     name: varchar("name", { length: 120 }).notNull(),
     phoneNumber: varchar("phone_number", { length: 32 }),
@@ -75,13 +75,13 @@ export const friends = pgTable(
   },
   (table) => [
     check("friends_name_not_blank", sql`btrim(${table.name}) <> ''`),
-    uniqueIndex("friends_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
-    uniqueIndex("friends_owner_linked_user_uidx")
-      .on(table.ownerUserId, table.linkedUserId)
+    uniqueIndex("friends_ledger_scope_id_id_uidx").on(table.ledgerScopeId, table.id),
+    uniqueIndex("friends_ledger_scope_linked_user_uidx")
+      .on(table.ledgerScopeId, table.linkedUserId)
       .where(sql`${table.linkedUserId} IS NOT NULL`),
-    index("friends_name_idx").on(table.ownerUserId, table.name),
-    index("friends_linked_user_idx").on(table.ownerUserId, table.linkedUserId),
-    index("friends_archived_at_idx").on(table.ownerUserId, table.archivedAt),
+    index("friends_name_idx").on(table.ledgerScopeId, table.name),
+    index("friends_linked_user_idx").on(table.ledgerScopeId, table.linkedUserId),
+    index("friends_archived_at_idx").on(table.ledgerScopeId, table.archivedAt),
   ],
 );
 
@@ -93,6 +93,7 @@ export const friendLinkRequests = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     friendId: uuid("friend_id").notNull(),
+    friendLedgerScopeId: uuid("friend_ledger_scope_id").notNull(),
     targetUserId: text("target_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -109,9 +110,14 @@ export const friendLinkRequests = pgTable(
       sql`(${table.status} = 'pending' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'accepted' AND ${table.acceptedAt} IS NOT NULL AND ${table.declinedAt} IS NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'declined' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NOT NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'cancelled' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NULL AND ${table.cancelledAt} IS NOT NULL)`,
     ),
     foreignKey({
-      columns: [table.ownerUserId, table.friendId],
-      foreignColumns: [friends.ownerUserId, friends.id],
+      columns: [table.friendLedgerScopeId, table.friendId],
+      foreignColumns: [friends.ledgerScopeId, friends.id],
       name: "friend_link_requests_owner_friend_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.friendLedgerScopeId, table.ownerUserId],
+      foreignColumns: [ledgerScopes.id, ledgerScopes.userId],
+      name: "friend_link_requests_personal_scope_fk",
     }).onDelete("restrict"),
     uniqueIndex("friend_link_requests_pending_owner_friend_uidx")
       .on(table.ownerUserId, table.friendId)
@@ -167,6 +173,26 @@ export const organizations = pgTable(
     check("organizations_name_not_blank", sql`btrim(${table.name}) <> ''`),
     check("organizations_description_not_blank", sql`${table.description} IS NULL OR btrim(${table.description}) <> ''`),
     index("organizations_name_idx").on(table.name),
+  ],
+);
+
+export type LedgerScopeKind = "personal" | "organization";
+
+export const ledgerScopes = pgTable(
+  "ledger_scopes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    kind: varchar("kind", { length: 16 }).$type<LedgerScopeKind>().notNull(),
+    userId: text("user_id").references(() => users.id, { onDelete: "restrict" }),
+    organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("ledger_scopes_kind_allowed", sql`${table.kind} IN ('personal', 'organization')`),
+    check("ledger_scopes_subject_xor", sql`(${table.kind} = 'personal' AND ${table.userId} IS NOT NULL AND ${table.organizationId} IS NULL) OR (${table.kind} = 'organization' AND ${table.userId} IS NULL AND ${table.organizationId} IS NOT NULL)`),
+    uniqueIndex("ledger_scopes_id_user_uidx").on(table.id, table.userId),
+    uniqueIndex("ledger_scopes_personal_user_uidx").on(table.userId).where(sql`${table.kind} = 'personal'`),
+    uniqueIndex("ledger_scopes_organization_uidx").on(table.organizationId).where(sql`${table.kind} = 'organization'`),
   ],
 );
 
@@ -252,9 +278,9 @@ export const trips = pgTable(
   "trips",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     name: varchar("name", { length: 160 }).notNull(),
     startsOn: date("starts_on", { mode: "string" }),
     endsOn: date("ends_on", { mode: "string" }),
@@ -265,9 +291,9 @@ export const trips = pgTable(
   (table) => [
     check("trips_name_not_blank", sql`btrim(${table.name}) <> ''`),
     check("trips_date_range_valid", sql`${table.endsOn} IS NULL OR ${table.startsOn} IS NULL OR ${table.endsOn} >= ${table.startsOn}`),
-    uniqueIndex("trips_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
-    index("trips_owner_user_id_name_idx").on(table.ownerUserId, table.name),
-    index("trips_owner_user_id_dates_idx").on(table.ownerUserId, table.startsOn, table.endsOn),
+    uniqueIndex("trips_ledger_scope_id_id_uidx").on(table.ledgerScopeId, table.id),
+    index("trips_ledger_scope_id_name_idx").on(table.ledgerScopeId, table.name),
+    index("trips_ledger_scope_id_dates_idx").on(table.ledgerScopeId, table.startsOn, table.endsOn),
   ],
 );
 
@@ -275,9 +301,9 @@ export const outings = pgTable(
   "outings",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     tripId: uuid("trip_id"),
     title: varchar("title", { length: 160 }).notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
@@ -288,13 +314,13 @@ export const outings = pgTable(
   (table) => [
     check("outings_title_not_blank", sql`btrim(${table.title}) <> ''`),
     foreignKey({
-      columns: [table.ownerUserId, table.tripId],
-      foreignColumns: [trips.ownerUserId, trips.id],
+      columns: [table.ledgerScopeId, table.tripId],
+      foreignColumns: [trips.ledgerScopeId, trips.id],
       name: "outings_owner_trip_fk",
     }).onDelete("restrict"),
-    uniqueIndex("outings_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
-    index("outings_occurred_at_idx").on(table.ownerUserId, table.occurredAt),
-    index("outings_owner_user_id_trip_id_idx").on(table.ownerUserId, table.tripId),
+    uniqueIndex("outings_ledger_scope_id_id_uidx").on(table.ledgerScopeId, table.id),
+    index("outings_occurred_at_idx").on(table.ledgerScopeId, table.occurredAt),
+    index("outings_ledger_scope_id_trip_id_idx").on(table.ledgerScopeId, table.tripId),
   ],
 );
 
@@ -302,9 +328,9 @@ export const expenses = pgTable(
   "expenses",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     outingId: uuid("outing_id").notNull(),
     description: varchar("description", { length: 200 }).notNull(),
     amount: integer("amount").notNull(),
@@ -315,12 +341,12 @@ export const expenses = pgTable(
     check("expenses_description_not_blank", sql`btrim(${table.description}) <> ''`),
     check("expenses_amount_positive", sql`${table.amount} > 0`),
     foreignKey({
-      columns: [table.ownerUserId, table.outingId],
-      foreignColumns: [outings.ownerUserId, outings.id],
+      columns: [table.ledgerScopeId, table.outingId],
+      foreignColumns: [outings.ledgerScopeId, outings.id],
       name: "expenses_owner_outing_fk",
     }).onDelete("cascade"),
-    uniqueIndex("expenses_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
-    index("expenses_outing_id_idx").on(table.ownerUserId, table.outingId),
+    uniqueIndex("expenses_ledger_scope_id_id_uidx").on(table.ledgerScopeId, table.id),
+    index("expenses_outing_id_idx").on(table.ledgerScopeId, table.outingId),
   ],
 );
 
@@ -328,9 +354,9 @@ export const expenseReceipts = pgTable(
   "expense_receipts",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     expenseId: uuid("expense_id").notNull(),
     originalFilename: varchar("original_filename", { length: 160 }).notNull(),
     mediaType: varchar("media_type", { length: 32 }).notNull(),
@@ -346,13 +372,13 @@ export const expenseReceipts = pgTable(
     check("expense_receipts_filename_not_blank", sql`btrim(${table.originalFilename}) <> ''`),
     check("expense_receipts_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
     foreignKey({
-      columns: [table.ownerUserId, table.expenseId],
-      foreignColumns: [expenses.ownerUserId, expenses.id],
+      columns: [table.ledgerScopeId, table.expenseId],
+      foreignColumns: [expenses.ledgerScopeId, expenses.id],
       name: "expense_receipts_owner_expense_fk",
     }).onDelete("cascade"),
-    uniqueIndex("expense_receipts_owner_expense_id_uidx").on(table.ownerUserId, table.expenseId, table.id),
-    uniqueIndex("expense_receipts_owner_expense_sha256_uidx").on(table.ownerUserId, table.expenseId, table.sha256),
-    index("expense_receipts_owner_expense_created_id_idx").on(table.ownerUserId, table.expenseId, table.createdAt, table.id),
+    uniqueIndex("expense_receipts_owner_expense_id_uidx").on(table.ledgerScopeId, table.expenseId, table.id),
+    uniqueIndex("expense_receipts_owner_expense_sha256_uidx").on(table.ledgerScopeId, table.expenseId, table.sha256),
+    index("expense_receipts_owner_expense_created_id_idx").on(table.ledgerScopeId, table.expenseId, table.createdAt, table.id),
   ],
 );
 
@@ -360,9 +386,9 @@ export const expenseShares = pgTable(
   "expense_shares",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     expenseId: uuid("expense_id").notNull(),
     friendId: uuid("friend_id").notNull(),
     baseAmount: integer("base_amount").notNull(),
@@ -373,19 +399,19 @@ export const expenseShares = pgTable(
     check("expense_shares_base_amount_positive", sql`${table.baseAmount} > 0`),
     check("expense_shares_amount_owed_positive", sql`${table.amountOwed} > 0`),
     foreignKey({
-      columns: [table.ownerUserId, table.expenseId],
-      foreignColumns: [expenses.ownerUserId, expenses.id],
+      columns: [table.ledgerScopeId, table.expenseId],
+      foreignColumns: [expenses.ledgerScopeId, expenses.id],
       name: "expense_shares_owner_expense_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.ownerUserId, table.friendId],
-      foreignColumns: [friends.ownerUserId, friends.id],
+      columns: [table.ledgerScopeId, table.friendId],
+      foreignColumns: [friends.ledgerScopeId, friends.id],
       name: "expense_shares_owner_friend_fk",
     }).onDelete("restrict"),
-    uniqueIndex("expense_shares_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
-    uniqueIndex("expense_shares_owner_expense_id_id_uidx").on(table.ownerUserId, table.expenseId, table.id),
+    uniqueIndex("expense_shares_ledger_scope_id_id_uidx").on(table.ledgerScopeId, table.id),
+    uniqueIndex("expense_shares_owner_expense_id_id_uidx").on(table.ledgerScopeId, table.expenseId, table.id),
     uniqueIndex("expense_shares_expense_friend_uidx").on(table.expenseId, table.friendId),
-    index("expense_shares_friend_id_idx").on(table.ownerUserId, table.friendId),
+    index("expense_shares_friend_id_idx").on(table.ledgerScopeId, table.friendId),
   ],
 );
 
@@ -393,9 +419,9 @@ export const expenseCharges = pgTable(
   "expense_charges",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     expenseId: uuid("expense_id").notNull(),
     name: varchar("name", { length: 120 }).notNull(),
     percentageBasisPoints: integer("percentage_basis_points").notNull(),
@@ -407,40 +433,40 @@ export const expenseCharges = pgTable(
     check("expense_charges_percentage_basis_points_valid", sql`${table.percentageBasisPoints} BETWEEN 0 AND 1000000`),
     check("expense_charges_scope_valid", sql`${table.scope} IN ('all', 'selected')`),
     foreignKey({
-      columns: [table.ownerUserId, table.expenseId],
-      foreignColumns: [expenses.ownerUserId, expenses.id],
+      columns: [table.ledgerScopeId, table.expenseId],
+      foreignColumns: [expenses.ledgerScopeId, expenses.id],
       name: "expense_charges_owner_expense_fk",
     }).onDelete("cascade"),
-    uniqueIndex("expense_charges_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
-    uniqueIndex("expense_charges_owner_expense_id_id_uidx").on(table.ownerUserId, table.expenseId, table.id),
-    index("expense_charges_owner_expense_id_idx").on(table.ownerUserId, table.expenseId),
+    uniqueIndex("expense_charges_ledger_scope_id_id_uidx").on(table.ledgerScopeId, table.id),
+    uniqueIndex("expense_charges_owner_expense_id_id_uidx").on(table.ledgerScopeId, table.expenseId, table.id),
+    index("expense_charges_owner_expense_id_idx").on(table.ledgerScopeId, table.expenseId),
   ],
 );
 
 export const expenseChargeTargets = pgTable(
   "expense_charge_targets",
   {
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     expenseId: uuid("expense_id").notNull(),
     expenseChargeId: uuid("expense_charge_id").notNull(),
     expenseShareId: uuid("expense_share_id").notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.ownerUserId, table.expenseChargeId, table.expenseShareId] }),
+    primaryKey({ columns: [table.ledgerScopeId, table.expenseChargeId, table.expenseShareId] }),
     foreignKey({
-      columns: [table.ownerUserId, table.expenseId, table.expenseChargeId],
-      foreignColumns: [expenseCharges.ownerUserId, expenseCharges.expenseId, expenseCharges.id],
+      columns: [table.ledgerScopeId, table.expenseId, table.expenseChargeId],
+      foreignColumns: [expenseCharges.ledgerScopeId, expenseCharges.expenseId, expenseCharges.id],
       name: "expense_charge_targets_owner_charge_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.ownerUserId, table.expenseId, table.expenseShareId],
-      foreignColumns: [expenseShares.ownerUserId, expenseShares.expenseId, expenseShares.id],
+      columns: [table.ledgerScopeId, table.expenseId, table.expenseShareId],
+      foreignColumns: [expenseShares.ledgerScopeId, expenseShares.expenseId, expenseShares.id],
       name: "expense_charge_targets_owner_share_fk",
     }).onDelete("cascade"),
-    index("expense_charge_targets_owner_charge_idx").on(table.ownerUserId, table.expenseChargeId),
-    index("expense_charge_targets_owner_share_idx").on(table.ownerUserId, table.expenseShareId),
+    index("expense_charge_targets_owner_charge_idx").on(table.ledgerScopeId, table.expenseChargeId),
+    index("expense_charge_targets_owner_share_idx").on(table.ledgerScopeId, table.expenseShareId),
   ],
 );
 
@@ -448,9 +474,9 @@ export const repayments = pgTable(
   "repayments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     friendId: uuid("friend_id").notNull(),
     amount: integer("amount").notNull(),
     paidAt: timestamp("paid_at", { withTimezone: true }).notNull(),
@@ -465,13 +491,13 @@ export const repayments = pgTable(
       sql`${table.paymentMethod} IS NULL OR btrim(${table.paymentMethod}) <> ''`,
     ),
     foreignKey({
-      columns: [table.ownerUserId, table.friendId],
-      foreignColumns: [friends.ownerUserId, friends.id],
+      columns: [table.ledgerScopeId, table.friendId],
+      foreignColumns: [friends.ledgerScopeId, friends.id],
       name: "repayments_owner_friend_fk",
     }).onDelete("restrict"),
-    uniqueIndex("repayments_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
-    index("repayments_friend_id_idx").on(table.ownerUserId, table.friendId),
-    index("repayments_paid_at_idx").on(table.ownerUserId, table.paidAt),
+    uniqueIndex("repayments_ledger_scope_id_id_uidx").on(table.ledgerScopeId, table.id),
+    index("repayments_friend_id_idx").on(table.ledgerScopeId, table.friendId),
+    index("repayments_paid_at_idx").on(table.ledgerScopeId, table.paidAt),
   ],
 );
 
@@ -479,9 +505,9 @@ export const repaymentDestinations = pgTable(
   "repayment_destinations",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     type: varchar("type", { length: 16 }).notNull(),
     name: varchar("name", { length: 120 }).notNull(),
     identifier: varchar("identifier", { length: 255 }).notNull(),
@@ -499,7 +525,7 @@ export const repaymentDestinations = pgTable(
     check("repayment_destinations_account_name_not_blank", sql`${table.accountName} IS NULL OR btrim(${table.accountName}) <> ''`),
     check("repayment_destinations_note_not_blank", sql`${table.note} IS NULL OR btrim(${table.note}) <> ''`),
     check("repayment_destinations_sort_order_nonnegative", sql`${table.sortOrder} >= 0`),
-    index("repayment_destinations_owner_order_idx").on(table.ownerUserId, table.sortOrder, table.id),
+    index("repayment_destinations_owner_order_idx").on(table.ledgerScopeId, table.sortOrder, table.id),
   ],
 );
 
@@ -507,9 +533,9 @@ export const repaymentProofs = pgTable(
   "repayment_proofs",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     repaymentId: uuid("repayment_id").notNull(),
     originalFilename: varchar("original_filename", { length: 160 }).notNull(),
     mediaType: varchar("media_type", { length: 32 }).notNull(),
@@ -525,39 +551,39 @@ export const repaymentProofs = pgTable(
     check("repayment_proofs_filename_not_blank", sql`btrim(${table.originalFilename}) <> ''`),
     check("repayment_proofs_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
     foreignKey({
-      columns: [table.ownerUserId, table.repaymentId],
-      foreignColumns: [repayments.ownerUserId, repayments.id],
+      columns: [table.ledgerScopeId, table.repaymentId],
+      foreignColumns: [repayments.ledgerScopeId, repayments.id],
       name: "repayment_proofs_owner_repayment_fk",
     }).onDelete("cascade"),
-    uniqueIndex("repayment_proofs_owner_repayment_uidx").on(table.ownerUserId, table.repaymentId),
+    uniqueIndex("repayment_proofs_owner_repayment_uidx").on(table.ledgerScopeId, table.repaymentId),
   ],
 );
 
 export const repaymentAllocations = pgTable(
   "repayment_allocations",
   {
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     repaymentId: uuid("repayment_id").notNull(),
     expenseShareId: uuid("expense_share_id").notNull(),
     amount: integer("amount").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.repaymentId, table.expenseShareId] }),
+    primaryKey({ columns: [table.ledgerScopeId, table.repaymentId, table.expenseShareId] }),
     check("repayment_allocations_amount_positive", sql`${table.amount} > 0`),
     foreignKey({
-      columns: [table.ownerUserId, table.repaymentId],
-      foreignColumns: [repayments.ownerUserId, repayments.id],
+      columns: [table.ledgerScopeId, table.repaymentId],
+      foreignColumns: [repayments.ledgerScopeId, repayments.id],
       name: "repayment_allocations_owner_repayment_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.ownerUserId, table.expenseShareId],
-      foreignColumns: [expenseShares.ownerUserId, expenseShares.id],
+      columns: [table.ledgerScopeId, table.expenseShareId],
+      foreignColumns: [expenseShares.ledgerScopeId, expenseShares.id],
       name: "repayment_allocations_owner_expense_share_fk",
     }).onDelete("cascade"),
-    index("repayment_allocations_expense_share_id_idx").on(table.ownerUserId, table.expenseShareId),
+    index("repayment_allocations_expense_share_id_idx").on(table.ledgerScopeId, table.expenseShareId),
   ],
 );
 
@@ -706,9 +732,9 @@ export const debtorShareLinks = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     tokenHash: varchar("token_hash", { length: 64 }).notNull(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     friendId: uuid("friend_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -722,16 +748,16 @@ export const debtorShareLinks = pgTable(
       sql`${table.revokedAt} IS NULL OR ${table.revokedAt} >= ${table.createdAt}`,
     ),
     foreignKey({
-      columns: [table.ownerUserId, table.friendId],
-      foreignColumns: [friends.ownerUserId, friends.id],
+      columns: [table.ledgerScopeId, table.friendId],
+      foreignColumns: [friends.ledgerScopeId, friends.id],
       name: "debtor_share_links_owner_friend_fk",
     }).onDelete("restrict"),
-    uniqueIndex("debtor_share_links_owner_user_id_id_uidx").on(table.ownerUserId, table.id),
+    uniqueIndex("debtor_share_links_ledger_scope_id_id_uidx").on(table.ledgerScopeId, table.id),
     uniqueIndex("debtor_share_links_token_hash_uidx").on(table.tokenHash),
     uniqueIndex("debtor_share_links_active_owner_friend_uidx")
-      .on(table.ownerUserId, table.friendId)
+      .on(table.ledgerScopeId, table.friendId)
       .where(sql`${table.revokedAt} IS NULL`),
-    index("debtor_share_links_owner_friend_idx").on(table.ownerUserId, table.friendId),
+    index("debtor_share_links_owner_friend_idx").on(table.ledgerScopeId, table.friendId),
     index("debtor_share_links_expires_at_idx").on(table.expiresAt),
   ],
 );
@@ -740,9 +766,9 @@ export const debtorShareReceipts = pgTable(
   "debtor_share_receipts",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    ownerUserId: text("owner_user_id")
+    ledgerScopeId: uuid("ledger_scope_id")
       .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+      .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     debtorShareLinkId: uuid("debtor_share_link_id").notNull(),
     expenseId: uuid("expense_id").notNull(),
     expenseReceiptId: uuid("expense_receipt_id").notNull(),
@@ -750,17 +776,17 @@ export const debtorShareReceipts = pgTable(
   },
   (table) => [
     foreignKey({
-      columns: [table.ownerUserId, table.debtorShareLinkId],
-      foreignColumns: [debtorShareLinks.ownerUserId, debtorShareLinks.id],
+      columns: [table.ledgerScopeId, table.debtorShareLinkId],
+      foreignColumns: [debtorShareLinks.ledgerScopeId, debtorShareLinks.id],
       name: "debtor_share_receipts_owner_link_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.ownerUserId, table.expenseId, table.expenseReceiptId],
-      foreignColumns: [expenseReceipts.ownerUserId, expenseReceipts.expenseId, expenseReceipts.id],
+      columns: [table.ledgerScopeId, table.expenseId, table.expenseReceiptId],
+      foreignColumns: [expenseReceipts.ledgerScopeId, expenseReceipts.expenseId, expenseReceipts.id],
       name: "debtor_share_receipts_owner_expense_receipt_fk",
     }).onDelete("cascade"),
-    uniqueIndex("debtor_share_receipts_link_receipt_uidx").on(table.ownerUserId, table.debtorShareLinkId, table.expenseReceiptId),
-    index("debtor_share_receipts_link_idx").on(table.ownerUserId, table.debtorShareLinkId),
+    uniqueIndex("debtor_share_receipts_link_receipt_uidx").on(table.ledgerScopeId, table.debtorShareLinkId, table.expenseReceiptId),
+    index("debtor_share_receipts_link_idx").on(table.ledgerScopeId, table.debtorShareLinkId),
     index("debtor_share_receipts_public_id_idx").on(table.id),
   ],
 );
@@ -769,8 +795,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   accounts: many(accounts),
   notifications: many(notifications),
-  ownedFriends: many(friends, { relationName: "ownedFriends" }),
   linkedFriends: many(friends, { relationName: "linkedFriends" }),
+  ledgerScopes: many(ledgerScopes),
   friendLinkRequestOwners: many(friendLinkRequests, { relationName: "friendLinkRequestOwners" }),
   friendLinkRequestTargets: many(friendLinkRequests, { relationName: "friendLinkRequestTargets" }),
   friendConnectionsA: many(friendConnections, { relationName: "friendConnectionsA" }),
@@ -783,10 +809,9 @@ export const usersRelations = relations(users, ({ many }) => ({
 }));
 
 export const friendsRelations = relations(friends, ({ one, many }) => ({
-  owner: one(users, {
-    fields: [friends.ownerUserId],
-    references: [users.id],
-    relationName: "ownedFriends",
+  scope: one(ledgerScopes, {
+    fields: [friends.ledgerScopeId],
+    references: [ledgerScopes.id],
   }),
   linkedUser: one(users, {
     fields: [friends.linkedUserId],
@@ -803,8 +828,8 @@ export const friendLinkRequestsRelations = relations(friendLinkRequests, ({ one 
     relationName: "friendLinkRequestOwners",
   }),
   friend: one(friends, {
-    fields: [friendLinkRequests.ownerUserId, friendLinkRequests.friendId],
-    references: [friends.ownerUserId, friends.id],
+    fields: [friendLinkRequests.friendLedgerScopeId, friendLinkRequests.friendId],
+    references: [friends.ledgerScopeId, friends.id],
   }),
   target: one(users, {
     fields: [friendLinkRequests.targetUserId],
@@ -830,6 +855,18 @@ export const organizationsRelations = relations(organizations, ({ many, one }) =
   memberships: many(organizationMemberships),
   invitations: many(organizationInvitations),
   avatar: one(organizationAvatars),
+  ledgerScope: one(ledgerScopes),
+}));
+
+export const ledgerScopesRelations = relations(ledgerScopes, ({ one }) => ({
+  user: one(users, {
+    fields: [ledgerScopes.userId],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [ledgerScopes.organizationId],
+    references: [organizations.id],
+  }),
 }));
 
 export const organizationMembershipsRelations = relations(organizationMemberships, ({ one }) => ({

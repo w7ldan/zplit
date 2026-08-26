@@ -64,7 +64,7 @@ function historyArray(value: unknown, label: string) {
   return value;
 }
 
-export function createLedgerHistoryRepository(database: Database, owner: string) {
+export function createLedgerHistoryRepository(database: Database, scope: string) {
 async function listRecentActivity({ limit = 6 }: { limit?: number } = {}): Promise<RecentActivityRecord[]> {
     if (typeof limit !== "number" || !Number.isFinite(limit) || !Number.isInteger(limit) || limit < 1 || limit > 20) {
       throw new LedgerRepositoryError("INVALID_INPUT", "Recent activity limit is invalid.");
@@ -83,10 +83,10 @@ async function listRecentActivity({ limit = 6 }: { limit?: number } = {}): Promi
             0::bigint AS allocated_amount
           FROM expenses e
           INNER JOIN outings o
-            ON o.owner_user_id = e.owner_user_id
+            ON o.ledger_scope_id = e.ledger_scope_id
             AND o.id = e.outing_id
-          WHERE e.owner_user_id = ${owner}
-            AND o.owner_user_id = ${owner}
+          WHERE e.ledger_scope_id = ${scope}
+            AND o.ledger_scope_id = ${scope}
           ORDER BY o.occurred_at DESC, e.created_at DESC, e.id ASC
           LIMIT ${limit}
         ),
@@ -102,10 +102,10 @@ async function listRecentActivity({ limit = 6 }: { limit?: number } = {}): Promi
             0::bigint AS allocated_amount
           FROM repayments r
           INNER JOIN friends f
-            ON f.owner_user_id = r.owner_user_id
+            ON f.ledger_scope_id = r.ledger_scope_id
             AND f.id = r.friend_id
-          WHERE r.owner_user_id = ${owner}
-            AND f.owner_user_id = ${owner}
+          WHERE r.ledger_scope_id = ${scope}
+            AND f.ledger_scope_id = ${scope}
           ORDER BY r.paid_at DESC, r.created_at DESC, r.id ASC
           LIMIT ${limit}
         ),
@@ -126,15 +126,15 @@ async function listRecentActivity({ limit = 6 }: { limit?: number } = {}): Promi
         ),
         repayment_totals AS (
           SELECT
-            ra.owner_user_id,
+            ra.ledger_scope_id,
             ra.repayment_id,
             COALESCE(SUM(ra.amount), 0) AS allocated_amount
           FROM repayment_allocations ra
           INNER JOIN final_activity activity
             ON activity.event_kind = 'Repayment'
             AND activity.record_id = ra.repayment_id
-          WHERE ra.owner_user_id = ${owner}
-          GROUP BY ra.owner_user_id, ra.repayment_id
+          WHERE ra.ledger_scope_id = ${scope}
+          GROUP BY ra.ledger_scope_id, ra.repayment_id
         )
         SELECT
           activity.event_kind,
@@ -147,7 +147,7 @@ async function listRecentActivity({ limit = 6 }: { limit?: number } = {}): Promi
           COALESCE(rt.allocated_amount, 0)::bigint AS allocated_amount
         FROM final_activity activity
         LEFT JOIN repayment_totals rt
-          ON rt.owner_user_id = ${owner}
+          ON rt.ledger_scope_id = ${scope}
           AND rt.repayment_id = activity.record_id
         ORDER BY
           activity.effective_at DESC,
@@ -204,7 +204,7 @@ async function listLedgerHistory({ cursor, type = "all", limit = 30 }: { cursor?
       const result = await database.execute<HistoryRow>(sql`
         WITH share_data AS (
           SELECT
-            es.owner_user_id,
+            es.ledger_scope_id,
             es.id,
             es.expense_id,
             es.friend_id,
@@ -212,10 +212,10 @@ async function listLedgerHistory({ cursor, type = "all", limit = 30 }: { cursor?
             COALESCE(SUM(ra.amount), 0) AS allocated_amount
           FROM expense_shares es
           LEFT JOIN repayment_allocations ra
-            ON ra.owner_user_id = es.owner_user_id
+            ON ra.ledger_scope_id = es.ledger_scope_id
             AND ra.expense_share_id = es.id
-          WHERE es.owner_user_id = ${owner}
-          GROUP BY es.owner_user_id, es.id, es.expense_id, es.friend_id, es.amount_owed
+          WHERE es.ledger_scope_id = ${scope}
+          GROUP BY es.ledger_scope_id, es.id, es.expense_id, es.friend_id, es.amount_owed
         ), expense_events AS (
           SELECT
             'expense'::text AS event_type,
@@ -235,12 +235,12 @@ async function listLedgerHistory({ cursor, type = "all", limit = 30 }: { cursor?
             '[]'::jsonb AS allocations
           FROM expenses e
           INNER JOIN outings o
-            ON o.owner_user_id = e.owner_user_id
+            ON o.ledger_scope_id = e.ledger_scope_id
             AND o.id = e.outing_id
           LEFT JOIN share_data sd
-            ON sd.owner_user_id = e.owner_user_id
+            ON sd.ledger_scope_id = e.ledger_scope_id
             AND sd.expense_id = e.id
-          WHERE e.owner_user_id = ${owner}
+          WHERE e.ledger_scope_id = ${scope}
           GROUP BY e.id, o.occurred_at, e.description, o.title, e.amount
         ), repayment_events AS (
           SELECT
@@ -262,15 +262,15 @@ async function listLedgerHistory({ cursor, type = "all", limit = 30 }: { cursor?
             ) ORDER BY ra.expense_share_id) FILTER (WHERE ra.expense_share_id IS NOT NULL), '[]'::jsonb) AS allocations
           FROM repayments r
           INNER JOIN friends f
-            ON f.owner_user_id = r.owner_user_id
+            ON f.ledger_scope_id = r.ledger_scope_id
             AND f.id = r.friend_id
           LEFT JOIN repayment_allocations ra
-            ON ra.owner_user_id = r.owner_user_id
+            ON ra.ledger_scope_id = r.ledger_scope_id
             AND ra.repayment_id = r.id
           LEFT JOIN share_data sd
-            ON sd.owner_user_id = r.owner_user_id
+            ON sd.ledger_scope_id = r.ledger_scope_id
             AND sd.id = ra.expense_share_id
-          WHERE r.owner_user_id = ${owner}
+          WHERE r.ledger_scope_id = ${scope}
           GROUP BY r.id, r.paid_at, f.id, f.name, r.amount
         ), events AS (
           SELECT * FROM expense_events

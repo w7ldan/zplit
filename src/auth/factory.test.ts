@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createAuth, type AuthFactoryOptions } from "./factory";
+
+const mocks = vi.hoisted(() => ({ ensurePersonalLedgerScope: vi.fn() }));
+vi.mock("../server/ledger-scopes", () => ({ ensurePersonalLedgerScope: mocks.ensurePersonalLedgerScope }));
 
 const db = {} as AuthFactoryOptions["db"];
 
@@ -26,5 +29,13 @@ describe("auth factory", () => {
   it("only enables sign-up for the explicit bootstrap configuration", () => {
     const auth = createAuth({ db, secret: "test-secret", baseURL: "http://localhost:3000", enableBootstrapSignUp: true });
     expect(auth.options.emailAndPassword?.disableSignUp).toBe(false);
+  });
+
+  it("centralizes Personal scope creation in the Better Auth user-create lifecycle", async () => {
+    const auth = createAuth({ db, secret: "test-secret", baseURL: "http://localhost:3000", enableBootstrapSignUp: true });
+    const after = auth.options.databaseHooks?.user?.create?.after;
+    expect(after).toBeTypeOf("function");
+    await after?.({ id: "user-a" } as never);
+    expect(mocks.ensurePersonalLedgerScope).toHaveBeenCalledWith(db, "user-a");
   });
 });

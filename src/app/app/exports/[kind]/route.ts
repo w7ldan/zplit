@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { getAuth } from "@/auth/runtime";
-import { getDatabase } from "@/db/client";
-import { createLedgerRepository } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { buildLedgerExportCsv, type LedgerExportKind } from "@/domain/ledger-export";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +23,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
   const { kind } = await params;
   if (!exportKinds.has(kind as LedgerExportKind)) return new Response("Not found", { status: 404 });
 
-  const snapshot = await createLedgerRepository(getDatabase(), session.user.id).getLedgerExportSnapshot();
+  const { ledger } = await getAuthenticatedLedger(session);
+  const snapshot = await ledger.getLedgerExportSnapshot();
   const csv = buildLedgerExportCsv(kind as LedgerExportKind, snapshot);
   const date = new Date().toISOString().slice(0, 10);
   const filename = `zplit-${kind.slice(0, -4)}-${date}.csv`;

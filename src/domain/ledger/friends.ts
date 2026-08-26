@@ -29,7 +29,7 @@ type FriendExperienceRow = {
   linked_username: string | null;
 };
 
-function friendExperienceCte(owner: string, filters: ReturnType<typeof normalizeFriendFilters>) {
+function friendExperienceCte(scope: string, filters: ReturnType<typeof normalizeFriendFilters>) {
   const query = filters.q;
   const pattern = query ? `%${escapeLikePattern(query)}%` : "";
   const usernameQuery = normalizeUsername(query);
@@ -48,10 +48,15 @@ function friendExperienceCte(owner: string, filters: ReturnType<typeof normalize
   const archiveFilter = filters.archived ? sql`f.archived_at IS NOT NULL` : sql`f.archived_at IS NULL`;
 
   return sql`
-    WITH represented_users AS (
+    WITH current_scope AS (
+      SELECT user_id
+      FROM ledger_scopes
+      WHERE id = ${scope} AND kind = 'personal'
+    ),
+    represented_users AS (
       SELECT DISTINCT f.linked_user_id AS user_id
       FROM friends f
-      WHERE f.owner_user_id = ${owner}
+      WHERE f.ledger_scope_id = ${scope}
         AND f.linked_user_id IS NOT NULL
         AND f.archived_at IS NULL
     ),
@@ -78,7 +83,7 @@ function friendExperienceCte(owner: string, filters: ReturnType<typeof normalize
         linked.username::text AS linked_username
       FROM friends f
       LEFT JOIN users linked ON linked.id = f.linked_user_id
-      WHERE f.owner_user_id = ${owner}
+      WHERE f.ledger_scope_id = ${scope}
         AND ${archiveFilter}
         ${localSearch}
 
@@ -87,7 +92,7 @@ function friendExperienceCte(owner: string, filters: ReturnType<typeof normalize
       SELECT
         'connection'::text AS entry_type,
         connection.id::text AS entry_id,
-        CASE WHEN connection.user_a_id = ${owner} THEN connection.user_b_id ELSE connection.user_a_id END AS user_id,
+        CASE WHEN connection.user_a_id = (SELECT user_id FROM current_scope) THEN connection.user_b_id ELSE connection.user_a_id END AS user_id,
         request.request_id,
         connected_user.name::text AS name,
         NULL::text AS phone_number,
@@ -97,17 +102,17 @@ function friendExperienceCte(owner: string, filters: ReturnType<typeof normalize
         connected_user.username::text AS linked_username
       FROM friend_connections connection
       INNER JOIN users connected_user
-        ON connected_user.id = CASE WHEN connection.user_a_id = ${owner} THEN connection.user_b_id ELSE connection.user_a_id END
+        ON connected_user.id = CASE WHEN connection.user_a_id = (SELECT user_id FROM current_scope) THEN connection.user_b_id ELSE connection.user_a_id END
       INNER JOIN accepted_requests request
         ON request.user_a_id = connection.user_a_id
         AND request.user_b_id = connection.user_b_id
       WHERE connection.status = 'connected'
-        AND (connection.user_a_id = ${owner} OR connection.user_b_id = ${owner})
+        AND (connection.user_a_id = (SELECT user_id FROM current_scope) OR connection.user_b_id = (SELECT user_id FROM current_scope))
         AND connected_user.username IS NOT NULL
         AND NOT EXISTS (
           SELECT 1
           FROM represented_users represented
-          WHERE represented.user_id = CASE WHEN connection.user_a_id = ${owner} THEN connection.user_b_id ELSE connection.user_a_id END
+          WHERE represented.user_id = CASE WHEN connection.user_a_id = (SELECT user_id FROM current_scope) THEN connection.user_b_id ELSE connection.user_a_id END
         )
         ${filters.archived ? sql`AND FALSE` : connectionSearch}
     )
@@ -141,14 +146,14 @@ function mapFriendExperienceRow(row: FriendExperienceRow): FriendListEntry {
   };
 }
 
-export function createFriendsReadRepository(database: Database, owner: string) {
+export function createFriendsReadRepository(database: Database, scope: string) {
 async function getFriend(friendId: string) {
     assertFriendId(friendId);
     try {
       const [friend] = await database
         .select()
         .from(friends)
-        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
         .limit(1);
       if (!friend) return notFound();
       return friend;
@@ -162,7 +167,7 @@ async function listFriends({ archived = false }: { archived?: boolean } = {}) {
       return await database
         .select()
         .from(friends)
-        .where(and(eq(friends.ownerUserId, owner), archived ? isNotNull(friends.archivedAt) : isNull(friends.archivedAt)))
+        .where(and(eq(friends.ledgerScopeId, scope), archived ? isNotNull(friends.archivedAt) : isNull(friends.archivedAt)))
         .orderBy(asc(friends.name), asc(friends.id));
     } catch (error) {
       return persistenceError(error);
@@ -173,11 +178,11 @@ async function searchFriends(options: { q?: unknown; selectedId?: unknown; activ
     const query = normalizeText(options.q);
     const selectedId = normalizeUuid(options.selectedId);
     const recentFriendUsage = sql`greatest(
-      (select max(${expenseShares.createdAt}) from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.friendId} = ${friends.id}),
-      (select max(${repayments.createdAt}) from ${repayments} where ${repayments.ownerUserId} = ${owner} and ${repayments.friendId} = ${friends.id})
+      (select max(${expenseShares.createdAt}) from ${expenseShares} where ${expenseShares.ledgerScopeId} = ${scope} and ${expenseShares.friendId} = ${friends.id}),
+      (select max(${repayments.createdAt}) from ${repayments} where ${repayments.ledgerScopeId} = ${scope} and ${repayments.friendId} = ${friends.id})
     )`;
     const conditions = [
-      eq(friends.ownerUserId, owner),
+      eq(friends.ledgerScopeId, scope),
       ...(options.activeOnly ? [isNull(friends.archivedAt)] : []),
       ...(query ? [selectedId ? or(literalContains(friends.name, query), literalContains(friends.phoneNumber, query), eq(friends.id, selectedId)) : or(literalContains(friends.name, query), literalContains(friends.phoneNumber, query))] : []),
     ];
@@ -203,7 +208,7 @@ async function searchFriends(options: { q?: unknown; selectedId?: unknown; activ
   async function listFriendRecords(options: { archived?: unknown; q?: unknown; page?: unknown } = {}): Promise<RecordPage<FriendListRecord>> {
     const filters = normalizeFriendFilters(options);
     const conditions = [
-      eq(friends.ownerUserId, owner),
+      eq(friends.ledgerScopeId, scope),
       filters.archived ? isNotNull(friends.archivedAt) : isNull(friends.archivedAt),
       ...(filters.q ? [sql`(${literalContains(friends.name, filters.q)} OR ${literalContains(friends.phoneNumber, filters.q)})`] : []),
     ];
@@ -230,7 +235,7 @@ async function searchFriends(options: { q?: unknown; selectedId?: unknown; activ
   async function listFriendsExperience(options: { archived?: unknown; q?: unknown; page?: unknown } = {}): Promise<RecordPage<FriendListEntry>> {
     const filters = normalizeFriendFilters(options);
     try {
-      const cte = friendExperienceCte(owner, filters);
+      const cte = friendExperienceCte(scope, filters);
       const countResult = await database.execute<{ total_items: unknown }>(sql`${cte} SELECT count(*) AS total_items FROM unified_friends`);
       const countRows = (Array.isArray(countResult) ? countResult : countResult.rows) as Array<{ total_items?: unknown }>;
       const totalItems = safeRetrievalInteger(countRows[0]?.total_items ?? 0, "Friend count");
@@ -251,11 +256,11 @@ async function searchFriends(options: { q?: unknown; selectedId?: unknown; activ
   return { getFriend, listFriends, searchFriends, listFriendRecords, listFriendsExperience };
 }
 
-export function createFriendsMutationRepository(database: Database, owner: string) {
+export function createFriendsMutationRepository(database: Database, scope: string) {
 async function createFriend(input: CreateFriendInput) {
     assertFriendInput(input);
     try {
-      const [friend] = await database.insert(friends).values({ ...input, ownerUserId: owner }).returning();
+      const [friend] = await database.insert(friends).values({ ...input, ledgerScopeId: scope }).returning();
       if (!friend) return persistenceError(new Error("friend insert returned no row"));
       return friend;
     } catch (error) {
@@ -270,7 +275,7 @@ async function updateFriend(friendId: string, input: UpdateFriendInput) {
       const [friend] = await database
         .update(friends)
         .set({ ...input, updatedAt: new Date() })
-        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
         .returning();
       if (!friend) return notFound();
       return friend;
@@ -285,7 +290,7 @@ async function setFriendArchived(friendId: string, archived: boolean) {
       const [friend] = await database
         .update(friends)
         .set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() })
-        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
         .returning();
       if (!friend) return notFound();
       return friend;
@@ -302,7 +307,7 @@ async function archiveFriend(friendId: string) {
       const [friend] = await database
         .update(friends)
         .set({ archivedAt, updatedAt })
-        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId), isNull(friends.archivedAt)))
+        .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId), isNull(friends.archivedAt)))
         .returning();
       if (!friend) return notFound();
       return {
@@ -326,7 +331,7 @@ async function undoFriendArchive(receipt: FriendArchiveReversalReceipt) {
         .update(friends)
         .set({ archivedAt: null, updatedAt: new Date() })
         .where(and(
-          eq(friends.ownerUserId, owner),
+          eq(friends.ledgerScopeId, scope),
           eq(friends.id, receipt.friendId),
           eq(friends.archivedAt, new Date(receipt.archivedAt)),
           eq(friends.updatedAt, new Date(receipt.updatedAt)),

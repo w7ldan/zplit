@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { LedgerNotFoundError } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { FriendArchiveForm, FriendForm } from "@/components/friends/friend-form";
 import { FriendShareLink } from "@/components/friends/friend-share-link";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
@@ -41,7 +42,7 @@ export default async function FriendRecordPage({ params, searchParams }: { param
   let friendLinkStatus;
   try {
     const database = getDatabase();
-    const repository = createLedgerRepository(database, session.user.id);
+    const { ledger: repository } = await getAuthenticatedLedger(session);
     friend = await repository.getFriend(friendId);
     const [friendBalances, nextShareStatus, nextEligibleReceipts, nextSelectedReceiptIds, nextSharedDestinations, nextExpenseSharePage, nextRepaymentPage, nextFriendLinkStatus] = await Promise.all([
       repository.getFriendBalances([friend.id]),

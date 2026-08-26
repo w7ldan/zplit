@@ -26,14 +26,14 @@ import { clampPage, normalizePage } from "../record-retrieval";
 import type { DebtorStatementPageOptions, EligibleDebtorShareReceiptGroup } from "./types";
 import { toPublicRepaymentDestination, type RepaymentDestinationType } from "../repayment-destination";
 
-export function createLedgerStatementRepository(database: Database, owner: string) {
+export function createLedgerStatementRepository(database: Database, scope: string) {
 async function getLedgerExportSnapshot(): Promise<LedgerExportSnapshot> {
     try {
       const [friendRows, expenseRows, shareRows, repaymentRows, allocationRows] = await Promise.all([
         database
           .select({ id: friends.id, name: friends.name, archivedAt: friends.archivedAt })
           .from(friends)
-          .where(eq(friends.ownerUserId, owner)),
+          .where(eq(friends.ledgerScopeId, scope)),
         database
           .select({
             id: expenses.id,
@@ -43,20 +43,20 @@ async function getLedgerExportSnapshot(): Promise<LedgerExportSnapshot> {
             outingOccurredAt: outings.occurredAt,
           })
           .from(expenses)
-          .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-          .where(eq(expenses.ownerUserId, owner)),
+          .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+          .where(eq(expenses.ledgerScopeId, scope)),
         database
           .select({ id: expenseShares.id, expenseId: expenseShares.expenseId, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
           .from(expenseShares)
-          .where(eq(expenseShares.ownerUserId, owner)),
+          .where(eq(expenseShares.ledgerScopeId, scope)),
         database
           .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount, paidAt: repayments.paidAt, paymentMethod: repayments.paymentMethod })
           .from(repayments)
-          .where(eq(repayments.ownerUserId, owner)),
+          .where(eq(repayments.ledgerScopeId, scope)),
         database
           .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
           .from(repaymentAllocations)
-          .where(eq(repaymentAllocations.ownerUserId, owner)),
+          .where(eq(repaymentAllocations.ledgerScopeId, scope)),
       ]);
       const snapshot = {
         friends: friendRows,
@@ -86,14 +86,14 @@ async function listEligibleDebtorShareReceipts(friendId: string): Promise<Eligib
           createdAt: expenseReceipts.createdAt,
         })
         .from(expenseReceipts)
-        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseReceipts.expenseId)))
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+        .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseReceipts.expenseId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
         .innerJoin(expenseShares, and(
-          eq(expenseShares.ownerUserId, owner),
+          eq(expenseShares.ledgerScopeId, scope),
           eq(expenseShares.expenseId, expenseReceipts.expenseId),
           eq(expenseShares.friendId, friendId),
         ))
-        .where(eq(expenseReceipts.ownerUserId, owner))
+        .where(eq(expenseReceipts.ledgerScopeId, scope))
         .orderBy(asc(outings.occurredAt), asc(expenses.createdAt), asc(expenseReceipts.createdAt), asc(expenseReceipts.id));
       const groups = new Map<string, EligibleDebtorShareReceiptGroup>();
       for (const row of rows) {
@@ -113,7 +113,7 @@ async function getFriendDebtorStatement(friendId: string, asOf = new Date(), deb
       const [friend] = await database
         .select({ id: friends.id, name: friends.name })
         .from(friends)
-        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
         .limit(1);
       if (!friend) return notFound();
 
@@ -128,9 +128,9 @@ async function getFriendDebtorStatement(friendId: string, asOf = new Date(), deb
           amountOwed: expenseShares.amountOwed,
         })
         .from(expenseShares)
-        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.friendId, friendId)));
+        .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseShares.expenseId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.friendId, friendId)));
 
       const repaymentRows = await database
         .select({
@@ -144,19 +144,19 @@ async function getFriendDebtorStatement(friendId: string, asOf = new Date(), deb
         .leftJoin(
           repaymentAllocations,
           and(
-            eq(repaymentAllocations.ownerUserId, owner),
+            eq(repaymentAllocations.ledgerScopeId, scope),
             eq(repaymentAllocations.repaymentId, repayments.id),
           ),
         )
         .leftJoin(
           expenseShares,
           and(
-            eq(expenseShares.ownerUserId, owner),
+            eq(expenseShares.ledgerScopeId, scope),
             eq(expenseShares.id, repaymentAllocations.expenseShareId),
             eq(expenseShares.friendId, friendId),
           ),
         )
-        .where(and(eq(repayments.ownerUserId, owner), eq(repayments.friendId, friendId)));
+        .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.friendId, friendId)));
 
       const repaymentById = new Map<string, { id: string; friendId: string; amount: number }>();
       const allocations = [] as { repaymentId: string; expenseShareId: string; amount: number }[];
@@ -177,22 +177,22 @@ async function getFriendDebtorStatement(friendId: string, asOf = new Date(), deb
             .from(debtorShareReceipts)
             .innerJoin(debtorShareLinks, and(
               eq(debtorShareLinks.id, debtorShareReceipts.debtorShareLinkId),
-              eq(debtorShareLinks.ownerUserId, owner),
+              eq(debtorShareLinks.ledgerScopeId, scope),
               isNull(debtorShareLinks.revokedAt),
               gt(debtorShareLinks.expiresAt, asOf),
             ))
             .innerJoin(expenseReceipts, and(
-              eq(expenseReceipts.ownerUserId, owner),
+              eq(expenseReceipts.ledgerScopeId, scope),
               eq(expenseReceipts.expenseId, debtorShareReceipts.expenseId),
               eq(expenseReceipts.id, debtorShareReceipts.expenseReceiptId),
             ))
             .innerJoin(expenseShares, and(
-              eq(expenseShares.ownerUserId, owner),
+              eq(expenseShares.ledgerScopeId, scope),
               eq(expenseShares.expenseId, debtorShareReceipts.expenseId),
               eq(expenseShares.friendId, friendId),
             ))
             .where(and(
-              eq(debtorShareReceipts.ownerUserId, owner),
+              eq(debtorShareReceipts.ledgerScopeId, scope),
               eq(debtorShareReceipts.debtorShareLinkId, debtorShareLinkId),
               inArray(debtorShareReceipts.expenseId, shares.map((share) => share.expenseId)),
             ))
@@ -219,21 +219,21 @@ async function getPublicFriendDebtorStatement(
   ) {
     assertFriendId(friendId);
     try {
-      const assignedAmount = sql<number>`coalesce((select sum(${expenseShares.amountOwed}) from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.friendId} = ${friendId}), 0)`.mapWith(Number);
-      const repaidAmount = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ownerUserId} = ${owner} and ${repaymentAllocations.expenseShareId} in (select ${expenseShares.id} from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.friendId} = ${friendId})), 0)`.mapWith(Number);
+      const assignedAmount = sql<number>`coalesce((select sum(${expenseShares.amountOwed}) from ${expenseShares} where ${expenseShares.ledgerScopeId} = ${scope} and ${expenseShares.friendId} = ${friendId}), 0)`.mapWith(Number);
+      const repaidAmount = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ledgerScopeId} = ${scope} and ${repaymentAllocations.expenseShareId} in (select ${expenseShares.id} from ${expenseShares} where ${expenseShares.ledgerScopeId} = ${scope} and ${expenseShares.friendId} = ${friendId})), 0)`.mapWith(Number);
       const [summary] = await database
         .select({
           id: friends.id,
           name: friends.name,
           assignedAmount,
           repaidAmount,
-          expenseCount: sql<number>`(select count(*) from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.friendId} = ${friendId})`.mapWith(Number),
-          repaymentCount: sql<number>`(select count(*) from ${repayments} where ${repayments.ownerUserId} = ${owner} and ${repayments.friendId} = ${friendId})`.mapWith(Number),
-          invalidShareAllocations: sql<number>`(select count(*) from "expense_shares" statement_shares where statement_shares.owner_user_id = ${owner} and statement_shares.friend_id = ${friendId} and coalesce((select sum(statement_allocations.amount) from "repayment_allocations" statement_allocations where statement_allocations.owner_user_id = ${owner} and statement_allocations.expense_share_id = statement_shares.id), 0) > statement_shares.amount_owed)`.mapWith(Number),
-          invalidRepaymentAllocations: sql<number>`(select count(*) from "repayments" statement_repayments where statement_repayments.owner_user_id = ${owner} and statement_repayments.friend_id = ${friendId} and coalesce((select sum(statement_allocations.amount) from "repayment_allocations" statement_allocations inner join "expense_shares" statement_shares on statement_shares.owner_user_id = statement_allocations.owner_user_id and statement_shares.id = statement_allocations.expense_share_id and statement_shares.friend_id = statement_repayments.friend_id where statement_allocations.owner_user_id = ${owner} and statement_allocations.repayment_id = statement_repayments.id), 0) > statement_repayments.amount)`.mapWith(Number),
+          expenseCount: sql<number>`(select count(*) from ${expenseShares} where ${expenseShares.ledgerScopeId} = ${scope} and ${expenseShares.friendId} = ${friendId})`.mapWith(Number),
+          repaymentCount: sql<number>`(select count(*) from ${repayments} where ${repayments.ledgerScopeId} = ${scope} and ${repayments.friendId} = ${friendId})`.mapWith(Number),
+          invalidShareAllocations: sql<number>`(select count(*) from "expense_shares" statement_shares where statement_shares.ledger_scope_id = ${scope} and statement_shares.friend_id = ${friendId} and coalesce((select sum(statement_allocations.amount) from "repayment_allocations" statement_allocations where statement_allocations.ledger_scope_id = ${scope} and statement_allocations.expense_share_id = statement_shares.id), 0) > statement_shares.amount_owed)`.mapWith(Number),
+          invalidRepaymentAllocations: sql<number>`(select count(*) from "repayments" statement_repayments where statement_repayments.ledger_scope_id = ${scope} and statement_repayments.friend_id = ${friendId} and coalesce((select sum(statement_allocations.amount) from "repayment_allocations" statement_allocations inner join "expense_shares" statement_shares on statement_shares.ledger_scope_id = statement_allocations.ledger_scope_id and statement_shares.id = statement_allocations.expense_share_id and statement_shares.friend_id = statement_repayments.friend_id where statement_allocations.ledger_scope_id = ${scope} and statement_allocations.repayment_id = statement_repayments.id), 0) > statement_repayments.amount)`.mapWith(Number),
         })
         .from(friends)
-        .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+        .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
         .limit(1);
       if (!summary) return notFound();
 
@@ -246,7 +246,7 @@ async function getPublicFriendDebtorStatement(
           note: repaymentDestinations.note,
         })
         .from(repaymentDestinations)
-        .where(and(eq(repaymentDestinations.ownerUserId, owner), eq(repaymentDestinations.shareOnBalanceLinks, true)))
+        .where(and(eq(repaymentDestinations.ledgerScopeId, scope), eq(repaymentDestinations.shareOnBalanceLinks, true)))
         .orderBy(asc(repaymentDestinations.sortOrder), asc(repaymentDestinations.id));
       const publicRepaymentDestinations = destinationRows.map((destination) => toPublicRepaymentDestination({
         ...destination,
@@ -263,7 +263,7 @@ async function getPublicFriendDebtorStatement(
       const expensePage = clampPage(normalizePage(options.expensePage), expenseTotalItems, DEBTOR_STATEMENT_PAGE_SIZE);
       const repaymentPage = clampPage(normalizePage(options.repaymentPage), repaymentTotalItems, DEBTOR_STATEMENT_PAGE_SIZE);
 
-      const expenseRepaidAmount = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ownerUserId} = ${owner} and ${repaymentAllocations.expenseShareId} = ${expenseShares.id}), 0)`.mapWith(Number);
+      const expenseRepaidAmount = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ledgerScopeId} = ${scope} and ${repaymentAllocations.expenseShareId} = ${expenseShares.id}), 0)`.mapWith(Number);
       const expenseRows = await database
         .select({
           id: expenseShares.id,
@@ -276,9 +276,9 @@ async function getPublicFriendDebtorStatement(
           repaidAmount: expenseRepaidAmount,
         })
         .from(expenseShares)
-        .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.friendId, friendId)))
+        .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseShares.expenseId)))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.friendId, friendId)))
         .orderBy(
           sql`case when ${expenseRepaidAmount} < ${expenseShares.amountOwed} then 0 else 1 end`,
           desc(outings.occurredAt),
@@ -288,7 +288,7 @@ async function getPublicFriendDebtorStatement(
         .limit(DEBTOR_STATEMENT_PAGE_SIZE)
         .offset((expensePage - 1) * DEBTOR_STATEMENT_PAGE_SIZE);
 
-      const repaymentAllocatedAmount = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ownerUserId} = ${owner} and ${repaymentAllocations.repaymentId} = ${repayments.id} and ${repaymentAllocations.expenseShareId} in (select ${expenseShares.id} from ${expenseShares} where ${expenseShares.ownerUserId} = ${owner} and ${expenseShares.friendId} = ${friendId})), 0)`.mapWith(Number);
+      const repaymentAllocatedAmount = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ledgerScopeId} = ${scope} and ${repaymentAllocations.repaymentId} = ${repayments.id} and ${repaymentAllocations.expenseShareId} in (select ${expenseShares.id} from ${expenseShares} where ${expenseShares.ledgerScopeId} = ${scope} and ${expenseShares.friendId} = ${friendId})), 0)`.mapWith(Number);
       const repaymentRows = await database
         .select({
           id: repayments.id,
@@ -299,8 +299,8 @@ async function getPublicFriendDebtorStatement(
           allocatedAmount: repaymentAllocatedAmount,
         })
         .from(repayments)
-        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
-        .where(and(eq(repayments.ownerUserId, owner), eq(repayments.friendId, friendId)))
+        .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
+        .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.friendId, friendId)))
         .orderBy(desc(repayments.paidAt), desc(repayments.createdAt), asc(repayments.id))
         .limit(DEBTOR_STATEMENT_PAGE_SIZE)
         .offset((repaymentPage - 1) * DEBTOR_STATEMENT_PAGE_SIZE);
@@ -317,13 +317,13 @@ async function getPublicFriendDebtorStatement(
             })
             .from(repaymentAllocations)
             .innerJoin(expenseShares, and(
-              eq(expenseShares.ownerUserId, owner),
+              eq(expenseShares.ledgerScopeId, scope),
               eq(expenseShares.id, repaymentAllocations.expenseShareId),
               eq(expenseShares.friendId, friendId),
             ))
-            .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
-            .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-            .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.repaymentId, repaymentIds)))
+            .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseShares.expenseId)))
+            .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+            .where(and(eq(repaymentAllocations.ledgerScopeId, scope), inArray(repaymentAllocations.repaymentId, repaymentIds)))
             .orderBy(asc(repaymentAllocations.repaymentId), desc(outings.occurredAt), asc(expenses.description), asc(expenseShares.id))
         : [];
 
@@ -334,22 +334,22 @@ async function getPublicFriendDebtorStatement(
             .from(debtorShareReceipts)
             .innerJoin(debtorShareLinks, and(
               eq(debtorShareLinks.id, debtorShareReceipts.debtorShareLinkId),
-              eq(debtorShareLinks.ownerUserId, owner),
+              eq(debtorShareLinks.ledgerScopeId, scope),
               isNull(debtorShareLinks.revokedAt),
               gt(debtorShareLinks.expiresAt, asOf),
             ))
             .innerJoin(expenseReceipts, and(
-              eq(expenseReceipts.ownerUserId, owner),
+              eq(expenseReceipts.ledgerScopeId, scope),
               eq(expenseReceipts.expenseId, debtorShareReceipts.expenseId),
               eq(expenseReceipts.id, debtorShareReceipts.expenseReceiptId),
             ))
             .innerJoin(expenseShares, and(
-              eq(expenseShares.ownerUserId, owner),
+              eq(expenseShares.ledgerScopeId, scope),
               eq(expenseShares.expenseId, debtorShareReceipts.expenseId),
               eq(expenseShares.friendId, friendId),
             ))
             .where(and(
-              eq(debtorShareReceipts.ownerUserId, owner),
+              eq(debtorShareReceipts.ledgerScopeId, scope),
               eq(debtorShareReceipts.debtorShareLinkId, debtorShareLinkId),
               inArray(debtorShareReceipts.expenseId, expenseIds),
             ))

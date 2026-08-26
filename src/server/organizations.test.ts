@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
-import { organizationMemberships, organizations } from "@/db/schema";
+import { ledgerScopes, organizationMemberships, organizations } from "@/db/schema";
 import type { OrganizationRole } from "@/domain/organization-permissions";
 
 vi.mock("server-only", () => ({}));
@@ -19,6 +19,7 @@ import {
 function insertBuilder(table: unknown, calls: Array<{ table: unknown; values?: unknown }>, result: unknown[]) {
   const builder = {
     values(values: unknown) { calls.push({ table, values }); return builder; },
+    onConflictDoNothing() { return builder; },
     returning: vi.fn(async () => result),
   };
   return builder;
@@ -35,12 +36,14 @@ function queryBuilder(result: unknown) {
 
 function databaseForMembership(membership: { role: string; customCapabilities?: unknown } | undefined, mutationResult: unknown[] = []) {
   const selects = [membership ? [membership] : []];
-  return {
+  const database = {
     select: vi.fn(() => queryBuilder(selects.shift() ?? [])),
     update: vi.fn(() => queryBuilder(mutationResult)),
     delete: vi.fn(() => queryBuilder(mutationResult)),
     insert: vi.fn(() => queryBuilder(mutationResult)),
-  } as unknown as Database & { update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn>; insert: ReturnType<typeof vi.fn> };
+    transaction: vi.fn(async (callback: (transaction: unknown) => unknown) => callback(database)),
+  };
+  return database as unknown as Database & { update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn>; insert: ReturnType<typeof vi.fn> };
 }
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -63,7 +66,7 @@ describe("organizations", () => {
     const calls: Array<{ table: unknown; values?: unknown }> = [];
     const organization = { id: organizationId, name: "Studio", description: null };
     const transaction = {
-      insert: vi.fn((table: unknown) => insertBuilder(table, calls, table === organizations ? [organization] : [{ organizationId: organization.id, userId: "user-a", role: "owner" }])),
+      insert: vi.fn((table: unknown) => insertBuilder(table, calls, table === organizations ? [organization] : table === ledgerScopes ? [{ id: "scope-organization" }] : [{ organizationId: organization.id, userId: "user-a", role: "owner" }])),
     };
     const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
 
@@ -71,8 +74,19 @@ describe("organizations", () => {
     expect(database.transaction).toHaveBeenCalledOnce();
     expect(calls).toEqual([
       { table: organizations, values: { name: "Studio", description: null } },
+      { table: ledgerScopes, values: { kind: "organization", organizationId: organization.id } },
       { table: organizationMemberships, values: { organizationId: organization.id, userId: "user-a", role: "owner" } },
     ]);
+  });
+
+  it("does not leave a partial organization when scope creation fails", async () => {
+    const calls: Array<{ table: unknown; values?: unknown }> = [];
+    const transaction = {
+      insert: vi.fn((table: unknown) => insertBuilder(table, calls, table === organizations ? [organization] : [])),
+    };
+    const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
+    await expect(createOrganization(database, "user-a", { name: "Studio" })).rejects.toMatchObject({ code: "scope_creation_failed" });
+    expect(calls.map(({ table }) => table)).toEqual([organizations, ledgerScopes]);
   });
 
   it.each(updateRoles)("applies organization.update by capability for %s", async (role, customCapabilities, allowed) => {

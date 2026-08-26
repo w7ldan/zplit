@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
+vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: async (session?: { user: { id: string } }) => { const current = session ?? await mocks.requireSession(); return { user: current.user, ledger: mocks.createLedgerRepository(mocks.getDatabase(), current.user.id) }; } }));
 vi.mock("@/server/repayment-payment-proofs", () => ({ getRepaymentPaymentProofMetadata: mocks.getPaymentProof }));
 vi.mock("@/domain/ledger-repository", async () => {
   const actual = await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository");

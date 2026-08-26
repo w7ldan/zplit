@@ -11,6 +11,7 @@ export const EXPECTED_TABLES = [
   "verifications",
   "account_invitations",
   "organizations",
+  "ledger_scopes",
   "organization_memberships",
   "organization_avatars",
   "debtor_share_links",
@@ -174,37 +175,40 @@ export const INTEGRITY_CHECKS: readonly IntegrityCheck[] = [
       WHERE to_regclass('public.' || expected.name) IS NULL`,
   },
   {
-    name: "owner-aware foreign keys",
+    name: "scope-aware foreign keys",
     sql: `SELECT (
       (SELECT count(*) FROM sessions s WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = s.user_id)) +
       (SELECT count(*) FROM accounts a WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = a.user_id)) +
-      (SELECT count(*) FROM friends f WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = f.owner_user_id)) +
-      (SELECT count(*) FROM outings o WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = o.owner_user_id)) +
-      (SELECT count(*) FROM expenses e WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = e.owner_user_id) OR NOT EXISTS (SELECT 1 FROM outings o WHERE o.owner_user_id = e.owner_user_id AND o.id = e.outing_id)) +
-      (SELECT count(*) FROM expense_receipts r WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = r.owner_user_id) OR NOT EXISTS (SELECT 1 FROM expenses e WHERE e.owner_user_id = r.owner_user_id AND e.id = r.expense_id)) +
-      (SELECT count(*) FROM expense_shares s WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = s.owner_user_id) OR NOT EXISTS (SELECT 1 FROM expenses e WHERE e.owner_user_id = s.owner_user_id AND e.id = s.expense_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.owner_user_id = s.owner_user_id AND f.id = s.friend_id)) +
-      (SELECT count(*) FROM repayments r WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = r.owner_user_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.owner_user_id = r.owner_user_id AND f.id = r.friend_id)) +
-      (SELECT count(*) FROM repayment_destinations d WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = d.owner_user_id)) +
-      (SELECT count(*) FROM repayment_allocations a WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = a.owner_user_id) OR NOT EXISTS (SELECT 1 FROM repayments r WHERE r.owner_user_id = a.owner_user_id AND r.id = a.repayment_id) OR NOT EXISTS (SELECT 1 FROM expense_shares s WHERE s.owner_user_id = a.owner_user_id AND s.id = a.expense_share_id)) +
+      (SELECT count(*) FROM ledger_scopes s WHERE (s.kind = 'personal' AND (s.user_id IS NULL OR s.organization_id IS NOT NULL)) OR (s.kind = 'organization' AND (s.organization_id IS NULL OR s.user_id IS NOT NULL))) +
+      (SELECT count(*) FROM friends f WHERE NOT EXISTS (SELECT 1 FROM ledger_scopes s WHERE s.id = f.ledger_scope_id)) +
+      (SELECT count(*) FROM outings o WHERE NOT EXISTS (SELECT 1 FROM ledger_scopes s WHERE s.id = o.ledger_scope_id)) +
+      (SELECT count(*) FROM expenses e WHERE NOT EXISTS (SELECT 1 FROM ledger_scopes s WHERE s.id = e.ledger_scope_id) OR NOT EXISTS (SELECT 1 FROM outings o WHERE o.ledger_scope_id = e.ledger_scope_id AND o.id = e.outing_id)) +
+      (SELECT count(*) FROM expense_receipts r WHERE NOT EXISTS (SELECT 1 FROM ledger_scopes s WHERE s.id = r.ledger_scope_id) OR NOT EXISTS (SELECT 1 FROM expenses e WHERE e.ledger_scope_id = r.ledger_scope_id AND e.id = r.expense_id)) +
+      (SELECT count(*) FROM expense_shares s WHERE NOT EXISTS (SELECT 1 FROM ledger_scopes ls WHERE ls.id = s.ledger_scope_id) OR NOT EXISTS (SELECT 1 FROM expenses e WHERE e.ledger_scope_id = s.ledger_scope_id AND e.id = s.expense_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.ledger_scope_id = s.ledger_scope_id AND f.id = s.friend_id)) +
+      (SELECT count(*) FROM repayments r WHERE NOT EXISTS (SELECT 1 FROM ledger_scopes ls WHERE ls.id = r.ledger_scope_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.ledger_scope_id = r.ledger_scope_id AND f.id = r.friend_id)) +
+      (SELECT count(*) FROM repayment_destinations d WHERE NOT EXISTS (SELECT 1 FROM ledger_scopes s WHERE s.id = d.ledger_scope_id)) +
+      (SELECT count(*) FROM repayment_allocations a WHERE NOT EXISTS (SELECT 1 FROM ledger_scopes ls WHERE ls.id = a.ledger_scope_id) OR NOT EXISTS (SELECT 1 FROM repayments r WHERE r.ledger_scope_id = a.ledger_scope_id AND r.id = a.repayment_id) OR NOT EXISTS (SELECT 1 FROM expense_shares s WHERE s.ledger_scope_id = a.ledger_scope_id AND s.id = a.expense_share_id)) +
       (SELECT count(*) FROM account_invitations i WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = i.created_by_user_id) OR (i.accepted_user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = i.accepted_user_id))) +
-      (SELECT count(*) FROM debtor_share_links l WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = l.owner_user_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.owner_user_id = l.owner_user_id AND f.id = l.friend_id))
+      (SELECT count(*) FROM debtor_share_links l WHERE NOT EXISTS (SELECT 1 FROM ledger_scopes s WHERE s.id = l.ledger_scope_id) OR NOT EXISTS (SELECT 1 FROM friends f WHERE f.ledger_scope_id = l.ledger_scope_id AND f.id = l.friend_id)) +
+      (SELECT count(*) FROM debtor_share_receipts r WHERE NOT EXISTS (SELECT 1 FROM debtor_share_links l WHERE l.ledger_scope_id = r.ledger_scope_id AND l.id = r.debtor_share_link_id) OR NOT EXISTS (SELECT 1 FROM expense_receipts e WHERE e.ledger_scope_id = r.ledger_scope_id AND e.expense_id = r.expense_id AND e.id = r.expense_receipt_id)) +
+      (SELECT count(*) FROM friend_link_requests r WHERE NOT EXISTS (SELECT 1 FROM friends f WHERE f.ledger_scope_id = r.friend_ledger_scope_id AND f.id = r.friend_id) OR NOT EXISTS (SELECT 1 FROM ledger_scopes s WHERE s.id = r.friend_ledger_scope_id AND s.user_id = r.owner_user_id AND s.kind = 'personal'))
     )::int AS violations`,
   },
   {
     name: "shares within expenses",
-    sql: "SELECT count(*)::int AS violations FROM (SELECT s.owner_user_id, s.expense_id FROM expense_shares s JOIN expenses e ON e.owner_user_id = s.owner_user_id AND e.id = s.expense_id GROUP BY s.owner_user_id, s.expense_id, e.amount HAVING sum(s.amount_owed) > e.amount) invalid",
+    sql: "SELECT count(*)::int AS violations FROM (SELECT s.ledger_scope_id, s.expense_id FROM expense_shares s JOIN expenses e ON e.ledger_scope_id = s.ledger_scope_id AND e.id = s.expense_id GROUP BY s.ledger_scope_id, s.expense_id, e.amount HAVING sum(s.amount_owed) > e.amount) invalid",
   },
   {
     name: "allocations within repayments",
-    sql: "SELECT count(*)::int AS violations FROM (SELECT a.owner_user_id, a.repayment_id FROM repayment_allocations a JOIN repayments r ON r.owner_user_id = a.owner_user_id AND r.id = a.repayment_id GROUP BY a.owner_user_id, a.repayment_id, r.amount HAVING sum(a.amount) > r.amount) invalid",
+    sql: "SELECT count(*)::int AS violations FROM (SELECT a.ledger_scope_id, a.repayment_id FROM repayment_allocations a JOIN repayments r ON r.ledger_scope_id = a.ledger_scope_id AND r.id = a.repayment_id GROUP BY a.ledger_scope_id, a.repayment_id, r.amount HAVING sum(a.amount) > r.amount) invalid",
   },
   {
     name: "allocations within shares",
-    sql: "SELECT count(*)::int AS violations FROM (SELECT a.owner_user_id, a.expense_share_id FROM repayment_allocations a JOIN expense_shares s ON s.owner_user_id = a.owner_user_id AND s.id = a.expense_share_id GROUP BY a.owner_user_id, a.expense_share_id, s.amount_owed HAVING sum(a.amount) > s.amount_owed) invalid",
+    sql: "SELECT count(*)::int AS violations FROM (SELECT a.ledger_scope_id, a.expense_share_id FROM repayment_allocations a JOIN expense_shares s ON s.ledger_scope_id = a.ledger_scope_id AND s.id = a.expense_share_id GROUP BY a.ledger_scope_id, a.expense_share_id, s.amount_owed HAVING sum(a.amount) > s.amount_owed) invalid",
   },
   {
     name: "cross-friend allocations",
-    sql: "SELECT count(*)::int AS violations FROM repayment_allocations a JOIN repayments r ON r.owner_user_id = a.owner_user_id AND r.id = a.repayment_id JOIN expense_shares s ON s.owner_user_id = a.owner_user_id AND s.id = a.expense_share_id WHERE r.friend_id <> s.friend_id",
+    sql: "SELECT count(*)::int AS violations FROM repayment_allocations a JOIN repayments r ON r.ledger_scope_id = a.ledger_scope_id AND r.id = a.repayment_id JOIN expense_shares s ON s.ledger_scope_id = a.ledger_scope_id AND s.id = a.expense_share_id WHERE r.friend_id <> s.friend_id",
   },
   {
     name: "accepted and revoked invitations",
@@ -212,7 +216,7 @@ export const INTEGRITY_CHECKS: readonly IntegrityCheck[] = [
   },
   {
     name: "duplicate active debtor links",
-    sql: "SELECT count(*)::int AS violations FROM (SELECT owner_user_id, friend_id FROM debtor_share_links WHERE revoked_at IS NULL GROUP BY owner_user_id, friend_id HAVING count(*) > 1) invalid",
+    sql: "SELECT count(*)::int AS violations FROM (SELECT ledger_scope_id, friend_id FROM debtor_share_links WHERE revoked_at IS NULL GROUP BY ledger_scope_id, friend_id HAVING count(*) > 1) invalid",
   },
   {
     name: "whole-rupiah values",

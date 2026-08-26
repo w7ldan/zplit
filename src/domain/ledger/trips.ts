@@ -23,16 +23,16 @@ type TripAggregateRow = {
   friend_settlements: unknown;
 };
 
-function tripAggregateQuery(owner: string, tripId: string) {
+function tripAggregateQuery(scope: string, tripId: string) {
   return sql<TripAggregateRow>`
     WITH trip_outings AS (
       SELECT o.id
       FROM outings o
       INNER JOIN trips t
-        ON t.owner_user_id = o.owner_user_id
+        ON t.ledger_scope_id = o.ledger_scope_id
         AND t.id = o.trip_id
-      WHERE o.owner_user_id = ${owner}
-        AND t.owner_user_id = ${owner}
+      WHERE o.ledger_scope_id = ${scope}
+        AND t.ledger_scope_id = ${scope}
         AND t.id = ${tripId}
     ),
     trip_expenses AS (
@@ -40,9 +40,9 @@ function tripAggregateQuery(owner: string, tripId: string) {
       FROM expenses e
       INNER JOIN trip_outings o ON o.id = e.outing_id
       LEFT JOIN expense_shares s
-        ON s.owner_user_id = e.owner_user_id
+        ON s.ledger_scope_id = e.ledger_scope_id
         AND s.expense_id = e.id
-      WHERE e.owner_user_id = ${owner}
+      WHERE e.ledger_scope_id = ${scope}
       GROUP BY e.id, e.amount
     ),
     share_allocation_totals AS (
@@ -50,9 +50,9 @@ function tripAggregateQuery(owner: string, tripId: string) {
       FROM expense_shares s
       INNER JOIN trip_expenses e ON e.id = s.expense_id
       LEFT JOIN repayment_allocations a
-        ON a.owner_user_id = s.owner_user_id
+        ON a.ledger_scope_id = s.ledger_scope_id
         AND a.expense_share_id = s.id
-      WHERE s.owner_user_id = ${owner}
+      WHERE s.ledger_scope_id = ${scope}
       GROUP BY s.id, s.friend_id, s.amount_owed
     ),
     friend_settlements AS (
@@ -62,7 +62,7 @@ function tripAggregateQuery(owner: string, tripId: string) {
         SUM(s.amount_owed - s.allocated_amount)::text AS outstanding_amount
       FROM share_allocation_totals s
       INNER JOIN friends f
-        ON f.owner_user_id = ${owner}
+        ON f.ledger_scope_id = ${scope}
         AND f.id = s.friend_id
       GROUP BY s.friend_id, f.name
     ),
@@ -70,16 +70,16 @@ function tripAggregateQuery(owner: string, tripId: string) {
       SELECT DISTINCT a.repayment_id
       FROM repayment_allocations a
       INNER JOIN share_allocation_totals s ON s.id = a.expense_share_id
-      WHERE a.owner_user_id = ${owner}
+      WHERE a.ledger_scope_id = ${scope}
     ),
     repayment_allocation_totals AS (
       SELECT r.id, r.amount::numeric AS amount, COALESCE(SUM(a.amount::numeric), 0) AS allocated_amount
       FROM repayments r
       INNER JOIN trip_repayment_ids ids ON ids.repayment_id = r.id
       LEFT JOIN repayment_allocations a
-        ON a.owner_user_id = r.owner_user_id
+        ON a.ledger_scope_id = r.ledger_scope_id
         AND a.repayment_id = r.id
-      WHERE r.owner_user_id = ${owner}
+      WHERE r.ledger_scope_id = ${scope}
       GROUP BY r.id, r.amount
     ),
     allocation_links AS (
@@ -87,12 +87,12 @@ function tripAggregateQuery(owner: string, tripId: string) {
       FROM repayment_allocations a
       INNER JOIN trip_repayment_ids ids ON ids.repayment_id = a.repayment_id
       LEFT JOIN repayments r
-        ON r.owner_user_id = a.owner_user_id
+        ON r.ledger_scope_id = a.ledger_scope_id
         AND r.id = a.repayment_id
       LEFT JOIN expense_shares s
-        ON s.owner_user_id = a.owner_user_id
+        ON s.ledger_scope_id = a.ledger_scope_id
         AND s.id = a.expense_share_id
-      WHERE a.owner_user_id = ${owner}
+      WHERE a.ledger_scope_id = ${scope}
     ),
     totals AS (
       SELECT
@@ -118,7 +118,7 @@ function tripAggregateQuery(owner: string, tripId: string) {
     SELECT t.id AS trip_id, totals.*
     FROM trips t
     CROSS JOIN totals
-    WHERE t.owner_user_id = ${owner}
+    WHERE t.ledger_scope_id = ${scope}
       AND t.id = ${tripId}
   `;
 }
@@ -150,10 +150,10 @@ function parseTripAggregate(row: TripAggregateRow): TripFinancialSummary {
   const totalSpendingAmount = ledgerInteger(row.total_spending_amount, "Trip total spending amount");
   const totalAssignedAmount = ledgerInteger(row.total_assigned_amount, "Trip assigned amount");
   const totalRepaidAmount = ledgerInteger(row.total_repaid_amount, "Trip repaid amount");
-  const ownerPortionAmount = ledgerInteger(row.owner_portion_amount, "Trip owner portion amount");
+  const ownerPortionAmount = ledgerInteger(row.owner_portion_amount, "Trip scope portion amount");
   const totalOutstandingAmount = ledgerInteger(row.total_outstanding_amount, "Trip outstanding amount");
-  if (ownerPortionAmount !== ledgerDifference(totalSpendingAmount, totalAssignedAmount, "Trip owner portion amount")) {
-    throw new LedgerIntegrityError("Trip owner portion is inconsistent.");
+  if (ownerPortionAmount !== ledgerDifference(totalSpendingAmount, totalAssignedAmount, "Trip scope portion amount")) {
+    throw new LedgerIntegrityError("Trip scope portion is inconsistent.");
   }
   if (totalOutstandingAmount !== ledgerDifference(totalAssignedAmount, totalRepaidAmount, "Trip outstanding amount")) {
     throw new LedgerIntegrityError("Trip outstanding amount is inconsistent.");
@@ -170,14 +170,14 @@ function parseTripAggregate(row: TripAggregateRow): TripFinancialSummary {
   };
 }
 
-export function createTripsReadRepository(database: Database, owner: string) {
+export function createTripsReadRepository(database: Database, scope: string) {
 async function getTrip(tripId: string) {
     assertTripId(tripId);
     try {
       const [trip] = await database
         .select()
         .from(trips)
-        .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+        .where(and(eq(trips.ledgerScopeId, scope), eq(trips.id, tripId)))
         .limit(1);
       if (!trip) return notFound();
       return trip;
@@ -190,7 +190,7 @@ async function searchTrips(options: { q?: unknown; selectedId?: unknown } = {}):
     const query = normalizeText(options.q);
     const selectedId = normalizeUuid(options.selectedId);
     const conditions = [
-      eq(trips.ownerUserId, owner),
+      eq(trips.ledgerScopeId, scope),
       ...(query ? [selectedId ? or(literalContains(trips.name, query), eq(trips.id, selectedId)) : literalContains(trips.name, query)] : []),
     ];
     try {
@@ -213,7 +213,7 @@ async function searchTrips(options: { q?: unknown; selectedId?: unknown } = {}):
 
 async function listTripRecords(options: { q?: unknown; page?: unknown } = {}): Promise<RecordPage<TripListRecord>> {
     const query = normalizeText(options.q);
-    const conditions = [eq(trips.ownerUserId, owner), ...(query ? [literalContains(trips.name, query)] : [])];
+    const conditions = [eq(trips.ledgerScopeId, scope), ...(query ? [literalContains(trips.name, query)] : [])];
     try {
       const [{ count = 0 } = {}] = await database
         .select({ count: sql<number>`count(*)`.mapWith(Number) })
@@ -222,7 +222,7 @@ async function listTripRecords(options: { q?: unknown; page?: unknown } = {}): P
       const totalItems = safeRetrievalInteger(count, "Trip count");
       const page = clampPage(options.page === undefined ? 1 : Number(options.page), totalItems);
       const pageTrips = database
-        .select({ id: trips.id, ownerUserId: trips.ownerUserId })
+        .select({ id: trips.id, ledgerScopeId: trips.ledgerScopeId })
         .from(trips)
         .where(and(...conditions))
         .orderBy(sql`${trips.startsOn} DESC NULLS LAST`, desc(trips.createdAt), asc(trips.name), asc(trips.id))
@@ -237,17 +237,17 @@ async function listTripRecords(options: { q?: unknown; page?: unknown } = {}): P
           expenseTotal: sql<number>`coalesce(sum(${expenses.amount}), 0)`.mapWith(Number).as("expense_total"),
         })
         .from(outings)
-        .innerJoin(pageTrips, and(eq(pageTrips.id, outings.tripId), eq(pageTrips.ownerUserId, outings.ownerUserId)))
-        .leftJoin(expenses, and(eq(expenses.ownerUserId, outings.ownerUserId), eq(expenses.outingId, outings.id)))
-        .where(eq(outings.ownerUserId, owner))
-        .groupBy(outings.ownerUserId, outings.tripId)
+        .innerJoin(pageTrips, and(eq(pageTrips.id, outings.tripId), eq(pageTrips.ledgerScopeId, outings.ledgerScopeId)))
+        .leftJoin(expenses, and(eq(expenses.ledgerScopeId, outings.ledgerScopeId), eq(expenses.outingId, outings.id)))
+        .where(eq(outings.ledgerScopeId, scope))
+        .groupBy(outings.ledgerScopeId, outings.tripId)
         .as("trip_totals");
       const rows = await database
         .select({ trip: trips, outingCount: totals.outingCount, expenseCount: totals.expenseCount, expenseTotal: totals.expenseTotal })
         .from(trips)
-        .innerJoin(pageTrips, and(eq(pageTrips.id, trips.id), eq(pageTrips.ownerUserId, trips.ownerUserId)))
+        .innerJoin(pageTrips, and(eq(pageTrips.id, trips.id), eq(pageTrips.ledgerScopeId, trips.ledgerScopeId)))
         .leftJoin(totals, and(eq(totals.tripId, trips.id)))
-        .where(eq(trips.ownerUserId, owner))
+        .where(eq(trips.ledgerScopeId, scope))
         .orderBy(sql`${trips.startsOn} DESC NULLS LAST`, desc(trips.createdAt), asc(trips.name), asc(trips.id));
       const items = rows.map((row) => {
         const raw = row as unknown as Record<string, unknown>;
@@ -267,7 +267,7 @@ async function listTripRecords(options: { q?: unknown; page?: unknown } = {}): P
 async function getTripSummary(tripId: string): Promise<TripFinancialSummary> {
     assertTripId(tripId);
     try {
-      const result = await database.execute(tripAggregateQuery(owner, tripId));
+      const result = await database.execute(tripAggregateQuery(scope, tripId));
       const [row] = (Array.isArray(result) ? result : result.rows) as TripAggregateRow[];
       if (!row) return notFound();
       return parseTripAggregate(row);
@@ -279,11 +279,11 @@ async function getTripSummary(tripId: string): Promise<TripFinancialSummary> {
   return { getTrip, searchTrips, listTripRecords, getTripSummary };
 }
 
-export function createTripsMutationRepository(database: Database, owner: string) {
+export function createTripsMutationRepository(database: Database, scope: string) {
 async function createTrip(input: CreateTripInput) {
     assertTripInput(input);
     try {
-      const [trip] = await database.insert(trips).values({ ...input, ownerUserId: owner }).returning();
+      const [trip] = await database.insert(trips).values({ ...input, ledgerScopeId: scope }).returning();
       if (!trip) return persistenceError(new Error("trip insert returned no row"));
       return trip;
     } catch (error) {
@@ -298,7 +298,7 @@ async function updateTrip(tripId: string, input: UpdateTripInput) {
       const [trip] = await database
         .update(trips)
         .set({ ...input, updatedAt: new Date() })
-        .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+        .where(and(eq(trips.ledgerScopeId, scope), eq(trips.id, tripId)))
         .returning();
       if (!trip) return notFound();
       return trip;
@@ -314,18 +314,18 @@ async function deleteTrip(tripId: string) {
         const [trip] = await transaction
           .select({ id: trips.id })
           .from(trips)
-          .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+          .where(and(eq(trips.ledgerScopeId, scope), eq(trips.id, tripId)))
           .limit(1)
           .for("update");
         if (!trip) return notFound();
         const detached = await transaction
           .update(outings)
           .set({ tripId: null, updatedAt: new Date() })
-          .where(and(eq(outings.ownerUserId, owner), eq(outings.tripId, tripId)))
+          .where(and(eq(outings.ledgerScopeId, scope), eq(outings.tripId, tripId)))
           .returning({ id: outings.id });
         const deleted = await transaction
           .delete(trips)
-          .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+          .where(and(eq(trips.ledgerScopeId, scope), eq(trips.id, tripId)))
           .returning({ id: trips.id });
         if (deleted.length === 0) return notFound();
         return { detachedOutingCount: detached.length };

@@ -28,16 +28,16 @@ function orderedIds(value: unknown) {
   return ids;
 }
 
-export function createRepaymentDestinationRepository(database: Database, ownerUserId: string) {
-  const owner = ownerUserId.trim();
-  if (!owner) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger owner is required");
+export function createRepaymentDestinationRepository(database: Database, ledgerScopeId: string) {
+  const scope = ledgerScopeId.trim();
+  if (!scope) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger scope is required");
 
   async function listRepaymentDestinations() {
     try {
       const destinations = await database
         .select()
         .from(repaymentDestinations)
-        .where(eq(repaymentDestinations.ownerUserId, owner))
+        .where(eq(repaymentDestinations.ledgerScopeId, scope))
         .orderBy(asc(repaymentDestinations.sortOrder), asc(repaymentDestinations.id));
       return destinations.map(typedDestination);
     } catch (error) {
@@ -50,7 +50,7 @@ export function createRepaymentDestinationRepository(database: Database, ownerUs
       const destinations = await database
         .select()
         .from(repaymentDestinations)
-        .where(and(eq(repaymentDestinations.ownerUserId, owner), eq(repaymentDestinations.shareOnBalanceLinks, true)))
+        .where(and(eq(repaymentDestinations.ledgerScopeId, scope), eq(repaymentDestinations.shareOnBalanceLinks, true)))
         .orderBy(asc(repaymentDestinations.sortOrder), asc(repaymentDestinations.id));
       return destinations.map(typedDestination);
     } catch (error) {
@@ -65,13 +65,13 @@ export function createRepaymentDestinationRepository(database: Database, ownerUs
         const [last] = await transaction
           .select({ sortOrder: repaymentDestinations.sortOrder })
           .from(repaymentDestinations)
-          .where(eq(repaymentDestinations.ownerUserId, owner))
+          .where(eq(repaymentDestinations.ledgerScopeId, scope))
           .orderBy(desc(repaymentDestinations.sortOrder), desc(repaymentDestinations.id))
           .limit(1)
           .for("update");
         const [created] = await transaction
           .insert(repaymentDestinations)
-          .values({ ...input, ownerUserId: owner, sortOrder: (last?.sortOrder ?? -1) + 1 })
+          .values({ ...input, ledgerScopeId: scope, sortOrder: (last?.sortOrder ?? -1) + 1 })
           .returning();
         if (!created) throw new Error("repayment destination insert returned no row");
         return created;
@@ -88,7 +88,7 @@ export function createRepaymentDestinationRepository(database: Database, ownerUs
       const [updated] = await database
         .update(repaymentDestinations)
         .set({ ...input, updatedAt: new Date() })
-        .where(and(eq(repaymentDestinations.ownerUserId, owner), eq(repaymentDestinations.id, destinationId)))
+        .where(and(eq(repaymentDestinations.ledgerScopeId, scope), eq(repaymentDestinations.id, destinationId)))
         .returning();
       if (!updated) throw new LedgerNotFoundError();
       return updated;
@@ -102,7 +102,7 @@ export function createRepaymentDestinationRepository(database: Database, ownerUs
     try {
       const [deleted] = await database
         .delete(repaymentDestinations)
-        .where(and(eq(repaymentDestinations.ownerUserId, owner), eq(repaymentDestinations.id, destinationId)))
+        .where(and(eq(repaymentDestinations.ledgerScopeId, scope), eq(repaymentDestinations.id, destinationId)))
         .returning({ id: repaymentDestinations.id });
       if (!deleted) throw new LedgerNotFoundError();
       return deleted;
@@ -118,17 +118,17 @@ export function createRepaymentDestinationRepository(database: Database, ownerUs
         const existing = await transaction
           .select({ id: repaymentDestinations.id })
           .from(repaymentDestinations)
-          .where(eq(repaymentDestinations.ownerUserId, owner))
+          .where(eq(repaymentDestinations.ledgerScopeId, scope))
           .for("update");
         const existingIds = existing.map(({ id }) => id.toLowerCase());
         if (requestedIds.length !== existingIds.length || requestedIds.some((id) => !existingIds.includes(id))) {
-          throw new LedgerRepositoryError("INVALID_INPUT", "Repayment destination order does not match the owner destinations");
+          throw new LedgerRepositoryError("INVALID_INPUT", "Repayment destination order does not match the scope destinations");
         }
         for (const [sortOrder, id] of requestedIds.entries()) {
           await transaction
             .update(repaymentDestinations)
             .set({ sortOrder, updatedAt: new Date() })
-            .where(and(eq(repaymentDestinations.ownerUserId, owner), eq(repaymentDestinations.id, id)));
+            .where(and(eq(repaymentDestinations.ledgerScopeId, scope), eq(repaymentDestinations.id, id)));
         }
       });
     } catch (error) {

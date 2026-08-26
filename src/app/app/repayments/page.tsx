@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { LedgerNotFoundError } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { RepaymentForm } from "@/components/repayments/repayment-form";
 import { RepaymentRow } from "@/components/repayments/repayment-row";
 import { createRepaymentAction, loadRepaymentFriendContext, searchFriendFilterOptions, searchFriendOptions } from "./actions";
@@ -31,7 +31,7 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
   const initialPaidAtUtc = openCreate ? new Date().toISOString() : undefined;
   const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params?.tz));
   const filters = normalizeRepaymentFilters({ q: first(params?.q), friendId: first(params?.friendId), month: first(params?.month), allocation: first(params?.allocation), page: first(params?.page) });
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   const recentPaymentMethods = openCreate ? await repository.listRecentPaymentMethods() : [];
   const friendRows = await repository.searchFriends({ selectedId: filters.friendId });
   const friendId = friendRows.some((friend) => friend.id === filters.friendId) ? filters.friendId : undefined;

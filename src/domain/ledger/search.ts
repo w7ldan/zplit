@@ -15,7 +15,7 @@ type GlobalSearchRow = {
   occurred_at: unknown;
 };
 
-export function createLedgerSearchRepository(database: Database, owner: string) {
+export function createLedgerSearchRepository(database: Database, scope: string) {
 async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]> {
     const query = normalizeText(input);
     if (!query) return [];
@@ -29,7 +29,7 @@ async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]
           SELECT 'friend'::text AS record_kind, f.id::text AS record_id, f.name::text AS title_source,
             NULL::text AS detail_source, NULL::text AS context_source, NULL::integer AS amount, NULL::timestamptz AS occurred_at
           FROM friends f
-          WHERE f.owner_user_id = ${owner} AND f.name ILIKE ${pattern} ESCAPE ${"\\"}
+          WHERE f.ledger_scope_id = ${scope} AND f.name ILIKE ${pattern} ESCAPE ${"\\"}
           ORDER BY f.name ASC, f.id ASC
           LIMIT 5
         ), trip_results AS (
@@ -37,23 +37,23 @@ async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]
             NULLIF(concat_ws(' — ', t.starts_on::text, t.ends_on::text), '') AS detail_source,
             NULL::text AS context_source, NULL::integer AS amount, NULL::timestamptz AS occurred_at
           FROM trips t
-          WHERE t.owner_user_id = ${owner} AND t.name ILIKE ${pattern} ESCAPE ${"\\"}
+          WHERE t.ledger_scope_id = ${scope} AND t.name ILIKE ${pattern} ESCAPE ${"\\"}
           ORDER BY t.starts_on DESC NULLS LAST, t.name ASC, t.id ASC
           LIMIT 5
         ), outing_results AS (
           SELECT 'outing'::text AS record_kind, o.id::text AS record_id, o.title::text AS title_source,
             NULL::text AS detail_source, t.name::text AS context_source, NULL::integer AS amount, o.occurred_at
           FROM outings o
-          LEFT JOIN trips t ON t.owner_user_id = o.owner_user_id AND t.id = o.trip_id
-          WHERE o.owner_user_id = ${owner} AND o.title ILIKE ${pattern} ESCAPE ${"\\"}
+          LEFT JOIN trips t ON t.ledger_scope_id = o.ledger_scope_id AND t.id = o.trip_id
+          WHERE o.ledger_scope_id = ${scope} AND o.title ILIKE ${pattern} ESCAPE ${"\\"}
           ORDER BY o.occurred_at DESC, o.title ASC, o.id ASC
           LIMIT 5
         ), expense_results AS (
           SELECT 'expense'::text AS record_kind, e.id::text AS record_id, e.description::text AS title_source,
             o.title::text AS detail_source, NULL::text AS context_source, e.amount, NULL::timestamptz AS occurred_at
           FROM expenses e
-          INNER JOIN outings o ON o.owner_user_id = e.owner_user_id AND o.id = e.outing_id
-          WHERE e.owner_user_id = ${owner}
+          INNER JOIN outings o ON o.ledger_scope_id = e.ledger_scope_id AND o.id = e.outing_id
+          WHERE e.ledger_scope_id = ${scope}
             AND (e.description ILIKE ${pattern} ESCAPE ${"\\"} OR o.title ILIKE ${pattern} ESCAPE ${"\\"} OR ${amountMatch})
           ORDER BY e.updated_at DESC, e.description ASC, e.id ASC
           LIMIT 5
@@ -61,8 +61,8 @@ async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]
           SELECT 'repayment'::text AS record_kind, r.id::text AS record_id, f.name::text AS title_source,
             NULL::text AS detail_source, NULL::text AS context_source, r.amount, r.paid_at AS occurred_at
           FROM repayments r
-          INNER JOIN friends f ON f.owner_user_id = r.owner_user_id AND f.id = r.friend_id
-          WHERE r.owner_user_id = ${owner}
+          INNER JOIN friends f ON f.ledger_scope_id = r.ledger_scope_id AND f.id = r.friend_id
+          WHERE r.ledger_scope_id = ${scope}
             AND (f.name ILIKE ${pattern} ESCAPE ${"\\"} OR r.payment_method ILIKE ${pattern} ESCAPE ${"\\"} OR ${repaymentAmountMatch})
           ORDER BY r.paid_at DESC, r.created_at DESC, r.id ASC
           LIMIT 5

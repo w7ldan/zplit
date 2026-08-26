@@ -86,7 +86,7 @@ function repaymentAllocationDatabase(overrides: Partial<{
       } }) };
     },
     insert() {
-      return { values: (value: typeof state.allocation & { ownerUserId: string }) => ({ returning: async () => {
+      return { values: (value: typeof state.allocation & { ledgerScopeId: string }) => ({ returning: async () => {
         state.allocation = { repaymentId: value.repaymentId, expenseShareId: value.expenseShareId, amount: value.amount };
         return [state.allocation];
       } }) };
@@ -135,7 +135,7 @@ type ReconciliationFixture = {
   repayments: Array<{ id: string; friendId: string; amount: number }>;
   deletedShares: Array<{ id: string; friendId: string }>;
   allocations: Array<{ repaymentId: string; expenseShareId: string; amount: number }>;
-  candidateShares: Array<{ id: string; ownerUserId: string; expenseId: string; friendId: string; amountOwed: number }>;
+  candidateShares: Array<{ id: string; ledgerScopeId: string; expenseId: string; friendId: string; amountOwed: number }>;
   failDelete?: boolean;
 };
 
@@ -265,11 +265,11 @@ describe("ledger repository", () => {
   });
 
   it.each([
-    ["fully reallocates released money", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }], [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }], { reallocatedAmount: 100, unallocatedAmount: 0 }],
-    ["leaves partial capacity unallocated", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }], [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 70 }], { reallocatedAmount: 70, unallocatedAmount: 30 }],
-    ["leaves money unallocated when no capacity remains", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }, { id: "repayment-b", friendId: "friend-a", amount: 70 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }, { repaymentId: "repayment-b", expenseShareId: "target-share", amount: 70 }], [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 70 }], { reallocatedAmount: 0, unallocatedAmount: 100 }],
-    ["accounts for allocations from other repayments", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }, { id: "repayment-b", friendId: "friend-a", amount: 30 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }, { repaymentId: "repayment-b", expenseShareId: "target-share", amount: 30 }], [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }], { reallocatedAmount: 70, unallocatedAmount: 30 }],
-    ["processes affected repayments without double allocation", [{ id: "repayment-a", friendId: "friend-a", amount: 60 }, { id: "repayment-b", friendId: "friend-a", amount: 60 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 60 }, { repaymentId: "repayment-b", expenseShareId: "deleted-share", amount: 60 }], [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }], { reallocatedAmount: 100, unallocatedAmount: 20 }],
+    ["fully reallocates released money", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }], [{ id: "target-share", ledgerScopeId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }], { reallocatedAmount: 100, unallocatedAmount: 0 }],
+    ["leaves partial capacity unallocated", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }], [{ id: "target-share", ledgerScopeId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 70 }], { reallocatedAmount: 70, unallocatedAmount: 30 }],
+    ["leaves money unallocated when no capacity remains", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }, { id: "repayment-b", friendId: "friend-a", amount: 70 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }, { repaymentId: "repayment-b", expenseShareId: "target-share", amount: 70 }], [{ id: "target-share", ledgerScopeId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 70 }], { reallocatedAmount: 0, unallocatedAmount: 100 }],
+    ["accounts for allocations from other repayments", [{ id: "repayment-a", friendId: "friend-a", amount: 100 }, { id: "repayment-b", friendId: "friend-a", amount: 30 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }, { repaymentId: "repayment-b", expenseShareId: "target-share", amount: 30 }], [{ id: "target-share", ledgerScopeId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }], { reallocatedAmount: 70, unallocatedAmount: 30 }],
+    ["processes affected repayments without double allocation", [{ id: "repayment-a", friendId: "friend-a", amount: 60 }, { id: "repayment-b", friendId: "friend-a", amount: 60 }], [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 60 }, { repaymentId: "repayment-b", expenseShareId: "deleted-share", amount: 60 }], [{ id: "target-share", ledgerScopeId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }], { reallocatedAmount: 100, unallocatedAmount: 20 }],
   ] as const)("%s", async (_name, repayments, allocations, candidateShares, expected) => {
     const database = reconciliationDatabase({ repayments: [...repayments], deletedShares: [{ id: "deleted-share", friendId: "friend-a" }], allocations: [...allocations], candidateShares: [...candidateShares] });
     const result = await createLedgerRepository(database.database, owner).deleteExpense("expense-a", { cascadeDependents: true });
@@ -285,7 +285,7 @@ describe("ledger repository", () => {
       repayments: [{ id: "repayment-a", friendId: "friend-a", amount: 100 }],
       deletedShares: [{ id: "deleted-share", friendId: "friend-a" }],
       allocations: [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 40 }, { repaymentId: "repayment-a", expenseShareId: "target-share", amount: 30 }],
-      candidateShares: [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }],
+      candidateShares: [{ id: "target-share", ledgerScopeId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }],
     });
 
     await expect(createLedgerRepository(database.database, owner).deleteExpense("expense-a", { cascadeDependents: true })).resolves.toMatchObject({ reallocatedAmount: 40, unallocatedAmount: 0 });
@@ -298,11 +298,11 @@ describe("ledger repository", () => {
       deletedShares: [{ id: "deleted-share", friendId: "friend-a" }],
       allocations: [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }],
       candidateShares: [
-        { id: "deleted-target", ownerUserId: owner, expenseId: "expense-a", friendId: "friend-a", amountOwed: 100 },
-        { id: "other-friend", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-b", amountOwed: 100 },
-        { id: "foreign-owner", ownerUserId: "user-b", expenseId: "expense-c", friendId: "friend-a", amountOwed: 100 },
-        { id: "oldest-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 50 },
-        { id: "newest-share", ownerUserId: owner, expenseId: "expense-c", friendId: "friend-a", amountOwed: 50 },
+        { id: "deleted-target", ledgerScopeId: owner, expenseId: "expense-a", friendId: "friend-a", amountOwed: 100 },
+        { id: "other-friend", ledgerScopeId: owner, expenseId: "expense-b", friendId: "friend-b", amountOwed: 100 },
+        { id: "foreign-owner", ledgerScopeId: "user-b", expenseId: "expense-c", friendId: "friend-a", amountOwed: 100 },
+        { id: "oldest-share", ledgerScopeId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 50 },
+        { id: "newest-share", ledgerScopeId: owner, expenseId: "expense-c", friendId: "friend-a", amountOwed: 50 },
       ],
     });
 
@@ -319,7 +319,7 @@ describe("ledger repository", () => {
       repayments: [{ id: "repayment-a", friendId: "friend-a", amount: 100 }],
       deletedShares: [{ id: "deleted-share", friendId: "friend-a" }],
       allocations: [{ repaymentId: "repayment-a", expenseShareId: "deleted-share", amount: 100 }],
-      candidateShares: [{ id: "target-share", ownerUserId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }],
+      candidateShares: [{ id: "target-share", ledgerScopeId: owner, expenseId: "expense-b", friendId: "friend-a", amountOwed: 100 }],
       failDelete: true,
     });
 
@@ -347,25 +347,25 @@ describe("ledger repository", () => {
   it("does not accept ownership in input objects", async () => {
     const repository = createLedgerRepository({} as Database, owner);
     await expect(
-      repository.createFriend({ name: "Friend", ownerUserId: "user-b" } as never),
+      repository.createFriend({ name: "Friend", ledgerScopeId: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
-      repository.createFriend({ name: "Friend", owner_user_id: "user-b" } as never),
+      repository.createFriend({ name: "Friend", ledger_scope_id: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
-      repository.updateFriend("friend-a", { name: "Friend", phoneNumber: null, notes: null, ownerUserId: "user-b" } as never),
+      repository.updateFriend("friend-a", { name: "Friend", phoneNumber: null, notes: null, ledgerScopeId: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
-      repository.createOuting({ title: "Outing", occurredAt: new Date(), notes: null, ownerUserId: "user-b" } as never),
+      repository.createOuting({ title: "Outing", occurredAt: new Date(), notes: null, ledgerScopeId: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
-      repository.updateOuting("outing-a", { title: "Outing", occurredAt: new Date(), notes: null, owner_user_id: "user-b" } as never),
+      repository.updateOuting("outing-a", { title: "Outing", occurredAt: new Date(), notes: null, ledger_scope_id: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
-      repository.createExpense({ description: "Expense", amount: 100, outingId: "outing-a", ownerUserId: "user-b" } as never),
+      repository.createExpense({ description: "Expense", amount: 100, outingId: "outing-a", ledgerScopeId: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
-      repository.updateExpense("expense-a", { description: "Expense", amount: 100, outingId: "outing-a", owner_user_id: "user-b" } as never),
+      repository.updateExpense("expense-a", { description: "Expense", amount: 100, outingId: "outing-a", ledger_scope_id: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
   });
 
@@ -380,7 +380,7 @@ describe("ledger repository", () => {
     await repository.listFriends();
 
     expect(queries).toHaveLength(1);
-    expect(queries[0].sql).toContain('"friends"."owner_user_id" = $1');
+    expect(queries[0].sql).toContain('"friends"."ledger_scope_id" = $1');
     expect(queries[0].params).toContain(owner);
   });
 
@@ -401,7 +401,7 @@ describe("ledger repository", () => {
     expect(outingQuery.sql).toContain('select "id", "title"');
     expect(friendQuery.sql).toContain('select "id", "name"');
     for (const query of [outingQuery, friendQuery]) {
-      expect(query.sql).toContain("owner_user_id");
+      expect(query.sql).toContain("ledger_scope_id");
       expect(query.sql).toMatch(/limit \$\d+/);
       expect(query.params).toContain(owner);
       expect(query.params).toContain(selectedId);
@@ -537,7 +537,7 @@ describe("ledger repository", () => {
     expect(queries[0].sql).toContain("trip_expenses");
     expect(queries[0].sql).toContain("share_allocation_totals");
     expect(queries[0].sql).toContain("repayment_allocations");
-    expect(queries[0].sql).toContain("t.owner_user_id = $");
+    expect(queries[0].sql).toContain("t.ledger_scope_id = $");
     expect(queries[0].params.filter((value) => value === owner)).toHaveLength(9);
     expect(queries[0].params).toContain("11111111-1111-4111-8111-111111111111");
   });
@@ -644,7 +644,7 @@ describe("ledger repository", () => {
 
     expect(queries).toHaveLength(5);
     for (const query of queries) {
-      expect(query.sql).toContain('"friends"."owner_user_id" = $');
+      expect(query.sql).toContain('"friends"."ledger_scope_id" = $');
       expect(query.params).toContain(owner);
     }
     expect(queries[1].sql).toContain('"friends"."archived_at" is not null');
@@ -656,7 +656,7 @@ describe("ledger repository", () => {
   it("returns a versioned archive receipt and reverses that exact state", async () => {
     const archivedAt = new Date("2026-08-07T00:00:00.000Z");
     const updatedAt = new Date("2026-08-07T00:00:01.000Z");
-    const archivedFriend = { id: "friend-a", ownerUserId: owner, name: "Friend", phoneNumber: null, notes: null, archivedAt, createdAt: new Date("2026-01-01T00:00:00.000Z"), updatedAt };
+    const archivedFriend = { id: "friend-a", ledgerScopeId: owner, name: "Friend", phoneNumber: null, notes: null, archivedAt, createdAt: new Date("2026-01-01T00:00:00.000Z"), updatedAt };
     const restoredFriend = { ...archivedFriend, archivedAt: null, updatedAt: new Date("2026-08-07T00:00:02.000Z") };
     const updates: unknown[] = [];
     const database = {
@@ -686,7 +686,7 @@ describe("ledger repository", () => {
 
     await expect(createLedgerRepository(database as unknown as Database, owner).undoFriendArchive(receipt)).rejects.toBeInstanceOf(LedgerNotFoundError);
     expect(queries).toHaveLength(1);
-    expect(queries[0].sql).toContain('"friends"."owner_user_id" = $');
+    expect(queries[0].sql).toContain('"friends"."ledger_scope_id" = $');
     expect(queries[0].sql).toContain('"friends"."archived_at" = $');
     expect(queries[0].sql).toContain('"friends"."updated_at" = $');
     expect(queries[0].params).toContain(owner);
@@ -702,7 +702,7 @@ describe("ledger repository", () => {
 
     await expect(repository.listOpenExpenseSharesByFriend()).resolves.toEqual({});
     expect(queries).toHaveLength(1);
-    expect(queries[0].sql).toContain('"expense_shares"."owner_user_id" = $');
+    expect(queries[0].sql).toContain('"expense_shares"."ledger_scope_id" = $');
     expect(queries[0].params).toContain(owner);
   });
 
@@ -826,10 +826,10 @@ describe("ledger repository", () => {
 
     expect(queries).toHaveLength(4);
     for (const query of queries.slice(0, 2).concat(queries.slice(3))) {
-      expect(query.sql).toContain('"outings"."owner_user_id" = $');
+      expect(query.sql).toContain('"outings"."ledger_scope_id" = $');
       expect(query.params).toContain(owner);
     }
-    expect(queries[2].sql).toContain('"owner_user_id"');
+    expect(queries[2].sql).toContain('"ledger_scope_id"');
     expect(queries[2].params).toContain(owner);
     expect(queries[1].sql).toContain('order by "outings"."occurred_at" desc');
   });
@@ -857,8 +857,8 @@ describe("ledger repository", () => {
 
     expect(queries).toHaveLength(2);
     for (const query of queries) {
-      expect(query.sql).toContain('"expenses"."owner_user_id" = $');
-      expect(query.sql).toContain('"outings"."owner_user_id" = $');
+      expect(query.sql).toContain('"expenses"."ledger_scope_id" = $');
+      expect(query.sql).toContain('"outings"."ledger_scope_id" = $');
       expect(query.sql).toContain("inner join");
       expect(query.params).toContain(owner);
     }
@@ -897,13 +897,13 @@ describe("ledger repository", () => {
       const repaymentBranch = sql.slice(repaymentCandidates, boundedActivity);
       expect(expenseBranch).toContain("from expenses e");
       expect(expenseBranch).toContain("inner join outings o");
-      expect(expenseBranch).toContain("where e.owner_user_id = $");
-      expect(expenseBranch).toContain("and o.owner_user_id = $");
+      expect(expenseBranch).toContain("where e.ledger_scope_id = $");
+      expect(expenseBranch).toContain("and o.ledger_scope_id = $");
       expect(expenseBranch).toContain("order by o.occurred_at desc, e.created_at desc, e.id asc limit");
       expect(repaymentBranch).toContain("from repayments r");
       expect(repaymentBranch).toContain("inner join friends f");
-      expect(repaymentBranch).toContain("where r.owner_user_id = $");
-      expect(repaymentBranch).toContain("and f.owner_user_id = $");
+      expect(repaymentBranch).toContain("where r.ledger_scope_id = $");
+      expect(repaymentBranch).toContain("and f.ledger_scope_id = $");
       expect(repaymentBranch).toContain("order by r.paid_at desc, r.created_at desc, r.id asc limit");
 
       expect(sql.slice(0, finalActivity)).not.toContain("repayment_allocations");
@@ -1052,8 +1052,8 @@ describe("ledger repository", () => {
     expect(result).toBeNull();
     expect(fixture.queries).toHaveLength(2);
     expect(fixture.queries.every((query) => query.params.includes(owner))).toBe(true);
-    expect(fixture.queries[1]!.sql).toContain('"outings"."owner_user_id"');
-    expect(fixture.queries[1]!.sql).toContain('"expenses"."owner_user_id"');
+    expect(fixture.queries[1]!.sql).toContain('"outings"."ledger_scope_id"');
+    expect(fixture.queries[1]!.sql).toContain('"expenses"."ledger_scope_id"');
   });
 
   it("skips a newest archived-only sibling and selects the older reusable sibling", async () => {
@@ -1115,7 +1115,7 @@ describe("ledger repository", () => {
     expect(result?.charges).toEqual([{ name: "Tax", percentageBasisPoints: 500, scope: "all", friendIds: [] }]);
     for (const query of fixture.queries) {
       expect(query.params).toContain(owner);
-      expect(query.sql).toContain("owner_user_id");
+      expect(query.sql).toContain("ledger_scope_id");
     }
   });
 
@@ -1139,7 +1139,7 @@ describe("ledger repository", () => {
       expect(queries[index].params).toContain(owner);
       expect(queries[index + 1].params).toContain(owner);
     }
-    expect(queries[0].sql).toContain('"friends"."owner_user_id"');
+    expect(queries[0].sql).toContain('"friends"."ledger_scope_id"');
     expect(queries[1].sql).toContain('order by "friends"."name" asc, "friends"."id" asc');
     expect(queries[3].sql).toContain('order by "outings"."occurred_at" desc, "outings"."created_at" desc');
     expect(queries[5].sql).toContain('order by "outings"."occurred_at" desc, "expenses"."created_at" desc');
@@ -1464,7 +1464,7 @@ describe("ledger repository", () => {
     expect(queries[0].params).toContain(owner);
     expect(queries[0].params).toContain(selectedId);
     expect(queries[0].params).toContain(tripId);
-    expect(queries[0].sql).toContain('"trips"."owner_user_id" = $');
+    expect(queries[0].sql).toContain('"trips"."ledger_scope_id" = $');
     expect(queries[0].sql).toContain('"trips"."id" = $');
   });
 
@@ -1479,11 +1479,11 @@ describe("ledger repository", () => {
     expect(snapshot).toEqual({ friends: [], expenses: [], expenseShares: [], repayments: [], repaymentAllocations: [] });
     expect(queries).toHaveLength(5);
     for (const query of queries) {
-      expect(query.sql).toContain("owner_user_id");
+      expect(query.sql).toContain("ledger_scope_id");
       expect(query.params).toContain(owner);
-      expect(query.sql).not.toMatch(/phone_number|notes|token_hash|owner_user_id\"\s+as/i);
+      expect(query.sql).not.toMatch(/phone_number|notes|token_hash|ledger_scope_id\"\s+as/i);
     }
-    expect(queries[1].sql).toContain('"outings"."owner_user_id"');
+    expect(queries[1].sql).toContain('"outings"."ledger_scope_id"');
     expect(queries[1].sql).toContain("inner join");
     expect(queries.map(({ sql }) => sql).join(" ")).toMatch(/friends|expenses|expense_shares|repayments|repayment_allocations/);
   });
@@ -1505,11 +1505,11 @@ describe("ledger repository", () => {
       expect(query.params).toContain(owner);
       expect(query.sql).not.toMatch(/phone_number|notes|payment_method/);
     }
-    expect(queries[1].sql).toContain('"expenses"."owner_user_id"');
-    expect(queries[1].sql).toContain('"outings"."owner_user_id"');
-    expect(queries[2].sql).toContain('"repayments"."owner_user_id"');
-    expect(queries[2].sql).toContain('"repayment_allocations"."owner_user_id"');
-    expect(queries[2].sql).toContain('"expense_shares"."owner_user_id"');
+    expect(queries[1].sql).toContain('"expenses"."ledger_scope_id"');
+    expect(queries[1].sql).toContain('"outings"."ledger_scope_id"');
+    expect(queries[2].sql).toContain('"repayments"."ledger_scope_id"');
+    expect(queries[2].sql).toContain('"repayment_allocations"."ledger_scope_id"');
+    expect(queries[2].sql).toContain('"expense_shares"."ledger_scope_id"');
   });
 
   it("pages the public debtor statement in SQL and clamps both page parameters", async () => {
@@ -1552,7 +1552,7 @@ describe("ledger repository", () => {
     expect(statement.repaymentDestinations).toEqual([{ type: "bank_account", name: "BCA", identifier: "123", accountName: "Ada", note: "pay here" }]);
     expect(queries[1]?.sql).toContain('"share_on_balance_links" = $');
     expect(queries[1]?.sql).toContain('"sort_order" asc');
-    expect(JSON.stringify(statement)).not.toMatch(/ownerUserId|shareOnBalanceLinks|createdAt|updatedAt/);
+    expect(JSON.stringify(statement)).not.toMatch(/ledgerScopeId|shareOnBalanceLinks|createdAt|updatedAt/);
   });
 
   it("preserves the typed integrity error from aggregate summary rows", async () => {
@@ -1586,7 +1586,7 @@ describe("ledger repository", () => {
     expect("deleteRepayment" in repository).toBe(true);
     expect(queries).toHaveLength(3);
     for (const query of queries) {
-      expect(query.sql).toContain("owner_user_id");
+      expect(query.sql).toContain("ledger_scope_id");
       expect(query.params).toContain(owner);
     }
     expect(queries[0].sql).toContain("inner join");
@@ -1606,8 +1606,8 @@ describe("ledger repository", () => {
 
     expect(queries).toHaveLength(1);
     const query = queries[0]!.sql.toLowerCase();
-    expect(query).toContain('"repayments"."owner_user_id"');
-    expect(query).toContain('"friends"."owner_user_id"');
+    expect(query).toContain('"repayments"."ledger_scope_id"');
+    expect(query).toContain('"friends"."ledger_scope_id"');
     expect(query).toContain('"repayment_allocations"');
     expect(query).toContain('< "repayments"."amount"');
     expect(query).toContain('count(*) over()');
@@ -1638,8 +1638,8 @@ describe("ledger repository", () => {
 
     await expect(createLedgerRepository(database as unknown as Database, owner).getRepaymentAllocationPlan("repayment-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
     expect(queries).toHaveLength(1);
-    expect(queries[0].sql).toContain('"repayments"."owner_user_id"');
-    expect(queries[0].sql).toContain('"friends"."owner_user_id"');
+    expect(queries[0].sql).toContain('"repayments"."ledger_scope_id"');
+    expect(queries[0].sql).toContain('"friends"."ledger_scope_id"');
     expect(queries[0].params).toContain(owner);
   });
 
@@ -1708,7 +1708,7 @@ describe("ledger repository", () => {
     expect(history.nextCursor).toBeTruthy();
     expect(queries).toHaveLength(1);
     expect(queries[0].params).toContain(owner);
-    expect(queries[0].sql).toContain("owner_user_id");
+    expect(queries[0].sql).toContain("ledger_scope_id");
     expect(queries[0].sql).not.toMatch(/phone_number|payment_method|notes|token/i);
   });
 

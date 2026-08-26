@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { createLedgerRepository } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { createTripAction } from "./actions";
 import { TripForm } from "@/components/trips/trip-form";
 import { TripRow } from "@/components/trips/trip-row";
@@ -27,7 +26,7 @@ export default async function TripsPage({ searchParams = Promise.resolve({}) }: 
   if (first(params.q) === "") redirect(recordHref("/app/trips", params, { q: undefined }));
   const session = await requireSession();
   const filters = normalizeTripFilters({ q: first(params.q), page: first(params.page) });
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   const tripPage = await repository.listTripRecords({ q: first(params.q), page: first(params.page) });
   const filtered = Boolean(filters.q);
   const openCreate = first(params.create) === "1";

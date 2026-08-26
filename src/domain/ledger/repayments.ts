@@ -18,7 +18,7 @@ import {
 
 const NEEDS_ATTENTION_PREVIEW_LIMIT = 4;
 
-export function createRepaymentReadRepository(database: Database, owner: string, allocations: RepaymentAllocationRepository) {
+export function createRepaymentReadRepository(database: Database, scope: string, allocations: RepaymentAllocationRepository) {
   const { allocationPlanFor, repaymentSelection, withRepaymentTotals } = allocations;
 
 async function getRepayment(repaymentId: string) {
@@ -27,8 +27,8 @@ async function getRepayment(repaymentId: string) {
       const [repayment] = await database
         .select(repaymentSelection())
         .from(repayments)
-        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
-        .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+        .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
+        .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
         .limit(1);
       if (!repayment) return notFound();
       return (await withRepaymentTotals(database, [repayment], repaymentId))[0]!;
@@ -42,8 +42,8 @@ async function listRepayments() {
       const rows = await database
         .select(repaymentSelection())
         .from(repayments)
-        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
-        .where(eq(repayments.ownerUserId, owner))
+        .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
+        .where(eq(repayments.ledgerScopeId, scope))
         .orderBy(desc(repayments.paidAt), desc(repayments.createdAt), asc(repayments.id));
       return await withRepaymentTotals(database, rows);
     } catch (error) {
@@ -54,7 +54,7 @@ async function listRepayments() {
 async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; month?: unknown; allocation?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}): Promise<RecordPage<RepaymentListRecord>> {
     const filters = normalizeRepaymentFilters(options);
     const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
-    const allocationValue = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ownerUserId} = ${owner} and ${repaymentAllocations.repaymentId} = ${repayments.id}), 0)`.mapWith(Number);
+    const allocationValue = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ledgerScopeId} = ${scope} and ${repaymentAllocations.repaymentId} = ${repayments.id}), 0)`.mapWith(Number);
     const allocationCondition = filters.allocation === "all"
       ? undefined
       : filters.allocation === "complete"
@@ -67,8 +67,8 @@ async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; 
         : sql`(${literalContains(friends.name, filters.q)} OR ${literalContains(repayments.paymentMethod, filters.q)} OR ${eq(repayments.amount, amount)})`
       : undefined;
     const conditions = [
-      eq(repayments.ownerUserId, owner),
-      eq(friends.ownerUserId, owner),
+      eq(repayments.ledgerScopeId, scope),
+      eq(friends.ledgerScopeId, scope),
       ...(queryCondition ? [queryCondition] : []),
       ...(filters.friendId ? [eq(repayments.friendId, filters.friendId)] : []),
       ...(filters.month ? [gte(repayments.paidAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(repayments.paidAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
@@ -78,14 +78,14 @@ async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; 
       const [{ count = 0 } = {}] = await database
         .select({ count: sql<number>`count(*)`.mapWith(Number) })
         .from(repayments)
-        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
+        .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
         .where(and(...conditions));
       const totalItems = safeRetrievalInteger(count, "Repayment count");
       const page = clampPage(filters.page, totalItems);
       const pageRepayments = database
-        .select({ id: repayments.id, ownerUserId: repayments.ownerUserId, allocatedAmount: allocationValue.as("allocated_amount") })
+        .select({ id: repayments.id, ledgerScopeId: repayments.ledgerScopeId, allocatedAmount: allocationValue.as("allocated_amount") })
         .from(repayments)
-        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
+        .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
         .where(and(...conditions))
         .orderBy(desc(repayments.paidAt), desc(repayments.createdAt), asc(repayments.id))
         .limit(RECORD_PAGE_SIZE)
@@ -94,9 +94,9 @@ async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; 
       const rows = await database
         .select({ ...repaymentSelection(), allocatedAmount: pageRepayments.allocatedAmount })
         .from(repayments)
-        .innerJoin(pageRepayments, and(eq(pageRepayments.id, repayments.id), eq(pageRepayments.ownerUserId, repayments.ownerUserId)))
-        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
-        .where(eq(repayments.ownerUserId, owner))
+        .innerJoin(pageRepayments, and(eq(pageRepayments.id, repayments.id), eq(pageRepayments.ledgerScopeId, repayments.ledgerScopeId)))
+        .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
+        .where(eq(repayments.ledgerScopeId, scope))
         .orderBy(desc(repayments.paidAt), desc(repayments.createdAt), asc(repayments.id));
       const items = rows.map(({ allocatedAmount, ...repayment }) => {
         const allocated = safeRetrievalInteger(allocatedAmount ?? 0, `Allocation for repayment ${repayment.id}`);
@@ -112,13 +112,13 @@ async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; 
 }
 
 async function listNeedsAttentionRepayments(): Promise<NeedsAttentionRepaymentResult> {
-    const allocationValue = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ownerUserId} = ${owner} and ${repaymentAllocations.repaymentId} = ${repayments.id}), 0)`.mapWith(Number);
+    const allocationValue = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ledgerScopeId} = ${scope} and ${repaymentAllocations.repaymentId} = ${repayments.id}), 0)`.mapWith(Number);
     try {
       const rows = await database
         .select({ ...repaymentSelection(), allocatedAmount: allocationValue.as("allocated_amount"), totalItems: sql<number>`count(*) over()`.mapWith(Number).as("total_items") })
         .from(repayments)
-        .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
-        .where(and(eq(repayments.ownerUserId, owner), eq(friends.ownerUserId, owner), sql`${allocationValue} < ${repayments.amount}`))
+        .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
+        .where(and(eq(repayments.ledgerScopeId, scope), eq(friends.ledgerScopeId, scope), sql`${allocationValue} < ${repayments.amount}`))
         .orderBy(asc(repayments.paidAt), asc(repayments.createdAt), asc(repayments.id))
         .limit(NEEDS_ATTENTION_PREVIEW_LIMIT);
       const totalItems = rows.length === 0 ? 0 : safeRetrievalInteger(rows[0]!.totalItems, "Needs attention repayment count");
@@ -156,7 +156,7 @@ async function getRepaymentAllocationPlan(repaymentId: string, options: { q?: un
 
 export function createRepaymentMutationRepository(
   database: Database,
-  owner: string,
+  scope: string,
   allocations: RepaymentAllocationRepository,
 ) {
   const { getRepaymentAllocatedAmount, repaymentSelection, validateNewRepaymentAllocations, withRepaymentTotals, removeRepaymentAllocation: removeAllocation, restoreRepaymentAllocation, replaceAllocationRows } = allocations;
@@ -164,7 +164,7 @@ async function assertOwnedFriend(transaction: Pick<Database, "select">, friendId
     const [friend] = await transaction
       .select({ id: friends.id })
       .from(friends)
-      .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+      .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
       .limit(1);
     if (!friend) return notFound();
   }
@@ -175,7 +175,7 @@ async function createRepayment(input: CreateRepaymentInput) {
     try {
       return await database.transaction(async (transaction) => {
         await assertOwnedFriend(transaction, requested.friendId);
-        const [repayment] = await transaction.insert(repayments).values({ ...requested, ownerUserId: owner }).returning();
+        const [repayment] = await transaction.insert(repayments).values({ ...requested, ledgerScopeId: scope }).returning();
         if (!repayment) return persistenceError(new Error("repayment insert returned no row"));
         return repayment;
       });
@@ -188,7 +188,7 @@ async function lockOwnedFriend(transaction: Pick<Database, "select">, friendId: 
     const [friend] = await transaction
       .select({ id: friends.id })
       .from(friends)
-      .where(and(eq(friends.ownerUserId, owner), eq(friends.id, friendId)))
+      .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
       .limit(1)
       .for("update");
     if (!friend) return notFound();
@@ -203,10 +203,10 @@ async function createRepaymentWithAllocations(input: CreateRepaymentInput, alloc
       return await database.transaction(async (transaction) => {
         await lockOwnedFriend(transaction, requested.friendId);
         await validateNewRepaymentAllocations(transaction, requested.friendId, requested.amount, normalizedAllocations);
-        const [repayment] = await transaction.insert(repayments).values({ ...requested, ownerUserId: owner }).returning();
+        const [repayment] = await transaction.insert(repayments).values({ ...requested, ledgerScopeId: scope }).returning();
         if (!repayment) return persistenceError(new Error("repayment insert returned no row"));
         if (normalizedAllocations.length > 0) {
-          await transaction.insert(repaymentAllocations).values(normalizedAllocations.map((allocation) => ({ ownerUserId: owner, repaymentId: repayment.id, ...allocation })));
+          await transaction.insert(repaymentAllocations).values(normalizedAllocations.map((allocation) => ({ ledgerScopeId: scope, repaymentId: repayment.id, ...allocation })));
         }
         return repayment;
       });
@@ -224,7 +224,7 @@ async function updateRepayment(repaymentId: string, input: UpdateRepaymentInput)
         const [current] = await transaction
           .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount })
           .from(repayments)
-          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
           .limit(1)
           .for("update");
         if (!current) return notFound();
@@ -239,15 +239,15 @@ async function updateRepayment(repaymentId: string, input: UpdateRepaymentInput)
         const [repayment] = await transaction
           .update(repayments)
           .set(requested)
-          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
           .returning();
         if (!repayment) return notFound();
 
         const [updated] = await transaction
           .select(repaymentSelection())
           .from(repayments)
-          .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
-          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
+          .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
           .limit(1);
         if (!updated) return persistenceError(new Error("repayment update lookup returned no row"));
         return (await withRepaymentTotals(transaction, [updated], repaymentId))[0]!;
@@ -263,13 +263,13 @@ async function getRepaymentDeletionImpact(repaymentId: string): Promise<Repaymen
       const [repayment] = await database
         .select({ id: repayments.id, friendId: repayments.friendId })
         .from(repayments)
-        .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+        .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
         .limit(1);
       if (!repayment) return notFound();
       const allocations = await database
         .select({ expenseShareId: repaymentAllocations.expenseShareId })
         .from(repaymentAllocations)
-        .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)));
+        .where(and(eq(repaymentAllocations.ledgerScopeId, scope), eq(repaymentAllocations.repaymentId, repaymentId)));
       const [friendId] = safeDeletionIds([repayment.friendId], "Affected friend ID");
       return {
         recordType: "repayment",
@@ -289,14 +289,14 @@ async function deleteRepayment(repaymentId: string, options: DeleteRecordOptions
         const [repayment] = await transaction
           .select({ id: repayments.id, friendId: repayments.friendId })
           .from(repayments)
-          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
           .limit(1)
           .for("update");
         if (!repayment) return notFound();
         const allocations = await transaction
           .select({ expenseShareId: repaymentAllocations.expenseShareId })
           .from(repaymentAllocations)
-          .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)))
+          .where(and(eq(repaymentAllocations.ledgerScopeId, scope), eq(repaymentAllocations.repaymentId, repaymentId)))
           .orderBy(asc(repaymentAllocations.expenseShareId))
           .for("update");
         const [friendId] = safeDeletionIds([repayment.friendId], "Affected friend ID");
@@ -308,7 +308,7 @@ async function deleteRepayment(repaymentId: string, options: DeleteRecordOptions
         assertDeletionConfirmation(impact, options, RepaymentDeletionInvariantError);
         const deleted = await transaction
           .delete(repayments)
-          .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+          .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
           .returning({ id: repayments.id });
         if (deleted.length === 0) return notFound();
         return { friendIds: [friendId], repaymentIds: [] as string[] };

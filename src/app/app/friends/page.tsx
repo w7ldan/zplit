@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { createLedgerRepository } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { createFriendAction } from "./actions";
 import { FriendForm } from "@/components/friends/friend-form";
 import { FriendRow } from "@/components/friends/friend-row";
@@ -49,7 +48,7 @@ export default async function FriendsPage({ searchParams = Promise.resolve({}) }
   const filters = normalizeFriendFilters({ archived: view === "archived", q: first(params?.q), page: first(params?.page) });
   const created = first(params?.created);
   const openCreate = first(params?.create) === "1";
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   const friendPage = await repository.listFriendsExperience({ archived: view === "archived", q: first(params?.q), page: first(params?.page) });
   const localFriends = friendPage.items.flatMap((entry) => entry.type === "local" ? [entry.friend] : []);
   const balances = new Map((localFriends.length > 0 ? await repository.getFriendBalances(localFriends.map((friend) => friend.id)) : []).map((balance) => [balance.friendId, balance]));

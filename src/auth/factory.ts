@@ -1,7 +1,9 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import type { Database } from "../db/client";
 import * as schema from "../db/schema";
 import { parseUsername } from "../domain/username";
+import { ensurePersonalLedgerScope } from "../server/ledger-scopes";
 
 export type AuthFactoryOptions = {
   db: Parameters<typeof drizzleAdapter>[0];
@@ -58,7 +60,7 @@ export function createAuth({ db, secret, baseURL, enableBootstrapSignUp }: AuthF
     },
     databaseHooks: {
       user: {
-        create: { before: normalizeAuthUsername },
+        create: { before: normalizeAuthUsername, after: async (user) => { await ensurePersonalLedgerScope(db as Database, user.id); } },
         update: { before: normalizeAuthUsername },
       },
     },

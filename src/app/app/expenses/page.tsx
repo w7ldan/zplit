@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { createLedgerRepository } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ExpenseRow } from "@/components/expenses/expense-row";
 import { createExpenseAction, searchOutingFilterOptions, searchOutingOptions } from "./actions";
@@ -28,7 +27,7 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
   const session = await requireSession();
   const openCreate = first(params?.create) === "1";
   const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params?.tz));
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   const filters = normalizeExpenseFilters({ q: first(params?.q), outingId: first(params?.outing), month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page) });
   const outingRows = await repository.searchOutings({ selectedId: filters.outingId });
   const outingId = outingRows.some((outing) => outing.id === filters.outingId) ? filters.outingId : undefined;

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { createLedgerRepository, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { LedgerNotFoundError } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { OutingForm } from "@/components/outings/outing-form";
 import { OutingRow } from "@/components/outings/outing-row";
 import { createOutingAction, searchTripFilterOptions, searchTripOptions } from "./actions";
@@ -37,7 +37,7 @@ export default async function OutingsPage({ searchParams = Promise.resolve({}) }
   const openCreate = first(params?.create) === "1";
   const initialOccurredAtUtc = openCreate ? new Date().toISOString() : undefined;
   const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params?.tz));
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   let selectedTrip;
   if (requestedTrip && requestedTrip !== "unassigned") {
     try {

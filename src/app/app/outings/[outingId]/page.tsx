@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { createLedgerRepository, deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { OutingForm } from "@/components/outings/outing-form";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { searchTripOptions, updateOutingAction } from "../actions";
@@ -36,7 +36,7 @@ export default async function OutingRecordPage({ params, searchParams }: { param
   let trip: { id: string; name: string } | null = null;
   let expensePage;
   try {
-    const repository = createLedgerRepository(getDatabase(), session.user.id);
+    const { ledger: repository } = await getAuthenticatedLedger(session);
     outing = await repository.getOuting(outingId);
     [deletionImpact, trip, expensePage] = await Promise.all([
       repository.getOutingDeletionImpact(outingId),

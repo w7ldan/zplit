@@ -19,7 +19,7 @@ export function assertInput(input: unknown): asserts input is Record<string, unk
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Ledger input is invalid");
   }
-  if (Object.prototype.hasOwnProperty.call(input, "ownerUserId") || Object.prototype.hasOwnProperty.call(input, "owner_user_id")) {
+  if (Object.prototype.hasOwnProperty.call(input, "ledgerScopeId") || Object.prototype.hasOwnProperty.call(input, "ledger_scope_id")) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Ledger ownership is server managed");
   }
 }

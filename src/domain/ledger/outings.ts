@@ -18,14 +18,14 @@ import {
 import { assertOutingId, assertOutingInput } from "./validation";
 import type { CreateOutingInput, DeleteRecordOptions, OutingDeletionImpact, OutingListRecord, OutingSelectorOption, UpdateOutingInput } from "./types";
 
-export function createOutingsReadRepository(database: Database, owner: string) {
+export function createOutingsReadRepository(database: Database, scope: string) {
 async function getOuting(outingId: string) {
     assertOutingId(outingId);
     try {
       const [outing] = await database
         .select()
         .from(outings)
-        .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+        .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
         .limit(1);
       if (!outing) return notFound();
       return outing;
@@ -36,7 +36,7 @@ async function getOuting(outingId: string) {
 
 async function listOutings() {
     try {
-      return await database.select().from(outings).where(eq(outings.ownerUserId, owner)).orderBy(desc(outings.occurredAt), asc(outings.id));
+      return await database.select().from(outings).where(eq(outings.ledgerScopeId, scope)).orderBy(desc(outings.occurredAt), asc(outings.id));
     } catch (error) {
       return persistenceError(error);
     }
@@ -46,7 +46,7 @@ async function searchOutings(options: { q?: unknown; selectedId?: unknown } = {}
     const query = normalizeText(options.q);
     const selectedId = normalizeUuid(options.selectedId);
     const conditions = [
-      eq(outings.ownerUserId, owner),
+      eq(outings.ledgerScopeId, scope),
       ...(query && selectedId ? [or(literalContains(outings.title, query), eq(outings.id, selectedId))] : query ? [literalContains(outings.title, query)] : []),
     ];
     try {
@@ -67,8 +67,8 @@ async function searchOutings(options: { q?: unknown; selectedId?: unknown } = {}
       const recentRows = await database
         .select({ id: outings.id, title: outings.title })
         .from(expenses)
-        .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-        .where(eq(expenses.ownerUserId, owner))
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .where(eq(expenses.ledgerScopeId, scope))
         .orderBy(desc(expenses.updatedAt), desc(expenses.createdAt), desc(expenses.id))
         .limit(40);
       const recentIds = new Set<string>();
@@ -101,7 +101,7 @@ async function listRecentPaymentMethods(): Promise<string[]> {
       const rows = await database
         .select({ paymentMethod: repayments.paymentMethod })
         .from(repayments)
-        .where(and(eq(repayments.ownerUserId, owner), isNotNull(repayments.paymentMethod)))
+        .where(and(eq(repayments.ledgerScopeId, scope), isNotNull(repayments.paymentMethod)))
         .orderBy(desc(repayments.createdAt), desc(repayments.id))
         .limit(40);
       const seen = new Set<string>();
@@ -122,7 +122,7 @@ async function listOutingRecords(options: { q?: unknown; month?: unknown; trip?:
     const filters = normalizeOutingFilters(options);
     const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
     const conditions = [
-      eq(outings.ownerUserId, owner),
+      eq(outings.ledgerScopeId, scope),
       ...(filters.q ? [literalContains(outings.title, filters.q)] : []),
       ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
       ...(filters.trip === "unassigned" ? [isNull(outings.tripId)] : filters.trip ? [eq(outings.tripId, filters.trip)] : []),
@@ -135,7 +135,7 @@ async function listOutingRecords(options: { q?: unknown; month?: unknown; trip?:
       const totalItems = safeRetrievalInteger(count, "Outing count");
       const page = clampPage(filters.page, totalItems);
       const pageOutings = database
-        .select({ id: outings.id, ownerUserId: outings.ownerUserId, tripId: outings.tripId })
+        .select({ id: outings.id, ledgerScopeId: outings.ledgerScopeId, tripId: outings.tripId })
         .from(outings)
         .where(and(...conditions))
         .orderBy(desc(outings.occurredAt), desc(outings.createdAt), asc(outings.id))
@@ -149,17 +149,17 @@ async function listOutingRecords(options: { q?: unknown; month?: unknown; trip?:
           expenseTotal: sql<number>`coalesce(sum(${expenses.amount}), 0)`.mapWith(Number).as("expense_total"),
         })
         .from(expenses)
-        .innerJoin(pageOutings, and(eq(pageOutings.id, expenses.outingId), eq(pageOutings.ownerUserId, expenses.ownerUserId)))
-        .where(eq(expenses.ownerUserId, owner))
-        .groupBy(expenses.ownerUserId, expenses.outingId)
+        .innerJoin(pageOutings, and(eq(pageOutings.id, expenses.outingId), eq(pageOutings.ledgerScopeId, expenses.ledgerScopeId)))
+        .where(eq(expenses.ledgerScopeId, scope))
+        .groupBy(expenses.ledgerScopeId, expenses.outingId)
         .as("outing_expense_totals");
       const rows = await database
         .select({ outing: outings, tripName: trips.name, expenseCount: expenseTotals.expenseCount, expenseTotal: expenseTotals.expenseTotal })
         .from(outings)
-        .innerJoin(pageOutings, and(eq(pageOutings.id, outings.id), eq(pageOutings.ownerUserId, outings.ownerUserId)))
+        .innerJoin(pageOutings, and(eq(pageOutings.id, outings.id), eq(pageOutings.ledgerScopeId, outings.ledgerScopeId)))
         .leftJoin(expenseTotals, eq(expenseTotals.outingId, outings.id))
-        .leftJoin(trips, and(eq(trips.ownerUserId, outings.ownerUserId), eq(trips.id, outings.tripId)))
-        .where(eq(outings.ownerUserId, owner))
+        .leftJoin(trips, and(eq(trips.ledgerScopeId, outings.ledgerScopeId), eq(trips.id, outings.tripId)))
+        .where(eq(outings.ledgerScopeId, scope))
         .orderBy(desc(outings.occurredAt), desc(outings.createdAt), asc(outings.id));
       const items = rows.map(({ outing, tripName, expenseCount, expenseTotal }) => ({
         ...outing,
@@ -180,14 +180,14 @@ import type { createExpenseMutationRepository } from "./expenses";
 
 export function createOutingsMutationRepository(
   database: Database,
-  owner: string,
+  scope: string,
   { lockExpenseDependents }: Pick<ReturnType<typeof createExpenseMutationRepository>, "lockExpenseDependents">,
 ) {
 async function assertOwnedTrip(databaseLike: Pick<Database, "select">, tripId: string) {
     const [trip] = await databaseLike
       .select({ id: trips.id })
       .from(trips)
-      .where(and(eq(trips.ownerUserId, owner), eq(trips.id, tripId)))
+      .where(and(eq(trips.ledgerScopeId, scope), eq(trips.id, tripId)))
       .limit(1);
     if (!trip) return notFound();
   }
@@ -197,7 +197,7 @@ async function createOuting(input: CreateOutingInput) {
     const requested = { ...input, tripId: input.tripId ?? null };
     try {
       if (requested.tripId) await assertOwnedTrip(database, requested.tripId);
-      const [outing] = await database.insert(outings).values({ ...requested, ownerUserId: owner }).returning();
+      const [outing] = await database.insert(outings).values({ ...requested, ledgerScopeId: scope }).returning();
       if (!outing) return persistenceError(new Error("outing insert returned no row"));
       return outing;
     } catch (error) {
@@ -214,7 +214,7 @@ async function updateOuting(outingId: string, input: UpdateOutingInput) {
       const [outing] = await database
         .update(outings)
         .set({ ...requested, updatedAt: new Date() })
-        .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+        .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
         .returning();
       if (!outing) return notFound();
       return outing;
@@ -229,25 +229,25 @@ async function getOutingDeletionImpact(outingId: string): Promise<OutingDeletion
       const [outing] = await database
         .select({ id: outings.id })
         .from(outings)
-        .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+        .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
         .limit(1);
       if (!outing) return notFound();
       const expenseRows = await database
         .select({ id: expenses.id, amount: expenses.amount })
         .from(expenses)
-        .where(and(eq(expenses.ownerUserId, owner), eq(expenses.outingId, outingId)));
+        .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.outingId, outingId)));
       const expenseIds = safeDeletionIds(expenseRows.map((expense) => expense.id), "Outing expense ID");
       let expenseTotal = 0;
       for (const expense of expenseRows) expenseTotal = addDeletionAmount(expenseTotal, expense.amount, `Expense ${expense.id} amount`);
       const shareRows = expenseIds.length
-        ? await database.select({ id: expenseShares.id, friendId: expenseShares.friendId }).from(expenseShares).where(and(eq(expenseShares.ownerUserId, owner), inArray(expenseShares.expenseId, expenseIds)))
+        ? await database.select({ id: expenseShares.id, friendId: expenseShares.friendId }).from(expenseShares).where(and(eq(expenseShares.ledgerScopeId, scope), inArray(expenseShares.expenseId, expenseIds)))
         : [];
       const shareIds = safeDeletionIds(shareRows.map((share) => share.id), "Expense share ID");
       const [receiptRows, allocationRows] = expenseIds.length
         ? await Promise.all([
-            database.select({ id: expenseReceipts.id }).from(expenseReceipts).where(and(eq(expenseReceipts.ownerUserId, owner), inArray(expenseReceipts.expenseId, expenseIds))),
+            database.select({ id: expenseReceipts.id }).from(expenseReceipts).where(and(eq(expenseReceipts.ledgerScopeId, scope), inArray(expenseReceipts.expenseId, expenseIds))),
             shareIds.length
-              ? database.select({ repaymentId: repaymentAllocations.repaymentId }).from(repaymentAllocations).where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+              ? database.select({ repaymentId: repaymentAllocations.repaymentId }).from(repaymentAllocations).where(and(eq(repaymentAllocations.ledgerScopeId, scope), inArray(repaymentAllocations.expenseShareId, shareIds)))
               : Promise.resolve([]),
           ])
         : [[], []];
@@ -276,14 +276,14 @@ async function deleteOuting(outingId: string, options: DeleteRecordOptions = { c
         const [outing] = await transaction
           .select({ id: outings.id })
           .from(outings)
-          .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+          .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
           .limit(1)
           .for("update");
         if (!outing) return notFound();
         const dependentExpenses = await transaction
           .select({ id: expenses.id, amount: expenses.amount })
           .from(expenses)
-          .where(and(eq(expenses.ownerUserId, owner), eq(expenses.outingId, outingId)))
+          .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.outingId, outingId)))
           .orderBy(asc(expenses.id))
           .for("update");
         const expenseIds = safeDeletionIds(dependentExpenses.map((expense) => expense.id), "Outing expense ID");
@@ -303,7 +303,7 @@ async function deleteOuting(outingId: string, options: DeleteRecordOptions = { c
         assertDeletionConfirmation(impact, options, OutingDeletionInvariantError);
         const deleted = await transaction
           .delete(outings)
-          .where(and(eq(outings.ownerUserId, owner), eq(outings.id, outingId)))
+          .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
           .returning({ id: outings.id });
         if (deleted.length === 0) return notFound();
         return { friendIds: impact.affectedFriendIds, repaymentIds: impact.affectedRepaymentIds };

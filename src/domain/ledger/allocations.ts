@@ -39,11 +39,11 @@ export function calculateRepaymentAllocations(
   return allocations;
 }
 
-export function createRepaymentAllocationRepository(database: Database, owner: string) {
+export function createRepaymentAllocationRepository(database: Database, scope: string) {
   function repaymentSelection() {
     return {
       id: repayments.id,
-      ownerUserId: repayments.ownerUserId,
+      ledgerScopeId: repayments.ledgerScopeId,
       friendId: repayments.friendId,
       amount: repayments.amount,
       paidAt: repayments.paidAt,
@@ -65,8 +65,8 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
       .from(repaymentAllocations)
       .where(
         repaymentId
-          ? and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId))
-          : eq(repaymentAllocations.ownerUserId, owner),
+          ? and(eq(repaymentAllocations.ledgerScopeId, scope), eq(repaymentAllocations.repaymentId, repaymentId))
+          : eq(repaymentAllocations.ledgerScopeId, scope),
       );
     const allocatedByRepayment = new Map<string, number>();
     for (const allocation of allocations) {
@@ -95,7 +95,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const allocations = await transaction
       .select({ amount: repaymentAllocations.amount })
       .from(repaymentAllocations)
-      .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)))
+      .where(and(eq(repaymentAllocations.ledgerScopeId, scope), eq(repaymentAllocations.repaymentId, repaymentId)))
       .for("update");
     let allocatedAmount = 0;
     for (const allocation of allocations) {
@@ -112,8 +112,8 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const [repayment] = await transaction
       .select(repaymentSelection())
       .from(repayments)
-      .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, repayments.friendId)))
-      .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+      .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
+      .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
       .limit(1);
     if (!repayment) return notFound();
 
@@ -123,17 +123,17 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const currentAllocationRows = transaction
       .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
       .from(repaymentAllocations)
-      .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)))
+      .where(and(eq(repaymentAllocations.ledgerScopeId, scope), eq(repaymentAllocations.repaymentId, repaymentId)))
       .as("current_repayment_allocations");
     const otherAllocationTotals = transaction
       .select({
-        ownerUserId: repaymentAllocations.ownerUserId,
+        ledgerScopeId: repaymentAllocations.ledgerScopeId,
         expenseShareId: repaymentAllocations.expenseShareId,
         allocatedAmount: sql<number>`sum(${repaymentAllocations.amount})`.mapWith(Number).as("allocated_amount"),
       })
       .from(repaymentAllocations)
-      .where(and(eq(repaymentAllocations.ownerUserId, owner), ne(repaymentAllocations.repaymentId, repaymentId)))
-      .groupBy(repaymentAllocations.ownerUserId, repaymentAllocations.expenseShareId)
+      .where(and(eq(repaymentAllocations.ledgerScopeId, scope), ne(repaymentAllocations.repaymentId, repaymentId)))
+      .groupBy(repaymentAllocations.ledgerScopeId, repaymentAllocations.expenseShareId)
       .as("other_repayment_allocations");
     const currentAllocatedAmount = sql<number>`coalesce(${currentAllocationRows.amount}, 0)`.mapWith(Number);
     const allocatedByOtherRepayments = sql<number>`coalesce(${otherAllocationTotals.allocatedAmount}, 0)`.mapWith(Number);
@@ -143,10 +143,10 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
         : or(literalContains(expenses.description, search), literalContains(outings.title, search), eq(expenseShares.amountOwed, amount))
       : undefined;
     const conditions = [
-      eq(expenseShares.ownerUserId, owner),
+      eq(expenseShares.ledgerScopeId, scope),
       eq(expenseShares.friendId, repayment.friendId),
-      eq(expenses.ownerUserId, owner),
-      eq(outings.ownerUserId, owner),
+      eq(expenses.ledgerScopeId, scope),
+      eq(outings.ledgerScopeId, scope),
       sql`(${allocatedByOtherRepayments} < ${expenseShares.amountOwed} OR ${currentAllocatedAmount} > 0)`,
       ...(queryCondition ? [queryCondition] : []),
     ];
@@ -160,9 +160,9 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
         allocatedByOtherRepayments,
       })
       .from(repaymentAllocations)
-      .innerJoin(expenseShares, and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.id, repaymentAllocations.expenseShareId)))
-      .leftJoin(otherAllocationTotals, and(eq(otherAllocationTotals.ownerUserId, owner), eq(otherAllocationTotals.expenseShareId, repaymentAllocations.expenseShareId)))
-      .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)));
+      .innerJoin(expenseShares, and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.id, repaymentAllocations.expenseShareId)))
+      .leftJoin(otherAllocationTotals, and(eq(otherAllocationTotals.ledgerScopeId, scope), eq(otherAllocationTotals.expenseShareId, repaymentAllocations.expenseShareId)))
+      .where(and(eq(repaymentAllocations.ledgerScopeId, scope), eq(repaymentAllocations.repaymentId, repaymentId)));
     let allocatedAmount = 0;
     for (const allocation of currentAllocations) {
       if (!Number.isSafeInteger(allocation.amount) || allocation.amount <= 0) {
@@ -184,10 +184,10 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const [{ count = 0 } = {}] = await transaction
       .select({ count: sql<number>`count(*)`.mapWith(Number) })
       .from(expenseShares)
-      .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
-      .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+      .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseShares.expenseId)))
+      .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
       .leftJoin(currentAllocationRows, eq(currentAllocationRows.expenseShareId, expenseShares.id))
-      .leftJoin(otherAllocationTotals, and(eq(otherAllocationTotals.ownerUserId, owner), eq(otherAllocationTotals.expenseShareId, expenseShares.id)))
+      .leftJoin(otherAllocationTotals, and(eq(otherAllocationTotals.ledgerScopeId, scope), eq(otherAllocationTotals.expenseShareId, expenseShares.id)))
       .where(and(...conditions));
     const totalItems = safeRetrievalInteger(count, "Repayment allocation share count");
     const page = clampPage(requestedPage, totalItems, REPAYMENT_ALLOCATION_PAGE_SIZE);
@@ -202,10 +202,10 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
         currentAllocation: currentAllocatedAmount,
       })
       .from(expenseShares)
-      .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
-      .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
+      .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseShares.expenseId)))
+      .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
       .leftJoin(currentAllocationRows, eq(currentAllocationRows.expenseShareId, expenseShares.id))
-      .leftJoin(otherAllocationTotals, and(eq(otherAllocationTotals.ownerUserId, owner), eq(otherAllocationTotals.expenseShareId, expenseShares.id)))
+      .leftJoin(otherAllocationTotals, and(eq(otherAllocationTotals.ledgerScopeId, scope), eq(otherAllocationTotals.expenseShareId, expenseShares.id)))
       .where(and(...conditions))
       .orderBy(asc(outings.occurredAt), asc(expenses.createdAt), asc(expenseShares.id))
       .limit(REPAYMENT_ALLOCATION_PAGE_SIZE)
@@ -245,7 +245,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
       ? transaction
           .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
           .from(repaymentAllocations)
-          .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, shareIds)))
+          .where(and(eq(repaymentAllocations.ledgerScopeId, scope), inArray(repaymentAllocations.expenseShareId, shareIds)))
           .orderBy(asc(repaymentAllocations.expenseShareId), asc(repaymentAllocations.repaymentId))
           .for("update")
       : [];
@@ -262,7 +262,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
       ? await transaction
           .select({ id: expenseShares.id, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
           .from(expenseShares)
-          .where(and(eq(expenseShares.ownerUserId, owner), inArray(expenseShares.id, shareIds)))
+          .where(and(eq(expenseShares.ledgerScopeId, scope), inArray(expenseShares.id, shareIds)))
           .orderBy(asc(expenseShares.id))
           .for("update")
       : [];
@@ -289,7 +289,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const [repayment] = await transaction
       .select({ id: repayments.id, friendId: repayments.friendId })
       .from(repayments)
-      .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+      .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
       .limit(1)
       .for("update");
     if (!repayment) return notFound();
@@ -297,7 +297,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const [share] = await transaction
       .select({ id: expenseShares.id, expenseId: expenseShares.expenseId, friendId: expenseShares.friendId })
       .from(expenseShares)
-      .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.id, shareId)))
+      .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.id, shareId)))
       .limit(1)
       .for("update");
     if (!share || share.friendId !== repayment.friendId) return notFound();
@@ -306,7 +306,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
       .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
       .from(repaymentAllocations)
       .where(and(
-        eq(repaymentAllocations.ownerUserId, owner),
+        eq(repaymentAllocations.ledgerScopeId, scope),
         eq(repaymentAllocations.repaymentId, repayment.id),
         eq(repaymentAllocations.expenseShareId, share.id),
       ))
@@ -320,7 +320,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const [deleted] = await transaction
       .delete(repaymentAllocations)
       .where(and(
-        eq(repaymentAllocations.ownerUserId, owner),
+        eq(repaymentAllocations.ledgerScopeId, scope),
         eq(repaymentAllocations.repaymentId, allocation.repaymentId),
         eq(repaymentAllocations.expenseShareId, allocation.expenseShareId),
       ))
@@ -333,7 +333,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const [repayment] = await transaction
       .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount })
       .from(repayments)
-      .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, receipt.repaymentId)))
+      .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, receipt.repaymentId)))
       .limit(1)
       .for("update");
     if (!repayment) return notFound();
@@ -341,7 +341,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const [share] = await transaction
       .select({ id: expenseShares.id, expenseId: expenseShares.expenseId, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
       .from(expenseShares)
-      .where(and(eq(expenseShares.ownerUserId, owner), eq(expenseShares.id, receipt.expenseShareId)))
+      .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.id, receipt.expenseShareId)))
       .limit(1)
       .for("update");
     if (!share) return notFound();
@@ -355,7 +355,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
       .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId })
       .from(repaymentAllocations)
       .where(and(
-        eq(repaymentAllocations.ownerUserId, owner),
+        eq(repaymentAllocations.ledgerScopeId, scope),
         eq(repaymentAllocations.repaymentId, receipt.repaymentId),
         eq(repaymentAllocations.expenseShareId, receipt.expenseShareId),
       ))
@@ -372,7 +372,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const repaymentAllocationsForShare = await transaction
       .select({ amount: repaymentAllocations.amount })
       .from(repaymentAllocations)
-      .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.expenseShareId, receipt.expenseShareId)))
+      .where(and(eq(repaymentAllocations.ledgerScopeId, scope), eq(repaymentAllocations.expenseShareId, receipt.expenseShareId)))
       .for("update");
     let shareAllocatedAmount = 0;
     for (const allocation of repaymentAllocationsForShare) {
@@ -385,7 +385,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const [restored] = await transaction
       .insert(repaymentAllocations)
       .values({
-        ownerUserId: owner,
+        ledgerScopeId: scope,
         repaymentId: receipt.repaymentId,
         expenseShareId: receipt.expenseShareId,
         amount: receipt.amount,
@@ -406,7 +406,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const [repayment] = await transaction
       .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount })
       .from(repayments)
-      .where(and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentId)))
+      .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
       .limit(1)
       .for("update");
     if (!repayment) return notFound();
@@ -415,7 +415,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const currentAllocations = await transaction
       .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
       .from(repaymentAllocations)
-      .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repaymentId)));
+      .where(and(eq(repaymentAllocations.ledgerScopeId, scope), eq(repaymentAllocations.repaymentId, repaymentId)));
     const editableShareIds = new Set(allocationPlan.shares.map((share) => share.expenseShareId));
     if (requested.some((allocation) => !editableShareIds.has(allocation.expenseShareId))) return notFound();
     const lockedShareIds = [...editableShareIds].sort();
@@ -423,7 +423,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
       ? await transaction
           .select({ id: expenseShares.id, friendId: expenseShares.friendId, amountOwed: expenseShares.amountOwed })
           .from(expenseShares)
-          .where(and(eq(expenseShares.ownerUserId, owner), inArray(expenseShares.id, lockedShareIds)))
+          .where(and(eq(expenseShares.ledgerScopeId, scope), inArray(expenseShares.id, lockedShareIds)))
           .orderBy(asc(expenseShares.id))
           .for("update")
       : [];
@@ -435,7 +435,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
           .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
           .from(repaymentAllocations)
           .where(and(
-            eq(repaymentAllocations.ownerUserId, owner),
+            eq(repaymentAllocations.ledgerScopeId, scope),
             inArray(repaymentAllocations.expenseShareId, lockedShareIds),
             ne(repaymentAllocations.repaymentId, repaymentId),
           ))
@@ -474,14 +474,14 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
             .update(repaymentAllocations)
             .set({ amount: allocation.amount })
             .where(and(
-              eq(repaymentAllocations.ownerUserId, owner),
+              eq(repaymentAllocations.ledgerScopeId, scope),
               eq(repaymentAllocations.repaymentId, repaymentId),
               eq(repaymentAllocations.expenseShareId, allocation.expenseShareId),
             ));
         }
       } else {
         await transaction.insert(repaymentAllocations).values({
-          ownerUserId: owner,
+          ledgerScopeId: scope,
           repaymentId,
           expenseShareId: allocation.expenseShareId,
           amount: allocation.amount,
@@ -495,7 +495,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
       await transaction
         .delete(repaymentAllocations)
         .where(and(
-          eq(repaymentAllocations.ownerUserId, owner),
+          eq(repaymentAllocations.ledgerScopeId, scope),
           eq(repaymentAllocations.repaymentId, repaymentId),
           inArray(repaymentAllocations.expenseShareId, omittedIds),
         ));
@@ -516,7 +516,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const repaymentRows = await transaction
       .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount })
       .from(repayments)
-      .where(and(eq(repayments.ownerUserId, owner), inArray(repayments.id, repaymentIds)))
+      .where(and(eq(repayments.ledgerScopeId, scope), inArray(repayments.id, repaymentIds)))
       .orderBy(asc(repayments.id))
       .for("update");
     const repaymentById = new Map(repaymentRows.map((repayment) => [repayment.id, repayment]));
@@ -524,7 +524,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const allAffectedAllocations = await transaction
       .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount })
       .from(repaymentAllocations)
-      .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.repaymentId, repaymentIds)))
+      .where(and(eq(repaymentAllocations.ledgerScopeId, scope), inArray(repaymentAllocations.repaymentId, repaymentIds)))
       .orderBy(asc(repaymentAllocations.repaymentId), asc(repaymentAllocations.expenseShareId))
       .for("update");
     const allocatedByRepayment = new Map<string, number>();
@@ -552,17 +552,17 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     const candidateShares = await transaction
       .select({
         id: expenseShares.id,
-        ownerUserId: expenseShares.ownerUserId,
+        ledgerScopeId: expenseShares.ledgerScopeId,
         expenseId: expenseShares.expenseId,
         friendId: expenseShares.friendId,
         amountOwed: expenseShares.amountOwed,
       })
       .from(expenseShares)
-      .innerJoin(expenses, and(eq(expenses.ownerUserId, owner), eq(expenses.id, expenseShares.expenseId)))
-      .innerJoin(outings, and(eq(outings.ownerUserId, owner), eq(outings.id, expenses.outingId)))
-      .innerJoin(friends, and(eq(friends.ownerUserId, owner), eq(friends.id, expenseShares.friendId)))
+      .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseShares.expenseId)))
+      .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+      .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, expenseShares.friendId)))
       .where(and(
-        eq(expenseShares.ownerUserId, owner),
+        eq(expenseShares.ledgerScopeId, scope),
         inArray(expenseShares.friendId, friendIds),
         ne(expenseShares.expenseId, expenseId),
       ))
@@ -573,8 +573,8 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
       ? await transaction
           .select({ repaymentId: repaymentAllocations.repaymentId, expenseShareId: repaymentAllocations.expenseShareId, amount: repaymentAllocations.amount, friendId: repayments.friendId })
           .from(repaymentAllocations)
-          .innerJoin(repayments, and(eq(repayments.ownerUserId, owner), eq(repayments.id, repaymentAllocations.repaymentId)))
-          .where(and(eq(repaymentAllocations.ownerUserId, owner), inArray(repaymentAllocations.expenseShareId, candidateShareIds)))
+          .innerJoin(repayments, and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentAllocations.repaymentId)))
+          .where(and(eq(repaymentAllocations.ledgerScopeId, scope), inArray(repaymentAllocations.expenseShareId, candidateShareIds)))
           .orderBy(asc(repaymentAllocations.expenseShareId), asc(repaymentAllocations.repaymentId))
           .for("update")
       : [];
@@ -592,7 +592,7 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
     }
     const candidatesByFriend = new Map<string, Array<{ id: string; remainingAmount: number }>>();
     for (const share of candidateShares) {
-      if (share.ownerUserId !== owner || share.expenseId === expenseId || !friendIds.includes(share.friendId) || !Number.isSafeInteger(share.amountOwed) || share.amountOwed <= 0 || invalidCandidateIds.has(share.id)) continue;
+      if (share.ledgerScopeId !== scope || share.expenseId === expenseId || !friendIds.includes(share.friendId) || !Number.isSafeInteger(share.amountOwed) || share.amountOwed <= 0 || invalidCandidateIds.has(share.id)) continue;
       const remainingAmount = share.amountOwed - (allocatedByShare.get(share.id) ?? 0);
       if (remainingAmount <= 0) continue;
       const candidates = candidatesByFriend.get(share.friendId) ?? [];
@@ -613,12 +613,12 @@ export function createRepaymentAllocationRepository(database: Database, owner: s
         const key = `${repayment.id}:${allocation.expenseShareId}`;
         const current = existingAllocationByKey.get(key);
         if (current === undefined) {
-          await transaction.insert(repaymentAllocations).values({ ownerUserId: owner, repaymentId: repayment.id, expenseShareId: allocation.expenseShareId, amount: allocation.amount });
+          await transaction.insert(repaymentAllocations).values({ ledgerScopeId: scope, repaymentId: repayment.id, expenseShareId: allocation.expenseShareId, amount: allocation.amount });
         } else {
           await transaction
             .update(repaymentAllocations)
             .set({ amount: current + allocation.amount })
-            .where(and(eq(repaymentAllocations.ownerUserId, owner), eq(repaymentAllocations.repaymentId, repayment.id), eq(repaymentAllocations.expenseShareId, allocation.expenseShareId)));
+            .where(and(eq(repaymentAllocations.ledgerScopeId, scope), eq(repaymentAllocations.repaymentId, repayment.id), eq(repaymentAllocations.expenseShareId, allocation.expenseShareId)));
         }
         existingAllocationByKey.set(key, (current ?? 0) + allocation.amount);
         allocatedByRepayment.set(repayment.id, (allocatedByRepayment.get(repayment.id) ?? 0) + allocation.amount);

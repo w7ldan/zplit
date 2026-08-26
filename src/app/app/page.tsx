@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { requireSession } from "@/auth/require-session";
-import { getDatabase } from "@/db/client";
-import { createLedgerRepository } from "@/domain/ledger-repository";
+import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { formatRupiah } from "@/domain/rupiah";
 
 export const metadata = { title: "Overview" };
@@ -11,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AppPage() {
   const session = await requireSession();
-  const repository = createLedgerRepository(getDatabase(), session.user.id);
+  const { ledger: repository } = await getAuthenticatedLedger(session);
   const [summary, activity, needsAttention] = await Promise.all([
     repository.getLedgerOverviewSummary(),
     repository.listRecentActivity({ limit: 6 }),
