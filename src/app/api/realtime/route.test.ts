@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { publishRealtimeEvent } from "@/server/realtime";
 import { GET } from "./route";
 
 const mocks = vi.hoisted(() => ({ getSession: vi.fn(), headers: vi.fn() }));
@@ -36,9 +35,6 @@ describe("GET /api/realtime", () => {
     const ready = await reader.read();
     expect(decoder.decode(ready.value)).toContain('"reconnecting":true');
 
-    const next = reader.read();
-    publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "profile" } });
-    expect(decoder.decode((await next).value)).toContain('"scope":"profile"');
     await reader.cancel();
   });
 });

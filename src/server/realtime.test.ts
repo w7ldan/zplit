@@ -1,7 +1,59 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createRealtimeStream, publishRealtimeEvent, subscribeRealtime, REALTIME_HEARTBEAT_INTERVAL_MS } from "./realtime";
+
+const mocks = vi.hoisted(() => {
+  class FakeClient {
+    static clients = new Set<FakeClient>();
+    private handlers = new Map<string, (...args: unknown[]) => void>();
+    private listening = false;
+
+    constructor() {
+      FakeClient.clients.add(this);
+    }
+
+    on(event: string, handler: (...args: unknown[]) => void) {
+      this.handlers.set(event, handler);
+      return this;
+    }
+
+    async connect() {}
+
+    async query(sql: string) {
+      if (sql.startsWith("LISTEN ")) this.listening = true;
+    }
+
+    async end() {
+      FakeClient.clients.delete(this);
+      this.listening = false;
+      this.handlers.get("end")?.();
+    }
+
+    emit(event: string, ...args: unknown[]) {
+      this.handlers.get(event)?.(...args);
+    }
+
+    static notify(channel: string, payload: string) {
+      for (const client of FakeClient.clients) {
+        if (client.listening) client.emit("notification", { channel, payload });
+      }
+    }
+  }
+
+  return {
+    FakeClient,
+    query: vi.fn(async (_sql: string, params: [string, string]) => {
+      FakeClient.notify(params[0], params[1]);
+    }),
+  };
+});
 
 vi.mock("server-only", () => ({}));
+vi.mock("pg", () => ({ Client: mocks.FakeClient }));
+vi.mock("@/db/client", () => ({
+  getDatabasePool: () => ({ query: mocks.query }),
+  readRuntimeDatabaseConfig: () => ({}),
+}));
+
+import { createRealtimeStream, publishRealtimeEvent, REALTIME_HEARTBEAT_INTERVAL_MS, REALTIME_POSTGRES_CHANNEL } from "./realtime";
 
 const decoder = new TextDecoder();
 
@@ -10,80 +62,89 @@ async function readText(reader: ReadableStreamDefaultReader<Uint8Array>) {
   return result.done ? "" : decoder.decode(result.value);
 }
 
-afterEach(() => vi.useRealTimers());
+async function waitForListener() {
+  await vi.waitFor(() => expect(mocks.FakeClient.clients.size).toBeGreaterThan(0));
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+  mocks.FakeClient.clients.clear();
+  mocks.query.mockClear();
+});
 
 describe("realtime publisher", () => {
-  it("delivers only to the target user and keeps tabs independent", () => {
-    const userA = vi.fn();
-    const otherTabA = vi.fn();
-    const userB = vi.fn();
-    const unsubscribeA = subscribeRealtime("user-a", userA);
-    const unsubscribeOtherTabA = subscribeRealtime("user-a", otherTabA);
-    const unsubscribeB = subscribeRealtime("user-b", userB);
+  it("publishes a bounded wake-up through PostgreSQL with no local delivery assumption", async () => {
+    await publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "profile" } });
 
-    publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "settings" } });
-    expect(userA).toHaveBeenCalledTimes(1);
-    expect(otherTabA).toHaveBeenCalledTimes(1);
-    expect(userB).not.toHaveBeenCalled();
-
-    unsubscribeA();
-    publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "ledger" } });
-    expect(userA).toHaveBeenCalledTimes(1);
-    expect(otherTabA).toHaveBeenCalledTimes(2);
-
-    unsubscribeOtherTabA();
-    unsubscribeB();
+    expect(mocks.query).toHaveBeenCalledWith("SELECT pg_notify($1, $2)", [
+      REALTIME_POSTGRES_CHANNEL,
+      JSON.stringify({ userId: "user-a", type: "state.invalidated", data: { scope: "profile" } }),
+    ]);
+    expect(() => publishRealtimeEvent("user-a", { type: "bad type", data: {} })).toThrow("Invalid realtime event type");
   });
 
-  it("returns a bounded, server-typed envelope", () => {
-    const received: unknown[] = [];
-    const unsubscribe = subscribeRealtime("user-a", (event) => received.push(event));
-    const event = publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "profile" } });
-
-    expect(event).toMatchObject({ type: "state.invalidated", data: { scope: "profile" } });
-    expect(event.id).toMatch(/^r-\d+$/);
-    expect(event.occurredAt).toEqual(expect.any(String));
-    expect(received).toEqual([event]);
-    expect(() => publishRealtimeEvent("user-a", { type: "bad type", data: {} })).toThrow("Invalid realtime event type");
-    unsubscribe();
+  it("does not fail when publication has no subscribers or the database is unavailable", async () => {
+    await expect(publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "settings" } })).resolves.toBeUndefined();
+    mocks.query.mockRejectedValueOnce(new Error("database unavailable"));
+    await expect(publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "ledger" } })).resolves.toBeUndefined();
   });
 });
 
 describe("realtime stream", () => {
-  it("sends a ready envelope, user-scoped events, and closes cleanly", async () => {
-    const abort = new AbortController();
-    const reader = createRealtimeStream("user-a", abort.signal).getReader();
-    expect(await readText(reader)).toContain('"type":"realtime.ready"');
+  it("fans out a PostgreSQL wake-up only to the target user's streams", async () => {
+    const abortA = new AbortController();
+    const abortB = new AbortController();
+    const readerA = createRealtimeStream("user-a", abortA.signal).getReader();
+    const readerOther = createRealtimeStream("user-b", abortB.signal).getReader();
+    await readText(readerA);
+    await readText(readerOther);
+    await waitForListener();
 
-    const next = readText(reader);
-    publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "settings" } });
-    expect(await next).toContain('"scope":"settings"');
+    const nextA = readText(readerA);
+    const nextOther = readText(readerOther);
+    await publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "settings" } });
+    expect(await nextA).toContain('"scope":"settings"');
+    await expect(Promise.race([nextOther, new Promise<string>((resolve) => setTimeout(() => resolve("timed out"), 25))])).resolves.toBe("timed out");
 
-    abort.abort();
-    await expect(reader.read()).resolves.toMatchObject({ done: true });
+    abortA.abort();
+    abortB.abort();
   });
 
-  it("cleans the heartbeat and only removes the disconnected tab", async () => {
+  it("ignores malformed wake-ups and preserves the event type and data", async () => {
+    const abort = new AbortController();
+    const reader = createRealtimeStream("user-a", abort.signal).getReader();
+    await readText(reader);
+    await waitForListener();
+
+    const next = readText(reader);
+    mocks.FakeClient.notify(REALTIME_POSTGRES_CHANNEL, JSON.stringify({ userId: "user-a", type: "bad type", data: {} }));
+    await publishRealtimeEvent("user-a", { type: "notification.state.changed", data: { reason: "created" } });
+    const event = await next;
+    expect(event).toContain('"type":"notification.state.changed"');
+    expect(event).toContain('"reason":"created"');
+    abort.abort();
+  });
+
+  it("recovers the shared listener without replaying an earlier event", async () => {
     vi.useFakeTimers();
-    const first = createRealtimeStream("user-a", new AbortController().signal).getReader();
-    const secondController = new AbortController();
-    const second = createRealtimeStream("user-a", secondController.signal).getReader();
-    await readText(first);
-    await readText(second);
-    expect(vi.getTimerCount()).toBe(2);
+    const abort = new AbortController();
+    const reader = createRealtimeStream("user-a", abort.signal).getReader();
+    await readText(reader);
+    await waitForListener();
 
-    await first.cancel();
-    expect(vi.getTimerCount()).toBe(1);
-    const next = readText(second);
-    publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "ledger" } });
-    expect(await next).toContain('"scope":"ledger"');
+    const first = readText(reader);
+    await publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "first" } });
+    expect(await first).toContain('"scope":"first"');
 
-    const heartbeat = readText(second);
-    vi.advanceTimersByTime(REALTIME_HEARTBEAT_INTERVAL_MS);
-    expect(await heartbeat).toBe(": heartbeat\n\n");
+    const client = [...mocks.FakeClient.clients][0]!;
+    client.emit("error", new Error("listener disconnected"));
+    await vi.advanceTimersByTimeAsync(1_000);
+    await waitForListener();
 
-    secondController.abort();
-    expect(vi.getTimerCount()).toBe(0);
+    const second = readText(reader);
+    await publishRealtimeEvent("user-a", { type: "state.invalidated", data: { scope: "second" } });
+    expect(await second).toContain('"scope":"second"');
+    abort.abort();
     expect(REALTIME_HEARTBEAT_INTERVAL_MS).toBeGreaterThanOrEqual(10_000);
   });
 });
