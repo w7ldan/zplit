@@ -230,11 +230,27 @@ export async function updateGroupMemberRole(database: Database, groupId: string,
 
 export async function removeGroupMember(database: Database, groupId: string, actorUserId: string, targetUserId: string) {
   assertGroupId(groupId);
-  const access = await requireGroupAccess(database, groupId, actorUserId);
-  const [target] = await database.select({ role: groupMemberships.role }).from(groupMemberships).where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId))).limit(1);
-  if (!target || target.role === "owner" || targetUserId === actorUserId || (target.role === "admin" && !access.isOwner) || (!access.isOwner && !access.canManageParticipants)) throw new GroupError("forbidden");
-  const deleted = await database.delete(groupMemberships).where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId))).returning({ userId: groupMemberships.userId });
-  return deleted.length > 0;
+  return database.transaction(async (transaction) => {
+    const transactionalDatabase = transaction as Database;
+    const access = await requireGroupAccess(transactionalDatabase, groupId, actorUserId);
+    const [target] = await transaction
+      .select({ role: groupMemberships.role, participantId: groupMemberships.participantId, participantGroupId: groupParticipants.groupId, participantUserId: groupParticipants.userId })
+      .from(groupMemberships)
+      .innerJoin(groupParticipants, and(eq(groupParticipants.groupId, groupMemberships.groupId), eq(groupParticipants.id, groupMemberships.participantId), eq(groupParticipants.userId, groupMemberships.userId)))
+      .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId)))
+      .limit(1);
+    if (!target || !isGroupRole(target.role) || !target.participantId || target.participantGroupId !== groupId || target.participantUserId !== targetUserId || target.role === "owner" || targetUserId === actorUserId || (target.role === "admin" && !access.isOwner) || (!access.isOwner && !access.canManageParticipants)) throw new GroupError("forbidden");
+
+    const deletedMembership = await transaction.delete(groupMemberships).where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId))).returning({ userId: groupMemberships.userId });
+    if (deletedMembership.length !== 1) throw new GroupError("forbidden");
+
+    const participantHasFinancialHistory = false;
+    if (!participantHasFinancialHistory) {
+      const deletedParticipant = await transaction.delete(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, target.participantId), eq(groupParticipants.userId, targetUserId))).returning({ id: groupParticipants.id });
+      if (deletedParticipant.length !== 1) throw new GroupError("participant_not_found");
+    }
+    return true;
+  });
 }
 
 export async function getGroupAvatar(database: Database, groupId: string, userId: string) {

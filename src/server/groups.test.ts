@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { groupMemberships, groupParticipants, groups } from "@/db/schema";
-import { createExternalParticipant, createGroup, GroupError, requireGroupAccess, updateExternalParticipant } from "./groups";
+import { createExternalParticipant, createGroup, GroupError, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
 
 vi.mock("server-only", () => ({}));
 
@@ -21,6 +21,28 @@ function insertBuilder(table: unknown, calls: Array<{ table: unknown; values: un
 
 const groupId = "11111111-1111-4111-8111-111111111111";
 const otherGroupId = "22222222-2222-4222-8222-222222222222";
+const participantId = "33333333-3333-4333-8333-333333333333";
+
+function removalDatabase(actorRole: string, target: Record<string, unknown> | null = { role: "member", participantId, participantGroupId: groupId, participantUserId: "user-b" }, membershipDelete: unknown[] = [{ userId: "user-b" }], participantDelete: unknown[] = [{ id: participantId }]) {
+  const selects = [[{ role: actorRole }], target ? [target] : []];
+  const deletedTables: unknown[] = [];
+  const transaction = {
+    select: vi.fn(() => chain(selects.shift() ?? [])),
+    delete: vi.fn((table: unknown) => {
+      deletedTables.push(table);
+      return chain(table === groupMemberships ? membershipDelete : participantDelete);
+    }),
+  };
+  let committed = false;
+  const database = {
+    transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => {
+      const result = await callback(transaction);
+      committed = true;
+      return result;
+    }),
+  } as unknown as Database;
+  return { database, deletedTables, wasCommitted: () => committed };
+}
 
 describe("groups", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -76,5 +98,57 @@ describe("groups", () => {
     const registered = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([{ userId: "user-b" }])) } as unknown as Database;
     await expect(updateExternalParticipant(registered, groupId, "admin-a", "registered-participant", { displayName: "Alice" })).rejects.toMatchObject({ code: "registered_participant" });
     expect(new GroupError("forbidden")).toBeInstanceOf(Error);
+  });
+
+  it("removes a registered member and its participant atomically", async () => {
+    const { database, deletedTables, wasCommitted } = removalDatabase("owner");
+
+    await expect(removeGroupMember(database, groupId, "user-a", "user-b")).resolves.toBe(true);
+    expect(deletedTables).toEqual([groupMemberships, groupParticipants]);
+    expect(wasCommitted()).toBe(true);
+  });
+
+  it("protects the Owner from removal", async () => {
+    const { database, deletedTables, wasCommitted } = removalDatabase("owner", { role: "owner", participantId, participantGroupId: groupId, participantUserId: "user-a" });
+
+    await expect(removeGroupMember(database, groupId, "user-a", "user-a")).rejects.toMatchObject({ code: "forbidden" });
+    expect(deletedTables).toEqual([]);
+    expect(wasCommitted()).toBe(false);
+  });
+
+  it.each([
+    ["owner", "admin", true],
+    ["owner", "member", true],
+    ["admin", "member", true],
+    ["admin", "admin", false],
+    ["admin", "owner", false],
+    ["member", "member", false],
+  ] as const)("preserves %s removing %s boundary", async (actorRole, targetRole, allowed) => {
+    const { database, deletedTables } = removalDatabase(actorRole, { role: targetRole, participantId, participantGroupId: groupId, participantUserId: "user-b" });
+    const result = removeGroupMember(database, groupId, "user-a", "user-b");
+
+    if (allowed) {
+      await expect(result).resolves.toBe(true);
+      expect(deletedTables).toEqual([groupMemberships, groupParticipants]);
+    } else {
+      await expect(result).rejects.toMatchObject({ code: "forbidden" });
+      expect(deletedTables).toEqual([]);
+    }
+  });
+
+  it("does not cross Group boundaries when the participant relationship is inconsistent", async () => {
+    const { database, deletedTables, wasCommitted } = removalDatabase("owner", { role: "member", participantId, participantGroupId: otherGroupId, participantUserId: "user-b" });
+
+    await expect(removeGroupMember(database, groupId, "user-a", "user-b")).rejects.toMatchObject({ code: "forbidden" });
+    expect(deletedTables).toEqual([]);
+    expect(wasCommitted()).toBe(false);
+  });
+
+  it("fails without committing when the participant cannot be deleted", async () => {
+    const { database, deletedTables, wasCommitted } = removalDatabase("owner", undefined, [{ userId: "user-b" }], []);
+
+    await expect(removeGroupMember(database, groupId, "user-a", "user-b")).rejects.toMatchObject({ code: "participant_not_found" });
+    expect(deletedTables).toEqual([groupMemberships, groupParticipants]);
+    expect(wasCommitted()).toBe(false);
   });
 });
