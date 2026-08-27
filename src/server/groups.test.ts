@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { groupMemberships, groupParticipants, groups } from "@/db/schema";
-import { createExternalParticipant, createGroup, GroupError, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
+import { createExternalParticipant, createGroup, deleteExternalParticipant, GroupError, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
 
 vi.mock("server-only", () => ({}));
 
 function chain(result: unknown) {
   const query = {} as Record<string, unknown> & { then: Promise<unknown>["then"] };
-  for (const method of ["from", "innerJoin", "leftJoin", "where", "limit", "orderBy", "set", "values", "onConflictDoUpdate"]) query[method] = vi.fn(() => query);
+  for (const method of ["from", "innerJoin", "leftJoin", "where", "limit", "orderBy", "for", "set", "values", "onConflictDoUpdate"]) query[method] = vi.fn(() => query);
   query.returning = vi.fn(async () => result);
   query.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
   return query;
@@ -28,6 +28,7 @@ function removalDatabase(actorRole: string, target: Record<string, unknown> | nu
   const deletedTables: unknown[] = [];
   const transaction = {
     select: vi.fn(() => chain(selects.shift() ?? [])),
+    update: vi.fn(() => chain([])),
     delete: vi.fn((table: unknown) => {
       deletedTables.push(table);
       return chain(table === groupMemberships ? membershipDelete : participantDelete);
@@ -106,6 +107,21 @@ describe("groups", () => {
     await expect(removeGroupMember(database, groupId, "user-a", "user-b")).resolves.toBe(true);
     expect(deletedTables).toEqual([groupMemberships, groupParticipants]);
     expect(wasCommitted()).toBe(true);
+  });
+
+  it("revokes pending participant links before removing an external participant", async () => {
+    const transaction = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain([{ id: participantId, userId: null }])),
+      update: vi.fn(() => chain([{ targetUserId: "user-b" }])),
+      delete: vi.fn(() => chain([{ id: participantId }])),
+    };
+    const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
+
+    await expect(deleteExternalParticipant(database, groupId, "user-a", participantId)).resolves.toBe(true);
+    expect(transaction.update).toHaveBeenCalledOnce();
+    expect(transaction.delete).toHaveBeenCalledWith(groupParticipants);
   });
 
   it("protects the Owner from removal", async () => {

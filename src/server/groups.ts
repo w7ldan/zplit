@@ -1,10 +1,11 @@
 import "server-only";
 
-import { and, asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { groupAvatars, groupMemberships, groupParticipants, groups, users } from "@/db/schema";
+import { groupAvatars, groupJoinRequests, groupMemberships, groupParticipants, groups, users } from "@/db/schema";
 import { groupAccessForRole, isGroupRole, type GroupRole } from "@/domain/group-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
+import { publishNotificationStateChange } from "@/server/notifications";
 
 export type { GroupRole } from "@/domain/group-permissions";
 export type GroupAvatarMetadata = { mediaType: "image/webp"; byteSize: number; sha256: string };
@@ -196,6 +197,14 @@ async function getParticipant(database: Database, groupId: string, participantId
   return participant;
 }
 
+async function revokePendingParticipantLinks(database: Database, groupId: string, participantId: string, now: Date) {
+  return database
+    .update(groupJoinRequests)
+    .set({ status: "revoked", revokedAt: now, updatedAt: now })
+    .where(and(eq(groupJoinRequests.groupId, groupId), eq(groupJoinRequests.participantId, participantId), eq(groupJoinRequests.kind, "participant_link"), eq(groupJoinRequests.status, "pending")))
+    .returning({ targetUserId: groupJoinRequests.targetUserId });
+}
+
 export async function updateExternalParticipant(database: Database, groupId: string, userId: string, participantId: string, input: { displayName: string; label?: string | null }) {
   assertGroupId(groupId);
   const access = await requireGroupAccess(database, groupId, userId);
@@ -209,12 +218,20 @@ export async function updateExternalParticipant(database: Database, groupId: str
 
 export async function deleteExternalParticipant(database: Database, groupId: string, userId: string, participantId: string) {
   assertGroupId(groupId);
-  const access = await requireGroupAccess(database, groupId, userId);
-  access.requireManageParticipants();
-  const participant = await getParticipant(database, groupId, participantId);
-  if (participant.userId) throw new GroupError("registered_participant");
-  const deleted = await database.delete(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, participantId))).returning({ id: groupParticipants.id });
-  return deleted.length > 0;
+  const result = await database.transaction(async (transaction) => {
+    const transactionalDatabase = transaction as Database;
+    const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
+    access.requireManageParticipants();
+    const now = new Date();
+    const revoked = await revokePendingParticipantLinks(transactionalDatabase, groupId, participantId, now);
+    const [participant] = await transaction.select().from(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, participantId))).limit(1).for("update");
+    if (!participant) throw new GroupError("participant_not_found");
+    if (participant.userId) throw new GroupError("registered_participant");
+    const deleted = await transaction.delete(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, participantId), isNull(groupParticipants.userId))).returning({ id: groupParticipants.id });
+    return { deleted: deleted.length > 0, targetUserIds: revoked.map(({ targetUserId }) => targetUserId) };
+  });
+  for (const targetUserId of result.targetUserIds) publishNotificationStateChange(targetUserId, "resolved");
+  return result.deleted;
 }
 
 export async function updateGroupMemberRole(database: Database, groupId: string, actorUserId: string, targetUserId: string, role: Exclude<GroupRole, "owner">) {
@@ -230,7 +247,7 @@ export async function updateGroupMemberRole(database: Database, groupId: string,
 
 export async function removeGroupMember(database: Database, groupId: string, actorUserId: string, targetUserId: string) {
   assertGroupId(groupId);
-  return database.transaction(async (transaction) => {
+  const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
     const access = await requireGroupAccess(transactionalDatabase, groupId, actorUserId);
     const [target] = await transaction
@@ -241,16 +258,22 @@ export async function removeGroupMember(database: Database, groupId: string, act
       .limit(1);
     if (!target || !isGroupRole(target.role) || !target.participantId || target.participantGroupId !== groupId || target.participantUserId !== targetUserId || target.role === "owner" || targetUserId === actorUserId || (target.role === "admin" && !access.isOwner) || (!access.isOwner && !access.canManageParticipants)) throw new GroupError("forbidden");
 
+    const participantHasFinancialHistory = false;
+    let revokedTargetUserIds: string[] = [];
+    if (!participantHasFinancialHistory) {
+      const revoked = await revokePendingParticipantLinks(transactionalDatabase, groupId, target.participantId, new Date());
+      revokedTargetUserIds = revoked.map(({ targetUserId: recipientUserId }) => recipientUserId);
+    }
     const deletedMembership = await transaction.delete(groupMemberships).where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId))).returning({ userId: groupMemberships.userId });
     if (deletedMembership.length !== 1) throw new GroupError("forbidden");
-
-    const participantHasFinancialHistory = false;
     if (!participantHasFinancialHistory) {
       const deletedParticipant = await transaction.delete(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, target.participantId), eq(groupParticipants.userId, targetUserId))).returning({ id: groupParticipants.id });
       if (deletedParticipant.length !== 1) throw new GroupError("participant_not_found");
     }
-    return true;
+    return revokedTargetUserIds;
   });
+  for (const recipientUserId of result) publishNotificationStateChange(recipientUserId, "resolved");
+  return true;
 }
 
 export async function getGroupAvatar(database: Database, groupId: string, userId: string) {

@@ -143,6 +143,19 @@ async function expirePendingForTarget(database: Database, groupId: string, targe
   await transitionPendingRequest(database, request, "expired", now);
 }
 
+async function expirePendingForParticipant(database: Database, groupId: string, participantId: string, now: Date) {
+  const pending = await database
+    .select()
+    .from(groupJoinRequests)
+    .where(and(eq(groupJoinRequests.groupId, groupId), eq(groupJoinRequests.participantId, participantId), eq(groupJoinRequests.kind, "participant_link"), eq(groupJoinRequests.status, "pending")))
+    .limit(1)
+    .for("update");
+  const request = pending[0];
+  if (!request) return;
+  if (!isGroupJoinRequestExpired(request.expiresAt, now)) throw new GroupJoinRequestError("duplicate");
+  await transitionPendingRequest(database, request, "expired", now);
+}
+
 async function createRequest(database: Database, input: { groupId: string; requesterUserId: string; username: unknown; kind: GroupJoinRequestKind; participantId?: string }) {
   assertGroupId(input.groupId);
   assertUserId(input.requesterUserId);
@@ -170,6 +183,7 @@ async function createRequest(database: Database, input: { groupId: string; reque
 
     const now = new Date();
     await expirePendingForTarget(transaction as Database, input.groupId, target.id, now);
+    if (input.kind === "participant_link") await expirePendingForParticipant(transaction as Database, input.groupId, input.participantId!, now);
     await ensureTargetIsUnrepresented(transaction as Database, input.groupId, target.id);
     if (input.kind === "participant_link") {
       const [lockedParticipant] = await transaction
@@ -186,7 +200,7 @@ async function createRequest(database: Database, input: { groupId: string; reque
     const expiresAt = groupJoinRequestExpiresAt(now);
     const [request] = await transaction
       .insert(groupJoinRequests)
-      .values({ groupId: input.groupId, kind: input.kind, participantId: participant?.id ?? null, targetUserId: target.id, requesterUserId: input.requesterUserId, status: "pending", expiresAt, createdAt: now, updatedAt: now })
+      .values({ groupId: input.groupId, kind: input.kind, participantId: participant?.id ?? null, participantDisplayNameSnapshot: participant?.displayName ?? null, participantLabelSnapshot: participant?.label ?? null, targetUserId: target.id, requesterUserId: input.requesterUserId, status: "pending", expiresAt, createdAt: now, updatedAt: now })
       .returning();
     if (!request) throw new Error("Group join request was not created");
 

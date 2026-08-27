@@ -17,6 +17,7 @@
     "test:record-retrieval": "tsx scripts/record-retrieval-smoke.ts",
     "test:auth": "tsx scripts/auth-smoke.ts",
     "test:invitations": "tsx scripts/invitation-smoke.ts",
+    "test:group-join-requests": "tsx scripts/group-join-requests-smoke.ts",
     "test:ownership": "tsx scripts/ownership-smoke.ts",
     "test:receipts": "tsx scripts/receipt-smoke.ts",
     "test:shared-receipts": "tsx scripts/shared-receipts-smoke.ts",

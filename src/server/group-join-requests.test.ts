@@ -41,6 +41,8 @@ function request(overrides: Record<string, unknown> = {}) {
     groupId,
     kind: "member_invitation",
     participantId: null,
+    participantDisplayNameSnapshot: null,
+    participantLabelSnapshot: null,
     targetUserId,
     requesterUserId,
     status: "pending",
@@ -135,9 +137,10 @@ describe("Group join requests", () => {
 
   it("creates an external link request only for an unlinked participant in the same Group", async () => {
     const created = request({ kind: "participant_link", participantId, targetUserId });
-    const { db } = database([
+    const { db, calls } = database([
       [{ id: targetUserId, name: "Alice", username: "alice" }],
       [{ id: participantId, displayName: "Alice", label: "Fasilkom", userId: null }],
+      [],
       [],
       [],
       [],
@@ -150,6 +153,38 @@ describe("Group join requests", () => {
       type: "group.participant.link.request",
       metadata: expect.objectContaining({ participantDisplayName: "Alice", participantLabel: "Fasilkom" }),
     }));
+    expect(calls[0]?.values).toMatchObject({ participantDisplayNameSnapshot: "Alice", participantLabelSnapshot: "Fasilkom" });
+  });
+
+  it("expires a stale participant conflict before creating a new link", async () => {
+    const stale = request({ kind: "participant_link", participantId, expiresAt: new Date("2020-01-01T00:00:00.000Z") });
+    const expired = request({ kind: "participant_link", participantId, status: "expired", expiredAt: new Date(), updatedAt: new Date() });
+    const created = request({ kind: "participant_link", participantId });
+    const { db, calls } = database([
+      [{ id: targetUserId, name: "Alice", username: "alice" }],
+      [{ id: participantId, displayName: "Taxi", label: null, userId: null }],
+      [],
+      [stale],
+      [],
+      [],
+      [{ id: participantId, displayName: "Taxi", label: null, userId: null }],
+      [{ id: groupId, name: "Trip" }],
+      [{ name: "Owner", username: "owner" }],
+    ], [[created]], [[expired], []]);
+
+    await expect(createGroupParticipantLinkRequest(db, groupId, participantId, requesterUserId, "alice")).resolves.toMatchObject({ id: requestId });
+    expect(calls[0]?.values).toMatchObject({ participantId, participantDisplayNameSnapshot: "Taxi" });
+  });
+
+  it("keeps a non-expired participant conflict blocking a new link", async () => {
+    const { db } = database([
+      [{ id: targetUserId, name: "Alice", username: "alice" }],
+      [{ id: participantId, displayName: "Taxi", label: null, userId: null }],
+      [],
+      [request({ kind: "participant_link", participantId })],
+    ]);
+
+    await expect(createGroupParticipantLinkRequest(db, groupId, participantId, requesterUserId, "alice")).rejects.toMatchObject({ code: "duplicate" });
   });
 
   it("uses the bounded username directory while excluding existing Group identities", async () => {

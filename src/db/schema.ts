@@ -378,6 +378,8 @@ export const groupJoinRequests = pgTable(
       .references(() => groups.id, { onDelete: "cascade" }),
     kind: varchar("kind", { length: 32 }).$type<GroupJoinRequestKind>().notNull(),
     participantId: uuid("participant_id"),
+    participantDisplayNameSnapshot: varchar("participant_display_name_snapshot", { length: 160 }),
+    participantLabelSnapshot: varchar("participant_label_snapshot", { length: 120 }),
     targetUserId: text("target_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -395,7 +397,7 @@ export const groupJoinRequests = pgTable(
   },
   (table) => [
     check("group_join_requests_target_not_requester", sql`${table.targetUserId} <> ${table.requesterUserId}`),
-    check("group_join_requests_kind_participant_shape", sql`(${table.kind} = 'member_invitation' AND ${table.participantId} IS NULL) OR (${table.kind} = 'participant_link' AND ${table.participantId} IS NOT NULL)`),
+    check("group_join_requests_kind_participant_shape", sql`(${table.kind} = 'member_invitation' AND ${table.participantId} IS NULL AND ${table.participantDisplayNameSnapshot} IS NULL AND ${table.participantLabelSnapshot} IS NULL) OR (${table.kind} = 'participant_link' AND ${table.participantDisplayNameSnapshot} IS NOT NULL AND btrim(${table.participantDisplayNameSnapshot}) <> '' AND (${table.participantId} IS NOT NULL OR ${table.status} <> 'pending'))`),
     check("group_join_requests_kind_allowed", sql`${table.kind} IN ('member_invitation', 'participant_link')`),
     check("group_join_requests_status_allowed", sql`${table.status} IN ('pending', 'accepted', 'declined', 'revoked', 'expired')`),
     check("group_join_requests_expires_after_created", sql`${table.expiresAt} > ${table.createdAt}`),
@@ -407,7 +409,7 @@ export const groupJoinRequests = pgTable(
       columns: [table.groupId, table.participantId],
       foreignColumns: [groupParticipants.groupId, groupParticipants.id],
       name: "group_join_requests_participant_fk",
-    }).onDelete("restrict"),
+    }).onDelete("set null"),
     uniqueIndex("group_join_requests_pending_group_target_uidx")
       .on(table.groupId, table.targetUserId)
       .where(sql`${table.status} = 'pending'`),

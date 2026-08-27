@@ -176,6 +176,13 @@
       "when": 1787797613490,
       "tag": "0024_confused_loa",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787809158588,
+      "tag": "0025_chilly_speedball",
+      "breakpoints": true
     }
   ]
 }

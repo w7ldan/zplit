@@ -107,7 +107,7 @@ describe("database schema", () => {
   it("constrains Group join request identity, state, and cross-Group participants", () => {
     const requests = getTableConfig(schema.groupJoinRequests);
     expect(requests.columns.map((column) => column.name)).toEqual([
-      "id", "group_id", "kind", "participant_id", "target_user_id", "requester_user_id", "status", "expires_at", "created_at", "updated_at", "accepted_at", "declined_at", "revoked_at", "expired_at",
+      "id", "group_id", "kind", "participant_id", "participant_display_name_snapshot", "participant_label_snapshot", "target_user_id", "requester_user_id", "status", "expires_at", "created_at", "updated_at", "accepted_at", "declined_at", "revoked_at", "expired_at",
     ]);
     expect(requests.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
       "group_join_requests_kind_participant_shape",
@@ -117,7 +117,7 @@ describe("database schema", () => {
     expect(indexColumns(schema.groupJoinRequests, "group_join_requests_pending_group_target_uidx")).toEqual(["group_id", "target_user_id"]);
     expect(indexColumns(schema.groupJoinRequests, "group_join_requests_pending_group_participant_uidx")).toEqual(["group_id", "participant_id"]);
     expect(foreignKeyShape(schema.groupJoinRequests)).toEqual(expect.arrayContaining([
-      { from: ["group_id", "participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+      { from: ["group_id", "participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "set null" },
       { from: ["target_user_id"], to: "users", target: ["id"], onDelete: "cascade" },
       { from: ["requester_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
     ]));
