@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import InboxPage from "./page";
 
+vi.mock("server-only", () => ({}));
+
 const mocks = vi.hoisted(() => ({
   getPage: vi.fn(),
   getUnread: vi.fn(),
@@ -9,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   markOne: vi.fn(),
   getFriendLinkStatuses: vi.fn(),
   getOrganizationInvitationStatuses: vi.fn(),
+  getGroupJoinRequestStatuses: vi.fn(),
 }));
 
 vi.mock("@/server/notifications", () => ({
@@ -17,8 +20,9 @@ vi.mock("@/server/notifications", () => ({
 }));
 vi.mock("@/server/friend-links", () => ({ getCurrentUserFriendLinkRequestStatuses: mocks.getFriendLinkStatuses }));
 vi.mock("@/server/organization-invitations", () => ({ getCurrentUserOrganizationInvitationStatuses: mocks.getOrganizationInvitationStatuses }));
+vi.mock("@/server/group-join-requests", () => ({ getCurrentUserGroupJoinRequestStatuses: mocks.getGroupJoinRequestStatuses }));
 vi.mock("@/components/notifications/inbox-live-refresh", () => ({ InboxLiveRefresh: () => null }));
-vi.mock("./actions", () => ({ markAllNotificationsReadAction: mocks.markAll, markNotificationReadAction: mocks.markOne, acceptFriendLinkRequestAction: vi.fn(), declineFriendLinkRequestAction: vi.fn(), unlinkFriendLinkRequestAction: vi.fn(), acceptOrganizationInvitationAction: vi.fn(), declineOrganizationInvitationAction: vi.fn() }));
+vi.mock("./actions", () => ({ markAllNotificationsReadAction: mocks.markAll, markNotificationReadAction: mocks.markOne, acceptFriendLinkRequestAction: vi.fn(), declineFriendLinkRequestAction: vi.fn(), unlinkFriendLinkRequestAction: vi.fn(), acceptOrganizationInvitationAction: vi.fn(), declineOrganizationInvitationAction: vi.fn(), acceptGroupJoinRequestAction: vi.fn(), declineGroupJoinRequestAction: vi.fn() }));
 
 describe("/app/inbox", () => {
   beforeEach(() => {
@@ -36,6 +40,7 @@ describe("/app/inbox", () => {
     mocks.getUnread.mockResolvedValue(1);
     mocks.getFriendLinkStatuses.mockResolvedValue(new Map());
     mocks.getOrganizationInvitationStatuses.mockResolvedValue(new Map());
+    mocks.getGroupJoinRequestStatuses.mockResolvedValue(new Map());
   });
 
   it("renders bounded newest rows with safe text and explicit read actions", async () => {
@@ -116,5 +121,23 @@ describe("/app/inbox", () => {
     expect(screen.getAllByRole("time").map((time) => time.getAttribute("dateTime"))).toContain("2026-09-01T00:00:00.000Z");
     expect(screen.queryByText(/Expires .* UTC\./)).not.toBeInTheDocument();
     expect(screen.queryByText(/email|example\.com/i)).not.toBeInTheDocument();
+  });
+
+  it("renders an external participant link request with explicit consent copy", async () => {
+    const requestId = "55555555-5555-4555-8555-555555555555";
+    const groupId = "66666666-6666-4666-8666-666666666666";
+    mocks.getPage.mockResolvedValue({
+      rows: [{ id: "notification-group-link", type: "group.participant.link.request", metadata: { requestId, groupId, groupName: "Bandung Trip", requesterDisplayName: "Wildan", requesterUsername: "wildan", participantDisplayName: "Alice", participantLabel: "Fasilkom", expiresAt: "2026-09-01T00:00:00.000Z" }, createdAt: new Date("2026-08-25T07:00:00Z"), readAt: null, recipientUserId: "user-a", dedupeKey: `group-join-request:${requestId}` }],
+      page: 1,
+      pageSize: 20,
+      totalItems: 1,
+      totalPages: 1,
+    });
+    mocks.getGroupJoinRequestStatuses.mockResolvedValue(new Map([[requestId, { id: requestId, groupId, kind: "participant_link", participantId: "participant-a", status: "pending", expiresAt: new Date("2026-09-01T00:00:00Z") }]]));
+    render(await InboxPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText("Wildan @wildan wants to link your Zplit account to “Alice · Fasilkom” in Bandung Trip.")).toBeInTheDocument();
+    expect(screen.getByText("This links your account to an existing Group participant.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accept link" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
   });
 });

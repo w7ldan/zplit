@@ -7,9 +7,18 @@ import { getDatabase } from "@/db/client";
 import { AvatarFileValidationError, validateAvatarFile } from "@/domain/avatar-file";
 import { normalizeUserAvatar } from "@/server/user-avatars";
 import { createExternalParticipant, createGroup, deleteExternalParticipant, deleteGroup, GroupError, removeGroupMember, updateExternalParticipant, updateGroup, updateGroupMemberRole } from "@/server/groups";
+import type { SearchableOption } from "@/components/records/searchable-combobox";
+import {
+  createGroupInvitation,
+  createGroupParticipantLinkRequest,
+  GroupJoinRequestError,
+  revokeGroupJoinRequest,
+  searchGroupJoinUsers,
+} from "@/server/group-join-requests";
 
 export type GroupFormValues = { name: string; description: string };
 export type GroupActionState = { fieldErrors: Partial<Record<keyof GroupFormValues | "avatar", string>>; formError: string; values: GroupFormValues };
+export type GroupJoinRequestActionState = { error: string; values: { username: string } };
 
 function valuesFromForm(formData: FormData): GroupFormValues {
   return { name: typeof formData.get("name") === "string" ? String(formData.get("name")) : "", description: typeof formData.get("description") === "string" ? String(formData.get("description")) : "" };
@@ -104,6 +113,78 @@ export async function updateGroupMemberRoleAction(groupId: string, targetUserId:
 export async function removeGroupMemberAction(groupId: string, targetUserId: string) {
   const session = await requireSession();
   try { await removeGroupMember(getDatabase(), groupId, session.user.id, targetUserId); } catch { /* page refetches canonical state */ }
+  revalidatePath(`/app/personal/groups/${groupId}`);
+  revalidatePath(`/app/personal/groups/${groupId}/people`);
+}
+
+export async function searchGroupJoinUserOptions(groupId: string, query = ""): Promise<SearchableOption[]> {
+  const session = await requireSession();
+  try {
+    return (await searchGroupJoinUsers(getDatabase(), groupId, session.user.id, query)).map((user) => ({ id: user.username, label: `${user.displayName} · @${user.username}` }));
+  } catch {
+    return [];
+  }
+}
+
+function groupJoinRequestErrorMessage(error: unknown, operation: "invite" | "link") {
+  if (!(error instanceof GroupJoinRequestError)) return operation === "invite" ? "Unable to send this invitation." : "Unable to send this link request.";
+  return {
+    invalid_id: "This Group is unavailable.",
+    forbidden: "You do not have permission to manage Group people.",
+    invalid_target: "Choose an existing Zplit username.",
+    self: "You cannot choose your own account.",
+    already_member: "That user is already a member of this Group.",
+    registered_participant: "That user already has a registered participant in this Group.",
+    duplicate: "That user or participant already has a pending request.",
+    not_found: "This request is no longer available.",
+    resolved: "This request is no longer pending.",
+    expired: "This request has expired.",
+    stale_authority: "This request is no longer available.",
+    participant_not_found: "This external participant is no longer available.",
+    already_linked: "This participant is already linked.",
+    conflict: "This request could not be completed.",
+  }[error.code];
+}
+
+function joinUsername(formData: FormData) {
+  return typeof formData.get("username") === "string" ? String(formData.get("username")) : "";
+}
+
+export async function createGroupInvitationAction(groupId: string, _previousState: GroupJoinRequestActionState, formData: FormData): Promise<GroupJoinRequestActionState> {
+  const username = joinUsername(formData);
+  if (!username.trim()) return { error: "Choose an existing Zplit username.", values: { username } };
+  const session = await requireSession();
+  try {
+    await createGroupInvitation(getDatabase(), groupId, session.user.id, username);
+  } catch (error) {
+    return { error: groupJoinRequestErrorMessage(error, "invite"), values: { username } };
+  }
+  revalidatePath(`/app/personal/groups/${groupId}`);
+  revalidatePath(`/app/personal/groups/${groupId}/people`);
+  return { error: "Invitation sent.", values: { username: "" } };
+}
+
+export async function createGroupParticipantLinkRequestAction(groupId: string, participantId: string, _previousState: GroupJoinRequestActionState, formData: FormData): Promise<GroupJoinRequestActionState> {
+  const username = joinUsername(formData);
+  if (!username.trim()) return { error: "Choose an existing Zplit username.", values: { username } };
+  const session = await requireSession();
+  try {
+    await createGroupParticipantLinkRequest(getDatabase(), groupId, participantId, session.user.id, username);
+  } catch (error) {
+    return { error: groupJoinRequestErrorMessage(error, "link"), values: { username } };
+  }
+  revalidatePath(`/app/personal/groups/${groupId}`);
+  revalidatePath(`/app/personal/groups/${groupId}/people`);
+  return { error: "Link request sent.", values: { username: "" } };
+}
+
+export async function revokeGroupJoinRequestAction(groupId: string, requestId: string) {
+  const session = await requireSession();
+  try {
+    await revokeGroupJoinRequest(getDatabase(), groupId, session.user.id, requestId);
+  } catch {
+    // The Group People page refetches canonical request state.
+  }
   revalidatePath(`/app/personal/groups/${groupId}`);
   revalidatePath(`/app/personal/groups/${groupId}/people`);
 }

@@ -40,4 +40,40 @@ describe("notification catalog", () => {
     expect(() => normalizeNotificationMetadata("organization.invitation", { ...metadata, email: "private@example.com" })).toThrow("Invalid metadata");
     expect(() => normalizeNotificationMetadata("organization.invitation", { ...metadata, role: "owner" })).toThrow("Invalid metadata");
   });
+
+  it("presents Group invitations and link requests from durable request identity", () => {
+    const requestId = "11111111-1111-4111-8111-111111111111";
+    const groupId = "22222222-2222-4222-8222-222222222222";
+    expect(presentNotification("group.invitation", {
+      requestId,
+      groupId,
+      groupName: "Bandung Trip",
+      requesterDisplayName: "Wildan",
+      requesterUsername: "wildan",
+      expiresAt: "2026-09-01T00:00:00.000Z",
+    })).toEqual({ label: "Group invitation", primary: "Wildan @wildan invited you to join Bandung Trip." });
+    expect(presentNotification("group.participant.link.request", {
+      requestId,
+      groupId,
+      groupName: "Bandung Trip",
+      requesterDisplayName: "Wildan",
+      requesterUsername: "wildan",
+      participantDisplayName: "Alice",
+      participantLabel: "Fasilkom",
+      expiresAt: "2026-09-01T00:00:00.000Z",
+    })).toEqual({
+      label: "Group account link",
+      primary: "Wildan @wildan wants to link your Zplit account to “Alice · Fasilkom” in Bandung Trip.",
+      secondary: "This links your account to an existing Group participant.",
+    });
+    expect(() => normalizeNotificationMetadata("group.invitation", {
+      requestId,
+      groupId,
+      groupName: "Bandung Trip",
+      requesterDisplayName: "Wildan",
+      requesterUsername: "wildan",
+      expiresAt: "2026-09-01T00:00:00.000Z",
+      email: "private@example.com",
+    })).toThrow("Invalid metadata");
+  });
 });

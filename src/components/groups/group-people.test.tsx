@@ -5,8 +5,12 @@ import type { GroupParticipant } from "@/server/groups";
 vi.mock("server-only", () => ({}));
 vi.mock("@/app/app/personal/groups/actions", () => ({
   createExternalParticipantAction: vi.fn(),
+  createGroupInvitationAction: vi.fn(),
+  createGroupParticipantLinkRequestAction: vi.fn(),
   deleteExternalParticipantAction: vi.fn(),
   removeGroupMemberAction: vi.fn(),
+  revokeGroupJoinRequestAction: vi.fn(),
+  searchGroupJoinUserOptions: vi.fn().mockResolvedValue([]),
   updateExternalParticipantAction: vi.fn(),
   updateGroupMemberRoleAction: vi.fn(),
 }));
@@ -36,5 +40,27 @@ describe("GroupPeople", () => {
     expect(screen.getByRole("textbox", { name: "Label for Taxi" })).toHaveValue("Driver");
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
+  it("shows a pending link instead of a second link form", () => {
+    render(<GroupPeople
+      groupId="group-a"
+      participants={[externalParticipant]}
+      pendingLinks={[{ id: "request-a", kind: "participant_link", status: "pending", targetUserId: "user-b", targetDisplayName: "Alice", targetUsername: "alice", participantId: externalParticipant.id, participantDisplayName: "Taxi", participantLabel: "Driver", expiresAt: new Date("2026-09-01T00:00:00Z") }]}
+      canManageParticipants
+      canManageRoles={false}
+    />);
+
+    expect(screen.getByText("Pending link → @alice")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revoke" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Link Zplit account" })).not.toBeInTheDocument();
+  });
+
+  it("separates the member invitation control from external participants", () => {
+    render(<GroupPeople groupId="group-a" participants={[]} canManageParticipants canManageRoles={false} />);
+
+    expect(screen.getByRole("heading", { name: "Invite member" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send invitation" })).toBeInTheDocument();
+    expect(screen.getByText("No external participants yet.")).toBeInTheDocument();
   });
 });

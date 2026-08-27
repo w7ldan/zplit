@@ -6,6 +6,7 @@ import { markAllCurrentUserNotificationsRead, markCurrentUserNotificationRead } 
 import { getDatabase } from "@/db/client";
 import { respondToFriendLinkRequest, unlinkFriendLink } from "@/server/friend-links";
 import { acceptOrganizationInvitation, declineOrganizationInvitation } from "@/server/organization-invitations";
+import { acceptGroupJoinRequest, declineGroupJoinRequest } from "@/server/group-join-requests";
 
 export async function markNotificationReadAction(notificationId: string) {
   await markCurrentUserNotificationRead(notificationId);
@@ -64,6 +65,29 @@ export async function declineOrganizationInvitationAction(invitationId: string) 
   const session = await requireSession();
   try {
     await declineOrganizationInvitation(getDatabase(), session.user.id, invitationId);
+  } catch {
+    // The Inbox refetches canonical state after a competing or stale response.
+  }
+  revalidatePath("/app/inbox");
+}
+
+export async function acceptGroupJoinRequestAction(requestId: string) {
+  const session = await requireSession();
+  try {
+    const result = await acceptGroupJoinRequest(getDatabase(), session.user.id, requestId);
+    revalidatePath(`/app/personal/groups/${result.groupId}`);
+    revalidatePath(`/app/personal/groups/${result.groupId}/people`);
+    revalidatePath("/app/personal/groups");
+  } catch {
+    // The Inbox refetches canonical state after a competing or stale response.
+  }
+  revalidatePath("/app/inbox");
+}
+
+export async function declineGroupJoinRequestAction(requestId: string) {
+  const session = await requireSession();
+  try {
+    await declineGroupJoinRequest(getDatabase(), session.user.id, requestId);
   } catch {
     // The Inbox refetches canonical state after a competing or stale response.
   }

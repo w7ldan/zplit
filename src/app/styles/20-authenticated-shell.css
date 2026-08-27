@@ -2140,6 +2140,68 @@ body.global-search-open {
   border-top: 1px solid var(--rule);
 }
 
+.group-people__invite,
+.group-people__pending {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+}
+
+.group-people__invite h3,
+.group-people__pending h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.group-people__external-main {
+  display: flex;
+  flex: 1 1 22rem;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.group-people__link-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.group-people__request-meta {
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.group-join-form {
+  display: grid;
+  gap: 0.55rem;
+  max-width: 34rem;
+}
+
+.group-join-form > label {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.group-join-form__message {
+  min-height: 1.2rem;
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.group-join-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .group-context {
   display: grid;
   gap: 1rem;

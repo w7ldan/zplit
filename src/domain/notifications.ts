@@ -5,6 +5,8 @@ export const NOTIFICATION_TYPES = {
   test: "system.test",
   friendLinkRequest: "friend.link.request",
   organizationInvitation: "organization.invitation",
+  groupInvitation: "group.invitation",
+  groupParticipantLinkRequest: "group.participant.link.request",
 } as const;
 export const NOTIFICATION_STATE_CHANGED_EVENT = "notification.state.changed";
 
@@ -24,6 +26,24 @@ export type NotificationMetadata = {
     organizationName: string;
     inviterDisplayName: string;
     role: OrganizationInvitationRole;
+    expiresAt: string;
+  };
+  "group.invitation": {
+    requestId: string;
+    groupId: string;
+    groupName: string;
+    requesterDisplayName: string;
+    requesterUsername: string | null;
+    expiresAt: string;
+  };
+  "group.participant.link.request": {
+    requestId: string;
+    groupId: string;
+    groupName: string;
+    requesterDisplayName: string;
+    requesterUsername: string | null;
+    participantDisplayName: string;
+    participantLabel: string | null;
     expiresAt: string;
   };
 };
@@ -82,6 +102,48 @@ function parseOrganizationInvitationMetadata(value: unknown): NotificationMetada
   };
 }
 
+function requesterFields(record: Record<string, unknown>) {
+  if (typeof record.requesterDisplayName !== "string" || !record.requesterDisplayName.trim() || record.requesterDisplayName.length > 120) return null;
+  if (record.requesterUsername !== null && (typeof record.requesterUsername !== "string" || !/^[a-z0-9][a-z0-9._]*[a-z0-9]$/.test(record.requesterUsername))) return null;
+  return { requesterDisplayName: record.requesterDisplayName.trim(), requesterUsername: record.requesterUsername as string | null };
+}
+
+function parseGroupInvitationMetadata(value: unknown): NotificationMetadata["group.invitation"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 6) return null;
+  const requestId = normalizeUuid(record.requestId);
+  const groupId = normalizeUuid(record.groupId);
+  const requester = requesterFields(record);
+  if (!requestId || !groupId || !requester) return null;
+  if (typeof record.groupName !== "string" || !record.groupName.trim() || record.groupName.length > 160) return null;
+  if (typeof record.expiresAt !== "string" || Number.isNaN(Date.parse(record.expiresAt))) return null;
+  return { requestId, groupId, groupName: record.groupName.trim(), ...requester, expiresAt: new Date(record.expiresAt).toISOString() };
+}
+
+function parseGroupParticipantLinkMetadata(value: unknown): NotificationMetadata["group.participant.link.request"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 8) return null;
+  const requestId = normalizeUuid(record.requestId);
+  const groupId = normalizeUuid(record.groupId);
+  const requester = requesterFields(record);
+  if (!requestId || !groupId || !requester) return null;
+  if (typeof record.groupName !== "string" || !record.groupName.trim() || record.groupName.length > 160) return null;
+  if (typeof record.participantDisplayName !== "string" || !record.participantDisplayName.trim() || record.participantDisplayName.length > 160) return null;
+  if (record.participantLabel !== null && (typeof record.participantLabel !== "string" || !record.participantLabel.trim() || record.participantLabel.length > 120)) return null;
+  if (typeof record.expiresAt !== "string" || Number.isNaN(Date.parse(record.expiresAt))) return null;
+  return {
+    requestId,
+    groupId,
+    groupName: record.groupName.trim(),
+    ...requester,
+    participantDisplayName: record.participantDisplayName.trim(),
+    participantLabel: typeof record.participantLabel === "string" ? record.participantLabel.trim() : null,
+    expiresAt: new Date(record.expiresAt).toISOString(),
+  };
+}
+
 export function getFriendLinkRequestMetadata(value: unknown) {
   return parseFriendLinkRequestMetadata(value);
 }
@@ -90,8 +152,20 @@ export function getOrganizationInvitationMetadata(value: unknown) {
   return parseOrganizationInvitationMetadata(value);
 }
 
+export function getGroupInvitationMetadata(value: unknown) {
+  return parseGroupInvitationMetadata(value);
+}
+
+export function getGroupParticipantLinkMetadata(value: unknown) {
+  return parseGroupParticipantLinkMetadata(value);
+}
+
 function roleLabel(role: OrganizationInvitationRole) {
   return role[0]?.toUpperCase() + role.slice(1);
+}
+
+function requesterLabel(metadata: { requesterDisplayName: string; requesterUsername: string | null }) {
+  return `${metadata.requesterDisplayName}${metadata.requesterUsername ? ` @${metadata.requesterUsername}` : ""}`;
 }
 
 export const notificationCatalog = {
@@ -118,6 +192,23 @@ export const notificationCatalog = {
     present: (metadata: NotificationMetadata["organization.invitation"]): NotificationPresentation => ({
       label: "Organization invitation",
       primary: `${metadata.inviterDisplayName} invited you to join ${metadata.organizationName} as ${roleLabel(metadata.role)}.`,
+    }),
+  },
+  "group.invitation": {
+    label: "Group invitation",
+    parseMetadata: parseGroupInvitationMetadata,
+    present: (metadata: NotificationMetadata["group.invitation"]): NotificationPresentation => ({
+      label: "Group invitation",
+      primary: `${requesterLabel(metadata)} invited you to join ${metadata.groupName}.`,
+    }),
+  },
+  "group.participant.link.request": {
+    label: "Group account link",
+    parseMetadata: parseGroupParticipantLinkMetadata,
+    present: (metadata: NotificationMetadata["group.participant.link.request"]): NotificationPresentation => ({
+      label: "Group account link",
+      primary: `${requesterLabel(metadata)} wants to link your Zplit account to “${metadata.participantDisplayName}${metadata.participantLabel ? ` · ${metadata.participantLabel}` : ""}” in ${metadata.groupName}.`,
+      secondary: "This links your account to an existing Group participant.",
     }),
   },
 } as const;

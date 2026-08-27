@@ -169,6 +169,13 @@
       "when": 1787758454890,
       "tag": "0023_serious_red_ghost",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787797613490,
+      "tag": "0024_confused_loa",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,7 @@ const domainTables = [
   "friend_link_requests",
   "friends",
   "group_avatars",
+  "group_join_requests",
   "group_memberships",
   "group_participants",
   "groups",
@@ -73,7 +74,7 @@ describe("database schema", () => {
 
   it("exports the domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars]
+      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -101,6 +102,25 @@ describe("database schema", () => {
       { from: ["group_id", "user_id", "participant_id"], to: "group_participants", target: ["group_id", "user_id", "id"], onDelete: "restrict" },
     ]));
     expect(getTableConfig(schema.groupAvatars).checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_avatars_media_type_allowed", "group_avatars_content_size_matches"]));
+  });
+
+  it("constrains Group join request identity, state, and cross-Group participants", () => {
+    const requests = getTableConfig(schema.groupJoinRequests);
+    expect(requests.columns.map((column) => column.name)).toEqual([
+      "id", "group_id", "kind", "participant_id", "target_user_id", "requester_user_id", "status", "expires_at", "created_at", "updated_at", "accepted_at", "declined_at", "revoked_at", "expired_at",
+    ]);
+    expect(requests.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "group_join_requests_kind_participant_shape",
+      "group_join_requests_status_allowed",
+      "group_join_requests_transition_timestamps",
+    ]));
+    expect(indexColumns(schema.groupJoinRequests, "group_join_requests_pending_group_target_uidx")).toEqual(["group_id", "target_user_id"]);
+    expect(indexColumns(schema.groupJoinRequests, "group_join_requests_pending_group_participant_uidx")).toEqual(["group_id", "participant_id"]);
+    expect(foreignKeyShape(schema.groupJoinRequests)).toEqual(expect.arrayContaining([
+      { from: ["group_id", "participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+      { from: ["target_user_id"], to: "users", target: ["id"], onDelete: "cascade" },
+      { from: ["requester_user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+    ]));
   });
 
   it("keeps Friend identity linking nullable and request state constrained", () => {

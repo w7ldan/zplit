@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import type { NotificationMetadata, NotificationType } from "@/domain/notifications";
 import type { GroupRole } from "@/domain/group-permissions";
+import type { GroupJoinRequestKind, GroupJoinRequestStatus } from "@/domain/group-join-requests";
 import type { OrganizationCapability, OrganizationInvitationRole } from "@/domain/organization-permissions";
 import {
   boolean,
@@ -367,6 +368,57 @@ export const groupAvatars = pgTable("group_avatars", {
   check("group_avatars_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
   check("group_avatars_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
 ]);
+
+export const groupJoinRequests = pgTable(
+  "group_join_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 32 }).$type<GroupJoinRequestKind>().notNull(),
+    participantId: uuid("participant_id"),
+    targetUserId: text("target_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    requesterUserId: text("requester_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: varchar("status", { length: 16 }).$type<GroupJoinRequestStatus>().default("pending").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    declinedAt: timestamp("declined_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    expiredAt: timestamp("expired_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("group_join_requests_target_not_requester", sql`${table.targetUserId} <> ${table.requesterUserId}`),
+    check("group_join_requests_kind_participant_shape", sql`(${table.kind} = 'member_invitation' AND ${table.participantId} IS NULL) OR (${table.kind} = 'participant_link' AND ${table.participantId} IS NOT NULL)`),
+    check("group_join_requests_kind_allowed", sql`${table.kind} IN ('member_invitation', 'participant_link')`),
+    check("group_join_requests_status_allowed", sql`${table.status} IN ('pending', 'accepted', 'declined', 'revoked', 'expired')`),
+    check("group_join_requests_expires_after_created", sql`${table.expiresAt} > ${table.createdAt}`),
+    check(
+      "group_join_requests_transition_timestamps",
+      sql`(${table.status} = 'pending' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NULL AND ${table.revokedAt} IS NULL AND ${table.expiredAt} IS NULL) OR (${table.status} = 'accepted' AND ${table.acceptedAt} IS NOT NULL AND ${table.declinedAt} IS NULL AND ${table.revokedAt} IS NULL AND ${table.expiredAt} IS NULL) OR (${table.status} = 'declined' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NOT NULL AND ${table.revokedAt} IS NULL AND ${table.expiredAt} IS NULL) OR (${table.status} = 'revoked' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NULL AND ${table.revokedAt} IS NOT NULL AND ${table.expiredAt} IS NULL) OR (${table.status} = 'expired' AND ${table.acceptedAt} IS NULL AND ${table.declinedAt} IS NULL AND ${table.revokedAt} IS NULL AND ${table.expiredAt} IS NOT NULL)`,
+    ),
+    foreignKey({
+      columns: [table.groupId, table.participantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_join_requests_participant_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("group_join_requests_pending_group_target_uidx")
+      .on(table.groupId, table.targetUserId)
+      .where(sql`${table.status} = 'pending'`),
+    uniqueIndex("group_join_requests_pending_group_participant_uidx")
+      .on(table.groupId, table.participantId)
+      .where(sql`${table.status} = 'pending' AND ${table.participantId} IS NOT NULL`),
+    index("group_join_requests_group_status_idx").on(table.groupId, table.status),
+    index("group_join_requests_target_status_idx").on(table.targetUserId, table.status),
+    index("group_join_requests_expires_at_idx").on(table.expiresAt),
+  ],
+);
 
 export const trips = pgTable(
   "trips",
@@ -900,6 +952,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   organizationMemberships: many(organizationMemberships),
   groupMemberships: many(groupMemberships),
   groupParticipants: many(groupParticipants),
+  groupJoinRequestTargets: many(groupJoinRequests, { relationName: "groupJoinRequestTargets" }),
+  groupJoinRequestRequesters: many(groupJoinRequests, { relationName: "groupJoinRequestRequesters" }),
   organizationInvitationsReceived: many(organizationInvitations, { relationName: "organizationInvitationTargets" }),
   organizationInvitationsSent: many(organizationInvitations, { relationName: "organizationInvitationInviters" }),
 }));
@@ -1005,6 +1059,7 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   participants: many(groupParticipants),
   memberships: many(groupMemberships),
   avatar: one(groupAvatars),
+  joinRequests: many(groupJoinRequests),
 }));
 
 export const groupParticipantsRelations = relations(groupParticipants, ({ one }) => ({
@@ -1021,6 +1076,13 @@ export const groupMembershipsRelations = relations(groupMemberships, ({ one }) =
 
 export const groupAvatarsRelations = relations(groupAvatars, ({ one }) => ({
   group: one(groups, { fields: [groupAvatars.groupId], references: [groups.id] }),
+}));
+
+export const groupJoinRequestsRelations = relations(groupJoinRequests, ({ one }) => ({
+  group: one(groups, { fields: [groupJoinRequests.groupId], references: [groups.id] }),
+  participant: one(groupParticipants, { fields: [groupJoinRequests.groupId, groupJoinRequests.participantId], references: [groupParticipants.groupId, groupParticipants.id] }),
+  target: one(users, { fields: [groupJoinRequests.targetUserId], references: [users.id], relationName: "groupJoinRequestTargets" }),
+  requester: one(users, { fields: [groupJoinRequests.requesterUserId], references: [users.id], relationName: "groupJoinRequestRequesters" }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
