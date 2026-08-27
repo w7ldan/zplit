@@ -23,8 +23,8 @@ const groupId = "11111111-1111-4111-8111-111111111111";
 const otherGroupId = "22222222-2222-4222-8222-222222222222";
 const participantId = "33333333-3333-4333-8333-333333333333";
 
-function removalDatabase(actorRole: string, target: Record<string, unknown> | null = { role: "member", participantId, participantGroupId: groupId, participantUserId: "user-b" }, membershipDelete: unknown[] = [{ userId: "user-b" }], participantDelete: unknown[] = [{ id: participantId }]) {
-  const selects = [[{ role: actorRole }], target ? [target] : []];
+function removalDatabase(actorRole: string, target: Record<string, unknown> | null = { role: "member", participantId, participantGroupId: groupId, participantUserId: "user-b" }, membershipDelete: unknown[] = [{ userId: "user-b" }], participantDelete: unknown[] = [{ id: participantId }], hasFinancialHistory = false) {
+  const selects = [[{ role: actorRole }], target ? [target] : [], hasFinancialHistory ? [{ id: "expense-a" }] : [], [], []];
   const deletedTables: unknown[] = [];
   const transaction = {
     select: vi.fn(() => chain(selects.shift() ?? [])),
@@ -109,11 +109,18 @@ describe("groups", () => {
     expect(wasCommitted()).toBe(true);
   });
 
+  it("removes membership but retains a registered participant with financial history", async () => {
+    const { database, deletedTables } = removalDatabase("owner", { role: "member", participantId, participantGroupId: groupId, participantUserId: "user-b" }, [{ userId: "user-b" }], [{ id: participantId }], true);
+    await expect(removeGroupMember(database, groupId, "user-a", "user-b")).resolves.toBe(true);
+    expect(deletedTables).toEqual([groupMemberships]);
+  });
+
   it("revokes pending participant links before removing an external participant", async () => {
     const transaction = {
       select: vi.fn()
         .mockImplementationOnce(() => chain([{ role: "owner" }]))
-        .mockImplementationOnce(() => chain([{ id: participantId, userId: null }])),
+        .mockImplementationOnce(() => chain([{ id: participantId, userId: null }]))
+        .mockImplementation(() => chain([])),
       update: vi.fn(() => chain([{ targetUserId: "user-b" }])),
       delete: vi.fn(() => chain([{ id: participantId }])),
     };
@@ -122,6 +129,23 @@ describe("groups", () => {
     await expect(deleteExternalParticipant(database, groupId, "user-a", participantId)).resolves.toBe(true);
     expect(transaction.update).toHaveBeenCalledOnce();
     expect(transaction.delete).toHaveBeenCalledWith(groupParticipants);
+  });
+
+  it("retains an external participant with financial history", async () => {
+    const transaction = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain([{ id: participantId, userId: null }]))
+        .mockImplementationOnce(() => chain([{ id: "expense-a" }]))
+        .mockImplementation(() => chain([])),
+      update: vi.fn(() => chain([])),
+      delete: vi.fn(() => chain([{ id: participantId }])),
+    };
+    const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
+
+    await expect(deleteExternalParticipant(database, groupId, "user-a", participantId)).rejects.toMatchObject({ code: "financial_history" });
+    expect(transaction.update).not.toHaveBeenCalled();
+    expect(transaction.delete).not.toHaveBeenCalled();
   });
 
   it("protects the Owner from removal", async () => {

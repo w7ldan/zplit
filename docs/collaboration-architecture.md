@@ -181,6 +181,12 @@ An external participant MAY later link to a Zplit account without changing the
 historical participant identity. The system MUST NOT prevent two external
 people from sharing a display name.
 
+`group_participants.id` is the stable Group financial identity. A registered
+participant without an active membership is a former participant: it remains
+resolvable for history, has no Group access, and is reused when that user
+rejoins. External linking updates the same participant; financial rows are not
+migrated.
+
 ## 9. Group accounting
 
 Every Group expense preserves its original financial facts: Group, payer,
@@ -190,14 +196,15 @@ Payer and creator are separate concepts.
 Canonical accounting:
 
 - Expense shares generate obligations.
-- Reciprocal obligations between the same two people are bilaterally netted.
-- V1 MUST NOT perform automatic three-person or cross-person debt
-  simplification.
+- Only a confirmed expense generates authoritative obligations.
+- A confirmed expense's bilateral obligations are immutable historical facts.
+- Reciprocal obligations remain separate until an explicit later settlement
+  operation; there is no automatic netting or cross-person simplification.
 
 ```text
 Alice owes Bob 100
 Bob owes Alice 30
-→ Alice owes Bob 70
+→ store both original obligations
 ```
 
 ```text

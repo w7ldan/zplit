@@ -12,8 +12,12 @@ const domainTables = [
   "friend_link_requests",
   "friends",
   "group_avatars",
+  "group_expense_receipts",
+  "group_expense_shares",
+  "group_expenses",
   "group_join_requests",
   "group_memberships",
+  "group_obligations",
   "group_participants",
   "groups",
   "ledger_scopes",
@@ -74,7 +78,7 @@ describe("database schema", () => {
 
   it("exports the domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests]
+      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupExpenseReceipts]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -84,6 +88,30 @@ describe("database schema", () => {
       "users",
       "verifications",
     ]);
+  });
+
+  it("defines Group expenses, shares, obligations, and private receipt storage with same-Group keys", () => {
+    const expenses = getTableConfig(schema.groupExpenses);
+    expect(expenses.columns.map((column) => column.name)).toEqual(["id", "group_id", "creator_participant_id", "payer_participant_id", "description", "occurred_at", "total_amount", "state", "confirmed_at", "created_at", "updated_at"]);
+    expect(expenses.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_expenses_total_amount_positive", "group_expenses_state_allowed", "group_expenses_confirmation_timestamp_shape"]));
+    expect(foreignKeyShape(schema.groupExpenses)).toEqual(expect.arrayContaining([
+      { from: ["group_id", "creator_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+      { from: ["group_id", "payer_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+    ]));
+    const shares = getTableConfig(schema.groupExpenseShares);
+    expect(shares.checks.map((check) => check.name)).toContain("group_expense_shares_amount_positive");
+    expect(foreignKeyShape(schema.groupExpenseShares)).toEqual(expect.arrayContaining([
+      { from: ["group_id", "expense_id"], to: "group_expenses", target: ["group_id", "id"], onDelete: "restrict" },
+      { from: ["group_id", "participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+    ]));
+    const obligations = getTableConfig(schema.groupObligations);
+    expect(obligations.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_obligations_original_amount_positive", "group_obligations_no_self_debt"]));
+    expect(foreignKeyShape(schema.groupObligations)).toEqual(expect.arrayContaining([
+      { from: ["group_id", "source_expense_id", "source_share_id"], to: "group_expense_shares", target: ["group_id", "expense_id", "id"], onDelete: "restrict" },
+      { from: ["group_id", "debtor_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+      { from: ["group_id", "creditor_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+    ]));
+    expect(getTableConfig(schema.groupExpenseReceipts).checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_expense_receipts_content_size_matches", "group_expense_receipts_sha256_hex"]));
   });
 
   it("defines stable Group participants and membership scope constraints", () => {

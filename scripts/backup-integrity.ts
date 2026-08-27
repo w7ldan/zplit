@@ -14,8 +14,18 @@ export const EXPECTED_TABLES = [
   "ledger_scopes",
   "organization_memberships",
   "organization_avatars",
+  "organization_invitations",
   "debtor_share_links",
   "friends",
+  "groups",
+  "group_participants",
+  "group_memberships",
+  "group_avatars",
+  "group_join_requests",
+  "group_expenses",
+  "group_expense_shares",
+  "group_obligations",
+  "group_expense_receipts",
   "outings",
   "expenses",
   "expense_receipts",
@@ -195,6 +205,16 @@ export const INTEGRITY_CHECKS: readonly IntegrityCheck[] = [
     )::int AS violations`,
   },
   {
+    name: "Group accounting integrity",
+    sql: `SELECT (
+      (SELECT count(*) FROM group_expenses e WHERE NOT EXISTS (SELECT 1 FROM groups g WHERE g.id = e.group_id) OR NOT EXISTS (SELECT 1 FROM group_participants p WHERE p.group_id = e.group_id AND p.id = e.creator_participant_id) OR NOT EXISTS (SELECT 1 FROM group_participants p WHERE p.group_id = e.group_id AND p.id = e.payer_participant_id)) +
+      (SELECT count(*) FROM group_expense_shares s WHERE NOT EXISTS (SELECT 1 FROM group_expenses e WHERE e.group_id = s.group_id AND e.id = s.expense_id) OR NOT EXISTS (SELECT 1 FROM group_participants p WHERE p.group_id = s.group_id AND p.id = s.participant_id)) +
+      (SELECT count(*) FROM group_obligations o WHERE NOT EXISTS (SELECT 1 FROM group_expenses e WHERE e.group_id = o.group_id AND e.id = o.source_expense_id AND e.state = 'confirmed' AND e.payer_participant_id = o.creditor_participant_id) OR NOT EXISTS (SELECT 1 FROM group_expense_shares s WHERE s.group_id = o.group_id AND s.expense_id = o.source_expense_id AND s.id = o.source_share_id AND s.participant_id = o.debtor_participant_id AND s.amount = o.original_amount) OR NOT EXISTS (SELECT 1 FROM group_participants p WHERE p.group_id = o.group_id AND p.id = o.creditor_participant_id AND p.user_id IS NOT NULL)) +
+      (SELECT count(*) FROM group_expense_receipts r WHERE NOT EXISTS (SELECT 1 FROM group_expenses e WHERE e.group_id = r.group_id AND e.id = r.expense_id)) +
+      (SELECT count(*) FROM group_expenses e WHERE e.state = 'confirmed' AND (SELECT COALESCE(sum(s.amount), 0) FROM group_expense_shares s WHERE s.group_id = e.group_id AND s.expense_id = e.id) <> e.total_amount)
+    )::int AS violations`,
+  },
+  {
     name: "shares within expenses",
     sql: "SELECT count(*)::int AS violations FROM (SELECT s.ledger_scope_id, s.expense_id FROM expense_shares s JOIN expenses e ON e.ledger_scope_id = s.ledger_scope_id AND e.id = s.expense_id GROUP BY s.ledger_scope_id, s.expense_id, e.amount HAVING sum(s.amount_owed) > e.amount) invalid",
   },
@@ -267,7 +287,7 @@ export async function runBackupIntegrity() {
       const result = await client.query<{ violations: number | string }>(check.sql);
       assertNoViolations(result.rows[0]?.violations);
     }
-    const receipts = await client.query<{ byte_size: number | string; sha256: string; content: Buffer }>("SELECT byte_size, sha256, content FROM expense_receipts");
+    const receipts = await client.query<{ byte_size: number | string; sha256: string; content: Buffer }>("SELECT byte_size, sha256, content FROM expense_receipts UNION ALL SELECT byte_size, sha256, content FROM group_expense_receipts");
     for (const receipt of receipts.rows) {
       const content = Buffer.from(receipt.content);
       if (content.byteLength !== Number(receipt.byte_size) || createHash("sha256").update(content).digest("hex") !== receipt.sha256) throw new Error("backup integrity check failed");

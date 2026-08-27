@@ -1,8 +1,8 @@
 import "server-only";
 
-import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { groupAvatars, groupJoinRequests, groupMemberships, groupParticipants, groups, users } from "@/db/schema";
+import { groupAvatars, groupExpenseShares, groupExpenses, groupJoinRequests, groupMemberships, groupObligations, groupParticipants, groups, users } from "@/db/schema";
 import { groupAccessForRole, isGroupRole, type GroupRole } from "@/domain/group-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { publishNotificationStateChange } from "@/server/notifications";
@@ -33,10 +33,11 @@ export type GroupParticipant = {
   label: string | null;
   role: GroupRole | null;
   isExternal: boolean;
+  isFormer: boolean;
 };
 
 export class GroupError extends Error {
-  constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden" | "participant_not_found" | "registered_participant" | "owner_required") {
+  constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden" | "participant_not_found" | "registered_participant" | "owner_required" | "financial_history") {
     super(code);
     this.name = "GroupError";
   }
@@ -149,7 +150,7 @@ export async function listGroupParticipants(database: Database, groupId: string,
     .leftJoin(groupMemberships, and(eq(groupMemberships.groupId, groupParticipants.groupId), eq(groupMemberships.userId, groupParticipants.userId)))
     .where(eq(groupParticipants.groupId, groupId))
     .orderBy(asc(groupParticipants.userId), asc(groupParticipants.displayName), asc(groupParticipants.id));
-  return rows.map((row) => ({ id: row.id, userId: row.userId, displayName: row.userName ?? row.externalName ?? "Participant", label: row.label, role: row.role && isGroupRole(row.role) ? row.role : null, isExternal: row.userId === null }));
+  return rows.map((row) => ({ id: row.id, userId: row.userId, displayName: row.userName ?? row.externalName ?? "Participant", label: row.label, role: row.role && isGroupRole(row.role) ? row.role : null, isExternal: row.userId === null, isFormer: row.userId !== null && row.role === null }));
 }
 
 export async function createGroup(database: Database, userId: string, input: { name: string; description?: string | null; avatar?: { mediaType: "image/webp"; byteSize: number; sha256: string; content: Uint8Array } }) {
@@ -205,6 +206,23 @@ async function revokePendingParticipantLinks(database: Database, groupId: string
     .returning({ targetUserId: groupJoinRequests.targetUserId });
 }
 
+async function participantHasFinancialHistory(database: Database, groupId: string, participantId: string) {
+  const [expense] = await database
+    .select({ id: groupExpenses.id })
+    .from(groupExpenses)
+    .where(and(eq(groupExpenses.groupId, groupId), or(eq(groupExpenses.creatorParticipantId, participantId), eq(groupExpenses.payerParticipantId, participantId))))
+    .limit(1);
+  if (expense) return true;
+  const [share] = await database.select({ id: groupExpenseShares.id }).from(groupExpenseShares).where(and(eq(groupExpenseShares.groupId, groupId), eq(groupExpenseShares.participantId, participantId))).limit(1);
+  if (share) return true;
+  const [obligation] = await database
+    .select({ id: groupObligations.id })
+    .from(groupObligations)
+    .where(and(eq(groupObligations.groupId, groupId), or(eq(groupObligations.debtorParticipantId, participantId), eq(groupObligations.creditorParticipantId, participantId))))
+    .limit(1);
+  return Boolean(obligation);
+}
+
 export async function updateExternalParticipant(database: Database, groupId: string, userId: string, participantId: string, input: { displayName: string; label?: string | null }) {
   assertGroupId(groupId);
   const access = await requireGroupAccess(database, groupId, userId);
@@ -223,10 +241,11 @@ export async function deleteExternalParticipant(database: Database, groupId: str
     const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
     access.requireManageParticipants();
     const now = new Date();
-    const revoked = await revokePendingParticipantLinks(transactionalDatabase, groupId, participantId, now);
     const [participant] = await transaction.select().from(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, participantId))).limit(1).for("update");
     if (!participant) throw new GroupError("participant_not_found");
     if (participant.userId) throw new GroupError("registered_participant");
+    if (await participantHasFinancialHistory(transactionalDatabase, groupId, participantId)) throw new GroupError("financial_history");
+    const revoked = await revokePendingParticipantLinks(transactionalDatabase, groupId, participantId, now);
     const deleted = await transaction.delete(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, participantId), isNull(groupParticipants.userId))).returning({ id: groupParticipants.id });
     return { deleted: deleted.length > 0, targetUserIds: revoked.map(({ targetUserId }) => targetUserId) };
   });
@@ -258,15 +277,15 @@ export async function removeGroupMember(database: Database, groupId: string, act
       .limit(1);
     if (!target || !isGroupRole(target.role) || !target.participantId || target.participantGroupId !== groupId || target.participantUserId !== targetUserId || target.role === "owner" || targetUserId === actorUserId || (target.role === "admin" && !access.isOwner) || (!access.isOwner && !access.canManageParticipants)) throw new GroupError("forbidden");
 
-    const participantHasFinancialHistory = false;
+    const hasFinancialHistory = await participantHasFinancialHistory(transactionalDatabase, groupId, target.participantId);
     let revokedTargetUserIds: string[] = [];
-    if (!participantHasFinancialHistory) {
+    if (!hasFinancialHistory) {
       const revoked = await revokePendingParticipantLinks(transactionalDatabase, groupId, target.participantId, new Date());
       revokedTargetUserIds = revoked.map(({ targetUserId: recipientUserId }) => recipientUserId);
     }
     const deletedMembership = await transaction.delete(groupMemberships).where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId))).returning({ userId: groupMemberships.userId });
     if (deletedMembership.length !== 1) throw new GroupError("forbidden");
-    if (!participantHasFinancialHistory) {
+    if (!hasFinancialHistory) {
       const deletedParticipant = await transaction.delete(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, target.participantId), eq(groupParticipants.userId, targetUserId))).returning({ id: groupParticipants.id });
       if (deletedParticipant.length !== 1) throw new GroupError("participant_not_found");
     }

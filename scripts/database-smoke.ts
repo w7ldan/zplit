@@ -20,6 +20,15 @@ const domainTables = [
   "organizations",
   "organization_memberships",
   "organization_avatars",
+  "groups",
+  "group_participants",
+  "group_memberships",
+  "group_avatars",
+  "group_join_requests",
+  "group_expenses",
+  "group_expense_shares",
+  "group_obligations",
+  "group_expense_receipts",
 ];
 
 function assert(condition: unknown, message: string): asserts condition {

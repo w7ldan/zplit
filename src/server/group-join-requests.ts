@@ -113,7 +113,7 @@ async function resolveGroupContext(database: Database, groupId: string, requeste
   return { group, requester };
 }
 
-async function ensureTargetIsUnrepresented(database: Database, groupId: string, targetUserId: string) {
+async function ensureTargetIsUnrepresented(database: Database, groupId: string, targetUserId: string, kind: GroupJoinRequestKind) {
   const [membership] = await database
     .select({ userId: groupMemberships.userId })
     .from(groupMemberships)
@@ -127,7 +127,7 @@ async function ensureTargetIsUnrepresented(database: Database, groupId: string, 
     .where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.userId, targetUserId)))
     .limit(1)
     .for("update");
-  if (participant) throw new GroupJoinRequestError("registered_participant");
+  if (participant && kind !== "member_invitation") throw new GroupJoinRequestError("registered_participant");
 }
 
 async function expirePendingForTarget(database: Database, groupId: string, targetUserId: string, now: Date) {
@@ -184,7 +184,7 @@ async function createRequest(database: Database, input: { groupId: string; reque
     const now = new Date();
     await expirePendingForTarget(transaction as Database, input.groupId, target.id, now);
     if (input.kind === "participant_link") await expirePendingForParticipant(transaction as Database, input.groupId, input.participantId!, now);
-    await ensureTargetIsUnrepresented(transaction as Database, input.groupId, target.id);
+    await ensureTargetIsUnrepresented(transaction as Database, input.groupId, target.id, input.kind);
     if (input.kind === "participant_link") {
       const [lockedParticipant] = await transaction
         .select({ id: groupParticipants.id, displayName: groupParticipants.displayName, label: groupParticipants.label, userId: groupParticipants.userId })
@@ -244,8 +244,7 @@ export async function searchGroupJoinUsers(database: Database, groupId: string, 
   const access = await requireGroupAccess(database, groupId, requesterUserId);
   access.requireManageParticipants();
   const members = await database.select({ userId: groupMemberships.userId }).from(groupMemberships).where(eq(groupMemberships.groupId, groupId));
-  const registered = await database.select({ userId: groupParticipants.userId }).from(groupParticipants).where(eq(groupParticipants.groupId, groupId));
-  return searchUsernameDirectoryInDatabase(database, query, { excludeUserIds: [requesterUserId, ...members.map(({ userId }) => userId), ...registered.flatMap(({ userId }) => userId ? [userId] : [])] });
+  return searchUsernameDirectoryInDatabase(database, query, { excludeUserIds: [requesterUserId, ...members.map(({ userId }) => userId)] });
 }
 
 export async function createGroupInvitation(database: Database, groupId: string, requesterUserId: string, username: unknown) {
@@ -395,26 +394,23 @@ async function respondToRequest(database: Database, targetUserId: string, reques
         .where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.userId, targetUserId)))
         .limit(1)
         .for("update");
-      if (existingMembership || registered) {
+      if (existingMembership) {
         const revoked = await transitionPendingRequest(transaction as Database, request, "revoked", now);
-        return { request: revoked ?? request, changed: Boolean(revoked), error: existingMembership ? "already_member" : "registered_participant" };
+        return { request: revoked ?? request, changed: Boolean(revoked), error: "already_member" as const };
       }
-      const [participant] = await transaction
+      const participant = registered ?? (await transaction
         .insert(groupParticipants)
         .values({ groupId: request.groupId, userId: targetUserId, displayName: null, createdAt: now, updatedAt: now })
         .onConflictDoNothing()
-        .returning({ id: groupParticipants.id });
-      if (!participant) {
-        const revoked = await transitionPendingRequest(transaction as Database, request, "revoked", now);
-        return { request: revoked ?? request, changed: Boolean(revoked), error: "registered_participant" as const };
-      }
+        .returning({ id: groupParticipants.id }))[0];
+      if (!participant) throw new GroupJoinRequestError("conflict");
       const [createdMembership] = await transaction
         .insert(groupMemberships)
         .values({ groupId: request.groupId, userId: targetUserId, participantId: participant.id, role: "member", joinedAt: now })
         .onConflictDoNothing({ target: [groupMemberships.groupId, groupMemberships.userId] })
         .returning();
       if (!createdMembership) {
-        await transaction.delete(groupParticipants).where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, participant.id), eq(groupParticipants.userId, targetUserId)));
+        if (!registered) await transaction.delete(groupParticipants).where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, participant.id), eq(groupParticipants.userId, targetUserId)));
         const revoked = await transitionPendingRequest(transaction as Database, request, "revoked", now);
         return { request: revoked ?? request, changed: Boolean(revoked), error: "already_member" as const };
       }

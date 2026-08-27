@@ -181,6 +181,8 @@ export const organizations = pgTable(
 
 export type LedgerScopeKind = "personal" | "organization";
 
+export type GroupExpenseState = "pending" | "confirmed";
+
 export const ledgerScopes = pgTable(
   "ledger_scopes",
   {
@@ -419,6 +421,154 @@ export const groupJoinRequests = pgTable(
     index("group_join_requests_group_status_idx").on(table.groupId, table.status),
     index("group_join_requests_target_status_idx").on(table.targetUserId, table.status),
     index("group_join_requests_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
+export const groupExpenses = pgTable(
+  "group_expenses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "restrict" }),
+    creatorParticipantId: uuid("creator_participant_id").notNull(),
+    payerParticipantId: uuid("payer_participant_id").notNull(),
+    description: varchar("description", { length: 200 }).notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    totalAmount: integer("total_amount").notNull(),
+    state: varchar("state", { length: 16 }).$type<GroupExpenseState>().default("pending").notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("group_expenses_description_not_blank", sql`btrim(${table.description}) <> ''`),
+    check("group_expenses_total_amount_positive", sql`${table.totalAmount} > 0`),
+    check("group_expenses_state_allowed", sql`${table.state} IN ('pending', 'confirmed')`),
+    check("group_expenses_confirmation_timestamp_shape", sql`(${table.state} = 'pending' AND ${table.confirmedAt} IS NULL) OR (${table.state} = 'confirmed' AND ${table.confirmedAt} IS NOT NULL)`),
+    foreignKey({
+      columns: [table.groupId, table.creatorParticipantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_expenses_creator_participant_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.groupId, table.payerParticipantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_expenses_payer_participant_fk",
+    }).onDelete("restrict"),
+    unique("group_expenses_group_id_id_unique").on(table.groupId, table.id),
+    index("group_expenses_group_occurred_at_idx").on(table.groupId, table.occurredAt, table.id),
+    index("group_expenses_group_state_idx").on(table.groupId, table.state),
+  ],
+);
+
+export const groupExpenseShares = pgTable(
+  "group_expense_shares",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "restrict" }),
+    expenseId: uuid("expense_id").notNull(),
+    participantId: uuid("participant_id").notNull(),
+    amount: integer("amount").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("group_expense_shares_amount_positive", sql`${table.amount} > 0`),
+    foreignKey({
+      columns: [table.groupId, table.expenseId],
+      foreignColumns: [groupExpenses.groupId, groupExpenses.id],
+      name: "group_expense_shares_expense_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.groupId, table.participantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_expense_shares_participant_fk",
+    }).onDelete("restrict"),
+    unique("group_expense_shares_group_id_id_unique").on(table.groupId, table.id),
+    unique("group_expense_shares_group_expense_id_unique").on(table.groupId, table.expenseId, table.id),
+    unique("group_expense_shares_expense_participant_unique").on(table.expenseId, table.participantId),
+    index("group_expense_shares_group_expense_idx").on(table.groupId, table.expenseId, table.id),
+    index("group_expense_shares_group_participant_idx").on(table.groupId, table.participantId),
+  ],
+);
+
+export const groupObligations = pgTable(
+  "group_obligations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "restrict" }),
+    sourceExpenseId: uuid("source_expense_id").notNull(),
+    sourceShareId: uuid("source_share_id").notNull(),
+    debtorParticipantId: uuid("debtor_participant_id").notNull(),
+    creditorParticipantId: uuid("creditor_participant_id").notNull(),
+    originalAmount: integer("original_amount").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("group_obligations_original_amount_positive", sql`${table.originalAmount} > 0`),
+    check("group_obligations_no_self_debt", sql`${table.debtorParticipantId} <> ${table.creditorParticipantId}`),
+    foreignKey({
+      columns: [table.groupId, table.sourceExpenseId],
+      foreignColumns: [groupExpenses.groupId, groupExpenses.id],
+      name: "group_obligations_expense_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.groupId, table.sourceExpenseId, table.sourceShareId],
+      foreignColumns: [groupExpenseShares.groupId, groupExpenseShares.expenseId, groupExpenseShares.id],
+      name: "group_obligations_source_share_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.groupId, table.debtorParticipantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_obligations_debtor_participant_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.groupId, table.creditorParticipantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_obligations_creditor_participant_fk",
+    }).onDelete("restrict"),
+    unique("group_obligations_group_id_id_unique").on(table.groupId, table.id),
+    unique("group_obligations_source_share_unique").on(table.groupId, table.sourceShareId),
+    index("group_obligations_group_expense_idx").on(table.groupId, table.sourceExpenseId, table.id),
+    index("group_obligations_group_debtor_idx").on(table.groupId, table.debtorParticipantId),
+    index("group_obligations_group_creditor_idx").on(table.groupId, table.creditorParticipantId),
+  ],
+);
+
+export const groupExpenseReceipts = pgTable(
+  "group_expense_receipts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "restrict" }),
+    expenseId: uuid("expense_id").notNull(),
+    originalFilename: varchar("original_filename", { length: 160 }).notNull(),
+    mediaType: varchar("media_type", { length: 32 }).notNull(),
+    byteSize: integer("byte_size").notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    content: bytea("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("group_expense_receipts_media_type_allowed", sql`${table.mediaType} IN ('image/jpeg', 'image/png', 'image/webp')`),
+    check("group_expense_receipts_byte_size_valid", sql`${table.byteSize} BETWEEN 1 AND 5242880`),
+    check("group_expense_receipts_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
+    check("group_expense_receipts_filename_not_blank", sql`btrim(${table.originalFilename}) <> ''`),
+    check("group_expense_receipts_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    foreignKey({
+      columns: [table.groupId, table.expenseId],
+      foreignColumns: [groupExpenses.groupId, groupExpenses.id],
+      name: "group_expense_receipts_expense_fk",
+    }).onDelete("restrict"),
+    unique("group_expense_receipts_group_id_id_unique").on(table.groupId, table.id),
+    unique("group_expense_receipts_expense_sha256_unique").on(table.groupId, table.expenseId, table.sha256),
+    index("group_expense_receipts_expense_created_id_idx").on(table.groupId, table.expenseId, table.createdAt, table.id),
   ],
 );
 
@@ -1062,12 +1212,21 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   memberships: many(groupMemberships),
   avatar: one(groupAvatars),
   joinRequests: many(groupJoinRequests),
+  expenses: many(groupExpenses),
+  expenseShares: many(groupExpenseShares),
+  obligations: many(groupObligations),
+  expenseReceipts: many(groupExpenseReceipts),
 }));
 
-export const groupParticipantsRelations = relations(groupParticipants, ({ one }) => ({
+export const groupParticipantsRelations = relations(groupParticipants, ({ one, many }) => ({
   group: one(groups, { fields: [groupParticipants.groupId], references: [groups.id] }),
   user: one(users, { fields: [groupParticipants.userId], references: [users.id] }),
   membership: one(groupMemberships),
+  createdExpenses: many(groupExpenses, { relationName: "groupExpenseCreators" }),
+  paidExpenses: many(groupExpenses, { relationName: "groupExpensePayers" }),
+  expenseShares: many(groupExpenseShares),
+  debtorObligations: many(groupObligations, { relationName: "groupObligationDebtors" }),
+  creditorObligations: many(groupObligations, { relationName: "groupObligationCreditors" }),
 }));
 
 export const groupMembershipsRelations = relations(groupMemberships, ({ one }) => ({
@@ -1085,6 +1244,35 @@ export const groupJoinRequestsRelations = relations(groupJoinRequests, ({ one })
   participant: one(groupParticipants, { fields: [groupJoinRequests.groupId, groupJoinRequests.participantId], references: [groupParticipants.groupId, groupParticipants.id] }),
   target: one(users, { fields: [groupJoinRequests.targetUserId], references: [users.id], relationName: "groupJoinRequestTargets" }),
   requester: one(users, { fields: [groupJoinRequests.requesterUserId], references: [users.id], relationName: "groupJoinRequestRequesters" }),
+}));
+
+export const groupExpensesRelations = relations(groupExpenses, ({ one, many }) => ({
+  group: one(groups, { fields: [groupExpenses.groupId], references: [groups.id] }),
+  creator: one(groupParticipants, { fields: [groupExpenses.groupId, groupExpenses.creatorParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupExpenseCreators" }),
+  payer: one(groupParticipants, { fields: [groupExpenses.groupId, groupExpenses.payerParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupExpensePayers" }),
+  shares: many(groupExpenseShares),
+  obligations: many(groupObligations),
+  receipts: many(groupExpenseReceipts),
+}));
+
+export const groupExpenseSharesRelations = relations(groupExpenseShares, ({ one }) => ({
+  group: one(groups, { fields: [groupExpenseShares.groupId], references: [groups.id] }),
+  expense: one(groupExpenses, { fields: [groupExpenseShares.groupId, groupExpenseShares.expenseId], references: [groupExpenses.groupId, groupExpenses.id] }),
+  participant: one(groupParticipants, { fields: [groupExpenseShares.groupId, groupExpenseShares.participantId], references: [groupParticipants.groupId, groupParticipants.id] }),
+  obligation: one(groupObligations),
+}));
+
+export const groupObligationsRelations = relations(groupObligations, ({ one }) => ({
+  group: one(groups, { fields: [groupObligations.groupId], references: [groups.id] }),
+  expense: one(groupExpenses, { fields: [groupObligations.groupId, groupObligations.sourceExpenseId], references: [groupExpenses.groupId, groupExpenses.id] }),
+  sourceShare: one(groupExpenseShares, { fields: [groupObligations.groupId, groupObligations.sourceExpenseId, groupObligations.sourceShareId], references: [groupExpenseShares.groupId, groupExpenseShares.expenseId, groupExpenseShares.id] }),
+  debtor: one(groupParticipants, { fields: [groupObligations.groupId, groupObligations.debtorParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupObligationDebtors" }),
+  creditor: one(groupParticipants, { fields: [groupObligations.groupId, groupObligations.creditorParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupObligationCreditors" }),
+}));
+
+export const groupExpenseReceiptsRelations = relations(groupExpenseReceipts, ({ one }) => ({
+  group: one(groups, { fields: [groupExpenseReceipts.groupId], references: [groups.id] }),
+  expense: one(groupExpenses, { fields: [groupExpenseReceipts.groupId, groupExpenseReceipts.expenseId], references: [groupExpenses.groupId, groupExpenses.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({

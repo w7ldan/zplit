@@ -191,7 +191,7 @@ describe("Group join requests", () => {
     mocks.searchUsernameDirectoryInDatabase.mockResolvedValue([{ id: "user-c", username: "carol", displayName: "Carol" }]);
     const { db } = database([[{ userId: "user-b" }], [{ userId: "user-c" }]]);
     await expect(searchGroupJoinUsers(db, groupId, requesterUserId, "@CAR")).resolves.toEqual([{ id: "user-c", username: "carol", displayName: "Carol" }]);
-    expect(mocks.searchUsernameDirectoryInDatabase).toHaveBeenCalledWith(db, "@CAR", { excludeUserIds: [requesterUserId, "user-b", "user-c"] });
+    expect(mocks.searchUsernameDirectoryInDatabase).toHaveBeenCalledWith(db, "@CAR", { excludeUserIds: [requesterUserId, "user-b"] });
   });
 
   it("accepts a normal invitation with exactly one Member participant and membership", async () => {
@@ -208,6 +208,20 @@ describe("Group join requests", () => {
     expect(calls[0]?.values).toMatchObject({ groupId, userId: targetUserId, displayName: null });
     expect(calls[1]?.values).toMatchObject({ groupId, userId: targetUserId, participantId, role: "member" });
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetUserId, "resolved");
+  });
+
+  it("rejoins a former registered participant without replacing its identity", async () => {
+    const pending = request();
+    const accepted = request({ status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });
+    const { db, calls } = database([
+      [pending],
+      [{ userId: requesterUserId }],
+      [],
+      [{ id: participantId }],
+    ], [[{ groupId, userId: targetUserId, participantId, role: "member" }]], [[accepted], []]);
+    await expect(acceptGroupJoinRequest(db, targetUserId, requestId)).resolves.toMatchObject({ status: "accepted" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.values).toMatchObject({ groupId, userId: targetUserId, participantId });
   });
 
   it("accepts a participant link without changing the participant primary key", async () => {

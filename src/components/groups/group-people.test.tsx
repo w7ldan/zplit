@@ -17,7 +17,7 @@ vi.mock("@/app/app/personal/groups/actions", () => ({
 
 import { GroupPeople } from "./group-people";
 
-const externalParticipant: GroupParticipant = { id: "participant-external", userId: null, displayName: "Taxi", label: "Driver", role: null, isExternal: true };
+const externalParticipant: GroupParticipant = { id: "participant-external", userId: null, displayName: "Taxi", label: "Driver", role: null, isExternal: true, isFormer: false };
 
 describe("GroupPeople", () => {
   it("renders external participant data as read-only for non-managers", () => {
