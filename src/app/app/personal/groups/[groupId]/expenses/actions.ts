@@ -13,8 +13,6 @@ export type GroupExpenseFormValues = { description: string; totalAmount: string;
 export type GroupExpenseActionState = { fieldErrors: Partial<Record<"description" | "totalAmount" | "occurredAtLocal" | "payerParticipantId" | "shares", string>>; formError: string; values: GroupExpenseFormValues };
 export type GroupExpenseConfirmationState = { error: string; success?: string };
 
-const emptyValues: GroupExpenseFormValues = { description: "", totalAmount: "", occurredAtLocal: "", timezoneOffsetMinutes: "", payerParticipantId: "", shares: [] };
-
 function text(formData: FormData, name: string) {
   const value = formData.get(name);
   return typeof value === "string" ? value.trim() : "";
@@ -105,5 +103,3 @@ export async function confirmGroupExpenseAction(groupId: string, expenseId: stri
   revalidatePath(`${path}/${expenseId}`);
   return { error: "", success: "Expense confirmed. Participant obligations are now authoritative." };
 }
-
-export const emptyGroupExpenseActionState: GroupExpenseActionState = state(emptyValues);

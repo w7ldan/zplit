@@ -13,9 +13,10 @@ vi.mock("@/server/group-accounting", () => ({ createGroupExpense: mocks.createGr
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
-import { confirmGroupExpenseAction, createGroupExpenseAction, emptyGroupExpenseActionState } from "./actions";
+import { confirmGroupExpenseAction, createGroupExpenseAction, type GroupExpenseActionState } from "./actions";
 
 const payerId = "11111111-1111-4111-8111-111111111111";
+const emptyGroupExpenseActionState: GroupExpenseActionState = { fieldErrors: {}, formError: "", values: { description: "", totalAmount: "", occurredAtLocal: "", timezoneOffsetMinutes: "", payerParticipantId: "", shares: [] } };
 
 function form(values: { payer: string; total?: string; shares?: Array<[string, string]> }) {
   const data = new FormData();
