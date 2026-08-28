@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { groupMemberships, groupParticipants, groups } from "@/db/schema";
-import { createExternalParticipant, createGroup, deleteExternalParticipant, deleteGroup, GroupError, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
+import { createExternalParticipant, createGroup, deleteExternalParticipant, deleteGroup, getGroupForMember, GroupError, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
 
 vi.mock("server-only", () => ({}));
 
@@ -76,6 +76,24 @@ describe("groups", () => {
     const database = { select: vi.fn(() => chain([{ role }])) } as unknown as Database;
     const access = await requireGroupAccess(database, groupId, "user-a");
     expect(access).toMatchObject({ role, isOwner, canManageParticipants, canDelete });
+  });
+
+  it("returns a serializable GroupDetail", async () => {
+    const database = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ role: "admin" }]))
+        .mockImplementationOnce(() => chain([{ id: groupId, name: "Trip", description: null, role: "admin", avatar: null }]))
+        .mockImplementationOnce(() => chain([{ participantCount: 2, memberCount: 1, externalParticipantCount: 1 }]))
+        .mockImplementationOnce(() => chain([{ memberCount: 1 }])),
+    } as unknown as Database;
+
+    const group = await getGroupForMember(database, groupId, "user-a");
+
+    expect(group).toMatchObject({ id: groupId, role: "admin", isOwner: false, canManageGroup: true, canManageParticipants: true, canManageRoles: false, canDelete: false });
+    expect(group).not.toHaveProperty("requireManageGroup");
+    expect(group).not.toHaveProperty("requireManageParticipants");
+    expect(group).not.toHaveProperty("requireManageRoles");
+    expect(group).not.toHaveProperty("requireDelete");
   });
 
   it("allows duplicate external names while preserving local labels", async () => {

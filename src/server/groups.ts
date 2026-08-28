@@ -142,7 +142,11 @@ export async function getGroupForMember(database: Database, groupId: string, use
     memberCount: Number(memberCounts?.memberCount ?? 0),
     externalParticipantCount: Number(participantCounts?.externalParticipantCount ?? 0),
     avatar: mapAvatar(row.avatar),
-    ...access,
+    isOwner: access.isOwner,
+    canManageGroup: access.canManageGroup,
+    canManageParticipants: access.canManageParticipants,
+    canManageRoles: access.canManageRoles,
+    canDelete: access.canDelete,
     role: row.role as GroupRole,
   };
 }
