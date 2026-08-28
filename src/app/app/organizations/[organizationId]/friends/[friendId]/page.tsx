@@ -2,26 +2,260 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAuthenticatedOrganizationLedger } from "@/server/authenticated-ledger";
 import { LedgerNotFoundError } from "@/domain/ledger-repository";
-import { FriendArchiveForm, FriendForm } from "@/components/friends/friend-form";
+import {
+  FriendArchiveForm,
+  FriendForm,
+} from "@/components/friends/friend-form";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { formatRupiah } from "@/domain/rupiah";
-import { updateFriendAction, archiveFriendAction, restoreFriendAction, undoFriendArchiveAction } from "../../ledger-actions";
+import {
+  updateFriendAction,
+  archiveFriendAction,
+  restoreFriendAction,
+  undoFriendArchiveAction,
+} from "../../ledger-actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Organization friend details" };
-function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
 
-export default async function OrganizationFriendPage({ params, searchParams = Promise.resolve({}) }: { params: Promise<{ organizationId: string; friendId: string }>; searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }) {
+export default async function OrganizationFriendPage({
+  params,
+  searchParams = Promise.resolve({}),
+}: {
+  params: Promise<{ organizationId: string; friendId: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const { organizationId, friendId } = await params;
   const query = await searchParams;
   const base = `/app/organizations/${organizationId}`;
-  const access = await getAuthenticatedOrganizationLedger(organizationId, "ledger.view");
+  const access = await getAuthenticatedOrganizationLedger(
+    organizationId,
+    "ledger.view",
+  );
   let friend;
-  try { friend = await access.ledger.getFriend(friendId); } catch (error) { if (error instanceof LedgerNotFoundError) notFound(); throw error; }
+  try {
+    friend = await access.ledger.getFriend(friendId);
+  } catch (error) {
+    if (error instanceof LedgerNotFoundError) notFound();
+    throw error;
+  }
   const [balance] = await access.ledger.getFriendBalances([friend.id]);
-  const [shares, repayments] = await Promise.all([access.ledger.listFriendExpenseShareRecords(friend.id, { page: first(query.expensePage) }), access.ledger.listRepaymentRecords({ friendId: friend.id, page: first(query.repaymentPage) })]);
+  const [shares, repayments] = await Promise.all([
+    access.ledger.listFriendExpenseShareRecords(friend.id, {
+      page: first(query.expensePage),
+    }),
+    access.ledger.listRepaymentRecords({
+      friendId: friend.id,
+      page: first(query.repaymentPage),
+    }),
+  ]);
   const canManage = access.can("friends.manage");
-  const currentBalance = balance ?? { assignedAmount: 0, repaidAmount: 0, outstandingAmount: 0 };
-  return <section className="app-page friend-record" id="top"><div className="editorial-grid editorial-shell friend-record__layout"><div className="friend-record__intro"><div className="friend-record__title"><p className="technical-label">Organization Friend · ledger contact</p><h1>{friend.name}</h1></div><div className="friend-record__actions">{access.can("repayments.create") ? <Link className="action-link action-link--quiet" href={`${base}/repayments?create=1&friendId=${friend.id}`}>Record repayment</Link> : null}<Link className="friend-record__back" href={`${base}/friends`}>← Back to friends</Link></div></div><section className="friend-record__summary" aria-label="Friend summary"><section className="friend-record__balance" aria-labelledby="friend-balance-heading"><h2 id="friend-balance-heading">Balance</h2><div className="friend-record__balance-primary">{currentBalance.assignedAmount === 0 ? <strong>No balance yet</strong> : currentBalance.outstandingAmount === 0 ? <strong>Settled</strong> : <><span className="technical-label">Still owes</span><strong>{formatRupiah(currentBalance.outstandingAmount)}</strong></>}</div><dl><div><dt>Assigned</dt><dd>{formatRupiah(currentBalance.assignedAmount)}</dd></div><div><dt>Applied</dt><dd>{formatRupiah(currentBalance.repaidAmount)}</dd></div></dl></section><div className="friend-record__meta"><div><span className="technical-label">Record state</span><strong>{friend.archivedAt ? "ARCHIVED" : "ACTIVE"}</strong></div><div><span className="technical-label">Created</span><LocalDateTime iso={friend.createdAt.toISOString()} mode="date" /></div></div></section>{canManage ? <div className="friend-record__form"><p className="technical-label">EDIT RECORD</p><FriendForm action={updateFriendAction.bind(null, organizationId, friend.id)} mode="edit" initialValues={{ name: friend.name, phoneNumber: friend.phoneNumber ?? "", notes: friend.notes ?? "" }} /><FriendArchiveForm action={(friend.archivedAt ? restoreFriendAction : archiveFriendAction).bind(null, organizationId, friend.id)} archived={friend.archivedAt !== null} undoAction={undoFriendArchiveAction.bind(null, organizationId)} /></div> : null}<section className="record-history ledger-section" id="friend-expense-shares"><div className="ledger-section__heading"><div><p className="technical-label">SHARE HISTORY</p><h2>Expense shares</h2></div><span className="technical-label">{shares.totalItems} entries</span></div>{shares.items.length ? <div className="record-history__rows">{shares.items.map((share) => <article className="record-history__row" key={share.id}><div className="record-history__primary"><span className="technical-label">EXPENSE SHARE</span><h3><Link href={`${base}/expenses/${share.expenseId}`}>{share.expenseDescription}</Link></h3><p>{share.outingTitle} · <LocalDateTime iso={share.outingOccurredAt.toISOString()} mode="date" /></p></div><div className="record-history__values"><span><span className="technical-label">Assigned</span><strong>{formatRupiah(share.amountOwed)}</strong></span><span><span className="technical-label">Remaining</span><strong>{formatRupiah(share.remainingAmount)}</strong></span></div></article>)}</div> : <div className="ledger-empty"><h3>No expense shares recorded yet.</h3></div>}<RecordPagination page={shares.page} pageSize={shares.pageSize} totalItems={shares.totalItems} totalPages={shares.totalPages} href={`${base}/friends/${friend.id}`} anchor="friend-expense-shares" pageParam="expensePage" /></section><section className="record-history ledger-section" id="friend-repayments"><div className="ledger-section__heading"><div><p className="technical-label">REPAYMENT HISTORY</p><h2>Repayments</h2></div><span className="technical-label">{repayments.totalItems} entries</span></div>{repayments.items.length ? <div className="record-history__rows">{repayments.items.map((repayment) => <article className="record-history__row" key={repayment.id}><div className="record-history__primary"><span className="technical-label">REPAYMENT</span><h3><Link href={`${base}/repayments/${repayment.id}`}><LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" /></Link></h3></div><div className="record-history__value"><span className="technical-label">Received</span><strong>{formatRupiah(repayment.amount)}</strong></div></article>)}</div> : <div className="ledger-empty"><h3>No repayments recorded yet.</h3></div>}<RecordPagination page={repayments.page} pageSize={repayments.pageSize} totalItems={repayments.totalItems} totalPages={repayments.totalPages} href={`${base}/friends/${friend.id}`} anchor="friend-repayments" pageParam="repaymentPage" /></section></div></section>;
+  const currentBalance = balance ?? {
+    assignedAmount: 0,
+    repaidAmount: 0,
+    outstandingAmount: 0,
+  };
+  return (
+    <section className="app-page friend-record" id="top">
+      <div className="editorial-grid editorial-shell friend-record__layout">
+        <div className="friend-record__intro">
+          <div className="friend-record__title">
+            <p className="technical-label">
+              Organization Friend · ledger contact
+            </p>
+            <h1>{friend.name}</h1>
+          </div>
+          <div className="friend-record__actions">
+            {access.can("repayments.create") ? (
+              <Link
+                className="action-link action-link--quiet"
+                href={`${base}/repayments?create=1&friendId=${friend.id}`}
+              >
+                Record repayment
+              </Link>
+            ) : null}
+            <Link className="friend-record__back" href={`${base}/friends`}>
+              ← Back to friends
+            </Link>
+          </div>
+        </div>
+        <section className="friend-record__summary" aria-label="Friend summary">
+          <section
+            className="friend-record__balance"
+            aria-labelledby="friend-balance-heading"
+          >
+            <h2 id="friend-balance-heading">Balance</h2>
+            <div className="friend-record__balance-primary">
+              {currentBalance.assignedAmount === 0 ? (
+                <strong>No balance yet</strong>
+              ) : currentBalance.outstandingAmount === 0 ? (
+                <strong>Settled</strong>
+              ) : (
+                <>
+                  <span className="technical-label">Still owes</span>
+                  <strong>
+                    {formatRupiah(currentBalance.outstandingAmount)}
+                  </strong>
+                </>
+              )}
+            </div>
+            <dl>
+              <div>
+                <dt>Assigned</dt>
+                <dd>{formatRupiah(currentBalance.assignedAmount)}</dd>
+              </div>
+              <div>
+                <dt>Applied</dt>
+                <dd>{formatRupiah(currentBalance.repaidAmount)}</dd>
+              </div>
+            </dl>
+          </section>
+          <div className="friend-record__meta">
+            <div>
+              <span className="technical-label">Record state</span>
+              <strong>{friend.archivedAt ? "ARCHIVED" : "ACTIVE"}</strong>
+            </div>
+            <div>
+              <span className="technical-label">Created</span>
+              <LocalDateTime iso={friend.createdAt.toISOString()} mode="date" />
+            </div>
+          </div>
+        </section>
+        {canManage ? (
+          <div className="friend-record__form">
+            <p className="technical-label">EDIT RECORD</p>
+            <FriendForm
+              action={updateFriendAction.bind(null, organizationId, friend.id)}
+              mode="edit"
+              initialValues={{
+                name: friend.name,
+                phoneNumber: friend.phoneNumber ?? "",
+                notes: friend.notes ?? "",
+              }}
+            />
+            <FriendArchiveForm
+              action={(friend.archivedAt
+                ? restoreFriendAction
+                : archiveFriendAction
+              ).bind(null, organizationId, friend.id)}
+              archived={friend.archivedAt !== null}
+              undoAction={undoFriendArchiveAction.bind(null, organizationId)}
+            />
+          </div>
+        ) : null}
+        <section
+          className="record-history ledger-section"
+          id="friend-expense-shares"
+        >
+          <div className="ledger-section__heading">
+            <div>
+              <p className="technical-label">SHARE HISTORY</p>
+              <h2>Expense shares</h2>
+            </div>
+            <span className="technical-label">{shares.totalItems} entries</span>
+          </div>
+          {shares.items.length ? (
+            <div className="record-history__rows">
+              {shares.items.map((share) => (
+                <article className="record-history__row" key={share.id}>
+                  <div className="record-history__primary">
+                    <span className="technical-label">EXPENSE SHARE</span>
+                    <h3>
+                      <Link href={`${base}/expenses/${share.expenseId}`}>
+                        {share.expenseDescription}
+                      </Link>
+                    </h3>
+                    <p>
+                      {share.outingTitle} ·{" "}
+                      <LocalDateTime
+                        iso={share.outingOccurredAt.toISOString()}
+                        mode="date"
+                      />
+                    </p>
+                  </div>
+                  <div className="record-history__values">
+                    <span>
+                      <span className="technical-label">Assigned</span>
+                      <strong>{formatRupiah(share.amountOwed)}</strong>
+                    </span>
+                    <span>
+                      <span className="technical-label">Remaining</span>
+                      <strong>{formatRupiah(share.remainingAmount)}</strong>
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="ledger-empty">
+              <h3>No expense shares recorded yet.</h3>
+            </div>
+          )}
+          <RecordPagination
+            page={shares.page}
+            pageSize={shares.pageSize}
+            totalItems={shares.totalItems}
+            totalPages={shares.totalPages}
+            href={`${base}/friends/${friend.id}`}
+            anchor="friend-expense-shares"
+            pageParam="expensePage"
+          />
+        </section>
+        <section
+          className="record-history ledger-section"
+          id="friend-repayments"
+        >
+          <div className="ledger-section__heading">
+            <div>
+              <p className="technical-label">REPAYMENT HISTORY</p>
+              <h2>Repayments</h2>
+            </div>
+            <span className="technical-label">
+              {repayments.totalItems} entries
+            </span>
+          </div>
+          {repayments.items.length ? (
+            <div className="record-history__rows">
+              {repayments.items.map((repayment) => (
+                <article className="record-history__row" key={repayment.id}>
+                  <div className="record-history__primary">
+                    <span className="technical-label">REPAYMENT</span>
+                    <h3>
+                      <Link href={`${base}/repayments/${repayment.id}`}>
+                        <LocalDateTime
+                          iso={repayment.paidAt.toISOString()}
+                          mode="date"
+                        />
+                      </Link>
+                    </h3>
+                  </div>
+                  <div className="record-history__value">
+                    <span className="technical-label">Received</span>
+                    <strong>{formatRupiah(repayment.amount)}</strong>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="ledger-empty">
+              <h3>No repayments recorded yet.</h3>
+            </div>
+          )}
+          <RecordPagination
+            page={repayments.page}
+            pageSize={repayments.pageSize}
+            totalItems={repayments.totalItems}
+            totalPages={repayments.totalPages}
+            href={`${base}/friends/${friend.id}`}
+            anchor="friend-repayments"
+            pageParam="repaymentPage"
+          />
+        </section>
+      </div>
+    </section>
+  );
 }
