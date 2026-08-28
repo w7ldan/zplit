@@ -20,5 +20,5 @@ export function GroupIdentity({ group }: { group: { id: string; name: string; av
 export function GroupNavigation({ groupId, canManageGroup }: { groupId: string; canManageGroup: boolean }) {
   const pathname = usePathname() ?? "";
   const base = `/app/personal/groups/${groupId}`;
-  return <nav className="group-context__nav" aria-label="Group navigation"><Link href={base} aria-current={pathname === base ? "page" : undefined}>Overview</Link><Link href={`${base}/people`} aria-current={pathname.startsWith(`${base}/people`) ? "page" : undefined}>People</Link>{canManageGroup ? <Link href={`${base}/settings`} aria-current={pathname.startsWith(`${base}/settings`) ? "page" : undefined}>Settings</Link> : null}</nav>;
+  return <nav className="group-context__nav" aria-label="Group navigation"><Link href={base} aria-current={pathname === base ? "page" : undefined}>Overview</Link><Link href={`${base}/expenses`} aria-current={pathname.startsWith(`${base}/expenses`) ? "page" : undefined}>Expenses</Link><Link href={`${base}/people`} aria-current={pathname.startsWith(`${base}/people`) ? "page" : undefined}>People</Link>{canManageGroup ? <Link href={`${base}/settings`} aria-current={pathname.startsWith(`${base}/settings`) ? "page" : undefined}>Settings</Link> : null}</nav>;
 }
