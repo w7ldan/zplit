@@ -117,7 +117,9 @@ async function countRaceRows(pool: Pool, groupId: string, memberId: string, part
   const membership = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM group_memberships WHERE group_id = $1 AND user_id = $2", [groupId, memberId]);
   const expenses = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM group_expenses WHERE group_id = $1 AND description = $2", [groupId, description]);
   const shares = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM group_expense_shares WHERE group_id = $1 AND participant_id = $2 AND expense_id IN (SELECT id FROM group_expenses WHERE group_id = $1 AND description = $3)", [groupId, participantId, description]);
-  return { membership: Number(membership.rows[0]?.count ?? 0), expenses: Number(expenses.rows[0]?.count ?? 0), shares: Number(shares.rows[0]?.count ?? 0) };
+  const expenseShares = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM group_expense_shares WHERE group_id = $1 AND expense_id IN (SELECT id FROM group_expenses WHERE group_id = $1 AND description = $2)", [groupId, description]);
+  const obligations = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM group_obligations WHERE group_id = $1 AND source_expense_id IN (SELECT id FROM group_expenses WHERE group_id = $1 AND description = $2)", [groupId, description]);
+  return { membership: Number(membership.rows[0]?.count ?? 0), expenses: Number(expenses.rows[0]?.count ?? 0), shares: Number(shares.rows[0]?.count ?? 0), expenseShares: Number(expenseShares.rows[0]?.count ?? 0), obligations: Number(obligations.rows[0]?.count ?? 0) };
 }
 
 export async function runGroupAccountingSmoke() {
@@ -325,6 +327,54 @@ export async function runGroupAccountingSmoke() {
       assert(removalFirstState.membership === 0 && removalFirstState.expenses === 0 && removalFirstState.shares === 0, "removal-first race did not produce the valid serial outcome");
     } finally {
       if (!removalFirstLockReleased) await removalFirstMembershipLock.release(false);
+    }
+
+    const creatorExpenseFirst = await raceFixture(pool, database, users[0]!.id, users[2]!.id, groupIds);
+    const creatorExpenseFirstMembershipLock = await holdMembership(pool, creatorExpenseFirst.groupId, users[2]!.id);
+    let creatorExpenseFirstLockReleased = false;
+    try {
+      let expenseSettled = false;
+      const expensePromise = createGroupExpense(database, creatorExpenseFirst.groupId, users[2]!.id, {
+        description: "Creator race expense first",
+        occurredAt: new Date("2026-08-28T01:00:00.000Z"),
+        totalAmount: 2,
+        payerParticipantId: creatorExpenseFirst.ownerParticipant,
+        shares: [{ participantId: creatorExpenseFirst.ownerParticipant, amount: 2 }],
+      }).finally(() => { expenseSettled = true; });
+      await waitForParticipantLock(pool, creatorExpenseFirst.memberParticipant);
+      assert(!expenseSettled, "creator expense creation continued without locking its participant");
+      const removalPromise = removeGroupMember(database, creatorExpenseFirst.groupId, users[0]!.id, users[2]!.id);
+      await creatorExpenseFirstMembershipLock.release();
+      creatorExpenseFirstLockReleased = true;
+      const [expenseResult, removalResult] = await Promise.allSettled([expensePromise, removalPromise]);
+      assert(expenseResult.status === "fulfilled" && removalResult.status === "fulfilled", "creator expense-first membership race did not serialize");
+      const state = await countRaceRows(pool, creatorExpenseFirst.groupId, users[2]!.id, creatorExpenseFirst.memberParticipant, "Creator race expense first");
+      assert(state.membership === 0 && state.expenses === 1 && state.shares === 0 && state.expenseShares === 1 && state.obligations === 0, "creator expense-first race did not preserve the valid serial outcome");
+    } finally {
+      if (!creatorExpenseFirstLockReleased) await creatorExpenseFirstMembershipLock.release(false);
+    }
+
+    const creatorRemovalFirst = await raceFixture(pool, database, users[0]!.id, users[2]!.id, groupIds);
+    const creatorRemovalFirstMembershipLock = await holdMembership(pool, creatorRemovalFirst.groupId, users[2]!.id);
+    let creatorRemovalFirstLockReleased = false;
+    try {
+      const removalPromise = removeGroupMember(database, creatorRemovalFirst.groupId, users[0]!.id, users[2]!.id);
+      await waitForParticipantLock(pool, creatorRemovalFirst.memberParticipant);
+      const expensePromise = createGroupExpense(database, creatorRemovalFirst.groupId, users[2]!.id, {
+        description: "Creator race removal first",
+        occurredAt: new Date("2026-08-28T02:00:00.000Z"),
+        totalAmount: 2,
+        payerParticipantId: creatorRemovalFirst.ownerParticipant,
+        shares: [{ participantId: creatorRemovalFirst.ownerParticipant, amount: 2 }],
+      });
+      await creatorRemovalFirstMembershipLock.release();
+      creatorRemovalFirstLockReleased = true;
+      await removalPromise;
+      await expectCode(() => expensePromise, "not_member");
+      const state = await countRaceRows(pool, creatorRemovalFirst.groupId, users[2]!.id, creatorRemovalFirst.memberParticipant, "Creator race removal first");
+      assert(state.membership === 0 && state.expenses === 0 && state.shares === 0 && state.expenseShares === 0 && state.obligations === 0, "creator removal-first race committed stale creator financial rows");
+    } finally {
+      if (!creatorRemovalFirstLockReleased) await creatorRemovalFirstMembershipLock.release(false);
     }
 
     const linkRequest = await createGroupParticipantLinkRequest(database, group.id, external.id, users[0]!.id, users[3]!.username);

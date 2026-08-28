@@ -119,7 +119,7 @@ async function lockExpenseEligibility(database: Database, groupId: string, creat
   const participantById = new Map(participants.map((participant) => [participant.id, participant]));
   const membershipByParticipantId = new Map(memberships.map((membership) => [membership.participantId, membership]));
   const creator = participantById.get(creatorMembership.participantId);
-  if (!creator || creator.userId !== creatorUserId) throw new GroupAccountingError("not_member");
+  if (!creator || creator.userId !== creatorUserId || membershipByParticipantId.get(creator.id)?.userId !== creatorUserId) throw new GroupAccountingError("not_member");
   const payer = participantById.get(values.payerParticipantId);
   if (!payer) throw new GroupAccountingError("payer_not_found");
   if (!payer.userId) throw new GroupAccountingError("payer_external");
