@@ -91,6 +91,48 @@ async function getActiveParticipantForUser(database: Database, groupId: string, 
   return row.participantId;
 }
 
+async function lockExpenseEligibility(database: Database, groupId: string, creatorUserId: string, values: GroupExpenseInput) {
+  const shareTotal = values.shares.reduce((total, share) => total + BigInt(share.amount), BigInt(0));
+  if (shareTotal !== BigInt(values.totalAmount)) throw new GroupAccountingError("share_total_mismatch");
+  const [creatorMembership] = await database
+    .select({ participantId: groupMemberships.participantId })
+    .from(groupMemberships)
+    .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, creatorUserId)))
+    .limit(1);
+  if (!creatorMembership) throw new GroupAccountingError("not_member");
+
+  const participantIds = [...new Set([creatorMembership.participantId, values.payerParticipantId, ...values.shares.map(({ participantId }) => participantId)])].sort();
+  const participants = await database
+    .select({ id: groupParticipants.id, userId: groupParticipants.userId })
+    .from(groupParticipants)
+    .where(and(eq(groupParticipants.groupId, groupId), inArray(groupParticipants.id, participantIds)))
+    .orderBy(asc(groupParticipants.id))
+    .for("update");
+
+  const memberships = await database
+    .select({ participantId: groupMemberships.participantId, userId: groupMemberships.userId })
+    .from(groupMemberships)
+    .where(and(eq(groupMemberships.groupId, groupId), inArray(groupMemberships.participantId, participantIds)))
+    .orderBy(asc(groupMemberships.participantId), asc(groupMemberships.userId))
+    .for("update");
+
+  const participantById = new Map(participants.map((participant) => [participant.id, participant]));
+  const membershipByParticipantId = new Map(memberships.map((membership) => [membership.participantId, membership]));
+  const creator = participantById.get(creatorMembership.participantId);
+  if (!creator || creator.userId !== creatorUserId) throw new GroupAccountingError("not_member");
+  const payer = participantById.get(values.payerParticipantId);
+  if (!payer) throw new GroupAccountingError("payer_not_found");
+  if (!payer.userId) throw new GroupAccountingError("payer_external");
+  const payerMembership = membershipByParticipantId.get(payer.id);
+  if (!payerMembership || payerMembership.userId !== payer.userId) throw new GroupAccountingError("payer_not_active");
+  const shares = values.shares.map((share) => participantById.get(share.participantId));
+  if (shares.some((participant) => !participant)) throw new GroupAccountingError("participant_not_found");
+  for (const participant of shares) {
+    if (participant?.userId && membershipByParticipantId.get(participant.id)?.userId !== participant.userId) throw new GroupAccountingError("participant_not_eligible");
+  }
+  return { creatorParticipantId: creator.id };
+}
+
 async function assertPayer(database: Database, groupId: string, participantId: string) {
   const [participant] = await database
     .select({ id: groupParticipants.id, userId: groupParticipants.userId })
@@ -108,27 +150,6 @@ async function assertPayer(database: Database, groupId: string, participantId: s
     .for("update");
   if (!membership) throw new GroupAccountingError("payer_not_active");
   return participant;
-}
-
-async function assertShareParticipants(database: Database, groupId: string, totalAmount: number, shares: GroupExpenseInput["shares"]) {
-  const shareTotal = shares.reduce((total, share) => total + BigInt(share.amount), BigInt(0));
-  if (shareTotal !== BigInt(totalAmount)) throw new GroupAccountingError("share_total_mismatch");
-  const ids = shares.map(({ participantId }) => participantId);
-  const rows = await database
-    .select({ id: groupParticipants.id, userId: groupParticipants.userId })
-    .from(groupParticipants)
-    .where(and(eq(groupParticipants.groupId, groupId), inArray(groupParticipants.id, ids)))
-    .for("update");
-  if (rows.length !== ids.length) throw new GroupAccountingError("participant_not_found");
-  const activeRegisteredIds = new Set((await database
-    .select({ participantId: groupMemberships.participantId })
-    .from(groupMemberships)
-    .where(and(eq(groupMemberships.groupId, groupId), inArray(groupMemberships.participantId, ids))))
-    .map(({ participantId }) => participantId));
-  for (const row of rows) {
-    if (row.userId && !activeRegisteredIds.has(row.id)) throw new GroupAccountingError("participant_not_eligible");
-  }
-  return rows;
 }
 
 async function materializeObligations(database: Database, groupId: string, expense: GroupExpenseRecord, shares: GroupExpenseShareRecord[]) {
@@ -171,11 +192,7 @@ async function createExpense(database: Database, groupId: string, creatorUserId:
     return await database.transaction(async (transaction) => {
       const transactionalDatabase = transaction as Database;
       await requireGroupAccess(transactionalDatabase, groupId, creatorUserId);
-      const creatorParticipantId = await getActiveParticipantForUser(transactionalDatabase, groupId, creatorUserId);
-      await assertPayer(transactionalDatabase, groupId, values.payerParticipantId);
-      const participants = await assertShareParticipants(transactionalDatabase, groupId, values.totalAmount, values.shares);
-      const participantIds = new Set(participants.map(({ id }) => id));
-      if (participantIds.size !== values.shares.length) throw new GroupAccountingError("participant_not_found");
+      const { creatorParticipantId } = await lockExpenseEligibility(transactionalDatabase, groupId, creatorUserId, values);
       const now = new Date();
       const [expense] = await transaction
         .insert(groupExpenses)

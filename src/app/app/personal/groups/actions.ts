@@ -71,10 +71,12 @@ export async function updateGroupAction(groupId: string, _previousState: GroupAc
 
 export async function deleteGroupAction(groupId: string) {
   const session = await requireSession();
-  try { await deleteGroup(getDatabase(), groupId, session.user.id); } catch { /* keep deletion details private */ }
+  let blockedByFinancialHistory = false;
+  try { await deleteGroup(getDatabase(), groupId, session.user.id); }
+  catch (error) { blockedByFinancialHistory = error instanceof GroupError && error.code === "financial_history"; }
   revalidatePath("/app/personal");
   revalidatePath("/app/personal/groups");
-  redirect("/app/personal/groups");
+  redirect(blockedByFinancialHistory ? `/app/personal/groups/${groupId}/settings?error=financial_history` : "/app/personal/groups");
 }
 
 function participantValues(formData: FormData) { return { displayName: typeof formData.get("displayName") === "string" ? String(formData.get("displayName")) : "", label: typeof formData.get("label") === "string" ? String(formData.get("label")) : "" }; }

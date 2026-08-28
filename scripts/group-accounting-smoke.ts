@@ -3,25 +3,30 @@ import { createRequire } from "node:module";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "../src/db/schema";
+import type { Database } from "../src/db/client";
 import { formatSafeError, readDatabaseConfig } from "./migrate.js";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
 if (!require.cache[serverOnlyPath]) require.cache[serverOnlyPath] = { exports: {} } as never;
 const { createGroupExpense, confirmGroupExpenseAsPayer, createGroupAccountingRepository } = await import("../src/server/group-accounting");
-const { createExternalParticipant, createGroup } = await import("../src/server/groups");
+const { createExternalParticipant, createGroup, removeGroupMember } = await import("../src/server/groups");
 const { acceptGroupJoinRequest, createGroupParticipantLinkRequest } = await import("../src/server/group-join-requests");
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+function errorCode(error: unknown) {
+  return error instanceof Error && "code" in error ? (error as { code?: unknown }).code : error instanceof Error && error.cause && typeof error.cause === "object" && "code" in error.cause ? (error.cause as { code?: unknown }).code : undefined;
+}
+
 async function expectCode(action: () => Promise<unknown>, code: string) {
   try {
     await action();
   } catch (error) {
-    const errorCode = error instanceof Error && "code" in error ? (error as { code?: unknown }).code : error instanceof Error && error.cause && typeof error.cause === "object" && "code" in error.cause ? (error.cause as { code?: unknown }).code : undefined;
-    assert(errorCode === code, `expected ${code}, got ${error instanceof Error ? `${error.message} ${String(errorCode ?? "")}` : "unknown"}`);
+    const actualCode = errorCode(error);
+    assert(actualCode === code, `expected ${code}, got ${error instanceof Error ? `${error.message} ${String(actualCode ?? "")}` : "unknown"}`);
     return;
   }
   throw new Error(`expected ${code}`);
@@ -49,6 +54,70 @@ async function addMember(pool: Pool, groupId: string, userId: string) {
   await pool.query("INSERT INTO group_participants (id, group_id, user_id) VALUES ($1, $2, $3)", [participantId, groupId, userId]);
   await pool.query("INSERT INTO group_memberships (group_id, user_id, participant_id, role) VALUES ($1, $2, $3, 'member')", [groupId, userId, participantId]);
   return participantId;
+}
+
+async function holdMembership(pool: Pool, groupId: string, userId: string) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT participant_id FROM group_memberships WHERE group_id = $1 AND user_id = $2 FOR UPDATE", [groupId, userId]);
+    let released = false;
+    return {
+      async release(commit = true) {
+        if (released) return;
+        released = true;
+        try { await client.query(commit ? "COMMIT" : "ROLLBACK"); } finally { client.release(); }
+      },
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    client.release();
+    throw error;
+  }
+}
+
+async function waitForParticipantLock(pool: Pool, participantId: string) {
+  const client = await pool.connect();
+  const deadline = Date.now() + 5_000;
+  try {
+    while (Date.now() < deadline) {
+      await client.query("BEGIN");
+      try {
+        await client.query("SELECT id FROM group_participants WHERE id = $1 FOR UPDATE NOWAIT", [participantId]);
+      } catch (error) {
+        await client.query("ROLLBACK");
+        if (error instanceof Error && "code" in error && error.code === "55P03") return;
+        throw error;
+      }
+      await client.query("ROLLBACK");
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+  } finally {
+    client.release();
+  }
+  throw new Error(`participant lock was not observed for ${participantId}`);
+}
+
+async function raceFixture(pool: Pool, database: Database, ownerId: string, memberId: string, groupIds: string[]) {
+  const group = await createGroup(database, ownerId, { name: "Membership race" });
+  groupIds.push(group.id);
+  const ownerParticipant = (await pool.query<{ participant_id: string }>("SELECT participant_id FROM group_memberships WHERE group_id = $1 AND user_id = $2", [group.id, ownerId])).rows[0]!.participant_id;
+  const memberParticipant = await addMember(pool, group.id, memberId);
+  await createGroupExpense(database, group.id, ownerId, {
+    description: "History seed",
+    occurredAt: new Date("2026-08-27T22:00:00.000Z"),
+    totalAmount: 1,
+    payerParticipantId: ownerParticipant,
+    shares: [{ participantId: memberParticipant, amount: 1 }],
+  });
+  return { groupId: group.id, ownerParticipant, memberParticipant };
+}
+
+async function countRaceRows(pool: Pool, groupId: string, memberId: string, participantId: string, description: string) {
+  const membership = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM group_memberships WHERE group_id = $1 AND user_id = $2", [groupId, memberId]);
+  const expenses = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM group_expenses WHERE group_id = $1 AND description = $2", [groupId, description]);
+  const shares = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM group_expense_shares WHERE group_id = $1 AND participant_id = $2 AND expense_id IN (SELECT id FROM group_expenses WHERE group_id = $1 AND description = $3)", [groupId, participantId, description]);
+  return { membership: Number(membership.rows[0]?.count ?? 0), expenses: Number(expenses.rows[0]?.count ?? 0), shares: Number(shares.rows[0]?.count ?? 0) };
 }
 
 export async function runGroupAccountingSmoke() {
@@ -208,6 +277,56 @@ export async function runGroupAccountingSmoke() {
     ]);
     assert(confirmations.every((result) => result.status === "fulfilled"), "concurrent confirmation did not be idempotent");
     assert(await count(pool, "group_obligations", group.id, concurrentExpense.id) === 2, "concurrent confirmation duplicated obligations");
+
+    const expenseFirst = await raceFixture(pool, database, users[0]!.id, users[2]!.id, groupIds);
+    const expenseFirstMembershipLock = await holdMembership(pool, expenseFirst.groupId, users[2]!.id);
+    let expenseFirstLockReleased = false;
+    try {
+      let expenseSettled = false;
+      const expensePromise = createGroupExpense(database, expenseFirst.groupId, users[0]!.id, {
+        description: "Race expense first",
+        occurredAt: new Date("2026-08-27T23:00:00.000Z"),
+        totalAmount: 2,
+        payerParticipantId: expenseFirst.ownerParticipant,
+        shares: [{ participantId: expenseFirst.memberParticipant, amount: 2 }],
+      }).finally(() => { expenseSettled = true; });
+      await waitForParticipantLock(pool, expenseFirst.memberParticipant);
+      assert(!expenseSettled, "expense creation continued without locking the member membership");
+      const removalPromise = removeGroupMember(database, expenseFirst.groupId, users[0]!.id, users[2]!.id);
+      await expenseFirstMembershipLock.release();
+      expenseFirstLockReleased = true;
+      const [expenseResult, removalResult] = await Promise.allSettled([expensePromise, removalPromise]);
+      assert(expenseResult.status === "fulfilled" && removalResult.status === "fulfilled", "expense-first membership race did not serialize");
+      const expenseFirstState = await countRaceRows(pool, expenseFirst.groupId, users[2]!.id, expenseFirst.memberParticipant, "Race expense first");
+      assert(expenseFirstState.membership === 0 && expenseFirstState.expenses === 1 && expenseFirstState.shares === 1, "expense-first race did not produce the valid serial outcome");
+    } finally {
+      if (!expenseFirstLockReleased) await expenseFirstMembershipLock.release(false);
+    }
+
+    const removalFirst = await raceFixture(pool, database, users[0]!.id, users[2]!.id, groupIds);
+    const removalFirstMembershipLock = await holdMembership(pool, removalFirst.groupId, users[2]!.id);
+    let removalFirstLockReleased = false;
+    try {
+      const removalPromise = removeGroupMember(database, removalFirst.groupId, users[0]!.id, users[2]!.id);
+      await waitForParticipantLock(pool, removalFirst.memberParticipant);
+      const expensePromise = createGroupExpense(database, removalFirst.groupId, users[0]!.id, {
+        description: "Race removal first",
+        occurredAt: new Date("2026-08-28T00:00:00.000Z"),
+        totalAmount: 2,
+        payerParticipantId: removalFirst.ownerParticipant,
+        shares: [{ participantId: removalFirst.memberParticipant, amount: 2 }],
+      });
+      await removalFirstMembershipLock.release();
+      removalFirstLockReleased = true;
+      const [removalResult, expenseResult] = await Promise.allSettled([removalPromise, expensePromise]);
+      assert(removalResult.status === "fulfilled", "removal-first membership race did not remove the member");
+      assert(expenseResult.status === "rejected" && errorCode(expenseResult.reason) === "participant_not_eligible", "removal-first race accepted a former participant");
+      const removalFirstState = await countRaceRows(pool, removalFirst.groupId, users[2]!.id, removalFirst.memberParticipant, "Race removal first");
+      assert(removalFirstState.membership === 0 && removalFirstState.expenses === 0 && removalFirstState.shares === 0, "removal-first race did not produce the valid serial outcome");
+    } finally {
+      if (!removalFirstLockReleased) await removalFirstMembershipLock.release(false);
+    }
+
     const linkRequest = await createGroupParticipantLinkRequest(database, group.id, external.id, users[0]!.id, users[3]!.username);
     await acceptGroupJoinRequest(database, users[3]!.id, linkRequest.id);
     const linkedParticipant = await pool.query<{ id: string; user_id: string | null }>("SELECT id, user_id FROM group_participants WHERE group_id = $1 AND id = $2", [group.id, external.id]);

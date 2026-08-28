@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { groupMemberships, groupParticipants, groups } from "@/db/schema";
-import { createExternalParticipant, createGroup, deleteExternalParticipant, GroupError, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
+import { createExternalParticipant, createGroup, deleteExternalParticipant, deleteGroup, GroupError, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
 
 vi.mock("server-only", () => ({}));
 
@@ -24,7 +24,7 @@ const otherGroupId = "22222222-2222-4222-8222-222222222222";
 const participantId = "33333333-3333-4333-8333-333333333333";
 
 function removalDatabase(actorRole: string, target: Record<string, unknown> | null = { role: "member", participantId, participantGroupId: groupId, participantUserId: "user-b" }, membershipDelete: unknown[] = [{ userId: "user-b" }], participantDelete: unknown[] = [{ id: participantId }], hasFinancialHistory = false) {
-  const selects = [[{ role: actorRole }], target ? [target] : [], hasFinancialHistory ? [{ id: "expense-a" }] : [], [], []];
+  const selects = [[{ role: actorRole }], target && target.participantGroupId === groupId ? [{ id: target.participantId, participantGroupId: target.participantGroupId, participantUserId: target.participantUserId }] : [], target ? [{ role: target.role, participantId: target.participantId, userId: target.participantUserId }] : [], hasFinancialHistory ? [{ id: "expense-a" }] : [], [], []];
   const deletedTables: unknown[] = [];
   const transaction = {
     select: vi.fn(() => chain(selects.shift() ?? [])),
@@ -90,6 +90,34 @@ describe("groups", () => {
       { groupId, displayName: "Alice", label: "Fasilkom" },
       { groupId, displayName: "Alice", label: "SMA" },
     ]);
+  });
+
+  it("refuses to delete a Group with financial history before touching its records", async () => {
+    const transaction = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain([{ id: "expense-a" }])),
+      delete: vi.fn(() => chain([])),
+    };
+    const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
+
+    await expect(deleteGroup(database, groupId, "user-a")).rejects.toMatchObject({ code: "financial_history" });
+    expect(transaction.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes an empty Group in one transaction", async () => {
+    const transaction = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([])),
+      delete: vi.fn(() => chain([{ id: groupId }])),
+    };
+    const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
+
+    await expect(deleteGroup(database, groupId, "user-a")).resolves.toBe(true);
+    expect(transaction.delete).toHaveBeenCalledWith(groups);
   });
 
   it("cannot update a participant from another Group or edit a registered identity", async () => {
