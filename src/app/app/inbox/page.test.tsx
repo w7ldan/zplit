@@ -140,4 +140,18 @@ describe("/app/inbox", () => {
     expect(screen.getByRole("button", { name: "Accept link" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
   });
+
+  it("links repeated payer-claim notifications to their own Group expenses", async () => {
+    const groupId = "66666666-6666-4666-8666-666666666666";
+    const firstExpenseId = "77777777-7777-4777-8777-777777777777";
+    const secondExpenseId = "88888888-8888-4888-8888-888888888888";
+    const notification = (id: string, expenseId: string) => ({ id, type: "group.expense.payer.claim", metadata: { expenseId, groupId, groupName: "Bandung Trip", description: "Dinner" }, createdAt: new Date("2026-08-25T07:00:00Z"), readAt: null, recipientUserId: "user-a", dedupeKey: `group-expense-payer-claim:${expenseId}` });
+    mocks.getPage.mockResolvedValue({ rows: [notification("notification-a", firstExpenseId), notification("notification-b", secondExpenseId)], page: 1, pageSize: 20, totalItems: 2, totalPages: 1 });
+    mocks.getUnread.mockResolvedValue(2);
+    render(await InboxPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getAllByRole("link", { name: "Review expense" }).map((link) => link.getAttribute("href"))).toEqual([
+      `/app/personal/groups/${groupId}/expenses/${firstExpenseId}`,
+      `/app/personal/groups/${groupId}/expenses/${secondExpenseId}`,
+    ]);
+  });
 });

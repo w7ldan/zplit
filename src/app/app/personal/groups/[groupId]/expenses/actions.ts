@@ -7,7 +7,9 @@ import { getDatabase } from "@/db/client";
 import { GroupAccountingInputError, normalizeGroupExpenseInput } from "@/domain/group-accounting";
 import type { GroupExpenseActionState, GroupExpenseConfirmationState, GroupExpenseFormValues } from "@/domain/group-contracts";
 import { parseLocalDateTime } from "@/domain/outing-input";
-import { GroupAccountingError, confirmGroupExpenseAsPayer, createGroupExpense } from "@/server/group-accounting";
+import { normalizeUuid } from "@/domain/record-retrieval";
+import { GroupAccountingError, confirmGroupExpenseAsPayer, createGroupExpense, rejectGroupExpenseAsPayer, voidGroupExpenseAsPayer } from "@/server/group-accounting";
+import type { Database } from "@/db/client";
 
 export type { GroupExpenseActionState, GroupExpenseConfirmationState, GroupExpenseFormValues, GroupExpenseShareFormValue } from "@/domain/group-contracts";
 
@@ -83,21 +85,42 @@ export async function createGroupExpenseAction(groupId: string, _previousState: 
 }
 
 export async function confirmGroupExpenseAction(groupId: string, expenseId: string, _previousState: GroupExpenseConfirmationState, _formData: FormData): Promise<GroupExpenseConfirmationState> {
+  return groupExpenseLifecycleAction(groupId, expenseId, "confirm", confirmGroupExpenseAsPayer, "Expense confirmed. Participant obligations are now authoritative.", _previousState, _formData);
+}
+
+export async function rejectGroupExpenseAction(groupId: string, expenseId: string, _previousState: GroupExpenseConfirmationState, _formData: FormData): Promise<GroupExpenseConfirmationState> {
+  return groupExpenseLifecycleAction(groupId, expenseId, "reject", rejectGroupExpenseAsPayer, "Claim rejected. This expense remains in history without a current balance effect.", _previousState, _formData);
+}
+
+export async function voidGroupExpenseAction(groupId: string, expenseId: string, _previousState: GroupExpenseConfirmationState, _formData: FormData): Promise<GroupExpenseConfirmationState> {
+  return groupExpenseLifecycleAction(groupId, expenseId, "void", voidGroupExpenseAsPayer, "Expense voided. Its current balance effect was reversed; the expense remains in history.", _previousState, _formData);
+}
+
+type GroupExpenseLifecycleOperation = (database: Database, groupId: string, expenseId: string, userId: string) => Promise<unknown>;
+
+function lifecycleError(error: unknown, operation: "confirm" | "reject" | "void") {
+  if (!(error instanceof GroupAccountingError)) return `Unable to ${operation} this expense.`;
+  if (error.code === "forbidden") return operation === "void" ? "Only the current active payer can void this expense." : `Only the claimed payer can ${operation} this expense.`;
+  if (error.code === "not_member") return "You are no longer a member of this Group.";
+  if (error.code === "invalid_state") return operation === "void" ? "This expense is no longer confirmed." : "This expense is no longer pending.";
+  if (error.code === "financial_integrity") return "The accounting data changed. Reload and try again.";
+  return "This expense is no longer available.";
+}
+
+async function groupExpenseLifecycleAction(groupId: string, expenseId: string, operation: "confirm" | "reject" | "void", run: GroupExpenseLifecycleOperation, success: string, _previousState: GroupExpenseConfirmationState, _formData: FormData): Promise<GroupExpenseConfirmationState> {
   void _previousState;
   void _formData;
+  if (!normalizeUuid(groupId) || !normalizeUuid(expenseId)) return { error: "This expense is no longer available." };
   const session = await requireSession();
   try {
-    await confirmGroupExpenseAsPayer(getDatabase(), groupId, expenseId, session.user.id);
+    await run(getDatabase(), groupId, expenseId, session.user.id);
   } catch (error) {
-    if (error instanceof GroupAccountingError) {
-      const message = error.code === "forbidden" ? "Only the claimed payer can confirm this expense." : error.code === "not_member" ? "You are no longer a member of this Group." : error.code === "invalid_state" ? "This expense is no longer pending." : "This expense is no longer available.";
-      return { error: message };
-    }
-    return { error: "Unable to confirm this expense." };
+    return { error: lifecycleError(error, operation) };
   }
   const path = `/app/personal/groups/${groupId}/expenses`;
   revalidatePath(`/app/personal/groups/${groupId}`);
   revalidatePath(path);
   revalidatePath(`${path}/${expenseId}`);
-  return { error: "", success: "Expense confirmed. Participant obligations are now authoritative." };
+  revalidatePath("/app/inbox");
+  return { error: "", success };
 }

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(),
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/group-accounting", () => ({ createGroupAccountingRepository: mocks.createGroupAccountingRepository, GroupAccountingError: class GroupAccountingError extends Error { constructor(readonly code: string) { super(code); } } }));
+vi.mock("@/components/realtime/group-expense-live-refresh", () => ({ GroupExpenseLiveRefresh: () => null }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
 import GroupExpensesPage from "./page";
@@ -29,6 +30,8 @@ describe("Group expenses page", () => {
     expect(screen.getByText("Shared spending recorded inside this Group. Confirmed expenses create participant-to-participant obligations.")).toBeInTheDocument();
     expect(screen.getByText("Needs your confirmation")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dinner" })).toHaveAttribute("href", "/app/personal/groups/group-a/expenses/expense-a");
+    expect(screen.getByRole("option", { name: "Rejected" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Voided" })).toBeInTheDocument();
     expect(mocks.createGroupAccountingRepository).toHaveBeenCalledWith("database", "group-a");
   });
 });

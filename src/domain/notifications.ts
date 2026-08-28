@@ -239,8 +239,8 @@ export const notificationCatalog = {
     parseMetadata: parseGroupExpensePayerClaimMetadata,
     present: (metadata: NotificationMetadata["group.expense.payer.claim"]): NotificationPresentation => ({
       label: "Group expense confirmation",
-      primary: `Confirm that you paid “${metadata.description}” in ${metadata.groupName}.`,
-      secondary: "Only your confirmation makes this expense authoritative.",
+      primary: `Review the claim that you paid “${metadata.description}” in ${metadata.groupName}.`,
+      secondary: "Confirm that you paid it or reject the claim.",
     }),
   },
 } as const;

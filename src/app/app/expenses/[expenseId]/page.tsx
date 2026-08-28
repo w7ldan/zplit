@@ -78,7 +78,7 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
                 } : null}
               />
             </div>
-            <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts} />
+            <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts.map((receipt) => ({ ...receipt, createdAt: receipt.createdAt.toISOString() }))} />
           </div>
           <aside className="expense-record__sidebar">
             <div className="expense-record__controls">

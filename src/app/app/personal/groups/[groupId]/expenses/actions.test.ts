@@ -4,18 +4,20 @@ const mocks = vi.hoisted(() => {
   class TestGroupAccountingError extends Error {
     constructor(readonly code: string) { super(code); }
   }
-  return { requireSession: vi.fn(), getDatabase: vi.fn(), createGroupExpense: vi.fn(), confirmGroupExpenseAsPayer: vi.fn(), revalidatePath: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }), GroupAccountingError: TestGroupAccountingError };
+  return { requireSession: vi.fn(), getDatabase: vi.fn(), createGroupExpense: vi.fn(), confirmGroupExpenseAsPayer: vi.fn(), rejectGroupExpenseAsPayer: vi.fn(), voidGroupExpenseAsPayer: vi.fn(), revalidatePath: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }), GroupAccountingError: TestGroupAccountingError };
 });
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
-vi.mock("@/server/group-accounting", () => ({ createGroupExpense: mocks.createGroupExpense, confirmGroupExpenseAsPayer: mocks.confirmGroupExpenseAsPayer, GroupAccountingError: mocks.GroupAccountingError }));
+vi.mock("@/server/group-accounting", () => ({ createGroupExpense: mocks.createGroupExpense, confirmGroupExpenseAsPayer: mocks.confirmGroupExpenseAsPayer, rejectGroupExpenseAsPayer: mocks.rejectGroupExpenseAsPayer, voidGroupExpenseAsPayer: mocks.voidGroupExpenseAsPayer, GroupAccountingError: mocks.GroupAccountingError }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
-import { confirmGroupExpenseAction, createGroupExpenseAction, type GroupExpenseActionState } from "./actions";
+import { confirmGroupExpenseAction, createGroupExpenseAction, rejectGroupExpenseAction, voidGroupExpenseAction, type GroupExpenseActionState } from "./actions";
 
 const payerId = "11111111-1111-4111-8111-111111111111";
+const groupId = "22222222-2222-4222-8222-222222222222";
+const expenseId = "33333333-3333-4333-8333-333333333333";
 const emptyGroupExpenseActionState: GroupExpenseActionState = { fieldErrors: {}, formError: "", values: { description: "", totalAmount: "", occurredAtLocal: "", timezoneOffsetMinutes: "", payerParticipantId: "", shares: [] } };
 
 function form(values: { payer: string; total?: string; shares?: Array<[string, string]> }) {
@@ -38,6 +40,9 @@ describe("Group expense actions", () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "user-a" } });
     mocks.getDatabase.mockReturnValue("database");
     mocks.createGroupExpense.mockResolvedValue({ id: "expense-a", state: "confirmed" });
+    mocks.confirmGroupExpenseAsPayer.mockResolvedValue({});
+    mocks.rejectGroupExpenseAsPayer.mockResolvedValue({});
+    mocks.voidGroupExpenseAsPayer.mockResolvedValue({});
   });
 
   it("uses the authenticated creator and redirects a self-payer expense", async () => {
@@ -62,11 +67,29 @@ describe("Group expense actions", () => {
   });
 
   it("keeps payer confirmation authoritative and maps non-payer denial", async () => {
-    const confirmed = await confirmGroupExpenseAction("group-a", "expense-a", { error: "" }, new FormData());
+    const confirmed = await confirmGroupExpenseAction(groupId, expenseId, { error: "" }, new FormData());
     expect(confirmed.success).toContain("authoritative");
-    expect(mocks.confirmGroupExpenseAsPayer).toHaveBeenCalledWith("database", "group-a", "expense-a", "user-a");
+    expect(mocks.confirmGroupExpenseAsPayer).toHaveBeenCalledWith("database", groupId, expenseId, "user-a");
 
     mocks.confirmGroupExpenseAsPayer.mockRejectedValue(new mocks.GroupAccountingError("forbidden"));
-    await expect(confirmGroupExpenseAction("group-a", "expense-a", { error: "" }, new FormData())).resolves.toEqual({ error: "Only the claimed payer can confirm this expense." });
+    await expect(confirmGroupExpenseAction(groupId, expenseId, { error: "" }, new FormData())).resolves.toEqual({ error: "Only the claimed payer can confirm this expense." });
+  });
+
+  it("routes reject and void through authoritative lifecycle operations", async () => {
+    await expect(rejectGroupExpenseAction(groupId, expenseId, { error: "" }, new FormData())).resolves.toMatchObject({ success: expect.stringContaining("Claim rejected.") });
+    expect(mocks.rejectGroupExpenseAsPayer).toHaveBeenCalledWith("database", groupId, expenseId, "user-a");
+
+    await expect(voidGroupExpenseAction(groupId, expenseId, { error: "" }, new FormData())).resolves.toMatchObject({ success: expect.stringContaining("Expense voided.") });
+    expect(mocks.voidGroupExpenseAsPayer).toHaveBeenCalledWith("database", groupId, expenseId, "user-a");
+  });
+
+  it("rejects invalid lifecycle identities without calling accounting", async () => {
+    await expect(confirmGroupExpenseAction("bad-group", expenseId, { error: "" }, new FormData())).resolves.toEqual({ error: "This expense is no longer available." });
+    expect(mocks.confirmGroupExpenseAsPayer).not.toHaveBeenCalled();
+  });
+
+  it("maps a stale lifecycle transition to a safe error", async () => {
+    mocks.confirmGroupExpenseAsPayer.mockRejectedValue(new mocks.GroupAccountingError("invalid_state"));
+    await expect(confirmGroupExpenseAction(groupId, expenseId, { error: "" }, new FormData())).resolves.toEqual({ error: "This expense is no longer pending." });
   });
 });

@@ -86,8 +86,8 @@ describe("notification catalog", () => {
     } as const;
     expect(presentNotification("group.expense.payer.claim", metadata)).toEqual({
       label: "Group expense confirmation",
-      primary: "Confirm that you paid “Dinner” in Bandung Trip.",
-      secondary: "Only your confirmation makes this expense authoritative.",
+      primary: "Review the claim that you paid “Dinner” in Bandung Trip.",
+      secondary: "Confirm that you paid it or reject the claim.",
     });
     expect(() => normalizeNotificationMetadata("group.expense.payer.claim", { ...metadata, expenseId: "not-an-id" })).toThrow("Invalid metadata");
   });

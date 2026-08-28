@@ -9,7 +9,7 @@ export type ExpenseReceipt = {
   originalFilename: string;
   mediaType: string;
   byteSize: number;
-  createdAt: Date | string;
+  createdAt: string;
 };
 
 type ExpenseReceiptsProps = {
@@ -17,6 +17,7 @@ type ExpenseReceiptsProps = {
   initialReceipts: ExpenseReceipt[];
   basePath?: string;
   canEdit?: boolean;
+  readOnlyMessage?: string;
 };
 
 function formatBytes(bytes: number) {
@@ -25,12 +26,12 @@ function formatBytes(bytes: number) {
   return `${bytes} B`;
 }
 
-function ReceiptDate({ value }: { value: Date | string }) {
+function ReceiptDate({ value }: { value: string }) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? <>Unknown date</> : <LocalDateTime iso={date.toISOString()} mode="date" />;
 }
 
-export function ExpenseReceipts({ expenseId, initialReceipts, basePath = "/app/expenses", canEdit = true }: ExpenseReceiptsProps) {
+export function ExpenseReceipts({ expenseId, initialReceipts, basePath = "/app/expenses", canEdit = true, readOnlyMessage }: ExpenseReceiptsProps) {
   const [receipts, setReceipts] = useState(initialReceipts);
   const [uploading, setUploading] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -108,6 +109,7 @@ export function ExpenseReceipts({ expenseId, initialReceipts, basePath = "/app/e
         </div>
         <span className="technical-label">{receipts.length}/5 · {formatBytes(totalBytes)}/15 MiB</span>
       </div>
+      {!canEdit && readOnlyMessage ? <p className="expense-receipts__readonly">{readOnlyMessage}</p> : null}
       {canEdit ? <form className="expense-receipts__upload" onSubmit={upload}>
         <div className="expense-receipts__file-picker">
           <label className="action-link action-link--quiet" htmlFor="expense-receipt-file">{selectedFilename ? "Change" : "Choose receipt image"}</label>
