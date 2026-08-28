@@ -17,14 +17,23 @@ function SubmitButton({ label, pendingLabel, disabled = false }: { label: string
 }
 
 export function GroupExpenseConfirmation({ confirmAction, rejectAction }: { confirmAction: ConfirmationAction; rejectAction: ConfirmationAction }) {
-  const [confirmState, confirmFormAction] = useActionState(confirmAction, { error: "" });
-  const [rejectState, rejectFormAction] = useActionState(rejectAction, { error: "" });
+  const [pendingDecision, setPendingDecision] = useState<"confirm" | "reject" | null>(null);
+  const [confirmState, confirmFormAction] = useActionState(async (previousState: GroupExpenseConfirmationState, formData: FormData) => {
+    const nextState = await confirmAction(previousState, formData);
+    if (nextState.error) setPendingDecision(null);
+    return nextState;
+  }, { error: "" });
+  const [rejectState, rejectFormAction] = useActionState(async (previousState: GroupExpenseConfirmationState, formData: FormData) => {
+    const nextState = await rejectAction(previousState, formData);
+    if (nextState.error) setPendingDecision(null);
+    return nextState;
+  }, { error: "" });
   const router = useOptionalRouter();
   useEffect(() => {
     if (confirmState.success || rejectState.success) router?.refresh();
   }, [confirmState.success, rejectState.success, router]);
   const error = confirmState.error || rejectState.error;
-  return <div className="group-expense__confirmation"><p>Confirm that you paid this expense, or reject the claim that you paid it.</p><div className="group-expense__actions"><form action={confirmFormAction}><SubmitButton label="Confirm I paid" pendingLabel="Confirming…" /></form><form action={rejectFormAction}><SubmitButton label="Reject claim" pendingLabel="Rejecting…" /></form></div><p className="group-expense__message" role={error ? "alert" : "status"} aria-live="polite">{error || "\u00a0"}</p></div>;
+  return <div className="group-expense__confirmation"><p>Confirm that you paid this expense, or reject the claim that you paid it.</p><div className="group-expense__actions"><form action={confirmFormAction} onSubmit={() => setPendingDecision("confirm")}><SubmitButton label="Confirm I paid" pendingLabel="Confirming…" disabled={pendingDecision !== null} /></form><form action={rejectFormAction} onSubmit={() => setPendingDecision("reject")}><SubmitButton label="Reject claim" pendingLabel="Rejecting…" disabled={pendingDecision !== null} /></form></div><p className="group-expense__message" role={error ? "alert" : "status"} aria-live="polite">{error || "\u00a0"}</p></div>;
 }
 
 export function GroupExpenseVoid({ action }: { action: ConfirmationAction }) {

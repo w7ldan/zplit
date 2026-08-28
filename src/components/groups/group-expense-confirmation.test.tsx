@@ -8,6 +8,12 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const action = vi.fn(async () => ({ error: "" }));
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((promiseResolve) => { resolve = promiseResolve; });
+  return { promise, resolve };
+}
+
 afterEach(() => refresh.mockReset());
 
 describe("Group expense lifecycle controls", () => {
@@ -16,6 +22,54 @@ describe("Group expense lifecycle controls", () => {
     expect(screen.getByRole("button", { name: "Confirm I paid" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Reject claim" })).toBeEnabled();
     expect(screen.getByText("Confirm that you paid this expense, or reject the claim that you paid it.")).toBeInTheDocument();
+  });
+
+  it("disables both decisions while confirming and keeps only confirm pending", async () => {
+    const result = deferred<{ error: string }>();
+    const confirmAction = vi.fn(() => result.promise);
+    render(<GroupExpenseConfirmation confirmAction={confirmAction} rejectAction={action} />);
+
+    fireEvent.submit(screen.getByRole("button", { name: "Confirm I paid" }).closest("form")!);
+
+    expect(screen.getByRole("button", { name: "Confirming…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject claim" })).toBeDisabled();
+    result.resolve({ error: "" });
+    await waitFor(() => expect(confirmAction).toHaveBeenCalledOnce());
+  });
+
+  it("disables both decisions while rejecting and keeps only reject pending", async () => {
+    const result = deferred<{ error: string }>();
+    const rejectAction = vi.fn(() => result.promise);
+    render(<GroupExpenseConfirmation confirmAction={action} rejectAction={rejectAction} />);
+
+    fireEvent.submit(screen.getByRole("button", { name: "Reject claim" }).closest("form")!);
+
+    expect(screen.getByRole("button", { name: "Rejecting…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Confirm I paid" })).toBeDisabled();
+    result.resolve({ error: "" });
+    await waitFor(() => expect(rejectAction).toHaveBeenCalledOnce());
+  });
+
+  it("restores both decisions after a failed confirm", async () => {
+    const confirmAction = vi.fn(async () => ({ error: "This expense is no longer pending." }));
+    render(<GroupExpenseConfirmation confirmAction={confirmAction} rejectAction={action} />);
+
+    fireEvent.submit(screen.getByRole("button", { name: "Confirm I paid" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("This expense is no longer pending."));
+    expect(screen.getByRole("button", { name: "Confirm I paid" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reject claim" })).toBeEnabled();
+  });
+
+  it("restores both decisions after a failed reject", async () => {
+    const rejectAction = vi.fn(async () => ({ error: "This expense is no longer pending." }));
+    render(<GroupExpenseConfirmation confirmAction={action} rejectAction={rejectAction} />);
+
+    fireEvent.submit(screen.getByRole("button", { name: "Reject claim" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("This expense is no longer pending."));
+    expect(screen.getByRole("button", { name: "Confirm I paid" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reject claim" })).toBeEnabled();
   });
 
   it("requires acknowledgement before voiding and explains the reversal", () => {

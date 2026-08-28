@@ -3348,6 +3348,132 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   font: inherit;
 }
 
+.group-expense__status--confirmed {
+  border-left: 3px solid var(--mint);
+  padding-left: 0.85rem;
+}
+
+.group-expense__status--rejected {
+  border-left: 3px solid var(--peach);
+  padding-left: 0.85rem;
+}
+
+.group-expense__status--voided {
+  border-left: 3px solid var(--rule);
+  padding-left: 0.85rem;
+}
+
+.group-expense__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.group-expense__actions form {
+  display: contents;
+}
+
+.group-expense__void {
+  grid-column: 1 / -1;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--rule);
+}
+
+.group-expense__void summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.group-expense__void > div {
+  display: grid;
+  gap: 0.65rem;
+  max-width: 38rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--error);
+}
+
+.group-expense__void > div > p {
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.group-expense__void form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.group-expense__void-confirm {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.group-expense__void-confirm input {
+  min-height: auto;
+  accent-color: var(--error);
+}
+
+.group-expense__void .action-link {
+  width: fit-content;
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.group-expense__void .action-link:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.group-expense__obligation-row > span:last-child {
+  display: grid;
+  justify-items: end;
+  gap: 0.15rem;
+}
+
+.group-expense__obligation-row small {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.group-expense__history-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border-block: 1px solid var(--rule);
+  list-style: none;
+}
+
+.group-expense__history-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.75rem;
+  border-top: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}
+
+.group-expense__history-list li:first-child {
+  border-top: 0;
+}
+
+.group-expense__history-list time {
+  flex: 0 0 auto;
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.expense-receipts__readonly {
+  margin: 0.7rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+}
+
 .expense-receipts {
   grid-column: 1 / -1;
   order: 5;
@@ -3739,6 +3865,15 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
   .expense-receipts__actions {
     justify-content: start;
+  }
+
+  .group-expense__history-list li {
+    display: grid;
+    gap: 0.3rem;
+  }
+
+  .group-expense__history-list time {
+    white-space: normal;
   }
 
   .history-row__link {
