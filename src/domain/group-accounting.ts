@@ -24,7 +24,7 @@ export type GroupObligationInput = {
 };
 
 export class GroupAccountingInputError extends Error {
-  constructor(readonly code: "invalid_input" | "invalid_amount" | "invalid_date" | "duplicate_share" | "share_total_mismatch") {
+  constructor(readonly code: "invalid_input" | "invalid_amount" | "invalid_date" | "duplicate_share" | "share_total_mismatch", readonly amountField?: "total" | "share") {
     super(code);
     this.name = "GroupAccountingInputError";
   }
@@ -40,9 +40,9 @@ function requiredUuid(value: unknown, code: GroupAccountingInputError["code"] = 
   return normalized;
 }
 
-function requiredAmount(value: unknown) {
+function requiredAmount(value: unknown, amountField?: "total" | "share") {
   const amount = typeof value === "number" ? value : parseRupiah(value);
-  if (amount === null || !Number.isSafeInteger(amount) || amount < 1 || amount > MAX_RUPIAH) throw new GroupAccountingInputError("invalid_amount");
+  if (amount === null || !Number.isSafeInteger(amount) || amount < 1 || amount > MAX_RUPIAH) throw new GroupAccountingInputError("invalid_amount", amountField);
   return amount;
 }
 
@@ -59,14 +59,14 @@ export function normalizeGroupExpenseInput(input: unknown): GroupExpenseInput {
   if (!Array.isArray(record.shares) || record.shares.length === 0) throw new GroupAccountingInputError("invalid_input");
   const shares = record.shares.map((share) => {
     const row = inputRecord(share);
-    return { participantId: requiredUuid(row.participantId), amount: requiredAmount(row.amount) };
+    return { participantId: requiredUuid(row.participantId), amount: requiredAmount(row.amount, "share") };
   });
   const participantIds = new Set<string>();
   for (const share of shares) {
     if (participantIds.has(share.participantId)) throw new GroupAccountingInputError("duplicate_share");
     participantIds.add(share.participantId);
   }
-  const totalAmount = requiredAmount(record.totalAmount);
+  const totalAmount = requiredAmount(record.totalAmount, "total");
   const shareTotal = shares.reduce((total, share) => total + BigInt(share.amount), BigInt(0));
   if (shareTotal !== BigInt(totalAmount)) throw new GroupAccountingInputError("share_total_mismatch");
   return {

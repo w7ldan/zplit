@@ -46,7 +46,7 @@ function inputFromValues(values: GroupExpenseFormValues) {
 
 function inputErrorState(error: unknown, values: GroupExpenseFormValues): GroupExpenseActionState {
   if (error instanceof GroupAccountingInputError) {
-    const field = error.code === "invalid_amount" ? "totalAmount" : error.code === "invalid_date" ? "occurredAtLocal" : error.code === "share_total_mismatch" ? "shares" : undefined;
+    const field = error.code === "invalid_amount" ? error.amountField === "share" ? "shares" : "totalAmount" : error.code === "invalid_date" ? "occurredAtLocal" : error.code === "share_total_mismatch" ? "shares" : undefined;
     return state(values, field ? { [field]: error.code === "share_total_mismatch" ? "Shares must equal the expense total." : error.code === "invalid_amount" ? "Use a positive whole-rupiah amount." : "Enter a valid date and time." } : {}, error.code === "duplicate_share" ? "Each participant can appear only once." : "Please correct the marked fields.");
   }
   if (error instanceof GroupAccountingError) {

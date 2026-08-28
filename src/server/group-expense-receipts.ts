@@ -2,7 +2,7 @@ import "server-only";
 
 import { asc, and, eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { groupExpenseReceipts, groupExpenses, groupParticipants } from "@/db/schema";
+import { groupExpenseReceipts, groupExpenses, groupMemberships, groupParticipants } from "@/db/schema";
 import { MAX_RECEIPT_BYTES_PER_EXPENSE, MAX_RECEIPTS_PER_EXPENSE, type ValidatedReceiptFile } from "@/domain/receipt-file";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { GroupError, requireGroupAccess } from "@/server/groups";
@@ -54,16 +54,30 @@ function databaseCode(error: unknown): string | undefined {
   return "cause" in error ? databaseCode(error.cause) : undefined;
 }
 
-async function requireExpense(database: Database, groupId: string, expenseId: string, viewerUserId: string, forUpdate = false) {
+async function requireExpense(database: Database, groupId: string, expenseId: string, viewerUserId: string, lockForMutation = false) {
   await requireGroupAccess(database, groupId, viewerUserId);
   const query = database
-    .select({ id: groupExpenses.id, state: groupExpenses.state, creatorUserId: groupParticipants.userId })
+    .select({ id: groupExpenses.id, state: groupExpenses.state, creatorParticipantId: groupExpenses.creatorParticipantId })
     .from(groupExpenses)
-    .innerJoin(groupParticipants, and(eq(groupParticipants.groupId, groupExpenses.groupId), eq(groupParticipants.id, groupExpenses.creatorParticipantId)))
     .where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, expenseId)))
     .limit(1);
-  const [expense] = forUpdate ? await query.for("update") : await query;
+  const [expense] = lockForMutation ? await query.for("update") : await query;
   if (!expense) throw new GroupExpenseReceiptUnavailableError();
+  if (!lockForMutation) return expense;
+
+  const [creator] = await database
+    .select({ userId: groupParticipants.userId })
+    .from(groupParticipants)
+    .where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, expense.creatorParticipantId)))
+    .limit(1)
+    .for("update");
+  const [membership] = await database
+    .select({ userId: groupMemberships.userId, participantId: groupMemberships.participantId })
+    .from(groupMemberships)
+    .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, viewerUserId), eq(groupMemberships.participantId, expense.creatorParticipantId)))
+    .limit(1)
+    .for("update");
+  if (expense.state !== "pending" || creator?.userId !== viewerUserId || membership?.userId !== viewerUserId || membership?.participantId !== expense.creatorParticipantId) throw new GroupExpenseReceiptPermissionError();
   return expense;
 }
 
@@ -77,8 +91,7 @@ export async function createGroupExpenseReceipt(database: Database, groupId: str
   assertIds(groupId, expenseId);
   try {
     return await database.transaction(async (transaction) => {
-      const expense = await requireExpense(transaction as Database, groupId, expenseId, creatorUserId, true);
-      if (expense.state !== "pending" || expense.creatorUserId !== creatorUserId) throw new GroupExpenseReceiptPermissionError();
+      await requireExpense(transaction as Database, groupId, expenseId, creatorUserId, true);
       const existing = await transaction.select({ id: groupExpenseReceipts.id, byteSize: groupExpenseReceipts.byteSize, sha256: groupExpenseReceipts.sha256 }).from(groupExpenseReceipts).where(and(eq(groupExpenseReceipts.groupId, groupId), eq(groupExpenseReceipts.expenseId, expenseId))).orderBy(asc(groupExpenseReceipts.id)).for("update");
       if (existing.length >= MAX_RECEIPTS_PER_EXPENSE) throw new GroupExpenseReceiptCountError();
       if (existing.some((receipt) => receipt.sha256 === validatedFile.sha256)) throw new GroupExpenseReceiptDuplicateError();
@@ -107,8 +120,7 @@ export async function deleteGroupExpenseReceipt(database: Database, groupId: str
   assertIds(groupId, expenseId);
   if (!normalizeUuid(receiptId)) return false;
   const deleted = await database.transaction(async (transaction) => {
-    const expense = await requireExpense(transaction as Database, groupId, expenseId, creatorUserId, true);
-    if (expense.state !== "pending" || expense.creatorUserId !== creatorUserId) throw new GroupExpenseReceiptPermissionError();
+    await requireExpense(transaction as Database, groupId, expenseId, creatorUserId, true);
     return transaction.delete(groupExpenseReceipts).where(and(eq(groupExpenseReceipts.groupId, groupId), eq(groupExpenseReceipts.expenseId, expenseId), eq(groupExpenseReceipts.id, receiptId))).returning({ id: groupExpenseReceipts.id });
   });
   return deleted.length > 0;

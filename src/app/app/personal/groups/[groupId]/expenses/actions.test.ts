@@ -51,6 +51,15 @@ describe("Group expense actions", () => {
     expect(mocks.createGroupExpense).not.toHaveBeenCalled();
   });
 
+  it("maps invalid total and share amounts to their own fields", async () => {
+    const invalidTotal = await createGroupExpenseAction("group-a", emptyGroupExpenseActionState, form({ payer: payerId, total: "0" }));
+    expect(invalidTotal.fieldErrors).toHaveProperty("totalAmount", "Use a positive whole-rupiah amount.");
+
+    const invalidShare = await createGroupExpenseAction("group-a", emptyGroupExpenseActionState, form({ payer: payerId, shares: [[payerId, "0"]] }));
+    expect(invalidShare.fieldErrors).toHaveProperty("shares", "Use a positive whole-rupiah amount.");
+    expect(mocks.createGroupExpense).not.toHaveBeenCalled();
+  });
+
   it("keeps payer confirmation authoritative and maps non-payer denial", async () => {
     const confirmed = await confirmGroupExpenseAction("group-a", "expense-a", { error: "" }, new FormData());
     expect(confirmed.success).toContain("authoritative");

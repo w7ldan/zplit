@@ -19,6 +19,7 @@
     "test:invitations": "tsx scripts/invitation-smoke.ts",
     "test:group-join-requests": "tsx scripts/group-join-requests-smoke.ts",
     "test:group-accounting": "tsx scripts/group-accounting-smoke.ts",
+    "test:group-receipts": "tsx scripts/group-receipt-smoke.ts",
     "test:ownership": "tsx scripts/ownership-smoke.ts",
     "test:receipts": "tsx scripts/receipt-smoke.ts",
     "test:shared-receipts": "tsx scripts/shared-receipts-smoke.ts",
