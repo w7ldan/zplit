@@ -2,8 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
-import type { GroupExpenseActionState, GroupExpenseFormValues } from "@/app/app/personal/groups/[groupId]/expenses/actions";
-import type { GroupParticipantEligibility } from "@/server/group-accounting";
+import type { GroupExpenseActionState, GroupExpenseFormValues, GroupParticipantEligibility } from "@/domain/group-contracts";
 import { formatRupiah, parseRupiah } from "@/domain/rupiah";
 
 type GroupExpenseAction = (previousState: GroupExpenseActionState, formData: FormData) => Promise<GroupExpenseActionState>;

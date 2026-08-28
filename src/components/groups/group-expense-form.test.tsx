@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { assertPlainDto } from "@/test/assert-plain-dto";
 import { GroupExpenseForm } from "./group-expense-form";
 
 const participants = [
@@ -11,6 +12,7 @@ const participants = [
 
 describe("GroupExpenseForm", () => {
   it("limits payers and share choices to the Stage 12B eligibility rules", () => {
+    assertPlainDto(participants);
     render(<GroupExpenseForm action={vi.fn()} participants={participants} defaultPayerId="alice" initialOccurredAtUtc="2026-08-27T12:00:00.000Z" />);
     expect(within(screen.getByRole("combobox", { name: "Paid by" })).getAllByRole("option").map((option) => option.textContent)).toEqual(["Alice", "Bob"]);
     const add = screen.getByRole("combobox", { name: "Participant to add" });

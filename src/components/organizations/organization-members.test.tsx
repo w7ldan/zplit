@@ -1,5 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { OrganizationInvitationSummary, OrganizationMember } from "@/domain/organization-contracts";
+import { assertPlainDto } from "@/test/assert-plain-dto";
 
 const mocks = vi.hoisted(() => ({ create: vi.fn(), search: vi.fn().mockResolvedValue([]), revoke: vi.fn() }));
 
@@ -8,11 +10,15 @@ vi.mock("@/app/app/organizations/actions", () => ({ createOrganizationInvitation
 
 import { OrganizationMembers } from "./organization-members";
 
+const member: OrganizationMember = { id: "user-a", displayName: "Alice Tan", username: "alice", role: "member" };
+const pendingInvitation: OrganizationInvitationSummary = { id: "invitation-a", targetUserId: "user-b", displayName: "Bob", username: "bob", role: "member", expiresAt: "2026-09-01T00:00:00.000Z" };
+
 describe("OrganizationMembers", () => {
   it("shows identity-only roster data and capability-derived invite roles", () => {
+    assertPlainDto({ members: [member], pendingInvitations: [], invitationRoles: ["admin", "treasurer", "member"] });
     const { container } = render(<OrganizationMembers
       organizationId="11111111-1111-4111-8111-111111111111"
-      members={[{ id: "user-a", displayName: "Alice Tan", username: "alice", role: "member" }]}
+      members={[member]}
       pendingInvitations={[]}
       invitationRoles={["admin", "treasurer", "member"]}
     />);
@@ -32,9 +38,10 @@ describe("OrganizationMembers", () => {
   });
 
   it("keeps role selection fixed to Member without roles.manage and shows pending revoke", () => {
+    assertPlainDto(pendingInvitation);
     render(<OrganizationMembers
       organizationId="11111111-1111-4111-8111-111111111111"
-      pendingInvitations={[{ id: "invitation-a", targetUserId: "user-b", displayName: "Bob", username: "bob", role: "member", expiresAt: new Date("2026-09-01T00:00:00Z") }]}
+      pendingInvitations={[pendingInvitation]}
       invitationRoles={["member"]}
     />);
 

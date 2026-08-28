@@ -3,39 +3,12 @@ import "server-only";
 import { and, asc, count, eq, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { groupAvatars, groupExpenseShares, groupExpenses, groupJoinRequests, groupMemberships, groupObligations, groupParticipants, groups, users } from "@/db/schema";
+import type { GroupAvatarMetadata, GroupCapabilities, GroupDetail, GroupParticipant, GroupSummary } from "@/domain/group-contracts";
 import { groupAccessForRole, isGroupRole, type GroupRole } from "@/domain/group-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { publishNotificationStateChange } from "@/server/notifications";
 
 export type { GroupRole } from "@/domain/group-permissions";
-export type GroupAvatarMetadata = { mediaType: "image/webp"; byteSize: number; sha256: string };
-export type GroupSummary = {
-  id: string;
-  name: string;
-  description: string | null;
-  role: GroupRole;
-  participantCount: number;
-  avatar: GroupAvatarMetadata | null;
-};
-export type GroupDetail = GroupSummary & {
-  memberCount: number;
-  externalParticipantCount: number;
-  isOwner: boolean;
-  canManageGroup: boolean;
-  canManageParticipants: boolean;
-  canManageRoles: boolean;
-  canDelete: boolean;
-};
-export type GroupParticipant = {
-  id: string;
-  userId: string | null;
-  displayName: string;
-  label: string | null;
-  role: GroupRole | null;
-  isExternal: boolean;
-  isFormer: boolean;
-};
-
 export class GroupError extends Error {
   constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden" | "participant_not_found" | "registered_participant" | "owner_required" | "financial_history") {
     super(code);
@@ -82,6 +55,16 @@ export type GroupAccess = ReturnType<typeof groupAccessForRole> & {
   requireManageRoles(): void;
   requireDelete(): void;
 };
+
+function toGroupCapabilities(access: GroupAccess): GroupCapabilities {
+  return {
+    isOwner: access.isOwner,
+    canManageGroup: access.canManageGroup,
+    canManageParticipants: access.canManageParticipants,
+    canManageRoles: access.canManageRoles,
+    canDelete: access.canDelete,
+  };
+}
 
 export async function requireGroupAccess(database: Database, groupId: string, userId: string): Promise<GroupAccess> {
   assertGroupId(groupId);
@@ -142,11 +125,7 @@ export async function getGroupForMember(database: Database, groupId: string, use
     memberCount: Number(memberCounts?.memberCount ?? 0),
     externalParticipantCount: Number(participantCounts?.externalParticipantCount ?? 0),
     avatar: mapAvatar(row.avatar),
-    isOwner: access.isOwner,
-    canManageGroup: access.canManageGroup,
-    canManageParticipants: access.canManageParticipants,
-    canManageRoles: access.canManageRoles,
-    canDelete: access.canDelete,
+    ...toGroupCapabilities(access),
     role: row.role as GroupRole,
   };
 }

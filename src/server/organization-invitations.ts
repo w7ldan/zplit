@@ -4,6 +4,7 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { getDatabase } from "@/db/client";
 import { organizationInvitations, organizationMemberships, organizations, notifications, users } from "@/db/schema";
+import type { OrganizationInvitationSummary, OrganizationMember } from "@/domain/organization-contracts";
 import {
   canGrantOrganizationInvitationRole,
   isOrganizationInvitationRole,
@@ -25,22 +26,6 @@ export class OrganizationInvitationError extends Error {
     this.name = "OrganizationInvitationError";
   }
 }
-
-export type OrganizationMember = {
-  id: string;
-  displayName: string;
-  username: string | null;
-  role: OrganizationRole;
-};
-
-export type OrganizationInvitationSummary = {
-  id: string;
-  targetUserId: string;
-  displayName: string;
-  username: string;
-  role: OrganizationInvitationRole;
-  expiresAt: Date;
-};
 
 export type OrganizationInvitationState = {
   id: string;
@@ -180,7 +165,7 @@ export async function listPendingOrganizationInvitations(database: Database, org
         if (expired) expiredUserIds.push(row.targetUserId);
         continue;
       }
-      if (row.username) pending.push({ ...row, username: row.username, role: row.role as OrganizationInvitationRole });
+      if (row.username) pending.push({ ...row, username: row.username, role: row.role as OrganizationInvitationRole, expiresAt: row.expiresAt.toISOString() });
     }
     return { pending, expiredUserIds };
   });

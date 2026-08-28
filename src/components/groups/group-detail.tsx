@@ -3,7 +3,7 @@
 import { AvatarSettings } from "@/components/settings/avatar-settings";
 import { GroupAvatar, groupAvatarSeed } from "@/components/groups/group-avatar";
 import { GroupForm } from "@/components/groups/group-form";
-import type { GroupActionState } from "@/app/app/personal/groups/actions";
+import type { GroupActionState } from "@/domain/group-contracts";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 

@@ -16,9 +16,8 @@ import {
   searchGroupJoinUsers,
 } from "@/server/group-join-requests";
 
-export type GroupFormValues = { name: string; description: string };
-export type GroupActionState = { fieldErrors: Partial<Record<keyof GroupFormValues | "avatar", string>>; formError: string; values: GroupFormValues };
-export type GroupJoinRequestActionState = { error: string; values: { username: string } };
+import type { GroupActionState, GroupFormValues, GroupJoinRequestActionState } from "@/domain/group-contracts";
+export type { GroupActionState, GroupFormValues, GroupJoinRequestActionState } from "@/domain/group-contracts";
 
 function valuesFromForm(formData: FormData): GroupFormValues {
   return { name: typeof formData.get("name") === "string" ? String(formData.get("name")) : "", description: typeof formData.get("description") === "string" ? String(formData.get("description")) : "" };

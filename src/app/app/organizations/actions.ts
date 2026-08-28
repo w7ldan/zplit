@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { AvatarFileValidationError, validateAvatarFile } from "@/domain/avatar-file";
-import { isOrganizationInvitationRole, type OrganizationInvitationRole } from "@/domain/organization-permissions";
+import type { OrganizationActionState, OrganizationFormValues, OrganizationInvitationActionState } from "@/domain/organization-contracts";
+import { isOrganizationInvitationRole } from "@/domain/organization-permissions";
 import { normalizeUserAvatar } from "@/server/user-avatars";
 import { createOrganization, deleteOrganization, OrganizationError, updateOrganization } from "@/server/organizations";
 import {
@@ -16,9 +17,7 @@ import {
 } from "@/server/organization-invitations";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 
-export type OrganizationFormValues = { name: string; description: string };
-export type OrganizationActionState = { fieldErrors: Partial<Record<keyof OrganizationFormValues | "avatar", string>>; formError: string; values: OrganizationFormValues };
-export type OrganizationInvitationActionState = { error: string; values: { username: string; role: OrganizationInvitationRole } };
+export type { OrganizationActionState, OrganizationFormValues, OrganizationInvitationActionState } from "@/domain/organization-contracts";
 
 function valuesFromForm(formData: FormData) {
   return { name: typeof formData.get("name") === "string" ? String(formData.get("name")) : "", description: typeof formData.get("description") === "string" ? String(formData.get("description")) : "" };

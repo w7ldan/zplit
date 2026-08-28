@@ -3,12 +3,12 @@ import "server-only";
 import { and, asc, count, eq, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { ledgerScopes, organizationAvatars, organizationMemberships, organizations } from "@/db/schema";
+import type { OrganizationAvatarMetadata, OrganizationCapabilities, OrganizationDetail, OrganizationSummary } from "@/domain/organization-contracts";
 import {
   isOrganizationRole,
   getOrganizationInvitationRoles,
   resolveOrganizationCapabilities,
   type OrganizationCapability,
-  type OrganizationInvitationRole,
   type OrganizationRole,
 } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
@@ -16,17 +16,6 @@ import { createOrganizationLedgerScope } from "@/server/ledger-scopes";
 import { createLedgerRepository } from "@/domain/ledger-repository";
 
 export type { OrganizationRole } from "@/domain/organization-permissions";
-export type OrganizationAvatarMetadata = { mediaType: "image/webp"; byteSize: number; sha256: string };
-export type OrganizationSummary = {
-  id: string;
-  name: string;
-  description: string | null;
-  role: OrganizationRole;
-  memberCount: number;
-  avatar: OrganizationAvatarMetadata | null;
-};
-export type OrganizationDetail = OrganizationSummary & { canUpdate: boolean; canDelete: boolean; canViewMembers: boolean; canViewLedger: boolean; canManageRepaymentDestinations: boolean; canExport: boolean; invitationRoles: OrganizationInvitationRole[] };
-
 export class OrganizationError extends Error {
   constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden" | "ledger_not_empty") {
     super(code);
@@ -72,6 +61,18 @@ export type OrganizationLedgerAccess = OrganizationAccess & {
   ledgerScopeId: string;
   ledger: ReturnType<typeof createLedgerRepository>;
 };
+
+function toOrganizationCapabilities(access: OrganizationAccess): OrganizationCapabilities {
+  return {
+    canUpdate: access.can("organization.update"),
+    canDelete: access.can("organization.delete"),
+    canViewMembers: access.can("members.view"),
+    canViewLedger: access.can("ledger.view"),
+    canManageRepaymentDestinations: access.can("repayment_destinations.manage"),
+    canExport: access.can("exports.create"),
+    invitationRoles: getOrganizationInvitationRoles(access.can),
+  };
+}
 
 export async function requireOrganizationAccess(database: Database, organizationId: string, userId: string): Promise<OrganizationAccess> {
   assertOrganizationId(organizationId);
@@ -153,13 +154,7 @@ export async function getOrganizationForMember(database: Database, organizationI
     role: row.role as OrganizationRole,
     memberCount: Number(memberCount),
     avatar: mapAvatar(row.avatar),
-    canUpdate: access.can("organization.update"),
-    canDelete: access.can("organization.delete"),
-    canViewMembers: access.can("members.view"),
-    canViewLedger: access.can("ledger.view"),
-    canManageRepaymentDestinations: access.can("repayment_destinations.manage"),
-    canExport: access.can("exports.create"),
-    invitationRoles: getOrganizationInvitationRoles(access.can),
+    ...toOrganizationCapabilities(access),
   };
 }
 

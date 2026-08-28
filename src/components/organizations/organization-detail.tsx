@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AvatarSettings } from "@/components/settings/avatar-settings";
 import { OrganizationAvatar, organizationAvatarSeed } from "@/components/organizations/organization-avatar";
 import { OrganizationForm } from "@/components/organizations/organization-form";
-import type { OrganizationActionState } from "@/app/app/organizations/actions";
+import type { OrganizationActionState } from "@/domain/organization-contracts";
 import { usePathname } from "next/navigation";
 
 type ProfileAction = (previousState: OrganizationActionState, formData: FormData) => Promise<OrganizationActionState>;

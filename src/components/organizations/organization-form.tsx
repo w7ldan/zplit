@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
-import type { OrganizationActionState, OrganizationFormValues } from "@/app/app/organizations/actions";
+import type { OrganizationActionState, OrganizationFormValues } from "@/domain/organization-contracts";
 
 type OrganizationAction = (previousState: OrganizationActionState, formData: FormData) => Promise<OrganizationActionState>;
 

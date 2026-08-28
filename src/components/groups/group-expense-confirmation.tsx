@@ -3,7 +3,7 @@
 import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import type { GroupExpenseConfirmationState } from "@/app/app/personal/groups/[groupId]/expenses/actions";
+import type { GroupExpenseConfirmationState } from "@/domain/group-contracts";
 
 type ConfirmationAction = (previousState: GroupExpenseConfirmationState, formData: FormData) => Promise<GroupExpenseConfirmationState>;
 

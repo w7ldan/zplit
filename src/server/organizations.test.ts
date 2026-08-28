@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { ledgerScopes, organizationMemberships, organizations } from "@/db/schema";
 import type { OrganizationRole } from "@/domain/organization-permissions";
+import { assertPlainDto } from "@/test/assert-plain-dto";
 
 vi.mock("server-only", () => ({}));
 
@@ -134,6 +135,7 @@ describe("organizations", () => {
     const organizationA = await requireOrganizationAccess(database, organizationId, "user-a");
     const organizationB = await requireOrganizationAccess(database, "22222222-2222-4222-8222-222222222222", "user-a");
 
+    expect(() => assertPlainDto(organizationA)).toThrow();
     expect(organizationA.can("organization.delete")).toBe(true);
     expect(organizationB.can("organization.delete")).toBe(false);
     expect(organizationB.can("expenses.create")).toBe(false);
@@ -197,7 +199,9 @@ describe("organizations", () => {
     selects.mockImplementationOnce(() => queryBuilder([{ role: "admin", customCapabilities: ["organization.delete"] }]))
       .mockImplementationOnce(() => queryBuilder([{ ...organization, role: "admin", avatar: null }]))
       .mockImplementationOnce(() => queryBuilder([{ memberCount: 1 }]));
-    await expect(getOrganizationForMember(database, organizationId, "user-a")).resolves.toMatchObject({ canUpdate: true, canDelete: false });
+    const detail = await getOrganizationForMember(database, organizationId, "user-a");
+    assertPlainDto(detail);
+    expect(detail).toMatchObject({ canUpdate: true, canDelete: false });
   });
 
   it("rejects blank organization names", async () => {

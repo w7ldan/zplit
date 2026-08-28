@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
-import type { GroupActionState, GroupFormValues } from "@/app/app/personal/groups/actions";
+import type { GroupActionState, GroupFormValues } from "@/domain/group-contracts";
 
 type GroupAction = (previousState: GroupActionState, formData: FormData) => Promise<GroupActionState>;
 

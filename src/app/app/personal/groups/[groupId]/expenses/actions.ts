@@ -5,13 +5,11 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { GroupAccountingInputError, normalizeGroupExpenseInput } from "@/domain/group-accounting";
+import type { GroupExpenseActionState, GroupExpenseConfirmationState, GroupExpenseFormValues } from "@/domain/group-contracts";
 import { parseLocalDateTime } from "@/domain/outing-input";
 import { GroupAccountingError, confirmGroupExpenseAsPayer, createGroupExpense } from "@/server/group-accounting";
 
-export type GroupExpenseShareFormValue = { participantId: string; amount: string };
-export type GroupExpenseFormValues = { description: string; totalAmount: string; occurredAtLocal: string; timezoneOffsetMinutes: string; payerParticipantId: string; shares: GroupExpenseShareFormValue[] };
-export type GroupExpenseActionState = { fieldErrors: Partial<Record<"description" | "totalAmount" | "occurredAtLocal" | "payerParticipantId" | "shares", string>>; formError: string; values: GroupExpenseFormValues };
-export type GroupExpenseConfirmationState = { error: string; success?: string };
+export type { GroupExpenseActionState, GroupExpenseConfirmationState, GroupExpenseFormValues, GroupExpenseShareFormValue } from "@/domain/group-contracts";
 
 function text(formData: FormData, name: string) {
   const value = formData.get(name);

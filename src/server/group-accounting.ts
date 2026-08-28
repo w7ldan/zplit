@@ -5,6 +5,7 @@ import { getDatabase, type Database } from "@/db/client";
 import { groupExpenseReceipts, groupExpenseShares, groupExpenses, groupObligations, groupMemberships, groupParticipants, users } from "@/db/schema";
 import { requireSession } from "@/auth/require-session";
 import { buildGroupObligations, normalizeGroupExpenseInput, type GroupExpenseInput } from "@/domain/group-accounting";
+import type { GroupParticipantEligibility } from "@/domain/group-contracts";
 import { clampPage, escapeLikePattern, normalizePage, normalizeText, normalizeUuid, pageResult, RECORD_PAGE_SIZE, type RecordPage } from "@/domain/record-retrieval";
 import { GroupError, requireGroupAccess } from "@/server/groups";
 
@@ -36,18 +37,6 @@ export type GroupExpenseReceiptMetadata = {
 };
 export type GroupExpenseListRecord = GroupExpenseRecord & { payer: GroupParticipantPresentation; shareCount: number };
 export type GroupExpenseDetail = GroupExpenseRecord & { creator: GroupParticipantPresentation; payer: GroupParticipantPresentation; shares: GroupExpenseSharePresentation[]; obligations: GroupObligationPresentation[]; receipts: GroupExpenseReceiptMetadata[] };
-export type GroupParticipantEligibility = {
-  id: string;
-  userId: string | null;
-  displayName: string | null;
-  label: string | null;
-  status: "active" | "former" | "external";
-  canCreate: boolean;
-  canPay: boolean;
-  canParticipate: boolean;
-  canBeCreditor: boolean;
-};
-
 function databaseCode(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null) return undefined;
   if ("code" in error && typeof error.code === "string") return error.code;

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { groupMemberships, groupParticipants, groups } from "@/db/schema";
+import { assertPlainDto } from "@/test/assert-plain-dto";
 import { createExternalParticipant, createGroup, deleteExternalParticipant, deleteGroup, getGroupForMember, GroupError, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
 
 vi.mock("server-only", () => ({}));
@@ -76,6 +77,8 @@ describe("groups", () => {
     const database = { select: vi.fn(() => chain([{ role }])) } as unknown as Database;
     const access = await requireGroupAccess(database, groupId, "user-a");
     expect(access).toMatchObject({ role, isOwner, canManageParticipants, canDelete });
+    expect(access.requireManageGroup).toEqual(expect.any(Function));
+    expect(() => assertPlainDto(access)).toThrow();
   });
 
   it("returns a serializable GroupDetail", async () => {
@@ -89,6 +92,7 @@ describe("groups", () => {
 
     const group = await getGroupForMember(database, groupId, "user-a");
 
+    assertPlainDto(group);
     expect(group).toMatchObject({ id: groupId, role: "admin", isOwner: false, canManageGroup: true, canManageParticipants: true, canManageRoles: false, canDelete: false });
     expect(group).not.toHaveProperty("requireManageGroup");
     expect(group).not.toHaveProperty("requireManageParticipants");

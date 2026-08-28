@@ -5,9 +5,8 @@ import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { SearchableCombobox, type SearchableOption } from "@/components/records/searchable-combobox";
 import { UserAvatar } from "@/components/identity/user-avatar";
 import type { OrganizationInvitationRole } from "@/domain/organization-permissions";
-import type { OrganizationInvitationActionState } from "@/app/app/organizations/actions";
+import type { OrganizationInvitationActionState, OrganizationInvitationSummary, OrganizationMember } from "@/domain/organization-contracts";
 import { createOrganizationInvitationAction, revokeOrganizationInvitationAction, searchOrganizationInvitationOptions } from "@/app/app/organizations/actions";
-import type { OrganizationInvitationSummary, OrganizationMember } from "@/server/organization-invitations";
 
 function roleLabel(role: string) {
   return role[0]?.toUpperCase() + role.slice(1);
@@ -41,7 +40,7 @@ export function OrganizationMembers({ organizationId, members, pendingInvitation
         <p className="organization-invite__message" role={state.error && state.error !== "Invitation sent." ? "alert" : "status"}>{state.error || "Invitations use @username only."}</p>
         <button className="action-link action-link--primary" type="submit">Send invitation</button>
       </form>
-      {pendingInvitations.length > 0 ? <div className="organization-invite__pending"><h3>Pending invitations</h3><ul className="organization-members__list">{pendingInvitations.map((invitation) => <li className="organization-members__row" key={invitation.id}><span className="organization-members__identity"><strong>{invitation.displayName}</strong><span>@{invitation.username}</span></span><span className="organization-members__role">{roleLabel(invitation.role)} · Expires <LocalDateTime iso={invitation.expiresAt.toISOString()} mode="date" /></span><form action={revokeOrganizationInvitationAction.bind(null, organizationId, invitation.id)}><button className="text-link" type="submit">Revoke</button></form></li>)}</ul></div> : null}
+      {pendingInvitations.length > 0 ? <div className="organization-invite__pending"><h3>Pending invitations</h3><ul className="organization-members__list">{pendingInvitations.map((invitation) => <li className="organization-members__row" key={invitation.id}><span className="organization-members__identity"><strong>{invitation.displayName}</strong><span>@{invitation.username}</span></span><span className="organization-members__role">{roleLabel(invitation.role)} · Expires <LocalDateTime iso={invitation.expiresAt} mode="date" /></span><form action={revokeOrganizationInvitationAction.bind(null, organizationId, invitation.id)}><button className="text-link" type="submit">Revoke</button></form></li>)}</ul></div> : null}
     </section> : null}
   </>;
 }

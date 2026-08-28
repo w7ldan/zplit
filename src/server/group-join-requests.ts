@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getDatabase, type Database } from "@/db/client";
 import { groupJoinRequests, groupMemberships, groupParticipants, groups, notifications, users } from "@/db/schema";
+import type { GroupJoinRequestSummary } from "@/domain/group-contracts";
 import { isGroupJoinRequestExpired, groupJoinRequestExpiresAt, type GroupJoinRequestKind, type GroupJoinRequestStatus } from "@/domain/group-join-requests";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { parseUsername } from "@/domain/username";
@@ -18,19 +19,6 @@ export class GroupJoinRequestError extends Error {
     this.name = "GroupJoinRequestError";
   }
 }
-
-export type GroupJoinRequestSummary = {
-  id: string;
-  kind: GroupJoinRequestKind;
-  status: GroupJoinRequestStatus;
-  targetUserId: string;
-  targetDisplayName: string;
-  targetUsername: string;
-  participantId: string | null;
-  participantDisplayName: string | null;
-  participantLabel: string | null;
-  expiresAt: Date;
-};
 
 export type GroupJoinRequestState = {
   id: string;
@@ -288,7 +276,7 @@ export async function listGroupJoinRequests(database: Database, groupId: string,
         if (request && await transitionPendingRequest(transaction as Database, request, "expired", now)) expiredTargetIds.push(row.targetUserId);
         continue;
       }
-      if (row.targetUsername) active.push({ ...row, kind: row.kind as GroupJoinRequestKind, status: row.status as GroupJoinRequestStatus, targetUsername: row.targetUsername });
+      if (row.targetUsername) active.push({ ...row, kind: row.kind as GroupJoinRequestKind, status: row.status as GroupJoinRequestStatus, targetUsername: row.targetUsername, expiresAt: row.expiresAt.toISOString() });
     }
     return { active, expiredTargetIds };
   });

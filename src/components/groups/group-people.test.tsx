@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { GroupParticipant } from "@/server/groups";
+import type { GroupJoinRequestSummary, GroupParticipant } from "@/domain/group-contracts";
+import { assertPlainDto } from "@/test/assert-plain-dto";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/app/app/personal/groups/actions", () => ({
@@ -18,6 +19,7 @@ vi.mock("@/app/app/personal/groups/actions", () => ({
 import { GroupPeople } from "./group-people";
 
 const externalParticipant: GroupParticipant = { id: "participant-external", userId: null, displayName: "Taxi", label: "Driver", role: null, isExternal: true, isFormer: false };
+const pendingLink: GroupJoinRequestSummary = { id: "request-a", kind: "participant_link", status: "pending", targetUserId: "user-b", targetDisplayName: "Alice", targetUsername: "alice", participantId: externalParticipant.id, participantDisplayName: "Taxi", participantLabel: "Driver", expiresAt: "2026-09-01T00:00:00.000Z" };
 
 describe("GroupPeople", () => {
   it("renders external participant data as read-only for non-managers", () => {
@@ -43,10 +45,11 @@ describe("GroupPeople", () => {
   });
 
   it("shows a pending link instead of a second link form", () => {
+    assertPlainDto(pendingLink);
     render(<GroupPeople
       groupId="group-a"
       participants={[externalParticipant]}
-      pendingLinks={[{ id: "request-a", kind: "participant_link", status: "pending", targetUserId: "user-b", targetDisplayName: "Alice", targetUsername: "alice", participantId: externalParticipant.id, participantDisplayName: "Taxi", participantLabel: "Driver", expiresAt: new Date("2026-09-01T00:00:00Z") }]}
+      pendingLinks={[pendingLink]}
       canManageParticipants
       canManageRoles={false}
     />);

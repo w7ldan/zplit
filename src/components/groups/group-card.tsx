@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { GroupAvatar } from "@/components/groups/group-avatar";
-import type { GroupSummary } from "@/server/groups";
+import type { GroupSummary } from "@/domain/group-contracts";
 
 function roleLabel(role: string) {
   return role[0]?.toUpperCase() + role.slice(1);

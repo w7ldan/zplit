@@ -5,5 +5,6 @@ import nextTypescript from "eslint-config-next/typescript";
 export default defineConfig([
   ...nextVitals,
   ...nextTypescript,
+  { rules: { complexity: ["warn", 20] } },
   globalIgnores([".next/**", "coverage/**", "out/**", "node_modules/**", "s.sh", "zip.cjs"]),
 ]);
