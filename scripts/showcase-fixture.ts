@@ -227,50 +227,32 @@ async function countOwned(client: PoolClient, table: string, ledgerScopeId: stri
   return Number(result.rows[0]!.count);
 }
 
-async function verifyExactRows(client: PoolClient, fixture: ShowcaseFixtureData, ledgerScopeId: string) {
-  const friendRows = await client.query("SELECT id, ledger_scope_id, name, phone_number, notes, archived_at, created_at, updated_at FROM friends WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
-  assert(friendRows.rows.length === fixture.friends.length, "showcase friends are not exact");
-  for (const expected of fixture.friends) {
-    const row = friendRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.ledger_scope_id === ledgerScopeId && row.name === expected.name && row.phone_number === null && row.notes === null && row.archived_at === null && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase friend record is not exact");
-  }
-  const outingRows = await client.query("SELECT id, ledger_scope_id, title, occurred_at, notes, created_at, updated_at FROM outings WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
-  assert(outingRows.rows.length === fixture.outings.length, "showcase outings are not exact");
-  for (const expected of fixture.outings) {
-    const row = outingRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.ledger_scope_id === ledgerScopeId && row.title === expected.title && dateValue(row.occurred_at) === expected.occurredAt.toISOString() && row.notes === null && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase outing record is not exact");
-  }
-  const expenseRows = await client.query("SELECT id, ledger_scope_id, outing_id, description, amount, created_at, updated_at FROM expenses WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
-  assert(expenseRows.rows.length === fixture.expenses.length, "showcase expenses are not exact");
-  for (const expected of fixture.expenses) {
-    const row = expenseRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.ledger_scope_id === ledgerScopeId && row.outing_id === expected.outingId && row.description === expected.description && Number(row.amount) === expected.amount && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase expense record is not exact");
-  }
-  const shareRows = await client.query("SELECT id, ledger_scope_id, expense_id, friend_id, amount_owed, created_at FROM expense_shares WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
-  assert(shareRows.rows.length === fixture.expenseShares.length, "showcase shares are not exact");
-  for (const expected of fixture.expenseShares) {
-    const row = shareRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.ledger_scope_id === ledgerScopeId && row.expense_id === expected.expenseId && row.friend_id === expected.friendId && Number(row.amount_owed) === expected.amountOwed && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase share record is not exact");
-  }
-  const repaymentRows = await client.query("SELECT id, ledger_scope_id, friend_id, amount, paid_at, payment_method, notes, created_at FROM repayments WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
-  assert(repaymentRows.rows.length === fixture.repayments.length, "showcase repayments are not exact");
-  for (const expected of fixture.repayments) {
-    const row = repaymentRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.ledger_scope_id === ledgerScopeId && row.friend_id === expected.friendId && Number(row.amount) === expected.amount && dateValue(row.paid_at) === expected.paidAt.toISOString() && row.payment_method === expected.paymentMethod && row.notes === null && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase repayment record is not exact");
-  }
-  const allocationRows = await client.query("SELECT ledger_scope_id, repayment_id, expense_share_id, amount, created_at FROM repayment_allocations WHERE ledger_scope_id = $1 ORDER BY repayment_id, expense_share_id", [ledgerScopeId]);
-  assert(allocationRows.rows.length === fixture.repaymentAllocations.length, "showcase repayment allocations are not exact");
-  for (const expected of fixture.repaymentAllocations) {
-    const row = allocationRows.rows.find((candidate) => candidate.repayment_id === expected.repaymentId && candidate.expense_share_id === expected.expenseShareId);
-    assert(row?.ledger_scope_id === ledgerScopeId && Number(row.amount) === expected.amount && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase allocation record is not exact");
-  }
-  const receiptRows = await client.query("SELECT id, ledger_scope_id, expense_id, original_filename, media_type, byte_size, sha256, content, created_at FROM expense_receipts WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
-  assert(receiptRows.rows.length === fixture.receipts.length, "showcase receipts are not exact");
-  for (const expected of fixture.receipts) {
-    const row = receiptRows.rows.find((candidate) => candidate.id === expected.id);
-    assert(row?.ledger_scope_id === ledgerScopeId && row.expense_id === expected.expenseId && row.original_filename === expected.originalFilename && row.media_type === expected.mediaType && Number(row.byte_size) === expected.byteSize && row.sha256 === expected.sha256 && Buffer.from(row.content).equals(expected.content) && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase receipt record is not exact");
+async function verifyExactCollection<T>(
+  client: PoolClient,
+  expected: readonly T[],
+  query: string,
+  matches: (row: Record<string, unknown>, item: T) => boolean,
+  message: string,
+  ledgerScopeId: string,
+) {
+  const result = await client.query<Record<string, unknown>>(query, [ledgerScopeId]);
+  assert(result.rows.length === expected.length, message);
+  for (const item of expected) {
+    const row = result.rows.find((candidate) => matches(candidate, item));
+    assert(row !== undefined && matches(row, item), message);
   }
 }
+
+async function verifyExactRows(client: PoolClient, fixture: ShowcaseFixtureData, ledgerScopeId: string) {
+  await verifyExactCollection(client, fixture.friends, "SELECT id, ledger_scope_id, name, phone_number, notes, archived_at, created_at, updated_at FROM friends WHERE ledger_scope_id = $1 ORDER BY id", (row, expected) => row.id === expected.id && row.ledger_scope_id === ledgerScopeId && row.name === expected.name && row.phone_number === null && row.notes === null && row.archived_at === null && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase friend record is not exact", ledgerScopeId);
+  await verifyExactCollection(client, fixture.outings, "SELECT id, ledger_scope_id, title, occurred_at, notes, created_at, updated_at FROM outings WHERE ledger_scope_id = $1 ORDER BY id", (row, expected) => row.id === expected.id && row.ledger_scope_id === ledgerScopeId && row.title === expected.title && dateValue(row.occurred_at) === expected.occurredAt.toISOString() && row.notes === null && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase outing record is not exact", ledgerScopeId);
+  await verifyExactCollection(client, fixture.expenses, "SELECT id, ledger_scope_id, outing_id, description, amount, created_at, updated_at FROM expenses WHERE ledger_scope_id = $1 ORDER BY id", (row, expected) => row.id === expected.id && row.ledger_scope_id === ledgerScopeId && row.outing_id === expected.outingId && row.description === expected.description && Number(row.amount) === expected.amount && dateValue(row.created_at) === expected.createdAt.toISOString() && dateValue(row.updated_at) === expected.updatedAt.toISOString(), "showcase expense record is not exact", ledgerScopeId);
+  await verifyExactCollection(client, fixture.expenseShares, "SELECT id, ledger_scope_id, expense_id, friend_id, amount_owed, created_at FROM expense_shares WHERE ledger_scope_id = $1 ORDER BY id", (row, expected) => row.id === expected.id && row.ledger_scope_id === ledgerScopeId && row.expense_id === expected.expenseId && row.friend_id === expected.friendId && Number(row.amount_owed) === expected.amountOwed && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase share record is not exact", ledgerScopeId);
+  await verifyExactCollection(client, fixture.repayments, "SELECT id, ledger_scope_id, friend_id, amount, paid_at, payment_method, notes, created_at FROM repayments WHERE ledger_scope_id = $1 ORDER BY id", (row, expected) => row.id === expected.id && row.ledger_scope_id === ledgerScopeId && row.friend_id === expected.friendId && Number(row.amount) === expected.amount && dateValue(row.paid_at) === expected.paidAt.toISOString() && row.payment_method === expected.paymentMethod && row.notes === null && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase repayment record is not exact", ledgerScopeId);
+  await verifyExactCollection(client, fixture.repaymentAllocations, "SELECT ledger_scope_id, repayment_id, expense_share_id, amount, created_at FROM repayment_allocations WHERE ledger_scope_id = $1 ORDER BY repayment_id, expense_share_id", (row, expected) => row.ledger_scope_id === ledgerScopeId && row.repayment_id === expected.repaymentId && row.expense_share_id === expected.expenseShareId && Number(row.amount) === expected.amount && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase repayment allocations are not exact", ledgerScopeId);
+  await verifyExactCollection(client, fixture.receipts, "SELECT id, ledger_scope_id, expense_id, original_filename, media_type, byte_size, sha256, content, created_at FROM expense_receipts WHERE ledger_scope_id = $1 ORDER BY id", (row, expected) => row.id === expected.id && row.ledger_scope_id === ledgerScopeId && row.expense_id === expected.expenseId && row.original_filename === expected.originalFilename && row.media_type === expected.mediaType && Number(row.byte_size) === expected.byteSize && row.sha256 === expected.sha256 && Buffer.from(row.content as Buffer).equals(expected.content) && dateValue(row.created_at) === expected.createdAt.toISOString(), "showcase receipt record is not exact", ledgerScopeId);
+}
+
 
 async function verifyRelationships(client: PoolClient, ledgerScopeId: string) {
   const checks = [

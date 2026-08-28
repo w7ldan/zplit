@@ -86,6 +86,26 @@ async function runInvitationSmoke() {
     assert(await count(client, "accounts") === 1, "owner bootstrap did not create one account");
     assert(await count(client, "sessions") === 0, "owner bootstrap created a session");
 
+    await verifyInvitationIssuance(client, db, ownerId);
+    const usedError = await verifyInvitationAcceptance(client, db, ownerId, ownerPassword);
+    await verifyInvitationLifecycle(client, db, ownerId, ownerPassword, secret, baseURL, usedError);
+    console.log("invitation smoke passed");
+  } finally {
+    client?.release();
+    await pool.end();
+    await closeDatabase();
+  }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  void runInvitationSmoke().catch(() => {
+    console.error("invitation smoke failed");
+    process.exitCode = 1;
+  });
+}
+type InvitationDatabase = Parameters<typeof isInstallationOwner>[0];
+
+async function verifyInvitationIssuance(client: PoolClient, db: InvitationDatabase, ownerId: string) {
     const existingEmail = "existing@example.com";
     await client.query(
       "INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, $4)",
@@ -139,6 +159,9 @@ async function runInvitationSmoke() {
     }
     await revokeInvitation(db, revokable.invitation.id, ownerId);
 
+}
+
+async function verifyInvitationAcceptance(client: PoolClient, db: InvitationDatabase, ownerId: string, ownerPassword: string) {
     const accepted = await createInvitation(db, { email: "accepted@example.com", suggestedName: "Accepted", createdByUserId: ownerId });
     const acceptedUser = await acceptInvitation(db, accepted.token, { username: "accepted_user", name: "Accepted User", password: ownerPassword });
     assert(await countEmail(client, acceptedUser.email) === 1, "acceptance created duplicate users");
@@ -153,7 +176,10 @@ async function runInvitationSmoke() {
       assert(Number(owned.rows[0]?.count) === 0, "accepted ledger was not empty");
     }
     const usedError = await expectUnavailable(() => acceptInvitation(db, accepted.token, { username: "again_user", name: "Again", password: ownerPassword }));
+    return usedError;
+}
 
+async function verifyInvitationLifecycle(client: PoolClient, db: InvitationDatabase, ownerId: string, ownerPassword: string, secret: string, baseURL: string, usedError: string) {
     const expired = await createInvitation(db, { email: "expired@example.com", suggestedName: null, createdByUserId: ownerId, now: new Date(Date.now() - INVITATION_TTL_MS - 1) });
     const expiredError = await expectUnavailable(() => acceptInvitation(db, expired.token, { username: "expired_user", name: "Expired", password: ownerPassword }));
     const revoked = await createInvitation(db, { email: "revoked-again@example.com", suggestedName: null, createdByUserId: ownerId });
@@ -189,17 +215,4 @@ async function runInvitationSmoke() {
     }
 
     assert((await listInvitations(db, ownerId)).length >= 1, "owner could not view invitation history");
-    console.log("invitation smoke passed");
-  } finally {
-    client?.release();
-    await pool.end();
-    await closeDatabase();
-  }
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  void runInvitationSmoke().catch(() => {
-    console.error("invitation smoke failed");
-    process.exitCode = 1;
-  });
 }

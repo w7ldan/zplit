@@ -158,20 +158,29 @@ export function assertMigrationHistory(rows: readonly unknown[], expected: reado
   });
 }
 
+function validateBackupManifestIdentity(record: Record<string, unknown>) {
+  if (record.formatVersion !== 1 || typeof record.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(record.createdAt)) throw new Error("invalid backup manifest timestamp");
+  if (typeof record.gitCommit !== "string" || !/^[0-9a-f]{40}$/.test(record.gitCommit)) throw new Error("invalid backup manifest commit");
+  if (typeof record.postgresqlServerVersion !== "string" || !/^[0-9]+(?:\.[0-9]+)*$/.test(record.postgresqlServerVersion)) throw new Error("invalid backup manifest server version");
+  if (typeof record.dumpSha256 !== "string" || !/^[0-9a-f]{64}$/.test(record.dumpSha256)) throw new Error("invalid backup manifest hash");
+}
+
+function validateBackupManifestDump(record: Record<string, unknown>, expectedFilename: string | undefined) {
+  const dumpByteLength = record.dumpByteLength;
+  if (typeof dumpByteLength !== "number" || !Number.isSafeInteger(dumpByteLength) || dumpByteLength < 1) throw new Error("invalid backup manifest byte length");
+  if (typeof record.dumpFilename !== "string" || !/^zplit-[0-9]{8}T[0-9]{6}Z\.dump$/.test(record.dumpFilename)) throw new Error("invalid backup filename");
+  if (expectedFilename && record.dumpFilename !== expectedFilename) throw new Error("backup filename mismatch");
+  return dumpByteLength;
+}
+
 export function parseBackupManifest(source: string, expectedFilename?: string): BackupManifest {
   const value: unknown = JSON.parse(source);
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid backup manifest");
   const record = value as Record<string, unknown>;
   const expectedKeys = ["createdAt", "dumpByteLength", "dumpFilename", "dumpSha256", "formatVersion", "gitCommit", "postgresqlServerVersion"];
   if (JSON.stringify(Object.keys(record).sort()) !== JSON.stringify(expectedKeys)) throw new Error("invalid backup manifest fields");
-  if (record.formatVersion !== 1 || typeof record.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(record.createdAt)) throw new Error("invalid backup manifest timestamp");
-  if (typeof record.gitCommit !== "string" || !/^[0-9a-f]{40}$/.test(record.gitCommit)) throw new Error("invalid backup manifest commit");
-  if (typeof record.postgresqlServerVersion !== "string" || !/^[0-9]+(?:\.[0-9]+)*$/.test(record.postgresqlServerVersion)) throw new Error("invalid backup manifest server version");
-  if (typeof record.dumpSha256 !== "string" || !/^[0-9a-f]{64}$/.test(record.dumpSha256)) throw new Error("invalid backup manifest hash");
-  const dumpByteLength = record.dumpByteLength;
-  if (typeof dumpByteLength !== "number" || !Number.isSafeInteger(dumpByteLength) || dumpByteLength < 1) throw new Error("invalid backup manifest byte length");
-  if (typeof record.dumpFilename !== "string" || !/^zplit-[0-9]{8}T[0-9]{6}Z\.dump$/.test(record.dumpFilename)) throw new Error("invalid backup filename");
-  if (expectedFilename && record.dumpFilename !== expectedFilename) throw new Error("backup filename mismatch");
+  validateBackupManifestIdentity(record);
+  const dumpByteLength = validateBackupManifestDump(record, expectedFilename);
   return { ...record, dumpByteLength } as BackupManifest;
 }
 

@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { createPortal } from "react-dom";
 import { mergeSearchableOptions, useSearchableOptions } from "./use-searchable-options";
 import type { SearchableOption, SearchableOptionAction } from "./use-searchable-options";
-import { useSearchableComboboxPlacement } from "./searchable-combobox-placement";
+import { useSearchableComboboxPlacement, type SearchableComboboxPlacement } from "./searchable-combobox-placement";
 export { calculateSearchableComboboxPlacement } from "./searchable-combobox-placement";
 export type { SearchableComboboxPlacement } from "./searchable-combobox-placement";
 
@@ -39,6 +39,234 @@ function optionGroup(options: SearchableOption[], option: SearchableOption) {
   return option.archived ? "Archived friends" : "Active friends";
 }
 
+function initialSelectedId(value: string | undefined, placeholder: string | undefined, options: SearchableOption[]) {
+  return value ?? (placeholder ? "" : options[0]?.id || "");
+}
+
+type SearchableComboboxNativeProps = {
+  id: string;
+  name: string | undefined;
+  currentSelectedId: string;
+  required: boolean;
+  disabled: boolean;
+  enhanced: boolean;
+  labelId: string;
+  ariaInvalid: boolean;
+  ariaDescribedBy: string | undefined;
+  placeholder: string | undefined;
+  nativeOptions: SearchableOption[];
+  allOptions: SearchableOption[];
+  onChoose: (option: SearchableOption) => void;
+};
+
+function SearchableComboboxNative({
+  id,
+  name,
+  currentSelectedId,
+  required,
+  disabled,
+  enhanced,
+  labelId,
+  ariaInvalid,
+  ariaDescribedBy,
+  placeholder,
+  nativeOptions,
+  allOptions,
+  onChoose,
+}: SearchableComboboxNativeProps) {
+  return <>
+    <select
+      key={currentSelectedId}
+      id={id + "-native"}
+      className="searchable-combobox__native"
+      name={disabled || !name ? undefined : name}
+      defaultValue={currentSelectedId}
+      required={required}
+      disabled={disabled}
+      aria-labelledby={enhanced ? undefined : labelId}
+      aria-invalid={ariaInvalid}
+      aria-describedby={ariaDescribedBy}
+      onChange={(event) => {
+        const option = allOptions.find((candidate) => candidate.id === event.target.value);
+        if (option) onChoose(option);
+      }}
+    >
+      {placeholder ? <option value="">{placeholder}</option> : null}
+      {nativeOptions.map((option) => <option key={option.id} value={option.id}>{optionLabel(option)}</option>)}
+    </select>
+    {disabled && name ? <input type="hidden" name={name} value={currentSelectedId} /> : null}
+  </>;
+}
+
+type SearchableComboboxTriggerProps = {
+  id: string;
+  labelId: string;
+  listboxId: string;
+  disabled: boolean;
+  required: boolean;
+  ariaInvalid: boolean;
+  ariaDescribedBy: string | undefined;
+  loading: boolean;
+  open: boolean;
+  activeOption: SearchableOption | undefined;
+  selectedOption: SearchableOption | undefined;
+  placeholder: string | undefined;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
+  onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
+  onClose: () => void;
+  onOpen: () => void;
+};
+
+function SearchableComboboxTrigger({
+  id,
+  labelId,
+  listboxId,
+  disabled,
+  required,
+  ariaInvalid,
+  ariaDescribedBy,
+  loading,
+  open,
+  activeOption,
+  selectedOption,
+  placeholder,
+  triggerRef,
+  onKeyDown,
+  onClose,
+  onOpen,
+}: SearchableComboboxTriggerProps) {
+  return <div className="searchable-combobox__custom">
+    <button
+      ref={triggerRef}
+      id={id}
+      type="button"
+      role="combobox"
+      disabled={disabled}
+      aria-haspopup="listbox"
+      aria-labelledby={labelId}
+      aria-controls={listboxId}
+      aria-expanded={open}
+      aria-activedescendant={activeOption ? listboxId + "-" + activeOption.id : undefined}
+      aria-required={required || undefined}
+      aria-invalid={ariaInvalid}
+      aria-describedby={ariaDescribedBy}
+      aria-busy={loading}
+      onKeyDown={onKeyDown}
+      onClick={() => { if (open) onClose(); else onOpen(); }}
+    >
+      <span className="searchable-combobox__trigger-label">{selectedOption ? optionLabel(selectedOption) : placeholder ?? ""}</span>
+      <span className="searchable-combobox__trigger-icon" aria-hidden="true">▾</span>
+    </button>
+  </div>;
+}
+
+type SearchableComboboxPanelProps = {
+  id: string;
+  listboxId: string;
+  searchLabel: string;
+  panelRef: React.RefObject<HTMLDivElement | null>;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  rootRef: React.RefObject<HTMLDivElement | null>;
+  portalTarget: HTMLElement | null;
+  placement: SearchableComboboxPlacement | null;
+  options: SearchableOption[];
+  query: string;
+  activeOption: SearchableOption | undefined;
+  activeIndex: number;
+  currentSelectedId: string;
+  loading: boolean;
+  error: string;
+  multiSelect: boolean;
+  pendingIds: Set<string>;
+  pendingLabel: string;
+  onSearchChange: (query: string) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+  onClose: () => void;
+  onChoose: (option: SearchableOption) => void;
+  onApplySelections: () => void;
+};
+
+function SearchableComboboxPanel({
+  id,
+  listboxId,
+  searchLabel,
+  panelRef,
+  searchInputRef,
+  rootRef,
+  portalTarget,
+  placement,
+  options,
+  query,
+  activeOption,
+  activeIndex,
+  currentSelectedId,
+  loading,
+  error,
+  multiSelect,
+  pendingIds,
+  pendingLabel,
+  onSearchChange,
+  onKeyDown,
+  onClose,
+  onChoose,
+  onApplySelections,
+}: SearchableComboboxPanelProps) {
+  return <div
+    ref={panelRef}
+    className="searchable-combobox__panel"
+    data-portal={portalTarget instanceof HTMLDialogElement ? "dialog" : "body"}
+    data-placement={placement?.direction}
+    style={placement ? {
+      top: (placement.top - (portalTarget && portalTarget !== document.body ? portalTarget.getBoundingClientRect().top : 0)) + "px",
+      left: (placement.left - (portalTarget && portalTarget !== document.body ? portalTarget.getBoundingClientRect().left : 0)) + "px",
+      width: placement.width + "px",
+      maxHeight: placement.maxHeight + "px",
+    } : { visibility: "hidden" }}
+  >
+    <div className="searchable-combobox__search">
+      <label className="sr-only" htmlFor={id + "-search"}>{searchLabel}</label>
+      <input
+        ref={searchInputRef}
+        id={id + "-search"}
+        type="search"
+        value={query}
+        placeholder={searchLabel}
+        autoComplete="off"
+        aria-label={searchLabel}
+        aria-controls={listboxId}
+        aria-activedescendant={activeOption ? listboxId + "-" + activeOption.id : undefined}
+        aria-busy={loading}
+        onChange={(event) => onSearchChange(event.target.value)}
+        onKeyDown={onKeyDown}
+        onBlur={(event) => {
+          if (!event.relatedTarget || (!rootRef.current?.contains(event.relatedTarget) && !panelRef.current?.contains(event.relatedTarget))) onClose();
+        }}
+      />
+    </div>
+    <ul id={listboxId} className="searchable-combobox__listbox" role="listbox" aria-label="Matching options">
+      {options.map((option, index) => (
+        <Fragment key={option.id}>
+          {optionGroup(options, option) && (index === 0 || optionGroup(options, options[index - 1]!) !== optionGroup(options, option)) ? <li className="searchable-combobox__group" role="presentation">{optionGroup(options, option)}</li> : null}
+          <li
+            id={listboxId + "-" + option.id}
+            role="option"
+            aria-selected={multiSelect ? pendingIds.has(option.id) : option.id === currentSelectedId}
+            className={(index === activeIndex ? "searchable-combobox__option searchable-combobox__option--active" : "searchable-combobox__option") + (multiSelect && pendingIds.has(option.id) ? " searchable-combobox__option--selected" : "")}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() => onChoose(option)}
+          >
+            <span>{optionLabel(option)}</span>
+            {multiSelect && pendingIds.has(option.id) ? <span aria-hidden="true">✓</span> : null}
+          </li>
+        </Fragment>
+      ))}
+      {options.length === 0 ? <li className="searchable-combobox__empty" role="presentation">No matching options.</li> : null}
+      {error ? <li className="searchable-combobox__error" role="alert">{error}</li> : null}
+    </ul>
+    {multiSelect ? <button className="searchable-combobox__apply" type="button" disabled={pendingIds.size === 0} onClick={onApplySelections}>{pendingLabel}</button> : null}
+  </div>;
+}
+
 export function SearchableCombobox({
   id,
   name,
@@ -59,8 +287,9 @@ export function SearchableCombobox({
 }: SearchableComboboxProps) {
   const [enhanced, setEnhanced] = useState(false);
   const [open, setOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState(value ?? (placeholder ? "" : initialOptions[0]?.id || ""));
-  const [selectedOptionState, setSelectedOptionState] = useState<SearchableOption | undefined>(() => initialOptions.find((option) => option.id === (value ?? (placeholder ? "" : initialOptions[0]?.id || ""))));
+  const defaultSelectedId = initialSelectedId(value, placeholder, initialOptions);
+  const [selectedId, setSelectedId] = useState(defaultSelectedId);
+  const [selectedOptionState, setSelectedOptionState] = useState<SearchableOption | undefined>(() => initialOptions.find((option) => option.id === defaultSelectedId));
   const [pendingIds, setPendingIds] = useState(() => new Set(selectedIds));
   const [pendingOptions, setPendingOptions] = useState<SearchableOption[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -71,7 +300,7 @@ export function SearchableCombobox({
   const panelRef = useRef<HTMLDivElement>(null);
   const selectedIdsRef = useRef(selectedIds);
   const listboxId = `${id}-listbox`;
-  const currentSelectedId = value !== undefined ? value : selectedId;
+  const currentSelectedId = value ?? selectedId;
   const onOptionsLoaded = useCallback((nextOptions: SearchableOption[]) => {
     const selectedIndex = nextOptions.findIndex((option) => option.id === currentSelectedId);
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : nextOptions.length ? 0 : -1);
@@ -230,106 +459,67 @@ export function SearchableCombobox({
 
   const activeOption = activeIndex >= 0 ? options[activeIndex] : undefined;
   const pendingLabel = pendingIds.size > 0 ? `Add ${pendingIds.size} friend${pendingIds.size === 1 ? "" : "s"}` : "Add friends";
-  const panel = open ? <div
-    ref={panelRef}
-    className="searchable-combobox__panel"
-    data-portal={portalTarget instanceof HTMLDialogElement ? "dialog" : "body"}
-    data-placement={placement?.direction}
-    style={placement ? {
-      top: `${placement.top - (portalTarget && portalTarget !== document.body ? portalTarget.getBoundingClientRect().top : 0)}px`,
-      left: `${placement.left - (portalTarget && portalTarget !== document.body ? portalTarget.getBoundingClientRect().left : 0)}px`,
-      width: `${placement.width}px`,
-      maxHeight: `${placement.maxHeight}px`,
-    } : { visibility: "hidden" }}
-  >
-    <div className="searchable-combobox__search">
-      <label className="sr-only" htmlFor={`${id}-search`}>{searchLabel}</label>
-      <input
-        ref={searchInputRef}
-        id={`${id}-search`}
-        type="search"
-        value={query}
-        placeholder={searchLabel}
-        autoComplete="off"
-        aria-label={searchLabel}
-        aria-controls={listboxId}
-        aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
-        aria-busy={loading}
-        onChange={(event) => onSearchChange(event.target.value)}
-        onKeyDown={onKeyDown}
-        onBlur={(event) => {
-          if (!event.relatedTarget || (!rootRef.current?.contains(event.relatedTarget) && !panelRef.current?.contains(event.relatedTarget))) closeMenu();
-        }}
-      />
-    </div>
-    <ul id={listboxId} className="searchable-combobox__listbox" role="listbox" aria-label="Matching options">
-      {options.map((option, index) => (
-        <Fragment key={option.id}>
-          {optionGroup(options, option) && (index === 0 || optionGroup(options, options[index - 1]!) !== optionGroup(options, option)) ? <li className="searchable-combobox__group" role="presentation">{optionGroup(options, option)}</li> : null}
-          <li
-            id={`${listboxId}-${option.id}`}
-            role="option"
-            aria-selected={multiSelect ? pendingIds.has(option.id) : option.id === currentSelectedId}
-            className={`${index === activeIndex ? "searchable-combobox__option searchable-combobox__option--active" : "searchable-combobox__option"}${multiSelect && pendingIds.has(option.id) ? " searchable-combobox__option--selected" : ""}`}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={() => choose(option)}
-          >
-            <span>{optionLabel(option)}</span>
-            {multiSelect && pendingIds.has(option.id) ? <span aria-hidden="true">✓</span> : null}
-          </li>
-        </Fragment>
-      ))}
-      {options.length === 0 ? <li className="searchable-combobox__empty" role="presentation">No matching options.</li> : null}
-      {error ? <li className="searchable-combobox__error" role="alert">{error}</li> : null}
-    </ul>
-    {multiSelect ? <button className="searchable-combobox__apply" type="button" disabled={pendingIds.size === 0} onClick={applySelections}>{pendingLabel}</button> : null}
-  </div> : null;
+  const panel = open ? <SearchableComboboxPanel
+    id={id}
+    listboxId={listboxId}
+    searchLabel={searchLabel}
+    panelRef={panelRef}
+    searchInputRef={searchInputRef}
+    rootRef={rootRef}
+    portalTarget={portalTarget}
+    placement={placement}
+    options={options}
+    query={query}
+    activeOption={activeOption}
+    activeIndex={activeIndex}
+    currentSelectedId={currentSelectedId}
+    loading={loading}
+    error={error}
+    multiSelect={multiSelect}
+    pendingIds={pendingIds}
+    pendingLabel={pendingLabel}
+    onSearchChange={onSearchChange}
+    onKeyDown={onKeyDown}
+    onClose={() => closeMenu()}
+    onChoose={choose}
+    onApplySelections={applySelections}
+  /> : null;
 
   return (
     <div ref={rootRef} className="searchable-combobox" data-enhanced={enhanced ? "true" : undefined}>
-      <select
-        key={currentSelectedId}
-        id={`${id}-native`}
-        className="searchable-combobox__native"
-        name={disabled || !name ? undefined : name}
-        defaultValue={currentSelectedId}
+      <SearchableComboboxNative
+        id={id}
+        name={name}
+        currentSelectedId={currentSelectedId}
         required={required}
         disabled={disabled}
-        aria-labelledby={enhanced ? undefined : labelId}
-        aria-invalid={ariaInvalid}
-        aria-describedby={ariaDescribedBy}
-        onChange={(event) => {
-          const option = allOptions.find((candidate) => candidate.id === event.target.value);
-          if (option) choose(option);
-        }}
-      >
-        {placeholder ? <option value="">{placeholder}</option> : null}
-        {nativeOptions.map((option) => <option key={option.id} value={option.id}>{optionLabel(option)}</option>)}
-      </select>
-      {disabled && name ? <input type="hidden" name={name} value={currentSelectedId} /> : null}
-      <div className="searchable-combobox__custom">
-        <button
-          ref={triggerRef}
-          id={id}
-          type="button"
-          role="combobox"
-          disabled={disabled}
-          aria-haspopup="listbox"
-          aria-labelledby={labelId}
-          aria-controls={listboxId}
-          aria-expanded={open}
-          aria-activedescendant={activeOption ? `${listboxId}-${activeOption.id}` : undefined}
-          aria-required={required || undefined}
-          aria-invalid={ariaInvalid}
-          aria-describedby={ariaDescribedBy}
-          aria-busy={loading}
-          onKeyDown={onTriggerKeyDown}
-          onClick={() => { if (open) closeMenu(); else openMenu(); }}
-        >
-          <span className="searchable-combobox__trigger-label">{selectedOption ? optionLabel(selectedOption) : placeholder ?? ""}</span>
-          <span className="searchable-combobox__trigger-icon" aria-hidden="true">▾</span>
-        </button>
-      </div>
+        enhanced={enhanced}
+        labelId={labelId}
+        ariaInvalid={ariaInvalid}
+        ariaDescribedBy={ariaDescribedBy}
+        placeholder={placeholder}
+        nativeOptions={nativeOptions}
+        allOptions={allOptions}
+        onChoose={choose}
+      />
+      <SearchableComboboxTrigger
+        id={id}
+        labelId={labelId}
+        listboxId={listboxId}
+        disabled={disabled}
+        required={required}
+        ariaInvalid={ariaInvalid}
+        ariaDescribedBy={ariaDescribedBy}
+        loading={loading}
+        open={open}
+        activeOption={activeOption}
+        selectedOption={selectedOption}
+        placeholder={placeholder}
+        triggerRef={triggerRef}
+        onKeyDown={onTriggerKeyDown}
+        onClose={() => closeMenu()}
+        onOpen={() => openMenu()}
+      />
       {portalTarget && panel ? createPortal(panel, portalTarget) : panel}
     </div>
   );

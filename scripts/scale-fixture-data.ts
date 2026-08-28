@@ -207,51 +207,49 @@ function receiptContent() {
   return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
 }
 
-export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE_FIXTURE_SEED): ScaleFixtureData {
-  if (!userId.trim()) throw new Error("userId is required");
-  if (!Number.isInteger(seed)) throw new Error("seed must be an integer");
-  const next = random(seed);
-  const fixedCreatedAt = date(createdAt);
+function generateFriends(userId: string, fixedCreatedAt: Date) {
   const friends: FixtureFriend[] = [];
-  const outings: FixtureOuting[] = [];
-  const expenses: FixtureExpense[] = [];
-  const expenseShares: FixtureExpenseShare[] = [];
-  const repayments: FixtureRepayment[] = [];
-  const repaymentAllocations: FixtureRepaymentAllocation[] = [];
-
   for (let index = 0; index < SCALE_FIXTURE_COUNTS.friends; index += 1) {
     friends.push({
       id: fixtureId("friend", index),
       userId,
-      name: index === 0 ? `Long friend ${"x".repeat(108)}` : `Scale friend ${String(index + 1).padStart(3, "0")}`,
-      phoneNumber: index % 3 === 0 ? `+62812${String(index).padStart(6, "0")}` : null,
+      name: index === 0 ? "Long friend " + "x".repeat(108) : "Scale friend " + String(index + 1).padStart(3, "0"),
+      phoneNumber: index % 3 === 0 ? "+62812" + String(index).padStart(6, "0") : null,
       notes: index % 4 === 0 ? "Fixture contact with notes for list and detail rendering." : null,
       archivedAt: index < SCALE_FIXTURE_COUNTS.activeFriends ? null : new Date(Date.UTC(2025, index % 12, 15, 9)),
       createdAt: copyDate(fixedCreatedAt),
       updatedAt: copyDate(fixedCreatedAt),
     });
   }
+  return friends;
+}
 
+function generateOutings(userId: string, fixedCreatedAt: Date, next: () => number) {
+  const outings: FixtureOuting[] = [];
   for (let index = 0; index < SCALE_FIXTURE_COUNTS.outings; index += 1) {
-    const occurredAt = outingTimestamp(index, next);
     outings.push({
       id: fixtureId("outing", index),
       userId,
-      title: index === 0 ? `Long outing ${"y".repeat(148)}` : `Scale outing ${String(index + 1).padStart(3, "0")}`,
-      occurredAt,
+      title: index === 0 ? "Long outing " + "y".repeat(148) : "Scale outing " + String(index + 1).padStart(3, "0"),
+      occurredAt: outingTimestamp(index, next),
       notes: index % 6 === 0 ? "Historical fixture outing for list, filtering, and timeline rendering." : null,
       createdAt: copyDate(fixedCreatedAt),
       updatedAt: copyDate(fixedCreatedAt),
     });
   }
+  return outings;
+}
 
+function generateExpenses(userId: string, friends: FixtureFriend[], outings: FixtureOuting[], fixedCreatedAt: Date, next: () => number) {
+  const expenses: FixtureExpense[] = [];
+  const expenseShares: FixtureExpenseShare[] = [];
   for (let index = 0; index < SCALE_FIXTURE_COUNTS.expenses; index += 1) {
     const amount = index < 5 ? [12_000, 18_000, 22_000, 24_000, 26_000][index]! : 10_000 + integer(next, 90_001);
     expenses.push({
       id: fixtureId("expense", index),
       userId,
       outingId: outings[index % outings.length]!.id,
-      description: index === 0 ? `Long expense ${"z".repeat(187)}` : `Scale expense ${String(index + 1).padStart(4, "0")}`,
+      description: index === 0 ? "Long expense " + "z".repeat(187) : "Scale expense " + String(index + 1).padStart(4, "0"),
       amount,
       createdAt: copyDate(fixedCreatedAt),
       updatedAt: copyDate(fixedCreatedAt),
@@ -265,9 +263,7 @@ export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE
     const weights = friendIndexes.map((_, offset) => 1 + ((index + offset * 3) % 7));
     const weightTotal = weights.reduce((sum, value) => sum + value, 0);
     for (let offset = 0; offset < friendIndexes.length; offset += 1) {
-      const amountOwed = specialAmounts?.[offset] ?? (offset === friendIndexes.length - 1
-        ? remaining
-        : Math.max(1, Math.floor(totalOwed * weights[offset]! / weightTotal)));
+      const amountOwed = specialAmounts?.[offset] ?? (offset === friendIndexes.length - 1 ? remaining : Math.max(1, Math.floor(totalOwed * weights[offset]! / weightTotal)));
       remaining -= amountOwed;
       expenseShares.push({
         id: fixtureId("share", expenseShares.length),
@@ -279,7 +275,12 @@ export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE
       });
     }
   }
+  return { expenses, expenseShares };
+}
 
+function generateRepayments(userId: string, friends: FixtureFriend[], expenses: FixtureExpense[], expenseShares: FixtureExpenseShare[], fixedCreatedAt: Date, next: () => number) {
+  const repayments: FixtureRepayment[] = [];
+  const repaymentAllocations: FixtureRepaymentAllocation[] = [];
   const sharesByFriend = new Map<string, FixtureExpenseShare[]>();
   const remainingByShare = new Map<string, number>();
   for (const share of expenseShares) {
@@ -288,7 +289,6 @@ export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE
     sharesByFriend.set(share.friendId, shares);
     remainingByShare.set(share.id, share.amountOwed);
   }
-
   const shareFor = (expenseIndex: number, friendIndex: number) => {
     const expenseId = expenses[expenseIndex]!.id;
     const friendId = friends[friendIndex]!.id;
@@ -296,7 +296,6 @@ export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE
     if (!share) throw new Error("scale fixture scenario share is missing");
     return share;
   };
-
   const reservedShareIds = new Set<string>();
   const addRepayment = (index: number, friendIndex: number, amount: number, allocation?: { share: FixtureExpenseShare; amount: number }) => {
     const repaymentId = fixtureId("repayment", index);
@@ -310,17 +309,10 @@ export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE
       notes: index < 5 ? "Deterministic scale fixture scenario" : null,
       createdAt: copyDate(fixedCreatedAt),
     });
-    if (allocation) {
-      repaymentAllocations.push({
-        userId,
-        repaymentId,
-        expenseShareId: allocation.share.id,
-        amount: allocation.amount,
-        createdAt: copyDate(fixedCreatedAt),
-      });
-      remainingByShare.set(allocation.share.id, remainingByShare.get(allocation.share.id)! - allocation.amount);
-      reservedShareIds.add(allocation.share.id);
-    }
+    if (!allocation) return;
+    repaymentAllocations.push({ userId, repaymentId, expenseShareId: allocation.share.id, amount: allocation.amount, createdAt: copyDate(fixedCreatedAt) });
+    remainingByShare.set(allocation.share.id, remainingByShare.get(allocation.share.id)! - allocation.amount);
+    reservedShareIds.add(allocation.share.id);
   };
 
   const fullyPaidFirstShare = shareFor(1, 0);
@@ -350,7 +342,6 @@ export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE
       notes: null,
       createdAt: copyDate(fixedCreatedAt),
     });
-
     let budget = amount;
     const maxAllocations = index % 4 === 0 ? 0 : 1 + (index % 3);
     for (const share of (sharesByFriend.get(friends[friendIndex]!.id) ?? []).slice(0, maxAllocations)) {
@@ -358,26 +349,22 @@ export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE
       if (reservedShareIds.has(share.id) || remainingShare <= 0 || budget <= 0) continue;
       const allocationAmount = Math.min(remainingShare, budget, 500 + ((index * 1_237 + share.amountOwed) % 5_001));
       if (allocationAmount <= 0) continue;
-      repaymentAllocations.push({
-        userId,
-        repaymentId,
-        expenseShareId: share.id,
-        amount: allocationAmount,
-        createdAt: copyDate(fixedCreatedAt),
-      });
+      repaymentAllocations.push({ userId, repaymentId, expenseShareId: share.id, amount: allocationAmount, createdAt: copyDate(fixedCreatedAt) });
       remainingByShare.set(share.id, remainingShare - allocationAmount);
       budget -= allocationAmount;
     }
   }
+  return { repayments, repaymentAllocations };
+}
 
-  const receiptExpenseIndexes = [0, 1, 2, 3, 4, 120, 1_200, 1_999];
-  const receipts = receiptExpenseIndexes.map((expenseIndex, index) => {
+function generateReceipts(userId: string, expenses: FixtureExpense[], fixedCreatedAt: Date) {
+  return [0, 1, 2, 3, 4, 120, 1_200, 1_999].map((expenseIndex, index) => {
     const content = receiptContent();
     return {
       id: fixtureId("receipt", index),
       userId,
       expenseId: expenses[expenseIndex]!.id,
-      originalFilename: `scale-receipt-${String(index + 1).padStart(2, "0")}.png`,
+      originalFilename: "scale-receipt-" + String(index + 1).padStart(2, "0") + ".png",
       mediaType: "image/png" as const,
       byteSize: content.byteLength,
       sha256: createHash("sha256").update(content).digest("hex"),
@@ -385,7 +372,17 @@ export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE
       createdAt: copyDate(fixedCreatedAt),
     } satisfies FixtureReceipt;
   });
+}
 
+export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE_FIXTURE_SEED): ScaleFixtureData {
+  if (!userId.trim()) throw new Error("userId is required");
+  if (!Number.isInteger(seed)) throw new Error("seed must be an integer");
+  const next = random(seed);
+  const fixedCreatedAt = date(createdAt);
+  const friends = generateFriends(userId, fixedCreatedAt);
+  const outings = generateOutings(userId, fixedCreatedAt, next);
+  const { expenses, expenseShares } = generateExpenses(userId, friends, outings, fixedCreatedAt, next);
+  const { repayments, repaymentAllocations } = generateRepayments(userId, friends, expenses, expenseShares, fixedCreatedAt, next);
   return {
     seed,
     userId,
@@ -395,6 +392,6 @@ export function generateScaleFixture(userId = "scale-fixture-user", seed = SCALE
     expenseShares,
     repayments,
     repaymentAllocations,
-    receipts,
+    receipts: generateReceipts(userId, expenses, fixedCreatedAt),
   };
 }

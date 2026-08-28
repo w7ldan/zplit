@@ -31,6 +31,96 @@ function valuesOf(value: string | string[] | undefined) {
   return Array.isArray(value) ? value : value === undefined ? [] : [value];
 }
 
+type DiscreteRecordFiltersProps = {
+  selects: LiveRecordSelect[];
+  month: LiveRecordFiltersProps["month"];
+  selectValues: Record<string, string>;
+  monthValue: string;
+  onSelectChange: (name: string, value: string) => void;
+  onMonthChange: (name: string, value: string) => void;
+};
+
+function DiscreteRecordFilters({ selects, month, selectValues, monthValue, onSelectChange, onMonthChange }: DiscreteRecordFiltersProps) {
+  return <>
+    {selects.map((select) => (
+      <div className="live-record-filters__field" key={select.name}>
+        <label id={"record-filter-" + select.name + "-label"} htmlFor={"record-filter-" + select.name}>{select.label}</label>
+        {select.search ? <SearchableCombobox
+          id={"record-filter-" + select.name}
+          name={select.name}
+          value={selectValues[select.name] ?? select.value}
+          options={select.options.map((option) => ({ id: option.value, label: option.label }))}
+          search={select.search}
+          searchLabel={select.searchLabel ?? "Search " + select.label.toLowerCase() + "s"}
+          labelId={"record-filter-" + select.name + "-label"}
+          onValueChange={(option) => onSelectChange(select.name, option.id)}
+        /> : <select
+          id={"record-filter-" + select.name}
+          name={select.name}
+          value={selectValues[select.name] ?? select.value}
+          onChange={(event) => onSelectChange(select.name, event.currentTarget.value)}
+        >
+          {select.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>}
+      </div>
+    ))}
+    {month ? (
+      <div className="live-record-filters__field">
+        <label htmlFor={"record-filter-" + (month.name ?? "month")}>{month.label ?? "Month"}</label>
+        <input
+          id={"record-filter-" + (month.name ?? "month")}
+          name={month.name ?? "month"}
+          type="month"
+          value={monthValue}
+          onChange={(event) => onMonthChange(month.name ?? "month", event.currentTarget.value)}
+        />
+      </div>
+    ) : null}
+  </>;
+}
+
+function PreservedRecordParams({ params, controlledNames }: { params: Record<string, string | string[] | undefined>; controlledNames: Set<string> }) {
+  return <>{Object.entries(params).flatMap(([name, value]) => controlledNames.has(name) ? [] : valuesOf(value).map((item, index) => <input key={name + "-" + index} type="hidden" name={name} value={item} />))}</>;
+}
+
+type LiveRecordSearchProps = {
+  search: LiveRecordFiltersProps["search"];
+  searchName: string;
+  draft: string;
+  onChange: (value: string) => void;
+  onCompositionStart: () => void;
+  onCompositionEnd: (value: string) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+};
+
+function LiveRecordSearch({ search, searchName, draft, onChange, onCompositionStart, onCompositionEnd, onKeyDown }: LiveRecordSearchProps) {
+  return <div className="live-record-filters__search">
+    <label htmlFor={searchName + "-search"}>{search.label}</label>
+    <input
+      id={searchName + "-search"}
+      name={searchName}
+      type="search"
+      value={draft}
+      placeholder={search.placeholder}
+      onChange={(event) => onChange(event.currentTarget.value)}
+      onCompositionStart={onCompositionStart}
+      onCompositionEnd={(event) => onCompositionEnd(event.currentTarget.value)}
+      onKeyDown={onKeyDown}
+    />
+  </div>;
+}
+
+function RecordFilterDisclosure({ mobileDisclosure, disclosureRef, discreteFilters }: { mobileDisclosure: LiveRecordFiltersProps["mobileDisclosure"]; disclosureRef: React.RefObject<HTMLDetailsElement | null>; discreteFilters: React.ReactNode }) {
+  return mobileDisclosure ? <details ref={disclosureRef} className="live-record-filters__disclosure">
+    <summary>Filters{mobileDisclosure.activeCount > 0 ? " (" + mobileDisclosure.activeCount + ")" : ""}</summary>
+    {discreteFilters}
+  </details> : discreteFilters;
+}
+
+function LiveRecordStatus({ isPending, resultStatus }: { isPending: boolean; resultStatus: string }) {
+  return <p className="live-record-filters__status sr-only" role="status" aria-live="polite" aria-atomic="true">{isPending ? "Updating results…" : resultStatus}</p>;
+}
+
 export function LiveRecordFilters({ action, search, selects = emptySelects, month, preservedParams = {}, mobileDisclosure, clearHref, resultStatus = "" }: LiveRecordFiltersProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -205,103 +295,68 @@ export function LiveRecordFilters({ action, search, selects = emptySelects, mont
     navigate(changes);
   }
 
-  const discreteFilters = (
-    <>
-      {selects.map((select) => (
-        <div className="live-record-filters__field" key={select.name}>
-          <label id={`record-filter-${select.name}-label`} htmlFor={`record-filter-${select.name}`}>{select.label}</label>
-          {select.search ? <SearchableCombobox
-            id={`record-filter-${select.name}`}
-            name={select.name}
-            value={selectValues[select.name] ?? select.value}
-            options={select.options.map((option) => ({ id: option.value, label: option.label }))}
-            search={select.search}
-            searchLabel={select.searchLabel ?? `Search ${select.label.toLowerCase()}s`}
-            labelId={`record-filter-${select.name}-label`}
-            onValueChange={(option) => {
-              editRevisionRef.current += 1;
-              cancelDebounce();
-              const nextSelectValues = { ...selectValuesRef.current, [select.name]: option.id };
-              selectValuesRef.current = nextSelectValues;
-              setSelectValues(nextSelectValues);
-              navigate({ [select.name]: option.id || undefined, page: undefined });
-            }}
-          /> : <select
-            id={`record-filter-${select.name}`}
-            name={select.name}
-            value={selectValues[select.name] ?? select.value}
-            onChange={(event) => {
-              editRevisionRef.current += 1;
-              cancelDebounce();
-              const value = event.currentTarget.value;
-              const nextSelectValues = { ...selectValuesRef.current, [select.name]: value };
-              selectValuesRef.current = nextSelectValues;
-              setSelectValues(nextSelectValues);
-              navigate({ [select.name]: value || undefined, page: undefined });
-            }}
-          >
-            {select.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>}
-        </div>
-      ))}
-      {month ? (
-        <div className="live-record-filters__field">
-          <label htmlFor={`record-filter-${month.name ?? "month"}`}>{month.label ?? "Month"}</label>
-          <input
-            id={`record-filter-${month.name ?? "month"}`}
-            name={month.name ?? "month"}
-            type="month"
-            value={monthValue}
-            onChange={(event) => {
-              editRevisionRef.current += 1;
-              cancelDebounce();
-              monthValueRef.current = event.currentTarget.value;
-              setMonthValue(event.currentTarget.value);
-              navigate({ [month.name ?? "month"]: event.currentTarget.value || undefined, page: undefined });
-            }}
-          />
-        </div>
-      ) : null}
-    </>
-  );
+  function changeSelect(name: string, value: string) {
+    editRevisionRef.current += 1;
+    cancelDebounce();
+    const nextSelectValues = { ...selectValuesRef.current, [name]: value };
+    selectValuesRef.current = nextSelectValues;
+    setSelectValues(nextSelectValues);
+    navigate({ [name]: value || undefined, page: undefined });
+  }
+
+  function changeMonth(name: string, value: string) {
+    editRevisionRef.current += 1;
+    cancelDebounce();
+    monthValueRef.current = value;
+    setMonthValue(value);
+    navigate({ [name]: value || undefined, page: undefined });
+  }
+
+  const discreteFilters = <DiscreteRecordFilters
+    selects={selects}
+    month={month}
+    selectValues={selectValues}
+    monthValue={monthValue}
+    onSelectChange={changeSelect}
+    onMonthChange={changeMonth}
+  />;
+
+  function handleSearchChange(value: string) {
+    editRevisionRef.current += 1;
+    draftRef.current = value;
+    setDraft(value);
+    cancelDebounce();
+    if (!composingRef.current) scheduleSearch(value, editRevisionRef.current);
+  }
+
+  function handleCompositionStart() {
+    editRevisionRef.current += 1;
+    composingRef.current = true;
+    cancelDebounce();
+  }
+
+  function handleCompositionEnd(value: string) {
+    composingRef.current = false;
+    scheduleSearch(value);
+  }
+
+  function handleSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter" && !event.nativeEvent.isComposing && !composingRef.current) {
+      event.preventDefault();
+      editRevisionRef.current += 1;
+      applySearch(event.currentTarget.value);
+    }
+  }
 
   return (
-    <form className={`live-record-filters${mobileDisclosure ? " live-record-filters--mobile-disclosure" : ""}`} action={action} method="get" role="search" onSubmit={submit}>
-      {Object.entries(preservedParams).flatMap(([name, value]) => controlledNames.has(name) ? [] : valuesOf(value).map((item, index) => <input key={`${name}-${index}`} type="hidden" name={name} value={item} />))}
-      <div className="live-record-filters__search">
-        <label htmlFor={`${search.name ?? "q"}-search`}>{search.label}</label>
-        <input
-          id={`${search.name ?? "q"}-search`}
-          name={search.name ?? "q"}
-          type="search"
-          value={draft}
-          placeholder={search.placeholder}
-          onChange={(event) => {
-            editRevisionRef.current += 1;
-            const value = event.currentTarget.value;
-            draftRef.current = value;
-            setDraft(value);
-            cancelDebounce();
-            if (!composingRef.current) scheduleSearch(value, editRevisionRef.current);
-          }}
-          onCompositionStart={() => { editRevisionRef.current += 1; composingRef.current = true; cancelDebounce(); }}
-          onCompositionEnd={(event) => { composingRef.current = false; scheduleSearch(event.currentTarget.value); }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.nativeEvent.isComposing && !composingRef.current) {
-              event.preventDefault();
-              editRevisionRef.current += 1;
-              applySearch(event.currentTarget.value);
-            }
-          }}
-        />
-      </div>
-      {mobileDisclosure ? <details ref={disclosureRef} className="live-record-filters__disclosure">
-        <summary>Filters{mobileDisclosure.activeCount > 0 ? ` (${mobileDisclosure.activeCount})` : ""}</summary>
-        {discreteFilters}
-      </details> : discreteFilters}
+    <form className={"live-record-filters" + (mobileDisclosure ? " live-record-filters--mobile-disclosure" : "")} action={action} method="get" role="search" onSubmit={submit}>
+      <PreservedRecordParams params={preservedParams} controlledNames={controlledNames} />
+      <LiveRecordSearch search={search} searchName={searchName} draft={draft} onChange={handleSearchChange} onCompositionStart={handleCompositionStart} onCompositionEnd={handleCompositionEnd} onKeyDown={handleSearchKeyDown} />
+      <RecordFilterDisclosure mobileDisclosure={mobileDisclosure} disclosureRef={disclosureRef} discreteFilters={discreteFilters} />
       {clearHref ? <a className="live-record-filters__clear" href={clearHref}>Clear filters</a> : null}
       <button className="sr-only" type="submit">Apply filters</button>
-      <p className="live-record-filters__status sr-only" role="status" aria-live="polite" aria-atomic="true">{isPending ? "Updating results…" : resultStatus}</p>
+      <LiveRecordStatus isPending={isPending} resultStatus={resultStatus} />
     </form>
   );
+
 }

@@ -109,32 +109,34 @@ function addToMap(map: Map<string, number>, key: string, amount: number, label: 
   map.set(key, add(map.get(key) ?? 0, amount, label));
 }
 
-export function buildLedgerSummary(input: LedgerSummaryInput): LedgerSummary {
-  const friends = indexById(input.friends, "Friend");
-  const expenses = indexById(input.expenses, "Expense");
-  const shares = indexById(input.expenseShares, "Expense share");
-  const repayments = indexById(input.repayments, "Repayment");
-  const allocatedByShare = new Map<string, number>();
-  const allocatedByRepayment = new Map<string, number>();
-  const assignedByExpense = new Map<string, number>();
-  const assignedByFriend = new Map<string, number>();
-  const repaidByFriend = new Map<string, number>();
-
+function totalExpenses(expenses: LedgerExpenseRecord[]) {
   let totalExpenseAmount = 0;
-  for (const expense of input.expenses) {
+  for (const expense of expenses) {
     assertAmount(expense.amount, `Expense ${expense.id} amount`);
     totalExpenseAmount = add(totalExpenseAmount, expense.amount, "Total expense amount");
   }
+  return totalExpenseAmount;
+}
 
+function totalReceived(repayments: LedgerRepaymentRecord[], friends: Map<string, LedgerFriendRecord>) {
   let totalReceivedAmount = 0;
-  for (const repayment of input.repayments) {
+  for (const repayment of repayments) {
     assertAmount(repayment.amount, `Repayment ${repayment.id} amount`);
     if (!friends.has(repayment.friendId)) throw new LedgerIntegrityError(`Repayment ${repayment.id} references an unknown friend.`);
     totalReceivedAmount = add(totalReceivedAmount, repayment.amount, "Total received amount");
   }
+  return totalReceivedAmount;
+}
 
+function assignedAmounts(
+  shares: LedgerExpenseShareRecord[],
+  expenses: Map<string, LedgerExpenseRecord>,
+  friends: Map<string, LedgerFriendRecord>,
+) {
   let totalAssignedAmount = 0;
-  for (const share of input.expenseShares) {
+  const assignedByExpense = new Map<string, number>();
+  const assignedByFriend = new Map<string, number>();
+  for (const share of shares) {
     assertAmount(share.amountOwed, `Expense share ${share.id} amount`);
     const expense = expenses.get(share.expenseId);
     const friend = friends.get(share.friendId);
@@ -147,10 +149,20 @@ export function buildLedgerSummary(input: LedgerSummaryInput): LedgerSummary {
     addToMap(assignedByFriend, share.friendId, share.amountOwed, `Assigned amount for friend ${share.friendId}`);
     totalAssignedAmount = add(totalAssignedAmount, share.amountOwed, "Total assigned amount");
   }
+  return { totalAssignedAmount, assignedByExpense, assignedByFriend };
+}
 
+function repaymentAmounts(
+  allocations: LedgerRepaymentAllocationRecord[],
+  repayments: Map<string, LedgerRepaymentRecord>,
+  shares: Map<string, LedgerExpenseShareRecord>,
+) {
   let totalRepaidAmount = 0;
+  const allocatedByShare = new Map<string, number>();
+  const allocatedByRepayment = new Map<string, number>();
+  const repaidByFriend = new Map<string, number>();
   const allocationKeys = new Set<string>();
-  for (const allocation of input.repaymentAllocations) {
+  for (const allocation of allocations) {
     assertAmount(allocation.amount, "Repayment allocation amount");
     const repayment = repayments.get(allocation.repaymentId);
     const share = shares.get(allocation.expenseShareId);
@@ -169,26 +181,39 @@ export function buildLedgerSummary(input: LedgerSummaryInput): LedgerSummary {
     addToMap(repaidByFriend, share.friendId, allocation.amount, `Repaid amount for friend ${share.friendId}`);
     totalRepaidAmount = add(totalRepaidAmount, allocation.amount, "Total repaid amount");
   }
+  return { totalRepaidAmount, allocatedByShare, allocatedByRepayment, repaidByFriend };
+}
 
-  for (const share of input.expenseShares) {
+function assertAllocationLimits(
+  shares: LedgerExpenseShareRecord[],
+  repayments: LedgerRepaymentRecord[],
+  allocatedByShare: Map<string, number>,
+  allocatedByRepayment: Map<string, number>,
+) {
+  for (const share of shares) {
     const repaid = allocatedByShare.get(share.id) ?? 0;
     if (repaid > share.amountOwed) throw new LedgerIntegrityError(`Allocations exceed expense share ${share.id}.`);
   }
-  for (const repayment of input.repayments) {
+  for (const repayment of repayments) {
     const allocated = allocatedByRepayment.get(repayment.id) ?? 0;
     if (allocated > repayment.amount) throw new LedgerIntegrityError(`Allocations exceed repayment ${repayment.id}.`);
   }
+}
 
+function ownerPortion(expenses: LedgerExpenseRecord[], assignedByExpense: Map<string, number>) {
   let ownerPortionAmount = 0;
-  for (const expense of input.expenses) {
+  for (const expense of expenses) {
     ownerPortionAmount = add(
       ownerPortionAmount,
       subtract(expense.amount, assignedByExpense.get(expense.id) ?? 0, `Owner portion for expense ${expense.id}`),
       "Owner portion amount",
     );
   }
+  return ownerPortionAmount;
+}
 
-  const friendBalances = [...assignedByFriend.entries()].map(([friendId, assignedAmount]) => {
+function friendBalances(assignedByFriend: Map<string, number>, repaidByFriend: Map<string, number>, friends: Map<string, LedgerFriendRecord>) {
+  return [...assignedByFriend.entries()].map(([friendId, assignedAmount]) => {
     const friend = friends.get(friendId);
     if (!friend) throw new LedgerIntegrityError(`Assigned friend ${friendId} is missing.`);
     const repaidAmount = repaidByFriend.get(friendId) ?? 0;
@@ -204,15 +229,28 @@ export function buildLedgerSummary(input: LedgerSummaryInput): LedgerSummary {
     right.outstandingAmount - left.outstandingAmount ||
     (left.name < right.name ? -1 : left.name > right.name ? 1 : left.friendId < right.friendId ? -1 : left.friendId > right.friendId ? 1 : 0),
   );
+}
+
+export function buildLedgerSummary(input: LedgerSummaryInput): LedgerSummary {
+  const friends = indexById(input.friends, "Friend");
+  const expenses = indexById(input.expenses, "Expense");
+  const shares = indexById(input.expenseShares, "Expense share");
+  const repayments = indexById(input.repayments, "Repayment");
+  const totalExpenseAmount = totalExpenses(input.expenses);
+  const totalReceivedAmount = totalReceived(input.repayments, friends);
+  const assigned = assignedAmounts(input.expenseShares, expenses, friends);
+  const repaid = repaymentAmounts(input.repaymentAllocations, repayments, shares);
+  assertAllocationLimits(input.expenseShares, input.repayments, repaid.allocatedByShare, repaid.allocatedByRepayment);
+  const ownerPortionAmount = ownerPortion(input.expenses, assigned.assignedByExpense);
 
   return {
     totalExpenseAmount,
-    totalAssignedAmount,
-    totalRepaidAmount,
+    totalAssignedAmount: assigned.totalAssignedAmount,
+    totalRepaidAmount: repaid.totalRepaidAmount,
     totalReceivedAmount,
-    totalUnallocatedRepaymentAmount: subtract(totalReceivedAmount, totalRepaidAmount, "Total unallocated repayment amount"),
-    totalOutstandingAmount: subtract(totalAssignedAmount, totalRepaidAmount, "Total outstanding amount"),
+    totalUnallocatedRepaymentAmount: subtract(totalReceivedAmount, repaid.totalRepaidAmount, "Total unallocated repayment amount"),
+    totalOutstandingAmount: subtract(assigned.totalAssignedAmount, repaid.totalRepaidAmount, "Total outstanding amount"),
     ownerPortionAmount,
-    friendBalances,
+    friendBalances: friendBalances(assigned.assignedByFriend, repaid.repaidByFriend, friends),
   };
 }

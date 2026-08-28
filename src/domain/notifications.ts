@@ -108,39 +108,39 @@ function requesterFields(record: Record<string, unknown>) {
   return { requesterDisplayName: record.requesterDisplayName.trim(), requesterUsername: record.requesterUsername as string | null };
 }
 
-function parseGroupInvitationMetadata(value: unknown): NotificationMetadata["group.invitation"] | null {
+function groupRequestFields(value: unknown, fieldCount: number) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  if (Object.keys(record).length !== 6) return null;
+  if (Object.keys(record).length !== fieldCount) return null;
   const requestId = normalizeUuid(record.requestId);
   const groupId = normalizeUuid(record.groupId);
   const requester = requesterFields(record);
   if (!requestId || !groupId || !requester) return null;
   if (typeof record.groupName !== "string" || !record.groupName.trim() || record.groupName.length > 160) return null;
   if (typeof record.expiresAt !== "string" || Number.isNaN(Date.parse(record.expiresAt))) return null;
-  return { requestId, groupId, groupName: record.groupName.trim(), ...requester, expiresAt: new Date(record.expiresAt).toISOString() };
+  return { record, requestId, groupId, requester, groupName: record.groupName.trim(), expiresAt: new Date(record.expiresAt).toISOString() };
+}
+
+function parseGroupInvitationMetadata(value: unknown): NotificationMetadata["group.invitation"] | null {
+  const fields = groupRequestFields(value, 6);
+  if (!fields) return null;
+  return { requestId: fields.requestId, groupId: fields.groupId, groupName: fields.groupName, ...fields.requester, expiresAt: fields.expiresAt };
 }
 
 function parseGroupParticipantLinkMetadata(value: unknown): NotificationMetadata["group.participant.link.request"] | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const record = value as Record<string, unknown>;
-  if (Object.keys(record).length !== 8) return null;
-  const requestId = normalizeUuid(record.requestId);
-  const groupId = normalizeUuid(record.groupId);
-  const requester = requesterFields(record);
-  if (!requestId || !groupId || !requester) return null;
-  if (typeof record.groupName !== "string" || !record.groupName.trim() || record.groupName.length > 160) return null;
+  const fields = groupRequestFields(value, 8);
+  if (!fields) return null;
+  const { record } = fields;
   if (typeof record.participantDisplayName !== "string" || !record.participantDisplayName.trim() || record.participantDisplayName.length > 160) return null;
   if (record.participantLabel !== null && (typeof record.participantLabel !== "string" || !record.participantLabel.trim() || record.participantLabel.length > 120)) return null;
-  if (typeof record.expiresAt !== "string" || Number.isNaN(Date.parse(record.expiresAt))) return null;
   return {
-    requestId,
-    groupId,
-    groupName: record.groupName.trim(),
-    ...requester,
+    requestId: fields.requestId,
+    groupId: fields.groupId,
+    groupName: fields.groupName,
+    ...fields.requester,
     participantDisplayName: record.participantDisplayName.trim(),
     participantLabel: typeof record.participantLabel === "string" ? record.participantLabel.trim() : null,
-    expiresAt: new Date(record.expiresAt).toISOString(),
+    expiresAt: fields.expiresAt,
   };
 }
 

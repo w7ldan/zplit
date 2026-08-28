@@ -244,27 +244,23 @@ export function assertExpenseSharesInput(shares: unknown): asserts shares is Exp
 export function assertExpenseChargesInput(charges: unknown): asserts charges is ExpenseChargeInput[] {
   if (!Array.isArray(charges)) throw new LedgerRepositoryError("INVALID_INPUT", "Expense charges are invalid");
   for (const charge of charges) {
-    if (
-      charge === null ||
-      typeof charge !== "object" ||
-      Array.isArray(charge) ||
-      Object.keys(charge).some((key) => !["name", "percentageBasisPoints", "scope", "friendIds"].includes(key)) ||
-      typeof (charge as ExpenseChargeInput).name !== "string" ||
-      !(charge as ExpenseChargeInput).name.trim() ||
-      (charge as ExpenseChargeInput).name.trim().length > 120 ||
-      typeof (charge as ExpenseChargeInput).percentageBasisPoints !== "number" ||
-      !Number.isSafeInteger((charge as ExpenseChargeInput).percentageBasisPoints) ||
-      (charge as ExpenseChargeInput).percentageBasisPoints < 0 ||
-      (charge as ExpenseChargeInput).percentageBasisPoints > MAX_PERCENTAGE_BASIS_POINTS ||
-      ((charge as ExpenseChargeInput).scope !== "all" && (charge as ExpenseChargeInput).scope !== "selected") ||
-      !Array.isArray((charge as ExpenseChargeInput).friendIds) ||
-      (charge as ExpenseChargeInput).friendIds.some((friendId) => typeof friendId !== "string" || !normalizeUuid(friendId)) ||
-      new Set((charge as ExpenseChargeInput).friendIds.map((friendId) => friendId.toLowerCase())).size !== (charge as ExpenseChargeInput).friendIds.length ||
-      ((charge as ExpenseChargeInput).scope === "selected" && (charge as ExpenseChargeInput).friendIds.length === 0)
-    ) {
+    if (!isExpenseChargeInput(charge)) {
       throw new LedgerRepositoryError("INVALID_INPUT", "Expense charges are invalid");
     }
   }
+}
+
+function isExpenseChargeInput(charge: unknown): charge is ExpenseChargeInput {
+  if (charge === null || typeof charge !== "object" || Array.isArray(charge)) return false;
+  const value = charge as ExpenseChargeInput;
+  return Object.keys(charge).every((key) => ["name", "percentageBasisPoints", "scope", "friendIds"].includes(key)) &&
+    typeof value.name === "string" && Boolean(value.name.trim()) && value.name.trim().length <= 120 &&
+    typeof value.percentageBasisPoints === "number" && Number.isSafeInteger(value.percentageBasisPoints) &&
+    value.percentageBasisPoints >= 0 && value.percentageBasisPoints <= MAX_PERCENTAGE_BASIS_POINTS &&
+    (value.scope === "all" || value.scope === "selected") && Array.isArray(value.friendIds) &&
+    value.friendIds.every((friendId) => typeof friendId === "string" && Boolean(normalizeUuid(friendId))) &&
+    new Set(value.friendIds.map((friendId) => friendId.toLowerCase())).size === value.friendIds.length &&
+    (value.scope !== "selected" || value.friendIds.length > 0);
 }
 
 export function shareBaseAmount(share: ExpenseShareRepositoryInput) {

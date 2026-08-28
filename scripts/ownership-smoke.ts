@@ -131,6 +131,123 @@ export async function runOwnershipSmoke() {
     const repositoryA = createLedgerRepository(db, scopeA);
     const repositoryB = createLedgerRepository(db, scopeB);
     const now = new Date("2026-01-02T10:30:00.000Z");
+    const base: OwnershipBase = { client, db, userA, userB, scopeA, scopeB, repositoryA, repositoryB, now };
+    const expenseState = await runExpenseOwnershipChecks(base);
+    const repaymentState = await runRepaymentOwnershipChecks(expenseState);
+    await runFinalOwnershipChecks(repaymentState);
+    await client.query("BEGIN");
+    transactionStarted = true;
+    await expectConstraint(
+      client,
+      "23503",
+      "INSERT INTO expense_shares (ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [scopeA, expenseState.expenseA.id, expenseState.friendB.id, 1, 1],
+      "cross_owner_share",
+    );
+    await expectConstraint(
+      client,
+      "23503",
+      "INSERT INTO repayments (ledger_scope_id, friend_id, amount, paid_at) VALUES ($1, $2, $3, $4)",
+      [scopeA, expenseState.friendB.id, 1, base.now],
+      "cross_owner_repayment",
+    );
+    await expectConstraint(
+      client,
+      "23503",
+      "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
+      [scopeA, repaymentState.repaymentA.id, expenseState.shareB.id, 1],
+      "cross_owner_allocation",
+    );
+    await expectConstraint(
+      client,
+      "23514",
+      "INSERT INTO expenses (ledger_scope_id, outing_id, description, amount) VALUES ($1, $2, $3, $4)",
+      [scopeA, expenseState.outingA.id, "Invalid amount", 0],
+      "amount_expense",
+    );
+    await expectConstraint(
+      client,
+      "23502",
+      "INSERT INTO expenses (ledger_scope_id, description, amount) VALUES ($1, $2, $3)",
+      [scopeA, "Missing outing", 1],
+      "required_expense_outing",
+    );
+    await expectConstraint(
+      client,
+      "23514",
+      "INSERT INTO expense_shares (ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [scopeA, expenseState.expenseA.id, expenseState.friendA.id, 0, 0],
+      "amount_share",
+    );
+    await expectConstraint(
+      client,
+      "23514",
+      "INSERT INTO repayments (ledger_scope_id, friend_id, amount, paid_at) VALUES ($1, $2, $3, $4)",
+      [scopeA, expenseState.friendA.id, 0, base.now],
+      "amount_repayment",
+    );
+    await expectConstraint(
+      client,
+      "23514",
+      "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
+      [scopeA, repaymentState.repaymentA.id, expenseState.shareA.id, 0],
+      "amount_allocation",
+    );
+    await expectConstraint(
+      client,
+      "23505",
+      "INSERT INTO expense_shares (ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
+      [scopeA, expenseState.expenseA.id, expenseState.friendA.id, 1, 1],
+      "duplicate_share",
+    );
+    await expectConstraint(
+      client,
+      "23505",
+      "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
+      [scopeA, repaymentState.repaymentA.id, expenseState.shareA.id, 1],
+      "duplicate_allocation",
+    );
+    await client.query("ROLLBACK");
+    transactionStarted = false;
+  } catch (error) {
+    throw new Error(safeError(error, [config.password, secret, passwordA, passwordB]));
+  } finally {
+    if (client) {
+      if (transactionStarted) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {}
+      }
+      client.release();
+    }
+    await pool.end();
+  }
+
+  console.log("ownership smoke passed: owner A expense=13000 assigned=7500 received=16500 allocated=7500 unallocated=9000 outstanding=0; owner B expense=11000 assigned=5000 received=5000 allocated=5000 unallocated=0 outstanding=0");
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  void runOwnershipSmoke().catch((error) => {
+    console.error(`ownership smoke failed: ${error instanceof Error ? error.message : "unknown error"}`);
+    process.exitCode = 1;
+  });
+}
+type OwnershipDatabase = Parameters<typeof createLedgerRepository>[0];
+type OwnershipRepository = ReturnType<typeof createLedgerRepository>;
+type OwnershipBase = {
+  client: PoolClient;
+  db: OwnershipDatabase;
+  userA: string;
+  userB: string;
+  scopeA: string;
+  scopeB: string;
+  repositoryA: OwnershipRepository;
+  repositoryB: OwnershipRepository;
+  now: Date;
+};
+
+async function runExpenseOwnershipChecks(base: OwnershipBase) {
+  const { repositoryA, repositoryB, now } = base;
     const friendA = await repositoryA.createFriend({ name: "Friend A", phoneNumber: null, notes: null });
     const outingA = await repositoryA.createOuting({ title: "Outing A", occurredAt: now, notes: null });
     const outingA2 = await repositoryA.createOuting({ title: "Outing A 2", occurredAt: new Date("2026-01-04T10:30:00.000Z"), notes: null });
@@ -220,6 +337,12 @@ export async function runOwnershipSmoke() {
     assert(shareA, "owner A share could not be restored");
 
     await repositoryA.setFriendArchived(friendA.id, true);
+    assert(shareA, "owner A share could not be restored");
+    return { ...base, friendA, friendB, outingA, outingA2, outingB, outingB2, expenseA, expenseB, shareA, shareB, originalShareAId };
+}
+
+async function runRepaymentOwnershipChecks(state: Awaited<ReturnType<typeof runExpenseOwnershipChecks>>) {
+  const { repositoryA, repositoryB, friendA, friendB, shareA, shareB, now } = state;
     const repaymentA = await repositoryA.createRepayment({ friendId: friendA.id, amount: 7500, paidAt: now, paymentMethod: "bank transfer", notes: "Allocated repayment" });
     assert((await repositoryA.getRepayment(repaymentA.id)).friendArchivedAt !== null, "archived friend could not receive a repayment");
     await repositoryA.setFriendArchived(friendA.id, false);
@@ -279,6 +402,11 @@ export async function runOwnershipSmoke() {
       repaymentFriendRejected = true;
     }
     assert(repaymentFriendRejected, "repayment friend change after allocation was accepted");
+    return { ...state, repaymentA, repaymentAUnallocated, repaymentB };
+}
+
+async function runFinalOwnershipChecks(state: Awaited<ReturnType<typeof runRepaymentOwnershipChecks>>) {
+  const { client, repositoryA, repositoryB, friendA, friendB, shareA, shareB, expenseB, outingA, outingB, repaymentA, repaymentB, scopeA, scopeB, now } = state;
     const repaymentsA = await repositoryA.listRepayments();
     assert(repaymentsA.length === 4 && repaymentsA.some((repayment) => repayment.unallocatedAmount === 3000), "owner A repayment list is wrong");
     assert(repaymentsA.some((repayment) => repayment.friendName === "Friend A" && repayment.allocatedAmount === 7500), "owner A repayment friend or allocation is wrong");
@@ -345,100 +473,4 @@ export async function runOwnershipSmoke() {
     await expectNotFound(() => repositoryA.updateFriend(friendB.id, { name: "Foreign", phoneNumber: null, notes: null }));
     await expectNotFound(() => repositoryA.setFriendArchived(friendB.id, true));
 
-    await client.query("BEGIN");
-    transactionStarted = true;
-    await expectConstraint(
-      client,
-      "23503",
-      "INSERT INTO expense_shares (ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
-      [scopeA, expenseA.id, friendB.id, 1, 1],
-      "cross_owner_share",
-    );
-    await expectConstraint(
-      client,
-      "23503",
-      "INSERT INTO repayments (ledger_scope_id, friend_id, amount, paid_at) VALUES ($1, $2, $3, $4)",
-      [scopeA, friendB.id, 1, now],
-      "cross_owner_repayment",
-    );
-    await expectConstraint(
-      client,
-      "23503",
-      "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
-      [scopeA, repaymentA.id, shareB.id, 1],
-      "cross_owner_allocation",
-    );
-    await expectConstraint(
-      client,
-      "23514",
-      "INSERT INTO expenses (ledger_scope_id, outing_id, description, amount) VALUES ($1, $2, $3, $4)",
-      [scopeA, outingA.id, "Invalid amount", 0],
-      "amount_expense",
-    );
-    await expectConstraint(
-      client,
-      "23502",
-      "INSERT INTO expenses (ledger_scope_id, description, amount) VALUES ($1, $2, $3)",
-      [scopeA, "Missing outing", 1],
-      "required_expense_outing",
-    );
-    await expectConstraint(
-      client,
-      "23514",
-      "INSERT INTO expense_shares (ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
-      [scopeA, expenseA.id, friendA.id, 0, 0],
-      "amount_share",
-    );
-    await expectConstraint(
-      client,
-      "23514",
-      "INSERT INTO repayments (ledger_scope_id, friend_id, amount, paid_at) VALUES ($1, $2, $3, $4)",
-      [scopeA, friendA.id, 0, now],
-      "amount_repayment",
-    );
-    await expectConstraint(
-      client,
-      "23514",
-      "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
-      [scopeA, repaymentA.id, shareA.id, 0],
-      "amount_allocation",
-    );
-    await expectConstraint(
-      client,
-      "23505",
-      "INSERT INTO expense_shares (ledger_scope_id, expense_id, friend_id, base_amount, amount_owed) VALUES ($1, $2, $3, $4, $5)",
-      [scopeA, expenseA.id, friendA.id, 1, 1],
-      "duplicate_share",
-    );
-    await expectConstraint(
-      client,
-      "23505",
-      "INSERT INTO repayment_allocations (ledger_scope_id, repayment_id, expense_share_id, amount) VALUES ($1, $2, $3, $4)",
-      [scopeA, repaymentA.id, shareA.id, 1],
-      "duplicate_allocation",
-    );
-    await client.query("ROLLBACK");
-    transactionStarted = false;
-  } catch (error) {
-    throw new Error(safeError(error, [config.password, secret, passwordA, passwordB]));
-  } finally {
-    if (client) {
-      if (transactionStarted) {
-        try {
-          await client.query("ROLLBACK");
-        } catch {}
-      }
-      client.release();
-    }
-    await pool.end();
-  }
-
-  console.log("ownership smoke passed: owner A expense=13000 assigned=7500 received=16500 allocated=7500 unallocated=9000 outstanding=0; owner B expense=11000 assigned=5000 received=5000 allocated=5000 unallocated=0 outstanding=0");
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  void runOwnershipSmoke().catch((error) => {
-    console.error(`ownership smoke failed: ${error instanceof Error ? error.message : "unknown error"}`);
-    process.exitCode = 1;
-  });
 }

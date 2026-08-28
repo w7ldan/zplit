@@ -64,6 +64,37 @@ function historyArray(value: unknown, label: string) {
   return value;
 }
 
+function historyRecords(rows: HistoryRow[]) {
+  const expenses: LedgerHistoryExpenseRecord[] = [];
+  const repayments: LedgerHistoryRepaymentRecord[] = [];
+  for (const row of rows) {
+    if (row.event_type === "expense") {
+      if (row.description === null || row.outing_title === null || row.total_amount === null) throw new LedgerHistoryIntegrityError("Expense history row is incomplete.");
+      expenses.push({
+        id: row.record_id,
+        description: row.description,
+        outingTitle: row.outing_title,
+        outingOccurredAt: row.effective_at,
+        amount: historyAmount(row.total_amount, `Expense ${row.record_id} amount`),
+        shares: historyArray(row.shares, `Expense ${row.record_id} shares`) as LedgerHistoryExpenseRecord["shares"],
+      });
+    } else if (row.event_type === "repayment") {
+      if (row.friend_id === null || row.friend_name === null || row.total_amount === null) throw new LedgerHistoryIntegrityError("Repayment history row is incomplete.");
+      repayments.push({
+        id: row.record_id,
+        friendId: row.friend_id,
+        friendName: row.friend_name,
+        paidAt: row.effective_at,
+        amount: historyAmount(row.total_amount, `Repayment ${row.record_id} amount`),
+        allocations: historyArray(row.allocations, `Repayment ${row.record_id} allocations`) as LedgerHistoryRepaymentRecord["allocations"],
+      });
+    } else {
+      throw new LedgerHistoryIntegrityError("Ledger history event type is invalid.");
+    }
+  }
+  return { expenses, repayments };
+}
+
 export function createLedgerHistoryRepository(database: Database, scope: string) {
 async function listRecentActivity({ limit = 6 }: { limit?: number } = {}): Promise<RecentActivityRecord[]> {
     if (typeof limit !== "number" || !Number.isFinite(limit) || !Number.isInteger(limit) || limit < 1 || limit > 20) {
@@ -284,35 +315,8 @@ async function listLedgerHistory({ cursor, type = "all", limit = 30 }: { cursor?
         LIMIT ${pageLimit + 1}
       `);
 
-      const expenses: LedgerHistoryExpenseRecord[] = [];
-      const repayments: LedgerHistoryRepaymentRecord[] = [];
       const historyRows = (Array.isArray(result) ? result : result.rows) as HistoryRow[];
-      for (const row of historyRows) {
-        if (row.event_type === "expense") {
-          if (row.description === null || row.outing_title === null || row.total_amount === null) throw new LedgerHistoryIntegrityError("Expense history row is incomplete.");
-          expenses.push({
-            id: row.record_id,
-            description: row.description,
-            outingTitle: row.outing_title,
-            outingOccurredAt: row.effective_at,
-            amount: historyAmount(row.total_amount, `Expense ${row.record_id} amount`),
-            shares: historyArray(row.shares, `Expense ${row.record_id} shares`) as LedgerHistoryExpenseRecord["shares"],
-          });
-        } else if (row.event_type === "repayment") {
-          if (row.friend_id === null || row.friend_name === null || row.total_amount === null) throw new LedgerHistoryIntegrityError("Repayment history row is incomplete.");
-          repayments.push({
-            id: row.record_id,
-            friendId: row.friend_id,
-            friendName: row.friend_name,
-            paidAt: row.effective_at,
-            amount: historyAmount(row.total_amount, `Repayment ${row.record_id} amount`),
-            allocations: historyArray(row.allocations, `Repayment ${row.record_id} allocations`) as LedgerHistoryRepaymentRecord["allocations"],
-          });
-        } else {
-          throw new LedgerHistoryIntegrityError("Ledger history event type is invalid.");
-        }
-      }
-      return buildLedgerHistory({ expenses, repayments }, { type, limit: pageLimit, allocationsComplete: false });
+      return buildLedgerHistory(historyRecords(historyRows), { type, limit: pageLimit, allocationsComplete: false });
     } catch (error) {
       return persistenceError(error);
     }

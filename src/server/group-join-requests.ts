@@ -144,81 +144,106 @@ async function expirePendingForParticipant(database: Database, groupId: string, 
   await transitionPendingRequest(database, request, "expired", now);
 }
 
-async function createRequest(database: Database, input: { groupId: string; requesterUserId: string; username: unknown; kind: GroupJoinRequestKind; participantId?: string }) {
+type CreateRequestInput = {
+  groupId: string;
+  requesterUserId: string;
+  username: unknown;
+  kind: GroupJoinRequestKind;
+  participantId?: string;
+};
+type RequestParticipant = { id: string; displayName: string | null; label: string | null; userId?: string | null };
+
+async function findParticipantForRequest(database: Database, input: CreateRequestInput): Promise<RequestParticipant | undefined> {
+  if (input.kind !== "participant_link") return undefined;
+  const [selected] = await database
+    .select({ id: groupParticipants.id, displayName: groupParticipants.displayName, label: groupParticipants.label, userId: groupParticipants.userId })
+    .from(groupParticipants)
+    .where(and(eq(groupParticipants.groupId, input.groupId), eq(groupParticipants.id, input.participantId!)))
+    .limit(1);
+  if (!selected) throw new GroupJoinRequestError("participant_not_found");
+  if (selected.userId) throw new GroupJoinRequestError("already_linked");
+  return selected;
+}
+
+async function lockParticipantForRequest(database: Database, input: CreateRequestInput, participant: RequestParticipant | undefined) {
+  if (input.kind !== "participant_link") return participant;
+  const [lockedParticipant] = await database
+    .select({ id: groupParticipants.id, displayName: groupParticipants.displayName, label: groupParticipants.label, userId: groupParticipants.userId })
+    .from(groupParticipants)
+    .where(and(eq(groupParticipants.groupId, input.groupId), eq(groupParticipants.id, input.participantId!)))
+    .limit(1)
+    .for("update");
+  if (!lockedParticipant) throw new GroupJoinRequestError("participant_not_found");
+  if (lockedParticipant.userId) throw new GroupJoinRequestError("already_linked");
+  return lockedParticipant;
+}
+
+function requestMetadata(
+  input: CreateRequestInput,
+  request: typeof groupJoinRequests.$inferSelect,
+  group: { name: string },
+  requester: { name: string; username: string | null },
+  participant: RequestParticipant | undefined,
+): NotificationMetadata["group.invitation"] | NotificationMetadata["group.participant.link.request"] {
+  if (input.kind === "member_invitation") {
+    return {
+      requestId: request.id,
+      groupId: input.groupId,
+      groupName: group.name,
+      requesterDisplayName: requester.name,
+      requesterUsername: requester.username,
+      expiresAt: request.expiresAt.toISOString(),
+    };
+  }
+  return {
+    requestId: request.id,
+    groupId: input.groupId,
+    groupName: group.name,
+    requesterDisplayName: requester.name,
+    requesterUsername: requester.username,
+    participantDisplayName: participant?.displayName ?? "Participant",
+    participantLabel: participant?.label ?? null,
+    expiresAt: request.expiresAt.toISOString(),
+  };
+}
+
+async function createRequestInTransaction(database: Database, input: CreateRequestInput) {
+  const access = await requireGroupAccess(database, input.groupId, input.requesterUserId);
+  access.requireManageParticipants();
+  const username = parseRequestUsername(input.username);
+  const target = await resolveTarget(database, username);
+  if (!target) throw new GroupJoinRequestError("invalid_target");
+  if (target.id === input.requesterUserId) throw new GroupJoinRequestError("self");
+
+  let participant = await findParticipantForRequest(database, input);
+  const now = new Date();
+  await expirePendingForTarget(database, input.groupId, target.id, now);
+  if (input.kind === "participant_link") await expirePendingForParticipant(database, input.groupId, input.participantId!, now);
+  await ensureTargetIsUnrepresented(database, input.groupId, target.id, input.kind);
+  participant = await lockParticipantForRequest(database, input, participant);
+  const { group, requester } = await resolveGroupContext(database, input.groupId, input.requesterUserId);
+  const expiresAt = groupJoinRequestExpiresAt(now);
+  const [request] = await database
+    .insert(groupJoinRequests)
+    .values({ groupId: input.groupId, kind: input.kind, participantId: participant?.id ?? null, participantDisplayNameSnapshot: participant?.displayName ?? null, participantLabelSnapshot: participant?.label ?? null, targetUserId: target.id, requesterUserId: input.requesterUserId, status: "pending", expiresAt, createdAt: now, updatedAt: now })
+    .returning();
+  if (!request) throw new Error("Group join request was not created");
+
+  await createNotificationInDatabase(database, {
+    recipientUserId: target.id,
+    type: notificationType(input.kind),
+    metadata: requestMetadata(input, request, group, requester, participant),
+    dedupeKey: "group-join-request:" + request.id,
+  });
+  return { request, targetUserId: target.id };
+}
+
+async function createRequest(database: Database, input: CreateRequestInput) {
   assertGroupId(input.groupId);
   assertUserId(input.requesterUserId);
   if (input.kind === "participant_link" && !input.participantId) throw new GroupJoinRequestError("participant_not_found");
   if (input.participantId !== undefined && !normalizeUuid(input.participantId)) throw new GroupJoinRequestError("participant_not_found");
-  const created = await database.transaction(async (transaction) => {
-    const access = await requireGroupAccess(transaction as Database, input.groupId, input.requesterUserId);
-    access.requireManageParticipants();
-    const username = parseRequestUsername(input.username);
-    const target = await resolveTarget(transaction as Database, username);
-    if (!target) throw new GroupJoinRequestError("invalid_target");
-    if (target.id === input.requesterUserId) throw new GroupJoinRequestError("self");
-
-    let participant: { id: string; displayName: string | null; label: string | null } | undefined;
-    if (input.kind === "participant_link") {
-      const [selected] = await transaction
-        .select({ id: groupParticipants.id, displayName: groupParticipants.displayName, label: groupParticipants.label, userId: groupParticipants.userId })
-        .from(groupParticipants)
-        .where(and(eq(groupParticipants.groupId, input.groupId), eq(groupParticipants.id, input.participantId!)))
-        .limit(1);
-      if (!selected) throw new GroupJoinRequestError("participant_not_found");
-      if (selected.userId) throw new GroupJoinRequestError("already_linked");
-      participant = selected;
-    }
-
-    const now = new Date();
-    await expirePendingForTarget(transaction as Database, input.groupId, target.id, now);
-    if (input.kind === "participant_link") await expirePendingForParticipant(transaction as Database, input.groupId, input.participantId!, now);
-    await ensureTargetIsUnrepresented(transaction as Database, input.groupId, target.id, input.kind);
-    if (input.kind === "participant_link") {
-      const [lockedParticipant] = await transaction
-        .select({ id: groupParticipants.id, displayName: groupParticipants.displayName, label: groupParticipants.label, userId: groupParticipants.userId })
-        .from(groupParticipants)
-        .where(and(eq(groupParticipants.groupId, input.groupId), eq(groupParticipants.id, input.participantId!)))
-        .limit(1)
-        .for("update");
-      if (!lockedParticipant) throw new GroupJoinRequestError("participant_not_found");
-      if (lockedParticipant.userId) throw new GroupJoinRequestError("already_linked");
-      participant = lockedParticipant;
-    }
-    const { group, requester } = await resolveGroupContext(transaction as Database, input.groupId, input.requesterUserId);
-    const expiresAt = groupJoinRequestExpiresAt(now);
-    const [request] = await transaction
-      .insert(groupJoinRequests)
-      .values({ groupId: input.groupId, kind: input.kind, participantId: participant?.id ?? null, participantDisplayNameSnapshot: participant?.displayName ?? null, participantLabelSnapshot: participant?.label ?? null, targetUserId: target.id, requesterUserId: input.requesterUserId, status: "pending", expiresAt, createdAt: now, updatedAt: now })
-      .returning();
-    if (!request) throw new Error("Group join request was not created");
-
-    const metadata = input.kind === "member_invitation"
-      ? {
-        requestId: request.id,
-        groupId: input.groupId,
-        groupName: group.name,
-        requesterDisplayName: requester.name,
-        requesterUsername: requester.username,
-        expiresAt: request.expiresAt.toISOString(),
-      } satisfies NotificationMetadata["group.invitation"]
-      : {
-        requestId: request.id,
-        groupId: input.groupId,
-        groupName: group.name,
-        requesterDisplayName: requester.name,
-        requesterUsername: requester.username,
-        participantDisplayName: participant?.displayName ?? "Participant",
-        participantLabel: participant?.label ?? null,
-        expiresAt: request.expiresAt.toISOString(),
-      } satisfies NotificationMetadata["group.participant.link.request"];
-    await createNotificationInDatabase(transaction as Database, {
-      recipientUserId: target.id,
-      type: notificationType(input.kind),
-      metadata,
-      dedupeKey: `group-join-request:${request.id}`,
-    });
-    return { request, targetUserId: target.id };
-  }).catch((error) => {
+  const created = await database.transaction((transaction) => createRequestInTransaction(transaction as Database, input)).catch((error) => {
     if (databaseCode(error) === "23505") throw new GroupJoinRequestError("duplicate");
     throw error;
   });
@@ -341,122 +366,143 @@ async function currentRequesterHasAuthority(database: Database, groupId: string,
   }
 }
 
+type RequestResponse = {
+  request: typeof groupJoinRequests.$inferSelect;
+  changed: boolean;
+  error?: GroupJoinRequestError["code"];
+};
+
+async function resolveNonAcceptance(
+  database: Database,
+  request: typeof groupJoinRequests.$inferSelect,
+  response: "accept" | "decline",
+  now: Date,
+): Promise<RequestResponse | null> {
+  if (isGroupJoinRequestExpired(request.expiresAt, now)) {
+    const expired = await transitionPendingRequest(database, request, "expired", now);
+    return { request: expired ?? request, changed: Boolean(expired), error: "expired" };
+  }
+  if (response !== "decline") return null;
+  const declined = await transitionPendingRequest(database, request, "declined", now);
+  if (!declined) throw new GroupJoinRequestError("resolved");
+  return { request: declined, changed: true };
+}
+
+async function acceptMemberInvitation(database: Database, request: typeof groupJoinRequests.$inferSelect, targetUserId: string, now: Date): Promise<RequestResponse> {
+  const [existingMembership] = await database
+    .select({ userId: groupMemberships.userId })
+    .from(groupMemberships)
+    .where(and(eq(groupMemberships.groupId, request.groupId), eq(groupMemberships.userId, targetUserId)))
+    .limit(1)
+    .for("update");
+  const [registered] = await database
+    .select({ id: groupParticipants.id })
+    .from(groupParticipants)
+    .where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.userId, targetUserId)))
+    .limit(1)
+    .for("update");
+  if (existingMembership) {
+    const revoked = await transitionPendingRequest(database, request, "revoked", now);
+    return { request: revoked ?? request, changed: Boolean(revoked), error: "already_member" };
+  }
+  const participant = registered ?? (await database
+    .insert(groupParticipants)
+    .values({ groupId: request.groupId, userId: targetUserId, displayName: null, createdAt: now, updatedAt: now })
+    .onConflictDoNothing()
+    .returning({ id: groupParticipants.id }))[0];
+  if (!participant) throw new GroupJoinRequestError("conflict");
+  const [createdMembership] = await database
+    .insert(groupMemberships)
+    .values({ groupId: request.groupId, userId: targetUserId, participantId: participant.id, role: "member", joinedAt: now })
+    .onConflictDoNothing({ target: [groupMemberships.groupId, groupMemberships.userId] })
+    .returning();
+  if (!createdMembership) {
+    if (!registered) await database.delete(groupParticipants).where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, participant.id), eq(groupParticipants.userId, targetUserId)));
+    const revoked = await transitionPendingRequest(database, request, "revoked", now);
+    return { request: revoked ?? request, changed: Boolean(revoked), error: "already_member" };
+  }
+  const accepted = await transitionPendingRequest(database, request, "accepted", now);
+  if (!accepted) throw new GroupJoinRequestError("conflict");
+  return { request: accepted, changed: true };
+}
+
+async function acceptParticipantLink(database: Database, request: typeof groupJoinRequests.$inferSelect, targetUserId: string, now: Date): Promise<RequestResponse> {
+  const [participant] = await database
+    .select()
+    .from(groupParticipants)
+    .where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, request.participantId!)))
+    .limit(1)
+    .for("update");
+  if (!participant) {
+    const revoked = await transitionPendingRequest(database, request, "revoked", now);
+    return { request: revoked ?? request, changed: Boolean(revoked), error: "participant_not_found" };
+  }
+  if (participant.userId) {
+    const revoked = await transitionPendingRequest(database, request, "revoked", now);
+    return { request: revoked ?? request, changed: Boolean(revoked), error: "already_linked" };
+  }
+  const [existingMembership] = await database
+    .select({ userId: groupMemberships.userId })
+    .from(groupMemberships)
+    .where(and(eq(groupMemberships.groupId, request.groupId), eq(groupMemberships.userId, targetUserId)))
+    .limit(1)
+    .for("update");
+  const [registered] = await database
+    .select({ id: groupParticipants.id })
+    .from(groupParticipants)
+    .where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.userId, targetUserId)))
+    .limit(1)
+    .for("update");
+  if (existingMembership || registered) {
+    const revoked = await transitionPendingRequest(database, request, "revoked", now);
+    return { request: revoked ?? request, changed: Boolean(revoked), error: existingMembership ? "already_member" : "registered_participant" };
+  }
+  const [linked] = await database
+    .update(groupParticipants)
+    .set({ userId: targetUserId, displayName: null, updatedAt: now })
+    .where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, participant.id), isNull(groupParticipants.userId)))
+    .returning({ id: groupParticipants.id });
+  if (!linked) throw new GroupJoinRequestError("conflict");
+  const [createdMembership] = await database
+    .insert(groupMemberships)
+    .values({ groupId: request.groupId, userId: targetUserId, participantId: participant.id, role: "member", joinedAt: now })
+    .onConflictDoNothing({ target: [groupMemberships.groupId, groupMemberships.userId] })
+    .returning();
+  if (!createdMembership) {
+    await database.update(groupParticipants).set({ userId: null, displayName: participant.displayName, updatedAt: now }).where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, participant.id), eq(groupParticipants.userId, targetUserId)));
+    const revoked = await transitionPendingRequest(database, request, "revoked", now);
+    return { request: revoked ?? request, changed: Boolean(revoked), error: "already_member" };
+  }
+  const accepted = await transitionPendingRequest(database, request, "accepted", now);
+  if (!accepted) throw new GroupJoinRequestError("conflict");
+  return { request: accepted, changed: true };
+}
+
+async function respondToRequestInTransaction(database: Database, targetUserId: string, requestId: string, response: "accept" | "decline"): Promise<RequestResponse> {
+  const [request] = await database
+    .select()
+    .from(groupJoinRequests)
+    .where(and(eq(groupJoinRequests.id, requestId), eq(groupJoinRequests.targetUserId, targetUserId)))
+    .limit(1)
+    .for("update");
+  if (!request) throw new GroupJoinRequestError("not_found");
+  if (request.status !== "pending") return { request, changed: false };
+  const now = new Date();
+  const nonAcceptance = await resolveNonAcceptance(database, request, response, now);
+  if (nonAcceptance) return nonAcceptance;
+  if (!await currentRequesterHasAuthority(database, request.groupId, request.requesterUserId)) {
+    const revoked = await transitionPendingRequest(database, request, "revoked", now);
+    return { request: revoked ?? request, changed: Boolean(revoked), error: "stale_authority" };
+  }
+  return request.kind === "member_invitation"
+    ? acceptMemberInvitation(database, request, targetUserId, now)
+    : acceptParticipantLink(database, request, targetUserId, now);
+}
+
 async function respondToRequest(database: Database, targetUserId: string, requestId: string, response: "accept" | "decline") {
   assertUserId(targetUserId);
   assertRequestId(requestId);
-  const result = await database.transaction(async (transaction) => {
-    const [request] = await transaction
-      .select()
-      .from(groupJoinRequests)
-      .where(and(eq(groupJoinRequests.id, requestId), eq(groupJoinRequests.targetUserId, targetUserId)))
-      .limit(1)
-      .for("update");
-    if (!request) throw new GroupJoinRequestError("not_found");
-    if (request.status !== "pending") return { request, changed: false, error: undefined as GroupJoinRequestError["code"] | undefined };
-    const now = new Date();
-    if (isGroupJoinRequestExpired(request.expiresAt, now)) {
-      const expired = await transitionPendingRequest(transaction as Database, request, "expired", now);
-      return { request: expired ?? request, changed: Boolean(expired), error: "expired" as const };
-    }
-    if (response === "decline") {
-      const declined = await transitionPendingRequest(transaction as Database, request, "declined", now);
-      if (!declined) throw new GroupJoinRequestError("resolved");
-      return { request: declined, changed: true, error: undefined };
-    }
-
-    if (!await currentRequesterHasAuthority(transaction as Database, request.groupId, request.requesterUserId)) {
-      const revoked = await transitionPendingRequest(transaction as Database, request, "revoked", now);
-      return { request: revoked ?? request, changed: Boolean(revoked), error: "stale_authority" as const };
-    }
-
-    if (request.kind === "member_invitation") {
-      const [existingMembership] = await transaction
-        .select({ userId: groupMemberships.userId })
-        .from(groupMemberships)
-        .where(and(eq(groupMemberships.groupId, request.groupId), eq(groupMemberships.userId, targetUserId)))
-        .limit(1)
-        .for("update");
-      const [registered] = await transaction
-        .select({ id: groupParticipants.id })
-        .from(groupParticipants)
-        .where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.userId, targetUserId)))
-        .limit(1)
-        .for("update");
-      if (existingMembership) {
-        const revoked = await transitionPendingRequest(transaction as Database, request, "revoked", now);
-        return { request: revoked ?? request, changed: Boolean(revoked), error: "already_member" as const };
-      }
-      const participant = registered ?? (await transaction
-        .insert(groupParticipants)
-        .values({ groupId: request.groupId, userId: targetUserId, displayName: null, createdAt: now, updatedAt: now })
-        .onConflictDoNothing()
-        .returning({ id: groupParticipants.id }))[0];
-      if (!participant) throw new GroupJoinRequestError("conflict");
-      const [createdMembership] = await transaction
-        .insert(groupMemberships)
-        .values({ groupId: request.groupId, userId: targetUserId, participantId: participant.id, role: "member", joinedAt: now })
-        .onConflictDoNothing({ target: [groupMemberships.groupId, groupMemberships.userId] })
-        .returning();
-      if (!createdMembership) {
-        if (!registered) await transaction.delete(groupParticipants).where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, participant.id), eq(groupParticipants.userId, targetUserId)));
-        const revoked = await transitionPendingRequest(transaction as Database, request, "revoked", now);
-        return { request: revoked ?? request, changed: Boolean(revoked), error: "already_member" as const };
-      }
-      const accepted = await transitionPendingRequest(transaction as Database, request, "accepted", now);
-      if (!accepted) throw new GroupJoinRequestError("conflict");
-      return { request: accepted, changed: true, error: undefined };
-    }
-
-    const [participant] = await transaction
-      .select()
-      .from(groupParticipants)
-      .where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, request.participantId!)))
-      .limit(1)
-      .for("update");
-    if (!participant) {
-      const revoked = await transitionPendingRequest(transaction as Database, request, "revoked", now);
-      return { request: revoked ?? request, changed: Boolean(revoked), error: "participant_not_found" as const };
-    }
-    if (participant.userId) {
-      const revoked = await transitionPendingRequest(transaction as Database, request, "revoked", now);
-      return { request: revoked ?? request, changed: Boolean(revoked), error: "already_linked" as const };
-    }
-    const [existingMembership] = await transaction
-      .select({ userId: groupMemberships.userId })
-      .from(groupMemberships)
-      .where(and(eq(groupMemberships.groupId, request.groupId), eq(groupMemberships.userId, targetUserId)))
-      .limit(1)
-      .for("update");
-    const [registered] = await transaction
-      .select({ id: groupParticipants.id })
-      .from(groupParticipants)
-      .where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.userId, targetUserId)))
-      .limit(1)
-      .for("update");
-    if (existingMembership || registered) {
-      const revoked = await transitionPendingRequest(transaction as Database, request, "revoked", now);
-      return { request: revoked ?? request, changed: Boolean(revoked), error: existingMembership ? "already_member" : "registered_participant" };
-    }
-    const [linked] = await transaction
-      .update(groupParticipants)
-      .set({ userId: targetUserId, displayName: null, updatedAt: now })
-      .where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, participant.id), isNull(groupParticipants.userId)))
-      .returning({ id: groupParticipants.id });
-    if (!linked) throw new GroupJoinRequestError("conflict");
-    const [createdMembership] = await transaction
-      .insert(groupMemberships)
-      .values({ groupId: request.groupId, userId: targetUserId, participantId: participant.id, role: "member", joinedAt: now })
-      .onConflictDoNothing({ target: [groupMemberships.groupId, groupMemberships.userId] })
-      .returning();
-    if (!createdMembership) {
-      await transaction.update(groupParticipants).set({ userId: null, displayName: participant.displayName, updatedAt: now }).where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, participant.id), eq(groupParticipants.userId, targetUserId)));
-      const revoked = await transitionPendingRequest(transaction as Database, request, "revoked", now);
-      return { request: revoked ?? request, changed: Boolean(revoked), error: "already_member" as const };
-    }
-    const accepted = await transitionPendingRequest(transaction as Database, request, "accepted", now);
-    if (!accepted) throw new GroupJoinRequestError("conflict");
-    return { request: accepted, changed: true, error: undefined };
-  }).catch((error) => {
+  const result = await database.transaction((transaction) => respondToRequestInTransaction(transaction as Database, targetUserId, requestId, response)).catch((error) => {
     if (databaseCode(error) === "23505") throw new GroupJoinRequestError("conflict");
     throw error;
   });

@@ -23,40 +23,78 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export default async function OutingsPage({ searchParams = Promise.resolve({}) }: OutingsPageProps = {}) {
-  const params = await searchParams;
-  const returnToInput = first(params?.returnTo);
-  const returnTo = validateExpenseReturnTarget(returnToInput);
-  if (returnToInput !== undefined && !returnTo) redirect(recordHref("/app/outings", params, { returnTo: undefined }));
-  const requestedTrip = first(params?.trip);
-  if (requestedTrip !== undefined && requestedTrip !== "unassigned" && requestedTrip !== "" && !normalizeUuid(requestedTrip)) redirect(recordHref("/app/outings", params, { trip: undefined, page: undefined }));
-  const emptyParams = ["q", "month", "trip"].filter((name) => first(params?.[name]) === "");
-  if (emptyParams.length) redirect(recordHref("/app/outings", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
-  const session = await requireSession();
-  const created = first(params?.created);
-  const openCreate = first(params?.create) === "1";
-  const initialOccurredAtUtc = openCreate ? new Date().toISOString() : undefined;
-  const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params?.tz));
-  const { ledger: repository } = await getAuthenticatedLedger(session);
-  let selectedTrip;
-  if (requestedTrip && requestedTrip !== "unassigned") {
-    try {
-      selectedTrip = await repository.getTrip(requestedTrip);
-    } catch (error) {
-      if (error instanceof LedgerNotFoundError) redirect(recordHref("/app/outings", params, { trip: undefined, page: undefined }));
-      throw error;
-    }
-  }
-  const tripFilter = requestedTrip === "unassigned" ? "unassigned" : selectedTrip?.id;
-  const filters = normalizeOutingFilters({ q: first(params?.q), month: first(params?.month), trip: tripFilter, page: first(params?.page) });
-  const outingOptions = [{ value: "", label: "All trips" }, { value: "unassigned", label: "No trip" }, ...(selectedTrip ? [{ value: selectedTrip.id, label: selectedTrip.name }] : [])];
-  const outingListOptions = { q: first(params?.q), month: first(params?.month), page: first(params?.page), timezoneOffsetMinutes, ...(tripFilter ? { trip: tripFilter } : {}) };
-  const outingPage = await repository.listOutingRecords(outingListOptions);
-  const groups = groupRecordsByMonth(outingPage.items, (outing) => outing.occurredAt, timezoneOffsetMinutes);
-  const filtered = Boolean(filters.q || filters.month || filters.trip);
-  const effectiveParams = tripFilter ? { ...params, trip: tripFilter } : params;
-  const listHref = recordHref("/app/outings", effectiveParams);
+type OutingsLedger = Awaited<ReturnType<typeof getAuthenticatedLedger>>["ledger"];
 
+async function loadSelectedTrip(repository: OutingsLedger, requestedTrip: string | undefined, path: string, params: Awaited<NonNullable<OutingsPageProps["searchParams"]>>) {
+  if (!requestedTrip || requestedTrip === "unassigned") return undefined;
+  try {
+    return await repository.getTrip(requestedTrip);
+  } catch (error) {
+    if (error instanceof LedgerNotFoundError) redirect(recordHref(path, params, { trip: undefined, page: undefined }));
+    throw error;
+  }
+}
+
+async function loadOutingsPageData(params: Awaited<NonNullable<OutingsPageProps["searchParams"]>>, repository: OutingsLedger, path: string, returnTo: string | undefined) {
+  const created = first(params.created);
+  const openCreate = first(params.create) === "1";
+  const initialOccurredAtUtc = openCreate ? new Date().toISOString() : undefined;
+  const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params.tz));
+  const requestedTrip = first(params.trip);
+  const selectedTrip = await loadSelectedTrip(repository, requestedTrip, path, params);
+  const tripFilter = requestedTrip === "unassigned" ? "unassigned" : selectedTrip?.id;
+  const filters = normalizeOutingFilters({ q: first(params.q), month: first(params.month), trip: tripFilter, page: first(params.page) });
+  const outingOptions = [{ value: "", label: "All trips" }, { value: "unassigned", label: "No trip" }, ...(selectedTrip ? [{ value: selectedTrip.id, label: selectedTrip.name }] : [])];
+  const outingPage = await repository.listOutingRecords({ q: first(params.q), month: first(params.month), page: first(params.page), timezoneOffsetMinutes, ...(tripFilter ? { trip: tripFilter } : {}) });
+  const effectiveParams = tripFilter ? { ...params, trip: tripFilter } : params;
+  return {
+    created,
+    openCreate,
+    initialOccurredAtUtc,
+    timezoneOffsetMinutes,
+    selectedTrip,
+    tripFilter,
+    filters,
+    outingOptions,
+    outingPage,
+    returnTo,
+    groups: groupRecordsByMonth(outingPage.items, (outing) => outing.occurredAt, timezoneOffsetMinutes),
+    filtered: Boolean(filters.q || filters.month || filters.trip),
+    effectiveParams,
+    listHref: recordHref("/app/outings", effectiveParams),
+  };
+}
+
+type OutingsPageData = Awaited<ReturnType<typeof loadOutingsPageData>>;
+
+function OutingRecordList({ data }: { data: OutingsPageData }) {
+  const { outingPage, groups, filtered, effectiveParams, listHref, created } = data;
+  return (
+    <div className="ledger-list" id="record-list">
+      <div className="ledger-list__heading"><span className="technical-label">LATEST FIRST</span><span className="technical-label">{outingPage.totalItems} entries</span></div>
+      {outingPage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
+        <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
+        {group.items.map((outing) => <OutingRow key={outing.id} outing={outing} expenseCount={outing.expenseCount} expenseTotal={outing.expenseTotal} emphasized={created === outing.id} />)}
+      </div>) : (
+        <div className="ledger-empty"><h2>{filtered ? "No matching outings." : "No outings yet."}</h2><p>{filtered ? "Try a different title, Trip, or month." : "Record the first shared moment before adding an expense."}</p>{filtered ? null : <Link className="text-link" href={recordHref("/app/outings", effectiveParams, { create: "1" })} data-task-trigger="outing-create">Add outing <span aria-hidden="true">→</span></Link>}</div>
+      )}
+      <RecordPagination page={outingPage.page} pageSize={outingPage.pageSize} totalItems={outingPage.totalItems} totalPages={outingPage.totalPages} href={listHref} />
+    </div>
+  );
+}
+
+function OutingCreatePanel({ data }: { data: OutingsPageData }) {
+  if (!data.openCreate) return null;
+  const { selectedTrip, initialOccurredAtUtc } = data;
+  return (
+    <TaskPanel open title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create">
+      <OutingForm action={createOutingAction.bind(null, data.returnTo)} initialOccurredAtUtc={initialOccurredAtUtc} trips={[{ id: "", label: "No trip" }, ...(selectedTrip ? [{ id: selectedTrip.id, label: selectedTrip.name }] : [])]} searchTrips={searchTripOptions} initialValues={{ title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "", tripId: selectedTrip?.id ?? "" }} />
+    </TaskPanel>
+  );
+}
+
+function OutingsPageContent({ data }: { data: OutingsPageData }) {
+  const { created, filters, outingOptions, tripFilter, outingPage, effectiveParams, filtered } = data;
   return (
     <section className="app-page outings-page" id="top">
       <div className="editorial-shell app-page__layout">
@@ -72,21 +110,28 @@ export default async function OutingsPage({ searchParams = Promise.resolve({}) }
           <div className="records-workspace__toolbar">
             <OutingsTripsSwitch current="outings" />
             {created ? <RecordConfirmation queryKey="created" message="Outing added." /> : null}
-            <LiveRecordFilters action="/app/outings" search={{ label: "Search outings", placeholder: "Outing title", value: filters.q ?? "" }} selects={[{ name: "trip", label: "Trip", value: tripFilter ?? "", options: outingOptions, search: searchTripFilterOptions }]} month={{ label: "Month", value: filters.month ?? "" }} mobileDisclosure={{ activeCount: [tripFilter, filters.month].filter(Boolean).length }} clearHref={filtered ? recordHref("/app/outings", effectiveParams, { q: undefined, month: undefined, trip: undefined, page: undefined }) : undefined} resultStatus={`${outingPage.totalItems} outing${outingPage.totalItems === 1 ? "" : "s"} found.`} preservedParams={effectiveParams} />
+            <LiveRecordFilters action="/app/outings" search={{ label: "Search outings", placeholder: "Outing title", value: filters.q ?? "" }} selects={[{ name: "trip", label: "Trip", value: tripFilter ?? "", options: outingOptions, search: searchTripFilterOptions }]} month={{ label: "Month", value: filters.month ?? "" }} mobileDisclosure={{ activeCount: [tripFilter, filters.month].filter(Boolean).length }} clearHref={filtered ? recordHref("/app/outings", effectiveParams, { q: undefined, month: undefined, trip: undefined, page: undefined }) : undefined} resultStatus={outingPage.totalItems + " outing" + (outingPage.totalItems === 1 ? "" : "s") + " found."} preservedParams={effectiveParams} />
           </div>
-          <div className="ledger-list" id="record-list">
-            <div className="ledger-list__heading"><span className="technical-label">LATEST FIRST</span><span className="technical-label">{outingPage.totalItems} entries</span></div>
-            {outingPage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
-              <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
-              {group.items.map((outing) => <OutingRow key={outing.id} outing={outing} expenseCount={outing.expenseCount} expenseTotal={outing.expenseTotal} emphasized={created === outing.id} />)}
-            </div>) : (
-              <div className="ledger-empty"><h2>{filtered ? "No matching outings." : "No outings yet."}</h2><p>{filtered ? "Try a different title, Trip, or month." : "Record the first shared moment before adding an expense."}</p>{filtered ? null : <Link className="text-link" href={recordHref("/app/outings", effectiveParams, { create: "1" })} data-task-trigger="outing-create">Add outing <span aria-hidden="true">→</span></Link>}</div>
-            )}
-            <RecordPagination page={outingPage.page} pageSize={outingPage.pageSize} totalItems={outingPage.totalItems} totalPages={outingPage.totalPages} href={listHref} />
-          </div>
+          <OutingRecordList data={data} />
         </div>
       </div>
-      {openCreate ? <TaskPanel open title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create"><OutingForm action={createOutingAction.bind(null, returnTo)} initialOccurredAtUtc={initialOccurredAtUtc} trips={[{ id: "", label: "No trip" }, ...(selectedTrip ? [{ id: selectedTrip.id, label: selectedTrip.name }] : [])]} searchTrips={searchTripOptions} initialValues={{ title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "", tripId: selectedTrip?.id ?? "" }} /></TaskPanel> : null}
+      <OutingCreatePanel data={data} />
     </section>
   );
+}
+
+export default async function OutingsPage({ searchParams = Promise.resolve({}) }: OutingsPageProps = {}) {
+  const params = await searchParams;
+  const returnToInput = first(params?.returnTo);
+  const returnTo = validateExpenseReturnTarget(returnToInput);
+  if (returnToInput !== undefined && !returnTo) redirect(recordHref("/app/outings", params, { returnTo: undefined }));
+  const requestedTrip = first(params?.trip);
+  if (requestedTrip !== undefined && requestedTrip !== "unassigned" && requestedTrip !== "" && !normalizeUuid(requestedTrip)) redirect(recordHref("/app/outings", params, { trip: undefined, page: undefined }));
+  const emptyParams = ["q", "month", "trip"].filter((name) => first(params?.[name]) === "");
+  if (emptyParams.length) redirect(recordHref("/app/outings", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
+  const session = await requireSession();
+  const { ledger: repository } = await getAuthenticatedLedger(session);
+  const data = await loadOutingsPageData(params ?? {}, repository, "/app/outings", returnTo);
+
+  return <OutingsPageContent data={data} />;
 }

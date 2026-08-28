@@ -578,121 +578,165 @@ async function deleteExpense(expenseId: string, options: DeleteRecordOptions = {
     }
   }
 
-async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput[], charges?: ExpenseChargeInput[]) {
+type CurrentExpenseShare = { id: string; friendId: string; baseAmount: number; amountOwed: number };
+type PreparedExpenseShareReplacement = {
+  expenseAmount: number;
+  currentShares: CurrentExpenseShare[];
+  currentByFriend: Map<string, CurrentExpenseShare>;
+  requested: Array<{ friendId: string; baseAmount: number }>;
+  requestedByFriend: Map<string, { friendId: string; baseAmount: number }>;
+  requestedCharges: ExpenseChargeInput[];
+  finalByFriend: Map<string, number>;
+  allocatedByShare: Map<string, number>;
+};
+
+async function prepareExpenseShareReplacement(
+    transaction: Parameters<Parameters<Database["transaction"]>[0]>[0],
+    expenseId: string,
+    shares: ExpenseShareInput[],
+    charges: ExpenseChargeInput[] | undefined,
+  ): Promise<PreparedExpenseShareReplacement> {
+    const [expense] = await transaction
+      .select({ id: expenses.id, amount: expenses.amount })
+      .from(expenses)
+      .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
+      .limit(1)
+      .for("update");
+    if (!expense) return notFound();
+
+    const currentShares = await transaction
+      .select({ id: expenseShares.id, friendId: expenseShares.friendId, baseAmount: expenseShares.baseAmount, amountOwed: expenseShares.amountOwed })
+      .from(expenseShares)
+      .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId)));
+    const currentByFriend = new Map(currentShares.map((share) => [share.friendId, share]));
+    const requested = shares.map((share) => ({ friendId: share.friendId.trim().toLowerCase(), baseAmount: shareBaseAmount(share) }));
+    const storedCharges = charges === undefined ? await listExpenseChargesFor(transaction, expenseId) : [];
+    const requestedCharges: ExpenseChargeInput[] = charges ?? storedCharges.map(({ name, percentageBasisPoints, scope, friendIds }) => ({ name, percentageBasisPoints, scope, friendIds }));
+
+    const friendIds = requested.map((share) => share.friendId);
+    const ownedFriends = friendIds.length
+      ? await transaction
+          .select({ id: friends.id, archivedAt: friends.archivedAt })
+          .from(friends)
+          .where(and(eq(friends.ledgerScopeId, scope), inArray(friends.id, friendIds)))
+      : [];
+    if (ownedFriends.length !== new Set(friendIds).size) return notFound();
+    for (const friend of ownedFriends) {
+      if (friend.archivedAt !== null && !currentByFriend.has(friend.id)) {
+        throw new LedgerRepositoryError("INVALID_INPUT", "Archived friends cannot be newly assigned.");
+      }
+    }
+
+    const requestedFriendIds = new Set(friendIds);
+    for (const charge of requestedCharges) {
+      if (charge.scope === "selected" && charge.friendIds.some((friendId) => !requestedFriendIds.has(friendId.toLowerCase()))) {
+        throw new LedgerRepositoryError("INVALID_INPUT", "Selected charge targets must have a share amount.");
+      }
+    }
+    const finalByFriend = new Map(requested.map((share) => {
+      try {
+        return [share.friendId, calculateShareBreakdown(share.baseAmount, requestedCharges, share.friendId).finalAmount] as const;
+      } catch {
+        throw new LedgerRepositoryError("INVALID_INPUT", "The final share amount is too large.");
+      }
+    }));
+    const total = [...finalByFriend.values()].reduce((sum, amount) => sum + amount, 0);
+    if (total > expense.amount) throw new ExpenseShareInvariantError();
+
+    const allocationTotals = currentShares.length
+      ? await transaction
+          .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: sql<number>`coalesce(sum(${repaymentAllocations.amount}), 0)` })
+          .from(repaymentAllocations)
+          .where(and(eq(repaymentAllocations.ledgerScopeId, scope), inArray(repaymentAllocations.expenseShareId, currentShares.map((share) => share.id))))
+          .groupBy(repaymentAllocations.expenseShareId)
+      : [];
+    const allocatedByShare = new Map(allocationTotals.map((allocation) => [allocation.expenseShareId, Number(allocation.amount)]));
+    for (const requestedShare of requested) {
+      const current = currentByFriend.get(requestedShare.friendId);
+      if (current && finalByFriend.get(requestedShare.friendId)! < (allocatedByShare.get(current.id) ?? 0)) {
+        throw new ExpenseShareAllocationInvariantError();
+      }
+    }
+
+    return {
+      expenseAmount: expense.amount,
+      currentShares,
+      currentByFriend,
+      requested,
+      requestedByFriend: new Map(requested.map((share) => [share.friendId, share])),
+      requestedCharges,
+      finalByFriend,
+      allocatedByShare,
+    };
+  }
+
+  async function persistExpenseShareRows(
+    transaction: Parameters<Parameters<Database["transaction"]>[0]>[0],
+    expenseId: string,
+    replacement: PreparedExpenseShareReplacement,
+  ) {
+    for (const current of replacement.currentShares) {
+      const requested = replacement.requestedByFriend.get(current.friendId);
+      if (requested === undefined) continue;
+      const amountOwed = replacement.finalByFriend.get(current.friendId)!;
+      if (requested.baseAmount === current.baseAmount && amountOwed === current.amountOwed) continue;
+      await transaction
+        .update(expenseShares)
+        .set({ baseAmount: requested.baseAmount, amountOwed })
+        .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.id, current.id)));
+    }
+
+    const newShares = replacement.requested.filter((share) => !replacement.currentByFriend.has(share.friendId));
+    if (newShares.length > 0) {
+      await transaction.insert(expenseShares).values(
+        newShares.map((share) => ({ ledgerScopeId: scope, expenseId, friendId: share.friendId, baseAmount: share.baseAmount, amountOwed: replacement.finalByFriend.get(share.friendId)! })),
+      );
+    }
+
+    const omittedIds = replacement.currentShares.filter((share) => !replacement.requestedByFriend.has(share.friendId)).map((share) => share.id);
+    if (omittedIds.length > 0) {
+      await transaction
+        .delete(expenseShares)
+        .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId), inArray(expenseShares.id, omittedIds)));
+    }
+  }
+
+  async function persistExpenseCharges(
+    transaction: Parameters<Parameters<Database["transaction"]>[0]>[0],
+    expenseId: string,
+    replacement: PreparedExpenseShareReplacement,
+    charges: ExpenseChargeInput[] | undefined,
+  ) {
+    if (charges === undefined) return;
+    await transaction.delete(expenseCharges).where(and(eq(expenseCharges.ledgerScopeId, scope), eq(expenseCharges.expenseId, expenseId)));
+    const shareRows = replacement.requested.length
+      ? await transaction
+          .select({ id: expenseShares.id, friendId: expenseShares.friendId })
+          .from(expenseShares)
+          .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId)))
+      : [];
+    const shareIdByFriend = new Map(shareRows.map((share) => [share.friendId, share.id]));
+    const createdCharges = replacement.requestedCharges.length
+      ? await transaction
+          .insert(expenseCharges)
+          .values(replacement.requestedCharges.map((charge) => ({ ledgerScopeId: scope, expenseId, name: charge.name.trim(), percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope })))
+          .returning({ id: expenseCharges.id })
+      : [];
+    const targetRows = replacement.requestedCharges.flatMap((charge, index) => charge.scope === "selected"
+      ? charge.friendIds.map((friendId) => ({ ledgerScopeId: scope, expenseId, expenseChargeId: createdCharges[index]!.id, expenseShareId: shareIdByFriend.get(friendId.toLowerCase())! }))
+      : []);
+    if (targetRows.length > 0) await transaction.insert(expenseChargeTargets).values(targetRows);
+  }
+
+  async function replaceExpenseShares(expenseId: string, shares: ExpenseShareInput[], charges?: ExpenseChargeInput[]) {
     assertExpenseId(expenseId);
     assertExpenseSharesInput(shares);
     if (charges !== undefined) assertExpenseChargesInput(charges);
     try {
       return await database.transaction(async (transaction) => {
-        const [expense] = await transaction
-          .select({ id: expenses.id, amount: expenses.amount })
-          .from(expenses)
-          .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
-          .limit(1)
-          .for("update");
-        if (!expense) return notFound();
-
-        const currentShares = await transaction
-          .select({ id: expenseShares.id, friendId: expenseShares.friendId, baseAmount: expenseShares.baseAmount, amountOwed: expenseShares.amountOwed })
-          .from(expenseShares)
-          .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId)));
-        const currentByFriend = new Map(currentShares.map((share) => [share.friendId, share]));
-        const requested = shares.map((share) => ({ friendId: share.friendId.trim().toLowerCase(), baseAmount: shareBaseAmount(share) }));
-        const storedCharges = charges === undefined ? await listExpenseChargesFor(transaction, expenseId) : [];
-        const requestedCharges: ExpenseChargeInput[] = charges ?? storedCharges.map(({ name, percentageBasisPoints, scope, friendIds }) => ({ name, percentageBasisPoints, scope, friendIds }));
-
-        const friendIds = requested.map((share) => share.friendId);
-        const ownedFriends = friendIds.length
-          ? await transaction
-              .select({ id: friends.id, archivedAt: friends.archivedAt })
-              .from(friends)
-              .where(and(eq(friends.ledgerScopeId, scope), inArray(friends.id, friendIds)))
-          : [];
-        if (ownedFriends.length !== new Set(friendIds).size) return notFound();
-        for (const friend of ownedFriends) {
-          if (friend.archivedAt !== null && !currentByFriend.has(friend.id)) {
-            throw new LedgerRepositoryError("INVALID_INPUT", "Archived friends cannot be newly assigned.");
-          }
-        }
-        const requestedFriendIds = new Set(friendIds);
-        for (const charge of requestedCharges) {
-          if (charge.scope === "selected" && charge.friendIds.some((friendId) => !requestedFriendIds.has(friendId.toLowerCase()))) {
-            throw new LedgerRepositoryError("INVALID_INPUT", "Selected charge targets must have a share amount.");
-          }
-        }
-        const finalByFriend = new Map(requested.map((share) => {
-          try {
-            return [share.friendId, calculateShareBreakdown(share.baseAmount, requestedCharges, share.friendId).finalAmount] as const;
-          } catch {
-            throw new LedgerRepositoryError("INVALID_INPUT", "The final share amount is too large.");
-          }
-        }));
-        const total = [...finalByFriend.values()].reduce((sum, amount) => sum + amount, 0);
-        if (total > expense.amount) throw new ExpenseShareInvariantError();
-
-        const allocationTotals = currentShares.length
-          ? await transaction
-              .select({ expenseShareId: repaymentAllocations.expenseShareId, amount: sql<number>`coalesce(sum(${repaymentAllocations.amount}), 0)` })
-              .from(repaymentAllocations)
-              .where(and(eq(repaymentAllocations.ledgerScopeId, scope), inArray(repaymentAllocations.expenseShareId, currentShares.map((share) => share.id))))
-              .groupBy(repaymentAllocations.expenseShareId)
-          : [];
-        const allocatedByShare = new Map(allocationTotals.map((allocation) => [allocation.expenseShareId, Number(allocation.amount)]));
-        for (const requestedShare of requested) {
-          const current = currentByFriend.get(requestedShare.friendId);
-          if (current && finalByFriend.get(requestedShare.friendId)! < (allocatedByShare.get(current.id) ?? 0)) {
-            throw new ExpenseShareAllocationInvariantError();
-          }
-        }
-
-        const requestedByFriend = new Map(requested.map((share) => [share.friendId, share]));
-        for (const current of currentShares) {
-          const requestedShare = requestedByFriend.get(current.friendId);
-          if (requestedShare === undefined) continue;
-          const amountOwed = finalByFriend.get(current.friendId)!;
-          if (requestedShare.baseAmount !== current.baseAmount || amountOwed !== current.amountOwed) {
-            await transaction
-              .update(expenseShares)
-              .set({ baseAmount: requestedShare.baseAmount, amountOwed })
-              .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.id, current.id)));
-          }
-        }
-
-        const newShares = requested.filter((share) => !currentByFriend.has(share.friendId));
-        if (newShares.length > 0) {
-          await transaction.insert(expenseShares).values(
-            newShares.map((share) => ({ ledgerScopeId: scope, expenseId, friendId: share.friendId, baseAmount: share.baseAmount, amountOwed: finalByFriend.get(share.friendId)! })),
-          );
-        }
-
-        const omittedIds = currentShares.filter((share) => !requestedByFriend.has(share.friendId)).map((share) => share.id);
-        if (omittedIds.length > 0) {
-          await transaction
-            .delete(expenseShares)
-            .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId), inArray(expenseShares.id, omittedIds)));
-        }
-
-        if (charges !== undefined) {
-          await transaction.delete(expenseCharges).where(and(eq(expenseCharges.ledgerScopeId, scope), eq(expenseCharges.expenseId, expenseId)));
-          const shareRows = requested.length
-            ? await transaction
-                .select({ id: expenseShares.id, friendId: expenseShares.friendId })
-                .from(expenseShares)
-                .where(and(eq(expenseShares.ledgerScopeId, scope), eq(expenseShares.expenseId, expenseId)))
-            : [];
-          const shareIdByFriend = new Map(shareRows.map((share) => [share.friendId, share.id]));
-          const createdCharges = requestedCharges.length
-            ? await transaction
-                .insert(expenseCharges)
-                .values(requestedCharges.map((charge) => ({ ledgerScopeId: scope, expenseId, name: charge.name.trim(), percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope })))
-                .returning({ id: expenseCharges.id })
-            : [];
-          const targetRows = requestedCharges.flatMap((charge, index) => charge.scope === "selected"
-            ? charge.friendIds.map((friendId) => ({ ledgerScopeId: scope, expenseId, expenseChargeId: createdCharges[index]!.id, expenseShareId: shareIdByFriend.get(friendId.toLowerCase())! }))
-            : []);
-          if (targetRows.length > 0) await transaction.insert(expenseChargeTargets).values(targetRows);
-        }
-
+        const replacement = await prepareExpenseShareReplacement(transaction, expenseId, shares, charges);
+        await persistExpenseShareRows(transaction, expenseId, replacement);
+        await persistExpenseCharges(transaction, expenseId, replacement, charges);
         return await listExpenseSharesFor(transaction, expenseId);
       });
     } catch (error) {

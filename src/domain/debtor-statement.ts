@@ -226,13 +226,7 @@ function date(value: Date, label: string) {
   }
 }
 
-export function buildDebtorStatement(input: DebtorStatementInput): DebtorStatement {
-  if (!input.friend.id || typeof input.friend.name !== "string") {
-    throw new DebtorStatementIntegrityError("Friend is invalid.");
-  }
-  const generatedAt = input.asOf ? new Date(input.asOf) : new Date();
-  date(generatedAt, "Statement time");
-
+function statementShares(input: DebtorStatementInput) {
   const shares = new Map<string, DebtorStatementShare>();
   for (const share of input.shares) {
     if (shares.has(share.id) || share.friendId !== input.friend.id) {
@@ -242,7 +236,10 @@ export function buildDebtorStatement(input: DebtorStatementInput): DebtorStateme
     date(share.outingOccurredAt, `Outing for expense share ${share.id}`);
     shares.set(share.id, share);
   }
+  return shares;
+}
 
+function statementReceipts(input: DebtorStatementInput, shares: Map<string, DebtorStatementShare>) {
   const receiptsByExpense = new Map<string, DebtorStatementPublicReceipt[]>();
   for (const receipt of input.publicReceipts ?? []) {
     if (!receipt.expenseId || !receipt.publicId || !receipt.mediaType || ![...shares.values()].some((share) => share.expenseId === receipt.expenseId)) {
@@ -252,7 +249,10 @@ export function buildDebtorStatement(input: DebtorStatementInput): DebtorStateme
     receipts.push(receipt);
     receiptsByExpense.set(receipt.expenseId, receipts);
   }
+  return receiptsByExpense;
+}
 
+function statementRepayments(input: DebtorStatementInput) {
   const repayments = new Map<string, DebtorStatementRepayment>();
   for (const repayment of input.repayments) {
     if (repayments.has(repayment.id) || repayment.friendId !== input.friend.id) {
@@ -261,7 +261,10 @@ export function buildDebtorStatement(input: DebtorStatementInput): DebtorStateme
     amount(repayment.amount, `Repayment ${repayment.id}`);
     repayments.set(repayment.id, repayment);
   }
+  return repayments;
+}
 
+function statementAllocations(input: DebtorStatementInput, shares: Map<string, DebtorStatementShare>, repayments: Map<string, DebtorStatementRepayment>) {
   const repaidByShare = new Map<string, number>();
   const allocatedByRepayment = new Map<string, number>();
   const seenAllocations = new Set<string>();
@@ -282,6 +285,36 @@ export function buildDebtorStatement(input: DebtorStatementInput): DebtorStateme
     if (repaymentTotal > repayment.amount) throw new DebtorStatementIntegrityError(`Allocations exceed repayment ${repayment.id}.`);
     allocatedByRepayment.set(repayment.id, repaymentTotal);
   }
+  return repaidByShare;
+}
+
+function statementItem(share: DebtorStatementShare, repaid: number, receiptsByExpense: Map<string, DebtorStatementPublicReceipt[]>) {
+  const sharedReceipts = share.expenseId ? receiptsByExpense.get(share.expenseId) : undefined;
+  return {
+    expenseDescription: share.expenseDescription,
+    outingTitle: share.outingTitle,
+    outingOccurredAt: new Date(share.outingOccurredAt),
+    assignedAmount: share.amountOwed,
+    repaidAmount: repaid,
+    remainingAmount: share.amountOwed - repaid,
+    state: share.amountOwed === repaid ? "settled" as const : "open" as const,
+    ...(sharedReceipts?.length ? {
+      sharedReceipts: sharedReceipts.map((receipt) => ({ publicId: receipt.publicId, label: "Receipt image" as const, mediaType: receipt.mediaType })),
+    } : {}),
+  };
+}
+
+export function buildDebtorStatement(input: DebtorStatementInput): DebtorStatement {
+  if (!input.friend.id || typeof input.friend.name !== "string") {
+    throw new DebtorStatementIntegrityError("Friend is invalid.");
+  }
+  const generatedAt = input.asOf ? new Date(input.asOf) : new Date();
+  date(generatedAt, "Statement time");
+
+  const shares = statementShares(input);
+  const receiptsByExpense = statementReceipts(input, shares);
+  const repayments = statementRepayments(input);
+  const repaidByShare = statementAllocations(input, shares, repayments);
 
   let assignedAmount = 0;
   let repaidAmount = 0;
@@ -289,20 +322,7 @@ export function buildDebtorStatement(input: DebtorStatementInput): DebtorStateme
     assignedAmount = add(assignedAmount, share.amountOwed, "Assigned amount");
     const repaid = repaidByShare.get(share.id) ?? 0;
     repaidAmount = add(repaidAmount, repaid, "Repaid amount");
-    const remaining = share.amountOwed - repaid;
-    const sharedReceipts = share.expenseId ? receiptsByExpense.get(share.expenseId) : undefined;
-    return {
-      expenseDescription: share.expenseDescription,
-      outingTitle: share.outingTitle,
-      outingOccurredAt: new Date(share.outingOccurredAt),
-      assignedAmount: share.amountOwed,
-      repaidAmount: repaid,
-      remainingAmount: remaining,
-      state: remaining === 0 ? "settled" as const : "open" as const,
-      ...(sharedReceipts?.length ? {
-        sharedReceipts: sharedReceipts.map((receipt) => ({ publicId: receipt.publicId, label: "Receipt image" as const, mediaType: receipt.mediaType })),
-      } : {}),
-    };
+    return statementItem(share, repaid, receiptsByExpense);
   });
 
   items.sort((a, b) => {

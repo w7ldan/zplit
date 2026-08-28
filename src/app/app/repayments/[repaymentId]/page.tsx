@@ -23,10 +23,19 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export default async function RepaymentRecordPage({ params, searchParams }: { params: Promise<{ repaymentId: string }>; searchParams?: Promise<{ created?: string | string[]; saved?: string | string[]; q?: string | string[]; page?: string | string[]; tripId?: string | string[] }> }) {
-  const session = await requireSession();
-  const { repaymentId } = await params;
-  const query = await searchParams;
+type RepaymentRecordQuery = { created?: string | string[]; saved?: string | string[]; q?: string | string[]; page?: string | string[]; tripId?: string | string[] };
+type RepaymentRecordData = {
+  plan: Awaited<ReturnType<Awaited<ReturnType<typeof getAuthenticatedLedger>>["ledger"]["getRepaymentAllocationPlan"]>>;
+  deletionImpact: Awaited<ReturnType<Awaited<ReturnType<typeof getAuthenticatedLedger>>["ledger"]["getRepaymentDeletionImpact"]>>;
+  currentImpactRevision: string;
+  contextTrip: { id: string; name: string } | undefined;
+  friendOptions: Array<{ id: string; label: string; archived: boolean }>;
+  formContext: Omit<Awaited<ReturnType<Awaited<ReturnType<typeof getAuthenticatedLedger>>["ledger"]["getRepaymentFriendContext"]>>, "option"> & { option: { id: string; label: string; archived: boolean } };
+  recentPaymentMethods: string[];
+  paymentProof: Awaited<ReturnType<typeof getRepaymentPaymentProofMetadata>>;
+};
+
+async function loadRepaymentRecordData(session: Awaited<ReturnType<typeof requireSession>>, repaymentId: string, query: RepaymentRecordQuery | undefined): Promise<RepaymentRecordData> {
   const database = getDatabase();
   const { ledger: repository } = await getAuthenticatedLedger(session);
   let plan;
@@ -39,71 +48,74 @@ export default async function RepaymentRecordPage({ params, searchParams }: { pa
   const deletionImpact = await repository.getRepaymentDeletionImpact(repaymentId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
   const requestedTripId = normalizeUuid(first(query?.tripId));
-  let contextTrip: { id: string; name: string } | undefined;
-  if (requestedTripId) {
-    try {
-      const trip = await repository.getTrip(requestedTripId);
-      contextTrip = { id: trip.id, name: trip.name };
-    } catch (error) {
-      if (!(error instanceof LedgerNotFoundError)) throw error;
-    }
-  }
+  const contextTrip = requestedTripId ? await repository.getTrip(requestedTripId).then((trip) => ({ id: trip.id, name: trip.name })).catch((error) => {
+    if (error instanceof LedgerNotFoundError) return undefined;
+    throw error;
+  }) : undefined;
   const [friendOptionRows, friendContext, recentPaymentMethods, paymentProof] = await Promise.all([
     repository.searchFriends({ selectedId: plan.friendId }),
     repository.getRepaymentFriendContext(plan.friendId),
     repository.listRecentPaymentMethods(),
     getRepaymentPaymentProofMetadata(database, session.user.id, plan.id),
   ]);
-  const friendOptions = friendOptionRows.map((friend) => ({ id: friend.id, label: friend.name, archived: friend.archived }));
-  const formContext = { ...friendContext, option: { id: friendContext.option.id, label: friendContext.option.name, archived: friendContext.option.archived } };
-  const repayment = plan;
+  return {
+    plan,
+    deletionImpact,
+    currentImpactRevision,
+    contextTrip,
+    friendOptions: friendOptionRows.map((friend) => ({ id: friend.id, label: friend.name, archived: friend.archived })),
+    formContext: { ...friendContext, option: { id: friendContext.option.id, label: friendContext.option.name, archived: friendContext.option.archived } },
+    recentPaymentMethods,
+    paymentProof,
+  };
+}
 
+function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; query: RepaymentRecordQuery | undefined }) {
+  const { plan, contextTrip, deletionImpact, currentImpactRevision, friendOptions, formContext, recentPaymentMethods, paymentProof } = data;
   return (
     <section className="app-page repayment-record" id="top">
       <div className="editorial-grid editorial-shell repayment-record__layout">
         <div className="repayment-record__intro">
           <p className="technical-label">Repayment · allocate received money</p>
-          <h1>{repayment.friendName}</h1>
-          <Link className="repayment-record__back" href={contextTrip ? `/app/trips/${contextTrip.id}` : "/app/repayments"}>← Back to {contextTrip ? contextTrip.name : "repayments"}</Link>
+          <h1>{plan.friendName}</h1>
+          <Link className="repayment-record__back" href={contextTrip ? "/app/trips/" + contextTrip.id : "/app/repayments"}>← Back to {contextTrip ? contextTrip.name : "repayments"}</Link>
         </div>
         {query?.created === "1" ? <RecordConfirmation queryKey="created" message="Repayment recorded. Review eligible shares below." /> : query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Repayment changes saved." /> : null}
         <div className="repayment-record__tasks">
           <div className="repayment-record__primary-task">
             <div className="repayment-record__allocations" id="repayment-allocations">
-              <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, repayment.id)} plan={plan} allocationQuery={first(query?.q)} allocationPage={plan.sharePage?.page} removeAction={removeRepaymentAllocationAction} undoAction={undoRepaymentAllocationAction} />
+              <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, plan.id)} plan={plan} allocationQuery={first(query?.q)} allocationPage={plan.sharePage?.page} removeAction={removeRepaymentAllocationAction} undoAction={undoRepaymentAllocationAction} />
             </div>
-            <RepaymentPaymentProof repaymentId={repayment.id} initialPaymentProof={paymentProof} />
+            <RepaymentPaymentProof repaymentId={plan.id} initialPaymentProof={paymentProof} />
           </div>
           <aside className="repayment-record__sidebar">
             <div className="repayment-record__controls">
               <div className="repayment-record__meta" aria-label="Repayment metadata">
-                <div><span className="technical-label">Received</span><strong>{formatRupiah(repayment.amount)}</strong></div>
-                <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(repayment.allocatedAmount)}</strong></div>
-                <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(repayment.unallocatedAmount)}</strong></div>
-                <div><span className="technical-label">Payment date</span><LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" /></div>
-                <div><span className="technical-label">Payment method</span><span>{repayment.paymentMethod ?? "—"}</span></div>
-                <div><span className="technical-label">Notes</span><span className="repayment-record__notes-value">{repayment.notes ?? "—"}</span></div>
+                <div><span className="technical-label">Received</span><strong>{formatRupiah(plan.amount)}</strong></div>
+                <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(plan.allocatedAmount)}</strong></div>
+                <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(plan.unallocatedAmount)}</strong></div>
+                <div><span className="technical-label">Payment date</span><LocalDateTime iso={plan.paidAt.toISOString()} mode="date" /></div>
+                <div><span className="technical-label">Payment method</span><span>{plan.paymentMethod ?? "—"}</span></div>
+                <div><span className="technical-label">Notes</span><span className="repayment-record__notes-value">{plan.notes ?? "—"}</span></div>
               </div>
               <div className="repayment-record__form">
                 <p className="technical-label">EDIT RECORD</p>
-                <RepaymentForm
-                  action={updateRepaymentAction.bind(null, repayment.id)}
-                  friends={friendOptions}
-                  searchFriends={searchFriendOptions}
-                  recentPaymentMethods={recentPaymentMethods}
-                  mode="edit"
-                  friendLocked={repayment.allocatedAmount > 0}
-                  initialFriendContext={formContext}
-                  loadFriendContext={loadRepaymentFriendContext}
-                  initialPaidAtUtc={repayment.paidAt.toISOString()}
-                  initialValues={{ friendId: repayment.friendId, amountRupiah: repayment.amount.toString(), paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: repayment.paymentMethod ?? "", notes: repayment.notes ?? "" }}
-                />
+                <RepaymentForm action={updateRepaymentAction.bind(null, plan.id)} friends={friendOptions} searchFriends={searchFriendOptions} recentPaymentMethods={recentPaymentMethods} mode="edit" friendLocked={plan.allocatedAmount > 0} initialFriendContext={formContext} loadFriendContext={loadRepaymentFriendContext} initialPaidAtUtc={plan.paidAt.toISOString()} initialValues={{ friendId: plan.friendId, amountRupiah: plan.amount.toString(), paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: plan.paymentMethod ?? "", notes: plan.notes ?? "" }} />
               </div>
-              <DeleteRecordForm action={deleteRepaymentAction.bind(null, repayment.id)} recordType="repayment" impact={deletionImpact} impactRevision={currentImpactRevision} />
+              <DeleteRecordForm action={deleteRepaymentAction.bind(null, plan.id)} recordType="repayment" impact={deletionImpact} impactRevision={currentImpactRevision} />
             </div>
           </aside>
         </div>
       </div>
     </section>
   );
+}
+
+export default async function RepaymentRecordPage({ params, searchParams }: { params: Promise<{ repaymentId: string }>; searchParams?: Promise<{ created?: string | string[]; saved?: string | string[]; q?: string | string[]; page?: string | string[]; tripId?: string | string[] }> }) {
+  const session = await requireSession();
+  const { repaymentId } = await params;
+  const query = await searchParams;
+  const data = await loadRepaymentRecordData(session, repaymentId, query);
+
+  return <RepaymentRecordContent data={data} query={query} />;
 }

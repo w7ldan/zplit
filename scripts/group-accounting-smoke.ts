@@ -130,7 +130,7 @@ export async function runGroupAccountingSmoke() {
   const users = ["owner", "payer", "member", "other"].map((label) => ({ id: randomUUID(), label, username: `s12a_${label}_${randomUUID().replaceAll("-", "").slice(0, 6)}` }));
   const groupIds: string[] = [];
   const participantIds: string[] = [];
-  let failureTriggerInstalled = false;
+  const state: GroupAccountingState = { failureTriggerInstalled: false };
 
   try {
     for (const user of users) await pool.query("INSERT INTO users (id, name, email, username, email_verified) VALUES ($1, $2, $3, $4, true)", [user.id, user.label, `${user.id}@example.com`, user.username]);
@@ -143,6 +143,35 @@ export async function runGroupAccountingSmoke() {
     const external = await createExternalParticipant(database, group.id, users[0]!.id, { displayName: "Taxi", label: "Driver" });
     participantIds.push(external.id);
 
+    const selfExpense = await runCoreAccountingChecks(pool, database, users, group, ownerParticipant, payerParticipant, memberParticipant, external, state);
+    await runCrossScopeAccountingChecks(pool, database, users, group, ownerParticipant, payerParticipant, selfExpense, external, groupIds);
+    await runMembershipAccountingRaces(pool, database, users, groupIds);
+    await runLinkAccountingCheck(pool, database, users, group, external);
+    console.log("group accounting smoke passed");
+  } catch (error) {
+    console.error(`group accounting smoke failed: ${formatSafeError(error)}`);
+    process.exitCode = 1;
+  } finally {
+    if (state.failureTriggerInstalled) await removeObligationFailure(pool);
+    if (groupIds.length > 0) {
+      await pool.query("DELETE FROM group_expense_receipts WHERE group_id = ANY($1::uuid[])", [groupIds]);
+      await pool.query("DELETE FROM group_obligations WHERE group_id = ANY($1::uuid[])", [groupIds]);
+      await pool.query("DELETE FROM group_expense_shares WHERE group_id = ANY($1::uuid[])", [groupIds]);
+      await pool.query("DELETE FROM group_expenses WHERE group_id = ANY($1::uuid[])", [groupIds]);
+      await pool.query("DELETE FROM group_join_requests WHERE group_id = ANY($1::uuid[])", [groupIds]);
+      await pool.query("DELETE FROM group_memberships WHERE group_id = ANY($1::uuid[])", [groupIds]);
+      await pool.query("DELETE FROM group_participants WHERE group_id = ANY($1::uuid[])", [groupIds]);
+      await pool.query("DELETE FROM groups WHERE id = ANY($1::uuid[])", [groupIds]);
+    }
+    if (users.length > 0) await pool.query("DELETE FROM users WHERE id = ANY($1::text[])", [users.map(({ id }) => id)]);
+    await pool.end();
+  }
+}
+
+if (process.argv[1] && process.argv[1].endsWith("group-accounting-smoke.ts")) await runGroupAccountingSmoke();
+type GroupAccountingState = { failureTriggerInstalled: boolean };
+
+async function runCoreAccountingChecks(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, group: { id: string }, ownerParticipant: string, payerParticipant: string, memberParticipant: string, external: { id: string }, state: GroupAccountingState) {
     const selfExpense = await createGroupExpense(database, group.id, users[0]!.id, {
       description: "Self payer",
       occurredAt: new Date("2026-08-27T12:00:00.000Z"),
@@ -241,14 +270,18 @@ export async function runGroupAccountingSmoke() {
       shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: external.id, amount: 1 }],
     });
     await installObligationFailure(pool, rollbackExpense.id);
-    failureTriggerInstalled = true;
+    state.failureTriggerInstalled = true;
     await expectCode(() => confirmGroupExpenseAsPayer(database, group.id, rollbackExpense.id, users[1]!.id), "P0001");
     await removeObligationFailure(pool);
-    failureTriggerInstalled = false;
+    state.failureTriggerInstalled = false;
     const rollbackState = await pool.query<{ state: string; count: string }>("SELECT expenses.state, count(obligations.id)::text AS count FROM group_expenses expenses LEFT JOIN group_obligations obligations ON obligations.group_id = expenses.group_id AND obligations.source_expense_id = expenses.id WHERE expenses.id = $1 GROUP BY expenses.state", [rollbackExpense.id]);
     assert(rollbackState.rows[0]?.state === "pending" && rollbackState.rows[0]?.count === "0", "failed materialization partially confirmed the expense");
     await confirmGroupExpenseAsPayer(database, group.id, rollbackExpense.id, users[1]!.id);
 
+    return selfExpense;
+}
+
+async function runCrossScopeAccountingChecks(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, group: { id: string }, ownerParticipant: string, payerParticipant: string, selfExpense: Awaited<ReturnType<typeof createGroupExpense>>, external: { id: string }, groupIds: string[]) {
     const foreignGroup = await createGroup(database, users[3]!.id, { name: "Other accounting smoke" });
     groupIds.push(foreignGroup.id);
     const foreignParticipant = (await pool.query<{ participant_id: string }>("SELECT participant_id FROM group_memberships WHERE group_id = $1 AND user_id = $2", [foreignGroup.id, users[3]!.id])).rows[0]!.participant_id;
@@ -280,6 +313,9 @@ export async function runGroupAccountingSmoke() {
     assert(confirmations.every((result) => result.status === "fulfilled"), "concurrent confirmation did not be idempotent");
     assert(await count(pool, "group_obligations", group.id, concurrentExpense.id) === 2, "concurrent confirmation duplicated obligations");
 
+}
+
+async function runMembershipAccountingRaces(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, groupIds: string[]) {
     const expenseFirst = await raceFixture(pool, database, users[0]!.id, users[2]!.id, groupIds);
     const expenseFirstMembershipLock = await holdMembership(pool, expenseFirst.groupId, users[2]!.id);
     let expenseFirstLockReleased = false;
@@ -377,29 +413,11 @@ export async function runGroupAccountingSmoke() {
       if (!creatorRemovalFirstLockReleased) await creatorRemovalFirstMembershipLock.release(false);
     }
 
+}
+
+async function runLinkAccountingCheck(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, group: { id: string }, external: { id: string }) {
     const linkRequest = await createGroupParticipantLinkRequest(database, group.id, external.id, users[0]!.id, users[3]!.username);
     await acceptGroupJoinRequest(database, users[3]!.id, linkRequest.id);
     const linkedParticipant = await pool.query<{ id: string; user_id: string | null }>("SELECT id, user_id FROM group_participants WHERE group_id = $1 AND id = $2", [group.id, external.id]);
     assert(linkedParticipant.rows[0]?.id === external.id && linkedParticipant.rows[0]?.user_id === users[3]!.id, "linking an external participant changed its financial identity");
-    console.log("group accounting smoke passed");
-  } catch (error) {
-    console.error(`group accounting smoke failed: ${formatSafeError(error)}`);
-    process.exitCode = 1;
-  } finally {
-    if (failureTriggerInstalled) await removeObligationFailure(pool);
-    if (groupIds.length > 0) {
-      await pool.query("DELETE FROM group_expense_receipts WHERE group_id = ANY($1::uuid[])", [groupIds]);
-      await pool.query("DELETE FROM group_obligations WHERE group_id = ANY($1::uuid[])", [groupIds]);
-      await pool.query("DELETE FROM group_expense_shares WHERE group_id = ANY($1::uuid[])", [groupIds]);
-      await pool.query("DELETE FROM group_expenses WHERE group_id = ANY($1::uuid[])", [groupIds]);
-      await pool.query("DELETE FROM group_join_requests WHERE group_id = ANY($1::uuid[])", [groupIds]);
-      await pool.query("DELETE FROM group_memberships WHERE group_id = ANY($1::uuid[])", [groupIds]);
-      await pool.query("DELETE FROM group_participants WHERE group_id = ANY($1::uuid[])", [groupIds]);
-      await pool.query("DELETE FROM groups WHERE id = ANY($1::uuid[])", [groupIds]);
-    }
-    if (users.length > 0) await pool.query("DELETE FROM users WHERE id = ANY($1::text[])", [users.map(({ id }) => id)]);
-    await pool.end();
-  }
 }
-
-if (process.argv[1] && process.argv[1].endsWith("group-accounting-smoke.ts")) await runGroupAccountingSmoke();

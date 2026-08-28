@@ -27,8 +27,53 @@ type LinkState = {
 
 const emptyActionState: DebtorShareActionState = { error: "", link: null, statement: null, revoked: false, selectedReceiptIds: [] };
 
+function linkViewState(state: LinkState, phoneNumber: string | null) {
+  const shareUrl = state.link && typeof window !== "undefined" ? window.location.origin + "/share/" + state.link.token : null;
+  return {
+    usableShareUrl: state.pendingOperation === "create" ? null : shareUrl,
+    expiry: state.status === "active" || state.status === "expired" ? state.expiresAt : null,
+    whatsappUrl: state.reminder ? buildWhatsAppUrl(phoneNumber, state.reminder) : null,
+  };
+}
+
 function SubmitButton({ label, pending, disabled }: { label: string; pending: string; disabled: boolean }) {
   return <button className="action-link action-link--primary" type="submit" disabled={disabled} aria-busy={disabled}>{disabled ? pending : label}</button>;
+}
+
+function FriendShareReceiptSelector({ eligibleReceipts, selectedReceiptIds, pending, createLabel, onSubmit, onReceiptChange }: {
+  eligibleReceipts?: EligibleDebtorShareReceiptGroup[];
+  selectedReceiptIds: string[];
+  pending: boolean;
+  createLabel: string;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onReceiptChange: (receiptId: string, checked: boolean) => void;
+}) {
+  return <form id="friend-share-create" onSubmit={onSubmit}>
+    <fieldset className="friend-share__receipts">
+      <legend>Receipts visible through this link</legend>
+      <p>Only the receipts selected here can be opened through this balance link.</p>
+      {eligibleReceipts?.length ? eligibleReceipts.map((group) => <div className="friend-share__receipt-group" key={group.expenseId}>
+        <h3>{group.expenseDescription}</h3><p>{group.outingTitle}</p>
+        {group.receipts.map((receipt) => <label className="friend-share__receipt" key={receipt.id}><input type="checkbox" name="selectedReceiptId" value={receipt.id} checked={selectedReceiptIds.includes(receipt.id)} onChange={(event) => onReceiptChange(receipt.id, event.currentTarget.checked)} /><span><strong>{receipt.originalFilename}</strong><small><LocalDateTime iso={receipt.createdAt.toISOString()} mode="date" /> · {receipt.mediaType}</small></span></label>)}
+      </div>) : <p>No eligible receipt images for this friend.</p>}
+    </fieldset>
+    <div className="friend-share__actions"><SubmitButton label={createLabel} pending="Working…" disabled={pending} /></div>
+  </form>;
+}
+
+function FriendShareResult({ state, usableShareUrl, whatsappUrl, qrVisible, showQrButton, onCopyLink, onCopyReminder, onOpenQr, onCloseQr }: {
+  state: LinkState;
+  usableShareUrl: string | null;
+  whatsappUrl: string | null;
+  qrVisible: boolean;
+  showQrButton: React.RefObject<HTMLButtonElement | null>;
+  onCopyLink: () => void;
+  onCopyReminder: () => void;
+  onOpenQr: () => void;
+  onCloseQr: () => void;
+}) {
+  if (!usableShareUrl || state.status !== "active") return null;
+  return <section className="friend-share__result" aria-label="Balance link ready" role="status"><p><strong>Balance link ready.</strong> Save or send this link now.</p><label htmlFor="friend-share-link">Temporary balance link</label><div className="friend-share__copy-row"><input id="friend-share-link" readOnly value={usableShareUrl} onFocus={(event) => event.currentTarget.select()} /></div><div className="friend-share__actions" aria-label="Balance link actions"><button className="action-link action-link--primary" type="button" onClick={onCopyLink} aria-label={copyLabel(state.copyStatus, "Copy balance link")}>{copyLabel(state.copyStatus, "Copy balance link")}</button><button className="action-link action-link--quiet" type="button" onClick={() => window.open(usableShareUrl, "_blank", "noopener,noreferrer")} aria-label="Preview as friend (opens in a new tab)">Preview as friend</button><button ref={showQrButton} className="action-link action-link--quiet" type="button" onClick={onOpenQr} aria-expanded={qrVisible} aria-controls="friend-share-qr">Show QR</button></div>{qrVisible ? <BalanceLinkQr url={usableShareUrl} onClose={onCloseQr} /> : null}<p className="friend-share__warning">Save or send this link now. Zplit cannot recover it later.</p><p className="technical-label">Expires <LocalDateTime iso={state.link?.expiresAt ?? ""} mode="date" /></p>{state.reminder ? <div className="friend-share__reminder" aria-label="WhatsApp reminder"><p><strong>Reminder ready.</strong></p><p className="friend-share__reminder-copy">{state.reminder}</p><div className="friend-share__actions"><button className="action-link action-link--quiet" type="button" onClick={onCopyReminder}>{copyLabel(state.reminderCopyStatus, "Copy reminder")}</button>{whatsappUrl ? <button className="action-link action-link--quiet" type="button" onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}>Open WhatsApp</button> : null}</div></div> : null}</section>;
 }
 
 export function FriendShareLink({
@@ -68,10 +113,7 @@ export function FriendShareLink({
   const showQrButton = useRef<HTMLButtonElement>(null);
   const qrWasVisible = useRef(false);
   const [qrVisible, setQrVisible] = useState(false);
-  const shareUrl = state.link && typeof window !== "undefined" ? `${window.location.origin}/share/${state.link.token}` : null;
-  const usableShareUrl = state.pendingOperation === "create" ? null : shareUrl;
-  const expiry = state.status === "active" || state.status === "expired" ? state.expiresAt : null;
-  const whatsappUrl = state.reminder ? buildWhatsAppUrl(phoneNumber, state.reminder) : null;
+  const { usableShareUrl, expiry, whatsappUrl } = linkViewState(state, phoneNumber);
 
   function clearCopyFeedback() {
     if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current);
@@ -219,31 +261,24 @@ export function FriendShareLink({
     scheduleCopyFeedbackReset();
   }
 
+  const destinationCount = sharedDestinationNames?.length ?? 0;
+  const createLabel = state.status === "active" || state.status === "expired" ? "Replace balance link" : "Create balance link";
   return (
     <section className="friend-share" aria-labelledby="friend-share-heading">
       <div className="friend-share__heading"><div><p className="technical-label">Share balance</p><h2 id="friend-share-heading">A private, read-only view</h2></div><span className="friend-share__state">{state.status === "none" ? "NONE" : state.status.toUpperCase()}</span></div>
       <p className="friend-share__description">This temporary link shows this friend’s balance and itemized shares. It cannot change the ledger.</p>
       <section className="friend-share__destinations" aria-labelledby="friend-share-destinations-heading">
-        <div><p className="technical-label">Repays to</p><h3 id="friend-share-destinations-heading">{sharedDestinationNames?.length ? `${sharedDestinationNames.length} repayment destination${sharedDestinationNames.length === 1 ? "" : "s"} will be shown` : "No repayment destination will be shown."}</h3>{sharedDestinationNames?.length ? <p>{sharedDestinationNames.join(" · ")}</p> : null}</div>
-        <a className="text-link" href="/app/settings#repays-to">{sharedDestinationNames?.length ? "Manage repayment details" : "Add repayment details"}</a>
+        <div><p className="technical-label">Repays to</p><h3 id="friend-share-destinations-heading">{destinationCount ? destinationCount + " repayment destination" + (destinationCount === 1 ? "" : "s") + " will be shown" : "No repayment destination will be shown."}</h3>{destinationCount ? <p>{sharedDestinationNames?.join(" · ")}</p> : null}</div>
+        <a className="text-link" href="/app/settings#repays-to">{destinationCount ? "Manage repayment details" : "Add repayment details"}</a>
       </section>
       {expiry ? <p className="friend-share__expiry">{state.status === "expired" ? "Expired" : "Expires"} <LocalDateTime iso={expiry} mode="date" /></p> : null}
-      <form id="friend-share-create" onSubmit={submitCreate}>
-        <fieldset className="friend-share__receipts">
-          <legend>Receipts visible through this link</legend>
-          <p>Only the receipts selected here can be opened through this balance link.</p>
-          {eligibleReceipts?.length ? eligibleReceipts.map((group) => <div className="friend-share__receipt-group" key={group.expenseId}>
-            <h3>{group.expenseDescription}</h3><p>{group.outingTitle}</p>
-            {group.receipts.map((receipt) => <label className="friend-share__receipt" key={receipt.id}><input type="checkbox" name="selectedReceiptId" value={receipt.id} checked={state.selectedReceiptIds.includes(receipt.id)} onChange={(event) => setReceiptSelected(receipt.id, event.currentTarget.checked)} /><span><strong>{receipt.originalFilename}</strong><small><LocalDateTime iso={receipt.createdAt.toISOString()} mode="date" /> · {receipt.mediaType}</small></span></label>)}
-          </div>) : <p>No eligible receipt images for this friend.</p>}
-        </fieldset>
-        <div className="friend-share__actions"><SubmitButton label={state.status === "active" || state.status === "expired" ? "Replace balance link" : "Create balance link"} pending="Working…" disabled={state.pendingOperation !== null} /></div>
-      </form>
+      <FriendShareReceiptSelector eligibleReceipts={eligibleReceipts} selectedReceiptIds={state.selectedReceiptIds} pending={state.pendingOperation !== null} createLabel={createLabel} onSubmit={submitCreate} onReceiptChange={setReceiptSelected} />
       {state.status === "active" ? <form onSubmit={submitUpdate} className="friend-share__actions"><SubmitButton label="Save receipt visibility" pending="Saving…" disabled={state.pendingOperation !== null} /></form> : null}
       {state.status === "active" ? <form onSubmit={submitRevoke} className="friend-share__actions"><SubmitButton label="Revoke link" pending="Revoking…" disabled={state.pendingOperation !== null} /></form> : null}
       {state.error ? <p className="friend-share__message" role="alert">{state.error}</p> : null}
       {state.status === "active" && state.pendingOperation === null && !usableShareUrl ? <p className="friend-share__description">This existing link is active, but Zplit cannot recover its URL after this page loads. Replace balance link to issue a new URL; replacing it revokes the current link.</p> : null}
-      {usableShareUrl && state.status === "active" ? <section className="friend-share__result" aria-label="Balance link ready" role="status"><p><strong>Balance link ready.</strong> Save or send this link now.</p><label htmlFor="friend-share-link">Temporary balance link</label><div className="friend-share__copy-row"><input id="friend-share-link" readOnly value={usableShareUrl} onFocus={(event) => event.currentTarget.select()} /></div><div className="friend-share__actions" aria-label="Balance link actions"><button className="action-link action-link--primary" type="button" onClick={copyLink} aria-label={copyLabel(state.copyStatus, "Copy balance link")}>{copyLabel(state.copyStatus, "Copy balance link")}</button><button className="action-link action-link--quiet" type="button" onClick={() => window.open(usableShareUrl, "_blank", "noopener,noreferrer")} aria-label="Preview as friend (opens in a new tab)">Preview as friend</button><button ref={showQrButton} className="action-link action-link--quiet" type="button" onClick={() => setQrVisible(true)} aria-expanded={qrVisible} aria-controls="friend-share-qr">Show QR</button></div>{qrVisible ? <BalanceLinkQr url={usableShareUrl} onClose={() => setQrVisible(false)} /> : null}<p className="friend-share__warning">Save or send this link now. Zplit cannot recover it later.</p><p className="technical-label">Expires <LocalDateTime iso={state.link?.expiresAt ?? ""} mode="date" /></p>{state.reminder ? <div className="friend-share__reminder" aria-label="WhatsApp reminder"><p><strong>Reminder ready.</strong></p><p className="friend-share__reminder-copy">{state.reminder}</p><div className="friend-share__actions"><button className="action-link action-link--quiet" type="button" onClick={copyReminder}>{copyLabel(state.reminderCopyStatus, "Copy reminder")}</button>{whatsappUrl ? <button className="action-link action-link--quiet" type="button" onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}>Open WhatsApp</button> : null}</div></div> : null}</section> : null}
+      <FriendShareResult state={state} usableShareUrl={usableShareUrl} whatsappUrl={whatsappUrl} qrVisible={qrVisible} showQrButton={showQrButton} onCopyLink={copyLink} onCopyReminder={copyReminder} onOpenQr={() => setQrVisible(true)} onCloseQr={() => setQrVisible(false)} />
     </section>
   );
+
 }

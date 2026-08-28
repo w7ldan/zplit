@@ -40,6 +40,30 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <p className="outing-form__field-error" id={id}>{message || "\u00a0"}</p>;
 }
 
+function OutingOptionalDetails({ state, detailsRef, open, selectedTripId, trips, searchTrips, onTripChange }: {
+  state: OutingActionState;
+  detailsRef: React.RefObject<HTMLDetailsElement | null>;
+  open: boolean;
+  selectedTripId: string;
+  trips: SearchableOption[];
+  searchTrips: SearchableOptionAction;
+  onTripChange: (trip: SearchableOption) => void;
+}) {
+  return <details ref={detailsRef} open={open || undefined} className="outing-form__disclosure">
+    <summary>Optional details</summary>
+    <div className="outing-form__field">
+      <label id="outing-trip-label" htmlFor="outing-trip">Trip</label>
+      <SearchableCombobox id="outing-trip" name="tripId" value={selectedTripId} options={trips} search={searchTrips} searchLabel="Search trips" placeholder="No trip" labelId="outing-trip-label" ariaInvalid={Boolean(state.fieldErrors.tripId)} ariaDescribedBy="outing-trip-error" onValueChange={onTripChange} />
+      <FieldError id="outing-trip-error" message={state.fieldErrors.tripId} />
+    </div>
+    <div className="outing-form__field">
+      <label htmlFor="outing-notes">Notes</label>
+      <textarea id="outing-notes" name="notes" defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="outing-notes-error" rows={5} />
+      <FieldError id="outing-notes-error" message={state.fieldErrors.notes} />
+    </div>
+  </details>;
+}
+
 export function OutingForm({ action, initialValues = emptyValues, initialOccurredAtUtc, trips = [{ id: "", label: "No trip" }], searchTrips = async () => trips, mode = "create" }: OutingFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
   const [selectedTripId, setSelectedTripId] = useState(initialValues.tripId ?? "");
@@ -110,19 +134,15 @@ export function OutingForm({ action, initialValues = emptyValues, initialOccurre
         <strong className="outing-form__trip-context-name">{selectedTripId ? selectedTrip?.label ?? trips.find((trip) => trip.id === selectedTripId)?.label ?? "Selected trip" : "No trip"}</strong>
         <button className="outing-form__trip-context-change" type="button" onClick={() => detailsDisclosureRef.current?.setAttribute("open", "")}>Change</button>
       </div> : null}
-      <details ref={detailsDisclosureRef} open={detailsDisclosureOpen || undefined} className="outing-form__disclosure">
-        <summary>Optional details</summary>
-        <div className="outing-form__field">
-          <label id="outing-trip-label" htmlFor="outing-trip">Trip</label>
-          <SearchableCombobox id="outing-trip" name="tripId" value={selectedTripId} options={trips} search={searchTrips} searchLabel="Search trips" placeholder="No trip" labelId="outing-trip-label" ariaInvalid={Boolean(state.fieldErrors.tripId)} ariaDescribedBy="outing-trip-error" onValueChange={(trip) => { setSelectedTripId(trip.id); setSelectedTrip(trip); }} />
-          <FieldError id="outing-trip-error" message={state.fieldErrors.tripId} />
-        </div>
-        <div className="outing-form__field">
-          <label htmlFor="outing-notes">Notes</label>
-          <textarea id="outing-notes" name="notes" defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="outing-notes-error" rows={5} />
-          <FieldError id="outing-notes-error" message={state.fieldErrors.notes} />
-        </div>
-      </details>
+      <OutingOptionalDetails
+        state={state}
+        detailsRef={detailsDisclosureRef}
+        open={detailsDisclosureOpen}
+        selectedTripId={selectedTripId}
+        trips={trips}
+        searchTrips={searchTrips}
+        onTripChange={(trip) => { setSelectedTripId(trip.id); setSelectedTrip(trip); }}
+      />
       <p className="outing-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
       <SubmitButton mode={mode} />
     </form>

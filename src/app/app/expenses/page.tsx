@@ -20,24 +20,59 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export default async function ExpensesPage({ searchParams = Promise.resolve({}) }: ExpensesPageProps = {}) {
-  const params = await searchParams;
-  const emptyParams = ["q", "outing", "month", "assignment"].filter((name) => first(params?.[name]) === "");
-  if (emptyParams.length) redirect(recordHref("/app/expenses", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
-  const session = await requireSession();
-  const openCreate = first(params?.create) === "1";
-  const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params?.tz));
-  const { ledger: repository } = await getAuthenticatedLedger(session);
-  const filters = normalizeExpenseFilters({ q: first(params?.q), outingId: first(params?.outing), month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page) });
+type ExpensesLedger = Awaited<ReturnType<typeof getAuthenticatedLedger>>["ledger"];
+
+async function loadExpensesPageData(params: Awaited<NonNullable<ExpensesPageProps["searchParams"]>>, repository: ExpensesLedger) {
+  const openCreate = first(params.create) === "1";
+  const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params.tz));
+  const filters = normalizeExpenseFilters({ q: first(params.q), outingId: first(params.outing), month: first(params.month), assignment: first(params.assignment), page: first(params.page) });
   const outingRows = await repository.searchOutings({ selectedId: filters.outingId });
   const outingId = outingRows.some((outing) => outing.id === filters.outingId) ? filters.outingId : undefined;
   const outingOptions = outingRows.map((outing) => ({ id: outing.id, label: outing.title, group: outing.recent ? "Recent" : undefined }));
-  const expensePage = await repository.listExpenseRecords({ q: first(params?.q), outingId, month: first(params?.month), assignment: first(params?.assignment), page: first(params?.page), timezoneOffsetMinutes });
-  const groups = groupRecordsByMonth(expensePage.items, (expense) => expense.outingOccurredAt, timezoneOffsetMinutes);
-  const filtered = Boolean(filters.q || filters.month || filters.outingId || filters.assignment !== "all");
-  const listHref = recordHref("/app/expenses", params);
-  const expenseReturnTarget = validateExpenseReturnTarget(recordHref("/app/expenses", params, { create: "1" })) ?? "/app/expenses?create=1";
+  const expensePage = await repository.listExpenseRecords({ q: first(params.q), outingId, month: first(params.month), assignment: first(params.assignment), page: first(params.page), timezoneOffsetMinutes });
+  return {
+    openCreate,
+    filters,
+    outingId,
+    outingOptions,
+    expensePage,
+    groups: groupRecordsByMonth(expensePage.items, (expense) => expense.outingOccurredAt, timezoneOffsetMinutes),
+    filtered: Boolean(filters.q || filters.month || outingId || filters.assignment !== "all"),
+    listHref: recordHref("/app/expenses", params),
+    expenseReturnTarget: validateExpenseReturnTarget(recordHref("/app/expenses", params, { create: "1" })) ?? "/app/expenses?create=1",
+  };
+}
 
+type ExpensesPageData = Awaited<ReturnType<typeof loadExpensesPageData>>;
+
+function ExpenseRecordList({ data, params }: { data: ExpensesPageData; params: Awaited<NonNullable<ExpensesPageProps["searchParams"]>> }) {
+  const { expensePage, groups, filtered, outingOptions, listHref } = data;
+  return (
+    <div className="ledger-list" id="record-list">
+      <div className="ledger-list__heading"><span className="technical-label">EXPENSE RECORDS</span><span className="technical-label">{expensePage.totalItems} entries</span></div>
+      {expensePage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
+        <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
+        {group.items.map((expense) => <ExpenseRow key={expense.id} expense={expense} />)}
+      </div>) : (
+        <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? null : <Link className="text-link" href={recordHref(outingOptions.length ? "/app/expenses" : "/app/outings", params, { create: "1" })} data-task-trigger={outingOptions.length ? "expense-create" : "outing-create"}>{outingOptions.length ? "Add expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
+      )}
+      <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={listHref} />
+    </div>
+  );
+}
+
+function ExpenseCreatePanel({ data, outingId }: { data: ExpensesPageData; outingId: string | undefined }) {
+  if (!data.openCreate) return null;
+  const { outingOptions, expenseReturnTarget } = data;
+  return (
+    <TaskPanel open title="Add an expense" description="Choose the outing, record the whole-rupiah amount, and assign shares next." triggerId="expense-create">
+      {outingOptions.length > 0 ? <ExpenseForm action={createExpenseAction} outings={outingOptions} searchOutings={searchOutingOptions} initialValues={{ description: "", amountRupiah: "", outingId: outingId ?? "" }} /> : <div className="task-panel__empty"><p>Create an outing before recording an expense.</p><Link className="action-link action-link--primary" href={"/app/outings?create=1&returnTo=" + encodeURIComponent(expenseReturnTarget)} data-task-trigger="outing-create">Create an outing and continue</Link></div>}
+    </TaskPanel>
+  );
+}
+
+function ExpensesPageContent({ data, params }: { data: ExpensesPageData; params: Awaited<NonNullable<ExpensesPageProps["searchParams"]>> }) {
+  const { filters, outingId, outingOptions, expensePage, filtered } = data;
   return (
     <section className="app-page expenses-page" id="top">
       <div className="editorial-shell app-page__layout">
@@ -56,23 +91,23 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
           month={{ label: "Month", value: filters.month ?? "" }}
           mobileDisclosure={{ activeCount: [outingId, filters.month, filters.assignment === "all" ? undefined : filters.assignment].filter(Boolean).length }}
           clearHref={filtered ? recordHref("/app/expenses", params, { q: undefined, outing: undefined, month: undefined, assignment: undefined, page: undefined }) : undefined}
-          resultStatus={`${expensePage.totalItems} expense${expensePage.totalItems === 1 ? "" : "s"} found.`}
+          resultStatus={expensePage.totalItems + " expense" + (expensePage.totalItems === 1 ? "" : "s") + " found."}
           preservedParams={params}
         />
-        <div className="ledger-list" id="record-list">
-          <div className="ledger-list__heading"><span className="technical-label">EXPENSE RECORDS</span><span className="technical-label">{expensePage.totalItems} entries</span></div>
-          {expensePage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
-            <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
-            {group.items.map((expense) => <ExpenseRow key={expense.id} expense={expense} />)}
-          </div>) : (
-            <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? null : <Link className="text-link" href={recordHref(outingOptions.length ? "/app/expenses" : "/app/outings", params, { create: "1" })} data-task-trigger={outingOptions.length ? "expense-create" : "outing-create"}>{outingOptions.length ? "Add expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
-          )}
-          <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={listHref} />
-        </div>
+        <ExpenseRecordList data={data} params={params} />
       </div>
-      {openCreate ? <TaskPanel open title="Add an expense" description="Choose the outing, record the whole-rupiah amount, and assign shares next." triggerId="expense-create">
-        {outingOptions.length > 0 ? <ExpenseForm action={createExpenseAction} outings={outingOptions} searchOutings={searchOutingOptions} initialValues={{ description: "", amountRupiah: "", outingId: outingId ?? "" }} /> : <div className="task-panel__empty"><p>Create an outing before recording an expense.</p><Link className="action-link action-link--primary" href={`/app/outings?create=1&returnTo=${encodeURIComponent(expenseReturnTarget)}`} data-task-trigger="outing-create">Create an outing and continue</Link></div>}
-      </TaskPanel> : null}
+      <ExpenseCreatePanel data={data} outingId={outingId} />
     </section>
   );
+}
+
+export default async function ExpensesPage({ searchParams = Promise.resolve({}) }: ExpensesPageProps = {}) {
+  const params = await searchParams;
+  const emptyParams = ["q", "outing", "month", "assignment"].filter((name) => first(params?.[name]) === "");
+  if (emptyParams.length) redirect(recordHref("/app/expenses", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
+  const session = await requireSession();
+  const { ledger: repository } = await getAuthenticatedLedger(session);
+  const data = await loadExpensesPageData(params ?? {}, repository);
+
+  return <ExpensesPageContent data={data} params={params ?? {}} />;
 }
