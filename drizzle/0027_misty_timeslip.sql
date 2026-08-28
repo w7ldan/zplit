@@ -11,6 +11,115 @@ CREATE TABLE "group_expense_lifecycle_events" (
 	CONSTRAINT "group_expense_lifecycle_events_transition_shape" CHECK (("group_expense_lifecycle_events"."event_type" = 'created' AND "group_expense_lifecycle_events"."from_state" IS NULL AND "group_expense_lifecycle_events"."to_state" IN ('pending', 'confirmed')) OR ("group_expense_lifecycle_events"."event_type" = 'payer_confirmed' AND "group_expense_lifecycle_events"."from_state" = 'pending' AND "group_expense_lifecycle_events"."to_state" = 'confirmed') OR ("group_expense_lifecycle_events"."event_type" = 'payer_rejected' AND "group_expense_lifecycle_events"."from_state" = 'pending' AND "group_expense_lifecycle_events"."to_state" = 'rejected') OR ("group_expense_lifecycle_events"."event_type" = 'voided' AND "group_expense_lifecycle_events"."from_state" = 'confirmed' AND "group_expense_lifecycle_events"."to_state" = 'voided'))
 );
 --> statement-breakpoint
+DO $$
+DECLARE
+  inconsistent record;
+BEGIN
+  SELECT
+    expenses.id AS expense_id,
+    expenses.group_id,
+    expenses.state,
+    expenses.confirmed_at,
+    creator.user_id AS creator_user_id,
+    payer.user_id AS payer_user_id
+  INTO inconsistent
+  FROM group_expenses AS expenses
+  LEFT JOIN group_participants AS creator
+    ON creator.group_id = expenses.group_id
+   AND creator.id = expenses.creator_participant_id
+  LEFT JOIN group_participants AS payer
+    ON payer.group_id = expenses.group_id
+   AND payer.id = expenses.payer_participant_id
+  WHERE creator.user_id IS NULL
+     OR (expenses.state = 'confirmed' AND (expenses.confirmed_at IS NULL OR payer.user_id IS NULL))
+  ORDER BY expenses.id
+  LIMIT 1;
+
+  IF FOUND THEN
+    RAISE EXCEPTION 'Cannot backfill Group expense lifecycle history for expense %, group %: creator_user_id=%, payer_user_id=%, confirmed_at=%',
+      inconsistent.expense_id,
+      inconsistent.group_id,
+      inconsistent.creator_user_id,
+      inconsistent.payer_user_id,
+      inconsistent.confirmed_at;
+  END IF;
+END;
+$$;
+--> statement-breakpoint
+WITH legacy_events AS (
+  SELECT
+    expenses.group_id,
+    expenses.id AS expense_id,
+    'created'::varchar AS event_type,
+    creator.user_id AS actor_user_id,
+    NULL::varchar AS from_state,
+    expenses.state AS to_state,
+    expenses.created_at
+  FROM group_expenses AS expenses
+  INNER JOIN group_participants AS creator
+    ON creator.group_id = expenses.group_id
+   AND creator.id = expenses.creator_participant_id
+  LEFT JOIN group_participants AS payer
+    ON payer.group_id = expenses.group_id
+   AND payer.id = expenses.payer_participant_id
+  WHERE expenses.state = 'pending'
+     OR (expenses.state = 'confirmed' AND creator.user_id = payer.user_id)
+
+  UNION ALL
+
+  SELECT
+    expenses.group_id,
+    expenses.id,
+    'created'::varchar,
+    creator.user_id,
+    NULL::varchar,
+    'pending'::varchar,
+    expenses.created_at
+  FROM group_expenses AS expenses
+  INNER JOIN group_participants AS creator
+    ON creator.group_id = expenses.group_id
+   AND creator.id = expenses.creator_participant_id
+  INNER JOIN group_participants AS payer
+    ON payer.group_id = expenses.group_id
+   AND payer.id = expenses.payer_participant_id
+  WHERE expenses.state = 'confirmed'
+    AND creator.user_id <> payer.user_id
+
+  UNION ALL
+
+  SELECT
+    expenses.group_id,
+    expenses.id,
+    'payer_confirmed'::varchar,
+    payer.user_id,
+    'pending'::varchar,
+    'confirmed'::varchar,
+    expenses.confirmed_at
+  FROM group_expenses AS expenses
+  INNER JOIN group_participants AS creator
+    ON creator.group_id = expenses.group_id
+   AND creator.id = expenses.creator_participant_id
+  INNER JOIN group_participants AS payer
+    ON payer.group_id = expenses.group_id
+   AND payer.id = expenses.payer_participant_id
+  WHERE expenses.state = 'confirmed'
+    AND creator.user_id <> payer.user_id
+)
+INSERT INTO group_expense_lifecycle_events (group_id, expense_id, event_type, actor_user_id, from_state, to_state, created_at)
+SELECT legacy.group_id, legacy.expense_id, legacy.event_type, legacy.actor_user_id, legacy.from_state, legacy.to_state, legacy.created_at
+FROM legacy_events AS legacy
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM group_expense_lifecycle_events AS existing
+  WHERE existing.group_id = legacy.group_id
+    AND existing.expense_id = legacy.expense_id
+    AND existing.event_type = legacy.event_type
+    AND existing.actor_user_id = legacy.actor_user_id
+    AND existing.from_state IS NOT DISTINCT FROM legacy.from_state
+    AND existing.to_state = legacy.to_state
+    AND existing.created_at = legacy.created_at
+);
+--> statement-breakpoint
 ALTER TABLE "group_expenses" DROP CONSTRAINT "group_expenses_state_allowed";--> statement-breakpoint
 ALTER TABLE "group_expenses" DROP CONSTRAINT "group_expenses_confirmation_timestamp_shape";--> statement-breakpoint
 ALTER TABLE "group_obligations" ADD COLUMN "voided_at" timestamp with time zone;--> statement-breakpoint

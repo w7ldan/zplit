@@ -121,15 +121,11 @@ async function waitForParticipantLock(pool: Pool, participantId: string) {
   const deadline = Date.now() + 5_000;
   try {
     while (Date.now() < deadline) {
-      await client.query("BEGIN");
-      try {
-        await client.query("SELECT id FROM group_participants WHERE id = $1 FOR UPDATE NOWAIT", [participantId]);
-      } catch (error) {
-        await client.query("ROLLBACK");
-        if (error instanceof Error && "code" in error && error.code === "55P03") return;
-        throw error;
-      }
-      await client.query("ROLLBACK");
+      const result = await client.query<{ waiting: boolean }>(
+        "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND state = 'active' AND (query LIKE $1 OR query LIKE $2) AND lower(query) LIKE '%for update%') AS waiting",
+        ["%group_participants%", "%group_memberships%"],
+      );
+      if (result.rows[0]?.waiting) return;
       await new Promise<void>((resolve) => setImmediate(resolve));
     }
   } finally {
@@ -143,15 +139,11 @@ async function waitForExpenseLock(pool: Pool, expenseId: string) {
   const deadline = Date.now() + 5_000;
   try {
     while (Date.now() < deadline) {
-      await client.query("BEGIN");
-      try {
-        await client.query("SELECT id FROM group_expenses WHERE id = $1 FOR UPDATE NOWAIT", [expenseId]);
-      } catch (error) {
-        await client.query("ROLLBACK");
-        if (error instanceof Error && "code" in error && error.code === "55P03") return;
-        throw error;
-      }
-      await client.query("ROLLBACK");
+      const result = await client.query<{ waiting: boolean }>(
+        "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND state = 'active' AND query LIKE $1 AND lower(query) LIKE '%for update%') AS waiting",
+        ["%group_expenses%"],
+      );
+      if (result.rows[0]?.waiting) return;
       await new Promise<void>((resolve) => setImmediate(resolve));
     }
   } finally {
