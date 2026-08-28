@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import type { NotificationMetadata, NotificationType } from "@/domain/notifications";
 import type { GroupRole } from "@/domain/group-permissions";
+import type { GroupExpenseLifecycleEventType, GroupExpenseState } from "@/domain/group-accounting";
 import type { GroupJoinRequestKind, GroupJoinRequestStatus } from "@/domain/group-join-requests";
 import type { OrganizationCapability, OrganizationInvitationRole } from "@/domain/organization-permissions";
 import {
@@ -21,6 +22,8 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+
+export type { GroupExpenseState };
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
@@ -180,8 +183,6 @@ export const organizations = pgTable(
 );
 
 export type LedgerScopeKind = "personal" | "organization";
-
-export type GroupExpenseState = "pending" | "confirmed";
 
 export const ledgerScopes = pgTable(
   "ledger_scopes",
@@ -444,8 +445,8 @@ export const groupExpenses = pgTable(
   (table) => [
     check("group_expenses_description_not_blank", sql`btrim(${table.description}) <> ''`),
     check("group_expenses_total_amount_positive", sql`${table.totalAmount} > 0`),
-    check("group_expenses_state_allowed", sql`${table.state} IN ('pending', 'confirmed')`),
-    check("group_expenses_confirmation_timestamp_shape", sql`(${table.state} = 'pending' AND ${table.confirmedAt} IS NULL) OR (${table.state} = 'confirmed' AND ${table.confirmedAt} IS NOT NULL)`),
+    check("group_expenses_state_allowed", sql`${table.state} IN ('pending', 'confirmed', 'rejected', 'voided')`),
+    check("group_expenses_confirmation_timestamp_shape", sql`(${table.state} IN ('pending', 'rejected') AND ${table.confirmedAt} IS NULL) OR (${table.state} IN ('confirmed', 'voided') AND ${table.confirmedAt} IS NOT NULL)`),
     foreignKey({
       columns: [table.groupId, table.creatorParticipantId],
       foreignColumns: [groupParticipants.groupId, groupParticipants.id],
@@ -507,6 +508,7 @@ export const groupObligations = pgTable(
     debtorParticipantId: uuid("debtor_participant_id").notNull(),
     creditorParticipantId: uuid("creditor_participant_id").notNull(),
     originalAmount: integer("original_amount").notNull(),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -537,6 +539,34 @@ export const groupObligations = pgTable(
     index("group_obligations_group_expense_idx").on(table.groupId, table.sourceExpenseId, table.id),
     index("group_obligations_group_debtor_idx").on(table.groupId, table.debtorParticipantId),
     index("group_obligations_group_creditor_idx").on(table.groupId, table.creditorParticipantId),
+  ],
+);
+
+export const groupExpenseLifecycleEvents = pgTable(
+  "group_expense_lifecycle_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "restrict" }),
+    expenseId: uuid("expense_id").notNull(),
+    eventType: varchar("event_type", { length: 32 }).$type<GroupExpenseLifecycleEventType>().notNull(),
+    actorUserId: text("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    fromState: varchar("from_state", { length: 16 }).$type<GroupExpenseState>(),
+    toState: varchar("to_state", { length: 16 }).$type<GroupExpenseState>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.groupId, table.expenseId],
+      foreignColumns: [groupExpenses.groupId, groupExpenses.id],
+      name: "group_expense_lifecycle_events_expense_fk",
+    }).onDelete("restrict"),
+    check("group_expense_lifecycle_events_type_allowed", sql`${table.eventType} IN ('created', 'payer_confirmed', 'payer_rejected', 'voided')`),
+    check("group_expense_lifecycle_events_transition_shape", sql`(${table.eventType} = 'created' AND ${table.fromState} IS NULL AND ${table.toState} IN ('pending', 'confirmed')) OR (${table.eventType} = 'payer_confirmed' AND ${table.fromState} = 'pending' AND ${table.toState} = 'confirmed') OR (${table.eventType} = 'payer_rejected' AND ${table.fromState} = 'pending' AND ${table.toState} = 'rejected') OR (${table.eventType} = 'voided' AND ${table.fromState} = 'confirmed' AND ${table.toState} = 'voided')`),
+    index("group_expense_lifecycle_events_expense_created_idx").on(table.groupId, table.expenseId, table.createdAt, table.id),
   ],
 );
 
@@ -1253,6 +1283,7 @@ export const groupExpensesRelations = relations(groupExpenses, ({ one, many }) =
   shares: many(groupExpenseShares),
   obligations: many(groupObligations),
   receipts: many(groupExpenseReceipts),
+  lifecycleEvents: many(groupExpenseLifecycleEvents),
 }));
 
 export const groupExpenseSharesRelations = relations(groupExpenseShares, ({ one }) => ({
@@ -1273,6 +1304,12 @@ export const groupObligationsRelations = relations(groupObligations, ({ one }) =
 export const groupExpenseReceiptsRelations = relations(groupExpenseReceipts, ({ one }) => ({
   group: one(groups, { fields: [groupExpenseReceipts.groupId], references: [groups.id] }),
   expense: one(groupExpenses, { fields: [groupExpenseReceipts.groupId, groupExpenseReceipts.expenseId], references: [groupExpenses.groupId, groupExpenses.id] }),
+}));
+
+export const groupExpenseLifecycleEventsRelations = relations(groupExpenseLifecycleEvents, ({ one }) => ({
+  group: one(groups, { fields: [groupExpenseLifecycleEvents.groupId], references: [groups.id] }),
+  expense: one(groupExpenses, { fields: [groupExpenseLifecycleEvents.groupId, groupExpenseLifecycleEvents.expenseId], references: [groupExpenses.groupId, groupExpenses.id] }),
+  actor: one(users, { fields: [groupExpenseLifecycleEvents.actorUserId], references: [users.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({

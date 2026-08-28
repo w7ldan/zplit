@@ -1,7 +1,11 @@
 import { normalizeUuid } from "./record-retrieval";
 import { MAX_RUPIAH, parseRupiah } from "./rupiah";
 
-export type GroupExpenseState = "pending" | "confirmed";
+export type GroupExpenseState = "pending" | "confirmed" | "rejected" | "voided";
+
+export type GroupExpenseLifecycleEventType = "created" | "payer_confirmed" | "payer_rejected" | "voided";
+
+export const GROUP_EXPENSE_STATE_CHANGED_EVENT = "group.expense.state.changed";
 
 export type GroupExpenseShareInput = {
   participantId: string;

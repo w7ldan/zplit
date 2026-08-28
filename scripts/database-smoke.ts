@@ -29,6 +29,7 @@ const domainTables = [
   "group_expense_shares",
   "group_obligations",
   "group_expense_receipts",
+  "group_expense_lifecycle_events",
 ];
 
 function assert(condition: unknown, message: string): asserts condition {

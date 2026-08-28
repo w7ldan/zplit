@@ -9,7 +9,7 @@ import { formatSafeError, readDatabaseConfig } from "./migrate.js";
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
 if (!require.cache[serverOnlyPath]) require.cache[serverOnlyPath] = { exports: {} } as never;
-const { createGroupExpense, confirmGroupExpenseAsPayer, createGroupAccountingRepository } = await import("../src/server/group-accounting");
+const { createGroupExpense, confirmGroupExpenseAsPayer, rejectGroupExpenseAsPayer, voidGroupExpenseAsPayer, createGroupAccountingRepository } = await import("../src/server/group-accounting");
 const { createExternalParticipant, createGroup, removeGroupMember } = await import("../src/server/groups");
 const { acceptGroupJoinRequest, createGroupParticipantLinkRequest } = await import("../src/server/group-join-requests");
 
@@ -76,6 +76,46 @@ async function holdMembership(pool: Pool, groupId: string, userId: string) {
   }
 }
 
+async function holdExpense(pool: Pool, expenseId: string) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT id FROM group_expenses WHERE id = $1 FOR UPDATE", [expenseId]);
+    let released = false;
+    return {
+      async release(commit = true) {
+        if (released) return;
+        released = true;
+        try { await client.query(commit ? "COMMIT" : "ROLLBACK"); } finally { client.release(); }
+      },
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    client.release();
+    throw error;
+  }
+}
+
+async function holdParticipant(pool: Pool, participantId: string) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT id FROM group_participants WHERE id = $1 FOR UPDATE", [participantId]);
+    let released = false;
+    return {
+      async release(commit = true) {
+        if (released) return;
+        released = true;
+        try { await client.query(commit ? "COMMIT" : "ROLLBACK"); } finally { client.release(); }
+      },
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    client.release();
+    throw error;
+  }
+}
+
 async function waitForParticipantLock(pool: Pool, participantId: string) {
   const client = await pool.connect();
   const deadline = Date.now() + 5_000;
@@ -96,6 +136,28 @@ async function waitForParticipantLock(pool: Pool, participantId: string) {
     client.release();
   }
   throw new Error(`participant lock was not observed for ${participantId}`);
+}
+
+async function waitForExpenseLock(pool: Pool, expenseId: string) {
+  const client = await pool.connect();
+  const deadline = Date.now() + 5_000;
+  try {
+    while (Date.now() < deadline) {
+      await client.query("BEGIN");
+      try {
+        await client.query("SELECT id FROM group_expenses WHERE id = $1 FOR UPDATE NOWAIT", [expenseId]);
+      } catch (error) {
+        await client.query("ROLLBACK");
+        if (error instanceof Error && "code" in error && error.code === "55P03") return;
+        throw error;
+      }
+      await client.query("ROLLBACK");
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+  } finally {
+    client.release();
+  }
+  throw new Error(`expense lock was not observed for ${expenseId}`);
 }
 
 async function raceFixture(pool: Pool, database: Database, ownerId: string, memberId: string, groupIds: string[]) {
@@ -144,6 +206,7 @@ export async function runGroupAccountingSmoke() {
     participantIds.push(external.id);
 
     const selfExpense = await runCoreAccountingChecks(pool, database, users, group, ownerParticipant, payerParticipant, memberParticipant, external, state);
+    await runLifecycleChecks(pool, database, users, group.id, ownerParticipant, payerParticipant, memberParticipant, external.id, groupIds);
     await runCrossScopeAccountingChecks(pool, database, users, group, ownerParticipant, payerParticipant, selfExpense, external, groupIds);
     await runMembershipAccountingRaces(pool, database, users, groupIds);
     await runLinkAccountingCheck(pool, database, users, group, external);
@@ -155,6 +218,7 @@ export async function runGroupAccountingSmoke() {
     if (state.failureTriggerInstalled) await removeObligationFailure(pool);
     if (groupIds.length > 0) {
       await pool.query("DELETE FROM group_expense_receipts WHERE group_id = ANY($1::uuid[])", [groupIds]);
+      await pool.query("DELETE FROM group_expense_lifecycle_events WHERE group_id = ANY($1::uuid[])", [groupIds]);
       await pool.query("DELETE FROM group_obligations WHERE group_id = ANY($1::uuid[])", [groupIds]);
       await pool.query("DELETE FROM group_expense_shares WHERE group_id = ANY($1::uuid[])", [groupIds]);
       await pool.query("DELETE FROM group_expenses WHERE group_id = ANY($1::uuid[])", [groupIds]);
@@ -279,6 +343,191 @@ async function runCoreAccountingChecks(pool: Pool, database: Database, users: Ar
     await confirmGroupExpenseAsPayer(database, group.id, rollbackExpense.id, users[1]!.id);
 
     return selfExpense;
+}
+
+async function runLifecycleChecks(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, groupId: string, ownerParticipant: string, payerParticipant: string, memberParticipant: string, externalParticipant: string, groupIds: string[]) {
+    await runClaimLifecycleChecks(pool, database, users, groupId, ownerParticipant, payerParticipant, externalParticipant);
+    await runRepeatedExpenseNotificationChecks(pool, database, users, groupId, ownerParticipant, payerParticipant);
+    await runVoidLifecycleChecks(pool, database, users, groupId, ownerParticipant, memberParticipant, externalParticipant);
+    await runLifecycleRaces(pool, database, users, groupId, ownerParticipant, payerParticipant, memberParticipant, groupIds);
+}
+
+async function runClaimLifecycleChecks(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, groupId: string, ownerParticipant: string, payerParticipant: string, externalParticipant: string) {
+    const pending = await createGroupExpense(database, groupId, users[0]!.id, {
+      description: "Lifecycle claim",
+      occurredAt: new Date("2026-08-28T03:00:00.000Z"),
+      totalAmount: 100,
+      payerParticipantId: payerParticipant,
+      shares: [{ participantId: ownerParticipant, amount: 40 }, { participantId: payerParticipant, amount: 20 }, { participantId: externalParticipant, amount: 40 }],
+    });
+    assert(pending.state === "pending" && pending.obligations.length === 0 && pending.lifecycleEvents.length === 1 && pending.lifecycleEvents[0]!.eventType === "created", "pending lifecycle state is incomplete");
+    const pendingNotification = await pool.query<{ count: string; expense_id: string | null }>("SELECT count(*)::text AS count, max(metadata ->> 'expenseId') AS expense_id FROM notifications WHERE recipient_user_id = $1 AND type = 'group.expense.payer.claim' AND metadata ->> 'expenseId' = $2", [users[1]!.id, pending.id]);
+    assert(pendingNotification.rows[0]?.count === "1" && pendingNotification.rows[0]?.expense_id === pending.id, "pending payer notification was not durable and distinct");
+    await expectCode(() => confirmGroupExpenseAsPayer(database, groupId, pending.id, users[0]!.id), "forbidden");
+    await expectCode(() => rejectGroupExpenseAsPayer(database, groupId, pending.id, users[2]!.id), "forbidden");
+    await expectCode(() => voidGroupExpenseAsPayer(database, groupId, pending.id, users[1]!.id), "invalid_state");
+    const confirmed = await confirmGroupExpenseAsPayer(database, groupId, pending.id, users[1]!.id);
+    assert(confirmed.state === "confirmed" && confirmed.obligations.length === 2 && confirmed.lifecycleEvents.map((event) => event.eventType).join(",") === "created,payer_confirmed", "payer confirmation lifecycle is incomplete");
+    await expectCode(() => confirmGroupExpenseAsPayer(database, groupId, pending.id, users[0]!.id), "forbidden");
+
+    const rejected = await createGroupExpense(database, groupId, users[0]!.id, {
+      description: "Rejected claim",
+      occurredAt: new Date("2026-08-28T03:01:00.000Z"),
+      totalAmount: 1,
+      payerParticipantId: payerParticipant,
+      shares: [{ participantId: ownerParticipant, amount: 1 }],
+    });
+    const rejectedResult = await rejectGroupExpenseAsPayer(database, groupId, rejected.id, users[1]!.id);
+    assert(rejectedResult.state === "rejected" && rejectedResult.obligations.length === 0 && rejectedResult.lifecycleEvents.map((event) => event.eventType).join(",") === "created,payer_rejected", "payer rejection lifecycle is incomplete");
+    await expectCode(() => confirmGroupExpenseAsPayer(database, groupId, rejected.id, users[1]!.id), "invalid_state");
+}
+
+async function runRepeatedExpenseNotificationChecks(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, groupId: string, ownerParticipant: string, payerParticipant: string) {
+    const repeatedOne = await createGroupExpense(database, groupId, users[0]!.id, {
+      description: "Repeated claim",
+      occurredAt: new Date("2026-08-28T03:02:00.000Z"),
+      totalAmount: 1,
+      payerParticipantId: payerParticipant,
+      shares: [{ participantId: ownerParticipant, amount: 1 }],
+    });
+    const repeatedTwo = await createGroupExpense(database, groupId, users[0]!.id, {
+      description: "Repeated claim",
+      occurredAt: new Date("2026-08-28T03:03:00.000Z"),
+      totalAmount: 1,
+      payerParticipantId: payerParticipant,
+      shares: [{ participantId: ownerParticipant, amount: 1 }],
+    });
+    const repeatedNotifications = await pool.query<{ count: string; ids: string[] }>("SELECT count(*)::text AS count, array_agg(metadata ->> 'expenseId' ORDER BY metadata ->> 'expenseId') AS ids FROM notifications WHERE recipient_user_id = $1 AND type = 'group.expense.payer.claim' AND metadata ->> 'expenseId' = ANY($2::text[])", [users[1]!.id, [repeatedOne.id, repeatedTwo.id]]);
+    assert(repeatedNotifications.rows[0]?.count === "2" && repeatedNotifications.rows[0]?.ids?.length === 2 && new Set(repeatedNotifications.rows[0].ids).size === 2, "repeated expenses were not distinguishable in Inbox");
+}
+
+async function runVoidLifecycleChecks(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, groupId: string, ownerParticipant: string, memberParticipant: string, externalParticipant: string) {
+    const self = await createGroupExpense(database, groupId, users[0]!.id, {
+      description: "Voidable claim",
+      occurredAt: new Date("2026-08-28T03:04:00.000Z"),
+      totalAmount: 2,
+      payerParticipantId: ownerParticipant,
+      shares: [{ participantId: memberParticipant, amount: 1 }, { participantId: externalParticipant, amount: 1 }],
+    });
+    assert(self.state === "confirmed" && self.lifecycleEvents.length === 1 && self.lifecycleEvents[0]!.eventType === "created", "self-payer confirmation was not recorded as creation");
+    const selfNotification = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM notifications WHERE recipient_user_id = $1 AND type = 'group.expense.payer.claim' AND metadata ->> 'expenseId' = $2", [users[0]!.id, self.id]);
+    assert(selfNotification.rows[0]?.count === "0", "self-payer expense created a payer-claim notification");
+    const originalObligations = self.obligations.length;
+    await expectCode(() => voidGroupExpenseAsPayer(database, groupId, self.id, users[2]!.id), "forbidden");
+    const voided = await voidGroupExpenseAsPayer(database, groupId, self.id, users[0]!.id);
+    assert(voided.state === "voided" && voided.obligations.length === originalObligations && voided.obligations.every((obligation) => obligation.voidedAt !== null) && voided.lifecycleEvents.at(-1)?.eventType === "voided", "void did not preserve and reverse obligations");
+    await expectCode(() => voidGroupExpenseAsPayer(database, groupId, self.id, users[0]!.id), "invalid_state");
+    await expectCode(() => confirmGroupExpenseAsPayer(database, groupId, self.id, users[0]!.id), "invalid_state");
+    await expectCode(() => rejectGroupExpenseAsPayer(database, groupId, self.id, users[0]!.id), "invalid_state");
+}
+
+async function runLifecycleRaces(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, groupId: string, ownerParticipant: string, payerParticipant: string, memberParticipant: string, groupIds: string[]) {
+    const confirmFirst = await createGroupExpense(database, groupId, users[0]!.id, {
+      description: "Confirm wins",
+      occurredAt: new Date("2026-08-28T03:10:00.000Z"),
+      totalAmount: 2,
+      payerParticipantId: payerParticipant,
+      shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: memberParticipant, amount: 1 }],
+    });
+    const confirmFirstLock = await holdExpense(pool, confirmFirst.id);
+    const confirmFirstConfirmation = confirmGroupExpenseAsPayer(database, groupId, confirmFirst.id, users[1]!.id);
+    await waitForExpenseLock(pool, confirmFirst.id);
+    const confirmFirstRejection = rejectGroupExpenseAsPayer(database, groupId, confirmFirst.id, users[1]!.id);
+    await confirmFirstLock.release();
+    const confirmFirstResults = await Promise.allSettled([confirmFirstConfirmation, confirmFirstRejection]);
+    assert(confirmFirstResults[0]?.status === "fulfilled" && confirmFirstResults[1]?.status === "rejected" && errorCode(confirmFirstResults[1].reason) === "invalid_state", "confirm-first race did not serialize correctly");
+    assert(await count(pool, "group_obligations", groupId, confirmFirst.id) === 2, "confirm-first race materialized the wrong obligations");
+
+    const rejectFirst = await createGroupExpense(database, groupId, users[0]!.id, {
+      description: "Reject wins",
+      occurredAt: new Date("2026-08-28T03:11:00.000Z"),
+      totalAmount: 2,
+      payerParticipantId: payerParticipant,
+      shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: memberParticipant, amount: 1 }],
+    });
+    const rejectFirstLock = await holdExpense(pool, rejectFirst.id);
+    const rejectFirstRejection = rejectGroupExpenseAsPayer(database, groupId, rejectFirst.id, users[1]!.id);
+    await waitForExpenseLock(pool, rejectFirst.id);
+    const rejectFirstConfirmation = confirmGroupExpenseAsPayer(database, groupId, rejectFirst.id, users[1]!.id);
+    await rejectFirstLock.release();
+    const rejectFirstResults = await Promise.allSettled([rejectFirstRejection, rejectFirstConfirmation]);
+    assert(rejectFirstResults[0]?.status === "fulfilled" && rejectFirstResults[1]?.status === "rejected" && errorCode(rejectFirstResults[1].reason) === "invalid_state", "reject-first race did not serialize correctly");
+    assert(await count(pool, "group_obligations", groupId, rejectFirst.id) === 0, "reject-first race created obligations");
+
+    const duplicateConfirm = await createGroupExpense(database, groupId, users[0]!.id, {
+      description: "Duplicate confirm",
+      occurredAt: new Date("2026-08-28T03:12:00.000Z"),
+      totalAmount: 2,
+      payerParticipantId: payerParticipant,
+      shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: memberParticipant, amount: 1 }],
+    });
+    const duplicateConfirmLock = await holdExpense(pool, duplicateConfirm.id);
+    const firstConfirmation = confirmGroupExpenseAsPayer(database, groupId, duplicateConfirm.id, users[1]!.id);
+    await waitForExpenseLock(pool, duplicateConfirm.id);
+    const secondConfirmation = confirmGroupExpenseAsPayer(database, groupId, duplicateConfirm.id, users[1]!.id);
+    await duplicateConfirmLock.release();
+    const duplicateResults = await Promise.allSettled([firstConfirmation, secondConfirmation]);
+    assert(duplicateResults.every((result) => result.status === "fulfilled") && await count(pool, "group_obligations", groupId, duplicateConfirm.id) === 2, "duplicate confirmations were not exactly-once");
+
+    const voidRace = await createGroupExpense(database, groupId, users[0]!.id, {
+      description: "Duplicate void",
+      occurredAt: new Date("2026-08-28T03:13:00.000Z"),
+      totalAmount: 2,
+      payerParticipantId: payerParticipant,
+      shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: memberParticipant, amount: 1 }],
+    });
+    await confirmGroupExpenseAsPayer(database, groupId, voidRace.id, users[1]!.id);
+    const voidRaceLock = await holdExpense(pool, voidRace.id);
+    const firstVoid = voidGroupExpenseAsPayer(database, groupId, voidRace.id, users[1]!.id);
+    await waitForExpenseLock(pool, voidRace.id);
+    const secondVoid = voidGroupExpenseAsPayer(database, groupId, voidRace.id, users[1]!.id);
+    await voidRaceLock.release();
+    const voidResults = await Promise.allSettled([firstVoid, secondVoid]);
+    assert(voidResults[0]?.status === "fulfilled" && voidResults[1]?.status === "rejected" && errorCode(voidResults[1].reason) === "invalid_state", "duplicate voids were not serialized");
+    const voidedRows = await pool.query<{ active: string; total: string }>("SELECT count(*) FILTER (WHERE voided_at IS NULL)::text AS active, count(*)::text AS total FROM group_obligations WHERE group_id = $1 AND source_expense_id = $2", [groupId, voidRace.id]);
+    assert(voidedRows.rows[0]?.active === "0" && voidedRows.rows[0]?.total === "2", "duplicate voids changed the reversal effect twice");
+
+    await runPayerMembershipRaces(pool, database, users, groupIds);
+}
+
+async function runPayerMembershipRaces(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, groupIds: string[]) {
+    const confirmFirstGroup = await createGroup(database, users[0]!.id, { name: `Payer confirmation race ${randomUUID()}` });
+    groupIds.push(confirmFirstGroup.id);
+    const confirmFirstOwner = (await pool.query<{ participant_id: string }>("SELECT participant_id FROM group_memberships WHERE group_id = $1 AND user_id = $2", [confirmFirstGroup.id, users[0]!.id])).rows[0]!.participant_id;
+    const confirmFirstPayer = await addMember(pool, confirmFirstGroup.id, users[1]!.id);
+    const confirmFirst = await createGroupExpense(database, confirmFirstGroup.id, users[0]!.id, {
+      description: "Payer membership confirm first",
+      occurredAt: new Date("2026-08-28T03:14:00.000Z"),
+      totalAmount: 1,
+      payerParticipantId: confirmFirstPayer,
+      shares: [{ participantId: confirmFirstOwner, amount: 1 }],
+    });
+    const participantLock = await holdParticipant(pool, confirmFirstPayer);
+    const confirmation = confirmGroupExpenseAsPayer(database, confirmFirstGroup.id, confirmFirst.id, users[1]!.id);
+    await waitForParticipantLock(pool, confirmFirstPayer);
+    const removal = removeGroupMember(database, confirmFirstGroup.id, users[0]!.id, users[1]!.id);
+    await participantLock.release();
+    const firstResults = await Promise.allSettled([confirmation, removal]);
+    assert(firstResults[0]?.status === "fulfilled" && firstResults[1]?.status === "fulfilled", "payer confirmation-first membership race did not serialize");
+
+    const removalFirstGroup = await createGroup(database, users[0]!.id, { name: `Payer removal race ${randomUUID()}` });
+    groupIds.push(removalFirstGroup.id);
+    const removalFirstOwner = (await pool.query<{ participant_id: string }>("SELECT participant_id FROM group_memberships WHERE group_id = $1 AND user_id = $2", [removalFirstGroup.id, users[0]!.id])).rows[0]!.participant_id;
+    const removalFirstPayer = await addMember(pool, removalFirstGroup.id, users[1]!.id);
+    const removalFirstExpense = await createGroupExpense(database, removalFirstGroup.id, users[0]!.id, {
+      description: "Payer membership removal first",
+      occurredAt: new Date("2026-08-28T03:15:00.000Z"),
+      totalAmount: 1,
+      payerParticipantId: removalFirstPayer,
+      shares: [{ participantId: removalFirstOwner, amount: 1 }],
+    });
+    const removalFirstLock = await holdParticipant(pool, removalFirstPayer);
+    const removalFirst = removeGroupMember(database, removalFirstGroup.id, users[0]!.id, users[1]!.id);
+    await waitForParticipantLock(pool, removalFirstPayer);
+    const staleConfirmation = confirmGroupExpenseAsPayer(database, removalFirstGroup.id, removalFirstExpense.id, users[1]!.id);
+    await removalFirstLock.release();
+    const secondResults = await Promise.allSettled([removalFirst, staleConfirmation]);
+    assert(secondResults[0]?.status === "fulfilled" && secondResults[1]?.status === "rejected" && errorCode(secondResults[1].reason) === "not_member", "payer removal-first membership race allowed stale confirmation");
 }
 
 async function runCrossScopeAccountingChecks(pool: Pool, database: Database, users: Array<{ id: string; label: string; username: string }>, group: { id: string }, ownerParticipant: string, payerParticipant: string, selfExpense: Awaited<ReturnType<typeof createGroupExpense>>, external: { id: string }, groupIds: string[]) {

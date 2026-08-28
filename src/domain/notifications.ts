@@ -7,6 +7,7 @@ export const NOTIFICATION_TYPES = {
   organizationInvitation: "organization.invitation",
   groupInvitation: "group.invitation",
   groupParticipantLinkRequest: "group.participant.link.request",
+  groupExpensePayerClaim: "group.expense.payer.claim",
 } as const;
 export const NOTIFICATION_STATE_CHANGED_EVENT = "notification.state.changed";
 
@@ -45,6 +46,12 @@ export type NotificationMetadata = {
     participantDisplayName: string;
     participantLabel: string | null;
     expiresAt: string;
+  };
+  "group.expense.payer.claim": {
+    expenseId: string;
+    groupId: string;
+    groupName: string;
+    description: string;
   };
 };
 
@@ -144,6 +151,18 @@ function parseGroupParticipantLinkMetadata(value: unknown): NotificationMetadata
   };
 }
 
+function parseGroupExpensePayerClaimMetadata(value: unknown): NotificationMetadata["group.expense.payer.claim"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 4) return null;
+  const expenseId = normalizeUuid(record.expenseId);
+  const groupId = normalizeUuid(record.groupId);
+  if (!expenseId || !groupId) return null;
+  if (typeof record.groupName !== "string" || !record.groupName.trim() || record.groupName.length > 160) return null;
+  if (typeof record.description !== "string" || !record.description.trim() || record.description.length > 200) return null;
+  return { expenseId, groupId, groupName: record.groupName.trim(), description: record.description.trim() };
+}
+
 export function getFriendLinkRequestMetadata(value: unknown) {
   return parseFriendLinkRequestMetadata(value);
 }
@@ -158,6 +177,10 @@ export function getGroupInvitationMetadata(value: unknown) {
 
 export function getGroupParticipantLinkMetadata(value: unknown) {
   return parseGroupParticipantLinkMetadata(value);
+}
+
+export function getGroupExpensePayerClaimMetadata(value: unknown) {
+  return parseGroupExpensePayerClaimMetadata(value);
 }
 
 function roleLabel(role: OrganizationInvitationRole) {
@@ -209,6 +232,15 @@ export const notificationCatalog = {
       label: "Group account link",
       primary: `${requesterLabel(metadata)} wants to link your Zplit account to “${metadata.participantDisplayName}${metadata.participantLabel ? ` · ${metadata.participantLabel}` : ""}” in ${metadata.groupName}.`,
       secondary: "This links your account to an existing Group participant.",
+    }),
+  },
+  "group.expense.payer.claim": {
+    label: "Group expense confirmation",
+    parseMetadata: parseGroupExpensePayerClaimMetadata,
+    present: (metadata: NotificationMetadata["group.expense.payer.claim"]): NotificationPresentation => ({
+      label: "Group expense confirmation",
+      primary: `Confirm that you paid “${metadata.description}” in ${metadata.groupName}.`,
+      secondary: "Only your confirmation makes this expense authoritative.",
     }),
   },
 } as const;

@@ -76,4 +76,19 @@ describe("notification catalog", () => {
       email: "private@example.com",
     })).toThrow("Invalid metadata");
   });
+
+  it("presents Group payer claims from durable expense identity", () => {
+    const metadata = {
+      expenseId: "11111111-1111-4111-8111-111111111111",
+      groupId: "22222222-2222-4222-8222-222222222222",
+      groupName: "Bandung Trip",
+      description: "Dinner",
+    } as const;
+    expect(presentNotification("group.expense.payer.claim", metadata)).toEqual({
+      label: "Group expense confirmation",
+      primary: "Confirm that you paid “Dinner” in Bandung Trip.",
+      secondary: "Only your confirmation makes this expense authoritative.",
+    });
+    expect(() => normalizeNotificationMetadata("group.expense.payer.claim", { ...metadata, expenseId: "not-an-id" })).toThrow("Invalid metadata");
+  });
 });

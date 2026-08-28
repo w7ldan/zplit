@@ -1,13 +1,16 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, ilike, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { getDatabase, type Database } from "@/db/client";
-import { groupExpenseReceipts, groupExpenseShares, groupExpenses, groupObligations, groupMemberships, groupParticipants, users } from "@/db/schema";
+import { groupExpenseLifecycleEvents, groupExpenseReceipts, groupExpenseShares, groupExpenses, groupObligations, groupMemberships, groupParticipants, groups, notifications, users } from "@/db/schema";
 import { requireSession } from "@/auth/require-session";
-import { buildGroupObligations, normalizeGroupExpenseInput, type GroupExpenseInput } from "@/domain/group-accounting";
+import { buildGroupObligations, GROUP_EXPENSE_STATE_CHANGED_EVENT, normalizeGroupExpenseInput, type GroupExpenseInput, type GroupExpenseLifecycleEventType } from "@/domain/group-accounting";
 import type { GroupParticipantEligibility } from "@/domain/group-contracts";
+import { NOTIFICATION_TYPES } from "@/domain/notifications";
 import { clampPage, escapeLikePattern, normalizePage, normalizeText, normalizeUuid, pageResult, RECORD_PAGE_SIZE, type RecordPage } from "@/domain/record-retrieval";
 import { GroupError, requireGroupAccess } from "@/server/groups";
+import { createNotificationInDatabase, publishNotificationStateChange } from "@/server/notifications";
+import { publishRealtimeEvent } from "@/server/realtime";
 
 export class GroupAccountingError extends Error {
   constructor(readonly code: "invalid_id" | "invalid_user" | "not_found" | "not_member" | "forbidden" | "payer_not_found" | "payer_external" | "payer_not_active" | "participant_not_found" | "participant_not_eligible" | "share_total_mismatch" | "invalid_state" | "financial_integrity") {
@@ -19,6 +22,7 @@ export class GroupAccountingError extends Error {
 export type GroupExpenseRecord = typeof groupExpenses.$inferSelect;
 export type GroupExpenseShareRecord = typeof groupExpenseShares.$inferSelect;
 export type GroupObligationRecord = typeof groupObligations.$inferSelect;
+export type GroupExpenseLifecycleEventRecord = typeof groupExpenseLifecycleEvents.$inferSelect;
 export type GroupParticipantPresentation = {
   id: string;
   userId: string | null;
@@ -36,7 +40,7 @@ export type GroupExpenseReceiptMetadata = {
   createdAt: Date;
 };
 export type GroupExpenseListRecord = GroupExpenseRecord & { payer: GroupParticipantPresentation; shareCount: number };
-export type GroupExpenseDetail = GroupExpenseRecord & { creator: GroupParticipantPresentation; payer: GroupParticipantPresentation; shares: GroupExpenseSharePresentation[]; obligations: GroupObligationPresentation[]; receipts: GroupExpenseReceiptMetadata[] };
+export type GroupExpenseDetail = GroupExpenseRecord & { creator: GroupParticipantPresentation; payer: GroupParticipantPresentation; shares: GroupExpenseSharePresentation[]; obligations: GroupObligationPresentation[]; receipts: GroupExpenseReceiptMetadata[]; lifecycleEvents: GroupExpenseLifecycleEventRecord[] };
 function databaseCode(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null) return undefined;
   if ("code" in error && typeof error.code === "string") return error.code;
@@ -94,10 +98,11 @@ async function loadParticipantMap(database: Database, groupId: string, participa
 async function loadExpense(database: Database, groupId: string, expenseId: string): Promise<GroupExpenseDetail> {
   const [expense] = await database.select(expenseColumns()).from(groupExpenses).where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, expenseId))).limit(1);
   if (!expense) throw new GroupAccountingError("not_found");
-  const [shares, obligations, receipts] = await Promise.all([
+  const [shares, obligations, receipts, lifecycleEvents] = await Promise.all([
     database.select().from(groupExpenseShares).where(and(eq(groupExpenseShares.groupId, groupId), eq(groupExpenseShares.expenseId, expenseId))).orderBy(asc(groupExpenseShares.createdAt), asc(groupExpenseShares.id)),
     database.select().from(groupObligations).where(and(eq(groupObligations.groupId, groupId), eq(groupObligations.sourceExpenseId, expenseId))).orderBy(asc(groupObligations.createdAt), asc(groupObligations.id)),
     database.select({ id: groupExpenseReceipts.id, originalFilename: groupExpenseReceipts.originalFilename, mediaType: groupExpenseReceipts.mediaType, byteSize: groupExpenseReceipts.byteSize, createdAt: groupExpenseReceipts.createdAt }).from(groupExpenseReceipts).where(and(eq(groupExpenseReceipts.groupId, groupId), eq(groupExpenseReceipts.expenseId, expenseId))).orderBy(asc(groupExpenseReceipts.createdAt), asc(groupExpenseReceipts.id)),
+    database.select().from(groupExpenseLifecycleEvents).where(and(eq(groupExpenseLifecycleEvents.groupId, groupId), eq(groupExpenseLifecycleEvents.expenseId, expenseId))).orderBy(asc(groupExpenseLifecycleEvents.createdAt), asc(groupExpenseLifecycleEvents.id)),
   ]);
   const participantMap = await loadParticipantMap(database, groupId, [expense.creatorParticipantId, expense.payerParticipantId, ...shares.map((share) => share.participantId), ...obligations.flatMap((obligation) => [obligation.debtorParticipantId, obligation.creditorParticipantId])]);
   const participant = (id: string) => participantMap.get(id) ?? { id, userId: null, displayName: "Participant", label: null, status: "former" as const };
@@ -108,18 +113,8 @@ async function loadExpense(database: Database, groupId: string, expenseId: strin
     shares: shares.map((share) => ({ ...share, participant: participant(share.participantId) })),
     obligations: obligations.map((obligation) => ({ ...obligation, debtor: participant(obligation.debtorParticipantId), creditor: participant(obligation.creditorParticipantId) })),
     receipts,
+    lifecycleEvents,
   };
-}
-
-async function getActiveParticipantForUser(database: Database, groupId: string, userId: string) {
-  const [row] = await database
-    .select({ participantId: groupMemberships.participantId })
-    .from(groupMemberships)
-    .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, userId)))
-    .limit(1)
-    .for("update");
-  if (!row) throw new GroupAccountingError("not_member");
-  return row.participantId;
 }
 
 async function lockExpenseEligibility(database: Database, groupId: string, creatorUserId: string, values: GroupExpenseInput) {
@@ -161,10 +156,10 @@ async function lockExpenseEligibility(database: Database, groupId: string, creat
   for (const participant of shares) {
     if (participant?.userId && membershipByParticipantId.get(participant.id)?.userId !== participant.userId) throw new GroupAccountingError("participant_not_eligible");
   }
-  return { creatorParticipantId: creator.id };
+  return { creatorParticipantId: creator.id, payerUserId: payer.userId };
 }
 
-async function assertPayer(database: Database, groupId: string, participantId: string) {
+async function lockActivePayer(database: Database, groupId: string, participantId: string) {
   const [participant] = await database
     .select({ id: groupParticipants.id, userId: groupParticipants.userId })
     .from(groupParticipants)
@@ -179,8 +174,8 @@ async function assertPayer(database: Database, groupId: string, participantId: s
     .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, participant.userId), eq(groupMemberships.participantId, participant.id)))
     .limit(1)
     .for("update");
-  if (!membership) throw new GroupAccountingError("payer_not_active");
-  return participant;
+  if (!membership) throw new GroupAccountingError("not_member");
+  return { id: participant.id, userId: participant.userId };
 }
 
 async function materializeObligations(database: Database, groupId: string, expense: GroupExpenseRecord, shares: GroupExpenseShareRecord[]) {
@@ -196,11 +191,29 @@ async function materializeObligations(database: Database, groupId: string, expen
   })));
 }
 
-async function confirmPendingExpense(database: Database, groupId: string, expenseId: string, payerParticipantId: string, now: Date) {
+async function appendLifecycleEvent(database: Database, values: { groupId: string; expenseId: string; eventType: GroupExpenseLifecycleEventType; actorUserId: string; fromState: GroupExpenseRecord["state"] | null; toState: GroupExpenseRecord["state"] }) {
+  const [event] = await database.insert(groupExpenseLifecycleEvents).values(values).returning();
+  if (!event) throw new Error("Group expense lifecycle event was not created");
+  return event;
+}
+
+async function resolvePayerClaimNotification(database: Database, expenseId: string, payerUserId: string, now: Date) {
+  await database
+    .update(notifications)
+    .set({ readAt: now })
+    .where(and(
+      eq(notifications.recipientUserId, payerUserId),
+      eq(notifications.type, NOTIFICATION_TYPES.groupExpensePayerClaim),
+      eq(notifications.dedupeKey, `group-expense-payer-claim:${expenseId}`),
+      isNull(notifications.readAt),
+    ));
+}
+
+async function confirmPendingExpense(database: Database, groupId: string, expenseId: string, payerParticipantId: string, actorUserId: string, eventType: "created" | "payer_confirmed", now: Date) {
   const [expense] = await database.select().from(groupExpenses).where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, expenseId))).limit(1).for("update");
   if (!expense) throw new GroupAccountingError("not_found");
   if (expense.payerParticipantId !== payerParticipantId) throw new GroupAccountingError("forbidden");
-  if (expense.state === "confirmed") return expense;
+  if (expense.state === "confirmed") return { expense, changed: false };
   if (expense.state !== "pending") throw new GroupAccountingError("invalid_state");
   const shares = await database.select().from(groupExpenseShares).where(and(eq(groupExpenseShares.groupId, groupId), eq(groupExpenseShares.expenseId, expenseId))).orderBy(asc(groupExpenseShares.createdAt), asc(groupExpenseShares.id));
   const shareTotal = shares.reduce((total, share) => total + BigInt(share.amount), BigInt(0));
@@ -210,9 +223,82 @@ async function confirmPendingExpense(database: Database, groupId: string, expens
     .set({ state: "confirmed", confirmedAt: now, updatedAt: now })
     .where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, expenseId), eq(groupExpenses.state, "pending")))
     .returning();
-  if (!confirmed) return confirmPendingExpense(database, groupId, expenseId, payerParticipantId, now);
+  if (!confirmed) throw new GroupAccountingError("financial_integrity");
   await materializeObligations(database, groupId, confirmed, shares);
-  return confirmed;
+  await appendLifecycleEvent(database, { groupId, expenseId, eventType, actorUserId, fromState: eventType === "created" ? null : "pending", toState: "confirmed" });
+  return { expense: confirmed, changed: true };
+}
+
+async function rejectPendingExpense(database: Database, groupId: string, expenseId: string, payerParticipantId: string, actorUserId: string, now: Date) {
+  const [expense] = await database.select().from(groupExpenses).where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, expenseId))).limit(1).for("update");
+  if (!expense) throw new GroupAccountingError("not_found");
+  if (expense.payerParticipantId !== payerParticipantId) throw new GroupAccountingError("forbidden");
+  if (expense.state === "rejected") return { expense, changed: false };
+  if (expense.state !== "pending") throw new GroupAccountingError("invalid_state");
+  const [rejected] = await database
+    .update(groupExpenses)
+    .set({ state: "rejected", updatedAt: now })
+    .where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, expenseId), eq(groupExpenses.state, "pending")))
+    .returning();
+  if (!rejected) throw new GroupAccountingError("financial_integrity");
+  await appendLifecycleEvent(database, { groupId, expenseId, eventType: "payer_rejected", actorUserId, fromState: "pending", toState: "rejected" });
+  await resolvePayerClaimNotification(database, expenseId, actorUserId, now);
+  return { expense: rejected, changed: true };
+}
+
+async function activeGroupUserIds(database: Database, groupId: string) {
+  const rows = await database.select({ userId: groupMemberships.userId }).from(groupMemberships).where(eq(groupMemberships.groupId, groupId));
+  return rows.map(({ userId }) => userId);
+}
+
+function publishGroupExpenseFreshness(userIds: string[], groupId: string, expenseId: string, state: GroupExpenseRecord["state"]) {
+  for (const userId of new Set(userIds)) {
+    try {
+      void publishRealtimeEvent(userId, { type: GROUP_EXPENSE_STATE_CHANGED_EVENT, data: { groupId, expenseId, state } }).catch(() => undefined);
+    } catch {
+      // Realtime is a non-authoritative freshness signal.
+    }
+  }
+}
+
+function obligationsMatchExpense(expense: GroupExpenseRecord, shares: GroupExpenseShareRecord[], obligations: GroupObligationRecord[]) {
+  let expected;
+  try {
+    expected = buildGroupObligations(expense.payerParticipantId, shares.map((share) => ({ id: share.id, participantId: share.participantId, amount: share.amount })));
+  } catch {
+    return false;
+  }
+  if (expected.length !== obligations.length) return false;
+  const actualByShareId = new Map(obligations.map((obligation) => [obligation.sourceShareId, obligation]));
+  return expected.every((obligation) => {
+    const actual = actualByShareId.get(obligation.sourceShareId!);
+    return actual?.debtorParticipantId === obligation.debtorParticipantId && actual.creditorParticipantId === obligation.creditorParticipantId && actual.originalAmount === obligation.originalAmount && actual.voidedAt === null;
+  });
+}
+
+async function voidConfirmedExpense(database: Database, groupId: string, expenseId: string, payerUserId: string, now: Date) {
+  const [expense] = await database.select().from(groupExpenses).where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, expenseId))).limit(1).for("update");
+  if (!expense) throw new GroupAccountingError("not_found");
+  if (expense.state !== "confirmed") throw new GroupAccountingError("invalid_state");
+  const payer = await lockActivePayer(database, groupId, expense.payerParticipantId);
+  if (payer.userId !== payerUserId) throw new GroupAccountingError("forbidden");
+  const shares = await database.select().from(groupExpenseShares).where(and(eq(groupExpenseShares.groupId, groupId), eq(groupExpenseShares.expenseId, expenseId))).orderBy(asc(groupExpenseShares.createdAt), asc(groupExpenseShares.id)).for("update");
+  const obligations = await database.select().from(groupObligations).where(and(eq(groupObligations.groupId, groupId), eq(groupObligations.sourceExpenseId, expenseId))).orderBy(asc(groupObligations.id)).for("update");
+  if (!obligationsMatchExpense(expense, shares, obligations)) throw new GroupAccountingError("financial_integrity");
+  const [voided] = await database
+    .update(groupExpenses)
+    .set({ state: "voided", updatedAt: now })
+    .where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, expenseId), eq(groupExpenses.state, "confirmed")))
+    .returning();
+  if (!voided) throw new GroupAccountingError("financial_integrity");
+  const voidedObligations = await database
+    .update(groupObligations)
+    .set({ voidedAt: now })
+    .where(and(eq(groupObligations.groupId, groupId), eq(groupObligations.sourceExpenseId, expenseId), isNull(groupObligations.voidedAt)))
+    .returning({ id: groupObligations.id });
+  if (voidedObligations.length !== obligations.length) throw new GroupAccountingError("financial_integrity");
+  await appendLifecycleEvent(database, { groupId, expenseId, eventType: "voided", actorUserId: payerUserId, fromState: "confirmed", toState: "voided" });
+  return { expense: voided, userIds: await activeGroupUserIds(database, groupId) };
 }
 
 async function createExpense(database: Database, groupId: string, creatorUserId: string, input: unknown) {
@@ -220,10 +306,10 @@ async function createExpense(database: Database, groupId: string, creatorUserId:
   assertUserId(creatorUserId);
   const values = normalizeGroupExpenseInput(input);
   try {
-    return await database.transaction(async (transaction) => {
+    const result = await database.transaction(async (transaction) => {
       const transactionalDatabase = transaction as Database;
       await requireGroupAccess(transactionalDatabase, groupId, creatorUserId);
-      const { creatorParticipantId } = await lockExpenseEligibility(transactionalDatabase, groupId, creatorUserId, values);
+      const { creatorParticipantId, payerUserId } = await lockExpenseEligibility(transactionalDatabase, groupId, creatorUserId, values);
       const now = new Date();
       const [expense] = await transaction
         .insert(groupExpenses)
@@ -235,9 +321,24 @@ async function createExpense(database: Database, groupId: string, creatorUserId:
         .values(values.shares.map((share) => ({ groupId, expenseId: expense.id, participantId: share.participantId, amount: share.amount, createdAt: now, updatedAt: now })))
         .returning();
       if (shares.length !== values.shares.length) throw new Error("Group expense shares were not created");
-      if (creatorParticipantId === values.payerParticipantId) await confirmPendingExpense(transactionalDatabase, groupId, expense.id, values.payerParticipantId, now);
-      return loadExpense(transactionalDatabase, groupId, expense.id);
+      if (creatorParticipantId === values.payerParticipantId) {
+        await confirmPendingExpense(transactionalDatabase, groupId, expense.id, values.payerParticipantId, creatorUserId, "created", now);
+      } else {
+        const [group] = await transactionalDatabase.select({ name: groups.name }).from(groups).where(eq(groups.id, groupId)).limit(1);
+        if (!group) throw new GroupAccountingError("not_found");
+        await appendLifecycleEvent(transactionalDatabase, { groupId, expenseId: expense.id, eventType: "created", actorUserId: creatorUserId, fromState: null, toState: "pending" });
+        await createNotificationInDatabase(transactionalDatabase, {
+          recipientUserId: payerUserId,
+          type: NOTIFICATION_TYPES.groupExpensePayerClaim,
+          metadata: { expenseId: expense.id, groupId, groupName: group.name, description: expense.description },
+          dedupeKey: `group-expense-payer-claim:${expense.id}`,
+        });
+      }
+      return { expense: await loadExpense(transactionalDatabase, groupId, expense.id), userIds: await activeGroupUserIds(transactionalDatabase, groupId), notificationUserId: creatorParticipantId === values.payerParticipantId ? null : payerUserId };
     });
+    publishGroupExpenseFreshness(result.userIds, groupId, result.expense.id, result.expense.state);
+    if (result.notificationUserId) publishNotificationStateChange(result.notificationUserId, "created");
+    return result.expense;
   } catch (error) {
     if (error instanceof GroupError) mapGroupError(error);
     if (databaseCode(error) === "23514") throw new GroupAccountingError("financial_integrity");
@@ -267,7 +368,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
     await authorize(viewerUserId);
     const page = Math.min(normalizePage(requestedPage), 1_000_000);
     const query = normalizeText(filters.q);
-    const state = filters.state === "pending" || filters.state === "confirmed" ? filters.state : undefined;
+    const state = ["pending", "confirmed", "rejected", "voided"].includes(filters.state as string) ? filters.state as GroupExpenseRecord["state"] : undefined;
     const where = and(eq(groupExpenses.groupId, groupId), ...(query ? [ilike(groupExpenses.description, `%${escapeLikePattern(query)}%`)] : []), ...(state ? [eq(groupExpenses.state, state)] : []));
     const [{ totalItems }] = await database.select({ totalItems: count() }).from(groupExpenses).where(where);
     const total = Number(totalItems);
@@ -285,6 +386,11 @@ export function createGroupAccountingRepository(database: Database, groupId: str
   async function getSourceObligations(expenseId: string, viewerUserId: string) {
     const expense = await getExpense(expenseId, viewerUserId);
     return expense.obligations;
+  }
+
+  async function getLifecycleEvents(expenseId: string, viewerUserId: string) {
+    const expense = await getExpense(expenseId, viewerUserId);
+    return expense.lifecycleEvents;
   }
 
   async function getParticipantEligibility(viewerUserId: string): Promise<GroupParticipantEligibility[]> {
@@ -312,23 +418,59 @@ export function createGroupAccountingRepository(database: Database, groupId: str
         await requireGroupAccess(transactionalDatabase, groupId, payerUserId);
         const [expense] = await transactionalDatabase.select().from(groupExpenses).where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, expenseId))).limit(1).for("update");
         if (!expense) throw new GroupAccountingError("not_found");
-        const [payer] = await transactionalDatabase.select({ userId: groupParticipants.userId }).from(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, expense.payerParticipantId))).limit(1);
-        if (!payer?.userId || payer.userId !== payerUserId) throw new GroupAccountingError("forbidden");
-        await assertPayer(transactionalDatabase, groupId, expense.payerParticipantId);
-        if (expense.state === "confirmed") return loadExpense(transactionalDatabase, groupId, expenseId);
-        const activeParticipantId = await getActiveParticipantForUser(transactionalDatabase, groupId, payerUserId);
-        if (activeParticipantId !== expense.payerParticipantId) throw new GroupAccountingError("forbidden");
-        await confirmPendingExpense(transactionalDatabase, groupId, expenseId, activeParticipantId, new Date());
-        return loadExpense(transactionalDatabase, groupId, expenseId);
+        const payer = await lockActivePayer(transactionalDatabase, groupId, expense.payerParticipantId);
+        if (payer.userId !== payerUserId) throw new GroupAccountingError("forbidden");
+        const result = await confirmPendingExpense(transactionalDatabase, groupId, expenseId, payer.id, payerUserId, "payer_confirmed", new Date());
+        if (result.changed) await resolvePayerClaimNotification(transactionalDatabase, expenseId, payerUserId, result.expense.updatedAt);
+        return { expense: await loadExpense(transactionalDatabase, groupId, expenseId), changed: result.changed, userIds: await activeGroupUserIds(transactionalDatabase, groupId) };
+      }).catch((error) => {
+        if (error instanceof GroupError) mapGroupError(error);
+        throw error;
+      }).then((result) => {
+        publishGroupExpenseFreshness(result.userIds, groupId, result.expense.id, result.expense.state);
+        if (result.changed) publishNotificationStateChange(payerUserId, "resolved");
+        return result.expense;
+      });
+    },
+    rejectExpenseAsPayer: async (expenseId: string, payerUserId: string) => {
+      if (!normalizeUuid(expenseId)) throw new GroupAccountingError("not_found");
+      assertUserId(payerUserId);
+      const result = await database.transaction(async (transaction) => {
+        const transactionalDatabase = transaction as Database;
+        await requireGroupAccess(transactionalDatabase, groupId, payerUserId);
+        const [expense] = await transactionalDatabase.select().from(groupExpenses).where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, expenseId))).limit(1).for("update");
+        if (!expense) throw new GroupAccountingError("not_found");
+        const payer = await lockActivePayer(transactionalDatabase, groupId, expense.payerParticipantId);
+        if (payer.userId !== payerUserId) throw new GroupAccountingError("forbidden");
+        const rejected = await rejectPendingExpense(transactionalDatabase, groupId, expenseId, payer.id, payerUserId, new Date());
+        return { expense: await loadExpense(transactionalDatabase, groupId, expenseId), changed: rejected.changed, userIds: await activeGroupUserIds(transactionalDatabase, groupId) };
       }).catch((error) => {
         if (error instanceof GroupError) mapGroupError(error);
         throw error;
       });
+      publishGroupExpenseFreshness(result.userIds, groupId, result.expense.id, result.expense.state);
+      if (result.changed) publishNotificationStateChange(payerUserId, "resolved");
+      return result.expense;
+    },
+    voidExpenseAsPayer: async (expenseId: string, payerUserId: string) => {
+      if (!normalizeUuid(expenseId)) throw new GroupAccountingError("not_found");
+      assertUserId(payerUserId);
+      const result = await database.transaction(async (transaction) => {
+        const transactionalDatabase = transaction as Database;
+        const voided = await voidConfirmedExpense(transactionalDatabase, groupId, expenseId, payerUserId, new Date());
+        return { expense: await loadExpense(transactionalDatabase, groupId, expenseId), userIds: voided.userIds };
+      }).catch((error) => {
+        if (error instanceof GroupError) mapGroupError(error);
+        throw error;
+      });
+      publishGroupExpenseFreshness(result.userIds, groupId, result.expense.id, result.expense.state);
+      return result.expense;
     },
     getExpense,
     listExpenses,
     getShares,
     getSourceObligations,
+    getLifecycleEvents,
     getParticipantEligibility,
   };
 }
@@ -349,4 +491,22 @@ export async function confirmGroupExpenseAsPayer(database: Database, groupId: st
 export async function confirmGroupExpenseAsCurrentUser(groupId: string, expenseId: string) {
   const session = await requireSession();
   return confirmGroupExpenseAsPayer(getDatabase(), groupId, expenseId, session.user.id);
+}
+
+export async function rejectGroupExpenseAsPayer(database: Database, groupId: string, expenseId: string, payerUserId: string) {
+  return createGroupAccountingRepository(database, groupId).rejectExpenseAsPayer(expenseId, payerUserId);
+}
+
+export async function rejectGroupExpenseAsCurrentUser(groupId: string, expenseId: string) {
+  const session = await requireSession();
+  return rejectGroupExpenseAsPayer(getDatabase(), groupId, expenseId, session.user.id);
+}
+
+export async function voidGroupExpenseAsPayer(database: Database, groupId: string, expenseId: string, payerUserId: string) {
+  return createGroupAccountingRepository(database, groupId).voidExpenseAsPayer(expenseId, payerUserId);
+}
+
+export async function voidGroupExpenseAsCurrentUser(groupId: string, expenseId: string) {
+  const session = await requireSession();
+  return voidGroupExpenseAsPayer(getDatabase(), groupId, expenseId, session.user.id);
 }
