@@ -146,7 +146,34 @@ function RepaymentsPageContent({ data }: { data: RepaymentsPageData }) {
         <LiveRecordFilters
           action="/app/repayments"
           search={{ label: "Search repayments", placeholder: "Friend or payment method", value: filters.q ?? "" }}
-          selects={[{ name: "friendId", label: "Friend", value: friendId ?? "", options: [{ value: "", label: "All friends" }, ...friendOptions.map((friend) => ({ value: friend.id, label: friend.label + (friend.archived ? " (ARCHIVED)" : "") }))], search: searchFriendFilterOptions }, { name: "allocation", label: "Allocation", value: filters.allocation === "all" ? "" : filters.allocation, options: [{ value: "", label: "All allocation states" }, { value: "complete", label: "Fully allocated" }, { value: "needs", label: "Needs allocation" }] }]}
+          selects={[
+            {
+              name: "friendId",
+              label: "Friend",
+              value: friendId ?? "",
+              options: [
+                { value: "", label: "All friends" },
+                ...friendOptions.map((friend) => ({
+                  value: friend.id,
+                  label:
+                    friend.label +
+                    (friend.archived ? " (ARCHIVED)" : ""),
+                })),
+              ],
+              search: searchFriendFilterOptions,
+            },
+            {
+              name: "allocation",
+              label: "Allocation",
+              value:
+                filters.allocation === "all" ? "" : filters.allocation,
+              options: [
+                { value: "", label: "All allocation states" },
+                { value: "complete", label: "Fully allocated" },
+                { value: "needs", label: "Needs allocation" },
+              ],
+            },
+          ]}
           month={{ label: "Month", value: filters.month ?? "" }}
           mobileDisclosure={{ activeCount: [friendId, filters.month, filters.allocation === "all" ? undefined : filters.allocation].filter(Boolean).length }}
           clearHref={filtered ? recordHref("/app/repayments", effectiveParams, { q: undefined, friendId: undefined, month: undefined, allocation: undefined, page: undefined }) : undefined}

@@ -719,7 +719,24 @@
 .journey-total, .journey-allocation__caption { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
 .journey-total { padding-top: 1rem; font-weight: 700; }
 .journey-total strong { font-size: 1.15rem; }
-.journey-allocation { display: grid; grid-template-rows: 0fr; min-height: 0; margin-top: 0; padding-top: 0; border-top: 0; visibility: hidden; opacity: 0; transform: translateY(0.25rem); transition: grid-template-rows var(--motion-layout) var(--ease-product), margin-top var(--motion-layout) var(--ease-product), padding-top var(--motion-layout) var(--ease-product), opacity var(--motion-state) var(--ease-product), transform var(--motion-state) var(--ease-product), visibility 0s linear var(--motion-layout); }
+.journey-allocation {
+  display: grid;
+  grid-template-rows: 0fr;
+  min-height: 0;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(0.25rem);
+  transition:
+    grid-template-rows var(--motion-layout) var(--ease-product),
+    margin-top var(--motion-layout) var(--ease-product),
+    padding-top var(--motion-layout) var(--ease-product),
+    opacity var(--motion-state) var(--ease-product),
+    transform var(--motion-state) var(--ease-product),
+    visibility 0s linear var(--motion-layout);
+}
 .journey-allocation__content { display: grid; gap: 0.45rem; min-height: 0; overflow: hidden; }
 .journey-allocation[data-visible="true"] { grid-template-rows: 1fr; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--rule); visibility: visible; opacity: 1; transform: translateY(0); transition-delay: 0s; }
 .journey-allocation__caption { color: var(--muted-ink); font-size: 0.8rem; }

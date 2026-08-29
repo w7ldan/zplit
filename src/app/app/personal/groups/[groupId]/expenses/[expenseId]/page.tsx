@@ -54,11 +54,13 @@ function lifecycleActor(expense: Pick<GroupExpenseDetail, "creator" | "payer" | 
 }
 
 function statusCopy(expense: GroupExpenseDetail, activePayer: boolean) {
-  if (expense.state === "pending") return activePayer
-    ? "You are the claimed payer. Confirm that you paid this expense, or reject the claim that you paid it."
-    : expense.payer.status === "active"
-      ? `Waiting for ${expense.payer.displayName} to confirm that they paid this expense.`
-      : `The claimed payer ${expense.payer.displayName} is no longer an active Group member, so this claim has no current balance effect.`;
+  if (expense.state === "pending") return (
+    activePayer
+      ? "You are the claimed payer. Confirm that you paid this expense, or reject the claim that you paid it."
+      : expense.payer.status === "active"
+        ? `Waiting for ${expense.payer.displayName} to confirm that they paid this expense.`
+        : `The claimed payer ${expense.payer.displayName} is no longer an active Group member, so this claim has no current balance effect.`
+  );
   if (expense.state === "confirmed") return "This expense is confirmed and contributes to current Group balances.";
   if (expense.state === "rejected") return "The claimed payer rejected this expense. It remains in history without a current balance effect.";
   return "This expense remains in history. Its previous balance effect was reversed and it no longer contributes to current balances.";
@@ -111,13 +113,14 @@ function GroupExpenseStatus({
 function GroupExpenseObligations({ expense }: { expense: GroupExpenseDetail }) {
   const historical = expense.state === "voided";
   const canShow = expense.state === "confirmed" || historical;
-  const emptyCopy = expense.state === "confirmed"
-    ? "No participant owes the payer from this expense."
-    : historical
-      ? "No current obligations. The previous balance effect was reversed."
-      : expense.state === "rejected"
-        ? "No obligations were created because the payer rejected the claim."
-        : `No obligations yet. This expense becomes authoritative after ${expense.payer.displayName} confirms that they paid.`;
+  const emptyCopy =
+    expense.state === "confirmed"
+      ? "No participant owes the payer from this expense."
+      : historical
+        ? "No current obligations. The previous balance effect was reversed."
+        : expense.state === "rejected"
+          ? "No obligations were created because the payer rejected the claim."
+          : `No obligations yet. This expense becomes authoritative after ${expense.payer.displayName} confirms that they paid.`;
   return (
     <section
       className="group-expense__section"

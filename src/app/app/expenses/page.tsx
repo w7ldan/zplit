@@ -87,7 +87,31 @@ function ExpensesPageContent({ data, params }: { data: ExpensesPageData; params:
         <LiveRecordFilters
           action="/app/expenses"
           search={{ label: "Search expenses", placeholder: "Description or outing", value: filters.q ?? "" }}
-          selects={[{ name: "outing", label: "Outing", value: outingId ?? "", options: [{ value: "", label: "All outings" }, ...outingOptions.map((outing) => ({ value: outing.id, label: outing.label }))], search: searchOutingFilterOptions }, { name: "assignment", label: "Assignment", value: filters.assignment === "all" ? "" : filters.assignment, options: [{ value: "", label: "All assignment states" }, { value: "assigned", label: "Assigned" }, { value: "unassigned", label: "Unassigned" }] }]}
+          selects={[
+            {
+              name: "outing",
+              label: "Outing",
+              value: outingId ?? "",
+              options: [
+                { value: "", label: "All outings" },
+                ...outingOptions.map((outing) => ({
+                  value: outing.id,
+                  label: outing.label,
+                })),
+              ],
+              search: searchOutingFilterOptions,
+            },
+            {
+              name: "assignment",
+              label: "Assignment",
+              value: filters.assignment === "all" ? "" : filters.assignment,
+              options: [
+                { value: "", label: "All assignment states" },
+                { value: "assigned", label: "Assigned" },
+                { value: "unassigned", label: "Unassigned" },
+              ],
+            },
+          ]}
           month={{ label: "Month", value: filters.month ?? "" }}
           mobileDisclosure={{ activeCount: [outingId, filters.month, filters.assignment === "all" ? undefined : filters.assignment].filter(Boolean).length }}
           clearHref={filtered ? recordHref("/app/expenses", params, { q: undefined, outing: undefined, month: undefined, assignment: undefined, page: undefined }) : undefined}
