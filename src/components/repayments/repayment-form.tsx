@@ -6,17 +6,11 @@ import type { RepaymentActionState, RepaymentFriendContext } from "@/app/app/rep
 import type { RepaymentInputValues } from "@/domain/repayment-input";
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
 import type { RepaymentAllocationStrategy } from "@/domain/repayment-allocation-strategy";
-import {
-  PAYMENT_METHOD_OPTIONS,
-  PAYMENT_METHOD_OTHER,
-  canonicalPaymentMethod,
-  paymentMethodFormState,
-  recentPaymentMethodValues,
-  type PaymentMethodChoice,
-} from "@/domain/payment-method";
+import { paymentMethodFormState, type PaymentMethodChoice } from "@/domain/payment-method";
 import { formatRupiah } from "@/domain/rupiah";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { PaymentMethodFields } from "@/components/records/payment-method-fields";
 import { useRepaymentAllocationDraft } from "./use-repayment-allocation-draft";
 
 type RepaymentAction = (previousState: RepaymentActionState, formData: FormData) => Promise<RepaymentActionState>;
@@ -83,87 +77,6 @@ function FieldError({ id, message }: { id: string; message?: string }) {
     <p className="repayment-form__field-error" id={id}>
       {message || "\u00a0"}
     </p>
-  );
-}
-
-function PaymentMethodFields({
-  choice,
-  other,
-  recentMethods = [],
-  error,
-  onChoiceChange,
-  onOtherChange,
-}: {
-  choice: PaymentMethodChoice;
-  other: string;
-  recentMethods?: string[];
-  error?: string;
-  onChoiceChange: (choice: PaymentMethodChoice) => void;
-  onOtherChange: (other: string) => void;
-}) {
-  const recent = recentPaymentMethodValues(recentMethods).map((value, index) => ({
-    value,
-    canonical: canonicalPaymentMethod(value),
-    customValue: `recent-custom-${index}`,
-  }));
-  const recentByValue = new Map(recent.map((method) => [method.customValue, method.value]));
-  const recentCanonical = new Set(recent.flatMap((method) => method.canonical ? [method.canonical] : []));
-  return (
-    <>
-      <label htmlFor="repayment-payment-method">Payment method</label>
-      <select
-        id="repayment-payment-method"
-        name="paymentMethodChoice"
-        value={choice}
-        onChange={(event) => {
-          const custom = recentByValue.get(event.target.value);
-          if (custom && !canonicalPaymentMethod(custom)) {
-            onChoiceChange(PAYMENT_METHOD_OTHER);
-            onOtherChange(custom);
-          } else onChoiceChange(event.target.value as PaymentMethodChoice);
-        }}
-        aria-invalid={Boolean(error)}
-        aria-describedby="repayment-payment-method-error"
-      >
-        <option value="">Not specified</option>
-        {choice === "" && recent.length > 0 ? (
-          <optgroup label="Recent">
-            {recent.map((method) => (
-              <option
-                key={method.customValue}
-                value={method.canonical ?? method.customValue}
-              >
-                {method.canonical ?? method.value}
-              </option>
-            ))}
-          </optgroup>
-        ) : null}
-        {PAYMENT_METHOD_OPTIONS
-          .filter((option) => choice !== "" || !recentCanonical.has(option))
-          .map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        <option value={PAYMENT_METHOD_OTHER}>{PAYMENT_METHOD_OTHER}</option>
-      </select>
-      {choice === PAYMENT_METHOD_OTHER ? (
-        <input
-          id="repayment-payment-method-other"
-          name="paymentMethodOther"
-          type="text"
-          maxLength={40}
-          value={other}
-          onChange={(event) => onOtherChange(event.target.value)}
-          placeholder="Custom payment method"
-          aria-label="Custom payment method"
-          aria-invalid={Boolean(error)}
-          aria-describedby="repayment-payment-method-error"
-          autoComplete="off"
-        />
-      ) : null}
-      <FieldError id="repayment-payment-method-error" message={error} />
-    </>
   );
 }
 
@@ -370,6 +283,7 @@ function RepaymentDetailsFields({
           other={paymentMethodOther}
           recentMethods={recentPaymentMethods}
           error={state.fieldErrors.paymentMethod}
+          errorClassName="repayment-form__field-error"
           onChoiceChange={onChoiceChange}
           onOtherChange={onOtherChange}
         />

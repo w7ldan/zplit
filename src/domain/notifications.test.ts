@@ -103,8 +103,8 @@ describe("notification catalog", () => {
     expect(normalizeNotificationMetadata("group.settlement.confirmation", metadata)).toEqual(metadata);
     expect(presentNotification("group.settlement.confirmation", metadata)).toEqual({
       label: "Group payment confirmation",
-      primary: "Review a payment from Wildan in Bandung Trip.",
-      secondary: "Confirm the payment when it matches the money you received.",
+      primary: "Wildan recorded a payment to you in Bandung Trip.",
+      secondary: "Confirmation is required.",
     });
     expect(() => normalizeNotificationMetadata("group.settlement.confirmation", { ...metadata, senderParticipantId: "not-an-id" })).toThrow("Invalid metadata");
   });

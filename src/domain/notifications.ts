@@ -279,8 +279,8 @@ export const notificationCatalog = {
     parseMetadata: parseGroupSettlementConfirmationMetadata,
     present: (metadata: NotificationMetadata["group.settlement.confirmation"]): NotificationPresentation => ({
       label: "Group payment confirmation",
-      primary: `Review a payment from ${metadata.senderDisplayName} in ${metadata.groupName}.`,
-      secondary: "Confirm the payment when it matches the money you received.",
+      primary: `${metadata.senderDisplayName} recorded a payment to you in ${metadata.groupName}.`,
+      secondary: "Confirmation is required.",
     }),
   },
 } as const;

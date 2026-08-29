@@ -17,6 +17,8 @@ type RepaymentPaymentProofProps = {
   initialPaymentProof: RepaymentPaymentProof | null;
   basePath?: string;
   canEdit?: boolean;
+  description?: string;
+  readOnlyMessage?: string;
 };
 
 function formatBytes(bytes: number) {
@@ -30,7 +32,12 @@ function ProofDate({ value }: { value: Date | string }) {
   return Number.isNaN(date.getTime()) ? <>Unknown date</> : <LocalDateTime iso={date.toISOString()} mode="date" />;
 }
 
-export function RepaymentPaymentProof({ repaymentId, initialPaymentProof, basePath = "/app/repayments", canEdit = true }: RepaymentPaymentProofProps) {
+function ReadOnlyMessage({ canEdit, message }: { canEdit: boolean; message?: string }) {
+  if (canEdit || !message) return null;
+  return <p className="expense-receipts__readonly">{message}</p>;
+}
+
+export function RepaymentPaymentProof({ repaymentId, initialPaymentProof, basePath = "/app/repayments", canEdit = true, description = "Private to you. JPEG, PNG, or WebP, up to 5 MiB.", readOnlyMessage }: RepaymentPaymentProofProps) {
   const [paymentProof, setPaymentProof] = useState(initialPaymentProof);
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -104,9 +111,10 @@ export function RepaymentPaymentProof({ repaymentId, initialPaymentProof, basePa
       <div className="expense-receipts__heading">
         <div>
           <h2 id="repayment-payment-proof-heading">Payment proof</h2>
-          <p>Private to you. JPEG, PNG, or WebP, up to 5 MiB.</p>
+          <p>{description}</p>
         </div>
       </div>
+      <ReadOnlyMessage canEdit={canEdit} message={readOnlyMessage} />
       {canEdit ? <form className="expense-receipts__upload" onSubmit={upload}>
         <div className="expense-receipts__file-picker">
           <label className="action-link action-link--quiet" htmlFor="repayment-payment-proof-file">{selectedFilename ? "Change" : "Choose payment proof image"}</label>

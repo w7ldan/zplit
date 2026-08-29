@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { InboxLiveRefresh } from "@/components/notifications/inbox-live-refresh";
 import { InboxIcon } from "@/components/notifications/inbox-icon";
 import { RecordPagination } from "@/components/records/record-pagination";
-import { getFriendLinkRequestMetadata, getGroupExpensePayerClaimMetadata, getGroupInvitationMetadata, getGroupParticipantLinkMetadata, getOrganizationInvitationMetadata, NOTIFICATION_TYPES, presentNotification } from "@/domain/notifications";
+import { getFriendLinkRequestMetadata, getGroupExpensePayerClaimMetadata, getGroupInvitationMetadata, getGroupParticipantLinkMetadata, getGroupSettlementConfirmationMetadata, getOrganizationInvitationMetadata, NOTIFICATION_TYPES, presentNotification } from "@/domain/notifications";
 import { getCurrentUserNotificationPage, getCurrentUserUnreadNotificationCount } from "@/server/notifications";
 import { getCurrentUserFriendLinkRequestStatuses } from "@/server/friend-links";
 import { getCurrentUserOrganizationInvitationStatuses } from "@/server/organization-invitations";
@@ -65,6 +66,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
                 const groupInvitationMetadata = notification.type === NOTIFICATION_TYPES.groupInvitation ? getGroupInvitationMetadata(notification.metadata) : null;
                 const groupLinkMetadata = notification.type === NOTIFICATION_TYPES.groupParticipantLinkRequest ? getGroupParticipantLinkMetadata(notification.metadata) : null;
                 const expenseClaimMetadata = notification.type === NOTIFICATION_TYPES.groupExpensePayerClaim ? getGroupExpensePayerClaimMetadata(notification.metadata) : null;
+                const settlementMetadata = notification.type === NOTIFICATION_TYPES.groupSettlementConfirmation ? getGroupSettlementConfirmationMetadata(notification.metadata) : null;
                 return (
                   <li className={`notification-row${unread ? " notification-row--unread" : ""}`} key={notification.id}>
                     <div className="notification-row__main">
@@ -83,6 +85,14 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
                       {groupInvitationMetadata ? <GroupJoinRequestActions requestId={groupInvitationMetadata.requestId} kind="member_invitation" status={groupJoinRequestStatuses.get(groupInvitationMetadata.requestId)} /> : null}
                       {groupLinkMetadata ? <GroupJoinRequestActions requestId={groupLinkMetadata.requestId} kind="participant_link" status={groupJoinRequestStatuses.get(groupLinkMetadata.requestId)} /> : null}
                       {expenseClaimMetadata ? <GroupExpensePayerClaimActions groupId={expenseClaimMetadata.groupId} expenseId={expenseClaimMetadata.expenseId} /> : null}
+                      {settlementMetadata ? (
+                        <Link
+                          className="text-link"
+                          href={`/app/personal/groups/${encodeURIComponent(settlementMetadata.groupId)}/settlements/${encodeURIComponent(settlementMetadata.settlementId)}`}
+                        >
+                          Review payment
+                        </Link>
+                      ) : null}
                     </div>
                   </li>
                 );

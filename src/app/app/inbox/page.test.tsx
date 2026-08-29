@@ -154,4 +154,34 @@ describe("/app/inbox", () => {
       `/app/personal/groups/${groupId}/expenses/${secondExpenseId}`,
     ]);
   });
+
+  it("navigates settlement notifications to the matching Group payment", async () => {
+    const groupId = "66666666-6666-4666-8666-666666666666";
+    const settlementId = "99999999-9999-4999-8999-999999999999";
+    mocks.getPage.mockResolvedValue({
+      rows: [{
+        id: "notification-settlement",
+        type: "group.settlement.confirmation",
+        metadata: {
+          settlementId,
+          groupId,
+          groupName: "Bandung Trip",
+          senderParticipantId: "88888888-8888-4888-8888-888888888888",
+          senderDisplayName: "Wildan",
+        },
+        createdAt: new Date("2026-08-25T07:00:00Z"),
+        readAt: null,
+        recipientUserId: "user-a",
+        dedupeKey: `group-settlement-confirmation:${settlementId}`,
+      }],
+      page: 1,
+      pageSize: 20,
+      totalItems: 1,
+      totalPages: 1,
+    });
+    render(await InboxPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText("Wildan recorded a payment to you in Bandung Trip.")).toBeInTheDocument();
+    expect(screen.getByText("Confirmation is required.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Review payment" })).toHaveAttribute("href", `/app/personal/groups/${groupId}/settlements/${settlementId}`);
+  });
 });

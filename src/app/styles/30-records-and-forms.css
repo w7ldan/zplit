@@ -4781,6 +4781,332 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   white-space: pre-wrap;
 }
 
+.group-settlements-page .app-page__layout {
+  gap: 2rem;
+  padding-block: 2rem 4rem;
+}
+
+.group-settlement-page__balance,
+.group-settlement__status,
+.group-settlement-record__sidebar {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding-block: 1rem;
+  border-block: 1px solid var(--ink);
+}
+
+.group-settlement-page__balance h2,
+.group-settlement__status h2,
+.group-settlement__confirmation h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.group-settlement-page__balance > p,
+.group-settlement-record__sidebar > p,
+.group-settlement__status > p,
+.group-settlement__confirmation > p,
+.group-settlement-form__context,
+.group-settlement-form__help,
+.group-settlement-form__empty,
+.group-settlement-form__message {
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.group-settlement-page__balance ul {
+  display: grid;
+  border-block: 1px solid var(--rule);
+}
+
+.group-settlement-page__balance li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.75rem;
+  border-top: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}
+
+.group-settlement-page__balance li:first-child {
+  border-top: 0;
+}
+
+.group-settlement-page__balance li strong,
+.group-settlement-row__meta strong,
+.group-settlement__summary dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.group-settlement-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(0, 2.4fr);
+  gap: 1rem 1.5rem;
+  min-width: 0;
+  padding-block: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.group-settlement-row__primary,
+.group-settlement-row__meta,
+.group-settlement-row__meta > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.group-settlement-row h2 {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.group-settlement-row h2 a {
+  text-decoration: none;
+}
+
+.group-settlement-row__meta {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.group-settlement-row__state,
+.group-settlement-row__attention,
+.group-settlement-row__proof {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.group-settlement-row__state--pending {
+  color: var(--amber);
+}
+
+.group-settlement-row__state--confirmed {
+  color: var(--ink);
+}
+
+.group-settlement-row__proof {
+  color: var(--muted-ink);
+}
+
+.group-settlement-form {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 38rem;
+}
+
+.group-settlement-form__field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.group-settlement-form__field > label {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.group-settlement-form__field-error,
+.group-settlement-form__message {
+  min-height: 1.1rem;
+  font-size: 0.78rem;
+}
+
+.group-settlement-form__field-error,
+.group-settlement-form__message {
+  color: var(--error);
+}
+
+.group-settlement-form__balance {
+  display: grid;
+  gap: 0.2rem;
+  padding-block: 0.75rem;
+  border-block: 1px solid var(--rule);
+}
+
+.group-settlement-form__balance span,
+.group-settlement-form__balance p {
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+}
+
+.group-settlement-form__balance strong {
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.group-settlement-form__balance p {
+  margin: 0;
+}
+
+.group-settlement-form__amount-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.group-settlement-form__amount-row .action-link {
+  margin-top: 0;
+}
+
+.group-settlement-form__context strong {
+  color: var(--ink);
+}
+
+.group-settlement-record__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.group-settlement-record__header h1 {
+  max-width: 30ch;
+  margin: 0.45rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 4.5vw, 4.25rem);
+  letter-spacing: -0.07em;
+  line-height: 0.94;
+  overflow-wrap: anywhere;
+}
+
+.group-settlement-record__back {
+  flex: 0 0 auto;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.group-settlement-record__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.35fr);
+  gap: 2rem;
+  min-width: 0;
+}
+
+.group-settlement-record__main,
+.group-settlement__summary,
+.group-settlement__confirmation {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.group-settlement__status {
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
+}
+
+.group-settlement__status--pending {
+  border-left: 3px solid var(--amber);
+  padding-left: 0.85rem;
+}
+
+.group-settlement__status--confirmed {
+  border-left: 3px solid var(--mint);
+  padding-left: 0.85rem;
+}
+
+.group-settlement__summary {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+}
+
+.group-settlement__summary div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.group-settlement__summary dt {
+  color: var(--muted-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.group-settlement__summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.group-settlement__confirmation {
+  grid-column: 1 / -1;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+}
+
+.group-settlement__confirmation form {
+  display: flex;
+}
+
+.group-settlement__message {
+  min-height: 1.1rem;
+}
+
+.group-settlement-record__sidebar {
+  align-content: start;
+  border-top-color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .group-settlement-row {
+    grid-template-columns: 1fr;
+  }
+
+  .group-settlement-row__meta {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .group-settlement-record__workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .group-settlement-record__sidebar {
+    border-top: 1px solid var(--ink);
+  }
+}
+
+@media (max-width: 767px) {
+  .group-settlements-page .app-page__layout {
+    padding-block: 1.5rem 3.5rem;
+  }
+
+  .group-settlement-page__balance li,
+  .group-settlement-record__header {
+    align-items: start;
+  }
+
+  .group-settlement-record__header {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .group-settlement-row__meta,
+  .group-settlement__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .group-settlement__status,
+  .group-settlement-form__amount-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 767px) {
   .settings-page .app-page__layout {
     gap: 1rem;

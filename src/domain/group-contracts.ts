@@ -1,5 +1,6 @@
 import type { GroupJoinRequestKind, GroupJoinRequestStatus } from "./group-join-requests";
 import type { GroupRole } from "./group-permissions";
+import type { PaymentMethodChoice } from "./payment-method";
 
 export type GroupCapabilities = {
   isOwner: boolean;
@@ -68,3 +69,21 @@ export type GroupExpenseShareFormValue = { participantId: string; amount: string
 export type GroupExpenseFormValues = { description: string; totalAmount: string; occurredAtLocal: string; timezoneOffsetMinutes: string; payerParticipantId: string; shares: GroupExpenseShareFormValue[] };
 export type GroupExpenseActionState = { fieldErrors: Partial<Record<"description" | "totalAmount" | "occurredAtLocal" | "payerParticipantId" | "shares", string>>; formError: string; values: GroupExpenseFormValues };
 export type GroupExpenseConfirmationState = { error: string; success?: string };
+export type GroupSettlementFormValues = {
+  recipientParticipantId: string;
+  amountRupiah: string;
+  paymentMethodChoice: PaymentMethodChoice;
+  paymentMethodOther: string;
+};
+export type GroupSettlementActionState = {
+  fieldErrors: Partial<Record<keyof GroupSettlementFormValues | "proof", string>>;
+  formError: string;
+  values: GroupSettlementFormValues;
+};
+export type GroupSettlementConfirmationState = { error: string; success?: string };
+export type GroupSettlementRecipientOption = {
+  id: string;
+  displayName: string;
+  label: string | null;
+  currentDebt: number;
+};
