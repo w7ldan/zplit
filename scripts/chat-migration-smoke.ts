@@ -3,7 +3,9 @@ import { readFileSync, readdirSync } from "node:fs";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool, type PoolClient } from "pg";
+import * as schema from "../src/db/schema";
 import { formatSafeError, readDatabaseConfig, type DatabaseConfig } from "./migrate.js";
+import { resolveOrganizationCapabilities } from "../src/domain/organization-permissions";
 
 const migrationDirectory = new URL("../drizzle/", import.meta.url);
 
@@ -36,10 +38,12 @@ async function expectCode(client: PoolClient, code: string, statement: string, v
 }
 
 async function seed(client: PoolClient) {
-  const ids = { userA: randomUUID(), userB: randomUUID(), organization: randomUUID(), groupA: randomUUID(), groupB: randomUUID(), participantA: randomUUID(), participantB: randomUUID(), expense: randomUUID(), chatThread: randomUUID(), chatMessage: randomUUID() };
-  await client.query("INSERT INTO users (id, name, email, email_verified) VALUES ($1, 'Stage 17 A', $2, true), ($3, 'Stage 17 B', $4, true)", [ids.userA, `${ids.userA}@stage17.test`, ids.userB, `${ids.userB}@stage17.test`]);
-  await client.query("INSERT INTO organizations (id, name) VALUES ($1, 'Stage 17 Organization')", [ids.organization]);
-  await client.query("INSERT INTO organization_memberships (organization_id, user_id, role) VALUES ($1, $2, 'owner'), ($1, $3, 'member')", [ids.organization, ids.userA, ids.userB]);
+  const ids = { userA: randomUUID(), userB: randomUUID(), adminUser: randomUUID(), customReader: randomUUID(), hiddenReader: randomUUID(), otherOrgUser: randomUUID(), organization: randomUUID(), otherOrganization: randomUUID(), groupA: randomUUID(), groupB: randomUUID(), participantA: randomUUID(), participantB: randomUUID(), expense: randomUUID(), chatThread: randomUUID(), chatMessage: randomUUID() };
+  await client.query("INSERT INTO users (id, name, email, email_verified) VALUES ($1, 'Stage 17 A', $2, true), ($3, 'Stage 17 B', $4, true), ($5, 'Stage 17 Admin', $6, true), ($7, 'Stage 17 Custom', $8, true), ($9, 'Stage 17 Hidden', $10, true), ($11, 'Stage 17 Other Org', $12, true)", [ids.userA, `${ids.userA}@stage17.test`, ids.userB, `${ids.userB}@stage17.test`, ids.adminUser, `${ids.adminUser}@stage17.test`, ids.customReader, `${ids.customReader}@stage17.test`, ids.hiddenReader, `${ids.hiddenReader}@stage17.test`, ids.otherOrgUser, `${ids.otherOrgUser}@stage17.test`]);
+  await client.query("INSERT INTO organizations (id, name) VALUES ($1, 'Stage 17 Organization'), ($2, 'Stage 17 Other Organization')", [ids.organization, ids.otherOrganization]);
+  await client.query("INSERT INTO organization_memberships (organization_id, user_id, role) VALUES ($1, $2, 'owner'), ($1, $3, 'member'), ($1, $4, 'admin')", [ids.organization, ids.userA, ids.userB, ids.adminUser]);
+  await client.query("INSERT INTO organization_memberships (organization_id, user_id, role, custom_capabilities) VALUES ($1, $2, 'custom', $3::jsonb), ($1, $4, 'custom', $5::jsonb)", [ids.organization, ids.customReader, '[\"chat.view\"]', ids.hiddenReader, '[]']);
+  await client.query("INSERT INTO organization_memberships (organization_id, user_id, role) VALUES ($1, $2, 'member')", [ids.otherOrganization, ids.otherOrgUser]);
   await client.query("INSERT INTO groups (id, name, created_by_user_id) VALUES ($1, 'Stage 17 Group A', $3), ($2, 'Stage 17 Group B', $4)", [ids.groupA, ids.groupB, ids.userA, ids.userB]);
   await client.query("INSERT INTO group_participants (id, group_id, user_id) VALUES ($1, $3, $4), ($2, $6, $5)", [ids.participantA, ids.participantB, ids.groupA, ids.userA, ids.userB, ids.groupB]);
   await client.query("INSERT INTO group_memberships (group_id, user_id, participant_id, role) VALUES ($1, $2, $3, 'owner'), ($4, $5, $6, 'owner')", [ids.groupA, ids.userA, ids.participantA, ids.groupB, ids.userB, ids.participantB]);
@@ -61,6 +65,57 @@ async function waitForLock(client: PoolClient, queryPart: string) {
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
   throw new Error("concurrent chat read update did not reach the row lock");
+}
+
+type ChatSmokeIds = Awaited<ReturnType<typeof seed>>;
+
+async function verifyPrecision(client: PoolClient, ids: ChatSmokeIds) {
+  const precisionMessages = {
+    m0: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+    m1: "22222222-2222-4222-8222-222222222222",
+    m2: "11111111-1111-4111-8111-111111111111",
+    m3: "00000000-0000-4000-8000-000000000000",
+  };
+  const precisionMessageIds = Object.values(precisionMessages);
+  await client.query("INSERT INTO chat_messages (id, thread_id, organization_id, sender_user_id, body, created_at) VALUES ($1, $2, $3, $4, 'Precision zero', '2026-08-30T00:00:00.123000Z'), ($5, $2, $3, $6, 'Precision one', '2026-08-30T00:00:00.123100Z'), ($7, $2, $3, $6, 'Precision two', '2026-08-30T00:00:00.123500Z'), ($8, $2, $3, $4, 'Precision three', '2026-08-30T00:00:00.123900Z')", [precisionMessages.m0, ids.chatThread, ids.organization, ids.userA, precisionMessages.m1, ids.userB, precisionMessages.m2, precisionMessages.m3]);
+  await client.query("INSERT INTO chat_thread_reads (thread_id, user_id, last_read_message_id) VALUES ($1, $2, $3), ($1, $4, $5), ($1, $6, $5), ($1, $7, $5), ($1, $8, $5), ($1, $9, $5) ON CONFLICT (thread_id, user_id) DO UPDATE SET last_read_message_id = EXCLUDED.last_read_message_id", [ids.chatThread, ids.userA, precisionMessages.m1, ids.userB, precisionMessages.m2, ids.adminUser, ids.customReader, ids.hiddenReader, ids.otherOrgUser]);
+  const preciseUnread = await client.query<{ id: string }>("SELECT messages.id FROM chat_messages messages LEFT JOIN chat_thread_reads reads ON reads.thread_id = messages.thread_id AND reads.user_id = $2 LEFT JOIN chat_messages cursor_message ON cursor_message.id = reads.last_read_message_id WHERE messages.thread_id = $1 AND messages.id = ANY($3::uuid[]) AND messages.sender_user_id <> $2 AND messages.deleted_at IS NULL AND (reads.last_read_message_id IS NULL OR (messages.created_at, messages.id) > (cursor_message.created_at, cursor_message.id)) ORDER BY messages.created_at, messages.id", [ids.chatThread, ids.userA, [precisionMessages.m0, precisionMessages.m1, precisionMessages.m2, precisionMessages.m3]]);
+  assert(preciseUnread.rows.length === 1, "microsecond unread returned the wrong message count");
+  assert(preciseUnread.rows[0]?.id === precisionMessages.m2, "microsecond unread ordering collapsed the cursor message");
+  const memberRows = await client.query<{ user_id: string; name: string; role: string; custom_capabilities: unknown }>("SELECT memberships.user_id, users.name, memberships.role, memberships.custom_capabilities FROM organization_memberships memberships JOIN users ON users.id = memberships.user_id WHERE memberships.organization_id = $1", [ids.organization]);
+  const eligibleReaders = memberRows.rows.filter((row) => resolveOrganizationCapabilities(row.role, row.custom_capabilities).has("chat.view"));
+  const eligibleReaderIds = eligibleReaders.map(({ user_id }) => user_id);
+  assert(eligibleReaders.length === 4, "Organization chat.view eligibility count is incorrect");
+  assert(eligibleReaders.some(({ name }) => name === "Stage 17 A"), "owner chat.view eligibility is incorrect");
+  assert(eligibleReaders.some(({ name }) => name === "Stage 17 B"), "member chat.view eligibility is incorrect");
+  assert(eligibleReaders.some(({ name }) => name === "Stage 17 Admin"), "admin chat.view eligibility is incorrect");
+  assert(eligibleReaders.some(({ name }) => name === "Stage 17 Custom"), "custom chat.view eligibility is incorrect");
+  assert(!eligibleReaders.some(({ name }) => name === "Stage 17 Hidden"), "custom member without chat.view is eligible");
+  const receiptRows = await client.query<{ message_id: string; name: string }>("SELECT messages.id AS message_id, users.name FROM chat_messages messages JOIN chat_thread_reads reads ON reads.thread_id = $1 AND reads.user_id = ANY($2::text[]) JOIN chat_messages cursor_message ON cursor_message.id = reads.last_read_message_id JOIN users ON users.id = reads.user_id WHERE messages.thread_id = $1 AND messages.id = ANY($3::uuid[]) AND messages.sender_user_id <> reads.user_id AND (cursor_message.created_at, cursor_message.id) >= (messages.created_at, messages.id)", [ids.chatThread, eligibleReaderIds, precisionMessageIds]);
+  const receiptNames = (messageId: string) => receiptRows.rows.filter((row) => row.message_id === messageId).map(({ name }) => name);
+  const zeroReceipts = receiptNames(precisionMessages.m0);
+  assert(zeroReceipts.length === 4, "member, admin, or custom chat.view receipt was lost");
+  assert(zeroReceipts.includes("Stage 17 B"), "member receipt was lost");
+  assert(zeroReceipts.includes("Stage 17 Admin"), "admin receipt was lost");
+  assert(zeroReceipts.includes("Stage 17 Custom"), "custom chat.view receipt was lost");
+  const oneReceipts = receiptNames(precisionMessages.m1);
+  assert(oneReceipts.length === 3, "microsecond Seen by ordering is incorrect at M1");
+  assert(oneReceipts.includes("Stage 17 A"), "owner Seen by ordering is incorrect at M1");
+  assert(oneReceipts.includes("Stage 17 Admin"), "admin Seen by ordering is incorrect at M1");
+  assert(oneReceipts.includes("Stage 17 Custom"), "custom Seen by ordering is incorrect at M1");
+  const twoReceipts = receiptNames(precisionMessages.m2);
+  assert(twoReceipts.length === 2, "microsecond Seen by ordering is incorrect at M2");
+  assert(twoReceipts.includes("Stage 17 Admin"), "admin Seen by ordering is incorrect at M2");
+  assert(twoReceipts.includes("Stage 17 Custom"), "custom Seen by ordering is incorrect at M2");
+  assert(receiptNames(precisionMessages.m3).length === 0, "microsecond Seen by ordering marked M3 as seen");
+  assert(!receiptRows.rows.some(({ name }) => name === "Stage 17 Hidden"), "ineligible Organization reader appeared in Seen by");
+  assert(!receiptRows.rows.some(({ name }) => name === "Stage 17 Other Org"), "unrelated Organization reader appeared in Seen by");
+  await client.query("UPDATE organization_memberships SET custom_capabilities = '[]'::jsonb WHERE organization_id = $1 AND user_id = $2", [ids.organization, ids.customReader]);
+  const afterMemberRows = await client.query<{ user_id: string; name: string; role: string; custom_capabilities: unknown }>("SELECT memberships.user_id, users.name, memberships.role, memberships.custom_capabilities FROM organization_memberships memberships JOIN users ON users.id = memberships.user_id WHERE memberships.organization_id = $1", [ids.organization]);
+  const afterEligibleReaders = afterMemberRows.rows.filter((row) => resolveOrganizationCapabilities(row.role, row.custom_capabilities).has("chat.view"));
+  assert(!afterEligibleReaders.some(({ name }) => name === "Stage 17 Custom"), "removed chat.view capability did not remove the active receipt");
+  const preservedRead = await client.query<{ last_read_message_id: string }>("SELECT last_read_message_id FROM chat_thread_reads WHERE thread_id = $1 AND user_id = $2", [ids.chatThread, ids.customReader]);
+  assert(preservedRead.rows[0]?.last_read_message_id === precisionMessages.m2, "capability removal deleted historical read state");
 }
 
 async function runMigrationSmoke(config: DatabaseConfig) {
@@ -88,7 +143,7 @@ async function runMigrationSmoke(config: DatabaseConfig) {
       await client.query("SELECT setval('drizzle.__drizzle_migrations_id_seq', 32, true)");
       const ids = await seed(client);
       const before = await client.query("SELECT 'organizations' AS table_name, id::text, name FROM organizations UNION ALL SELECT 'groups', id::text, name FROM groups UNION ALL SELECT 'group_expenses', id::text, description FROM group_expenses UNION ALL SELECT 'chat_threads', id::text, organization_id::text FROM chat_threads UNION ALL SELECT 'chat_messages', id::text, body FROM chat_messages ORDER BY table_name, id");
-      const database = drizzle(client);
+      const database = drizzle(client, { schema });
       await migrate(database, { migrationsFolder: "./drizzle" });
       await migrate(database, { migrationsFolder: "./drizzle" });
       const after = await client.query("SELECT 'organizations' AS table_name, id::text, name FROM organizations UNION ALL SELECT 'groups', id::text, name FROM groups UNION ALL SELECT 'group_expenses', id::text, description FROM group_expenses UNION ALL SELECT 'chat_threads', id::text, organization_id::text FROM chat_threads UNION ALL SELECT 'chat_messages', id::text, body FROM chat_messages ORDER BY table_name, id");
@@ -117,6 +172,7 @@ async function runMigrationSmoke(config: DatabaseConfig) {
       await client.query("UPDATE chat_thread_reads SET last_read_message_id = $3 WHERE thread_id = $1 AND user_id = $2", [ids.chatThread, ids.userA, unreadMessages[0]]);
       const unread = await client.query<{ count: number }>("SELECT count(*)::int AS count FROM chat_messages messages LEFT JOIN chat_thread_reads reads ON reads.thread_id = messages.thread_id AND reads.user_id = $2 LEFT JOIN chat_messages cursor_message ON cursor_message.id = reads.last_read_message_id WHERE messages.thread_id = $1 AND messages.sender_user_id <> $2 AND messages.deleted_at IS NULL AND (reads.last_read_message_id IS NULL OR (messages.created_at, messages.id) > (cursor_message.created_at, cursor_message.id))", [ids.chatThread, ids.userA]);
       assert(unread.rows[0]?.count === 1, "unread count included an own or deleted message");
+      await verifyPrecision(client, ids);
       const olderMessage = randomUUID();
       const newerMessage = randomUUID();
       await client.query("INSERT INTO chat_messages (id, thread_id, organization_id, sender_user_id, body, created_at) VALUES ($1, $2, $3, $4, 'Older concurrency message', '2026-08-30T00:01:00Z'), ($5, $2, $3, $4, 'Newer concurrency message', '2026-08-30T00:02:00Z')", [olderMessage, ids.chatThread, ids.organization, ids.userA, newerMessage]);

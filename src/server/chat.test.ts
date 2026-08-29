@@ -153,8 +153,12 @@ describe("chat server ownership", () => {
         { id: "message-a", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "first", createdAt: first, editedAt: null, deletedAt: null },
       ],
       [
-        { userId: "user-a", displayName: "Alice", cursorId: "message-a", cursorCreatedAt: first },
-        { userId: "user-b", displayName: "Bob", cursorId: "message-d", cursorCreatedAt: new Date(first.getTime() + 3_000) },
+        { userId: "user-a", displayName: "Alice", cursorId: "message-a", role: "owner", customCapabilities: [] },
+        { userId: "user-b", displayName: "Bob", cursorId: "message-d", role: "member", customCapabilities: [] },
+      ],
+      [
+        { messageId: "message-a", readerUserId: "user-a" },
+        { messageId: "message-b", readerUserId: "user-b" },
       ],
       [{ count: 1 }],
     ]);
@@ -164,6 +168,49 @@ describe("chat server ownership", () => {
     expect(chat.messages[1]).toMatchObject({ id: "message-b", seenByCount: 1, seenBy: ["Bob"] });
     expect(chat.messages[2]).toMatchObject({ id: "message-c", seenByCount: 0 });
     expect(chat.messages[3]).toMatchObject({ id: "message-d", seenByCount: 0, seenBy: [] });
+    expect(db.select).toHaveBeenCalledTimes(5);
+  });
+
+  it.each([
+    ["owner", [], true],
+    ["admin", [], true],
+    ["member", [], true],
+    ["custom", ["chat.view"], true],
+    ["custom", [], false],
+  ] as const)("uses effective Organization chat.view for %s readers", async (role, customCapabilities, expected) => {
+    const db = database([
+      [{ id: threadId }],
+      [{ id: "message-a", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "hello", createdAt: new Date("2026-08-29T00:00:00Z"), editedAt: null, deletedAt: null }],
+      [{ userId: "user-a", displayName: "Alice", cursorId: "message-a", role, customCapabilities }],
+      ...(expected ? [[{ messageId: "message-a", readerUserId: "user-a" }]] : []),
+      [{ count: 0 }],
+    ]);
+    const chat = await getOrganizationChat(db, organizationId, "user-a");
+
+    expect(chat.messages[0]?.seenByCount).toBe(expected ? 1 : 0);
+  });
+
+  it("excludes a member after chat.view is removed while retaining its cursor row", async () => {
+    const message = { id: "message-a", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "hello", createdAt: new Date("2026-08-29T00:00:00Z"), editedAt: null, deletedAt: null };
+    const withAccess = database([
+      [{ id: threadId }],
+      [message],
+      [{ userId: "user-a", displayName: "Alice", cursorId: "message-a", role: "custom", customCapabilities: ["chat.view"] }],
+      [{ messageId: "message-a", readerUserId: "user-a" }],
+      [{ count: 0 }],
+    ]);
+    const before = await getOrganizationChat(withAccess, organizationId, "user-a");
+    expect(before.messages[0]?.seenByCount).toBe(1);
+
+    const withoutAccess = database([
+      [{ id: threadId }],
+      [message],
+      [{ userId: "user-a", displayName: "Alice", cursorId: "message-a", role: "custom", customCapabilities: [] }],
+      [{ count: 0 }],
+    ]);
+    const after = await getOrganizationChat(withoutAccess, organizationId, "user-a");
+    expect(after.messages[0]?.seenByCount).toBe(0);
+    expect(withoutAccess.select).toHaveBeenCalledTimes(4);
   });
 
   it("batches sender avatar metadata into the read DTO", async () => {

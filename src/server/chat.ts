@@ -1,10 +1,11 @@
 import "server-only";
 
-import { aliasedTable, and, desc, eq, gt, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { aliasedTable, and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { chatMessages, chatThreadReads, chatThreads, groupMemberships, groupParticipants, organizationMemberships, users } from "@/db/schema";
 import { CHAT_PAGE_SIZE, CHAT_STATE_CHANGED_EVENT, type ChatScope, normalizeChatMessageBody } from "@/domain/chat";
 import type { ChatMessageDto, ChatViewDto } from "@/domain/chat-contracts";
+import { resolveOrganizationCapabilities } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { requireGroupAccess, GroupError } from "@/server/groups";
 import { requireOrganizationAccess } from "@/server/organizations";
@@ -29,8 +30,7 @@ type ChatRow = {
   editedAt: Date | null;
   deletedAt: Date | null;
 };
-type ChatReadCursor = { id: string; createdAt: Date } | null;
-type ChatReaderRow = { userId: string; displayName: string; cursor: ChatReadCursor };
+type ChatReaderRow = { userId: string; displayName: string; cursorId: string | null };
 
 function normalizeScope(scope: ChatScope): ChatScope {
   const id = normalizeUuid(scope.id);
@@ -56,18 +56,6 @@ function decodeCursor(value: unknown): ChatCursor | undefined {
   } catch {
     throw new ChatError("invalid_cursor");
   }
-}
-
-function afterCursor(cursor: ChatReadCursor | undefined) {
-  if (!cursor) return undefined;
-  return or(
-    gt(chatMessages.createdAt, cursor.createdAt),
-    and(eq(chatMessages.createdAt, cursor.createdAt), gt(chatMessages.id, cursor.id)),
-  );
-}
-
-function hasReadThrough(cursor: ChatReadCursor, message: Pick<ChatRow, "id" | "createdAt">) {
-  return Boolean(cursor && (cursor.createdAt > message.createdAt || (cursor.createdAt.getTime() === message.createdAt.getTime() && cursor.id >= message.id)));
 }
 
 export function encodeChatCursor(cursor: { createdAt: Date; id: string }) {
@@ -118,59 +106,85 @@ async function recipientIds(database: Database, scope: ChatScope) {
   return rows.map(({ userId }) => userId);
 }
 
-const cursorMessages = aliasedTable(chatMessages, "chat_read_cursor_messages");
-
 async function listEligibleReaders(database: Database, scope: ChatScope, threadId: string): Promise<ChatReaderRow[]> {
-  const rows = scope.type === "organization"
-    ? await database
+  if (scope.type === "organization") {
+    const rows = await database
       .select({
         userId: organizationMemberships.userId,
         displayName: users.name,
         cursorId: chatThreadReads.lastReadMessageId,
-        cursorCreatedAt: cursorMessages.createdAt,
+        role: organizationMemberships.role,
+        customCapabilities: organizationMemberships.customCapabilities,
       })
       .from(organizationMemberships)
       .innerJoin(users, eq(users.id, organizationMemberships.userId))
       .leftJoin(chatThreadReads, and(eq(chatThreadReads.threadId, threadId), eq(chatThreadReads.userId, organizationMemberships.userId)))
-      .leftJoin(cursorMessages, eq(cursorMessages.id, chatThreadReads.lastReadMessageId))
-      .where(eq(organizationMemberships.organizationId, scope.id))
-      : await database
-        .select({
-          userId: groupMemberships.userId,
-          displayName: sql<string>`coalesce(${groupParticipants.displayName}, ${users.name})`,
-          cursorId: chatThreadReads.lastReadMessageId,
-          cursorCreatedAt: cursorMessages.createdAt,
-        })
-        .from(groupMemberships)
-        .innerJoin(users, eq(users.id, groupMemberships.userId))
-        .leftJoin(groupParticipants, and(eq(groupParticipants.groupId, groupMemberships.groupId), eq(groupParticipants.userId, groupMemberships.userId)))
-        .leftJoin(chatThreadReads, and(eq(chatThreadReads.threadId, threadId), eq(chatThreadReads.userId, groupMemberships.userId)))
-        .leftJoin(cursorMessages, eq(cursorMessages.id, chatThreadReads.lastReadMessageId))
-        .where(eq(groupMemberships.groupId, scope.id));
+      .where(eq(organizationMemberships.organizationId, scope.id));
+    return rows
+      .filter((row) => resolveOrganizationCapabilities(row.role, row.customCapabilities).has("chat.view"))
+      .map((row) => ({
+        userId: row.userId,
+        displayName: row.displayName,
+        cursorId: row.cursorId,
+      }));
+  }
+
+  const rows = await database
+    .select({
+      userId: groupMemberships.userId,
+      displayName: sql<string>`coalesce(${groupParticipants.displayName}, ${users.name})`,
+      cursorId: chatThreadReads.lastReadMessageId,
+    })
+    .from(groupMemberships)
+    .innerJoin(users, eq(users.id, groupMemberships.userId))
+    .leftJoin(groupParticipants, and(eq(groupParticipants.groupId, groupMemberships.groupId), eq(groupParticipants.userId, groupMemberships.userId)))
+    .leftJoin(chatThreadReads, and(eq(chatThreadReads.threadId, threadId), eq(chatThreadReads.userId, groupMemberships.userId)))
+    .where(eq(groupMemberships.groupId, scope.id));
   return rows.map((row) => ({
     userId: row.userId,
     displayName: row.displayName,
-    cursor: row.cursorId && row.cursorCreatedAt ? { id: row.cursorId, createdAt: row.cursorCreatedAt } : null,
+    cursorId: row.cursorId,
   }));
 }
 
-async function unreadCount(database: Database, threadId: string, viewerUserId: string, cursor: ChatReadCursor | undefined) {
-  const [row] = await database
+async function unreadCount(database: Database, threadId: string, viewerUserId: string, cursorId: string | undefined) {
+  const cursorMessage = aliasedTable(chatMessages, "chat_unread_cursor_message");
+  const rows = await database
     .select({ count: sql<number>`count(*)`.mapWith(Number) })
     .from(chatMessages)
+    .leftJoin(cursorMessage, sql`${cursorId ?? null}::uuid = ${cursorMessage.id}`)
     .where(and(
       eq(chatMessages.threadId, threadId),
       ne(chatMessages.senderUserId, viewerUserId),
       isNull(chatMessages.deletedAt),
-      afterCursor(cursor),
+      cursorId ? sql`(${chatMessages.createdAt}, ${chatMessages.id}) > (${cursorMessage.createdAt}, ${cursorMessage.id})` : undefined,
     ));
+  const row = rows[0] as { count?: number } | undefined;
   return Number(row?.count ?? 0);
 }
 
-function receiptNames(message: ChatRow, readers: ChatReaderRow[]) {
-  return readers
-    .filter((reader) => reader.userId !== message.senderUserId && hasReadThrough(reader.cursor, message))
-    .map((reader) => reader.displayName);
+async function receiptNamesByMessage(database: Database, threadId: string, messages: ChatRow[], readers: ChatReaderRow[]) {
+  const namesByMessage = new Map<string, string[]>();
+  if (messages.length === 0 || readers.length === 0) return namesByMessage;
+  const readerNames = new Map(readers.map((reader) => [reader.userId, reader.displayName]));
+  const receiptCursorMessage = aliasedTable(chatMessages, "chat_receipt_cursor_message");
+  const rows = await database
+    .select({ messageId: chatMessages.id, readerUserId: chatThreadReads.userId })
+    .from(chatMessages)
+    .innerJoin(chatThreadReads, and(eq(chatThreadReads.threadId, threadId), inArray(chatThreadReads.userId, [...readerNames.keys()])))
+    .innerJoin(receiptCursorMessage, eq(receiptCursorMessage.id, chatThreadReads.lastReadMessageId))
+    .where(and(
+      eq(chatMessages.threadId, threadId),
+      inArray(chatMessages.id, messages.map((message) => message.id)),
+      ne(chatMessages.senderUserId, chatThreadReads.userId),
+      sql`(${receiptCursorMessage.createdAt}, ${receiptCursorMessage.id}) >= (${chatMessages.createdAt}, ${chatMessages.id})`,
+    ));
+  for (const row of rows) {
+    const displayName = readerNames.get(row.readerUserId);
+    if (!displayName) continue;
+    namesByMessage.set(row.messageId, [...(namesByMessage.get(row.messageId) ?? []), displayName]);
+  }
+  return namesByMessage;
 }
 
 function freshnessData(scope: ChatScope, threadId: string) {
@@ -187,9 +201,7 @@ function publishFreshness(scope: ChatScope, threadId: string, userIds: string[])
 
 async function listMessages(database: Database, scope: ChatScope, threadId: string, viewerUserId: string, canSend: boolean, canModerate: boolean, before?: unknown) {
   const cursor = decodeCursor(before);
-  const cursorWhere = cursor
-    ? or(lt(chatMessages.createdAt, new Date(cursor.createdAt)), and(eq(chatMessages.createdAt, new Date(cursor.createdAt)), lt(chatMessages.id, cursor.id)))
-    : undefined;
+  const paginationCursorMessage = aliasedTable(chatMessages, "chat_pagination_cursor_message");
   const rows = await database
     .select({
       id: chatMessages.id,
@@ -205,7 +217,12 @@ async function listMessages(database: Database, scope: ChatScope, threadId: stri
     .innerJoin(chatThreads, eq(chatThreads.id, chatMessages.threadId))
     .innerJoin(users, eq(users.id, chatMessages.senderUserId))
     .leftJoin(groupParticipants, eq(groupParticipants.id, chatMessages.senderParticipantId))
-    .where(and(eq(chatMessages.threadId, threadId), scopeWhere(scope), cursorWhere))
+    .leftJoin(paginationCursorMessage, sql`${cursor?.id ?? null}::uuid = ${paginationCursorMessage.id}`)
+    .where(and(
+      eq(chatMessages.threadId, threadId),
+      scopeWhere(scope),
+      cursor ? sql`(${chatMessages.createdAt}, ${chatMessages.id}) < (${paginationCursorMessage.createdAt}, ${paginationCursorMessage.id})` : undefined,
+    ))
     .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id))
     .limit(CHAT_PAGE_SIZE + 1);
   const hasMore = rows.length > CHAT_PAGE_SIZE;
@@ -213,14 +230,15 @@ async function listMessages(database: Database, scope: ChatScope, threadId: stri
   const avatarMetadata = await getUserAvatarMetadataForViewer(database, viewerUserId, [...new Set(orderedRows.map((row) => row.senderUserId))], scope);
   const readers = await listEligibleReaders(database, scope, threadId);
   const viewer = readers.find((reader) => reader.userId === viewerUserId);
-  const unread = await unreadCount(database, threadId, viewerUserId, viewer?.cursor ?? undefined);
+  const receipts = await receiptNamesByMessage(database, threadId, orderedRows, readers);
+  const unread = await unreadCount(database, threadId, viewerUserId, viewer?.cursorId ?? undefined);
   const latestVisibleMessageId = orderedRows.at(-1)?.id ?? null;
   const messages = orderedRows.map((row, index) => {
     const own = row.senderUserId === viewerUserId;
     const deleted = row.deletedAt !== null;
     const previous = orderedRows[index - 1];
     const grouped = Boolean(previous && !deleted && previous.deletedAt === null && previous.senderUserId === row.senderUserId && previous.createdAt.toISOString().slice(0, 10) === row.createdAt.toISOString().slice(0, 10));
-    const seenBy = receiptNames(row, readers);
+    const seenBy = receipts.get(row.id) ?? [];
     const message: ChatMessageDto = {
       id: row.id,
       body: deleted ? null : row.body,
@@ -261,15 +279,12 @@ export async function getGroupChat(database: Database, groupId: string, viewerUs
 async function getChatUnreadCount(database: Database, scope: ChatScope, viewerUserId: string) {
   const thread = await findThread(database, scope);
   if (!thread) return 0;
-  const cursorMessage = aliasedTable(chatMessages, "chat_viewer_cursor_message");
   const [read] = await database
-    .select({ lastReadMessageId: chatThreadReads.lastReadMessageId, cursorCreatedAt: cursorMessage.createdAt })
+    .select({ lastReadMessageId: chatThreadReads.lastReadMessageId })
     .from(chatThreadReads)
-    .leftJoin(cursorMessage, eq(cursorMessage.id, chatThreadReads.lastReadMessageId))
     .where(and(eq(chatThreadReads.threadId, thread.id), eq(chatThreadReads.userId, viewerUserId)))
     .limit(1);
-  const cursor = read?.lastReadMessageId && read.cursorCreatedAt ? { id: read.lastReadMessageId, createdAt: read.cursorCreatedAt } : undefined;
-  return unreadCount(database, thread.id, viewerUserId, cursor);
+  return unreadCount(database, thread.id, viewerUserId, read?.lastReadMessageId ?? undefined);
 }
 
 export async function getOrganizationChatUnreadCount(database: Database, organizationId: string, viewerUserId: string) {
