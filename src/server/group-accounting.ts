@@ -112,7 +112,7 @@ export type GroupExpenseDetail = GroupExpenseRecord & {
   creator: GroupParticipantPresentation;
   payer: GroupParticipantPresentation;
   shares: GroupExpenseSharePresentation[];
-  obligations: GroupObligationPresentation[];
+  obligations: GroupObligationApplicationSummary[];
   receipts: GroupExpenseReceiptMetadata[];
   lifecycleEvents: GroupExpenseLifecycleEventRecord[];
 };
@@ -187,22 +187,21 @@ async function loadParticipantMap(database: Database, groupId: string, participa
   }));
 }
 
-async function loadObligationApplicationSummary(database: Database, groupId: string, obligationId: string): Promise<GroupObligationApplicationSummary> {
-  const [obligation] = await database
-    .select()
-    .from(groupObligations)
-    .where(and(eq(groupObligations.groupId, groupId), eq(groupObligations.id, obligationId)))
-    .limit(1);
-  if (!obligation) throw new GroupAccountingError("not_found");
-  const [expense] = await database
-    .select({ description: groupExpenses.description, occurredAt: groupExpenses.occurredAt, state: groupExpenses.state })
-    .from(groupExpenses)
-    .where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, obligation.sourceExpenseId)))
-    .limit(1);
-  if (!expense) throw new GroupAccountingError("financial_integrity");
-  const applications = await database
+type ObligationApplicationRow = {
+  id: string;
+  obligationId: string;
+  settlementId: string;
+  appliedAmount: number;
+  createdAt: Date;
+  settlementConfirmedAt: Date | null;
+};
+
+async function loadObligationApplicationRows(database: Database, groupId: string, obligationIds: string[]): Promise<ObligationApplicationRow[]> {
+  if (obligationIds.length === 0) return [];
+  return database
     .select({
       id: groupSettlementApplications.id,
+      obligationId: groupSettlementApplications.obligationId,
       settlementId: groupSettlementApplications.settlementId,
       appliedAmount: groupSettlementApplications.appliedAmount,
       createdAt: groupSettlementApplications.createdAt,
@@ -218,26 +217,56 @@ async function loadObligationApplicationSummary(database: Database, groupId: str
     )
     .where(and(
       eq(groupSettlementApplications.groupId, groupId),
-      eq(groupSettlementApplications.obligationId, obligationId),
+      inArray(groupSettlementApplications.obligationId, obligationIds),
     ))
-    .orderBy(asc(groupSettlements.confirmedAt), asc(groupSettlementApplications.id));
-  const participantMap = await loadParticipantMap(database, groupId, [obligation.debtorParticipantId, obligation.creditorParticipantId]);
-  const appliedAmount = applications.reduce((total, application) => total + application.appliedAmount, 0);
-  const explanatoryUnappliedAmount = Math.max(0, obligation.originalAmount - appliedAmount);
-  const sourceExpenseState = expense.state as GroupExpenseState;
+    .orderBy(
+      asc(groupSettlementApplications.obligationId),
+      asc(groupSettlements.confirmedAt),
+      asc(groupSettlementApplications.id),
+    );
+}
+
+function buildObligationApplicationSummary(
+  obligation: GroupObligationRecord,
+  expense: Pick<GroupExpenseRecord, "description" | "occurredAt" | "state">,
+  applications: ObligationApplicationRow[],
+  participants: Map<string, GroupParticipantPresentation>,
+): GroupObligationApplicationSummary {
+  const applicationPresentations = applications.map((application) => ({
+    ...application,
+    settlementConfirmedAt: application.settlementConfirmedAt!,
+  }));
+  const appliedAmount = applicationPresentations.reduce((total, application) => total + application.appliedAmount, 0);
   return {
     ...obligation,
     sourceExpenseDescription: expense.description,
     sourceExpenseOccurredAt: expense.occurredAt,
-    sourceExpenseState,
-    debtor: participantMap.get(obligation.debtorParticipantId) ?? { ...fallbackParticipant(obligation.debtorParticipantId) },
-    creditor: participantMap.get(obligation.creditorParticipantId) ?? { ...fallbackParticipant(obligation.creditorParticipantId) },
-    applications: applications.map((application) => ({
-      ...application,
-      settlementConfirmedAt: application.settlementConfirmedAt!,
-    })),
-    explanatoryUnappliedAmount,
+    sourceExpenseState: expense.state as GroupExpenseState,
+    debtor: participants.get(obligation.debtorParticipantId) ?? fallbackParticipant(obligation.debtorParticipantId),
+    creditor: participants.get(obligation.creditorParticipantId) ?? fallbackParticipant(obligation.creditorParticipantId),
+    applications: applicationPresentations,
+    explanatoryUnappliedAmount: Math.max(0, obligation.originalAmount - appliedAmount),
   };
+}
+
+async function loadObligationApplicationSummary(database: Database, groupId: string, obligationId: string): Promise<GroupObligationApplicationSummary> {
+  const [obligation] = await database
+    .select()
+    .from(groupObligations)
+    .where(and(eq(groupObligations.groupId, groupId), eq(groupObligations.id, obligationId)))
+    .limit(1);
+  if (!obligation) throw new GroupAccountingError("not_found");
+  const [expense] = await database
+    .select({ description: groupExpenses.description, occurredAt: groupExpenses.occurredAt, state: groupExpenses.state })
+    .from(groupExpenses)
+    .where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, obligation.sourceExpenseId)))
+    .limit(1);
+  if (!expense) throw new GroupAccountingError("financial_integrity");
+  const [applications, participants] = await Promise.all([
+    loadObligationApplicationRows(database, groupId, [obligationId]),
+    loadParticipantMap(database, groupId, [obligation.debtorParticipantId, obligation.creditorParticipantId]),
+  ]);
+  return buildObligationApplicationSummary(obligation, expense, applications, participants);
 }
 
 async function loadExpense(database: Database, groupId: string, expenseId: string): Promise<GroupExpenseDetail> {
@@ -303,26 +332,36 @@ async function loadExpense(database: Database, groupId: string, expenseId: strin
         asc(groupExpenseLifecycleEvents.id),
       ),
   ]);
-  const participantMap = await loadParticipantMap(database, groupId, [
-    expense.creatorParticipantId,
-    expense.payerParticipantId,
-    ...shares.map((share) => share.participantId),
-    ...obligations.flatMap((obligation) => [
-      obligation.debtorParticipantId,
-      obligation.creditorParticipantId,
+  const [participantMap, applicationRows] = await Promise.all([
+    loadParticipantMap(database, groupId, [
+      expense.creatorParticipantId,
+      expense.payerParticipantId,
+      ...shares.map((share) => share.participantId),
+      ...obligations.flatMap((obligation) => [
+        obligation.debtorParticipantId,
+        obligation.creditorParticipantId,
+      ]),
     ]),
+    loadObligationApplicationRows(database, groupId, obligations.map((obligation) => obligation.id)),
   ]);
+  const applicationsByObligationId = new Map<string, ObligationApplicationRow[]>();
+  for (const application of applicationRows) {
+    const existing = applicationsByObligationId.get(application.obligationId) ?? [];
+    existing.push(application);
+    applicationsByObligationId.set(application.obligationId, existing);
+  }
   const participant = (id: string) => participantMap.get(id) ?? { id, userId: null, displayName: "Participant", label: null, status: "former" as const };
   return {
     ...expense,
     creator: participant(expense.creatorParticipantId),
     payer: participant(expense.payerParticipantId),
     shares: shares.map((share) => ({ ...share, participant: participant(share.participantId) })),
-    obligations: obligations.map((obligation) => ({
-      ...obligation,
-      debtor: participant(obligation.debtorParticipantId),
-      creditor: participant(obligation.creditorParticipantId),
-    })),
+    obligations: obligations.map((obligation) => buildObligationApplicationSummary(
+      obligation,
+      expense,
+      applicationsByObligationId.get(obligation.id) ?? [],
+      participantMap,
+    )),
     receipts,
     lifecycleEvents,
   };

@@ -40,7 +40,30 @@ const recipient = {
   status: "active" as const,
 };
 
-function settlement(state: "pending" | "confirmed", proof: object | null = null) {
+function application(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "application-a",
+    settlementId: "settlement-a",
+    obligationId: "obligation-a",
+    appliedAmount: 70000,
+    createdAt: new Date("2026-08-27T13:00:00Z"),
+    sourceExpenseId: "expense-a",
+    sourceExpenseDescription: "Dinner",
+    sourceExpenseOccurredAt: new Date("2026-08-26T12:00:00Z"),
+    sourceExpenseState: "confirmed" as const,
+    obligationOriginalAmount: 70000,
+    obligationVoidedAt: null,
+    debtor: sender,
+    creditor: recipient,
+    ...overrides,
+  };
+}
+
+function settlement(
+  state: "pending" | "confirmed",
+  proof: object | null = null,
+  applications: object[] = [],
+) {
   return {
     id: "settlement-a",
     groupId: "group-a",
@@ -54,6 +77,7 @@ function settlement(state: "pending" | "confirmed", proof: object | null = null)
     sender,
     recipient,
     proof,
+    applications,
   };
 }
 
@@ -71,6 +95,7 @@ describe("Group settlement detail", () => {
     render(await GroupSettlementDetailPage({ params: Promise.resolve({ groupId: "group-a", settlementId: "settlement-a" }) }));
     expect(screen.getByRole("heading", { name: /Pending/ })).toBeInTheDocument();
     expect(screen.getByText(/has not reduced the canonical Group balance yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Payment applications" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Confirm payment/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add payment proof" })).toBeDisabled();
   });
@@ -91,12 +116,68 @@ describe("Group settlement detail", () => {
         mediaType: "image/png",
         byteSize: 8,
         createdAt: new Date("2026-08-27T12:30:00Z"),
-      })),
+      }, [application()])),
     });
     render(await GroupSettlementDetailPage({ params: Promise.resolve({ groupId: "group-a", settlementId: "settlement-a" }) }));
     expect(screen.getByRole("heading", { name: /Confirmed/ })).toBeInTheDocument();
     expect(screen.getByText(/canonical Group balance already includes this payment/)).toBeInTheDocument();
     expect(screen.getByText(/read-only after confirmation/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Add payment proof|Replace payment proof/ })).not.toBeInTheDocument();
+  });
+
+  it("shows one confirmed application and links to its source expense", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "user-a" } });
+    mocks.createSettlementRepository.mockReturnValue({
+      getSettlement: vi.fn().mockResolvedValue(settlement("confirmed", null, [application()])),
+    });
+
+    render(await GroupSettlementDetailPage({ params: Promise.resolve({ groupId: "group-a", settlementId: "settlement-a" }) }));
+
+    expect(screen.getByRole("heading", { name: "Payment applications" })).toBeInTheDocument();
+    expect(screen.getByText("Dinner")).toBeInTheDocument();
+    const expenseLink = screen.getByRole("link", { name: /View Dinner expense and payment application/ });
+    expect(expenseLink).toHaveTextContent("Rp 70.000");
+    expect(expenseLink).toHaveAttribute("href", "/app/personal/groups/group-a/expenses/expense-a");
+  });
+
+  it("shows each application across multiple obligations and preserves void history", async () => {
+    const voided = application({
+      id: "application-b",
+      obligationId: "obligation-b",
+      appliedAmount: 40000,
+      sourceExpenseId: "expense-b",
+      sourceExpenseDescription: "Taxi",
+      sourceExpenseState: "voided",
+      obligationOriginalAmount: 40000,
+      obligationVoidedAt: new Date("2026-08-28T12:00:00Z"),
+    });
+    mocks.createSettlementRepository.mockReturnValue({
+      getSettlement: vi.fn().mockResolvedValue({
+        ...settlement("confirmed", null, [
+          application({ appliedAmount: 60000 }),
+          voided,
+        ]),
+        amount: 100000,
+      }),
+    });
+
+    render(await GroupSettlementDetailPage({ params: Promise.resolve({ groupId: "group-a", settlementId: "settlement-a" }) }));
+
+    expect(screen.getByText("Dinner")).toBeInTheDocument();
+    expect(screen.getByText("Taxi")).toBeInTheDocument();
+    expect(screen.getAllByText("Voided later")).toHaveLength(1);
+    expect(screen.getByText(/source expense was later voided/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View Taxi expense/ })).toHaveAttribute("href", "/app/personal/groups/group-a/expenses/expense-b");
+  });
+
+  it("does not claim a complete allocation when confirmed application data is incomplete", async () => {
+    mocks.createSettlementRepository.mockReturnValue({
+      getSettlement: vi.fn().mockResolvedValue(settlement("confirmed")),
+    });
+
+    render(await GroupSettlementDetailPage({ params: Promise.resolve({ groupId: "group-a", settlementId: "settlement-a" }) }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("unavailable or incomplete");
+    expect(screen.queryByText("Applied")).not.toBeInTheDocument();
   });
 });

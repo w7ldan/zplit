@@ -33,6 +33,7 @@ function chain(value: unknown[]) {
   type FakeQuery = {
     from: (...args: unknown[]) => FakeQuery;
     leftJoin: (...args: unknown[]) => FakeQuery;
+    innerJoin: (...args: unknown[]) => FakeQuery;
     where: (...args: unknown[]) => FakeQuery;
     limit: (...args: unknown[]) => FakeQuery;
     orderBy: (...args: unknown[]) => FakeQuery;
@@ -44,7 +45,7 @@ function chain(value: unknown[]) {
   };
   const query = {} as FakeQuery;
   const dynamicQuery = query as unknown as Record<string, unknown>;
-  for (const method of ["from", "leftJoin", "where", "limit", "orderBy"]) dynamicQuery[method] = vi.fn(() => query);
+  for (const method of ["from", "leftJoin", "innerJoin", "where", "limit", "orderBy"]) dynamicQuery[method] = vi.fn(() => query);
   query.for = vi.fn(() => Promise.resolve(value));
   query.returning = vi.fn(async () => value);
   query.then = (resolve: (value: unknown[]) => unknown, reject?: (reason: unknown) => unknown) => Promise.resolve(value).then(resolve, reject);
@@ -66,6 +67,9 @@ function databaseFor(selects: unknown[][], updates: unknown[][], inserts: unknow
   });
   const transaction = { select, update, insert };
   const database = {
+    select,
+    update,
+    insert,
     transaction: vi.fn(async (callback: (value: typeof transaction) => unknown) => callback(transaction)),
   } as unknown as Database;
   return { database, inserted, update };
@@ -81,7 +85,7 @@ const membership = { participantId: payerParticipantId };
 const participantMap = [{ id: debtorParticipantId, userId: "user-creator", externalName: null, label: null, userName: "Creator", membershipUserId: "user-creator" }, { id: payerParticipantId, userId: actorUserId, externalName: null, label: null, userName: "Payer", membershipUserId: actorUserId }];
 
 function detailSelects(currentExpense: ReturnType<typeof expense>, obligations: unknown[], lifecycleEvent: unknown) {
-  return [[currentExpense], [share], obligations, [], [lifecycleEvent], participantMap, [{ userId: actorUserId }]];
+  return [[currentExpense], [share], obligations, [], [lifecycleEvent], [], participantMap, [{ userId: actorUserId }]];
 }
 
 afterEach(() => vi.clearAllMocks());
@@ -140,5 +144,40 @@ describe("Group expense lifecycle server operations", () => {
     const inactive = databaseFor([[confirmed], [payer], []], [], []);
     await expect(createGroupAccountingRepository(inactive.database, groupId).voidExpenseAsPayer(expenseId, actorUserId)).rejects.toMatchObject({ code: "not_member" });
     expect(inactive.update).not.toHaveBeenCalled();
+  });
+
+  it("loads obligation applications in one batch and keeps access Group-scoped", async () => {
+    const obligation = {
+      id: "66666666-6666-4666-8666-666666666666",
+      groupId,
+      sourceExpenseId: expenseId,
+      sourceShareId: share.id,
+      debtorParticipantId,
+      creditorParticipantId: payerParticipantId,
+      originalAmount: 100,
+      voidedAt: null,
+      createdAt: new Date(),
+    };
+    const application = {
+      id: "application-a",
+      obligationId: obligation.id,
+      settlementId: "settlement-a",
+      appliedAmount: 40,
+      createdAt: new Date(),
+      settlementConfirmedAt: new Date(),
+    };
+    const db = databaseFor(
+      [[expense("confirmed")], [share], [obligation], [], [], participantMap, [application]],
+      [],
+      [],
+    );
+
+    const result = await createGroupAccountingRepository(db.database, groupId).getExpense(expenseId, actorUserId);
+
+    expect(result.obligations[0]?.applications).toEqual([expect.objectContaining({ appliedAmount: 40 })]);
+    expect(result.obligations[0]?.explanatoryUnappliedAmount).toBe(60);
+
+    mocks.requireGroupAccess.mockRejectedValueOnce(new mocks.FakeGroupError("not_member"));
+    await expect(createGroupAccountingRepository(db.database, groupId).getObligationApplications(obligation.id, "former-user")).rejects.toMatchObject({ code: "not_member" });
   });
 });

@@ -15,6 +15,7 @@ import { formatRupiah } from "@/domain/rupiah";
 import {
   createGroupAccountingRepository,
   GroupAccountingError,
+  type GroupObligationApplicationSummary,
   type GroupExpenseDetail,
 } from "@/server/group-accounting";
 import {
@@ -110,7 +111,92 @@ function GroupExpenseStatus({
   );
 }
 
-function GroupExpenseObligations({ expense }: { expense: GroupExpenseDetail }) {
+function applicationHistoryAvailable(obligation: GroupObligationApplicationSummary) {
+  if (
+    !Array.isArray(obligation.applications) ||
+    !Number.isSafeInteger(obligation.originalAmount) ||
+    !Number.isSafeInteger(obligation.explanatoryUnappliedAmount) ||
+    obligation.explanatoryUnappliedAmount < 0 ||
+    obligation.explanatoryUnappliedAmount > obligation.originalAmount
+  ) return false;
+  const appliedAmount = obligation.applications.reduce(
+    (total, application) => total + application.appliedAmount,
+    0,
+  );
+  return obligation.applications.every(
+    (application) =>
+      typeof application.id === "string" &&
+      typeof application.settlementId === "string" &&
+      Number.isSafeInteger(application.appliedAmount) &&
+      application.appliedAmount > 0 &&
+      application.settlementConfirmedAt instanceof Date,
+  ) && appliedAmount + obligation.explanatoryUnappliedAmount === obligation.originalAmount;
+}
+
+function GroupExpenseObligationApplications({
+  groupId,
+  obligation,
+}: {
+  groupId: string;
+  obligation: GroupObligationApplicationSummary;
+}) {
+  if (!applicationHistoryAvailable(obligation)) {
+    return (
+      <p className="group-expense__application-error" role="alert">
+        Payment application history is unavailable for this obligation.
+      </p>
+    );
+  }
+  if (!obligation.applications.length) {
+    return <p className="group-expense__application-empty">No payments applied to this obligation.</p>;
+  }
+  const sourceWasVoided = obligation.sourceExpenseState === "voided" || obligation.voidedAt !== null;
+  return (
+    <div className="group-expense__application-details">
+      <p className="technical-label">PAYMENT APPLICATIONS</p>
+      <div className="group-expense__application-list">
+        {obligation.applications.map((application) => (
+          <Link
+            className="group-expense__application-row"
+            href={`/app/personal/groups/${groupId}/settlements/${application.settlementId}`}
+            key={application.id}
+            aria-label={`View payment application for ${obligation.sourceExpenseDescription}`}
+          >
+            <span>
+              <LocalDateTime iso={application.settlementConfirmedAt.toISOString()} /> · Payment · {" "}
+              <GroupParticipantLabel participant={obligation.debtor} /> → {" "}
+              <GroupParticipantLabel participant={obligation.creditor} />
+            </span>
+            <strong>{formatRupiah(application.appliedAmount)}</strong>
+          </Link>
+        ))}
+      </div>
+      <dl className="group-expense__application-summary">
+        <div>
+          <dt>Original obligation</dt>
+          <dd>{formatRupiah(obligation.originalAmount)}</dd>
+        </div>
+        <div>
+          <dt>Unapplied to payments</dt>
+          <dd>{formatRupiah(obligation.explanatoryUnappliedAmount)}</dd>
+        </div>
+      </dl>
+      {sourceWasVoided ? (
+        <p className="group-expense__application-note">
+          These payment applications were recorded while the obligation was active. The source expense was later voided.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function GroupExpenseObligations({
+  expense,
+  groupId,
+}: {
+  expense: GroupExpenseDetail;
+  groupId: string;
+}) {
   const historical = expense.state === "voided";
   const canShow = expense.state === "confirmed" || historical;
   const emptyCopy =
@@ -157,9 +243,14 @@ function GroupExpenseObligations({ expense }: { expense: GroupExpenseDetail }) {
                 />
               </span>
               <span>
+                <small>Original obligation</small>
                 <strong>{formatRupiah(obligation.originalAmount)}</strong>
                 {historical ? <small>Reversed</small> : null}
               </span>
+              <GroupExpenseObligationApplications
+                groupId={groupId}
+                obligation={obligation}
+              />
             </div>
           ))}
         </div>
@@ -330,7 +421,7 @@ export default async function GroupExpenseDetailPage({
                 ))}
               </div>
             </section>
-            <GroupExpenseObligations expense={expense} />
+            <GroupExpenseObligations expense={expense} groupId={groupId} />
             <GroupExpenseHistory expense={expense} />
             <ExpenseReceipts
               expenseId={expense.id}

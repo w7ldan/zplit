@@ -17,6 +17,28 @@ function expense(state: "pending" | "confirmed" | "rejected" | "voided", overrid
   return { id: "expense-a", groupId: "group-a", creatorParticipantId: creator.id, payerParticipantId: active.id, description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), totalAmount: 150000, state, confirmedAt: state === "confirmed" || state === "voided" ? new Date("2026-08-27T13:00:00Z") : null, createdAt: new Date("2026-08-27T12:00:00Z"), updatedAt: new Date("2026-08-27T13:00:00Z"), creator, payer: active, shares: [], obligations: [], receipts: [], lifecycleEvents: [], ...overrides };
 }
 
+function obligation(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "obligation-a",
+    groupId: "group-a",
+    sourceExpenseId: "expense-a",
+    sourceShareId: "share-a",
+    debtorParticipantId: creator.id,
+    creditorParticipantId: active.id,
+    originalAmount: 100000,
+    voidedAt: null,
+    createdAt: new Date("2026-08-27T12:00:00Z"),
+    debtor: creator,
+    creditor: active,
+    sourceExpenseDescription: "Dinner",
+    sourceExpenseOccurredAt: new Date("2026-08-27T12:00:00Z"),
+    sourceExpenseState: "confirmed" as const,
+    applications: [],
+    explanatoryUnappliedAmount: 100000,
+    ...overrides,
+  };
+}
+
 function configureExpense(value: unknown) {
   mocks.createGroupAccountingRepository.mockReturnValue({ getExpense: vi.fn().mockResolvedValue(value) });
 }
@@ -39,7 +61,7 @@ describe("Group expense detail", () => {
 
   it("renders former identities and exact confirmed obligations", async () => {
     const former = { id: "former", userId: "user-c", displayName: "Charlie", label: null, status: "former" as const };
-    mocks.createGroupAccountingRepository.mockReturnValue({ getExpense: vi.fn().mockResolvedValue({ id: "expense-a", groupId: "group-a", creatorParticipantId: "former", payerParticipantId: "alice", description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), totalAmount: 150000, state: "confirmed", confirmedAt: new Date("2026-08-27T13:00:00Z"), createdAt: new Date(), updatedAt: new Date(), creator: former, payer: active, shares: [{ id: "share-a", groupId: "group-a", expenseId: "expense-a", participantId: "former", amount: 50000, createdAt: new Date(), updatedAt: new Date(), participant: former }], obligations: [{ id: "obligation-a", groupId: "group-a", sourceExpenseId: "expense-a", sourceShareId: "share-a", debtorParticipantId: "former", creditorParticipantId: "alice", originalAmount: 50000, createdAt: new Date(), debtor: former, creditor: active }], receipts: [] }) });
+    mocks.createGroupAccountingRepository.mockReturnValue({ getExpense: vi.fn().mockResolvedValue({ id: "expense-a", groupId: "group-a", creatorParticipantId: "former", payerParticipantId: "alice", description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), totalAmount: 150000, state: "confirmed", confirmedAt: new Date("2026-08-27T13:00:00Z"), createdAt: new Date(), updatedAt: new Date(), creator: former, payer: active, shares: [{ id: "share-a", groupId: "group-a", expenseId: "expense-a", participantId: "former", amount: 50000, createdAt: new Date(), updatedAt: new Date(), participant: former }], obligations: [obligation({ debtorParticipantId: former.id, debtor: former, originalAmount: 50000, explanatoryUnappliedAmount: 50000 })], receipts: [] }) });
     render(await GroupExpenseDetailPage({ params: Promise.resolve({ groupId: "group-a", expenseId: "expense-a" }) }));
     expect(screen.getAllByText("Charlie · Former member").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Charlie · Former member")[1]?.closest(".group-expense__obligation-row")).toHaveTextContent("owes Alice");
@@ -82,7 +104,7 @@ describe("Group expense detail", () => {
     cleanup();
 
     for (const state of ["rejected", "voided"] as const) {
-      configureExpense(expense(state, { obligations: state === "voided" ? [{ id: "obligation-a", groupId: "group-a", sourceExpenseId: "expense-a", sourceShareId: "share-a", debtorParticipantId: "creator", creditorParticipantId: "alice", originalAmount: 50000, voidedAt: new Date(), createdAt: new Date(), debtor: creator, creditor: active }] : [] }));
+      configureExpense(expense(state, { obligations: state === "voided" ? [obligation({ debtorParticipantId: creator.id, creditorParticipantId: active.id, originalAmount: 50000, voidedAt: new Date(), explanatoryUnappliedAmount: 50000, sourceExpenseState: "voided" })] : [] }));
       render(await GroupExpenseDetailPage({ params: Promise.resolve({ groupId: "group-a", expenseId: "expense-a" }) }));
       expect(screen.queryByRole("button", { name: "Confirm I paid" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Reject claim" })).not.toBeInTheDocument();
@@ -103,7 +125,7 @@ describe("Group expense detail", () => {
     expect(screen.queryByText(/Confirmed by/)).not.toBeInTheDocument();
 
     configureExpense(expense("voided", {
-      obligations: [{ id: "obligation-a", groupId: "group-a", sourceExpenseId: "expense-a", sourceShareId: "share-a", debtorParticipantId: "creator", creditorParticipantId: "alice", originalAmount: 50000, voidedAt: new Date(), createdAt: new Date(), debtor: creator, creditor: active }],
+      obligations: [obligation({ debtorParticipantId: creator.id, creditorParticipantId: active.id, originalAmount: 50000, voidedAt: new Date(), explanatoryUnappliedAmount: 50000, sourceExpenseState: "voided" })],
       lifecycleEvents: [
         { id: "event-created", eventType: "created", actorUserId: "user-c", fromState: null, toState: "pending", createdAt: new Date("2026-08-27T12:00:00Z") },
         { id: "event-confirmed", eventType: "payer_confirmed", actorUserId: "user-a", fromState: "pending", toState: "confirmed", createdAt: new Date("2026-08-27T12:05:00Z") },
@@ -116,5 +138,83 @@ describe("Group expense detail", () => {
     expect(screen.getByText("Reversed")).toBeInTheDocument();
     expect(screen.getByText("Confirmed by Alice")).toBeInTheDocument();
     expect(screen.getByText("Voided by Alice")).toBeInTheDocument();
+  });
+
+  it("shows an original obligation without implying a current debt when no payments are applied", async () => {
+    configureExpense(expense("confirmed", { obligations: [obligation()] }));
+
+    render(await GroupExpenseDetailPage({ params: Promise.resolve({ groupId: "group-a", expenseId: "expense-a" }) }));
+
+    expect(screen.getByText("Original obligation")).toBeInTheDocument();
+    expect(screen.getByText("Rp 100.000")).toBeInTheDocument();
+    expect(screen.getByText("No payments applied to this obligation.")).toBeInTheDocument();
+    expect(screen.queryByText(/Still owed|Outstanding|Collectible|Amount due/)).not.toBeInTheDocument();
+  });
+
+  it("shows partial application history and labels the remainder as unapplied to payments", async () => {
+    configureExpense(expense("confirmed", {
+      obligations: [obligation({
+        applications: [{
+          id: "application-a",
+          settlementId: "settlement-a",
+          appliedAmount: 40000,
+          createdAt: new Date("2026-08-29T12:00:00Z"),
+          settlementConfirmedAt: new Date("2026-08-29T12:00:00Z"),
+        }],
+        explanatoryUnappliedAmount: 60000,
+      })],
+    }));
+
+    render(await GroupExpenseDetailPage({ params: Promise.resolve({ groupId: "group-a", expenseId: "expense-a" }) }));
+
+    expect(screen.getByText("PAYMENT APPLICATIONS")).toBeInTheDocument();
+    expect(screen.getByText("Rp 40.000")).toBeInTheDocument();
+    expect(screen.getByText("Unapplied to payments")).toBeInTheDocument();
+    expect(screen.getByText("Rp 60.000")).toBeInTheDocument();
+    expect(screen.queryByText(/Still owed|Outstanding|Collectible|Amount due/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View payment application/ })).toHaveAttribute("href", "/app/personal/groups/group-a/settlements/settlement-a");
+  });
+
+  it("keeps multiple payment applications as separate linked events", async () => {
+    configureExpense(expense("confirmed", {
+      obligations: [obligation({
+        applications: [
+          { id: "application-a", settlementId: "settlement-a", appliedAmount: 30000, createdAt: new Date(), settlementConfirmedAt: new Date("2026-08-29T12:00:00Z") },
+          { id: "application-b", settlementId: "settlement-b", appliedAmount: 50000, createdAt: new Date(), settlementConfirmedAt: new Date("2026-08-30T12:00:00Z") },
+        ],
+        explanatoryUnappliedAmount: 20000,
+      })],
+    }));
+
+    render(await GroupExpenseDetailPage({ params: Promise.resolve({ groupId: "group-a", expenseId: "expense-a" }) }));
+
+    const links = screen.getAllByRole("link", { name: /View payment application/ });
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute("href", "/app/personal/groups/group-a/settlements/settlement-a");
+    expect(links[1]).toHaveAttribute("href", "/app/personal/groups/group-a/settlements/settlement-b");
+    expect(screen.getByText("Rp 20.000")).toBeInTheDocument();
+  });
+
+  it("keeps application history visible when the source expense was later voided", async () => {
+    configureExpense(expense("voided", {
+      obligations: [obligation({
+        voidedAt: new Date("2026-08-30T12:00:00Z"),
+        sourceExpenseState: "voided",
+        applications: [{
+          id: "application-a",
+          settlementId: "settlement-a",
+          appliedAmount: 40000,
+          createdAt: new Date("2026-08-29T12:00:00Z"),
+          settlementConfirmedAt: new Date("2026-08-29T12:00:00Z"),
+        }],
+        explanatoryUnappliedAmount: 60000,
+      })],
+    }));
+
+    render(await GroupExpenseDetailPage({ params: Promise.resolve({ groupId: "group-a", expenseId: "expense-a" }) }));
+
+    expect(screen.getByText("Rp 40.000")).toBeInTheDocument();
+    expect(screen.getByText(/source expense was later voided/)).toBeInTheDocument();
+    expect(screen.getByText("Reversed")).toBeInTheDocument();
   });
 });

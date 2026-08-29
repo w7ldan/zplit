@@ -12,6 +12,7 @@ import { formatRupiah } from "@/domain/rupiah";
 import {
   createGroupSettlementRepository,
   GroupSettlementError,
+  type GroupSettlementDetail,
   type GroupSettlementPresentation,
 } from "@/server/group-settlements";
 import { confirmGroupSettlementAction } from "../actions";
@@ -98,6 +99,72 @@ function GroupSettlementSummary({
   );
 }
 
+function GroupSettlementApplications({
+  groupId,
+  settlement,
+}: {
+  groupId: string;
+  settlement: GroupSettlementDetail;
+}) {
+  if (settlement.state !== "confirmed") return null;
+  const applicationTotal = settlement.applications.reduce(
+    (total, application) => total + application.appliedAmount,
+    0,
+  );
+  const complete = settlement.applications.length > 0 && applicationTotal === settlement.amount;
+  const hasVoidedApplication = settlement.applications.some(
+    (application) => application.sourceExpenseState === "voided" || application.obligationVoidedAt !== null,
+  );
+  return (
+    <section
+      className="group-settlement__applications"
+      aria-labelledby="group-settlement-applications-heading"
+    >
+      <div className="group-section-heading">
+        <div>
+          <p className="technical-label">APPLIED TO</p>
+          <h2 id="group-settlement-applications-heading">Payment applications</h2>
+        </div>
+      </div>
+      {complete ? (
+        <div className="group-settlement__application-list">
+          {settlement.applications.map((application) => {
+            const sourceWasVoided = application.sourceExpenseState === "voided" || application.obligationVoidedAt !== null;
+            return (
+              <Link
+                className="group-settlement__application-row"
+                href={`/app/personal/groups/${groupId}/expenses/${application.sourceExpenseId}`}
+                key={application.id}
+                aria-label={`View ${application.sourceExpenseDescription} expense and payment application`}
+              >
+                <span className="group-settlement__application-details">
+                  <strong>{application.sourceExpenseDescription}</strong>
+                  <small>
+                    <LocalDateTime iso={application.sourceExpenseOccurredAt.toISOString()} /> · {" "}
+                    <GroupParticipantLabel participant={application.debtor} /> owes {" "}
+                    <GroupParticipantLabel participant={application.creditor} />
+                  </small>
+                  {sourceWasVoided ? <small>Voided later</small> : null}
+                </span>
+                <strong>{formatRupiah(application.appliedAmount)}</strong>
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="group-settlement__application-error" role="alert">
+          Application history is unavailable or incomplete. No allocation is shown here; the payment remains authoritative.
+        </p>
+      )}
+      {hasVoidedApplication && complete ? (
+        <p className="group-settlement__application-note">
+          This payment was applied while the obligation was active. The source expense was later voided.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export default async function GroupSettlementDetailPage({
   params,
   searchParams = Promise.resolve({}),
@@ -168,6 +235,10 @@ export default async function GroupSettlementDetailPage({
             <GroupSettlementSummary
               settlement={settlement}
               canConfirm={canConfirm}
+            />
+            <GroupSettlementApplications
+              groupId={groupId}
+              settlement={settlement}
             />
             <RepaymentPaymentProof
               repaymentId={settlement.id}
