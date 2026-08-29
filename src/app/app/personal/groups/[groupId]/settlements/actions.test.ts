@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => {
       super(code);
     }
   }
+  class TestGroupOffsetError extends Error {
+    constructor(readonly code: string) {
+      super(code);
+    }
+  }
   return {
     requireSession: vi.fn(),
     getDatabase: vi.fn(),
@@ -17,6 +22,7 @@ const mocks = vi.hoisted(() => {
       throw new Error(`redirect:${path}`);
     }),
     GroupSettlementError: TestGroupSettlementError,
+    GroupOffsetError: TestGroupOffsetError,
   };
 });
 
@@ -26,6 +32,11 @@ vi.mock("@/server/group-settlements", () => ({
   createGroupSettlement: mocks.createSettlement,
   confirmGroupSettlement: mocks.confirmSettlement,
   GroupSettlementError: mocks.GroupSettlementError,
+}));
+vi.mock("@/server/group-offsets", () => ({
+  createGroupOffset: vi.fn(),
+  confirmGroupOffset: vi.fn(),
+  GroupOffsetError: mocks.GroupOffsetError,
 }));
 vi.mock("@/server/group-settlement-proofs", () => ({
   createGroupSettlementProof: mocks.createProof,

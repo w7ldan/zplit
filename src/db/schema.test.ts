@@ -19,7 +19,10 @@ const domainTables = [
   "group_join_requests",
   "group_memberships",
   "group_obligations",
+  "group_offset_applications",
+  "group_offset_settlements",
   "group_participants",
+  "group_settlement_applications",
   "group_settlement_proofs",
   "group_settlements",
   "groups",
@@ -81,7 +84,7 @@ describe("database schema", () => {
 
   it("exports the domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupSettlementProofs, schema.groupSettlements, schema.groupExpenseReceipts, schema.groupExpenseLifecycleEvents]
+      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupSettlementProofs, schema.groupSettlements, schema.groupSettlementApplications, schema.groupOffsetSettlements, schema.groupOffsetApplications, schema.groupExpenseReceipts, schema.groupExpenseLifecycleEvents]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -165,6 +168,31 @@ describe("database schema", () => {
       target: ["group_id", "id"],
       onDelete: "restrict",
     });
+  });
+
+  it("defines immutable reciprocal Group offsets with Group-safe applications", () => {
+    const offsets = getTableConfig(schema.groupOffsetSettlements);
+    expect(offsets.columns.map((column) => column.name)).toEqual([
+      "id", "group_id", "initiator_participant_id", "counterparty_participant_id", "amount", "state", "created_at", "confirmed_at",
+    ]);
+    expect(offsets.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "group_offset_settlements_amount_positive",
+      "group_offset_settlements_state_allowed",
+      "group_offset_settlements_no_self_offset",
+      "group_offset_settlements_confirmation_timestamp_shape",
+    ]));
+    expect(foreignKeyShape(schema.groupOffsetSettlements)).toEqual(expect.arrayContaining([
+      { from: ["group_id", "initiator_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+      { from: ["group_id", "counterparty_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+    ]));
+    const applications = getTableConfig(schema.groupOffsetApplications);
+    expect(applications.columns.map((column) => column.name)).toEqual([
+      "id", "group_id", "offset_settlement_id", "obligation_id", "applied_amount", "created_at",
+    ]);
+    expect(foreignKeyShape(schema.groupOffsetApplications)).toEqual(expect.arrayContaining([
+      { from: ["group_id", "offset_settlement_id"], to: "group_offset_settlements", target: ["group_id", "id"], onDelete: "restrict" },
+      { from: ["group_id", "obligation_id"], to: "group_obligations", target: ["group_id", "id"], onDelete: "restrict" },
+    ]));
   });
 
   it("constrains Group join request identity, state, and cross-Group participants", () => {

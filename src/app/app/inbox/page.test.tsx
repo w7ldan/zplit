@@ -184,4 +184,33 @@ describe("/app/inbox", () => {
     expect(screen.getByText("Confirmation is required.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Review payment" })).toHaveAttribute("href", `/app/personal/groups/${groupId}/settlements/${settlementId}`);
   });
+
+  it("navigates offset notifications to the matching Group offset", async () => {
+    const groupId = "66666666-6666-4666-8666-666666666666";
+    const offsetId = "99999999-9999-4999-8999-999999999999";
+    mocks.getPage.mockResolvedValue({
+      rows: [{
+        id: "notification-offset",
+        type: "group.offset.confirmation",
+        metadata: {
+          offsetId,
+          groupId,
+          groupName: "Bandung Trip",
+          initiatorParticipantId: "88888888-8888-4888-8888-888888888888",
+          initiatorDisplayName: "Wildan",
+        },
+        createdAt: new Date("2026-08-25T07:00:00Z"),
+        readAt: null,
+        recipientUserId: "user-a",
+        dedupeKey: `group-offset-confirmation:${offsetId}`,
+      }],
+      page: 1,
+      pageSize: 20,
+      totalItems: 1,
+      totalPages: 1,
+    });
+    render(await InboxPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText("Wildan proposed an offset with you in Bandung Trip.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Review offset" })).toHaveAttribute("href", `/app/personal/groups/${groupId}/settlements/offsets/${offsetId}`);
+  });
 });

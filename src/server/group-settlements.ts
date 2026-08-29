@@ -35,6 +35,7 @@ import {
   type RecordPage,
 } from "@/domain/record-retrieval";
 import { createNotificationInDatabase, publishNotificationStateChange } from "@/server/notifications";
+import { isActiveGroupParticipant, lockGroupFinancialParticipants } from "@/server/group-financial-locks";
 import { GroupError, requireGroupAccess } from "@/server/groups";
 import { publishRealtimeEvent } from "@/server/realtime";
 
@@ -310,46 +311,6 @@ export function publishGroupSettlementFreshness(
   }
 }
 
-type LockedParticipant = {
-  id: string;
-  userId: string | null;
-  displayName: string | null;
-};
-
-type LockedMembership = {
-  participantId: string;
-  userId: string;
-};
-
-// Participant rows are the shared PostgreSQL lock domain for Group debt changes.
-async function lockSettlementParticipants(database: Database, groupId: string, participantIds: string[]) {
-  const ids = [...new Set(participantIds)].sort();
-  const participants = await database
-    .select({
-      id: groupParticipants.id,
-      userId: groupParticipants.userId,
-      displayName: groupParticipants.displayName,
-    })
-    .from(groupParticipants)
-    .where(and(eq(groupParticipants.groupId, groupId), inArray(groupParticipants.id, ids)))
-    .orderBy(asc(groupParticipants.id))
-    .for("update");
-  const memberships = await database
-    .select({ participantId: groupMemberships.participantId, userId: groupMemberships.userId })
-    .from(groupMemberships)
-    .where(and(eq(groupMemberships.groupId, groupId), inArray(groupMemberships.participantId, ids)))
-    .orderBy(asc(groupMemberships.participantId), asc(groupMemberships.userId))
-    .for("update");
-  return {
-    participants: new Map(participants.map((participant) => [participant.id, participant satisfies LockedParticipant])),
-    memberships: new Map(memberships.map((membership) => [membership.participantId, membership satisfies LockedMembership])),
-  };
-}
-
-function isActiveParticipant(participant: LockedParticipant | undefined, membership: LockedMembership | undefined) {
-  return Boolean(participant?.userId && membership?.userId === participant.userId);
-}
-
 function balanceAmount(balances: Awaited<ReturnType<typeof readGroupBalances>>, debtorParticipantId: string, creditorParticipantId: string) {
   return balances.find((balance) => balance.debtorParticipantId === debtorParticipantId && balance.creditorParticipantId === creditorParticipantId)?.amount ?? 0;
 }
@@ -403,16 +364,16 @@ async function createSettlement(database: Database, groupId: string, creatorUser
   try {
     const result = await database.transaction(async (transaction) => {
       const transactionalDatabase = transaction as Database;
-      const locked = await lockSettlementParticipants(transactionalDatabase, groupId, [values.senderParticipantId, values.recipientParticipantId]);
+      const locked = await lockGroupFinancialParticipants(transactionalDatabase, groupId, [values.senderParticipantId, values.recipientParticipantId]);
       const sender = locked.participants.get(values.senderParticipantId);
       const recipient = locked.participants.get(values.recipientParticipantId);
       if (!sender) throw new GroupSettlementError("sender_not_found");
       if (sender.userId !== creatorUserId) throw new GroupSettlementError("forbidden");
       if (!sender.userId) throw new GroupSettlementError("sender_external");
-      if (!isActiveParticipant(sender, locked.memberships.get(sender.id))) throw new GroupSettlementError("sender_not_active");
+      if (!isActiveGroupParticipant(sender, locked.memberships.get(sender.id))) throw new GroupSettlementError("sender_not_active");
       if (!recipient) throw new GroupSettlementError("recipient_not_found");
       if (!recipient.userId) throw new GroupSettlementError("recipient_external");
-      if (!isActiveParticipant(recipient, locked.memberships.get(recipient.id))) throw new GroupSettlementError("recipient_not_active");
+      if (!isActiveGroupParticipant(recipient, locked.memberships.get(recipient.id))) throw new GroupSettlementError("recipient_not_active");
       if (balanceAmount(await readGroupBalances(transactionalDatabase, groupId), sender.id, recipient.id) < values.amount) {
         throw new GroupSettlementError("debt_exceeded");
       }
@@ -475,7 +436,7 @@ async function confirmSettlement(database: Database, groupId: string, settlement
         .where(and(eq(groupSettlements.groupId, groupId), eq(groupSettlements.id, settlementId)))
         .limit(1);
       if (!candidate) throw new GroupSettlementError("not_found");
-      const locked = await lockSettlementParticipants(transactionalDatabase, groupId, [candidate.senderParticipantId, candidate.recipientParticipantId]);
+      const locked = await lockGroupFinancialParticipants(transactionalDatabase, groupId, [candidate.senderParticipantId, candidate.recipientParticipantId]);
       const [settlement] = await transactionalDatabase
         .select()
         .from(groupSettlements)
@@ -486,7 +447,7 @@ async function confirmSettlement(database: Database, groupId: string, settlement
       const recipient = locked.participants.get(settlement.recipientParticipantId);
       if (!recipient) throw new GroupSettlementError("recipient_not_found");
       if (recipient.userId !== actorUserId) throw new GroupSettlementError("forbidden");
-      if (!isActiveParticipant(recipient, locked.memberships.get(recipient.id))) throw new GroupSettlementError("recipient_not_active");
+      if (!isActiveGroupParticipant(recipient, locked.memberships.get(recipient.id))) throw new GroupSettlementError("recipient_not_active");
       if (settlement.state === "confirmed") {
         return { changed: false, userIds: await listActiveGroupUserIds(transactionalDatabase, groupId) };
       }

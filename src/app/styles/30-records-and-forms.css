@@ -4919,6 +4919,19 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   padding-block: 2rem 4rem;
 }
 
+.group-offset-page__section {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.group-offset-page__section > .group-section-heading > p {
+  max-width: 28rem;
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+}
+
 .group-settlement-page__balance,
 .group-settlement__status,
 .group-settlement-record__sidebar {

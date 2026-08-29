@@ -1,12 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   getDatabase: vi.fn(),
   createSettlementRepository: vi.fn(),
+  createOffsetRepository: vi.fn(),
   createAccountingRepository: vi.fn(),
   createSettlementAction: vi.fn(),
+  createOffsetAction: vi.fn(),
   notFound: vi.fn(),
 }));
 
@@ -18,6 +20,12 @@ vi.mock("@/server/group-settlements", () => ({
     constructor(readonly code: string) { super(code); }
   },
 }));
+vi.mock("@/server/group-offsets", () => ({
+  createGroupOffsetRepository: mocks.createOffsetRepository,
+  GroupOffsetError: class GroupOffsetError extends Error {
+    constructor(readonly code: string) { super(code); }
+  },
+}));
 vi.mock("@/server/group-accounting", () => ({
   createGroupAccountingRepository: mocks.createAccountingRepository,
   GroupAccountingError: class GroupAccountingError extends Error {
@@ -26,7 +34,7 @@ vi.mock("@/server/group-accounting", () => ({
 }));
 vi.mock("@/components/realtime/group-settlement-live-refresh", () => ({ GroupSettlementLiveRefresh: () => null }));
 vi.mock("@/components/app/task-panel", () => ({ TaskPanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
-vi.mock("./actions", () => ({ createGroupSettlementAction: mocks.createSettlementAction }));
+vi.mock("./actions", () => ({ createGroupSettlementAction: mocks.createSettlementAction, createGroupOffsetAction: mocks.createOffsetAction }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
 import GroupSettlementsPage from "./page";
@@ -103,6 +111,10 @@ describe("Group settlements page", () => {
     mocks.createAccountingRepository.mockReturnValue({
       getParticipantEligibility: vi.fn().mockResolvedValue([sender, recipient, external, former]),
     });
+    mocks.createOffsetRepository.mockReturnValue({
+      listOffsets: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }),
+      getAvailableCounterparties: vi.fn().mockResolvedValue([]),
+    });
   });
 
   it("shows pending history and explains that canonical balance is unchanged", async () => {
@@ -124,5 +136,20 @@ describe("Group settlements page", () => {
     expect(screen.queryByRole("option", { name: /Cash taxi|Charlie|Ari/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Paid by")).not.toBeInTheDocument();
     expect(screen.getByText("Current debt from you")).toBeInTheDocument();
+  });
+
+  it("offers an automatic offset with no amount, proof, or payment method fields", async () => {
+    mocks.createOffsetRepository.mockReturnValue({
+      listOffsets: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }),
+      getAvailableCounterparties: vi.fn().mockResolvedValue([{ id: recipient.id, displayName: recipient.displayName, label: recipient.label, offsetAmount: 60000 }]),
+    });
+    render(await GroupSettlementsPage({
+      params: Promise.resolve({ groupId: "group-a" }),
+      searchParams: Promise.resolve({ createOffset: "1" }),
+    }));
+    expect(screen.getByLabelText("Offset with")).toHaveValue(recipient.id);
+    expect(screen.getByText("Automatic full offset amount")).toBeInTheDocument();
+    expect(screen.getByText("Rp 60.000")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Offset with").closest("form")!).queryByLabelText(/amount|proof|payment method/i)).not.toBeInTheDocument();
   });
 });

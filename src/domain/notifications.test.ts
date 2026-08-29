@@ -108,4 +108,21 @@ describe("notification catalog", () => {
     });
     expect(() => normalizeNotificationMetadata("group.settlement.confirmation", { ...metadata, senderParticipantId: "not-an-id" })).toThrow("Invalid metadata");
   });
+
+  it("presents offset confirmation with its exact Group and offset identity", () => {
+    const metadata = {
+      offsetId: "11111111-1111-4111-8111-111111111111",
+      groupId: "22222222-2222-4222-8222-222222222222",
+      groupName: "Bandung Trip",
+      initiatorParticipantId: "33333333-3333-4333-8333-333333333333",
+      initiatorDisplayName: "Wildan",
+    } as const;
+    expect(normalizeNotificationMetadata("group.offset.confirmation", metadata)).toEqual(metadata);
+    expect(presentNotification("group.offset.confirmation", metadata)).toEqual({
+      label: "Group offset confirmation",
+      primary: "Wildan proposed an offset with you in Bandung Trip.",
+      secondary: "No money moves; confirmation is required.",
+    });
+    expect(() => normalizeNotificationMetadata("group.offset.confirmation", { ...metadata, offsetId: "not-an-id" })).toThrow("Invalid metadata");
+  });
 });

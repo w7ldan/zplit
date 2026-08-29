@@ -134,6 +134,7 @@ describe("groups", () => {
         .mockImplementationOnce(() => chain([]))
         .mockImplementationOnce(() => chain([]))
         .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
         .mockImplementationOnce(() => chain([])),
       delete: vi.fn(() => chain([{ id: groupId }])),
     };

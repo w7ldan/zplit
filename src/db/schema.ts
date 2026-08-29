@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import type { NotificationMetadata, NotificationType } from "@/domain/notifications";
 import type { GroupRole } from "@/domain/group-permissions";
 import type { GroupExpenseLifecycleEventType, GroupExpenseState } from "@/domain/group-accounting";
+import type { GroupOffsetSettlementState } from "@/domain/group-offsets";
 import type { GroupSettlementState } from "@/domain/group-settlements";
 import type { GroupJoinRequestKind, GroupJoinRequestStatus } from "@/domain/group-join-requests";
 import type { OrganizationCapability, OrganizationInvitationRole } from "@/domain/organization-permissions";
@@ -609,6 +610,75 @@ export const groupSettlementApplications = pgTable(
     unique("group_settlement_applications_settlement_obligation_unique").on(table.groupId, table.settlementId, table.obligationId),
     index("group_settlement_applications_group_settlement_idx").on(table.groupId, table.settlementId, table.createdAt, table.id),
     index("group_settlement_applications_group_obligation_idx").on(table.groupId, table.obligationId, table.createdAt, table.id),
+  ],
+);
+
+export const groupOffsetSettlements = pgTable(
+  "group_offset_settlements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "restrict" }),
+    initiatorParticipantId: uuid("initiator_participant_id").notNull(),
+    counterpartyParticipantId: uuid("counterparty_participant_id").notNull(),
+    amount: integer("amount").notNull(),
+    state: varchar("state", { length: 16 }).$type<GroupOffsetSettlementState>().default("pending").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("group_offset_settlements_amount_positive", sql`${table.amount} > 0`),
+    check("group_offset_settlements_state_allowed", sql`${table.state} IN ('pending', 'confirmed')`),
+    check("group_offset_settlements_no_self_offset", sql`${table.initiatorParticipantId} <> ${table.counterpartyParticipantId}`),
+    check("group_offset_settlements_confirmation_timestamp_shape", sql`(${table.state} = 'pending' AND ${table.confirmedAt} IS NULL) OR (${table.state} = 'confirmed' AND ${table.confirmedAt} IS NOT NULL)`),
+    foreignKey({
+      columns: [table.groupId, table.initiatorParticipantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_offset_settlements_initiator_participant_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.groupId, table.counterpartyParticipantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_offset_settlements_counterparty_participant_fk",
+    }).onDelete("restrict"),
+    unique("group_offset_settlements_group_id_id_unique").on(table.groupId, table.id),
+    index("group_offset_settlements_group_created_idx").on(table.groupId, table.createdAt, table.id),
+    index("group_offset_settlements_pending_counterparty_idx").on(table.groupId, table.counterpartyParticipantId, table.createdAt, table.id).where(sql`${table.state} = 'pending'`),
+    uniqueIndex("group_offset_settlements_pending_pair_uidx")
+      .on(table.groupId, sql`LEAST(${table.initiatorParticipantId}, ${table.counterpartyParticipantId})`, sql`GREATEST(${table.initiatorParticipantId}, ${table.counterpartyParticipantId})`)
+      .where(sql`${table.state} = 'pending'`),
+  ],
+);
+
+export const groupOffsetApplications = pgTable(
+  "group_offset_applications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "restrict" }),
+    offsetSettlementId: uuid("offset_settlement_id").notNull(),
+    obligationId: uuid("obligation_id").notNull(),
+    appliedAmount: integer("applied_amount").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("group_offset_applications_amount_positive", sql`${table.appliedAmount} > 0`),
+    foreignKey({
+      columns: [table.groupId, table.offsetSettlementId],
+      foreignColumns: [groupOffsetSettlements.groupId, groupOffsetSettlements.id],
+      name: "group_offset_applications_offset_settlement_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.groupId, table.obligationId],
+      foreignColumns: [groupObligations.groupId, groupObligations.id],
+      name: "group_offset_applications_obligation_fk",
+    }).onDelete("restrict"),
+    unique("group_offset_applications_group_id_id_unique").on(table.groupId, table.id),
+    unique("group_offset_applications_offset_obligation_unique").on(table.groupId, table.offsetSettlementId, table.obligationId),
+    index("group_offset_applications_group_offset_idx").on(table.groupId, table.offsetSettlementId, table.createdAt, table.id),
+    index("group_offset_applications_group_obligation_idx").on(table.groupId, table.obligationId, table.createdAt, table.id),
   ],
 );
 
@@ -1349,6 +1419,8 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   obligations: many(groupObligations),
   settlements: many(groupSettlements),
   settlementApplications: many(groupSettlementApplications),
+  offsetSettlements: many(groupOffsetSettlements),
+  offsetApplications: many(groupOffsetApplications),
   settlementProofs: many(groupSettlementProofs),
   expenseReceipts: many(groupExpenseReceipts),
 }));
@@ -1364,6 +1436,8 @@ export const groupParticipantsRelations = relations(groupParticipants, ({ one, m
   creditorObligations: many(groupObligations, { relationName: "groupObligationCreditors" }),
   sentSettlements: many(groupSettlements, { relationName: "groupSettlementSenders" }),
   receivedSettlements: many(groupSettlements, { relationName: "groupSettlementRecipients" }),
+  initiatedOffsets: many(groupOffsetSettlements, { relationName: "groupOffsetInitiators" }),
+  receivedOffsets: many(groupOffsetSettlements, { relationName: "groupOffsetCounterparties" }),
 }));
 
 export const groupMembershipsRelations = relations(groupMemberships, ({ one }) => ({
@@ -1407,6 +1481,7 @@ export const groupObligationsRelations = relations(groupObligations, ({ one, man
   debtor: one(groupParticipants, { fields: [groupObligations.groupId, groupObligations.debtorParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupObligationDebtors" }),
   creditor: one(groupParticipants, { fields: [groupObligations.groupId, groupObligations.creditorParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupObligationCreditors" }),
   settlementApplications: many(groupSettlementApplications),
+  offsetApplications: many(groupOffsetApplications),
 }));
 
 export const groupSettlementsRelations = relations(groupSettlements, ({ one, many }) => ({
@@ -1421,6 +1496,19 @@ export const groupSettlementApplicationsRelations = relations(groupSettlementApp
   group: one(groups, { fields: [groupSettlementApplications.groupId], references: [groups.id] }),
   settlement: one(groupSettlements, { fields: [groupSettlementApplications.groupId, groupSettlementApplications.settlementId], references: [groupSettlements.groupId, groupSettlements.id] }),
   obligation: one(groupObligations, { fields: [groupSettlementApplications.groupId, groupSettlementApplications.obligationId], references: [groupObligations.groupId, groupObligations.id] }),
+}));
+
+export const groupOffsetSettlementsRelations = relations(groupOffsetSettlements, ({ one, many }) => ({
+  group: one(groups, { fields: [groupOffsetSettlements.groupId], references: [groups.id] }),
+  initiator: one(groupParticipants, { fields: [groupOffsetSettlements.groupId, groupOffsetSettlements.initiatorParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupOffsetInitiators" }),
+  counterparty: one(groupParticipants, { fields: [groupOffsetSettlements.groupId, groupOffsetSettlements.counterpartyParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupOffsetCounterparties" }),
+  applications: many(groupOffsetApplications),
+}));
+
+export const groupOffsetApplicationsRelations = relations(groupOffsetApplications, ({ one }) => ({
+  group: one(groups, { fields: [groupOffsetApplications.groupId], references: [groups.id] }),
+  offsetSettlement: one(groupOffsetSettlements, { fields: [groupOffsetApplications.groupId, groupOffsetApplications.offsetSettlementId], references: [groupOffsetSettlements.groupId, groupOffsetSettlements.id] }),
+  obligation: one(groupObligations, { fields: [groupOffsetApplications.groupId, groupOffsetApplications.obligationId], references: [groupObligations.groupId, groupObligations.id] }),
 }));
 
 export const groupSettlementProofsRelations = relations(groupSettlementProofs, ({ one }) => ({

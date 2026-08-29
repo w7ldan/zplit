@@ -81,6 +81,15 @@ export type GroupSettlementActionState = {
   values: GroupSettlementFormValues;
 };
 export type GroupSettlementConfirmationState = { error: string; success?: string };
+export type GroupOffsetFormValues = { counterpartyParticipantId: string };
+export type GroupOffsetActionState = { error: string; values: GroupOffsetFormValues };
+export type GroupOffsetConfirmationState = { error: string; success?: string };
+export type GroupOffsetCounterpartyOption = {
+  id: string;
+  displayName: string;
+  label: string | null;
+  offsetAmount: number;
+};
 export type GroupSettlementRecipientOption = {
   id: string;
   displayName: string;

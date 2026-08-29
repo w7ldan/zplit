@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, count, eq, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { groupAvatars, groupExpenseShares, groupExpenses, groupJoinRequests, groupMemberships, groupObligations, groupParticipants, groupSettlements, groups, users } from "@/db/schema";
+import { groupAvatars, groupExpenseShares, groupExpenses, groupJoinRequests, groupMemberships, groupObligations, groupOffsetSettlements, groupParticipants, groupSettlements, groups, users } from "@/db/schema";
 import type { GroupAvatarMetadata, GroupCapabilities, GroupDetail, GroupParticipant, GroupSummary } from "@/domain/group-contracts";
 import { groupAccessForRole, isGroupRole, type GroupRole } from "@/domain/group-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
@@ -231,6 +231,15 @@ async function hasFinancialHistory(database: Database, groupId: string, particip
     .where(settlementFilter)
     .limit(1);
   if (settlement) return true;
+  const offsetFilter = participantId === undefined
+    ? eq(groupOffsetSettlements.groupId, groupId)
+    : and(eq(groupOffsetSettlements.groupId, groupId), or(eq(groupOffsetSettlements.initiatorParticipantId, participantId), eq(groupOffsetSettlements.counterpartyParticipantId, participantId)));
+  const [offset] = await database
+    .select({ id: groupOffsetSettlements.id })
+    .from(groupOffsetSettlements)
+    .where(offsetFilter)
+    .limit(1);
+  if (offset) return true;
   return false;
 }
 

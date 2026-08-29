@@ -8,7 +8,14 @@ import {
   GroupSettlementInputError,
   normalizeGroupSettlementInput,
 } from "@/domain/group-settlements";
+import {
+  GroupOffsetInputError,
+  normalizeGroupOffsetInput,
+} from "@/domain/group-offsets";
 import type {
+  GroupOffsetActionState,
+  GroupOffsetConfirmationState,
+  GroupOffsetFormValues,
   GroupSettlementActionState,
   GroupSettlementConfirmationState,
   GroupSettlementFormValues,
@@ -19,9 +26,17 @@ import {
   createGroupSettlement,
   GroupSettlementError,
 } from "@/server/group-settlements";
+import {
+  confirmGroupOffset,
+  createGroupOffset,
+  GroupOffsetError,
+} from "@/server/group-offsets";
 import { createGroupSettlementProof } from "@/server/group-settlement-proofs";
 
 export type {
+  GroupOffsetActionState,
+  GroupOffsetConfirmationState,
+  GroupOffsetFormValues,
   GroupSettlementActionState,
   GroupSettlementConfirmationState,
   GroupSettlementFormValues,
@@ -182,4 +197,74 @@ export async function confirmGroupSettlementAction(
   revalidatePath(`/app/personal/groups/${groupId}/settlements`);
   revalidatePath(`/app/personal/groups/${groupId}/settlements/${settlementId}`);
   return { error: "", success: "Payment confirmed. The canonical Group balance has been refreshed." };
+}
+
+function offsetValues(formData: FormData): GroupOffsetFormValues {
+  return { counterpartyParticipantId: text(formData, "counterpartyParticipantId") };
+}
+
+function offsetState(values: GroupOffsetFormValues, error: string): GroupOffsetActionState {
+  return { error, values };
+}
+
+export async function createGroupOffsetAction(
+  groupId: string,
+  _previousState: GroupOffsetActionState,
+  formData: FormData,
+): Promise<GroupOffsetActionState> {
+  const values = offsetValues(formData);
+  try {
+    normalizeGroupOffsetInput(values);
+  } catch (error) {
+    if (error instanceof GroupOffsetInputError) return offsetState(values, "Choose an eligible Group member.");
+    return offsetState(values, "Please choose a Group member.");
+  }
+  const session = await requireSession();
+  let offset;
+  try {
+    offset = await createGroupOffset(getDatabase(), groupId, session.user.id, values);
+  } catch (error) {
+    const messages: Partial<Record<GroupOffsetError["code"], string>> = {
+      forbidden: "You can only propose an offset as yourself.",
+      counterparty_external: "Offsets can only use registered Group members.",
+      counterparty_not_active: "That Group member is no longer active.",
+      no_capacity: "There is no reciprocal capacity to offset now. Reload and try again.",
+      pending_exists: "An offset proposal for this pair is already pending.",
+      financial_integrity: "The accounting data changed. Reload and try again.",
+    };
+    return offsetState(values, error instanceof GroupOffsetError ? messages[error.code] ?? "Unable to propose this offset." : "Unable to propose this offset.");
+  }
+  const path = `/app/personal/groups/${groupId}/settlements`;
+  revalidatePath(`/app/personal/groups/${groupId}`);
+  revalidatePath(path);
+  redirect(`${path}/offsets/${offset.id}?created=1`);
+}
+
+export async function confirmGroupOffsetAction(
+  groupId: string,
+  offsetId: string,
+  _previousState: GroupOffsetConfirmationState,
+  _formData: FormData,
+): Promise<GroupOffsetConfirmationState> {
+  void _previousState;
+  void _formData;
+  const session = await requireSession();
+  try {
+    await confirmGroupOffset(getDatabase(), groupId, offsetId, session.user.id);
+  } catch (error) {
+    const messages: Partial<Record<GroupOffsetError["code"], string>> = {
+      forbidden: "Only the offset counterparty can confirm this proposal.",
+      counterparty_not_active: "You are no longer an active Group member.",
+      initiator_not_active: "The proposing participant is no longer active.",
+      capacity_changed: "The full offset is no longer supportable. Reload before confirming.",
+      invalid_state: "This Group offset is no longer pending.",
+      not_found: "This Group offset is no longer available.",
+      financial_integrity: "The accounting data changed. Reload and try again.",
+    };
+    return { error: error instanceof GroupOffsetError ? messages[error.code] ?? "Unable to confirm this offset." : "Unable to confirm this offset." };
+  }
+  revalidatePath(`/app/personal/groups/${groupId}`);
+  revalidatePath(`/app/personal/groups/${groupId}/settlements`);
+  revalidatePath(`/app/personal/groups/${groupId}/settlements/offsets/${offsetId}`);
+  return { error: "", success: "Offset confirmed. No money moved; reciprocal obligations were refreshed." };
 }

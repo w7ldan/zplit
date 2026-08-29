@@ -9,6 +9,7 @@ export const NOTIFICATION_TYPES = {
   groupParticipantLinkRequest: "group.participant.link.request",
   groupExpensePayerClaim: "group.expense.payer.claim",
   groupSettlementConfirmation: "group.settlement.confirmation",
+  groupOffsetConfirmation: "group.offset.confirmation",
 } as const;
 export const NOTIFICATION_STATE_CHANGED_EVENT = "notification.state.changed";
 
@@ -60,6 +61,13 @@ export type NotificationMetadata = {
     groupName: string;
     senderParticipantId: string;
     senderDisplayName: string;
+  };
+  "group.offset.confirmation": {
+    offsetId: string;
+    groupId: string;
+    groupName: string;
+    initiatorParticipantId: string;
+    initiatorDisplayName: string;
   };
 };
 
@@ -190,6 +198,25 @@ function parseGroupSettlementConfirmationMetadata(value: unknown): NotificationM
   };
 }
 
+function parseGroupOffsetConfirmationMetadata(value: unknown): NotificationMetadata["group.offset.confirmation"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 5) return null;
+  const offsetId = normalizeUuid(record.offsetId);
+  const groupId = normalizeUuid(record.groupId);
+  const initiatorParticipantId = normalizeUuid(record.initiatorParticipantId);
+  if (!offsetId || !groupId || !initiatorParticipantId) return null;
+  if (typeof record.groupName !== "string" || !record.groupName.trim() || record.groupName.length > 160) return null;
+  if (typeof record.initiatorDisplayName !== "string" || !record.initiatorDisplayName.trim() || record.initiatorDisplayName.length > 160) return null;
+  return {
+    offsetId,
+    groupId,
+    groupName: record.groupName.trim(),
+    initiatorParticipantId,
+    initiatorDisplayName: record.initiatorDisplayName.trim(),
+  };
+}
+
 export function getFriendLinkRequestMetadata(value: unknown) {
   return parseFriendLinkRequestMetadata(value);
 }
@@ -212,6 +239,10 @@ export function getGroupExpensePayerClaimMetadata(value: unknown) {
 
 export function getGroupSettlementConfirmationMetadata(value: unknown) {
   return parseGroupSettlementConfirmationMetadata(value);
+}
+
+export function getGroupOffsetConfirmationMetadata(value: unknown) {
+  return parseGroupOffsetConfirmationMetadata(value);
 }
 
 function roleLabel(role: OrganizationInvitationRole) {
@@ -281,6 +312,15 @@ export const notificationCatalog = {
       label: "Group payment confirmation",
       primary: `${metadata.senderDisplayName} recorded a payment to you in ${metadata.groupName}.`,
       secondary: "Confirmation is required.",
+    }),
+  },
+  "group.offset.confirmation": {
+    label: "Group offset confirmation",
+    parseMetadata: parseGroupOffsetConfirmationMetadata,
+    present: (metadata: NotificationMetadata["group.offset.confirmation"]): NotificationPresentation => ({
+      label: "Group offset confirmation",
+      primary: `${metadata.initiatorDisplayName} proposed an offset with you in ${metadata.groupName}.`,
+      secondary: "No money moves; confirmation is required.",
     }),
   },
 } as const;
