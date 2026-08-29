@@ -1,0 +1,139 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Database } from "@/db/client";
+import { chatMessages, chatThreads } from "@/db/schema";
+
+const mocks = vi.hoisted(() => ({
+  requireOrganizationAccess: vi.fn(),
+  requireGroupAccess: vi.fn(),
+  publishRealtimeEvent: vi.fn(async () => undefined),
+}));
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/server/organizations", () => ({ requireOrganizationAccess: mocks.requireOrganizationAccess }));
+vi.mock("@/server/groups", () => ({
+  requireGroupAccess: mocks.requireGroupAccess,
+  GroupError: class GroupError extends Error {
+    constructor(readonly code: string) {
+      super(code);
+    }
+  },
+}));
+vi.mock("@/server/realtime", () => ({ publishRealtimeEvent: mocks.publishRealtimeEvent }));
+
+import { deleteChatMessage, editChatMessage, getOrganizationChat, getGroupChat, sendChatMessage } from "./chat";
+
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const groupId = "22222222-2222-4222-8222-222222222222";
+const threadId = "33333333-3333-4333-8333-333333333333";
+const participantId = "44444444-4444-4444-8444-444444444444";
+
+function queryBuilder(result: unknown) {
+  const query = {} as Record<string, unknown> & { then: Promise<unknown>["then"] };
+  for (const method of ["from", "innerJoin", "leftJoin", "where", "limit", "orderBy", "set"]) query[method] = vi.fn(() => query);
+  query.returning = vi.fn(async () => result);
+  query.onConflictDoNothing = vi.fn(() => query);
+  query.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
+  return query;
+}
+
+function database(selects: unknown[], returning: unknown[] = []) {
+  const insertValues: unknown[] = [];
+  const transaction = {
+    select: vi.fn(() => queryBuilder(selects.shift() ?? [])),
+    insert: vi.fn((table: unknown) => {
+      const result = table === chatMessages ? returning : [];
+      const query = queryBuilder(result);
+      query.values = vi.fn((values: unknown) => {
+        insertValues.push(values);
+        return query;
+      });
+      return query;
+    }),
+    update: vi.fn(() => queryBuilder([])),
+  };
+  const result = {
+    select: vi.fn(() => queryBuilder(selects.shift() ?? [])),
+    transaction: vi.fn(async (callback: (transaction: unknown) => unknown) => callback(transaction)),
+    insertValues,
+    tx: transaction,
+  } as unknown as Database & { insertValues: unknown[]; tx: typeof transaction };
+  return result;
+}
+
+function organizationAccess(canSend = true, canModerate = false, canView = true) {
+  return {
+    can: (capability: string) => capability === "chat.view" ? canView : capability === "chat.send" ? canSend : capability === "chat.moderate" && canModerate,
+    require: vi.fn((capability: string) => {
+      if (capability === "chat.send" && !canSend || capability === "chat.view" && !canView) throw new Error("forbidden");
+    }),
+  };
+}
+
+describe("chat server ownership", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireOrganizationAccess.mockResolvedValue(organizationAccess());
+    mocks.requireGroupAccess.mockResolvedValue({ canManageGroup: false });
+  });
+
+  it("requires organization capability and creates one thread with conflict safety", async () => {
+    const db = database([[{ id: threadId }], [{ userId: "user-a" }, { userId: "user-b" }]], [{ id: "message-a" }]);
+    await sendChatMessage(db, { scope: { type: "organization", id: organizationId }, userId: "user-a", body: " hello " });
+
+    expect(mocks.requireOrganizationAccess).toHaveBeenCalledWith(db.tx, organizationId, "user-a");
+    expect(db.insertValues).toEqual([{ organizationId }, expect.objectContaining({ organizationId, threadId: threadId, senderUserId: "user-a", body: "hello" })]);
+    expect(mocks.publishRealtimeEvent).toHaveBeenCalledTimes(2);
+    expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith("user-b", expect.objectContaining({ type: "chat.state.changed", data: { scope: "organization", organizationId, threadId } }));
+  });
+
+  it("requires chat.view for Organization reads and chat.send for writes", async () => {
+    mocks.requireOrganizationAccess.mockResolvedValueOnce(organizationAccess(true, false, false));
+    await expect(getOrganizationChat(database([]), organizationId, "user-a")).rejects.toThrow("forbidden");
+
+    mocks.requireOrganizationAccess.mockResolvedValueOnce(organizationAccess(false, false, true));
+    await expect(sendChatMessage(database([]), { scope: { type: "organization", id: organizationId }, userId: "user-a", body: "message" })).rejects.toThrow("forbidden");
+  });
+
+  it("uses the active registered Group participant and never accepts an external identity", async () => {
+    const db = database([[{ participantId }], [{ id: threadId }], [{ userId: "user-a" }]], [{ id: "message-a" }]);
+    await sendChatMessage(db, { scope: { type: "group", id: groupId }, userId: "user-a", body: "message" });
+
+    expect(mocks.requireGroupAccess).toHaveBeenCalledWith(db.tx, groupId, "user-a");
+    expect(db.insertValues[1]).toEqual(expect.objectContaining({ groupId, senderParticipantId: participantId, senderUserId: "user-a" }));
+  });
+
+  it("maps deleted messages to tombstones and derives consecutive grouping server-side", async () => {
+    const first = new Date("2026-08-29T00:00:00Z");
+    const db = database([
+      [{ id: threadId }],
+      [
+        { id: "message-c", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "secret", createdAt: new Date(first.getTime() + 2_000), editedAt: null, deletedAt: first },
+        { id: "message-b", senderUserId: "user-a", senderName: "Alice", participantName: null, body: "second", createdAt: new Date(first.getTime() + 1_000), editedAt: null, deletedAt: null },
+        { id: "message-a", senderUserId: "user-a", senderName: "Alice", participantName: null, body: "first", createdAt: first, editedAt: null, deletedAt: null },
+      ],
+    ]);
+    const chat = await getOrganizationChat(db, organizationId, "user-a");
+
+    expect(chat.messages.map((message) => ({ id: message.id, body: message.body, grouped: message.grouped }))).toEqual([
+      { id: "message-a", body: "first", grouped: false },
+      { id: "message-b", body: "second", grouped: true },
+      { id: "message-c", body: null, grouped: false },
+    ]);
+  });
+
+  it("edits only the author and publishes the existing entity scope", async () => {
+    const db = database([[{ id: "message-a", senderUserId: "user-a", deletedAt: null, threadId }], [{ userId: "user-a" }]]);
+    db.tx.update = vi.fn(() => queryBuilder([{ id: "message-a" }])) as never;
+    await editChatMessage(db, { scope: { type: "organization", id: organizationId }, messageId: "message-a", userId: "user-a", body: "updated" });
+
+    expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith("user-a", expect.objectContaining({ data: expect.objectContaining({ organizationId, threadId }) }));
+    await expect(editChatMessage(database([[{ id: "message-a", senderUserId: "user-b", deletedAt: null, threadId }]]), { scope: { type: "organization", id: organizationId }, messageId: "message-a", userId: "user-a", body: "updated" })).rejects.toMatchObject({ code: "forbidden" });
+  });
+
+  it("makes a second delete a safe no-op and allows Group management moderation", async () => {
+    mocks.requireGroupAccess.mockResolvedValue({ canManageGroup: true });
+    const db = database([[{ id: "message-a", senderUserId: "user-b", deletedAt: new Date(), threadId }]]);
+    await expect(deleteChatMessage(db, { scope: { type: "group", id: groupId }, messageId: "message-a", userId: "user-a" })).resolves.toMatchObject({ changed: false });
+    expect(mocks.publishRealtimeEvent).not.toHaveBeenCalled();
+  });
+});

@@ -9,7 +9,7 @@ describe("GroupNavigation", () => {
   it("places Expenses in the Group context navigation", () => {
     render(<GroupNavigation groupId="group-a" canManageGroup />);
     const navigation = screen.getByRole("navigation", { name: "Group navigation" });
-    expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "Expenses", "Payments", "People", "Settings"]);
+    expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "Chat", "Expenses", "Payments", "People", "Settings"]);
     expect(within(navigation).getByRole("link", { name: "Expenses" })).toHaveAttribute("href", "/app/personal/groups/group-a/expenses");
   });
 });

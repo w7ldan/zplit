@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({ notFound: vi.fn(), usePathname: () => mocks.
 
 import OrganizationLayout from "./layout";
 
-const organization = { id: "org-a", name: "Studio", description: "Shared work", role: "admin" as OrganizationRole, memberCount: 3, avatar: null, canViewLedger: true, canViewMembers: true, canManageRepaymentDestinations: true, canExport: true, canUpdate: true, canDelete: false, invitationRoles: ["member"] };
+const organization = { id: "org-a", name: "Studio", description: "Shared work", role: "admin" as OrganizationRole, memberCount: 3, avatar: null, canViewLedger: true, canViewChat: true, canViewMembers: true, canManageRepaymentDestinations: true, canExport: true, canUpdate: true, canDelete: false, invitationRoles: ["member"] };
 
 describe("Organization navigation", () => {
   beforeEach(() => {
@@ -26,7 +26,7 @@ describe("Organization navigation", () => {
   it("uses the managed-workspace IA and consolidates Activity", async () => {
     render(await OrganizationLayout({ params: Promise.resolve({ organizationId: "org-a" }), children: <p>Content</p> }));
     const navigation = screen.getByRole("navigation", { name: "Organization navigation" });
-    expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "Activity", "Expenses", "Repayments", "People", "Settings"]);
+    expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "General", "Activity", "Expenses", "Repayments", "People", "Settings"]);
     expect(within(navigation).queryByRole("link", { name: "Trips" })).not.toBeInTheDocument();
     const activity = screen.getByRole("navigation", { name: "Organization activity navigation" });
     expect(within(activity).getByRole("link", { name: "Trips" })).toHaveAttribute("href", "/app/organizations/org-a/trips");
@@ -37,13 +37,13 @@ describe("Organization navigation", () => {
     mocks.getOrganizationForMember.mockResolvedValue({ ...organization, canViewLedger: false, canViewMembers: true, canManageRepaymentDestinations: false, canExport: false, canUpdate: false });
     render(await OrganizationLayout({ params: Promise.resolve({ organizationId: "org-a" }), children: <p>Content</p> }));
     const navigation = screen.getByRole("navigation", { name: "Organization navigation" });
-    expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "People"]);
+    expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "General", "People"]);
     expect(screen.queryByRole("navigation", { name: "Organization activity navigation" })).not.toBeInTheDocument();
   });
 
   it("keeps Settings discoverable for organization.update without ledger.view", async () => {
     mocks.getOrganizationForMember.mockResolvedValue({ ...organization, canViewLedger: false, canViewMembers: false, canManageRepaymentDestinations: false, canExport: false, canUpdate: true });
     render(await OrganizationLayout({ params: Promise.resolve({ organizationId: "org-a" }), children: <p>Content</p> }));
-    expect(within(screen.getByRole("navigation", { name: "Organization navigation" })).getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "Settings"]);
+    expect(within(screen.getByRole("navigation", { name: "Organization navigation" })).getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "General", "Settings"]);
   });
 });

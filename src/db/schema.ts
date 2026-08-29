@@ -374,6 +374,68 @@ export const groupAvatars = pgTable("group_avatars", {
   check("group_avatars_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
 ]);
 
+export const chatThreads = pgTable(
+  "chat_threads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+    groupId: uuid("group_id").references(() => groups.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("chat_threads_parent_xor", sql`(${table.organizationId} IS NOT NULL AND ${table.groupId} IS NULL) OR (${table.organizationId} IS NULL AND ${table.groupId} IS NOT NULL)`),
+    unique("chat_threads_id_organization_unique").on(table.id, table.organizationId),
+    unique("chat_threads_id_group_unique").on(table.id, table.groupId),
+    uniqueIndex("chat_threads_organization_uidx").on(table.organizationId),
+    uniqueIndex("chat_threads_group_uidx").on(table.groupId),
+  ],
+);
+
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    organizationId: uuid("organization_id"),
+    groupId: uuid("group_id"),
+    senderUserId: text("sender_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    senderParticipantId: uuid("sender_participant_id"),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedByUserId: text("deleted_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    check("chat_messages_body_not_blank", sql`btrim(${table.body}) <> ''`),
+    check("chat_messages_body_length_valid", sql`length(${table.body}) <= 4000`),
+    check("chat_messages_parent_xor", sql`(${table.organizationId} IS NOT NULL AND ${table.groupId} IS NULL) OR (${table.organizationId} IS NULL AND ${table.groupId} IS NOT NULL)`),
+    check("chat_messages_participant_scope", sql`(${table.groupId} IS NULL AND ${table.senderParticipantId} IS NULL) OR (${table.groupId} IS NOT NULL AND ${table.senderParticipantId} IS NOT NULL)`),
+    check("chat_messages_deleted_identity_shape", sql`(${table.deletedAt} IS NULL AND ${table.deletedByUserId} IS NULL) OR (${table.deletedAt} IS NOT NULL AND ${table.deletedByUserId} IS NOT NULL)`),
+    foreignKey({
+      columns: [table.threadId, table.organizationId],
+      foreignColumns: [chatThreads.id, chatThreads.organizationId],
+      name: "chat_messages_organization_thread_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.threadId, table.groupId],
+      foreignColumns: [chatThreads.id, chatThreads.groupId],
+      name: "chat_messages_group_thread_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.groupId, table.senderUserId, table.senderParticipantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.userId, groupParticipants.id],
+      name: "chat_messages_sender_participant_fk",
+    }).onDelete("restrict"),
+    index("chat_messages_thread_created_idx").on(table.threadId, table.createdAt, table.id),
+  ],
+);
+
 export const groupJoinRequests = pgTable(
   "group_join_requests",
   {
@@ -1310,6 +1372,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   groupJoinRequestRequesters: many(groupJoinRequests, { relationName: "groupJoinRequestRequesters" }),
   organizationInvitationsReceived: many(organizationInvitations, { relationName: "organizationInvitationTargets" }),
   organizationInvitationsSent: many(organizationInvitations, { relationName: "organizationInvitationInviters" }),
+  chatMessageSenders: many(chatMessages, { relationName: "chatMessageSenders" }),
+  chatMessageDeleters: many(chatMessages, { relationName: "chatMessageDeleters" }),
 }));
 
 export const friendsRelations = relations(friends, ({ one, many }) => ({
@@ -1360,6 +1424,7 @@ export const organizationsRelations = relations(organizations, ({ many, one }) =
   invitations: many(organizationInvitations),
   avatar: one(organizationAvatars),
   ledgerScope: one(ledgerScopes),
+  chatThreads: many(chatThreads),
 }));
 
 export const ledgerScopesRelations = relations(ledgerScopes, ({ one }) => ({
@@ -1423,6 +1488,7 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   offsetApplications: many(groupOffsetApplications),
   settlementProofs: many(groupSettlementProofs),
   expenseReceipts: many(groupExpenseReceipts),
+  chatThreads: many(chatThreads),
 }));
 
 export const groupParticipantsRelations = relations(groupParticipants, ({ one, many }) => ({
@@ -1438,6 +1504,7 @@ export const groupParticipantsRelations = relations(groupParticipants, ({ one, m
   receivedSettlements: many(groupSettlements, { relationName: "groupSettlementRecipients" }),
   initiatedOffsets: many(groupOffsetSettlements, { relationName: "groupOffsetInitiators" }),
   receivedOffsets: many(groupOffsetSettlements, { relationName: "groupOffsetCounterparties" }),
+  chatMessages: many(chatMessages),
 }));
 
 export const groupMembershipsRelations = relations(groupMemberships, ({ one }) => ({
@@ -1448,6 +1515,19 @@ export const groupMembershipsRelations = relations(groupMemberships, ({ one }) =
 
 export const groupAvatarsRelations = relations(groupAvatars, ({ one }) => ({
   group: one(groups, { fields: [groupAvatars.groupId], references: [groups.id] }),
+}));
+
+export const chatThreadsRelations = relations(chatThreads, ({ one, many }) => ({
+  organization: one(organizations, { fields: [chatThreads.organizationId], references: [organizations.id] }),
+  group: one(groups, { fields: [chatThreads.groupId], references: [groups.id] }),
+  messages: many(chatMessages),
+}));
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+  thread: one(chatThreads, { fields: [chatMessages.threadId], references: [chatThreads.id] }),
+  sender: one(users, { fields: [chatMessages.senderUserId], references: [users.id], relationName: "chatMessageSenders" }),
+  senderParticipant: one(groupParticipants, { fields: [chatMessages.groupId, chatMessages.senderUserId, chatMessages.senderParticipantId], references: [groupParticipants.groupId, groupParticipants.userId, groupParticipants.id] }),
+  deletedBy: one(users, { fields: [chatMessages.deletedByUserId], references: [users.id], relationName: "chatMessageDeleters" }),
 }));
 
 export const groupJoinRequestsRelations = relations(groupJoinRequests, ({ one }) => ({

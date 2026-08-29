@@ -52,11 +52,12 @@ export function OrganizationIdentity({ organization }: { organization: { id: str
   );
 }
 
-export function OrganizationNavigation({ organizationId, canViewLedger, canViewPeople, canViewSettings }: { organizationId: string; canViewLedger: boolean; canViewPeople: boolean; canViewSettings: boolean }) {
+export function OrganizationNavigation({ organizationId, canViewLedger, canViewChat = false, canViewPeople, canViewSettings }: { organizationId: string; canViewLedger: boolean; canViewChat?: boolean; canViewPeople: boolean; canViewSettings: boolean }) {
   const pathname = usePathname() ?? "";
   const base = `/app/organizations/${organizationId}`;
   const links: Array<[string, string, boolean]> = [
     ["Overview", base, pathname === base],
+    ...(canViewChat ? [["General", `${base}/general`, pathname.startsWith(`${base}/general`)] ] as Array<[string, string, boolean]> : []),
     ...(canViewLedger
       ? [
           [

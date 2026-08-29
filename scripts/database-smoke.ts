@@ -7,6 +7,8 @@ import * as schema from "../src/db/schema";
 import { ensurePersonalLedgerScope } from "../src/server/ledger-scopes";
 
 const domainTables = [
+  "chat_threads",
+  "chat_messages",
   "friends",
   "outings",
   "expenses",

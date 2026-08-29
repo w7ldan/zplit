@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import * as schema from "./schema";
 
 const domainTables = [
+  "chat_messages",
+  "chat_threads",
   "expense_charge_targets",
   "expense_charges",
   "expense_receipts",
@@ -84,7 +86,7 @@ describe("database schema", () => {
 
   it("exports the domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupSettlementProofs, schema.groupSettlements, schema.groupSettlementApplications, schema.groupOffsetSettlements, schema.groupOffsetApplications, schema.groupExpenseReceipts, schema.groupExpenseLifecycleEvents]
+      [schema.chatMessages, schema.chatThreads, schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupSettlementProofs, schema.groupSettlements, schema.groupSettlementApplications, schema.groupOffsetSettlements, schema.groupOffsetApplications, schema.groupExpenseReceipts, schema.groupExpenseLifecycleEvents]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -94,6 +96,37 @@ describe("database schema", () => {
       "users",
       "verifications",
     ]);
+  });
+
+  it("defines one scoped chat thread and durable tombstone messages", () => {
+    const threads = getTableConfig(schema.chatThreads);
+    expect(threads.columns.map((column) => column.name)).toEqual(["id", "organization_id", "group_id", "created_at", "updated_at"]);
+    expect(threads.checks.map((check) => check.name)).toContain("chat_threads_parent_xor");
+    expect(foreignKeyShape(schema.chatThreads)).toEqual(expect.arrayContaining([
+      { from: ["organization_id"], to: "organizations", target: ["id"], onDelete: "cascade" },
+      { from: ["group_id"], to: "groups", target: ["id"], onDelete: "cascade" },
+    ]));
+    expect(indexColumns(schema.chatThreads, "chat_threads_organization_uidx")).toEqual(["organization_id"]);
+    expect(indexColumns(schema.chatThreads, "chat_threads_group_uidx")).toEqual(["group_id"]);
+
+    const messages = getTableConfig(schema.chatMessages);
+    expect(messages.columns.map((column) => column.name)).toEqual([
+      "id", "thread_id", "organization_id", "group_id", "sender_user_id", "sender_participant_id", "body", "created_at", "edited_at", "deleted_at", "deleted_by_user_id",
+    ]);
+    expect(messages.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "chat_messages_body_not_blank",
+      "chat_messages_body_length_valid",
+      "chat_messages_parent_xor",
+      "chat_messages_participant_scope",
+      "chat_messages_deleted_identity_shape",
+    ]));
+    expect(foreignKeyShape(schema.chatMessages)).toEqual(expect.arrayContaining([
+      { from: ["thread_id"], to: "chat_threads", target: ["id"], onDelete: "cascade" },
+      { from: ["thread_id", "organization_id"], to: "chat_threads", target: ["id", "organization_id"], onDelete: "cascade" },
+      { from: ["thread_id", "group_id"], to: "chat_threads", target: ["id", "group_id"], onDelete: "cascade" },
+      { from: ["group_id", "sender_user_id", "sender_participant_id"], to: "group_participants", target: ["group_id", "user_id", "id"], onDelete: "restrict" },
+    ]));
+    expect(indexColumns(schema.chatMessages, "chat_messages_thread_created_idx")).toEqual(["thread_id", "created_at", "id"]);
   });
 
   it("defines Group expenses, shares, obligations, and private receipt storage with same-Group keys", () => {

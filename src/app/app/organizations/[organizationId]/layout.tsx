@@ -35,7 +35,7 @@ export default async function OrganizationLayout({ children, params }: { childre
         </div>
       </div>
       {organization.description ? <p className="organization-detail__description">{organization.description}</p> : null}
-      <OrganizationNavigation organizationId={organizationId} canViewLedger={organization.canViewLedger} canViewPeople={organization.canViewMembers || organization.canViewLedger} canViewSettings={organization.canUpdate || organization.canDelete || organization.canManageRepaymentDestinations || organization.canExport} />
+      <OrganizationNavigation organizationId={organizationId} canViewLedger={organization.canViewLedger} canViewChat={organization.canViewChat} canViewPeople={organization.canViewMembers || organization.canViewLedger} canViewSettings={organization.canUpdate || organization.canDelete || organization.canManageRepaymentDestinations || organization.canExport} />
     </header>
     {children}
   </>;

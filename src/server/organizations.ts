@@ -68,6 +68,7 @@ function toOrganizationCapabilities(access: OrganizationAccess): OrganizationCap
     canDelete: access.can("organization.delete"),
     canViewMembers: access.can("members.view"),
     canViewLedger: access.can("ledger.view"),
+    canViewChat: access.can("chat.view"),
     canManageRepaymentDestinations: access.can("repayment_destinations.manage"),
     canExport: access.can("exports.create"),
     invitationRoles: getOrganizationInvitationRoles(access.can),

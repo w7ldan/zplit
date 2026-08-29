@@ -48,6 +48,9 @@ export function GroupNavigation({ groupId, canManageGroup }: { groupId: string; 
       <Link href={base} aria-current={pathname === base ? "page" : undefined}>
         Overview
       </Link>
+      <Link href={`${base}/chat`} aria-current={pathname.startsWith(`${base}/chat`) ? "page" : undefined}>
+        Chat
+      </Link>
       <Link
         href={`${base}/expenses`}
         aria-current={

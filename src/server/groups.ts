@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, count, eq, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { groupAvatars, groupExpenseShares, groupExpenses, groupJoinRequests, groupMemberships, groupObligations, groupOffsetSettlements, groupParticipants, groupSettlements, groups, users } from "@/db/schema";
+import { chatMessages, groupAvatars, groupExpenseShares, groupExpenses, groupJoinRequests, groupMemberships, groupObligations, groupOffsetSettlements, groupParticipants, groupSettlements, groups, users } from "@/db/schema";
 import type { GroupAvatarMetadata, GroupCapabilities, GroupDetail, GroupParticipant, GroupSummary } from "@/domain/group-contracts";
 import { groupAccessForRole, isGroupRole, type GroupRole } from "@/domain/group-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
@@ -309,14 +309,21 @@ export async function removeGroupMember(database: Database, groupId: string, act
     if (!target || !isGroupRole(target.role) || !target.participantId || target.participantGroupId !== groupId || target.participantUserId !== targetUserId || target.role === "owner" || targetUserId === actorUserId || (target.role === "admin" && !access.isOwner) || (!access.isOwner && !access.canManageParticipants)) throw new GroupError("forbidden");
 
     const hasFinancialHistory = await participantHasFinancialHistory(transactionalDatabase, groupId, target.participantId);
+    const [chatHistory] = !hasFinancialHistory
+      ? await transaction
+        .select({ id: chatMessages.id })
+        .from(chatMessages)
+        .where(and(eq(chatMessages.groupId, groupId), eq(chatMessages.senderParticipantId, target.participantId)))
+        .limit(1)
+      : [];
     let revokedTargetUserIds: string[] = [];
-    if (!hasFinancialHistory) {
+    if (!hasFinancialHistory && !chatHistory) {
       const revoked = await revokePendingParticipantLinks(transactionalDatabase, groupId, target.participantId, new Date());
       revokedTargetUserIds = revoked.map(({ targetUserId: recipientUserId }) => recipientUserId);
     }
     const deletedMembership = await transaction.delete(groupMemberships).where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId), eq(groupMemberships.participantId, target.participantId))).returning({ userId: groupMemberships.userId });
     if (deletedMembership.length !== 1) throw new GroupError("forbidden");
-    if (!hasFinancialHistory) {
+    if (!hasFinancialHistory && !chatHistory) {
       const deletedParticipant = await transaction.delete(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, target.participantId), eq(groupParticipants.userId, targetUserId))).returning({ id: groupParticipants.id });
       if (deletedParticipant.length !== 1) throw new GroupError("participant_not_found");
     }
