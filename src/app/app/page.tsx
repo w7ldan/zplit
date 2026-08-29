@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { requireSession } from "@/auth/require-session";
+import { getDatabase } from "@/db/client";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { readOverviewSpaces } from "@/server/app-overview";
 import { formatRupiah } from "@/domain/rupiah";
+import { GroupCard } from "@/components/groups/group-card";
+import { OrganizationAvatar } from "@/components/organizations/organization-avatar";
 
 export const metadata = { title: "Overview" };
 import { LocalDateTime } from "@/components/editorial/local-date-time";
@@ -10,11 +14,13 @@ export const dynamic = "force-dynamic";
 
 export default async function AppPage() {
   const session = await requireSession();
+  const database = getDatabase();
   const { ledger: repository } = await getAuthenticatedLedger(session);
-  const [summary, activity, needsAttention] = await Promise.all([
+  const [summary, activity, needsAttention, spaces] = await Promise.all([
     repository.getLedgerOverviewSummary(),
     repository.listRecentActivity({ limit: 6 }),
     repository.listNeedsAttentionRepayments(),
+    readOverviewSpaces(database, session.user.id),
   ]);
   const displayedNeedsAttention = needsAttention.items.slice(0, 3);
 
@@ -25,36 +31,69 @@ export default async function AppPage() {
           <div>
             <p className="technical-label">Overview · your Zplit</p>
             <h1>Overview</h1>
-            <p className="app-page__lede">A concise view of your Personal ledger and the next thing that needs attention.</p>
+            <p className="app-page__lede">Your Zplit workspace across Personal, Groups, and Organizations.</p>
           </div>
           <div className="app-page__actions">
             <Link className="action-link action-link--primary" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
             <Link className="action-link action-link--quiet" href="/app/repayments?create=1" data-task-trigger="repayment-create">Record repayment</Link>
           </div>
         </div>
-        <section className="overview-summary" aria-label="Primary ledger summary">
-          <div className="overview-summary__primary"><span className="technical-label">Still owed to you</span><strong>{formatRupiah(summary.totalOutstandingAmount)}</strong><span>Open balances across your friends.</span></div>
-          <div className={summary.totalUnallocatedRepaymentAmount > 0 ? "overview-summary__attention" : undefined}><span className="technical-label">Needs allocation</span><strong>{formatRupiah(summary.totalUnallocatedRepaymentAmount)}</strong><span>{summary.totalUnallocatedRepaymentAmount > 0 ? "Received money still needs an expense." : "All received money is applied to shares."}</span></div>
-          <div><span className="technical-label">Total spending</span><strong>{formatRupiah(summary.totalExpenseAmount)}</strong><span>All expenses recorded in this ledger.</span></div>
-        </section>
-
-        <details className="overview-ledger-clarity">
-          <summary>How are these totals calculated?</summary>
-          <div className="overview-ledger-clarity__relations">
-            <section aria-labelledby="spending-equation-heading">
-              <h3 id="spending-equation-heading">Spending</h3>
-              <p className="overview-ledger-clarity__equation">Total spending = Your portion + Assigned to friends</p>
-            </section>
-            <section aria-labelledby="friend-debt-equation-heading">
-              <h3 id="friend-debt-equation-heading">Friend debt</h3>
-              <p className="overview-ledger-clarity__equation">Assigned to friends = Applied to shares + Still owed</p>
-            </section>
-            <section aria-labelledby="repayments-equation-heading">
-              <h3 id="repayments-equation-heading">Repayments</h3>
-              <p className="overview-ledger-clarity__equation">Received = Applied to shares + Needs allocation</p>
-            </section>
+        <section aria-labelledby="personal-overview-heading">
+          <div className="ledger-section__heading">
+            <div>
+              <p className="technical-label">PERSONAL · PRIVATE LEDGER</p>
+              <h2 id="personal-overview-heading">Personal</h2>
+            </div>
+            <Link className="text-link overview-section__link" href="/app/personal">
+              Open Personal <span aria-hidden="true">→</span>
+            </Link>
           </div>
-        </details>
+          <section className="overview-summary" aria-label="Personal ledger summary">
+            <div className="overview-summary__primary">
+              <span className="technical-label">Still owed to you</span>
+              <strong>{formatRupiah(summary.totalOutstandingAmount)}</strong>
+              <span>Open balances across your friends.</span>
+            </div>
+            <div className={summary.totalUnallocatedRepaymentAmount > 0 ? "overview-summary__attention" : undefined}>
+              <span className="technical-label">Needs allocation</span>
+              <strong>{formatRupiah(summary.totalUnallocatedRepaymentAmount)}</strong>
+              <span>
+                {summary.totalUnallocatedRepaymentAmount > 0
+                  ? "Received money still needs an expense."
+                  : "All received money is applied to shares."}
+              </span>
+            </div>
+            <div>
+              <span className="technical-label">Total spending</span>
+              <strong>{formatRupiah(summary.totalExpenseAmount)}</strong>
+              <span>All expenses recorded in this ledger.</span>
+            </div>
+          </section>
+
+          <details className="overview-ledger-clarity">
+            <summary>How are these totals calculated?</summary>
+            <div className="overview-ledger-clarity__relations">
+              <section aria-labelledby="spending-equation-heading">
+                <h3 id="spending-equation-heading">Spending</h3>
+                <p className="overview-ledger-clarity__equation">
+                  Total spending = Your portion + Assigned to friends
+                </p>
+              </section>
+              <section aria-labelledby="friend-debt-equation-heading">
+                <h3 id="friend-debt-equation-heading">Friend debt</h3>
+                <p className="overview-ledger-clarity__equation">
+                  Assigned to friends = Applied to shares + Still owed
+                </p>
+              </section>
+              <section aria-labelledby="repayments-equation-heading">
+                <h3 id="repayments-equation-heading">Repayments</h3>
+                <p className="overview-ledger-clarity__equation">
+                  Received = Applied to shares + Needs allocation
+                </p>
+              </section>
+            </div>
+          </details>
+        </section>
 
         <div className="app-page__columns">
           <section className="ledger-section" aria-labelledby="balances-heading">
@@ -94,13 +133,94 @@ export default async function AppPage() {
             {needsAttention.totalItems > displayedNeedsAttention.length ? <Link className="text-link" href="/app/repayments?allocation=needs">View all unresolved repayments <span aria-hidden="true">→</span></Link> : null}
           </section>
         ) : null}
-        <section className="future-section" aria-labelledby="groups-preview-heading">
-          <div className="ledger-section__heading"><h2 id="groups-preview-heading">Groups</h2><span className="technical-label">Personal</span></div>
-          <div className="future-section__empty"><p>Groups will appear here when they are available.</p><Link className="text-link" href="/app/personal">Open Personal <span aria-hidden="true">→</span></Link></div>
+        <section className="ledger-section overview-space-section" aria-labelledby="groups-preview-heading">
+          <div className="ledger-section__heading">
+            <h2 id="groups-preview-heading">Groups</h2>
+            <Link className="text-link overview-section__link" href="/app/personal/groups">
+              View all Groups <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+          {spaces.groups.length ? (
+            <div className="group-grid">
+              {spaces.groups.map((group) => (
+                <GroupCard
+                  balance={group}
+                  group={group}
+                  key={group.id}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="ledger-empty">
+              <h3>No groups yet.</h3>
+              <p>Create a peer-to-peer space for shared expenses.</p>
+              <Link className="text-link" href="/app/personal?create=1">
+                Create a group <span aria-hidden="true">→</span>
+              </Link>
+            </div>
+          )}
         </section>
-        <section className="future-section" aria-labelledby="organizations-preview-heading">
-          <div className="ledger-section__heading"><h2 id="organizations-preview-heading">Organizations</h2><span className="technical-label">Coming later</span></div>
-          <div className="future-section__empty"><p>No organizations yet.</p><Link className="text-link" href="/app/organizations">View Organizations <span aria-hidden="true">→</span></Link></div>
+        <section className="ledger-section overview-space-section" aria-labelledby="organizations-preview-heading">
+          <div className="ledger-section__heading">
+            <h2 id="organizations-preview-heading">Organizations</h2>
+            <Link className="text-link overview-section__link" href="/app/organizations">
+              View all Organizations <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+          {spaces.organizations.length ? (
+            <div className="organization-grid">
+              {spaces.organizations.map((organization) => (
+                <Link
+                  className="organization-card"
+                  href={`/app/organizations/${organization.id}`}
+                  key={organization.id}
+                >
+                  <OrganizationAvatar
+                    organizationId={organization.id}
+                    customAvatar={organization.avatar}
+                    size="md"
+                    decorative
+                  />
+                  <span className="organization-card__details">
+                    <strong>{organization.name}</strong>
+                    <span>
+                      {organization.role[0]?.toUpperCase()}
+                      {organization.role.slice(1)} · {organization.memberCount}{" "}
+                      {organization.memberCount === 1 ? "member" : "members"}
+                    </span>
+                    {organization.ledgerSummary ? (
+                      <span className="organization-card__ledger">
+                        <span>
+                          <span className="technical-label">OUTSTANDING</span>
+                          <strong>{formatRupiah(organization.ledgerSummary.totalOutstandingAmount)}</strong>
+                        </span>
+                        <span>
+                          <span className="technical-label">EXPENSES</span>
+                          <strong>{formatRupiah(organization.ledgerSummary.totalExpenseAmount)}</strong>
+                        </span>
+                        <span>
+                          <span className="technical-label">REPAID</span>
+                          <strong>{formatRupiah(organization.ledgerSummary.totalRepaidAmount)}</strong>
+                        </span>
+                      </span>
+                    ) : null}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="ledger-empty">
+              <h3>No organizations yet.</h3>
+              <p>Create a managed space separate from Personal.</p>
+              <Link
+                className="text-link"
+                href="/app/organizations?create=1"
+                data-task-trigger="organization-create"
+              >
+                New organization <span aria-hidden="true">→</span>
+              </Link>
+            </div>
+          )}
         </section>
       </div>
     </section>

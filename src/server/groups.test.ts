@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { groupMemberships, groupParticipants, groups } from "@/db/schema";
 import { assertPlainDto } from "@/test/assert-plain-dto";
-import { createExternalParticipant, createGroup, deleteExternalParticipant, deleteGroup, getGroupForMember, GroupError, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
+import { createExternalParticipant, createGroup, deleteExternalParticipant, deleteGroup, getGroupForMember, GroupError, listGroupOverviewSummaries, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
 
 vi.mock("server-only", () => ({}));
 
@@ -48,6 +48,24 @@ function removalDatabase(actorRole: string, target: Record<string, unknown> | nu
 
 describe("groups", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("uses canonical bilateral balances in the bounded overview read", async () => {
+    const database = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ id: groupId, name: "Bandung Trip", description: null, role: "member", participantCount: 2, avatar: null }]))
+        .mockImplementationOnce(() => chain([{ groupId, participantId }]))
+        .mockImplementationOnce(() => chain([
+          { groupId, debtorParticipantId: participantId, creditorParticipantId: otherGroupId, originalAmount: 100 },
+          { groupId, debtorParticipantId: otherGroupId, creditorParticipantId: participantId, originalAmount: 50 },
+        ]))
+        .mockImplementationOnce(() => chain([{ groupId, senderParticipantId: participantId, recipientParticipantId: otherGroupId, amount: 30, state: "confirmed" }])),
+    } as unknown as Database;
+
+    await expect(listGroupOverviewSummaries(database, "user-a")).resolves.toEqual([
+      expect.objectContaining({ youOwe: 20, owedToYou: 0 }),
+    ]);
+    expect(database.select).toHaveBeenCalledTimes(4);
+  });
 
   it("creates the Group, registered participant, and Owner membership atomically", async () => {
     const calls: Array<{ table: unknown; values: unknown }> = [];

@@ -1,9 +1,10 @@
 import "server-only";
 
-import { and, asc, count, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { chatMessages, groupAvatars, groupExpenseShares, groupExpenses, groupJoinRequests, groupMemberships, groupObligations, groupOffsetSettlements, groupParticipants, groupSettlements, groups, users } from "@/db/schema";
 import type { GroupAvatarMetadata, GroupCapabilities, GroupDetail, GroupParticipant, GroupSummary } from "@/domain/group-contracts";
+import { calculateGroupBalances } from "@/domain/group-accounting";
 import { groupAccessForRole, isGroupRole, type GroupRole } from "@/domain/group-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { publishNotificationStateChange } from "@/server/notifications";
@@ -86,8 +87,8 @@ export async function requireGroupAccess(database: Database, groupId: string, us
   };
 }
 
-export async function listGroups(database: Database, userId: string): Promise<GroupSummary[]> {
-  const rows = await database
+export async function listGroups(database: Database, userId: string, limit?: number): Promise<GroupSummary[]> {
+  const query = database
     .select({
       id: groups.id,
       name: groups.name,
@@ -101,7 +102,79 @@ export async function listGroups(database: Database, userId: string): Promise<Gr
     .leftJoin(groupAvatars, eq(groupAvatars.groupId, groups.id))
     .where(eq(groupMemberships.userId, userId))
     .orderBy(asc(groups.name), asc(groups.id));
+  const rows = await (limit === undefined ? query : query.limit(limit));
   return rows.map((row) => ({ ...row, role: row.role as GroupRole, participantCount: Number(row.participantCount), avatar: mapAvatar(row.avatar) }));
+}
+
+export type GroupOverviewSummary = GroupSummary & {
+  youOwe: number;
+  owedToYou: number;
+};
+
+export async function listGroupOverviewSummaries(
+  database: Database,
+  userId: string,
+  limit = 4,
+): Promise<GroupOverviewSummary[]> {
+  const groupsForOverview = await listGroups(database, userId, limit);
+  if (groupsForOverview.length === 0) return [];
+  const groupIds = groupsForOverview.map(({ id }) => id);
+  const [memberships, obligations, settlements] = await Promise.all([
+    database
+      .select({
+        groupId: groupMemberships.groupId,
+        participantId: groupMemberships.participantId,
+      })
+      .from(groupMemberships)
+      .where(and(eq(groupMemberships.userId, userId), inArray(groupMemberships.groupId, groupIds))),
+    database
+      .select({
+        groupId: groupObligations.groupId,
+        debtorParticipantId: groupObligations.debtorParticipantId,
+        creditorParticipantId: groupObligations.creditorParticipantId,
+        originalAmount: groupObligations.originalAmount,
+      })
+      .from(groupObligations)
+      .where(and(inArray(groupObligations.groupId, groupIds), isNull(groupObligations.voidedAt))),
+    database
+      .select({
+        groupId: groupSettlements.groupId,
+        senderParticipantId: groupSettlements.senderParticipantId,
+        recipientParticipantId: groupSettlements.recipientParticipantId,
+        amount: groupSettlements.amount,
+        state: groupSettlements.state,
+      })
+      .from(groupSettlements)
+      .where(inArray(groupSettlements.groupId, groupIds)),
+  ]);
+  const participantByGroup = new Map(memberships.map(({ groupId, participantId }) => [groupId, participantId]));
+  const obligationsByGroup = new Map<string, typeof obligations>();
+  const settlementsByGroup = new Map<string, typeof settlements>();
+  for (const obligation of obligations) {
+    const groupObligations = obligationsByGroup.get(obligation.groupId) ?? [];
+    groupObligations.push(obligation);
+    obligationsByGroup.set(obligation.groupId, groupObligations);
+  }
+  for (const settlement of settlements) {
+    const groupSettlements = settlementsByGroup.get(settlement.groupId) ?? [];
+    groupSettlements.push(settlement);
+    settlementsByGroup.set(settlement.groupId, groupSettlements);
+  }
+  return groupsForOverview.map((group) => {
+    const participantId = participantByGroup.get(group.id);
+    const balances = calculateGroupBalances(obligationsByGroup.get(group.id) ?? [], settlementsByGroup.get(group.id) ?? []);
+    let youOwe = 0;
+    let owedToYou = 0;
+    for (const balance of balances) {
+      if (balance.debtorParticipantId === participantId) youOwe += balance.amount;
+      if (balance.creditorParticipantId === participantId) owedToYou += balance.amount;
+    }
+    return {
+      ...group,
+      youOwe,
+      owedToYou,
+    };
+  });
 }
 
 export async function getGroupForMember(database: Database, groupId: string, userId: string): Promise<GroupDetail> {

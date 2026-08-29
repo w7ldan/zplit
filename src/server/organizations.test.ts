@@ -11,6 +11,7 @@ import {
   deleteOrganization,
   deleteOrganizationAvatar,
   getOrganizationForMember,
+  listOrganizationOverviewSummaries,
   OrganizationError,
   requireOrganizationAccess,
   requireOrganizationLedgerAccess,
@@ -63,6 +64,23 @@ const updateRoles: readonly [OrganizationRole, readonly string[], boolean][] = [
 
 describe("organizations", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("derives overview ledger visibility from each Organization membership", async () => {
+    const database = {
+      select: vi.fn(() => queryBuilder([
+        { id: organizationId, name: "Studio", description: null, role: "member", memberCount: 2, avatar: null, customCapabilities: [], ledgerScopeId: "scope-a" },
+        { id: "22222222-2222-4222-8222-222222222222", name: "Private", description: null, role: "custom", memberCount: 1, avatar: null, customCapabilities: ["organization.view"], ledgerScopeId: "scope-b" },
+      ])),
+    } as unknown as Database;
+
+    const overviews = await listOrganizationOverviewSummaries(database, "user-a");
+
+    expect(overviews).toEqual([
+      expect.objectContaining({ id: organizationId, canViewLedger: true, ledgerScopeId: "scope-a" }),
+      expect.objectContaining({ id: "22222222-2222-4222-8222-222222222222", canViewLedger: false, ledgerScopeId: "scope-b" }),
+    ]);
+    assertPlainDto(overviews);
+  });
 
   it("creates the organization and Owner membership in one transaction", async () => {
     const calls: Array<{ table: unknown; values?: unknown }> = [];

@@ -1411,6 +1411,26 @@ body.global-search-open {
   font-size: 0.75rem;
 }
 
+.group-card__balance {
+  display: grid;
+  gap: 0.15rem;
+  margin-top: 0.25rem;
+}
+
+.group-card__balance > span {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.group-card__balance strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .personal-destination {
   display: grid;
   gap: 0.35rem;
@@ -1464,6 +1484,32 @@ body.global-search-open {
 .organization-card__details span {
   color: var(--muted-ink);
   font-size: 0.75rem;
+}
+
+.overview-section__link {
+  margin-top: 0;
+}
+
+.organization-card__ledger {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.organization-card__ledger > span {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.organization-card__ledger strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .organization-form {
@@ -2025,6 +2071,10 @@ body.global-search-open {
   .personal-destinations__grid,
   .organization-grid,
   .group-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .organization-card__ledger {
     grid-template-columns: 1fr;
   }
 

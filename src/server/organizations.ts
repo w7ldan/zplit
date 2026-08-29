@@ -111,22 +111,80 @@ export async function requireOrganizationLedgerAccess(
   return { ...access, organizationId, ledgerScopeId: scope.id, ledger: createLedgerRepository(database, scope.id) };
 }
 
-export async function listOrganizations(database: Database, userId: string): Promise<OrganizationSummary[]> {
-  const rows = await database
+type OrganizationListRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  role: string;
+  memberCount: number;
+  avatar: { mediaType: string; byteSize: number; sha256: string } | null;
+  customCapabilities: unknown;
+  ledgerScopeId: string | null;
+};
+
+async function listOrganizationRows(database: Database, userId: string, limit?: number): Promise<OrganizationListRow[]> {
+  const query = database
     .select({
       id: organizations.id,
       name: organizations.name,
       description: organizations.description,
       role: organizationMemberships.role,
-      memberCount: sql<number>`(select count(*) from organization_memberships members where members.organization_id = ${organizations.id})`.mapWith(Number),
+      memberCount: sql<number>`(
+        select count(*)
+        from organization_memberships members
+        where members.organization_id = ${organizations.id}
+      )`.mapWith(Number),
       avatar: avatarSelection(),
+      customCapabilities: organizationMemberships.customCapabilities,
+      ledgerScopeId: ledgerScopes.id,
     })
     .from(organizationMemberships)
     .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
     .leftJoin(organizationAvatars, eq(organizationAvatars.organizationId, organizations.id))
+    .leftJoin(ledgerScopes, eq(ledgerScopes.organizationId, organizations.id))
     .where(eq(organizationMemberships.userId, userId))
     .orderBy(asc(organizations.name), asc(organizations.id));
-  return rows.map((row) => ({ ...row, role: row.role as OrganizationRole, avatar: mapAvatar(row.avatar) }));
+  return await (limit === undefined ? query : query.limit(limit));
+}
+
+export async function listOrganizations(database: Database, userId: string): Promise<OrganizationSummary[]> {
+  const rows = await listOrganizationRows(database, userId);
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    role: row.role as OrganizationRole,
+    memberCount: Number(row.memberCount),
+    avatar: mapAvatar(row.avatar),
+  }));
+}
+
+export type OrganizationOverviewSummary = OrganizationSummary & {
+  canViewLedger: boolean;
+  ledgerScopeId: string | null;
+};
+
+export async function listOrganizationOverviewSummaries(
+  database: Database,
+  userId: string,
+  limit = 4,
+): Promise<OrganizationOverviewSummary[]> {
+  const rows = await listOrganizationRows(database, userId, limit);
+  return rows.flatMap((row) => {
+    const role = row.role as OrganizationRole;
+    const capabilities = resolveOrganizationCapabilities(role, row.customCapabilities);
+    if (!capabilities.has("organization.view")) return [];
+    return [{
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      role,
+      memberCount: Number(row.memberCount),
+      avatar: mapAvatar(row.avatar),
+      canViewLedger: capabilities.has("ledger.view"),
+      ledgerScopeId: row.ledgerScopeId,
+    }];
+  });
 }
 
 export async function getOrganizationForMember(database: Database, organizationId: string, userId: string): Promise<OrganizationDetail> {

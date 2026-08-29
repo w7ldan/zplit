@@ -1,15 +1,17 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppPage from "./page";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   createLedgerRepository: vi.fn(),
   getDatabase: vi.fn(() => "database"),
+  readOverviewSpaces: vi.fn(),
 }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
+vi.mock("@/server/app-overview", () => ({ readOverviewSpaces: mocks.readOverviewSpaces }));
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: async (session?: { user: { id: string } }) => { const current = session ?? await mocks.requireSession(); return { user: current.user, ledger: mocks.createLedgerRepository(mocks.getDatabase(), current.user.id) }; } }));
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
 
@@ -26,6 +28,10 @@ const summary = {
 };
 
 describe("/app overview", () => {
+  beforeEach(() => {
+    mocks.readOverviewSpaces.mockResolvedValue({ groups: [], organizations: [] });
+  });
+
   it("answers outstanding, balances, and actionable partial allocation attention", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     const listRecentActivity = vi.fn().mockResolvedValue([
@@ -46,7 +52,7 @@ describe("/app overview", () => {
     expect("listRepayments" in repository).toBe(false);
     expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
     expect(screen.getByText("Overview · your Zplit")).toBeInTheDocument();
-    expect(screen.getByText("A concise view of your Personal ledger and the next thing that needs attention.")).toBeInTheDocument();
+    expect(screen.getByText("Your Zplit workspace across Personal, Groups, and Organizations.")).toBeInTheDocument();
     const primary = document.querySelector<HTMLElement>(".overview-summary")!;
     expect(primary.querySelectorAll("strong")).toHaveLength(3);
     for (const label of ["Still owed to you", "Needs allocation", "Total spending"]) {
@@ -110,11 +116,84 @@ describe("/app overview", () => {
 
     expect(screen.getByText("No expenses or repayments yet.")).toBeInTheDocument();
     expect(screen.getByText("No balances yet.")).toBeInTheDocument();
+    expect(screen.getByText("No groups yet.")).toBeInTheDocument();
+    expect(screen.getByText("No organizations yet.")).toBeInTheDocument();
     expect(screen.getByText("Balances appear after assigning friends to an expense.")).toBeInTheDocument();
     expect(screen.getByText("All received money is applied to shares.")).toBeInTheDocument();
     expect(screen.queryByText("All received money is assigned.")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: "Needs attention" })).not.toBeInTheDocument();
     expect(repository.listRecentActivity).toHaveBeenCalledExactlyOnceWith({ limit: 6 });
+  });
+
+  it("renders accessible Group and Organization workspaces with scoped financial summaries", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue(summary),
+      listRecentActivity: vi.fn().mockResolvedValue([]),
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
+    });
+    mocks.readOverviewSpaces.mockResolvedValue({
+      groups: [{ id: "group-a", name: "Bandung Trip", description: null, role: "owner", participantCount: 2, avatar: null, youOwe: 20_000, owedToYou: 0 }],
+      organizations: [{ id: "org-a", name: "Acme", description: null, role: "member", memberCount: 3, avatar: null, canViewLedger: true, ledgerSummary: { totalOutstandingAmount: 40_000, totalExpenseAmount: 80_000, totalRepaidAmount: 25_000 } }],
+    });
+
+    render(await AppPage());
+
+    expect(screen.getByRole("link", { name: /Bandung Trip/ })).toHaveAttribute("href", "/app/personal/groups/group-a");
+    expect(screen.getByText("You owe")).toBeInTheDocument();
+    expect(screen.getByText("Rp 20.000")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Acme/ })).toHaveAttribute("href", "/app/organizations/org-a");
+    expect(screen.getByText("OUTSTANDING")).toBeInTheDocument();
+    expect(screen.getByText("Rp 80.000")).toBeInTheDocument();
+    expect(screen.queryByText("Groups will appear here when they are available.")).not.toBeInTheDocument();
+    expect(screen.queryByText("No organizations yet.")).not.toBeInTheDocument();
+  });
+
+  it("renders a settled Group without inventing a balance", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue(summary),
+      listRecentActivity: vi.fn().mockResolvedValue([]),
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
+    });
+    mocks.readOverviewSpaces.mockResolvedValue({
+      groups: [{
+        id: "group-a",
+        name: "Bandung Trip",
+        description: null,
+        role: "member",
+        participantCount: 2,
+        avatar: null,
+        youOwe: 0,
+        owedToYou: 0,
+      }],
+      organizations: [],
+    });
+
+    render(await AppPage());
+
+    expect(screen.getByRole("link", { name: /Bandung Trip/ })).toHaveAttribute("href", "/app/personal/groups/group-a");
+    expect(screen.getByText("Settled up")).toBeInTheDocument();
+  });
+
+  it("keeps an Organization card visible without protected ledger values", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue(summary),
+      listRecentActivity: vi.fn().mockResolvedValue([]),
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
+    });
+    mocks.readOverviewSpaces.mockResolvedValue({
+      groups: [],
+      organizations: [{ id: "org-a", name: "Acme", description: null, role: "custom", memberCount: 1, avatar: null, canViewLedger: false, ledgerSummary: null }],
+    });
+
+    render(await AppPage());
+
+    expect(screen.getByRole("link", { name: /Acme/ })).toHaveAttribute("href", "/app/organizations/org-a");
+    expect(screen.queryByText("OUTSTANDING")).not.toBeInTheDocument();
+    expect(screen.queryByText("EXPENSES")).not.toBeInTheDocument();
+    expect(screen.queryByText("REPAID")).not.toBeInTheDocument();
   });
 
   it("shows at most three oldest unresolved repayments and links to the full needs filter", async () => {

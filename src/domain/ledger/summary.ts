@@ -19,6 +19,8 @@ type LedgerAggregateRow = {
   friend_balances: unknown;
 };
 
+type LedgerOverviewAggregateRow = LedgerAggregateRow & { scope_id: unknown };
+
 function ledgerText(value: unknown, label: string) {
   if (typeof value !== "string" || !value.trim()) throw new LedgerIntegrityError(`${label} is invalid.`);
   return value;
@@ -187,6 +189,116 @@ function ledgerAggregateQuery(scope: string, friendLimit?: number) {
       ), '[]'::jsonb) AS friend_balances
     FROM totals CROSS JOIN integrity
   `;
+}
+
+function ledgerOverviewSummariesQuery(scopeIds: string[]) {
+  const scopeValues = sql.join(scopeIds.map((scopeId) => sql`${scopeId}`), sql`, `);
+  return sql<LedgerOverviewAggregateRow>`
+    WITH selected_scopes AS (
+      SELECT value AS scope_id
+      FROM unnest(ARRAY[${scopeValues}]::uuid[]) AS scope_values(value)
+    ),
+    expense_totals AS (
+      SELECT e.ledger_scope_id AS scope_id, e.id, e.amount::numeric AS amount, COALESCE(SUM(s.amount_owed::numeric), 0) AS assigned_amount
+      FROM expenses e
+      LEFT JOIN expense_shares s
+        ON s.ledger_scope_id = e.ledger_scope_id
+        AND s.expense_id = e.id
+      WHERE e.ledger_scope_id IN (SELECT scope_id FROM selected_scopes)
+      GROUP BY e.ledger_scope_id, e.id, e.amount
+    ),
+    share_allocation_totals AS (
+      SELECT s.ledger_scope_id AS scope_id, s.id, s.amount_owed::numeric AS amount_owed, COALESCE(SUM(a.amount::numeric), 0) AS allocated_amount
+      FROM expense_shares s
+      LEFT JOIN repayment_allocations a
+        ON a.ledger_scope_id = s.ledger_scope_id
+        AND a.expense_share_id = s.id
+      WHERE s.ledger_scope_id IN (SELECT scope_id FROM selected_scopes)
+      GROUP BY s.ledger_scope_id, s.id, s.amount_owed
+    ),
+    repayment_allocation_totals AS (
+      SELECT r.ledger_scope_id AS scope_id, r.id, r.amount::numeric AS amount, COALESCE(SUM(a.amount::numeric), 0) AS allocated_amount
+      FROM repayments r
+      LEFT JOIN repayment_allocations a
+        ON a.ledger_scope_id = r.ledger_scope_id
+        AND a.repayment_id = r.id
+      WHERE r.ledger_scope_id IN (SELECT scope_id FROM selected_scopes)
+      GROUP BY r.ledger_scope_id, r.id, r.amount
+    ),
+    allocation_links AS (
+      SELECT a.ledger_scope_id AS scope_id, r.friend_id AS repayment_friend_id, s.friend_id AS share_friend_id
+      FROM repayment_allocations a
+      LEFT JOIN repayments r
+        ON r.ledger_scope_id = a.ledger_scope_id
+        AND r.id = a.repayment_id
+      LEFT JOIN expense_shares s
+        ON s.ledger_scope_id = a.ledger_scope_id
+        AND s.id = a.expense_share_id
+      WHERE a.ledger_scope_id IN (SELECT scope_id FROM selected_scopes)
+    ),
+    integrity AS (
+      SELECT selected.scope_id,
+        (SELECT COUNT(*) FROM allocation_links WHERE scope_id = selected.scope_id AND (repayment_friend_id IS NULL OR share_friend_id IS NULL OR repayment_friend_id <> share_friend_id))::text AS invalid_cross_friend_allocations,
+        (SELECT COUNT(*) FROM repayment_allocation_totals WHERE scope_id = selected.scope_id AND allocated_amount > amount)::text AS invalid_repayment_allocations,
+        (SELECT COUNT(*) FROM share_allocation_totals WHERE scope_id = selected.scope_id AND allocated_amount > amount_owed)::text AS invalid_share_allocations,
+        (SELECT COUNT(*) FROM expense_totals WHERE scope_id = selected.scope_id AND assigned_amount > amount)::text AS invalid_owner_portions
+      FROM selected_scopes selected
+    ),
+    totals AS (
+      SELECT selected.scope_id,
+        COALESCE((SELECT SUM(amount) FROM expense_totals WHERE scope_id = selected.scope_id), 0)::text AS total_expense_amount,
+        COALESCE((SELECT SUM(amount_owed) FROM share_allocation_totals WHERE scope_id = selected.scope_id), 0)::text AS total_assigned_amount,
+        COALESCE((SELECT SUM(allocated_amount) FROM repayment_allocation_totals WHERE scope_id = selected.scope_id), 0)::text AS total_repaid_amount,
+        COALESCE((SELECT SUM(amount - assigned_amount) FROM expense_totals WHERE scope_id = selected.scope_id), 0)::text AS owner_portion_amount
+      FROM selected_scopes selected
+    )
+    SELECT totals.scope_id,
+      totals.total_expense_amount,
+      totals.total_assigned_amount,
+      totals.total_repaid_amount,
+      '0' AS total_received_amount,
+      totals.owner_portion_amount,
+      '0' AS total_assigned_friend_count,
+      integrity.invalid_cross_friend_allocations,
+      integrity.invalid_repayment_allocations,
+      integrity.invalid_share_allocations,
+      integrity.invalid_owner_portions,
+      '[]'::jsonb AS friend_balances
+    FROM totals
+    INNER JOIN integrity ON integrity.scope_id = totals.scope_id
+  `;
+}
+
+export type LedgerFinancialOverview = Pick<
+  LedgerOverviewSummary,
+  "totalExpenseAmount" | "totalRepaidAmount" | "totalOutstandingAmount"
+>;
+
+export async function readLedgerOverviewSummaries(
+  database: Database,
+  scopeIds: string[],
+): Promise<Map<string, LedgerFinancialOverview>> {
+  const normalizedScopeIds = [
+    ...new Set(scopeIds.map((scopeId) => scopeId.trim()).filter(Boolean)),
+  ];
+  if (normalizedScopeIds.length === 0) return new Map();
+  try {
+    const result = await database.execute(ledgerOverviewSummariesQuery(normalizedScopeIds));
+    const rows = (Array.isArray(result) ? result : result.rows) as LedgerOverviewAggregateRow[];
+    return new Map(
+      rows.map((row) => {
+        const scopeId = ledgerText(row.scope_id, "Ledger scope ID");
+        const summary = parseLedgerAggregate(row);
+        return [scopeId, {
+          totalExpenseAmount: summary.totalExpenseAmount,
+          totalRepaidAmount: summary.totalRepaidAmount,
+          totalOutstandingAmount: summary.totalOutstandingAmount,
+        }];
+      }),
+    );
+  } catch (error) {
+    return persistenceError(error);
+  }
 }
 
 function friendBalancesQuery(scope: string, friendIds: string[]) {
