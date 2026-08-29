@@ -11,8 +11,31 @@ function statusLabel(status: GroupJoinRequestState["status"]) {
 export function GroupJoinRequestActions({ requestId, kind, status }: { requestId: string; kind: GroupJoinRequestKind; status?: GroupJoinRequestState }) {
   if (!status) return <span>No longer available</span>;
   if (status.status === "pending") {
-    return <div className="notification-row__actions"><span>Expires <LocalDateTime iso={status.expiresAt.toISOString()} mode="date" /></span><form action={acceptGroupJoinRequestAction.bind(null, requestId)}><button className="text-link" type="submit">{kind === "participant_link" ? "Accept link" : "Accept"}</button></form><form action={declineGroupJoinRequestAction.bind(null, requestId)}><button className="text-link" type="submit">Decline</button></form></div>;
+    return (
+      <div className="notification-row__actions">
+        <span>
+          Expires <LocalDateTime iso={status.expiresAt.toISOString()} mode="date" />
+        </span>
+        <form action={acceptGroupJoinRequestAction.bind(null, requestId)}>
+          <button className="text-link" type="submit">
+            {kind === "participant_link" ? "Accept link" : "Accept"}
+          </button>
+        </form>
+        <form action={declineGroupJoinRequestAction.bind(null, requestId)}>
+          <button className="text-link" type="submit">
+            Decline
+          </button>
+        </form>
+      </div>
+    );
   }
-  if (status.status === "accepted") return <div className="notification-row__actions"><span>{kind === "participant_link" ? "Linked" : "Joined"}</span><Link className="text-link" href={`/app/personal/groups/${status.groupId}`}>Open Group</Link></div>;
+  if (status.status === "accepted") return (
+      <div className="notification-row__actions">
+        <span>{kind === "participant_link" ? "Linked" : "Joined"}</span>
+        <Link className="text-link" href={`/app/personal/groups/${status.groupId}`}>
+          Open Group
+        </Link>
+      </div>
+    );
   return <span>{statusLabel(status.status)}</span>;
 }

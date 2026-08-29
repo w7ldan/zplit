@@ -5,7 +5,11 @@ import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { ExpenseActionState } from "@/app/app/expenses/actions";
 import type { ExpenseInputValues } from "@/domain/expense-input";
-import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
+import {
+  SearchableCombobox,
+  type SearchableOption,
+  type SearchableOptionAction,
+} from "@/components/records/searchable-combobox";
 import { useToast } from "@/components/feedback/toast";
 import { useUnsavedChangesGuard } from "@/components/navigation/unsaved-changes";
 import { formatRupiah, sameRupiah } from "@/domain/rupiah";
@@ -44,28 +48,52 @@ function SubmitButton({ mode, intent }: { mode: "create" | "edit"; intent?: "add
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
-  return <p className="expense-form__field-error" id={id}>{message || "\u00a0"}</p>;
+  return (
+    <p className="expense-form__field-error" id={id}>
+      {message || "\u00a0"}
+    </p>
+  );
 }
 
-export function ExpenseForm({ action, outings: outingOptions, searchOutings, initialValues = emptyValues, mode = "create" }: ExpenseFormProps) {
+export function ExpenseForm({
+  action,
+  outings: outingOptions,
+  searchOutings,
+  initialValues = emptyValues,
+  mode = "create",
+}: ExpenseFormProps) {
   const submissionReleaseRef = useRef<(() => void) | null>(null);
-  const submitAction = useCallback(async (previousState: ExpenseActionState, formData: FormData) => {
-    const nextState = await action(previousState, formData);
-    submissionReleaseRef.current?.();
-    submissionReleaseRef.current = null;
-    return nextState;
-  }, [action]);
-  const [state, formAction] = useActionState(submitAction, { ...emptyActionState, values: initialValues });
-  const [initialDraft] = useState(() => ({ ...initialValues, outingId: initialValues.outingId || outingOptions[0]?.id || "" }));
+  const submitAction = useCallback(
+    async (previousState: ExpenseActionState, formData: FormData) => {
+      const nextState = await action(previousState, formData);
+      submissionReleaseRef.current?.();
+      submissionReleaseRef.current = null;
+      return nextState;
+    },
+    [action],
+  );
+  const [state, formAction] = useActionState(submitAction, {
+    ...emptyActionState,
+    values: initialValues,
+  });
+  const [initialDraft] = useState(() => ({
+    ...initialValues,
+    outingId: initialValues.outingId || outingOptions[0]?.id || "",
+  }));
   const [draftValues, setDraftValues] = useState(initialDraft);
   const [selectedOutingId, setSelectedOutingId] = useState(initialDraft.outingId);
-  const [selectedOuting, setSelectedOuting] = useState<SearchableOption | undefined>(() => outingOptions.find((outing) => outing.id === initialValues.outingId) ?? outingOptions[0]);
+  const [selectedOuting, setSelectedOuting] = useState<SearchableOption | undefined>(
+    () => outingOptions.find((outing) => outing.id === initialValues.outingId) ?? outingOptions[0],
+  );
   const router = useRouter();
   const { showToast } = useToast();
   const descriptionRef = useRef<HTMLInputElement>(null);
   const handledExpenseId = useRef<string | undefined>(undefined);
   const previousActionStateRef = useRef(state);
-  const options = selectedOuting && !outingOptions.some((outing) => outing.id === selectedOuting.id) ? [...outingOptions, selectedOuting] : outingOptions;
+  const options =
+    selectedOuting && !outingOptions.some((outing) => outing.id === selectedOuting.id)
+      ? [...outingOptions, selectedOuting]
+      : outingOptions;
   const isDirty = draftValues.description !== initialDraft.description
     || !sameRupiah(draftValues.amountRupiah, initialDraft.amountRupiah)
     || draftValues.outingId !== initialDraft.outingId;
@@ -93,7 +121,10 @@ export function ExpenseForm({ action, outings: outingOptions, searchOutings, ini
     const nextOutingId = state.values.outingId || outingOptions[0]?.id || "";
     setDraftValues({ ...state.values, outingId: nextOutingId });
     setSelectedOutingId(nextOutingId);
-    setSelectedOuting((current) => outingOptions.find((outing) => outing.id === nextOutingId) ?? (current?.id === nextOutingId ? current : undefined));
+    setSelectedOuting((current) =>
+      outingOptions.find((outing) => outing.id === nextOutingId) ??
+      (current?.id === nextOutingId ? current : undefined),
+    );
   }, [outingOptions, state]);
 
   useEffect(() => {
@@ -113,24 +144,84 @@ export function ExpenseForm({ action, outings: outingOptions, searchOutings, ini
     >
       <div className="expense-form__field">
         <label htmlFor="expense-description">Description</label>
-        <input ref={descriptionRef} id="expense-description" name="description" value={draftValues.description} onChange={(event) => setDraftValues((current) => ({ ...current, description: event.target.value }))} aria-invalid={Boolean(state.fieldErrors.description)} aria-describedby="expense-description-error" autoComplete="off" />
+        <input
+          ref={descriptionRef}
+          id="expense-description"
+          name="description"
+          value={draftValues.description}
+          onChange={(event) =>
+            setDraftValues((current) => ({
+              ...current,
+              description: event.target.value,
+            }))
+          }
+          aria-invalid={Boolean(state.fieldErrors.description)}
+          aria-describedby="expense-description-error"
+          autoComplete="off"
+        />
         <FieldError id="expense-description-error" message={state.fieldErrors.description} />
       </div>
       <div className="expense-form__field">
         <label htmlFor="expense-amount">Amount in rupiah</label>
-        <input id="expense-amount" name="amountRupiah" type="text" inputMode="numeric" value={draftValues.amountRupiah} onChange={(event) => setDraftValues((current) => ({ ...current, amountRupiah: event.target.value }))} aria-invalid={Boolean(state.fieldErrors.amountRupiah)} aria-describedby="expense-amount-help expense-amount-error" autoComplete="off" />
+        <input
+          id="expense-amount"
+          name="amountRupiah"
+          type="text"
+          inputMode="numeric"
+          value={draftValues.amountRupiah}
+          onChange={(event) =>
+            setDraftValues((current) => ({
+              ...current,
+              amountRupiah: event.target.value,
+            }))
+          }
+          aria-invalid={Boolean(state.fieldErrors.amountRupiah)}
+          aria-describedby="expense-amount-help expense-amount-error"
+          autoComplete="off"
+        />
         <p className="expense-form__help" id="expense-amount-help">Whole rupiah only. Examples: 84000 or 84.000.</p>
         <FieldError id="expense-amount-error" message={state.fieldErrors.amountRupiah} />
       </div>
       <div className="expense-form__field">
         <label id="expense-outing-label" htmlFor="expense-outing">Outing</label>
-        <SearchableCombobox id="expense-outing" name="outingId" value={selectedOutingId} options={options} search={searchOutings} required searchLabel="Search outings" placeholder="Choose outing" ariaInvalid={Boolean(state.fieldErrors.outingId)} ariaDescribedBy="expense-outing-error" labelId="expense-outing-label" onValueChange={(outing) => { setSelectedOutingId(outing.id); setSelectedOuting(outing); setDraftValues((current) => ({ ...current, outingId: outing.id })); }} />
+        <SearchableCombobox
+          id="expense-outing"
+          name="outingId"
+          value={selectedOutingId}
+          options={options}
+          search={searchOutings}
+          required
+          searchLabel="Search outings"
+          placeholder="Choose outing"
+          ariaInvalid={Boolean(state.fieldErrors.outingId)}
+          ariaDescribedBy="expense-outing-error"
+          labelId="expense-outing-label"
+          onValueChange={(outing) => {
+            setSelectedOutingId(outing.id);
+            setSelectedOuting(outing);
+            setDraftValues((current) => ({
+              ...current,
+              outingId: outing.id,
+            }));
+          }}
+        />
         <FieldError id="expense-outing-error" message={state.fieldErrors.outingId} />
       </div>
-      <p className="expense-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+      <p
+        className="expense-form__message"
+        role={state.formError ? "alert" : undefined}
+        aria-live="polite"
+      >
+        {state.formError || "\u00a0"}
+      </p>
       <div className="expense-form__actions">
-        <SubmitButton mode={mode} intent={mode === "create" ? "add" : undefined} />
-        {mode === "create" ? <SubmitButton mode={mode} intent="continue" /> : null}
+        <SubmitButton
+          mode={mode}
+          intent={mode === "create" ? "add" : undefined}
+        />
+        {mode === "create" ? (
+          <SubmitButton mode={mode} intent="continue" />
+        ) : null}
       </div>
     </form>
   );

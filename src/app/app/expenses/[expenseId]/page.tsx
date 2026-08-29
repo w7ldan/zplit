@@ -18,7 +18,17 @@ import { deleteExpenseAction } from "../actions";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Expense details" };
 
-export default async function ExpenseRecordPage({ params, searchParams }: { params: Promise<{ expenseId: string }>; searchParams?: Promise<{ created?: string | string[]; updated?: string | string[]; splitSaved?: string | string[] }> }) {
+export default async function ExpenseRecordPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ expenseId: string }>;
+  searchParams?: Promise<{
+    created?: string | string[];
+    updated?: string | string[];
+    splitSaved?: string | string[];
+  }>;
+}) {
   const session = await requireSession();
   const { expenseId } = await params;
   const query = await searchParams;
@@ -42,7 +52,16 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
     repository.getPreviousExpenseSplit(expense.id),
   ]);
   const shareByFriend = new Map(shares.map((share) => [share.friendId, share]));
-  const friends = shares.map((share) => ({ id: share.friendId, name: share.friendName, archivedAt: share.friendArchivedAt, baseAmount: share.baseAmount, amountOwed: share.amountOwed, expenseShareId: share.id, remainingAmount: share.remainingAmount, settled: share.settled }));
+  const friends = shares.map((share) => ({
+    id: share.friendId,
+    name: share.friendName,
+    archivedAt: share.friendArchivedAt,
+    baseAmount: share.baseAmount,
+    amountOwed: share.amountOwed,
+    expenseShareId: share.id,
+    remainingAmount: share.remainingAmount,
+    settled: share.settled,
+  }));
   const assignedAmount = shares.reduce((total, share) => total + share.amountOwed, 0);
   const splitMessage = shares.length === 0
     ? "Split saved · No friend shares assigned"
@@ -61,7 +80,25 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
           <h1>{expense.description}</h1>
           <Link className="expense-record__back" href="/app/expenses">← Back to expenses</Link>
         </div>
-        {query?.created === "1" ? <RecordConfirmation queryKey="created" message={`Expense saved · ${formatRupiah(expense.amount)}`} focusTargetId="friend-shares" /> : query?.updated === "1" ? <RecordConfirmation queryKey="updated" message={`Expense updated · ${formatRupiah(expense.amount)}`} focusTargetId="expense-details" /> : query?.splitSaved === "1" ? <RecordConfirmation queryKey="splitSaved" message={splitMessage} focusTargetId="friend-shares" /> : null}
+        {query?.created === "1" ? (
+          <RecordConfirmation
+            queryKey="created"
+            message={`Expense saved · ${formatRupiah(expense.amount)}`}
+            focusTargetId="friend-shares"
+          />
+        ) : query?.updated === "1" ? (
+          <RecordConfirmation
+            queryKey="updated"
+            message={`Expense updated · ${formatRupiah(expense.amount)}`}
+            focusTargetId="expense-details"
+          />
+        ) : query?.splitSaved === "1" ? (
+          <RecordConfirmation
+            queryKey="splitSaved"
+            message={splitMessage}
+            focusTargetId="friend-shares"
+          />
+        ) : null}
         <div className="expense-record__tasks">
           <div className="expense-record__primary-task">
             <div className="expense-record__shares" id="friend-shares" tabIndex={-1}>
@@ -69,24 +106,57 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
                 action={replaceExpenseSharesAction.bind(null, expense.id)}
                 expenseAmount={expense.amount}
                 friends={friends}
-                charges={charges.map((charge) => ({ name: charge.name, percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope, friendIds: charge.friendIds }))}
+                charges={charges.map((charge) => ({
+                  name: charge.name,
+                  percentageBasisPoints: charge.percentageBasisPoints,
+                  scope: charge.scope,
+                  friendIds: charge.friendIds,
+                }))}
                 friendOptions={friendOptions}
                 searchFriends={searchExpenseFriendOptions}
                 previousSplit={previousSplit ? {
-                  friends: previousSplit.friends.map((friend) => ({ id: friend.friendId, name: friend.friendName, archivedAt: friend.friendArchivedAt, baseAmount: friend.baseAmount })),
-                  charges: previousSplit.charges.map((charge) => ({ name: charge.name, percentageBasisPoints: charge.percentageBasisPoints, scope: charge.scope, friendIds: charge.friendIds })),
+                  friends: previousSplit.friends.map((friend) => ({
+                    id: friend.friendId,
+                    name: friend.friendName,
+                    archivedAt: friend.friendArchivedAt,
+                    baseAmount: friend.baseAmount,
+                  })),
+                  charges: previousSplit.charges.map((charge) => ({
+                    name: charge.name,
+                    percentageBasisPoints: charge.percentageBasisPoints,
+                    scope: charge.scope,
+                    friendIds: charge.friendIds,
+                  })),
                 } : null}
               />
             </div>
-            <ExpenseReceipts expenseId={expense.id} initialReceipts={receipts.map((receipt) => ({ ...receipt, createdAt: receipt.createdAt.toISOString() }))} />
+            <ExpenseReceipts
+              expenseId={expense.id}
+              initialReceipts={receipts.map((receipt) => ({
+                ...receipt,
+                createdAt: receipt.createdAt.toISOString(),
+              }))}
+            />
           </div>
           <aside className="expense-record__sidebar">
             <div className="expense-record__controls">
               <div className="expense-record__meta" aria-label="Expense metadata">
-                <div><span className="technical-label">Amount</span><strong>{formatRupiah(expense.amount)}</strong></div>
-                <div><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></div>
-                <div><span className="technical-label">Outing date</span><LocalDateTime iso={expense.outingOccurredAt.toISOString()} /></div>
-                <div><span className="technical-label">Created</span><LocalDateTime iso={expense.createdAt.toISOString()} mode="date" /></div>
+                <div>
+                  <span className="technical-label">Amount</span>
+                  <strong>{formatRupiah(expense.amount)}</strong>
+                </div>
+                <div>
+                  <span className="technical-label">Outing</span>
+                  <span>{expense.outingTitle}</span>
+                </div>
+                <div>
+                  <span className="technical-label">Outing date</span>
+                  <LocalDateTime iso={expense.outingOccurredAt.toISOString()} />
+                </div>
+                <div>
+                  <span className="technical-label">Created</span>
+                  <LocalDateTime iso={expense.createdAt.toISOString()} mode="date" />
+                </div>
               </div>
               <div className="expense-record__form">
                 <p className="technical-label" id="expense-details" tabIndex={-1}>EDIT RECORD</p>
@@ -98,7 +168,12 @@ export default async function ExpenseRecordPage({ params, searchParams }: { para
                   initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
                 />
               </div>
-              <DeleteRecordForm action={deleteExpenseAction.bind(null, expense.id)} recordType="expense" impact={deletionImpact} impactRevision={currentImpactRevision} />
+              <DeleteRecordForm
+                action={deleteExpenseAction.bind(null, expense.id)}
+                recordType="expense"
+                impact={deletionImpact}
+                impactRevision={currentImpactRevision}
+              />
             </div>
           </aside>
         </div>

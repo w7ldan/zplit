@@ -10,10 +10,33 @@ function statusLabel(status: OrganizationInvitationState["status"]) {
 export function OrganizationInvitationActions({ invitationId, status }: { invitationId: string; status?: OrganizationInvitationState }) {
   if (!status) return <span>No longer available</span>;
   if (status.status === "pending") {
-    return <div className="notification-row__actions"><span>Expires <LocalDateTime iso={status.expiresAt.toISOString()} mode="date" /></span><form action={acceptOrganizationInvitationAction.bind(null, invitationId)}><button className="text-link" type="submit">Accept</button></form><form action={declineOrganizationInvitationAction.bind(null, invitationId)}><button className="text-link" type="submit">Decline</button></form></div>;
+    return (
+      <div className="notification-row__actions">
+        <span>
+          Expires <LocalDateTime iso={status.expiresAt.toISOString()} mode="date" />
+        </span>
+        <form action={acceptOrganizationInvitationAction.bind(null, invitationId)}>
+          <button className="text-link" type="submit">
+            Accept
+          </button>
+        </form>
+        <form action={declineOrganizationInvitationAction.bind(null, invitationId)}>
+          <button className="text-link" type="submit">
+            Decline
+          </button>
+        </form>
+      </div>
+    );
   }
   if (status.status === "accepted") {
-    return <div className="notification-row__actions"><span>Joined</span><Link className="text-link" href={`/app/organizations/${status.organizationId}`}>Open organization</Link></div>;
+    return (
+      <div className="notification-row__actions">
+        <span>Joined</span>
+        <Link className="text-link" href={`/app/organizations/${status.organizationId}`}>
+          Open organization
+        </Link>
+      </div>
+    );
   }
   return <span>{statusLabel(status.status)}</span>;
 }

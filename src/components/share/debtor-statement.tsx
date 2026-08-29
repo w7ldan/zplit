@@ -40,7 +40,8 @@ function Pagination({
 }) {
   if (totalPages <= 1) return null;
   const currentPage = page === "expense" ? expensePage : repaymentPage;
-  const change = (nextPage: number) => page === "expense" ? { expensePage: nextPage } : { repaymentPage: nextPage };
+  const change = (nextPage: number) =>
+    page === "expense" ? { expensePage: nextPage } : { repaymentPage: nextPage };
   return (
     <nav className="debtor-statement__pagination" aria-label={`${label} pagination`}>
       <span className="debtor-statement__pagination-summary">Page {currentPage} of {totalPages}</span>
@@ -86,45 +87,169 @@ export function DebtorStatementView({ statement, expiresAt, token = "" }: { stat
           <div><span className="technical-label">Assigned</span><strong>{formatRupiah(statement.assignedAmount)}</strong></div>
           <div><span className="technical-label">Repaid</span><strong>{formatRupiah(statement.repaidAmount)}</strong></div>
         </section>
-        {statement.repaymentDestinations?.length ? <section className="debtor-statement__destinations" id="repay-to" aria-labelledby="debtor-destinations-heading">
-          <div className="debtor-statement__items-heading"><h2 id="debtor-destinations-heading">Repay to</h2><span className="technical-label">{statement.repaymentDestinations.length} destinations</span></div>
-          <div className="debtor-statement__destination-list">{statement.repaymentDestinations.map((destination, index) => <article className="debtor-statement__destination" key={`${destination.name}-${index}`}>
-            <div className="debtor-statement__destination-heading"><h3>{destination.name}</h3><span className="technical-label">{destinationTypeLabel(destination.type)}</span></div>
+        {statement.repaymentDestinations?.length ? (
+          <section
+            className="debtor-statement__destinations"
+            id="repay-to"
+            aria-labelledby="debtor-destinations-heading"
+          >
+            <div className="debtor-statement__items-heading">
+              <h2 id="debtor-destinations-heading">Repay to</h2>
+              <span className="technical-label">
+                {statement.repaymentDestinations.length} destinations
+              </span>
+            </div>
+            <div className="debtor-statement__destination-list">
+              {statement.repaymentDestinations.map((destination, index) => (
+                <article
+                  className="debtor-statement__destination"
+                  key={`${destination.name}-${index}`}
+                >
+                  <div className="debtor-statement__destination-heading">
+                    <h3>{destination.name}</h3>
+                    <span className="technical-label">
+                      {destinationTypeLabel(destination.type)}
+                    </span>
+                  </div>
             <CopyRepaymentDestination identifier={destination.identifier} name={destination.name} />
-            {destination.accountName ? <p>{destination.accountName}</p> : null}
-            {destination.note ? <p className="debtor-statement__destination-note">{destination.note}</p> : null}
-          </article>)}</div>
-        </section> : null}
+                  {destination.accountName ? <p>{destination.accountName}</p> : null}
+                  {destination.note ? (
+                    <p className="debtor-statement__destination-note">
+                      {destination.note}
+                    </p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
         <section className="debtor-statement__items" id="expense-shares" aria-labelledby="debtor-items-heading">
-          <div className="debtor-statement__items-heading"><h2 id="debtor-items-heading">Expense shares</h2><span className="technical-label">{expensePage.totalItems} items</span></div>
+          <div className="debtor-statement__items-heading">
+            <h2 id="debtor-items-heading">Expense shares</h2>
+            <span className="technical-label">{expensePage.totalItems} items</span>
+          </div>
           {expensePage.items.length ? <div className="debtor-statement__list">{expensePage.items.map((item, index) => (
-            <article className="debtor-statement__item" key={`${item.expenseDescription}-${item.outingOccurredAt.toISOString()}-${index}`}>
-              <div className="debtor-statement__item-heading"><div><h3>{item.expenseDescription}</h3><p>{item.outingTitle} · <LocalDateTime iso={item.outingOccurredAt.toISOString()} mode="date" /></p></div><strong className={`debtor-statement__state debtor-statement__state--${item.state}`}>{item.state === "open" ? "OPEN" : "SETTLED"}</strong></div>
+            <article
+              className="debtor-statement__item"
+              key={`${item.expenseDescription}-${item.outingOccurredAt.toISOString()}-${index}`}
+            >
+              <div className="debtor-statement__item-heading">
+                <div>
+                  <h3>{item.expenseDescription}</h3>
+                  <p>
+                    {item.outingTitle} · <LocalDateTime iso={item.outingOccurredAt.toISOString()} mode="date" />
+                  </p>
+                </div>
+                <strong
+                  className={`debtor-statement__state debtor-statement__state--${item.state}`}
+                >
+                  {item.state === "open" ? "OPEN" : "SETTLED"}
+                </strong>
+              </div>
               <dl className="debtor-statement__item-values">
-                <div><dt>Assigned</dt><dd>{formatRupiah(item.assignedAmount)}</dd></div>
-                <div><dt>Allocated repayments</dt><dd>{formatRupiah(item.repaidAmount)}</dd></div>
-                <div><dt>Remaining</dt><dd>{formatRupiah(item.remainingAmount)}</dd></div>
+                <div>
+                  <dt>Assigned</dt>
+                  <dd>{formatRupiah(item.assignedAmount)}</dd>
+                </div>
+                <div>
+                  <dt>Allocated repayments</dt>
+                  <dd>{formatRupiah(item.repaidAmount)}</dd>
+                </div>
+                <div>
+                  <dt>Remaining</dt>
+                  <dd>{formatRupiah(item.remainingAmount)}</dd>
+                </div>
               </dl>
-              {item.sharedReceipts?.length ? <section className="debtor-statement__shared-receipts" aria-label="Shared receipts"><h4>Shared receipts</h4><ul>{item.sharedReceipts.map((receipt) => <li key={receipt.publicId}><ReceiptPreview href={`/share/${token}/receipts/${receipt.publicId}`} filename={receipt.label} mediaType={receipt.mediaType} triggerLabel={receipt.label} /></li>)}</ul></section> : null}
+              {item.sharedReceipts?.length ? (
+                <section
+                  className="debtor-statement__shared-receipts"
+                  aria-label="Shared receipts"
+                >
+                  <h4>Shared receipts</h4>
+                  <ul>
+                    {item.sharedReceipts.map((receipt) => (
+                      <li key={receipt.publicId}>
+                        <ReceiptPreview
+                          href={`/share/${token}/receipts/${receipt.publicId}`}
+                          filename={receipt.label}
+                          mediaType={receipt.mediaType}
+                          triggerLabel={receipt.label}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
             </article>
           ))}</div> : <p className="debtor-statement__empty">No assigned expense shares are recorded.</p>}
-          <Pagination label="Expense shares" anchor="expense-shares" token={token} page="expense" totalPages={expensePage.totalPages} expensePage={expensePage.page} repaymentPage={repaymentPage.page} />
+          <Pagination
+            label="Expense shares"
+            anchor="expense-shares"
+            token={token}
+            page="expense"
+            totalPages={expensePage.totalPages}
+            expensePage={expensePage.page}
+            repaymentPage={repaymentPage.page}
+          />
         </section>
         <section className="debtor-statement__items debtor-statement__repayments" id="repayment-history" aria-labelledby="repayment-history-heading">
-          <div className="debtor-statement__items-heading"><h2 id="repayment-history-heading">Repayment history</h2><span className="technical-label">{repaymentPage.totalItems} items</span></div>
+          <div className="debtor-statement__items-heading">
+            <h2 id="repayment-history-heading">Repayment history</h2>
+            <span className="technical-label">{repaymentPage.totalItems} items</span>
+          </div>
           {repaymentPage.items.length ? <div className="debtor-statement__list">{repaymentPage.items.map((repayment, index) => (
-            <article className="debtor-statement__repayment" key={`${repayment.paidAt.toISOString()}-${index}`}>
+            <article
+              className="debtor-statement__repayment"
+              key={`${repayment.paidAt.toISOString()}-${index}`}
+            >
               <h3>Paid <LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" /></h3>
               <dl className="debtor-statement__item-values debtor-statement__repayment-values">
-                <div><dt>Repayment amount</dt><dd>{formatRupiah(repayment.amount)}</dd></div>
-                <div><dt>Allocated</dt><dd>{formatRupiah(repayment.allocatedAmount)}</dd></div>
-                <div><dt>Unallocated</dt><dd>{formatRupiah(repayment.unallocatedAmount)}</dd></div>
-                <div><dt>Payment method</dt><dd>{repayment.paymentMethod ?? "—"}</dd></div>
+                <div>
+                  <dt>Repayment amount</dt>
+                  <dd>{formatRupiah(repayment.amount)}</dd>
+                </div>
+                <div>
+                  <dt>Allocated</dt>
+                  <dd>{formatRupiah(repayment.allocatedAmount)}</dd>
+                </div>
+                <div>
+                  <dt>Unallocated</dt>
+                  <dd>{formatRupiah(repayment.unallocatedAmount)}</dd>
+                </div>
+                <div>
+                  <dt>Payment method</dt>
+                  <dd>{repayment.paymentMethod ?? "—"}</dd>
+                </div>
               </dl>
-              {repayment.allocations.length ? <section className="debtor-statement__allocations" aria-label="Allocation targets"><h4>Allocated to</h4><ul>{repayment.allocations.map((allocation, allocationIndex) => <li key={`${allocation.expenseDescription}-${allocationIndex}`}><span>{allocation.expenseDescription} · {allocation.outingTitle}</span><strong>{formatRupiah(allocation.amount)}</strong></li>)}</ul></section> : null}
+              {repayment.allocations.length ? (
+                <section
+                  className="debtor-statement__allocations"
+                  aria-label="Allocation targets"
+                >
+                  <h4>Allocated to</h4>
+                  <ul>
+                    {repayment.allocations.map((allocation, allocationIndex) => (
+                      <li key={`${allocation.expenseDescription}-${allocationIndex}`}>
+                        <span>
+                          {allocation.expenseDescription} · {allocation.outingTitle}
+                        </span>
+                        <strong>{formatRupiah(allocation.amount)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
             </article>
           ))}</div> : <p className="debtor-statement__empty">No repayments are recorded.</p>}
-          <Pagination label="Repayment history" anchor="repayment-history" token={token} page="repayment" totalPages={repaymentPage.totalPages} expensePage={expensePage.page} repaymentPage={repaymentPage.page} />
+          <Pagination
+            label="Repayment history"
+            anchor="repayment-history"
+            token={token}
+            page="repayment"
+            totalPages={repaymentPage.totalPages}
+            expensePage={expensePage.page}
+            repaymentPage={repaymentPage.page}
+          />
         </section>
         <footer className="debtor-statement__footer">
           <p>Link expires <LocalDateTime iso={expiresAt.toISOString()} mode="date" />.</p>

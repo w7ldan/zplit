@@ -7,7 +7,11 @@ import { useRouter } from "next/navigation";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import type { RepaymentAllocationPlan, RepaymentAllocationReversalReceipt } from "@/domain/ledger-repository";
 import { formatRupiah, parseRupiah } from "@/domain/rupiah";
-import type { RepaymentAllocationActionState, RepaymentAllocationRemovalActionState, RepaymentAllocationUndoState } from "@/app/app/repayments/actions";
+import type {
+  RepaymentAllocationActionState,
+  RepaymentAllocationRemovalActionState,
+  RepaymentAllocationUndoState,
+} from "@/app/app/repayments/actions";
 import { useToast } from "@/components/feedback/toast";
 import { ChangedValue } from "@/components/expenses/expense-share-editor";
 import { RecordPagination } from "@/components/records/record-pagination";
@@ -58,14 +62,44 @@ function SubmitButton() {
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
-  return <p className="repayment-allocation-editor__field-error" id={id} role={message ? "alert" : undefined}>{message || "\u00a0"}</p>;
+  return (
+    <p
+      className="repayment-allocation-editor__field-error"
+      id={id}
+      role={message ? "alert" : undefined}
+    >
+      {message || "\u00a0"}
+    </p>
+  );
 }
 
 function RemoveAllocationButton({ pending, onRemove }: { pending: boolean; onRemove: () => void }) {
-  return <button className="action-link action-link--quiet" type="button" onClick={onRemove} disabled={pending} aria-busy={pending}>{pending ? "Removing allocation…" : "Remove allocation"}</button>;
+  return (
+    <button
+      className="action-link action-link--quiet"
+      type="button"
+      onClick={onRemove}
+      disabled={pending}
+      aria-busy={pending}
+    >
+      {pending ? "Removing allocation…" : "Remove allocation"}
+    </button>
+  );
 }
 
-function RemoveAllocationForm({ action, undoAction, onRemoved, onUndone }: { action: RepaymentAllocationRemovalAction; undoAction: (receipt: RepaymentAllocationReversalReceipt) => Promise<RepaymentAllocationUndoState>; onRemoved: (receipt: RepaymentAllocationReversalReceipt) => void; onUndone: (receipt: RepaymentAllocationReversalReceipt) => void }) {
+function RemoveAllocationForm({
+  action,
+  undoAction,
+  onRemoved,
+  onUndone,
+}: {
+  action: RepaymentAllocationRemovalAction;
+  undoAction: (
+    receipt: RepaymentAllocationReversalReceipt,
+  ) => Promise<RepaymentAllocationUndoState>;
+  onRemoved: (receipt: RepaymentAllocationReversalReceipt) => void;
+  onUndone: (receipt: RepaymentAllocationReversalReceipt) => void;
+}) {
   const [state, setState] = useState(emptyRemovalActionState);
   const [, startTransition] = useTransition();
   const [removalPending, setRemovalPending] = useState(false);
@@ -125,11 +159,30 @@ function RemoveAllocationForm({ action, undoAction, onRemoved, onUndone }: { act
   );
 }
 
-export function RepaymentAllocationEditor({ action, plan, allocationQuery, allocationPage: requestedAllocationPage, removeAction, undoAction, basePath = "/app" }: RepaymentAllocationEditorProps & { basePath?: string }) {
-  const allocationPage = plan.sharePage ?? { items: plan.shares, page: requestedAllocationPage ?? 1, pageSize: 10, totalItems: plan.shares.length, totalPages: 1 };
+export function RepaymentAllocationEditor({
+  action,
+  plan,
+  allocationQuery,
+  allocationPage: requestedAllocationPage,
+  removeAction,
+  undoAction,
+  basePath = "/app",
+}: RepaymentAllocationEditorProps & { basePath?: string }) {
+  const allocationPage = plan.sharePage ?? {
+    items: plan.shares,
+    page: requestedAllocationPage ?? 1,
+    pageSize: 10,
+    totalItems: plan.shares.length,
+    totalPages: 1,
+  };
   const values = initialValues(plan);
-  const [state, formAction] = useActionState(action, { ...emptyActionState, values });
-  const [draftAmounts, setDraftAmounts] = useState<Record<string, string>>(() => Object.fromEntries(values.map((value) => [value.expenseShareId, value.amountRupiah])));
+  const [state, formAction] = useActionState(action, {
+    ...emptyActionState,
+    values,
+  });
+  const [draftAmounts, setDraftAmounts] = useState<Record<string, string>>(
+    () => Object.fromEntries(values.map((value) => [value.expenseShareId, value.amountRupiah])),
+  );
   const visibleCurrentAllocation = plan.shares.reduce((total, share) => total + share.currentAllocation, 0);
   const preservedAllocationAmount = plan.allocatedAmount - visibleCurrentAllocation;
   const allocatedAmount = preservedAllocationAmount + plan.shares.reduce((total, share) => total + (parseRupiah(draftAmounts[share.expenseShareId] ?? "") ?? 0), 0);
@@ -165,7 +218,18 @@ export function RepaymentAllocationEditor({ action, plan, allocationQuery, alloc
         <p className="technical-label">REPAYMENT ALLOCATIONS</p>
         {search}
         <p>{allocationQuery ? "No matching expense shares." : "No outstanding shares for this friend."}</p>
-        {allocationQuery ? <Link className="action-link" href={`${basePath}/repayments/${plan.id}#repayment-allocations`}>Clear search</Link> : <Link className="action-link" href={`${basePath}/expenses`}>Go to Expenses <span aria-hidden="true">→</span></Link>}
+        {allocationQuery ? (
+          <Link
+            className="action-link"
+            href={`${basePath}/repayments/${plan.id}#repayment-allocations`}
+          >
+            Clear search
+          </Link>
+        ) : (
+          <Link className="action-link" href={`${basePath}/expenses`}>
+            Go to Expenses <span aria-hidden="true">→</span>
+          </Link>
+        )}
       </div>
     );
   }
@@ -183,9 +247,33 @@ export function RepaymentAllocationEditor({ action, plan, allocationQuery, alloc
         <div><span className="technical-label">Applied to shares</span><strong><ChangedValue value={allocatedAmount}>{formatRupiah(allocatedAmount)}</ChangedValue></strong></div>
         <div><span className="technical-label">Needs allocation</span><strong><ChangedValue value={unallocatedAmount}>{formatRupiah(unallocatedAmount)}</ChangedValue></strong></div>
       </div>
-      <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Repayment allocation progress" role="progressbar" aria-valuemin={0} aria-valuemax={plan.amount} aria-valuenow={Math.min(allocatedAmount, plan.amount)}>
-        <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>
-        <span className={completionTransition ? "allocation-bar__message allocation-bar__message--complete" : "allocation-bar__message"}>{overAllocated ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.` : unallocatedAmount > 0 ? `${formatRupiah(unallocatedAmount)} needs allocation. Only applied money reduces outstanding balances.` : "This repayment is fully applied. Applied money reduces outstanding balances."}</span>
+      <div
+        className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`}
+        aria-label="Repayment allocation progress"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={plan.amount}
+        aria-valuenow={Math.min(allocatedAmount, plan.amount)}
+      >
+        <span className="allocation-bar__track">
+          <span
+            className="allocation-bar__fill"
+            style={{ transform: `scaleX(${allocationProgress})` }}
+          />
+        </span>
+        <span
+          className={
+            completionTransition
+              ? "allocation-bar__message allocation-bar__message--complete"
+              : "allocation-bar__message"
+          }
+        >
+          {overAllocated
+            ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.`
+            : unallocatedAmount > 0
+              ? `${formatRupiah(unallocatedAmount)} needs allocation. Only applied money reduces outstanding balances.`
+              : "This repayment is fully applied. Applied money reduces outstanding balances."}
+        </span>
       </div>
       <form className="repayment-allocation-editor__form" action={formAction} noValidate>
         <input type="hidden" name="allocationPage" value={allocationPage.page} />
@@ -198,14 +286,28 @@ export function RepaymentAllocationEditor({ action, plan, allocationQuery, alloc
             <div className="repayment-allocation-editor__row" key={share.expenseShareId}>
               <div className="repayment-allocation-editor__details">
                 <p className="repayment-allocation-editor__description">{share.expenseDescription}</p>
-                <p className="repayment-allocation-editor__outing">{share.outingTitle} · <LocalDateTime iso={share.outingOccurredAt.toISOString()} mode="date" /></p>
-                <div className="repayment-allocation-editor__available"><span>Available</span><strong>{formatRupiah(share.capacityAvailable)}</strong></div>
+                <p className="repayment-allocation-editor__outing">
+                  {share.outingTitle} · <LocalDateTime iso={share.outingOccurredAt.toISOString()} mode="date" />
+                </p>
+                <div className="repayment-allocation-editor__available">
+                  <span>Available</span>
+                  <strong>{formatRupiah(share.capacityAvailable)}</strong>
+                </div>
                 <details className="repayment-allocation-editor__details-disclosure">
                   <summary>Allocation details</summary>
                   <dl>
-                    <div><dt>Original owed</dt><dd>{formatRupiah(share.amountOwed)}</dd></div>
-                    <div><dt>Other repayments</dt><dd>{formatRupiah(share.allocatedByOtherRepayments)}</dd></div>
-                    <div><dt>Available</dt><dd>{formatRupiah(share.capacityAvailable)}</dd></div>
+                    <div>
+                      <dt>Original owed</dt>
+                      <dd>{formatRupiah(share.amountOwed)}</dd>
+                    </div>
+                    <div>
+                      <dt>Other repayments</dt>
+                      <dd>{formatRupiah(share.allocatedByOtherRepayments)}</dd>
+                    </div>
+                    <div>
+                      <dt>Available</dt>
+                      <dd>{formatRupiah(share.capacityAvailable)}</dd>
+                    </div>
                   </dl>
                 </details>
               </div>
@@ -219,22 +321,47 @@ export function RepaymentAllocationEditor({ action, plan, allocationQuery, alloc
                   inputMode="numeric"
                   aria-label={`Amount to allocate to ${share.expenseDescription}`}
                   value={draftAmounts[share.expenseShareId] ?? ""}
-                  onChange={(event) => setDraftAmounts((current) => ({ ...current, [share.expenseShareId]: event.target.value }))}
+                  onChange={(event) =>
+                    setDraftAmounts((current) => ({
+                      ...current,
+                      [share.expenseShareId]: event.target.value,
+                    }))
+                  }
                   aria-invalid={Boolean(state.fieldErrors[share.expenseShareId])}
                   aria-describedby={`${helpId} ${fieldErrorId}`}
                   autoComplete="off"
                 />
                 <p className="repayment-allocation-editor__help" id={helpId}>Blank removes this allocation.</p>
                 <FieldError id={fieldErrorId} message={state.fieldErrors[share.expenseShareId]} />
-                {share.currentAllocation > 0 && removeAction && undoAction ? <RemoveAllocationForm action={removeAction.bind(null, plan.id, share.expenseShareId)} undoAction={undoAction} onRemoved={setRemovedDraftAmount} onUndone={restoreDraftAmount} /> : null}
+                {share.currentAllocation > 0 && removeAction && undoAction ? (
+                  <RemoveAllocationForm
+                    action={removeAction.bind(null, plan.id, share.expenseShareId)}
+                    undoAction={undoAction}
+                    onRemoved={setRemovedDraftAmount}
+                    onUndone={restoreDraftAmount}
+                  />
+                ) : null}
               </div>
             </div>
           );
         })}
-        <p className="repayment-allocation-editor__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+        <p
+          className="repayment-allocation-editor__message"
+          role={state.formError ? "alert" : undefined}
+          aria-live="polite"
+        >
+          {state.formError || "\u00a0"}
+        </p>
         <SubmitButton />
       </form>
-      <RecordPagination page={allocationPage.page} pageSize={allocationPage.pageSize} totalItems={allocationPage.totalItems} totalPages={allocationPage.totalPages} href={`${basePath}/repayments/${plan.id}${allocationQuery ? `?q=${encodeURIComponent(allocationQuery)}` : ""}`} anchor="repayment-allocations" />
+      <RecordPagination
+        page={allocationPage.page}
+        pageSize={allocationPage.pageSize}
+        totalItems={allocationPage.totalItems}
+        totalPages={allocationPage.totalPages}
+        href={`${basePath}/repayments/${plan.id}${allocationQuery ? `?q=${encodeURIComponent(allocationQuery)}` : ""}`}
+        anchor="repayment-allocations"
+      />
     </div>
   );
 }
