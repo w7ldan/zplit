@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatViewDto } from "@/domain/chat-contracts";
@@ -16,6 +17,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 import { editChatMessageAction } from "@/app/app/chat-actions";
 import { ChatPanel } from "./chat-panel";
 
+const chatStyles = readFileSync("src/app/styles/30-records-and-forms.css", "utf8");
+
 const organizationChat: ChatViewDto = {
   scope: { type: "organization", id: "org-a" },
   threadId: "thread-a",
@@ -23,10 +26,10 @@ const organizationChat: ChatViewDto = {
   canModerate: true,
   nextCursor: "older",
   messages: [
-    { id: "message-a", body: "Hello\nthere", deleted: false, edited: true, createdAt: "2026-08-29T10:00:00.000Z", sender: { displayName: "Alice", avatarSeed: "user-a" }, own: true, grouped: false, canEdit: true, canDelete: true },
-    { id: "message-b", body: "Second", deleted: false, edited: false, createdAt: "2026-08-29T10:01:00.000Z", sender: { displayName: "Alice", avatarSeed: "user-a" }, own: true, grouped: true, canEdit: true, canDelete: true },
-    { id: "message-c", body: "Please remove", deleted: false, edited: false, createdAt: "2026-08-29T10:02:00.000Z", sender: { displayName: "Bob", avatarSeed: "user-b" }, own: false, grouped: false, canEdit: false, canDelete: true },
-    { id: "message-d", body: null, deleted: true, edited: false, createdAt: "2026-08-29T10:03:00.000Z", sender: { displayName: "Bob", avatarSeed: "user-b" }, own: false, grouped: false, canEdit: false, canDelete: false },
+    { id: "message-a", body: "Hello\nthere", deleted: false, edited: true, createdAt: "2026-08-29T10:00:00.000Z", sender: { userId: "user-a", displayName: "Alice", customAvatar: null }, own: true, grouped: false, canEdit: true, canDelete: true },
+    { id: "message-b", body: "Second", deleted: false, edited: false, createdAt: "2026-08-29T10:01:00.000Z", sender: { userId: "user-a", displayName: "Alice", customAvatar: null }, own: true, grouped: true, canEdit: true, canDelete: true },
+    { id: "message-c", body: "Please remove", deleted: false, edited: false, createdAt: "2026-08-29T10:02:00.000Z", sender: { userId: "user-b", displayName: "Bob", customAvatar: null }, own: false, grouped: false, canEdit: false, canDelete: true },
+    { id: "message-d", body: null, deleted: true, edited: false, createdAt: "2026-08-29T10:03:00.000Z", sender: { userId: "user-b", displayName: "Bob", customAvatar: null }, own: false, grouped: false, canEdit: false, canDelete: false },
   ],
 };
 
@@ -44,7 +47,14 @@ describe("ChatPanel", () => {
     expect(container.querySelectorAll(".chat-message--own")).toHaveLength(2);
     expect(container.querySelectorAll(".chat-message--other")).toHaveLength(2);
     expect(container.querySelectorAll(".chat-message--grouped")).toHaveLength(1);
+    expect(container.querySelectorAll(".chat-message--grouped .user-avatar")).toHaveLength(0);
+    expect(container.querySelectorAll(".user-avatar__default")).toHaveLength(3);
     expect(screen.queryByText(/unread|seen by|receipt/i)).not.toBeInTheDocument();
+  });
+
+  it("pins the own avatar and bubble to the same CSS grid row", () => {
+    expect(chatStyles).toMatch(/\.chat-message--own \.chat-message__content \{[^}]*grid-row: 1;/);
+    expect(chatStyles).toMatch(/\.chat-message--own > \.user-avatar \{[^}]*grid-row: 1;/);
   });
 
   it("renders Group Chat with a usable composer", () => {
@@ -53,6 +63,17 @@ describe("ChatPanel", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Chat" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Chat messages" })).getByText("Alice")).toBeInTheDocument();
+  });
+
+  it("passes an authorized custom avatar through to UserAvatar", () => {
+    const avatar = { sha256: "a".repeat(64) };
+    const chat = {
+      ...organizationChat,
+      messages: organizationChat.messages.map((message) => message.id === "message-c" ? { ...message, sender: { ...message.sender, customAvatar: avatar } } : message),
+    };
+    const { container } = render(<ChatPanel chat={chat} title="General" olderHref={null} />);
+
+    expect(container.querySelector(`img[src="/app/avatar?userId=user-b&v=${avatar.sha256}"]`)).toBeInTheDocument();
   });
 
   it("closes Edit mode after a successful save and shows the updated message row", async () => {

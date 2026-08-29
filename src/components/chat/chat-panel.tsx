@@ -63,7 +63,8 @@ function ChatMessage({ scope, message, onEdit }: { scope: ChatScope; message: Ch
     <li className={`chat-message ${message.own ? "chat-message--own" : "chat-message--other"} ${message.grouped ? "chat-message--grouped" : ""}`}>
       {!message.grouped ? (
         <UserAvatar
-          userId={message.sender.avatarSeed}
+          userId={message.sender.userId}
+          customAvatar={message.sender.customAvatar}
           size="sm"
           alt={`${message.sender.displayName} avatar`}
         />

@@ -211,11 +211,13 @@
 
 .chat-message--own .chat-message__content {
   grid-column: 1;
+  grid-row: 1;
   background: var(--pastel-blue);
 }
 
 .chat-message--own > .user-avatar {
   grid-column: 2;
+  grid-row: 1;
 }
 
 .chat-message--grouped {

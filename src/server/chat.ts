@@ -9,6 +9,7 @@ import { normalizeUuid } from "@/domain/record-retrieval";
 import { requireGroupAccess, GroupError } from "@/server/groups";
 import { requireOrganizationAccess } from "@/server/organizations";
 import { publishRealtimeEvent, type RealtimeData } from "@/server/realtime";
+import { getUserAvatarMetadataForViewer } from "@/server/user-avatar-access";
 
 export class ChatError extends Error {
   constructor(readonly code: "invalid_id" | "not_found" | "message_not_found" | "forbidden" | "invalid_cursor" | "deleted" | "not_member") {
@@ -119,6 +120,7 @@ async function listMessages(database: Database, scope: ChatScope, threadId: stri
     .limit(CHAT_PAGE_SIZE + 1);
   const hasMore = rows.length > CHAT_PAGE_SIZE;
   const orderedRows = rows.slice(0, CHAT_PAGE_SIZE).reverse() as ChatRow[];
+  const avatarMetadata = await getUserAvatarMetadataForViewer(database, viewerUserId, [...new Set(orderedRows.map((row) => row.senderUserId))], scope);
   const messages = orderedRows.map((row, index) => {
     const own = row.senderUserId === viewerUserId;
     const deleted = row.deletedAt !== null;
@@ -130,7 +132,7 @@ async function listMessages(database: Database, scope: ChatScope, threadId: stri
       deleted,
       edited: !deleted && row.editedAt !== null,
       createdAt: row.createdAt.toISOString(),
-      sender: { displayName: row.participantName ?? row.senderName, avatarSeed: row.senderUserId },
+      sender: { userId: row.senderUserId, displayName: row.participantName ?? row.senderName, customAvatar: avatarMetadata.get(row.senderUserId) ?? null },
       own,
       grouped,
       canEdit: own && canSend && !deleted,

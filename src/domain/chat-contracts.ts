@@ -7,8 +7,9 @@ export type ChatMessageDto = {
   edited: boolean;
   createdAt: string;
   sender: {
+    userId: string;
     displayName: string;
-    avatarSeed: string;
+    customAvatar: { sha256: string } | null;
   };
   own: boolean;
   grouped: boolean;

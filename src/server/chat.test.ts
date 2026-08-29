@@ -5,6 +5,7 @@ import { chatMessages, chatThreads } from "@/db/schema";
 const mocks = vi.hoisted(() => ({
   requireOrganizationAccess: vi.fn(),
   requireGroupAccess: vi.fn(),
+  getUserAvatarMetadataForViewer: vi.fn(),
   publishRealtimeEvent: vi.fn(async () => undefined),
 }));
 
@@ -19,6 +20,7 @@ vi.mock("@/server/groups", () => ({
   },
 }));
 vi.mock("@/server/realtime", () => ({ publishRealtimeEvent: mocks.publishRealtimeEvent }));
+vi.mock("@/server/user-avatar-access", () => ({ getUserAvatarMetadataForViewer: mocks.getUserAvatarMetadataForViewer }));
 
 import { deleteChatMessage, editChatMessage, getOrganizationChat, getGroupChat, sendChatMessage } from "./chat";
 
@@ -74,6 +76,7 @@ describe("chat server ownership", () => {
     vi.clearAllMocks();
     mocks.requireOrganizationAccess.mockResolvedValue(organizationAccess());
     mocks.requireGroupAccess.mockResolvedValue({ canManageGroup: false });
+    mocks.getUserAvatarMetadataForViewer.mockResolvedValue(new Map());
   });
 
   it("requires organization capability and creates one thread with conflict safety", async () => {
@@ -119,6 +122,20 @@ describe("chat server ownership", () => {
       { id: "message-b", body: "second", grouped: true },
       { id: "message-c", body: null, grouped: false },
     ]);
+  });
+
+  it("batches sender avatar metadata into the read DTO", async () => {
+    const avatar = { sha256: "a".repeat(64) };
+    const db = database([
+      [{ id: threadId }],
+      [{ id: "message-a", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "hello", createdAt: new Date("2026-08-29T00:00:00Z"), editedAt: null, deletedAt: null }],
+    ]);
+    mocks.getUserAvatarMetadataForViewer.mockResolvedValueOnce(new Map([["user-b", avatar]]));
+
+    const chat = await getOrganizationChat(db, organizationId, "user-a");
+
+    expect(chat.messages[0]?.sender).toEqual({ userId: "user-b", displayName: "Bob", customAvatar: avatar });
+    expect(mocks.getUserAvatarMetadataForViewer).toHaveBeenCalledWith(db, "user-a", ["user-b"], { type: "organization", id: organizationId });
   });
 
   it("edits only the author and publishes the existing entity scope", async () => {
