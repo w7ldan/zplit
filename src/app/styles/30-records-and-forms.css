@@ -275,6 +275,39 @@
   font-size: 0.72rem;
 }
 
+.chat-message__seen {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+  justify-self: end;
+}
+
+.chat-message__details {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.chat-message__details summary {
+  cursor: pointer;
+  color: var(--ink);
+  list-style: none;
+}
+
+.chat-message__details summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-message__details ul {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+}
+
+.chat-message__details > span {
+  display: block;
+  margin-top: 0.35rem;
+}
+
 .chat-message__content > time {
   color: var(--muted-ink);
   font-size: 0.72rem;

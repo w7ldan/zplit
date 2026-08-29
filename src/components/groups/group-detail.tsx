@@ -6,6 +6,7 @@ import { GroupForm } from "@/components/groups/group-form";
 import type { GroupActionState } from "@/domain/group-contracts";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { displayUnreadCount } from "@/components/notifications/inbox-control";
 
 type ProfileAction = (previousState: GroupActionState, formData: FormData) => Promise<GroupActionState>;
 
@@ -40,7 +41,7 @@ export function GroupIdentity({ group }: { group: { id: string; name: string; av
   return <div className="group-detail__identity"><GroupAvatar groupId={group.id} customAvatar={group.avatar} size="lg" /><div><p className="technical-label">GROUP</p><h1>{group.name}</h1></div></div>;
 }
 
-export function GroupNavigation({ groupId, canManageGroup }: { groupId: string; canManageGroup: boolean }) {
+export function GroupNavigation({ groupId, canManageGroup, chatUnreadCount = 0 }: { groupId: string; canManageGroup: boolean; chatUnreadCount?: number }) {
   const pathname = usePathname() ?? "";
   const base = `/app/personal/groups/${groupId}`;
   return (
@@ -48,8 +49,13 @@ export function GroupNavigation({ groupId, canManageGroup }: { groupId: string; 
       <Link href={base} aria-current={pathname === base ? "page" : undefined}>
         Overview
       </Link>
-      <Link href={`${base}/chat`} aria-current={pathname.startsWith(`${base}/chat`) ? "page" : undefined}>
+      <Link
+        href={`${base}/chat`}
+        aria-label={chatUnreadCount > 0 ? `Chat, ${chatUnreadCount} unread` : "Chat"}
+        aria-current={pathname.startsWith(`${base}/chat`) ? "page" : undefined}
+      >
         Chat
+        {chatUnreadCount > 0 ? <span className="chat-unread-badge" aria-hidden="true">{displayUnreadCount(chatUnreadCount)}</span> : null}
       </Link>
       <Link
         href={`${base}/expenses`}

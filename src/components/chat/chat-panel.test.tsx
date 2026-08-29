@@ -7,14 +7,10 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/app/app/chat-actions", () => ({
   deleteChatMessageAction: vi.fn(),
   editChatMessageAction: vi.fn(),
+  markChatReadAction: vi.fn(async () => false),
   sendChatMessageAction: vi.fn(),
 }));
-vi.mock("@/components/realtime/realtime-provider", () => ({
-  useRealtime: () => ({ openCount: 0, subscribe: vi.fn(() => () => {}) }),
-}));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-
-import { editChatMessageAction } from "@/app/app/chat-actions";
+import { editChatMessageAction, markChatReadAction } from "@/app/app/chat-actions";
 import { ChatPanel } from "./chat-panel";
 
 const chatStyles = readFileSync("src/app/styles/30-records-and-forms.css", "utf8");
@@ -25,11 +21,13 @@ const organizationChat: ChatViewDto = {
   canSend: true,
   canModerate: true,
   nextCursor: "older",
+  unreadCount: 0,
+  latestVisibleMessageId: "message-d",
   messages: [
-    { id: "message-a", body: "Hello\nthere", deleted: false, edited: true, createdAt: "2026-08-29T10:00:00.000Z", sender: { userId: "user-a", displayName: "Alice", customAvatar: null }, own: true, grouped: false, canEdit: true, canDelete: true },
-    { id: "message-b", body: "Second", deleted: false, edited: false, createdAt: "2026-08-29T10:01:00.000Z", sender: { userId: "user-a", displayName: "Alice", customAvatar: null }, own: true, grouped: true, canEdit: true, canDelete: true },
-    { id: "message-c", body: "Please remove", deleted: false, edited: false, createdAt: "2026-08-29T10:02:00.000Z", sender: { userId: "user-b", displayName: "Bob", customAvatar: null }, own: false, grouped: false, canEdit: false, canDelete: true },
-    { id: "message-d", body: null, deleted: true, edited: false, createdAt: "2026-08-29T10:03:00.000Z", sender: { userId: "user-b", displayName: "Bob", customAvatar: null }, own: false, grouped: false, canEdit: false, canDelete: false },
+    { id: "message-a", body: "Hello\nthere", deleted: false, edited: true, createdAt: "2026-08-29T10:00:00.000Z", sender: { userId: "user-a", displayName: "Alice", customAvatar: null }, own: true, grouped: false, canEdit: true, canDelete: true, seenByCount: 0, seenBy: ["Bob"] },
+    { id: "message-b", body: "Second", deleted: false, edited: false, createdAt: "2026-08-29T10:01:00.000Z", sender: { userId: "user-a", displayName: "Alice", customAvatar: null }, own: true, grouped: true, canEdit: true, canDelete: true, seenByCount: 1, seenBy: ["Bob"] },
+    { id: "message-c", body: null, deleted: true, edited: false, createdAt: "2026-08-29T10:02:00.000Z", sender: { userId: "user-b", displayName: "Bob", customAvatar: null }, own: false, grouped: false, canEdit: false, canDelete: false, seenByCount: 0, seenBy: [] },
+    { id: "message-d", body: "Latest", deleted: false, edited: false, createdAt: "2026-08-29T10:03:00.000Z", sender: { userId: "user-b", displayName: "Bob", customAvatar: null }, own: false, grouped: false, canEdit: false, canDelete: true, seenByCount: 1, seenBy: [] },
   ],
 };
 
@@ -49,12 +47,26 @@ describe("ChatPanel", () => {
     expect(container.querySelectorAll(".chat-message--grouped")).toHaveLength(1);
     expect(container.querySelectorAll(".chat-message--grouped .user-avatar")).toHaveLength(0);
     expect(container.querySelectorAll(".user-avatar__default")).toHaveLength(3);
-    expect(screen.queryByText(/unread|seen by|receipt/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Seen by...")).toHaveLength(3);
+    expect(screen.getByText("Seen by 1")).toBeInTheDocument();
+    expect(screen.queryByText("Seen by 0")).not.toBeInTheDocument();
   });
 
   it("pins the own avatar and bubble to the same CSS grid row", () => {
     expect(chatStyles).toMatch(/\.chat-message--own \.chat-message__content \{[^}]*grid-row: 1;/);
     expect(chatStyles).toMatch(/\.chat-message--own > \.user-avatar \{[^}]*grid-row: 1;/);
+  });
+
+  it("marks the newest rendered message only", async () => {
+    vi.mocked(markChatReadAction).mockClear();
+    render(<ChatPanel chat={organizationChat} title="General" olderHref={null} />);
+    await waitFor(() => expect(markChatReadAction).toHaveBeenCalledWith(organizationChat.scope, "message-d"));
+
+    vi.mocked(markChatReadAction).mockClear();
+    const olderChat = { ...organizationChat, latestVisibleMessageId: "message-c", messages: organizationChat.messages.slice(0, 3) };
+    render(<ChatPanel chat={olderChat} title="General" olderHref={null} />);
+    await waitFor(() => expect(markChatReadAction).toHaveBeenCalledWith(olderChat.scope, "message-c"));
+    expect(markChatReadAction).not.toHaveBeenCalledWith(olderChat.scope, "message-d");
   });
 
   it("renders Group Chat with a usable composer", () => {

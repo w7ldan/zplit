@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getOrganizationForMember } from "@/server/organizations";
+import { getOrganizationChatUnreadCount } from "@/server/chat";
 import { OrganizationIdentity, OrganizationNavigation } from "@/components/organizations/organization-detail";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,9 @@ export default async function OrganizationLayout({ children, params }: { childre
   } catch {
     notFound();
   }
+  const chatUnreadCount = organization.canViewChat
+    ? await getOrganizationChatUnreadCount(getDatabase(), organizationId, session.user.id)
+    : 0;
   return <>
     <header className="organization-context editorial-shell">
       <Link href="/app/organizations" className="organization-detail__back text-link">← Organizations</Link>
@@ -35,7 +39,7 @@ export default async function OrganizationLayout({ children, params }: { childre
         </div>
       </div>
       {organization.description ? <p className="organization-detail__description">{organization.description}</p> : null}
-      <OrganizationNavigation organizationId={organizationId} canViewLedger={organization.canViewLedger} canViewChat={organization.canViewChat} canViewPeople={organization.canViewMembers || organization.canViewLedger} canViewSettings={organization.canUpdate || organization.canDelete || organization.canManageRepaymentDestinations || organization.canExport} />
+      <OrganizationNavigation organizationId={organizationId} canViewLedger={organization.canViewLedger} canViewChat={organization.canViewChat} chatUnreadCount={chatUnreadCount} canViewPeople={organization.canViewMembers || organization.canViewLedger} canViewSettings={organization.canUpdate || organization.canDelete || organization.canManageRepaymentDestinations || organization.canExport} />
     </header>
     {children}
   </>;

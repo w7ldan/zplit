@@ -15,6 +15,8 @@ export type ChatMessageDto = {
   grouped: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  seenByCount: number;
+  seenBy: string[];
 };
 
 export type ChatViewDto = {
@@ -22,6 +24,8 @@ export type ChatViewDto = {
   threadId: string | null;
   messages: ChatMessageDto[];
   nextCursor: string | null;
+  unreadCount: number;
+  latestVisibleMessageId: string | null;
   canSend: boolean;
   canModerate: boolean;
 };

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/auth/require-session";
 import { ChatInputError, type ChatScope } from "@/domain/chat";
 import type { ChatActionState } from "@/domain/chat-contracts";
-import { ChatError, deleteChatMessage, editChatMessage, sendChatMessage } from "@/server/chat";
+import { ChatError, deleteChatMessage, editChatMessage, markChatRead, sendChatMessage } from "@/server/chat";
 import { getDatabase } from "@/db/client";
 
 function chatPath(scope: ChatScope) {
@@ -43,6 +43,17 @@ export async function sendChatMessageAction(scope: ChatScope, _previousState: Ch
   }
   revalidatePath(chatPath(scope));
   return { error: "", values: { body: "" } };
+}
+
+export async function markChatReadAction(scope: ChatScope, messageId: string) {
+  const session = await requireSession();
+  try {
+    const result = await markChatRead(getDatabase(), { scope, messageId, userId: session.user.id });
+    if (result.changed) revalidatePath(chatPath(scope));
+    return result.changed;
+  } catch {
+    return false;
+  }
 }
 
 export async function editChatMessageAction(scope: ChatScope, messageId: string, _previousState: ChatActionState, formData: FormData): Promise<ChatActionState> {

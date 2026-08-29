@@ -225,6 +225,13 @@
       "when": 1788019980623,
       "tag": "0031_skinny_komodo",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788033794906,
+      "tag": "0032_unique_baron_zemo",
+      "breakpoints": true
     }
   ]
 }

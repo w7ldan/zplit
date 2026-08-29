@@ -4,6 +4,7 @@ import * as schema from "./schema";
 
 const domainTables = [
   "chat_messages",
+  "chat_thread_reads",
   "chat_threads",
   "expense_charge_targets",
   "expense_charges",
@@ -86,7 +87,7 @@ describe("database schema", () => {
 
   it("exports the domain tables and four auth tables", () => {
     expect(
-      [schema.chatMessages, schema.chatThreads, schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupSettlementProofs, schema.groupSettlements, schema.groupSettlementApplications, schema.groupOffsetSettlements, schema.groupOffsetApplications, schema.groupExpenseReceipts, schema.groupExpenseLifecycleEvents]
+      [schema.chatMessages, schema.chatThreadReads, schema.chatThreads, schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupSettlementProofs, schema.groupSettlements, schema.groupSettlementApplications, schema.groupOffsetSettlements, schema.groupOffsetApplications, schema.groupExpenseReceipts, schema.groupExpenseLifecycleEvents]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -127,6 +128,14 @@ describe("database schema", () => {
       { from: ["group_id", "sender_user_id", "sender_participant_id"], to: "group_participants", target: ["group_id", "user_id", "id"], onDelete: "restrict" },
     ]));
     expect(indexColumns(schema.chatMessages, "chat_messages_thread_created_idx")).toEqual(["thread_id", "created_at", "id"]);
+
+    const reads = getTableConfig(schema.chatThreadReads);
+    expect(reads.columns.map((column) => column.name)).toEqual(["thread_id", "user_id", "last_read_message_id", "created_at", "updated_at"]);
+    expect(foreignKeyShape(schema.chatThreadReads)).toEqual(expect.arrayContaining([
+      { from: ["thread_id"], to: "chat_threads", target: ["id"], onDelete: "cascade" },
+      { from: ["user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      { from: ["thread_id", "last_read_message_id"], to: "chat_messages", target: ["thread_id", "id"], onDelete: "cascade" },
+    ]));
   });
 
   it("defines Group expenses, shares, obligations, and private receipt storage with same-Group keys", () => {

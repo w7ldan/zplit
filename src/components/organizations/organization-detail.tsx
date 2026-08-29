@@ -5,6 +5,7 @@ import { AvatarSettings } from "@/components/settings/avatar-settings";
 import { OrganizationAvatar, organizationAvatarSeed } from "@/components/organizations/organization-avatar";
 import { OrganizationForm } from "@/components/organizations/organization-form";
 import type { OrganizationActionState } from "@/domain/organization-contracts";
+import { displayUnreadCount } from "@/components/notifications/inbox-control";
 import { usePathname } from "next/navigation";
 
 type ProfileAction = (previousState: OrganizationActionState, formData: FormData) => Promise<OrganizationActionState>;
@@ -52,7 +53,7 @@ export function OrganizationIdentity({ organization }: { organization: { id: str
   );
 }
 
-export function OrganizationNavigation({ organizationId, canViewLedger, canViewChat = false, canViewPeople, canViewSettings }: { organizationId: string; canViewLedger: boolean; canViewChat?: boolean; canViewPeople: boolean; canViewSettings: boolean }) {
+export function OrganizationNavigation({ organizationId, canViewLedger, canViewChat = false, chatUnreadCount = 0, canViewPeople, canViewSettings }: { organizationId: string; canViewLedger: boolean; canViewChat?: boolean; chatUnreadCount?: number; canViewPeople: boolean; canViewSettings: boolean }) {
   const pathname = usePathname() ?? "";
   const base = `/app/organizations/${organizationId}`;
   const links: Array<[string, string, boolean]> = [
@@ -88,9 +89,15 @@ export function OrganizationNavigation({ organizationId, canViewLedger, canViewC
         <Link
           href={href}
           key={label}
+          aria-label={label === "General" && chatUnreadCount > 0 ? `General, ${chatUnreadCount} unread` : undefined}
           aria-current={active ? "page" : undefined}
         >
-          {label}
+          {label === "General" && chatUnreadCount > 0 ? (
+            <>
+              {label}
+              <span className="chat-unread-badge" aria-hidden="true">{displayUnreadCount(chatUnreadCount)}</span>
+            </>
+          ) : label}
         </Link>
       ))}
     </nav>

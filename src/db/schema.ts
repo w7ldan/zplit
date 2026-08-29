@@ -432,7 +432,32 @@ export const chatMessages = pgTable(
       foreignColumns: [groupParticipants.groupId, groupParticipants.userId, groupParticipants.id],
       name: "chat_messages_sender_participant_fk",
     }).onDelete("restrict"),
+    unique("chat_messages_thread_id_id_unique").on(table.threadId, table.id),
     index("chat_messages_thread_created_idx").on(table.threadId, table.createdAt, table.id),
+  ],
+);
+
+export const chatThreadReads = pgTable(
+  "chat_thread_reads",
+  {
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    lastReadMessageId: uuid("last_read_message_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.threadId, table.userId] }),
+    foreignKey({
+      columns: [table.threadId, table.lastReadMessageId],
+      foreignColumns: [chatMessages.threadId, chatMessages.id],
+      name: "chat_thread_reads_message_scope_fk",
+    }).onDelete("cascade"),
+    index("chat_thread_reads_user_idx").on(table.userId),
   ],
 );
 

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getGroupForMember } from "@/server/groups";
+import { getGroupChatUnreadCount } from "@/server/chat";
 import { GroupIdentity, GroupNavigation } from "@/components/groups/group-detail";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ export default async function GroupLayout({ children, params }: { children: Reac
   const { groupId } = await params;
   let group;
   try { group = await getGroupForMember(getDatabase(), groupId, session.user.id); } catch { notFound(); }
+  const chatUnreadCount = await getGroupChatUnreadCount(getDatabase(), groupId, session.user.id);
   return (
     <>
       <header className="group-context editorial-shell">
@@ -35,6 +37,7 @@ export default async function GroupLayout({ children, params }: { children: Reac
         <GroupNavigation
           groupId={groupId}
           canManageGroup={group.canManageGroup}
+          chatUnreadCount={chatUnreadCount}
         />
       </header>
       {children}

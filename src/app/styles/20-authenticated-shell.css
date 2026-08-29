@@ -2327,6 +2327,21 @@ body.global-search-open {
   border-bottom: 2px solid var(--ink);
 }
 
+.chat-unread-badge {
+  display: inline-block;
+  min-width: 1.1rem;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.3rem;
+  background: var(--pastel-blue);
+  color: var(--ink);
+  font-size: 0.62rem;
+  line-height: 1.1;
+  text-align: center;
+  vertical-align: 0.08rem;
+}
+
 @media (max-width: 767px) {
   .group-context {
     gap: 0.85rem;

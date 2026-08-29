@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { HeaderShell } from "@/components/navigation/header-shell";
 import { ToastProvider } from "@/components/feedback/toast";
@@ -11,9 +11,10 @@ import { DeleteConfirmation } from "./delete-record-form";
 import { UnsavedChangesProvider } from "@/components/navigation/unsaved-changes";
 import { ThemeControl } from "@/components/theme/theme-provider";
 import { GlobalSearch } from "./global-search";
-import { RealtimeProvider } from "@/components/realtime/realtime-provider";
+import { RealtimeProvider, useRealtime } from "@/components/realtime/realtime-provider";
 import { InboxControl } from "@/components/notifications/inbox-control";
 import { UserAvatar, type AvatarReference } from "@/components/identity/user-avatar";
+import { CHAT_STATE_CHANGED_EVENT } from "@/domain/chat";
 
 const destinations = [
   ["Overview", "/app"],
@@ -40,6 +41,30 @@ function isCurrent(pathname: string, href: string) {
   return href === "/app" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function ChatLiveRefresh({ pathname }: { pathname: string }) {
+  const router = useRouter();
+  const { openCount, subscribe } = useRealtime();
+
+  useEffect(() => subscribe(CHAT_STATE_CHANGED_EVENT, (event) => {
+    const entityId = event.data.scope === "organization"
+      ? event.data.organizationId
+      : event.data.scope === "group"
+        ? event.data.groupId
+        : undefined;
+    if (typeof entityId !== "string") return;
+    const prefix = event.data.scope === "organization"
+      ? `/app/organizations/${entityId}`
+      : `/app/personal/groups/${entityId}`;
+    if (pathname.startsWith(prefix)) router.refresh();
+  }), [pathname, router, subscribe]);
+
+  useEffect(() => {
+    if (openCount > 0 && (pathname.startsWith("/app/organizations/") || pathname.startsWith("/app/personal/groups/"))) router.refresh();
+  }, [openCount, pathname, router]);
+
+  return null;
+}
+
 export function AppShell({ user, canManageInvites, initialUnreadCount = 0, children }: AppShellProps) {
   const pathname = usePathname() ?? "";
 
@@ -50,6 +75,7 @@ export function AppShell({ user, canManageInvites, initialUnreadCount = 0, child
 
   return (
     <RealtimeProvider>
+      <ChatLiveRefresh pathname={pathname} />
       <UnsavedChangesProvider>
         <ToastProvider>
         <div className="app-shell">

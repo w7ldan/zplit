@@ -1,14 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/components/identity/user-avatar";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
-import { CHAT_STATE_CHANGED_EVENT, type ChatScope } from "@/domain/chat";
+import type { ChatScope } from "@/domain/chat";
 import type { ChatActionState, ChatMessageDto, ChatViewDto } from "@/domain/chat-contracts";
-import { deleteChatMessageAction, editChatMessageAction, sendChatMessageAction } from "@/app/app/chat-actions";
-import { useRealtime } from "@/components/realtime/realtime-provider";
+import { deleteChatMessageAction, editChatMessageAction, markChatReadAction, sendChatMessageAction } from "@/app/app/chat-actions";
 
 const emptyState: ChatActionState = { error: "", values: { body: "" } };
 
@@ -58,7 +56,9 @@ function ChatEditForm({
   );
 }
 
-function ChatMessage({ scope, message, onEdit }: { scope: ChatScope; message: ChatMessageDto; onEdit: (id: string) => void }) {
+function ChatMessage({ scope, message, latestVisible, onEdit }: { scope: ChatScope; message: ChatMessageDto; latestVisible: boolean; onEdit: (id: string) => void }) {
+  const hasActions = message.canEdit || message.canDelete || !latestVisible;
+  const seenBy = message.seenBy ?? [];
   return (
     <li className={`chat-message ${message.own ? "chat-message--own" : "chat-message--other"} ${message.grouped ? "chat-message--grouped" : ""}`}>
       {!message.grouped ? (
@@ -84,7 +84,7 @@ function ChatMessage({ scope, message, onEdit }: { scope: ChatScope; message: Ch
           <p className="chat-message__body">{message.body}</p>
         )}
         {message.edited ? <span className="chat-message__edited">Edited</span> : null}
-        {message.canEdit || message.canDelete ? (
+        {hasActions ? (
           <div className="chat-message__actions">
             {message.canEdit ? <button className="text-link" type="button" onClick={() => onEdit(message.id)}>Edit</button> : null}
             {message.canDelete ? (
@@ -92,29 +92,33 @@ function ChatMessage({ scope, message, onEdit }: { scope: ChatScope; message: Ch
                 <button className="text-link" type="submit">{message.own ? "Delete" : "Delete message"}</button>
               </form>
             ) : null}
+            {!latestVisible ? (
+              <details className="chat-message__details">
+                <summary className="text-link">Seen by...</summary>
+                {seenBy.length > 0 ? <ul>{seenBy.map((name, index) => <li key={`${name}-${index}`}>{name}</li>)}</ul> : <span>No other readers yet.</span>}
+              </details>
+            ) : null}
           </div>
         ) : null}
+        {latestVisible && (message.seenByCount ?? 0) > 0 ? <span className="chat-message__seen">Seen by {message.seenByCount}</span> : null}
       </article>
     </li>
   );
 }
 
 export function ChatPanel({ chat, title, olderHref }: { chat: ChatViewDto; title: string; olderHref: string | null }) {
-  const router = useRouter();
-  const { openCount, subscribe } = useRealtime();
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [state, action] = useActionState(sendChatMessageAction.bind(null, chat.scope), emptyState);
   const chatId = scopeMessageId(chat.scope);
+  const newestRenderedMessageId = chat.messages.at(-1)?.id ?? null;
+  const markedMessageKey = useRef<string | null>(null);
+  const messageKey = chat.threadId && newestRenderedMessageId ? `${chat.threadId}:${newestRenderedMessageId}` : null;
 
   useEffect(() => {
-    if (openCount > 0) router.refresh();
-  }, [openCount, router]);
-
-  useEffect(() => subscribe(CHAT_STATE_CHANGED_EVENT, (event) => {
-    const entityId = chat.scope.type === "organization" ? event.data.organizationId : event.data.groupId;
-    if (event.data.scope !== chat.scope.type || entityId !== chat.scope.id) return;
-    router.refresh();
-  }), [chat.scope, router, subscribe]);
+    if (!messageKey || !newestRenderedMessageId || markedMessageKey.current === messageKey) return;
+    markedMessageKey.current = messageKey;
+    void markChatReadAction(chat.scope, newestRenderedMessageId).catch(() => undefined);
+  }, [chat.scope, messageKey, newestRenderedMessageId]);
 
   return (
     <section className="app-page chat-page" id="chat">
@@ -145,7 +149,7 @@ export function ChatPanel({ chat, title, olderHref }: { chat: ChatViewDto; title
                   />
                 </li>
               ) : (
-                <ChatMessage key={message.id} scope={chat.scope} message={message} onEdit={setEditingMessageId} />
+                <ChatMessage key={message.id} scope={chat.scope} message={message} latestVisible={message.id === chat.latestVisibleMessageId} onEdit={setEditingMessageId} />
               ))}
             </ol>
           ) : (

@@ -3,12 +3,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 
 const pathState = vi.hoisted(() => ({ value: "/app/history" }));
+const navigationState = vi.hoisted(() => ({ router: { replace: vi.fn(), refresh: vi.fn() } }));
 
-vi.mock("next/navigation", () => ({ usePathname: () => pathState.value, useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => pathState.value, useRouter: () => navigationState.router }));
 vi.mock("@/auth/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
 vi.mock("@/app/app/search/actions", () => ({ searchGlobalRecords: vi.fn() }));
 
 let frameCallback: FrameRequestCallback | undefined;
+
+class FakeEventSource {
+  static instances: FakeEventSource[] = [];
+  onopen: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  onmessage: ((message: MessageEvent<string>) => void) | null = null;
+  constructor() {
+    FakeEventSource.instances.push(this);
+  }
+  close() {}
+  message(data: unknown) {
+    this.onmessage?.({ data: JSON.stringify(data) } as MessageEvent<string>);
+  }
+}
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -16,6 +31,8 @@ beforeEach(() => {
   pathState.value = "/app/history";
   Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
   frameCallback = undefined;
+  navigationState.router.refresh.mockReset();
+  FakeEventSource.instances = [];
 });
 
 describe("AppShell", () => {
@@ -41,6 +58,22 @@ describe("AppShell", () => {
     expect(screen.getByRole("link", { name: "Exports" })).toHaveAttribute("href", "/app/exports");
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app/settings");
     expect(document.querySelectorAll(".toast-viewport")).toHaveLength(1);
+  });
+
+  it("reconciles current Chat metadata through the single shared SSE connection", () => {
+    pathState.value = "/app/organizations/org-a/expenses";
+    vi.stubGlobal("EventSource", FakeEventSource);
+    render(<AppShell user={{ id: "user-a", name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
+
+    expect(FakeEventSource.instances).toHaveLength(1);
+    act(() => FakeEventSource.instances[0]?.message({
+      type: "chat.state.changed",
+      id: "r-1",
+      sequence: 1,
+      occurredAt: new Date().toISOString(),
+      data: { scope: "organization", organizationId: "org-a", threadId: "thread-a" },
+    }));
+    expect(navigationState.router.refresh).toHaveBeenCalledOnce();
   });
 
   it.each(["/app/friends", "/app/outings", "/app/outings/outing-a", "/app/trips", "/app/trips/trip-a", "/app/expenses", "/app/repayments", "/app/history", "/app/exports", "/app/exports/export-a"])("marks Personal active for %s", (pathname) => {

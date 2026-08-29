@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
-import { chatMessages, chatThreads } from "@/db/schema";
+import { chatMessages, chatThreadReads } from "@/db/schema";
 
 const mocks = vi.hoisted(() => ({
   requireOrganizationAccess: vi.fn(),
@@ -22,7 +22,7 @@ vi.mock("@/server/groups", () => ({
 vi.mock("@/server/realtime", () => ({ publishRealtimeEvent: mocks.publishRealtimeEvent }));
 vi.mock("@/server/user-avatar-access", () => ({ getUserAvatarMetadataForViewer: mocks.getUserAvatarMetadataForViewer }));
 
-import { deleteChatMessage, editChatMessage, getOrganizationChat, getGroupChat, sendChatMessage } from "./chat";
+import { deleteChatMessage, editChatMessage, getOrganizationChat, markChatRead, sendChatMessage } from "./chat";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const groupId = "22222222-2222-4222-8222-222222222222";
@@ -31,19 +31,19 @@ const participantId = "44444444-4444-4444-8444-444444444444";
 
 function queryBuilder(result: unknown) {
   const query = {} as Record<string, unknown> & { then: Promise<unknown>["then"] };
-  for (const method of ["from", "innerJoin", "leftJoin", "where", "limit", "orderBy", "set"]) query[method] = vi.fn(() => query);
+  for (const method of ["from", "innerJoin", "leftJoin", "where", "limit", "orderBy", "set", "onConflictDoUpdate"]) query[method] = vi.fn(() => query);
   query.returning = vi.fn(async () => result);
   query.onConflictDoNothing = vi.fn(() => query);
   query.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
   return query;
 }
 
-function database(selects: unknown[], returning: unknown[] = []) {
+function database(selects: unknown[], returning: unknown[] = [], readReturning: unknown[] = []) {
   const insertValues: unknown[] = [];
   const transaction = {
     select: vi.fn(() => queryBuilder(selects.shift() ?? [])),
     insert: vi.fn((table: unknown) => {
-      const result = table === chatMessages ? returning : [];
+      const result = table === chatMessages ? returning : table === chatThreadReads ? readReturning : [];
       const query = queryBuilder(result);
       query.values = vi.fn((values: unknown) => {
         insertValues.push(values);
@@ -80,11 +80,11 @@ describe("chat server ownership", () => {
   });
 
   it("requires organization capability and creates one thread with conflict safety", async () => {
-    const db = database([[{ id: threadId }], [{ userId: "user-a" }, { userId: "user-b" }]], [{ id: "message-a" }]);
+    const db = database([[{ id: threadId }], [{ userId: "user-a" }, { userId: "user-b" }]], [{ id: "message-a" }], [{ threadId }]);
     await sendChatMessage(db, { scope: { type: "organization", id: organizationId }, userId: "user-a", body: " hello " });
 
     expect(mocks.requireOrganizationAccess).toHaveBeenCalledWith(db.tx, organizationId, "user-a");
-    expect(db.insertValues).toEqual([{ organizationId }, expect.objectContaining({ organizationId, threadId: threadId, senderUserId: "user-a", body: "hello" })]);
+    expect(db.insertValues).toEqual(expect.arrayContaining([{ organizationId }, expect.objectContaining({ organizationId, threadId: threadId, senderUserId: "user-a", body: "hello" }), expect.objectContaining({ threadId, userId: "user-a", lastReadMessageId: "message-a" })]));
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledTimes(2);
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith("user-b", expect.objectContaining({ type: "chat.state.changed", data: { scope: "organization", organizationId, threadId } }));
   });
@@ -95,6 +95,24 @@ describe("chat server ownership", () => {
 
     mocks.requireOrganizationAccess.mockResolvedValueOnce(organizationAccess(false, false, true));
     await expect(sendChatMessage(database([]), { scope: { type: "organization", id: organizationId }, userId: "user-a", body: "message" })).rejects.toThrow("forbidden");
+  });
+
+  it("authorizes a read cursor, verifies its thread, and publishes only when it advances", async () => {
+    const message = { id: "55555555-5555-4555-8555-555555555555", senderUserId: "user-b", deletedAt: null, threadId };
+    const db = database([[message], [{ userId: "user-a" }]], [], [{ threadId }]);
+    await expect(markChatRead(db, { scope: { type: "organization", id: organizationId }, userId: "user-a", messageId: message.id })).resolves.toMatchObject({ changed: true, threadId });
+    expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith("user-a", expect.objectContaining({ type: "chat.state.changed" }));
+
+    mocks.publishRealtimeEvent.mockClear();
+    const noOp = database([[message]], [], []);
+    await expect(markChatRead(noOp, { scope: { type: "organization", id: organizationId }, userId: "user-a", messageId: message.id })).resolves.toMatchObject({ changed: false });
+    expect(mocks.publishRealtimeEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects a message outside the authorized thread before touching the cursor", async () => {
+    const db = database([[]]);
+    await expect(markChatRead(db, { scope: { type: "group", id: groupId }, userId: "user-a", messageId: "55555555-5555-4555-8555-555555555555" })).rejects.toMatchObject({ code: "message_not_found" });
+    expect(db.tx.insert).not.toHaveBeenCalled();
   });
 
   it("uses the active registered Group participant and never accepts an external identity", async () => {
@@ -122,6 +140,30 @@ describe("chat server ownership", () => {
       { id: "message-b", body: "second", grouped: true },
       { id: "message-c", body: null, grouped: false },
     ]);
+  });
+
+  it("derives receipts from current member cursors without counting the sender", async () => {
+    const first = new Date("2026-08-29T00:00:00Z");
+    const db = database([
+      [{ id: threadId }],
+      [
+        { id: "message-d", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "latest", createdAt: new Date(first.getTime() + 3_000), editedAt: null, deletedAt: null },
+        { id: "message-c", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "deleted", createdAt: new Date(first.getTime() + 2_000), editedAt: null, deletedAt: first },
+        { id: "message-b", senderUserId: "user-a", senderName: "Alice", participantName: null, body: "own", createdAt: new Date(first.getTime() + 1_000), editedAt: null, deletedAt: null },
+        { id: "message-a", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "first", createdAt: first, editedAt: null, deletedAt: null },
+      ],
+      [
+        { userId: "user-a", displayName: "Alice", cursorId: "message-a", cursorCreatedAt: first },
+        { userId: "user-b", displayName: "Bob", cursorId: "message-d", cursorCreatedAt: new Date(first.getTime() + 3_000) },
+      ],
+      [{ count: 1 }],
+    ]);
+    const chat = await getOrganizationChat(db, organizationId, "user-a");
+    expect(chat.unreadCount).toBe(1);
+    expect(chat.messages[0]).toMatchObject({ id: "message-a", seenByCount: 1, seenBy: ["Alice"] });
+    expect(chat.messages[1]).toMatchObject({ id: "message-b", seenByCount: 1, seenBy: ["Bob"] });
+    expect(chat.messages[2]).toMatchObject({ id: "message-c", seenByCount: 0 });
+    expect(chat.messages[3]).toMatchObject({ id: "message-d", seenByCount: 0, seenBy: [] });
   });
 
   it("batches sender avatar metadata into the read DTO", async () => {
