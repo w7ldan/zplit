@@ -10,10 +10,40 @@ vi.mock("@/app/app/chat-actions", () => ({
   markChatReadAction: vi.fn(async () => false),
   sendChatMessageAction: vi.fn(),
 }));
-import { editChatMessageAction, markChatReadAction } from "@/app/app/chat-actions";
+import { editChatMessageAction, markChatReadAction, sendChatMessageAction } from "@/app/app/chat-actions";
 import { ChatPanel } from "./chat-panel";
 
 const chatStyles = readFileSync("src/app/styles/30-records-and-forms.css", "utf8");
+
+function mockHistoryViewport({ scrollHeight, clientHeight, scrollTop }: { scrollHeight: number; clientHeight: number; scrollTop: number }) {
+  const descriptors = new Map<string, PropertyDescriptor | undefined>();
+  const currentScrollTop = { value: scrollTop };
+  const scrollTo = vi.fn();
+  for (const [name, value] of [["scrollHeight", scrollHeight], ["clientHeight", clientHeight]] as const) {
+    descriptors.set(name, Object.getOwnPropertyDescriptor(HTMLElement.prototype, name));
+    Object.defineProperty(HTMLElement.prototype, name, { configurable: true, value });
+  }
+  descriptors.set("scrollTop", Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollTop"));
+  Object.defineProperty(HTMLElement.prototype, "scrollTop", {
+    configurable: true,
+    get: () => currentScrollTop.value,
+    set: (value: number) => { currentScrollTop.value = value; },
+  });
+  descriptors.set("scrollTo", Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollTo"));
+  Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+    configurable: true,
+    value: scrollTo,
+  });
+  return {
+    scrollTo,
+    restore() {
+      for (const [name, descriptor] of descriptors) {
+        if (descriptor) Object.defineProperty(HTMLElement.prototype, name, descriptor);
+        else delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
+      }
+    },
+  };
+}
 
 const organizationChat: ChatViewDto = {
   scope: { type: "organization", id: "org-a" },
@@ -55,6 +85,94 @@ describe("ChatPanel", () => {
   it("pins the own avatar and bubble to the same CSS grid row", () => {
     expect(chatStyles).toMatch(/\.chat-message--own \.chat-message__content \{[^}]*grid-row: 1;/);
     expect(chatStyles).toMatch(/\.chat-message--own > \.user-avatar \{[^}]*grid-row: 1;/);
+  });
+
+  it("keeps the composer outside a bounded, scrollable history region", () => {
+    const { container } = render(<ChatPanel chat={organizationChat} title="General" olderHref="/older" />);
+    const history = container.querySelector(".chat__history");
+    const composer = container.querySelector(".chat__composer");
+
+    expect(history).toBeInTheDocument();
+    expect(history).not.toContainElement(composer);
+    expect(container.querySelector(".chat__history-shell")).toContainElement(history);
+    expect(chatStyles).toMatch(/\.chat \{[^}]*grid-template-rows: minmax\(0, 1fr\) auto;/s);
+    expect(chatStyles).toMatch(/\.chat__history \{[^}]*min-height: 0;[^}]*overflow-y: auto;/s);
+    expect(chatStyles).toMatch(/\.chat \{[^}]*max-height:[^}]*100dvh/s);
+  });
+
+  it("starts the latest view at the bottom and keeps near-bottom updates there", () => {
+    const viewport = mockHistoryViewport({ scrollHeight: 800, clientHeight: 400, scrollTop: 400 });
+    try {
+      const { container, rerender } = render(<ChatPanel chat={organizationChat} title="General" olderHref={null} />);
+      const history = container.querySelector(".chat__history")!;
+      expect(viewport.scrollTo).toHaveBeenCalledWith({ top: 800, behavior: "auto" });
+
+      viewport.scrollTo.mockClear();
+      fireEvent.scroll(history);
+      const updatedChat = {
+        ...organizationChat,
+        latestVisibleMessageId: "message-e",
+        messages: [
+          ...organizationChat.messages,
+          { ...organizationChat.messages[3], id: "message-e", body: "New" },
+        ],
+      };
+      rerender(<ChatPanel chat={updatedChat} title="General" olderHref={null} />);
+
+      expect(viewport.scrollTo).toHaveBeenCalledWith({ top: 800, behavior: "auto" });
+    } finally {
+      viewport.restore();
+    }
+  });
+
+  it("preserves an upward scroll when a new message arrives", () => {
+    const viewport = mockHistoryViewport({ scrollHeight: 800, clientHeight: 400, scrollTop: 100 });
+    try {
+      const { container, rerender } = render(<ChatPanel chat={organizationChat} title="General" olderHref={null} />);
+      const history = container.querySelector(".chat__history")!;
+      viewport.scrollTo.mockClear();
+      fireEvent.scroll(history);
+      const updatedChat = {
+        ...organizationChat,
+        latestVisibleMessageId: "message-e",
+        messages: [
+          ...organizationChat.messages,
+          { ...organizationChat.messages[3], id: "message-e", body: "New" },
+        ],
+      };
+      rerender(<ChatPanel chat={updatedChat} title="General" olderHref={null} />);
+
+      expect(viewport.scrollTo).not.toHaveBeenCalled();
+    } finally {
+      viewport.restore();
+    }
+  });
+
+  it("scrolls the rendered history after a successful own send", async () => {
+    const viewport = mockHistoryViewport({ scrollHeight: 800, clientHeight: 400, scrollTop: 100 });
+    vi.mocked(sendChatMessageAction).mockResolvedValueOnce({ error: "", values: { body: "" } });
+    try {
+      render(<ChatPanel chat={organizationChat} title="General" olderHref={null} />);
+      viewport.scrollTo.mockClear();
+      fireEvent.submit(screen.getByRole("textbox", { name: "Message" }).closest("form")!);
+
+      await waitFor(() => expect(viewport.scrollTo).toHaveBeenCalledWith({ top: 800, behavior: "auto" }));
+    } finally {
+      viewport.restore();
+    }
+  });
+
+  it("does not auto-scroll an older-history view", () => {
+    const originalUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const viewport = mockHistoryViewport({ scrollHeight: 800, clientHeight: 400, scrollTop: 100 });
+    window.history.replaceState({}, "", "/app/organizations/org-a/general?before=older#chat");
+    try {
+      render(<ChatPanel chat={organizationChat} title="General" olderHref={null} />);
+      expect(viewport.scrollTo).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState({}, "", originalUrl);
+      viewport.restore();
+    }
   });
 
   it("marks the newest rendered message only", async () => {
