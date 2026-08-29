@@ -149,10 +149,21 @@ async function runAllocationChecks(pool: Pool, database: Database, fixtures: Fix
     { obligation_id: second.obligationId, applied_amount: 40 },
   ]), "multi-obligation allocation was not oldest-first");
   const firstSummary = await getGroupObligationApplicationSummary(database, fixture.groupId, first.obligationId, fixture.recipientUserId);
-  assert(firstSummary.originalAmount === 60 && firstSummary.explanatoryUnappliedAmount === 0 && firstSummary.collectibleAmount === 0, "obligation read model is incorrect");
+  assert(firstSummary.originalAmount === 60 && firstSummary.explanatoryUnappliedAmount === 0 && !("collectibleAmount" in firstSummary), "obligation read model is incorrect");
   const secondSummary = await getGroupObligationApplicationSummary(database, fixture.groupId, second.obligationId, fixture.recipientUserId);
   assert(secondSummary.explanatoryUnappliedAmount === 30 && secondSummary.applications[0]?.appliedAmount === 40, "partial obligation read model is incorrect");
   assert((await getGroupSettlementBalances(database, fixture.groupId, fixture.recipientUserId)).find((row) => row.debtorParticipantId === fixture.senderParticipantId)?.amount === 30, "applications changed canonical balance semantics");
+}
+
+async function runReadModelInterpretationChecks(pool: Pool, database: Database, fixtures: Fixture[]) {
+  const fixture = await insertFixture(pool);
+  fixtures.push(fixture);
+  const forward = await insertDebt(pool, fixture, 100, new Date("2026-08-01T00:00:00Z"));
+  await insertDebt(pool, fixture, 80, new Date("2026-08-02T00:00:00Z"), "reverse");
+  const summary = await getGroupObligationApplicationSummary(database, fixture.groupId, forward.obligationId, fixture.recipientUserId);
+  const balance = (await getGroupSettlementBalances(database, fixture.groupId, fixture.recipientUserId)).find((row) => row.debtorParticipantId === fixture.senderParticipantId && row.creditorParticipantId === fixture.recipientParticipantId);
+  assert(summary.explanatoryUnappliedAmount === 100 && !("collectibleAmount" in summary), "obligation read model exposed a canonical debt field");
+  assert(balance?.amount === 20, "canonical bilateral balance did not net reciprocal obligations");
 }
 
 async function runProgressiveChecks(pool: Pool, database: Database, fixtures: Fixture[]) {
@@ -238,7 +249,7 @@ async function runRollbackAndVoidChecks(pool: Pool, database: Database, fixtures
   const confirmed = await confirmPayment(database, fixture, 50);
   await voidGroupExpenseAsPayer(database, fixture.groupId, debt.expenseId, fixture.recipientUserId);
   const summary = await getGroupObligationApplicationSummary(database, fixture.groupId, debt.obligationId, fixture.recipientUserId);
-  assert(confirmed.state === "confirmed" && summary.sourceExpenseState === "voided" && summary.applications.length === 1 && summary.collectibleAmount === 0, "voiding an obligation lost application history");
+  assert(confirmed.state === "confirmed" && summary.sourceExpenseState === "voided" && summary.applications.length === 1 && !("collectibleAmount" in summary), "voiding an obligation lost application history");
   await removeGroupMember(database, fixture.groupId, fixture.recipientUserId, fixture.senderUserId);
   const preserved = await getGroupObligationApplicationSummary(database, fixture.groupId, debt.obligationId, fixture.recipientUserId);
   assert(preserved.applications.length === 1 && preserved.debtor.status === "former", "membership removal lost application history");
@@ -383,6 +394,7 @@ export async function runGroupSettlementApplicationSmoke() {
   const fixtures: Fixture[] = [];
   try {
     await runAllocationChecks(pool, database, fixtures);
+    await runReadModelInterpretationChecks(pool, database, fixtures);
     await runProgressiveChecks(pool, database, fixtures);
     await runIntegrityChecks(pool, database, fixtures);
     await runRollbackAndVoidChecks(pool, database, fixtures);

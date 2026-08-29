@@ -1,9 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
 import {
   assertMigrationHistory,
@@ -27,6 +28,88 @@ const validManifest = JSON.stringify({
 const createBackupSource = readFileSync(path.resolve(process.cwd(), "scripts/create-backup.sh"), "utf8");
 const verifyBackupSource = readFileSync(path.resolve(process.cwd(), "scripts/verify-backup.sh"), "utf8");
 const backupIntegritySource = readFileSync(path.resolve(process.cwd(), "scripts/backup-integrity.ts"), "utf8");
+
+function groupAccountingIntegritySql() {
+  const check = INTEGRITY_CHECKS.find(({ name }) => name === "Group accounting integrity");
+  if (!check) throw new Error("Group accounting integrity check is missing");
+  return check.sql;
+}
+
+async function insertBackupIntegrityFixture(client: PoolClient, settlementState: "pending" | "confirmed", applicationAmount: number | null) {
+  const groupId = randomUUID();
+  const senderUserId = randomUUID();
+  const recipientUserId = randomUUID();
+  const senderParticipantId = randomUUID();
+  const recipientParticipantId = randomUUID();
+  const expenseId = randomUUID();
+  const shareId = randomUUID();
+  const obligationId = randomUUID();
+  const settlementId = randomUUID();
+  const timestamp = "2026-08-29T00:00:00Z";
+
+  await client.query(
+    `INSERT INTO users (id, name, email, email_verified) VALUES
+      ($1, 'Backup Integrity Sender', $3, true),
+      ($2, 'Backup Integrity Recipient', $4, true)`,
+    [senderUserId, recipientUserId, `${senderUserId}@backup-integrity.test`, `${recipientUserId}@backup-integrity.test`],
+  );
+  await client.query(
+    "INSERT INTO groups (id, name, created_by_user_id) VALUES ($1, 'Backup integrity', $2)",
+    [groupId, recipientUserId],
+  );
+  await client.query(
+    `INSERT INTO group_participants (id, group_id, user_id) VALUES
+      ($1, $3, $4), ($2, $3, $5)`,
+    [senderParticipantId, recipientParticipantId, groupId, senderUserId, recipientUserId],
+  );
+  await client.query(
+    `INSERT INTO group_memberships (group_id, user_id, participant_id, role) VALUES
+      ($1, $2, $3, 'member'), ($1, $4, $5, 'owner')`,
+    [groupId, senderUserId, senderParticipantId, recipientUserId, recipientParticipantId],
+  );
+  await client.query(
+    `INSERT INTO group_expenses (id, group_id, creator_participant_id, payer_participant_id, description, occurred_at, total_amount, state, confirmed_at, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, 'Backup integrity debt', $5, 100, 'pending', NULL, $5, $5)`,
+    [expenseId, groupId, recipientParticipantId, recipientParticipantId, timestamp],
+  );
+  await client.query(
+    `INSERT INTO group_expense_shares (id, group_id, expense_id, participant_id, amount, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, 100, $5, $5)`,
+    [shareId, groupId, expenseId, senderParticipantId, timestamp],
+  );
+  await client.query(
+    "UPDATE group_expenses SET state = 'confirmed', confirmed_at = $2, updated_at = $2 WHERE id = $1",
+    [expenseId, timestamp],
+  );
+  await client.query(
+    `INSERT INTO group_obligations (id, group_id, source_expense_id, source_share_id, debtor_participant_id, creditor_participant_id, original_amount, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 100, $7)`,
+    [obligationId, groupId, expenseId, shareId, senderParticipantId, recipientParticipantId, timestamp],
+  );
+  await client.query(
+    `INSERT INTO group_settlements (id, group_id, sender_participant_id, recipient_participant_id, amount, payment_method, state, created_at)
+     VALUES ($1, $2, $3, $4, 100, 'Bank transfer', 'pending', $5)`,
+    [settlementId, groupId, senderParticipantId, recipientParticipantId, timestamp],
+  );
+  if (settlementState === "confirmed") {
+    await client.query(
+      "UPDATE group_settlements SET state = 'confirmed', confirmed_at = $2 WHERE id = $1",
+      [settlementId, timestamp],
+    );
+  }
+  if (applicationAmount !== null) {
+    await client.query(
+      `INSERT INTO group_settlement_applications (group_id, settlement_id, obligation_id, applied_amount)
+       VALUES ($1, $2, $3, $4)`,
+      [groupId, settlementId, obligationId, applicationAmount],
+    );
+  }
+}
+
+async function readGroupAccountingViolations(client: PoolClient) {
+  const result = await client.query<{ violations: number | string }>(groupAccountingIntegritySql());
+  return Number(result.rows[0]?.violations);
+}
 
 function migrationFixture() {
   return {
@@ -64,6 +147,13 @@ describe("backup integrity", () => {
     }
     expect(INTEGRITY_CHECKS.map((check) => check.name)).not.toContain("migration journal");
     expect(backupIntegritySource).not.toMatch(/drizzle\.__drizzle_migrations[^\n]*count\(\*\)[^\n]*=/);
+  });
+
+  it("checks application totals from every confirmed settlement", () => {
+    const sql = groupAccountingIntegritySql();
+    expect(sql).toContain("FROM group_settlements s LEFT JOIN group_settlement_applications a");
+    expect(sql).toContain("WHERE s.state = 'confirmed'");
+    expect(sql).toContain("COALESCE(sum(a.applied_amount), 0) <> s.amount");
   });
 
   it("accepts only integer zero violation counts", () => {
@@ -161,6 +251,36 @@ describe("backup integrity", () => {
       await migrate(drizzle(client), { migrationsFolder: "./drizzle" });
       const result = await client.query("SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY id");
       assertMigrationHistory(result.rows, loadExpectedMigrations(commit));
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  });
+
+  it.skipIf(!process.env.BACKUP_INTEGRITY_DATABASE_URL)("detects incomplete confirmed settlement applications without rejecting pending settlements", async () => {
+    const databaseUrl = process.env.BACKUP_INTEGRITY_DATABASE_URL;
+    if (!databaseUrl) throw new Error("BACKUP_INTEGRITY_DATABASE_URL is required");
+    const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.slice(1));
+    if (databaseName !== "zplit_backup_integrity_test") throw new Error("test database must be disposable");
+    const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+    const client = await pool.connect();
+    try {
+      await migrate(drizzle(client), { migrationsFolder: "./drizzle" });
+      const scenarios = [
+        { name: "confirmed + exact applications", state: "confirmed", applicationAmount: 100, violations: 0 },
+        { name: "confirmed + partial applications", state: "confirmed", applicationAmount: 40, violations: 1 },
+        { name: "confirmed + zero applications", state: "confirmed", applicationAmount: null, violations: 1 },
+        { name: "pending + zero applications", state: "pending", applicationAmount: null, violations: 0 },
+      ] as const;
+      for (const scenario of scenarios) {
+        await client.query("BEGIN");
+        try {
+          await insertBackupIntegrityFixture(client, scenario.state, scenario.applicationAmount);
+          expect(await readGroupAccountingViolations(client), scenario.name).toBe(scenario.violations);
+        } finally {
+          await client.query("ROLLBACK");
+        }
+      }
     } finally {
       client.release();
       await pool.end();

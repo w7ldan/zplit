@@ -95,7 +95,6 @@ export type GroupObligationApplicationSummary = GroupObligationPresentation & {
   sourceExpenseState: GroupExpenseState;
   applications: GroupObligationApplicationPresentation[];
   explanatoryUnappliedAmount: number;
-  collectibleAmount: number;
 };
 export type GroupBalanceRecord = ReturnType<typeof calculateGroupBalances>[number];
 export type GroupExpenseReceiptMetadata = {
@@ -238,7 +237,6 @@ async function loadObligationApplicationSummary(database: Database, groupId: str
       settlementConfirmedAt: application.settlementConfirmedAt!,
     })),
     explanatoryUnappliedAmount,
-    collectibleAmount: obligation.voidedAt === null && sourceExpenseState !== "voided" ? explanatoryUnappliedAmount : 0,
   };
 }
 
