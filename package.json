@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "check:boundaries": "tsx scripts/check-next-boundaries.ts",
+    "check:readability": "tsx scripts/check-readability.ts",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
