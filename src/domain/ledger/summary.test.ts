@@ -1,20 +1,63 @@
-import { describe, expect, it, vi } from "vitest";
+import { drizzle } from "drizzle-orm/pg-proxy";
+import { describe, expect, it } from "vitest";
 import type { Database } from "../../db/client";
 import { readLedgerOverviewSummaries } from "./summary";
 
 describe("batched ledger overview summaries", () => {
-  it("returns one scoped result per ledger without a cross-scope total", async () => {
-    const execute = vi.fn().mockResolvedValue({
-      rows: [
-        { scope_id: "scope-a", total_expense_amount: "100", total_assigned_amount: "80", total_repaid_amount: "20", total_received_amount: "20", owner_portion_amount: "20", total_assigned_friend_count: "0", invalid_cross_friend_allocations: "0", invalid_repayment_allocations: "0", invalid_share_allocations: "0", invalid_owner_portions: "0", friend_balances: [] },
-        { scope_id: "scope-b", total_expense_amount: "900", total_assigned_amount: "300", total_repaid_amount: "100", total_received_amount: "100", owner_portion_amount: "600", total_assigned_friend_count: "0", invalid_cross_friend_allocations: "0", invalid_repayment_allocations: "0", invalid_share_allocations: "0", invalid_owner_portions: "0", friend_balances: [] },
-      ],
+  it("parses allocated and unallocated repayment totals independently per scope", async () => {
+    const queries: string[] = [];
+    const common = {
+      total_assigned_friend_count: "0",
+      invalid_cross_friend_allocations: "0",
+      invalid_repayment_allocations: "0",
+      invalid_share_allocations: "0",
+      invalid_owner_portions: "0",
+      friend_balances: [],
+    };
+    const rows = [
+      { ...common, scope_id: "scope-allocated", total_expense_amount: "100", total_assigned_amount: "80", total_repaid_amount: "30", total_received_amount: "50", owner_portion_amount: "20" },
+      { ...common, scope_id: "scope-unallocated", total_expense_amount: "100", total_assigned_amount: "80", total_repaid_amount: "0", total_received_amount: "50", owner_portion_amount: "20" },
+      { ...common, scope_id: "scope-empty", total_expense_amount: "100", total_assigned_amount: "80", total_repaid_amount: "0", total_received_amount: "0", owner_portion_amount: "20" },
+      { ...common, scope_id: "scope-other", total_expense_amount: "900", total_assigned_amount: "300", total_repaid_amount: "100", total_received_amount: "100", owner_portion_amount: "600" },
+    ];
+    const database = drizzle(async (sql) => {
+      queries.push(sql);
+      return { rows };
+    }) as unknown as Database;
+
+    const summaries = await readLedgerOverviewSummaries(database, [
+      "scope-allocated",
+      "scope-unallocated",
+      "scope-empty",
+      "scope-other",
+    ]);
+
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).toMatch(
+      /COALESCE\(\(SELECT SUM\(amount::numeric\) FROM repayments WHERE ledger_scope_id = selected\.scope_id\), 0\)::text AS total_received_amount/i,
+    );
+    expect(queries[0]).toMatch(
+      /totals\.total_repaid_amount,\s+totals\.total_received_amount,\s+totals\.owner_portion_amount/i,
+    );
+    expect(summaries.get("scope-allocated")).toEqual({
+      totalExpenseAmount: 100,
+      totalRepaidAmount: 30,
+      totalOutstandingAmount: 50,
     });
-
-    const summaries = await readLedgerOverviewSummaries({ execute } as unknown as Database, ["scope-a", "scope-b"]);
-
-    expect(execute).toHaveBeenCalledOnce();
-    expect(summaries.get("scope-a")).toEqual({ totalExpenseAmount: 100, totalRepaidAmount: 20, totalOutstandingAmount: 60 });
-    expect(summaries.get("scope-b")).toEqual({ totalExpenseAmount: 900, totalRepaidAmount: 100, totalOutstandingAmount: 200 });
+    expect(summaries.get("scope-unallocated")).toEqual({
+      totalExpenseAmount: 100,
+      totalRepaidAmount: 0,
+      totalOutstandingAmount: 80,
+    });
+    expect(summaries.get("scope-empty")).toEqual({
+      totalExpenseAmount: 100,
+      totalRepaidAmount: 0,
+      totalOutstandingAmount: 80,
+    });
+    expect(summaries.get("scope-other")).toEqual({
+      totalExpenseAmount: 900,
+      totalRepaidAmount: 100,
+      totalOutstandingAmount: 200,
+    });
   });
 });

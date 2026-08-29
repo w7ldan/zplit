@@ -249,6 +249,7 @@ function ledgerOverviewSummariesQuery(scopeIds: string[]) {
         COALESCE((SELECT SUM(amount) FROM expense_totals WHERE scope_id = selected.scope_id), 0)::text AS total_expense_amount,
         COALESCE((SELECT SUM(amount_owed) FROM share_allocation_totals WHERE scope_id = selected.scope_id), 0)::text AS total_assigned_amount,
         COALESCE((SELECT SUM(allocated_amount) FROM repayment_allocation_totals WHERE scope_id = selected.scope_id), 0)::text AS total_repaid_amount,
+        COALESCE((SELECT SUM(amount::numeric) FROM repayments WHERE ledger_scope_id = selected.scope_id), 0)::text AS total_received_amount,
         COALESCE((SELECT SUM(amount - assigned_amount) FROM expense_totals WHERE scope_id = selected.scope_id), 0)::text AS owner_portion_amount
       FROM selected_scopes selected
     )
@@ -256,7 +257,7 @@ function ledgerOverviewSummariesQuery(scopeIds: string[]) {
       totals.total_expense_amount,
       totals.total_assigned_amount,
       totals.total_repaid_amount,
-      '0' AS total_received_amount,
+      totals.total_received_amount,
       totals.owner_portion_amount,
       '0' AS total_assigned_friend_count,
       integrity.invalid_cross_friend_allocations,
