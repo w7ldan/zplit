@@ -69,7 +69,7 @@ describe("Public UI contract", () => {
     expect(publicSource).toContain(".journey-share-detail--covered");
     expect(publicSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.journey-share-detail--covered/);
     expect(journeySource).toContain('role="progressbar"');
-    expect(journeySource).toContain('aria-valuenow={showRepaymentState ? scenario.repayment.amount : 0}');
+    expect(journeySource).toMatch(/aria-valuenow=\{\s*showRepaymentState\s*\?\s*scenario\.repayment\.amount\s*:\s*0\s*\}/);
   });
 
   it("keeps the landing access link on the shared primary action treatment", () => {

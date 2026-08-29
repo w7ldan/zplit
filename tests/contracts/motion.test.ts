@@ -101,7 +101,7 @@ describe("Motion and feedback contract", () => {
     expect(publicSource).not.toMatch(/\.journey-sticky--pinned \.journey-expense-row:first-child \.journey-row/);
     expect(publicSource).not.toMatch(/\.journey-sticky--pinned \.journey-expense-row:nth-child\(2\) \.journey-row/);
     expect(publicSource).toContain(".journey-sticky--pinned .journey-expense-row:first-child .journey-expense-row__shares-reveal > .journey-row:first-child");
-    expect(publicSource).toContain(".journey-sticky--pinned .journey-expense-row:first-child .journey-expense-row__shares-reveal > .journey-row:nth-child(2)");
+    expect(publicSource).toMatch(/\.journey-sticky--pinned\s+\.journey-expense-row:first-child\s+\.journey-expense-row__shares-reveal\s*>\s*\.journey-row:nth-child\(2\)/);
     expect(publicSource).toContain(".journey-sticky--pinned .journey-expense-row:nth-child(2) .journey-expense-row__shares-reveal > .journey-row");
     expect(cssRuleBody(publicSource, ".journey-sticky--pinned .journey-repayment__allocation")).toMatch(/visibility:\s*visible;[\s\S]*opacity:\s*1;[\s\S]*transform:\s*none;/);
     expect(cssRuleBody(publicSource, ".journey-sticky--pinned .journey-repayment__allocation .journey-allocation__track span")).toContain("transform: scaleX(var(--journey-repayment-progress, 0));");

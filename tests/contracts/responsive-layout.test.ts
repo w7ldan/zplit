@@ -146,7 +146,7 @@ describe("Responsive layout contract", () => {
     expect(panel).toContain("max-width: 90rem;");
     expect(panel).toContain("border-bottom: 1px solid transparent;");
     expect(panel).toContain("pointer-events: auto;");
-    expect(panel).toContain("transition: width var(--motion-state)");
+    expect(panel).toMatch(/transition:\s*width\s+var\(--motion-state\)/);
     expect(detachedPanel).toContain("width: min(calc(100% - 2rem), 72rem);");
     expect(detachedPanel).toContain("max-width: 72rem;");
     expect(detachedPanel).toContain("transform: translateY(0.6rem);");
