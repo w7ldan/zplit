@@ -87,11 +87,44 @@ export default async function OutingRecordPage({ params, searchParams }: { param
         </div>
         <section className="record-history ledger-section" id="outing-expenses" aria-labelledby="outing-expenses-heading">
           <div className="ledger-section__heading"><div><p className="technical-label">EXPENSE HISTORY</p><h2 id="outing-expenses-heading">Expenses</h2></div><span className="technical-label">{expensePage.totalItems} entries</span></div>
-          {expensePage.items.length > 0 ? <div className="record-history__rows">{expensePage.items.map((expense) => <article className="record-history__row" key={expense.id}>
-            <div className="record-history__primary"><span className="technical-label">EXPENSE</span><h3><Link href={`/app/expenses/${expense.id}`}>{expense.description}</Link></h3></div>
-            <div className="record-history__value"><span className="technical-label">Amount</span><strong>{formatRupiah(expense.amount)}</strong></div>
-            <Link className="record-history__link" href={`/app/expenses/${expense.id}`}>Open expense <span aria-hidden="true">→</span></Link>
-          </article>)}</div> : <div className="ledger-empty"><h3>No expenses recorded for this outing yet.</h3><p>Add the first expense for this outing.</p><Link className="text-link" href={`/app/expenses?create=1&outing=${encodeURIComponent(outing.id)}`} data-task-trigger="expense-create">Add expense <span aria-hidden="true">→</span></Link></div>}
+          {expensePage.items.length > 0 ? (
+            <div className="record-history__rows">
+              {expensePage.items.map((expense) => (
+                <article className="record-history__row" key={expense.id}>
+                  <div className="record-history__primary">
+                    <span className="technical-label">EXPENSE</span>
+                    <h3>
+                      <Link href={`/app/expenses/${expense.id}`}>
+                        {expense.description}
+                      </Link>
+                    </h3>
+                  </div>
+                  <div className="record-history__value">
+                    <span className="technical-label">Amount</span>
+                    <strong>{formatRupiah(expense.amount)}</strong>
+                  </div>
+                  <Link
+                    className="record-history__link"
+                    href={`/app/expenses/${expense.id}`}
+                  >
+                    Open expense <span aria-hidden="true">→</span>
+                  </Link>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="ledger-empty">
+              <h3>No expenses recorded for this outing yet.</h3>
+              <p>Add the first expense for this outing.</p>
+              <Link
+                className="text-link"
+                href={`/app/expenses?create=1&outing=${encodeURIComponent(outing.id)}`}
+                data-task-trigger="expense-create"
+              >
+                Add expense <span aria-hidden="true">→</span>
+              </Link>
+            </div>
+          )}
           <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={expenseHref} anchor="outing-expenses" pageParam="expensePage" />
         </section>
       </div>

@@ -19,5 +19,23 @@ export function CopyRepaymentDestination({ identifier, name }: { identifier: str
     timer.current = window.setTimeout(() => setStatus("idle"), 1800);
   }
 
-  return <div className="debtor-statement__destination-copy"><input ref={input} aria-label={`${name} repayment details`} readOnly value={identifier} onFocus={(event) => event.currentTarget.select()} /><button className="action-link action-link--quiet" type="button" onClick={copyIdentifier} aria-label={copyLabel(status, `Copy ${name} repayment details`)}>{copyLabel(status, "Copy")}</button></div>;
+  return (
+    <div className="debtor-statement__destination-copy">
+      <input
+        ref={input}
+        aria-label={`${name} repayment details`}
+        readOnly
+        value={identifier}
+        onFocus={(event) => event.currentTarget.select()}
+      />
+      <button
+        className="action-link action-link--quiet"
+        type="button"
+        onClick={copyIdentifier}
+        aria-label={copyLabel(status, `Copy ${name} repayment details`)}
+      >
+        {copyLabel(status, "Copy")}
+      </button>
+    </div>
+  );
 }

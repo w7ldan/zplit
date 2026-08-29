@@ -36,7 +36,20 @@ export function LedgerHistory({ items, type, nextCursor }: LedgerHistoryProps) {
               <Link href={`/app/expenses/${item.id}`} className="history-row__link">
                 <span className="technical-label">EXPENSE</span>
                 <span className="history-row__main"><strong>{item.description}</strong><span>{item.outingTitle} · <LocalDateTime iso={item.outingOccurredAt.toISOString()} mode="date" /></span></span>
-                <span className="history-row__values"><span><small>Total</small><strong>{formatRupiah(item.totalAmount)}</strong></span><span><small>Assigned</small><strong>{formatRupiah(item.assignedAmount)}</strong></span><span><small>Owner portion</small><strong>{formatRupiah(item.ownerPortionAmount)}</strong></span></span>
+                <span className="history-row__values">
+                  <span>
+                    <small>Total</small>
+                    <strong>{formatRupiah(item.totalAmount)}</strong>
+                  </span>
+                  <span>
+                    <small>Assigned</small>
+                    <strong>{formatRupiah(item.assignedAmount)}</strong>
+                  </span>
+                  <span>
+                    <small>Owner portion</small>
+                    <strong>{formatRupiah(item.ownerPortionAmount)}</strong>
+                  </span>
+                </span>
               </Link>
             </li>
           ) : (
@@ -44,7 +57,20 @@ export function LedgerHistory({ items, type, nextCursor }: LedgerHistoryProps) {
               <Link href={`/app/repayments/${item.id}`} className="history-row__link">
                 <span className="technical-label">REPAYMENT</span>
                 <span className="history-row__main"><strong>{item.friendName}</strong><span><LocalDateTime iso={item.paidAt.toISOString()} mode="date" /></span></span>
-                <span className="history-row__values"><span><small>Received</small><strong>{formatRupiah(item.totalAmount)}</strong></span><span><small>Allocated</small><strong>{formatRupiah(item.allocatedAmount)}</strong></span><span><small>Unallocated</small><strong>{formatRupiah(item.unallocatedAmount)}</strong></span></span>
+                <span className="history-row__values">
+                  <span>
+                    <small>Received</small>
+                    <strong>{formatRupiah(item.totalAmount)}</strong>
+                  </span>
+                  <span>
+                    <small>Allocated</small>
+                    <strong>{formatRupiah(item.allocatedAmount)}</strong>
+                  </span>
+                  <span>
+                    <small>Unallocated</small>
+                    <strong>{formatRupiah(item.unallocatedAmount)}</strong>
+                  </span>
+                </span>
               </Link>
             </li>
           ))}

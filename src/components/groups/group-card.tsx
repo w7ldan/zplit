@@ -7,5 +7,24 @@ function roleLabel(role: string) {
 }
 
 export function GroupCard({ group }: { group: GroupSummary }) {
-  return <Link className="group-card" href={`/app/personal/groups/${group.id}`}><GroupAvatar groupId={group.id} customAvatar={group.avatar} size="md" decorative /><span className="group-card__details"><strong>{group.name}</strong><span>{roleLabel(group.role)} · {group.participantCount} {group.participantCount === 1 ? "participant" : "participants"}</span></span></Link>;
+  return (
+    <Link
+      className="group-card"
+      href={`/app/personal/groups/${group.id}`}
+    >
+      <GroupAvatar
+        groupId={group.id}
+        customAvatar={group.avatar}
+        size="md"
+        decorative
+      />
+      <span className="group-card__details">
+        <strong>{group.name}</strong>
+        <span>
+          {roleLabel(group.role)} · {group.participantCount}{" "}
+          {group.participantCount === 1 ? "participant" : "participants"}
+        </span>
+      </span>
+    </Link>
+  );
 }

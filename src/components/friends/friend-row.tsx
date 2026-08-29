@@ -20,7 +20,15 @@ export function FriendRow({ friend, balance, emphasized = false, basePath = "/ap
         <span className="friend-row__state"><span className="technical-label">State</span>ACTIVE</span>
         <details className="friend-link__unlink">
           <summary className="friend-row__edit">Unlink</summary>
-          <div><p>Unlink @{friend.username}?</p><p>This removes the Zplit account connection. Existing Friend balances and history remain unchanged.</p><form action={unlinkFriendLinkRequestAction.bind(null, friend.requestId)}><button className="action-link action-link--quiet" type="submit">Unlink</button></form></div>
+          <div>
+            <p>Unlink @{friend.username}?</p>
+            <p>This removes the Zplit account connection. Existing Friend balances and history remain unchanged.</p>
+            <form action={unlinkFriendLinkRequestAction.bind(null, friend.requestId)}>
+              <button className="action-link action-link--quiet" type="submit">
+                Unlink
+              </button>
+            </form>
+          </div>
         </details>
       </div>
     </article>;

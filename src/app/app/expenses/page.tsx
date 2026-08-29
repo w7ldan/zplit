@@ -60,10 +60,20 @@ function ExpenseRecordList({ data, params }: { data: ExpensesPageData; params: A
   return (
     <div className="ledger-list" id="record-list">
       <div className="ledger-list__heading"><span className="technical-label">EXPENSE RECORDS</span><span className="technical-label">{expensePage.totalItems} entries</span></div>
-      {expensePage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
-        <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
-        {group.items.map((expense) => <ExpenseRow key={expense.id} expense={expense} />)}
-      </div>) : (
+      {expensePage.items.length > 0 ? (
+        groups.map((group) => (
+          <div className="record-month-group" key={group.month}>
+            <div className="record-month-divider">
+              <span className="technical-label">
+                {monthDisplayLabel(group.month).toUpperCase()}
+              </span>
+            </div>
+            {group.items.map((expense) => (
+              <ExpenseRow key={expense.id} expense={expense} />
+            ))}
+          </div>
+        ))
+      ) : (
         <div className="ledger-empty">
           <h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2>
           <p>

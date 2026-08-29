@@ -33,11 +33,22 @@ export function OrganizationMembers({
     {members ? <section className="organization-detail__section" aria-labelledby="organization-members-heading">
       <h2 id="organization-members-heading">Members</h2>
       <ul className="organization-members__list">
-        {members.map((member) => <li className="organization-members__row" key={member.id}>
-          <UserAvatar userId={member.id} size="sm" alt={`${member.displayName} avatar`} />
-          <span className="organization-members__identity"><strong>{member.displayName}</strong>{member.username ? <span>@{member.username}</span> : null}</span>
-          <span className="organization-members__role">{roleLabel(member.role)}</span>
-        </li>)}
+        {members.map((member) => (
+          <li className="organization-members__row" key={member.id}>
+            <UserAvatar
+              userId={member.id}
+              size="sm"
+              alt={`${member.displayName} avatar`}
+            />
+            <span className="organization-members__identity">
+              <strong>{member.displayName}</strong>
+              {member.username ? <span>@{member.username}</span> : null}
+            </span>
+            <span className="organization-members__role">
+              {roleLabel(member.role)}
+            </span>
+          </li>
+        ))}
       </ul>
     </section> : null}
     {canInvite ? <section className="organization-detail__section" aria-labelledby="organization-invite-heading">

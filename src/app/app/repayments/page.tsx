@@ -133,10 +133,20 @@ function RepaymentRecordList({ data }: { data: RepaymentsPageData }) {
   return (
     <div className="ledger-list" id="record-list">
       <div className="ledger-list__heading"><span className="technical-label">REPAYMENT RECORDS</span><span className="technical-label">{repaymentPage.totalItems} entries</span></div>
-      {repaymentPage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
-        <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
-        {group.items.map((repayment) => <RepaymentRow key={repayment.id} repayment={repayment} />)}
-      </div>) : (
+      {repaymentPage.items.length > 0 ? (
+        groups.map((group) => (
+          <div className="record-month-group" key={group.month}>
+            <div className="record-month-divider">
+              <span className="technical-label">
+                {monthDisplayLabel(group.month).toUpperCase()}
+              </span>
+            </div>
+            {group.items.map((repayment) => (
+              <RepaymentRow key={repayment.id} repayment={repayment} />
+            ))}
+          </div>
+        ))
+      ) : (
         <div className="ledger-empty">
           <h2>{filtered ? "No matching repayments." : "No repayments yet."}</h2>
           <p>

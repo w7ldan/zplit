@@ -251,7 +251,23 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
                 {charge.scope === "selected" ? <>
                   <p className="expense-share-editor__targets-label" id={targetsLabelId}>Apply to</p>
                   <div className="expense-share-editor__targets" aria-label={`Friends for charge ${index + 1}`} aria-labelledby={targetsLabelId}>
-                    {selectedFriends.map((friend) => <label key={friend.id}><input type="checkbox" checked={charge.friendIds.includes(friend.id)} onChange={(event) => updateCharge(index, { friendIds: event.target.checked ? [...charge.friendIds, friend.id] : charge.friendIds.filter((id) => id !== friend.id) })} /> {friend.name}</label>)}
+                    {selectedFriends.map((friend) => (
+                      <label key={friend.id}>
+                        <input
+                          type="checkbox"
+                          checked={charge.friendIds.includes(friend.id)}
+                          onChange={(event) =>
+                            updateCharge(index, {
+                              friendIds: event.target.checked
+                                ? [...charge.friendIds, friend.id]
+                                : charge.friendIds.filter((id) => id !== friend.id),
+                            })
+                          }
+                        />
+                        {" "}
+                        {friend.name}
+                      </label>
+                    ))}
                   </div>
                 </> : null}
                 <FieldError id={errorId} message={state.fieldErrors[`charge-${index}`]} />
