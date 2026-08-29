@@ -54,7 +54,7 @@ export async function editChatMessageAction(scope: ChatScope, messageId: string,
     return { error: errorMessage(error), values };
   }
   revalidatePath(chatPath(scope));
-  return { error: "", values };
+  return { error: "", values, success: true };
 }
 
 export async function deleteChatMessageAction(scope: ChatScope, messageId: string, _formData: FormData) {

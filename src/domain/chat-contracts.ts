@@ -28,4 +28,5 @@ export type ChatViewDto = {
 export type ChatActionState = {
   error: string;
   values: { body: string };
+  success?: boolean;
 };

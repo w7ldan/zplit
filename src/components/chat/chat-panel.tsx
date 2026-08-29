@@ -16,11 +16,26 @@ function scopeMessageId(scope: ChatScope) {
   return scope.type === "organization" ? `organization-chat-${scope.id}` : `group-chat-${scope.id}`;
 }
 
-function ChatEditForm({ scope, message, onCancel }: { scope: ChatScope; message: ChatMessageDto; onCancel: () => void }) {
+function ChatEditForm({
+  scope,
+  message,
+  onCancel,
+  onSuccess,
+}: {
+  scope: ChatScope;
+  message: ChatMessageDto;
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
   const [state, action] = useActionState(
     editChatMessageAction.bind(null, scope, message.id),
-    { error: "", values: { body: message.body ?? "" } },
+    { error: "", values: { body: message.body ?? "" }, success: false },
   );
+
+  useEffect(() => {
+    if (state.success) onSuccess();
+  }, [onSuccess, state.success]);
+
   return (
     <form className="chat-message__edit" action={action}>
       <label className="visually-hidden" htmlFor={`chat-edit-${message.id}`}>
@@ -121,7 +136,12 @@ export function ChatPanel({ chat, title, olderHref }: { chat: ChatViewDto; title
             <ol className="chat__history" aria-label={`${title} messages`}>
               {chat.messages.map((message) => editingMessageId === message.id ? (
                 <li className="chat-message" key={message.id}>
-                  <ChatEditForm scope={chat.scope} message={message} onCancel={() => setEditingMessageId(null)} />
+                  <ChatEditForm
+                    scope={chat.scope}
+                    message={message}
+                    onCancel={() => setEditingMessageId(null)}
+                    onSuccess={() => setEditingMessageId(null)}
+                  />
                 </li>
               ) : (
                 <ChatMessage key={message.id} scope={chat.scope} message={message} onEdit={setEditingMessageId} />
