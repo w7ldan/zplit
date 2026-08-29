@@ -238,6 +238,84 @@ async function runCoreChecks(pool: Pool, database: Database, fixtures: Fixture[]
   const secondOffset = await createOffset(database, previousFixture, previousFixture.firstParticipantId, previousFixture.secondParticipantId);
   assert(secondOffset.amount === 20, "previous offset applications did not reduce later capacity");
 
+  const paymentAfterOffsetFixture = await insertFixture(pool);
+  fixtures.push(paymentAfterOffsetFixture);
+  await insertDebt(
+    pool,
+    paymentAfterOffsetFixture,
+    paymentAfterOffsetFixture.firstParticipantId,
+    paymentAfterOffsetFixture.secondParticipantId,
+    50,
+    new Date("2026-08-01T00:00:00Z"),
+  );
+  const secondPaymentAfterOffsetDebt = await insertDebt(
+    pool,
+    paymentAfterOffsetFixture,
+    paymentAfterOffsetFixture.firstParticipantId,
+    paymentAfterOffsetFixture.secondParticipantId,
+    50,
+    new Date("2026-08-02T00:00:00Z"),
+  );
+  await insertDebt(
+    pool,
+    paymentAfterOffsetFixture,
+    paymentAfterOffsetFixture.secondParticipantId,
+    paymentAfterOffsetFixture.firstParticipantId,
+    60,
+    new Date("2026-08-03T00:00:00Z"),
+  );
+  const paymentOffset = await createOffset(
+    database,
+    paymentAfterOffsetFixture,
+    paymentAfterOffsetFixture.firstParticipantId,
+    paymentAfterOffsetFixture.secondParticipantId,
+  );
+  assert(paymentOffset.amount === 60, "payment-after-offset regression did not create the expected offset");
+  await confirmGroupOffset(database, paymentAfterOffsetFixture.groupId, paymentOffset.id, paymentAfterOffsetFixture.secondUserId);
+  const paymentOffsetApplications = await applicationRows(pool, paymentOffset.id);
+  assert(
+    JSON.stringify(paymentOffsetApplications.map((row) => row.applied_amount)) === JSON.stringify([50, 10, 60]),
+    "offset did not consume the oldest obligations as expected",
+  );
+  assert(
+    await balance(database, paymentAfterOffsetFixture, paymentAfterOffsetFixture.firstParticipantId, paymentAfterOffsetFixture.secondParticipantId) === 40,
+    "offset changed the canonical remaining debt",
+  );
+  const paymentAfterOffset = await createPayment(
+    database,
+    paymentAfterOffsetFixture,
+    paymentAfterOffsetFixture.firstParticipantId,
+    paymentAfterOffsetFixture.secondParticipantId,
+    40,
+  );
+  await confirmPayment(database, paymentAfterOffsetFixture, paymentAfterOffset.id, paymentAfterOffsetFixture.secondParticipantId);
+  const paymentApplications = await pool.query<{ obligation_id: string; applied_amount: number }>(
+    "SELECT obligation_id, applied_amount FROM group_settlement_applications WHERE settlement_id = $1",
+    [paymentAfterOffset.id],
+  );
+  assert(
+    paymentApplications.rows.length === 1 &&
+      paymentApplications.rows[0]?.obligation_id === secondPaymentAfterOffsetDebt.obligationId &&
+      paymentApplications.rows[0]?.applied_amount === 40,
+    "payment-after-offset did not skip the consumed obligation",
+  );
+  const combinedApplications = await pool.query<{ total: string; original_amount: number }>(
+    `SELECT obligations.original_amount,
+            (SELECT COALESCE(sum(applied_amount), 0) FROM group_settlement_applications WHERE obligation_id = obligations.id) +
+            (SELECT COALESCE(sum(applied_amount), 0) FROM group_offset_applications WHERE obligation_id = obligations.id) AS total
+     FROM group_obligations obligations
+     WHERE obligations.group_id = $1`,
+    [paymentAfterOffsetFixture.groupId],
+  );
+  assert(
+    combinedApplications.rows.every((row) => Number(row.total) <= row.original_amount),
+    "payment-after-offset exceeded combined obligation capacity",
+  );
+  assert(
+    await balance(database, paymentAfterOffsetFixture, paymentAfterOffsetFixture.firstParticipantId, paymentAfterOffsetFixture.secondParticipantId) === 0,
+    "payment-after-offset did not settle the canonical debt",
+  );
+
   const combinedFixture = await insertFixture(pool);
   fixtures.push(combinedFixture);
   const combinedDebt = await insertDebt(pool, combinedFixture, combinedFixture.firstParticipantId, combinedFixture.secondParticipantId, 150, new Date("2026-08-01T00:00:00Z"));

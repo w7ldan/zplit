@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase, type Database } from "@/db/client";
 import {
@@ -26,6 +26,7 @@ import type { GroupExpenseState } from "@/domain/group-accounting";
 import { NOTIFICATION_TYPES } from "@/domain/notifications";
 import type { GroupParticipantPresentation } from "@/server/group-accounting";
 import { readGroupBalances } from "@/server/group-accounting";
+import { loadOffsettableObligations } from "@/server/group-offsets";
 import {
   clampPage,
   normalizePage,
@@ -316,45 +317,21 @@ function balanceAmount(balances: Awaited<ReturnType<typeof readGroupBalances>>, 
 }
 
 async function resolveSettlementApplications(database: Database, settlement: GroupSettlementRecord, confirmedAt: Date) {
-  const obligations = await database
-    .select({
-      id: groupObligations.id,
-      authoritativeAt: groupObligations.createdAt,
-      originalAmount: groupObligations.originalAmount,
-    })
-    .from(groupObligations)
-    .where(and(
-      eq(groupObligations.groupId, settlement.groupId),
-      eq(groupObligations.debtorParticipantId, settlement.senderParticipantId),
-      eq(groupObligations.creditorParticipantId, settlement.recipientParticipantId),
-      lte(groupObligations.createdAt, confirmedAt),
-      or(isNull(groupObligations.voidedAt), gt(groupObligations.voidedAt, confirmedAt)),
-    ))
-    .orderBy(asc(groupObligations.createdAt), asc(groupObligations.id))
-    .for("update");
-  const obligationIds = obligations.map(({ id }) => id);
-  const applications = obligationIds.length
-    ? await database
-      .select({ obligationId: groupSettlementApplications.obligationId, appliedAmount: groupSettlementApplications.appliedAmount })
-      .from(groupSettlementApplications)
-      .where(and(
-        eq(groupSettlementApplications.groupId, settlement.groupId),
-        inArray(groupSettlementApplications.obligationId, obligationIds),
-      ))
-      .orderBy(asc(groupSettlementApplications.obligationId), asc(groupSettlementApplications.id))
-      .for("update")
-    : [];
-  const appliedByObligation = new Map<string, number>();
-  for (const application of applications) {
-    appliedByObligation.set(
-      application.obligationId,
-      (appliedByObligation.get(application.obligationId) ?? 0) + application.appliedAmount,
-    );
-  }
-  return allocateGroupSettlement(settlement.amount, obligations.map((obligation) => ({
-    ...obligation,
-    appliedAmount: appliedByObligation.get(obligation.id) ?? 0,
-  })));
+  const obligations = await loadOffsettableObligations(
+    database,
+    settlement.groupId,
+    [settlement.senderParticipantId, settlement.recipientParticipantId],
+    confirmedAt,
+    true,
+  );
+  return allocateGroupSettlement(settlement.amount, obligations
+    .filter((obligation) =>
+      obligation.debtorParticipantId === settlement.senderParticipantId &&
+      obligation.creditorParticipantId === settlement.recipientParticipantId)
+    .map((obligation) => ({
+      ...obligation,
+      appliedAmount: obligation.paymentAppliedAmount + obligation.offsetAppliedAmount,
+    })));
 }
 
 async function createSettlement(database: Database, groupId: string, creatorUserId: string, input: unknown) {

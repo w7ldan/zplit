@@ -190,7 +190,7 @@ type OffsettableObligation = GroupOffsetAllocationObligation & {
   creditorParticipantId: string;
 };
 
-async function loadOffsettableObligations(
+export async function loadOffsettableObligations(
   database: Database,
   groupId: string,
   participantIds: [string, string],
