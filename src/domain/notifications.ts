@@ -8,6 +8,7 @@ export const NOTIFICATION_TYPES = {
   groupInvitation: "group.invitation",
   groupParticipantLinkRequest: "group.participant.link.request",
   groupExpensePayerClaim: "group.expense.payer.claim",
+  groupSettlementConfirmation: "group.settlement.confirmation",
 } as const;
 export const NOTIFICATION_STATE_CHANGED_EVENT = "notification.state.changed";
 
@@ -52,6 +53,13 @@ export type NotificationMetadata = {
     groupId: string;
     groupName: string;
     description: string;
+  };
+  "group.settlement.confirmation": {
+    settlementId: string;
+    groupId: string;
+    groupName: string;
+    senderParticipantId: string;
+    senderDisplayName: string;
   };
 };
 
@@ -163,6 +171,25 @@ function parseGroupExpensePayerClaimMetadata(value: unknown): NotificationMetada
   return { expenseId, groupId, groupName: record.groupName.trim(), description: record.description.trim() };
 }
 
+function parseGroupSettlementConfirmationMetadata(value: unknown): NotificationMetadata["group.settlement.confirmation"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 5) return null;
+  const settlementId = normalizeUuid(record.settlementId);
+  const groupId = normalizeUuid(record.groupId);
+  const senderParticipantId = normalizeUuid(record.senderParticipantId);
+  if (!settlementId || !groupId || !senderParticipantId) return null;
+  if (typeof record.groupName !== "string" || !record.groupName.trim() || record.groupName.length > 160) return null;
+  if (typeof record.senderDisplayName !== "string" || !record.senderDisplayName.trim() || record.senderDisplayName.length > 160) return null;
+  return {
+    settlementId,
+    groupId,
+    groupName: record.groupName.trim(),
+    senderParticipantId,
+    senderDisplayName: record.senderDisplayName.trim(),
+  };
+}
+
 export function getFriendLinkRequestMetadata(value: unknown) {
   return parseFriendLinkRequestMetadata(value);
 }
@@ -181,6 +208,10 @@ export function getGroupParticipantLinkMetadata(value: unknown) {
 
 export function getGroupExpensePayerClaimMetadata(value: unknown) {
   return parseGroupExpensePayerClaimMetadata(value);
+}
+
+export function getGroupSettlementConfirmationMetadata(value: unknown) {
+  return parseGroupSettlementConfirmationMetadata(value);
 }
 
 function roleLabel(role: OrganizationInvitationRole) {
@@ -241,6 +272,15 @@ export const notificationCatalog = {
       label: "Group expense confirmation",
       primary: `Review the claim that you paid “${metadata.description}” in ${metadata.groupName}.`,
       secondary: "Confirm that you paid it or reject the claim.",
+    }),
+  },
+  "group.settlement.confirmation": {
+    label: "Group payment confirmation",
+    parseMetadata: parseGroupSettlementConfirmationMetadata,
+    present: (metadata: NotificationMetadata["group.settlement.confirmation"]): NotificationPresentation => ({
+      label: "Group payment confirmation",
+      primary: `Review a payment from ${metadata.senderDisplayName} in ${metadata.groupName}.`,
+      secondary: "Confirm the payment when it matches the money you received.",
     }),
   },
 } as const;

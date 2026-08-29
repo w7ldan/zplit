@@ -57,7 +57,7 @@ describe("backup integrity", () => {
 
   it("keeps all expected tables and integrity SQL checks explicit", () => {
     expect(EXPECTED_TABLES).toEqual(expect.arrayContaining([
-      "users", "account_invitations", "ledger_scopes", "debtor_share_links", "friends", "expenses", "expense_receipts", "repayments", "repayment_destinations", "repayment_proofs", "repayment_allocations", "groups", "group_participants", "group_memberships", "group_expenses", "group_expense_shares", "group_obligations", "group_expense_lifecycle_events", "group_expense_receipts",
+      "users", "account_invitations", "ledger_scopes", "debtor_share_links", "friends", "expenses", "expense_receipts", "repayments", "repayment_destinations", "repayment_proofs", "repayment_allocations", "groups", "group_participants", "group_memberships", "group_expenses", "group_expense_shares", "group_obligations", "group_settlements", "group_settlement_proofs", "group_expense_lifecycle_events", "group_expense_receipts",
     ]));
     for (const name of ["scope-aware foreign keys", "Group accounting integrity", "shares within expenses", "allocations within repayments", "allocations within shares", "cross-friend allocations", "accepted and revoked invitations", "duplicate active debtor links", "whole-rupiah values", "receipt byte lengths"]) {
       expect(INTEGRITY_CHECKS.map((check) => check.name)).toContain(name);

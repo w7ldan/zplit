@@ -3,6 +3,13 @@ import { MAX_RUPIAH, parseRupiah } from "./rupiah";
 
 export type GroupExpenseState = "pending" | "confirmed" | "rejected" | "voided";
 
+export type GroupSettlementBalanceFact = {
+  senderParticipantId: string;
+  recipientParticipantId: string;
+  amount: number;
+  state: "pending" | "confirmed";
+};
+
 export type GroupExpenseLifecycleEventType = "created" | "payer_confirmed" | "payer_rejected" | "voided";
 
 export const GROUP_EXPENSE_STATE_CHANGED_EVENT = "group.expense.state.changed";
@@ -25,6 +32,12 @@ export type GroupObligationInput = {
   debtorParticipantId: string;
   creditorParticipantId: string;
   originalAmount: number;
+};
+
+export type GroupBalance = {
+  debtorParticipantId: string;
+  creditorParticipantId: string;
+  amount: number;
 };
 
 export class GroupAccountingInputError extends Error {
@@ -87,5 +100,33 @@ export function buildGroupObligations(payerParticipantId: string, shares: Array<
   return shares.flatMap((share) => {
     const debtor = requiredUuid(share.participantId);
     return debtor === payer ? [] : [{ sourceShareId: share.id, debtorParticipantId: debtor, creditorParticipantId: payer, originalAmount: requiredAmount(share.amount) }];
+  });
+}
+
+export function calculateGroupBalances(
+  obligations: Array<Pick<GroupObligationInput, "debtorParticipantId" | "creditorParticipantId" | "originalAmount">>,
+  settlements: GroupSettlementBalanceFact[],
+): GroupBalance[] {
+  const balances = new Map<string, { first: string; second: string; amount: bigint }>();
+  const add = (debtor: string, creditor: string, amount: number) => {
+    const [first, second] = [debtor, creditor].sort();
+    const key = `${first}:${second}`;
+    const signedAmount = debtor === first ? BigInt(amount) : -BigInt(amount);
+    const current = balances.get(key) ?? { first, second, amount: BigInt(0) };
+    current.amount += signedAmount;
+    balances.set(key, current);
+  };
+
+  for (const obligation of obligations) add(obligation.debtorParticipantId, obligation.creditorParticipantId, obligation.originalAmount);
+  for (const settlement of settlements) {
+    if (settlement.state === "confirmed") add(settlement.recipientParticipantId, settlement.senderParticipantId, settlement.amount);
+  }
+
+  return [...balances.values()].flatMap(({ first, second, amount }) => {
+    if (amount === BigInt(0)) return [];
+    const positive = amount > BigInt(0);
+    const value = positive ? amount : -amount;
+    if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError("Group balance exceeds safe integer range");
+    return [{ debtorParticipantId: positive ? first : second, creditorParticipantId: positive ? second : first, amount: Number(value) }];
   });
 }

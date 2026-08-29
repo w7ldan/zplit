@@ -20,6 +20,8 @@ const domainTables = [
   "group_memberships",
   "group_obligations",
   "group_participants",
+  "group_settlement_proofs",
+  "group_settlements",
   "groups",
   "ledger_scopes",
   "notifications",
@@ -79,7 +81,7 @@ describe("database schema", () => {
 
   it("exports the domain tables and four auth tables", () => {
     expect(
-      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupExpenseReceipts, schema.groupExpenseLifecycleEvents]
+      [schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupSettlementProofs, schema.groupSettlements, schema.groupExpenseReceipts, schema.groupExpenseLifecycleEvents]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -134,6 +136,35 @@ describe("database schema", () => {
       { from: ["group_id", "user_id", "participant_id"], to: "group_participants", target: ["group_id", "user_id", "id"], onDelete: "restrict" },
     ]));
     expect(getTableConfig(schema.groupAvatars).checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_avatars_media_type_allowed", "group_avatars_content_size_matches"]));
+  });
+
+  it("defines immutable Group settlements and separate proof storage", () => {
+    const settlements = getTableConfig(schema.groupSettlements);
+    expect(settlements.columns.map((column) => column.name)).toEqual([
+      "id", "group_id", "sender_participant_id", "recipient_participant_id", "amount", "payment_method", "state", "created_at", "confirmed_at",
+    ]);
+    expect(settlements.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "group_settlements_amount_positive",
+      "group_settlements_state_allowed",
+      "group_settlements_no_self_payment",
+      "group_settlements_confirmation_timestamp_shape",
+    ]));
+    expect(indexColumns(schema.groupSettlements, "group_settlements_group_sender_recipient_idx")).toEqual([
+      "group_id", "sender_participant_id", "recipient_participant_id", "created_at", "id",
+    ]);
+    expect(indexColumns(schema.groupSettlements, "group_settlements_pending_recipient_idx")).toEqual([
+      "group_id", "recipient_participant_id", "created_at", "id",
+    ]);
+    expect(foreignKeyShape(schema.groupSettlements)).toEqual(expect.arrayContaining([
+      { from: ["group_id", "sender_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+      { from: ["group_id", "recipient_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
+    ]));
+    expect(foreignKeyShape(schema.groupSettlementProofs)).toContainEqual({
+      from: ["group_id", "settlement_id"],
+      to: "group_settlements",
+      target: ["group_id", "id"],
+      onDelete: "restrict",
+    });
   });
 
   it("constrains Group join request identity, state, and cross-Group participants", () => {

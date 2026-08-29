@@ -90,7 +90,7 @@ describe("Group expense lifecycle server operations", () => {
   it("confirms only the claimed payer and appends obligations and lifecycle history atomically", async () => {
     const confirmed = expense("confirmed");
     const event = { id: "event-confirm", groupId, expenseId, eventType: "payer_confirmed", actorUserId: actorUserId, fromState: "pending", toState: "confirmed", createdAt: new Date() };
-    const db = databaseFor([[expense("pending")], [payer], [membership], [expense("pending")], [share], ...detailSelects(confirmed, [{ id: "obligation-a", groupId, sourceExpenseId: expenseId, sourceShareId: share.id, debtorParticipantId, creditorParticipantId: payerParticipantId, originalAmount: 100, voidedAt: null, createdAt: new Date() }], event)], [[confirmed], []], [[], [event]]);
+    const db = databaseFor([[expense("pending")], [share], [payer], [membership], [expense("pending")], [share], ...detailSelects(confirmed, [{ id: "obligation-a", groupId, sourceExpenseId: expenseId, sourceShareId: share.id, debtorParticipantId, creditorParticipantId: payerParticipantId, originalAmount: 100, voidedAt: null, createdAt: new Date() }], event)], [[confirmed], []], [[], [event]]);
 
     const result = await createGroupAccountingRepository(db.database, groupId).confirmExpenseAsPayer(expenseId, actorUserId);
 
@@ -106,7 +106,7 @@ describe("Group expense lifecycle server operations", () => {
   it("rejects a claim without creating obligations and denies the creator", async () => {
     const rejected = expense("rejected");
     const event = { id: "event-reject", groupId, expenseId, eventType: "payer_rejected", actorUserId, fromState: "pending", toState: "rejected", createdAt: new Date() };
-    const denied = databaseFor([[expense("pending")], [payer], [membership]], [], []);
+    const denied = databaseFor([[expense("pending")], [share], [payer], [membership]], [], []);
     await expect(createGroupAccountingRepository(denied.database, groupId).confirmExpenseAsPayer(expenseId, "user-creator")).rejects.toMatchObject({ code: "forbidden" });
     const db = databaseFor([[expense("pending")], [payer], [membership], [expense("pending")], [rejected], ...detailSelects(rejected, [], event)], [[rejected], []], [[event]]);
     const repository = createGroupAccountingRepository(db.database, groupId);

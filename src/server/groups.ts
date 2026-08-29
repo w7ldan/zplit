@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, count, eq, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { groupAvatars, groupExpenseShares, groupExpenses, groupJoinRequests, groupMemberships, groupObligations, groupParticipants, groups, users } from "@/db/schema";
+import { groupAvatars, groupExpenseShares, groupExpenses, groupJoinRequests, groupMemberships, groupObligations, groupParticipants, groupSettlements, groups, users } from "@/db/schema";
 import type { GroupAvatarMetadata, GroupCapabilities, GroupDetail, GroupParticipant, GroupSummary } from "@/domain/group-contracts";
 import { groupAccessForRole, isGroupRole, type GroupRole } from "@/domain/group-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
@@ -221,7 +221,17 @@ async function hasFinancialHistory(database: Database, groupId: string, particip
     .from(groupObligations)
     .where(obligationFilter)
     .limit(1);
-  return Boolean(obligation);
+  if (obligation) return true;
+  const settlementFilter = participantId === undefined
+    ? eq(groupSettlements.groupId, groupId)
+    : and(eq(groupSettlements.groupId, groupId), or(eq(groupSettlements.senderParticipantId, participantId), eq(groupSettlements.recipientParticipantId, participantId)));
+  const [settlement] = await database
+    .select({ id: groupSettlements.id })
+    .from(groupSettlements)
+    .where(settlementFilter)
+    .limit(1);
+  if (settlement) return true;
+  return false;
 }
 
 async function participantHasFinancialHistory(database: Database, groupId: string, participantId: string) {

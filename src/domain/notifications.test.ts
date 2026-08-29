@@ -91,4 +91,21 @@ describe("notification catalog", () => {
     });
     expect(() => normalizeNotificationMetadata("group.expense.payer.claim", { ...metadata, expenseId: "not-an-id" })).toThrow("Invalid metadata");
   });
+
+  it("validates settlement confirmation identity in notification metadata", () => {
+    const metadata = {
+      settlementId: "11111111-1111-4111-8111-111111111111",
+      groupId: "22222222-2222-4222-8222-222222222222",
+      groupName: "Bandung Trip",
+      senderParticipantId: "33333333-3333-4333-8333-333333333333",
+      senderDisplayName: "Wildan",
+    } as const;
+    expect(normalizeNotificationMetadata("group.settlement.confirmation", metadata)).toEqual(metadata);
+    expect(presentNotification("group.settlement.confirmation", metadata)).toEqual({
+      label: "Group payment confirmation",
+      primary: "Review a payment from Wildan in Bandung Trip.",
+      secondary: "Confirm the payment when it matches the money you received.",
+    });
+    expect(() => normalizeNotificationMetadata("group.settlement.confirmation", { ...metadata, senderParticipantId: "not-an-id" })).toThrow("Invalid metadata");
+  });
 });

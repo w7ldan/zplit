@@ -22,6 +22,7 @@
     "test:group-join-requests": "tsx scripts/group-join-requests-smoke.ts",
     "test:group-expense-lifecycle-migration": "tsx scripts/group-expense-lifecycle-migration-smoke.ts",
     "test:group-accounting": "tsx scripts/group-accounting-smoke.ts",
+    "test:group-settlements": "tsx scripts/group-settlement-smoke.ts",
     "test:group-receipts": "tsx scripts/group-receipt-smoke.ts",
     "test:ownership": "tsx scripts/ownership-smoke.ts",
     "test:receipts": "tsx scripts/receipt-smoke.ts",

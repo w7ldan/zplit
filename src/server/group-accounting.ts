@@ -10,6 +10,7 @@ import {
   groupObligations,
   groupMemberships,
   groupParticipants,
+  groupSettlements,
   groups,
   notifications,
   users,
@@ -17,6 +18,7 @@ import {
 import { requireSession } from "@/auth/require-session";
 import {
   buildGroupObligations,
+  calculateGroupBalances,
   GROUP_EXPENSE_STATE_CHANGED_EVENT,
   normalizeGroupExpenseInput,
   type GroupExpenseInput,
@@ -78,6 +80,7 @@ export type GroupObligationPresentation = GroupObligationRecord & {
   debtor: GroupParticipantPresentation;
   creditor: GroupParticipantPresentation;
 };
+export type GroupBalanceRecord = ReturnType<typeof calculateGroupBalances>[number];
 export type GroupExpenseReceiptMetadata = {
   id: string;
   originalFilename: string;
@@ -329,6 +332,35 @@ async function lockActivePayer(database: Database, groupId: string, participantI
   return { id: participant.id, userId: participant.userId };
 }
 
+// Lock every participant involved before materializing obligations.
+async function lockActivePayerForExpense(database: Database, groupId: string, expense: GroupExpenseRecord, payerUserId: string) {
+  const shares = await database
+    .select({ participantId: groupExpenseShares.participantId })
+    .from(groupExpenseShares)
+    .where(and(eq(groupExpenseShares.groupId, groupId), eq(groupExpenseShares.expenseId, expense.id)))
+    .orderBy(asc(groupExpenseShares.participantId));
+  const participantIds = [...new Set([expense.payerParticipantId, ...shares.map(({ participantId }) => participantId)])].sort();
+  const participants = await database
+    .select({ id: groupParticipants.id, userId: groupParticipants.userId })
+    .from(groupParticipants)
+    .where(and(eq(groupParticipants.groupId, groupId), inArray(groupParticipants.id, participantIds)))
+    .orderBy(asc(groupParticipants.id))
+    .for("update");
+  const memberships = await database
+    .select({ participantId: groupMemberships.participantId, userId: groupMemberships.userId })
+    .from(groupMemberships)
+    .where(and(eq(groupMemberships.groupId, groupId), inArray(groupMemberships.participantId, participantIds)))
+    .orderBy(asc(groupMemberships.participantId), asc(groupMemberships.userId))
+    .for("update");
+  const payer = participants.find(({ id }) => id === expense.payerParticipantId);
+  if (!payer) throw new GroupAccountingError("payer_not_found");
+  if (!payer.userId) throw new GroupAccountingError("payer_external");
+  const membership = memberships.find(({ participantId }) => participantId === payer.id);
+  if (!membership) throw new GroupAccountingError("not_member");
+  if (payer.userId !== payerUserId) throw new GroupAccountingError("forbidden");
+  return { id: payer.id, userId: payer.userId };
+}
+
 async function materializeObligations(database: Database, groupId: string, expense: GroupExpenseRecord, shares: GroupExpenseShareRecord[]) {
   const obligations = buildGroupObligations(
     expense.payerParticipantId,
@@ -475,6 +507,35 @@ async function rejectPendingExpense(
 async function activeGroupUserIds(database: Database, groupId: string) {
   const rows = await database.select({ userId: groupMemberships.userId }).from(groupMemberships).where(eq(groupMemberships.groupId, groupId));
   return rows.map(({ userId }) => userId);
+}
+
+export async function readGroupBalances(database: Database, groupId: string): Promise<GroupBalanceRecord[]> {
+  assertGroupId(groupId);
+  const obligations = await database
+    .select({
+      debtorParticipantId: groupObligations.debtorParticipantId,
+      creditorParticipantId: groupObligations.creditorParticipantId,
+      originalAmount: groupObligations.originalAmount,
+    })
+    .from(groupObligations)
+    .where(and(eq(groupObligations.groupId, groupId), isNull(groupObligations.voidedAt)));
+  const settlements = await database
+    .select({
+      senderParticipantId: groupSettlements.senderParticipantId,
+      recipientParticipantId: groupSettlements.recipientParticipantId,
+      amount: groupSettlements.amount,
+      state: groupSettlements.state,
+    })
+    .from(groupSettlements)
+    .where(eq(groupSettlements.groupId, groupId));
+  return calculateGroupBalances(obligations, settlements);
+}
+
+export async function getGroupBalances(database: Database, groupId: string, viewerUserId: string) {
+  assertGroupId(groupId);
+  assertUserId(viewerUserId);
+  await requireGroupAccess(database, groupId, viewerUserId);
+  return readGroupBalances(database, groupId);
 }
 
 function publishGroupExpenseFreshness(userIds: string[], groupId: string, expenseId: string, state: GroupExpenseRecord["state"]) {
@@ -788,8 +849,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
           .limit(1)
           .for("update");
         if (!expense) throw new GroupAccountingError("not_found");
-        const payer = await lockActivePayer(transactionalDatabase, groupId, expense.payerParticipantId);
-        if (payer.userId !== payerUserId) throw new GroupAccountingError("forbidden");
+        const payer = await lockActivePayerForExpense(transactionalDatabase, groupId, expense, payerUserId);
         const result = await confirmPendingExpense(transactionalDatabase, groupId, expenseId, payer.id, payerUserId, "payer_confirmed", new Date());
         if (result.changed) await resolvePayerClaimNotification(transactionalDatabase, expenseId, payerUserId, result.expense.updatedAt);
         return {
@@ -860,6 +920,10 @@ export function createGroupAccountingRepository(database: Database, groupId: str
     getSourceObligations,
     getLifecycleEvents,
     getParticipantEligibility,
+    getBalances: async (viewerUserId: string) => {
+      await authorize(viewerUserId);
+      return readGroupBalances(database, groupId);
+    },
   };
 }
 

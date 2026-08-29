@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import type { NotificationMetadata, NotificationType } from "@/domain/notifications";
 import type { GroupRole } from "@/domain/group-permissions";
 import type { GroupExpenseLifecycleEventType, GroupExpenseState } from "@/domain/group-accounting";
+import type { GroupSettlementState } from "@/domain/group-settlements";
 import type { GroupJoinRequestKind, GroupJoinRequestStatus } from "@/domain/group-join-requests";
 import type { OrganizationCapability, OrganizationInvitationRole } from "@/domain/organization-permissions";
 import {
@@ -539,6 +540,76 @@ export const groupObligations = pgTable(
     index("group_obligations_group_expense_idx").on(table.groupId, table.sourceExpenseId, table.id),
     index("group_obligations_group_debtor_idx").on(table.groupId, table.debtorParticipantId),
     index("group_obligations_group_creditor_idx").on(table.groupId, table.creditorParticipantId),
+  ],
+);
+
+export const groupSettlements = pgTable(
+  "group_settlements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "restrict" }),
+    senderParticipantId: uuid("sender_participant_id").notNull(),
+    recipientParticipantId: uuid("recipient_participant_id").notNull(),
+    amount: integer("amount").notNull(),
+    paymentMethod: varchar("payment_method", { length: 40 }).notNull(),
+    state: varchar("state", { length: 16 }).$type<GroupSettlementState>().default("pending").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("group_settlements_amount_positive", sql`${table.amount} > 0`),
+    check("group_settlements_payment_method_not_blank", sql`btrim(${table.paymentMethod}) <> ''`),
+    check("group_settlements_state_allowed", sql`${table.state} IN ('pending', 'confirmed')`),
+    check("group_settlements_no_self_payment", sql`${table.senderParticipantId} <> ${table.recipientParticipantId}`),
+    check("group_settlements_confirmation_timestamp_shape", sql`(${table.state} = 'pending' AND ${table.confirmedAt} IS NULL) OR (${table.state} = 'confirmed' AND ${table.confirmedAt} IS NOT NULL)`),
+    foreignKey({
+      columns: [table.groupId, table.senderParticipantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_settlements_sender_participant_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.groupId, table.recipientParticipantId],
+      foreignColumns: [groupParticipants.groupId, groupParticipants.id],
+      name: "group_settlements_recipient_participant_fk",
+    }).onDelete("restrict"),
+    unique("group_settlements_group_id_id_unique").on(table.groupId, table.id),
+    index("group_settlements_group_created_idx").on(table.groupId, table.createdAt, table.id),
+    index("group_settlements_group_sender_recipient_idx").on(table.groupId, table.senderParticipantId, table.recipientParticipantId, table.createdAt, table.id),
+    index("group_settlements_pending_recipient_idx").on(table.groupId, table.recipientParticipantId, table.createdAt, table.id).where(sql`${table.state} = 'pending'`),
+  ],
+);
+
+export const groupSettlementProofs = pgTable(
+  "group_settlement_proofs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "restrict" }),
+    settlementId: uuid("settlement_id").notNull(),
+    originalFilename: varchar("original_filename", { length: 160 }).notNull(),
+    mediaType: varchar("media_type", { length: 32 }).notNull(),
+    byteSize: integer("byte_size").notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    content: bytea("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("group_settlement_proofs_media_type_allowed", sql`${table.mediaType} IN ('image/jpeg', 'image/png', 'image/webp')`),
+    check("group_settlement_proofs_byte_size_valid", sql`${table.byteSize} BETWEEN 1 AND 5242880`),
+    check("group_settlement_proofs_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
+    check("group_settlement_proofs_filename_not_blank", sql`btrim(${table.originalFilename}) <> ''`),
+    check("group_settlement_proofs_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    foreignKey({
+      columns: [table.groupId, table.settlementId],
+      foreignColumns: [groupSettlements.groupId, groupSettlements.id],
+      name: "group_settlement_proofs_settlement_fk",
+    }).onDelete("restrict"),
+    unique("group_settlement_proofs_group_id_id_unique").on(table.groupId, table.id),
+    unique("group_settlement_proofs_settlement_sha256_unique").on(table.groupId, table.settlementId, table.sha256),
+    uniqueIndex("group_settlement_proofs_settlement_uidx").on(table.groupId, table.settlementId),
   ],
 );
 
@@ -1245,6 +1316,8 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   expenses: many(groupExpenses),
   expenseShares: many(groupExpenseShares),
   obligations: many(groupObligations),
+  settlements: many(groupSettlements),
+  settlementProofs: many(groupSettlementProofs),
   expenseReceipts: many(groupExpenseReceipts),
 }));
 
@@ -1257,6 +1330,8 @@ export const groupParticipantsRelations = relations(groupParticipants, ({ one, m
   expenseShares: many(groupExpenseShares),
   debtorObligations: many(groupObligations, { relationName: "groupObligationDebtors" }),
   creditorObligations: many(groupObligations, { relationName: "groupObligationCreditors" }),
+  sentSettlements: many(groupSettlements, { relationName: "groupSettlementSenders" }),
+  receivedSettlements: many(groupSettlements, { relationName: "groupSettlementRecipients" }),
 }));
 
 export const groupMembershipsRelations = relations(groupMemberships, ({ one }) => ({
@@ -1299,6 +1374,18 @@ export const groupObligationsRelations = relations(groupObligations, ({ one }) =
   sourceShare: one(groupExpenseShares, { fields: [groupObligations.groupId, groupObligations.sourceExpenseId, groupObligations.sourceShareId], references: [groupExpenseShares.groupId, groupExpenseShares.expenseId, groupExpenseShares.id] }),
   debtor: one(groupParticipants, { fields: [groupObligations.groupId, groupObligations.debtorParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupObligationDebtors" }),
   creditor: one(groupParticipants, { fields: [groupObligations.groupId, groupObligations.creditorParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupObligationCreditors" }),
+}));
+
+export const groupSettlementsRelations = relations(groupSettlements, ({ one }) => ({
+  group: one(groups, { fields: [groupSettlements.groupId], references: [groups.id] }),
+  sender: one(groupParticipants, { fields: [groupSettlements.groupId, groupSettlements.senderParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupSettlementSenders" }),
+  recipient: one(groupParticipants, { fields: [groupSettlements.groupId, groupSettlements.recipientParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupSettlementRecipients" }),
+  proof: one(groupSettlementProofs),
+}));
+
+export const groupSettlementProofsRelations = relations(groupSettlementProofs, ({ one }) => ({
+  group: one(groups, { fields: [groupSettlementProofs.groupId], references: [groups.id] }),
+  settlement: one(groupSettlements, { fields: [groupSettlementProofs.groupId, groupSettlementProofs.settlementId], references: [groupSettlements.groupId, groupSettlements.id] }),
 }));
 
 export const groupExpenseReceiptsRelations = relations(groupExpenseReceipts, ({ one }) => ({

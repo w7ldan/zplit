@@ -25,6 +25,8 @@ export const EXPECTED_TABLES = [
   "group_expenses",
   "group_expense_shares",
   "group_obligations",
+  "group_settlements",
+  "group_settlement_proofs",
   "group_expense_receipts",
   "group_expense_lifecycle_events",
   "outings",
@@ -221,6 +223,8 @@ export const INTEGRITY_CHECKS: readonly IntegrityCheck[] = [
       (SELECT count(*) FROM group_expense_shares s WHERE NOT EXISTS (SELECT 1 FROM group_expenses e WHERE e.group_id = s.group_id AND e.id = s.expense_id) OR NOT EXISTS (SELECT 1 FROM group_participants p WHERE p.group_id = s.group_id AND p.id = s.participant_id)) +
       (SELECT count(*) FROM group_obligations o WHERE NOT EXISTS (SELECT 1 FROM group_expenses e WHERE e.group_id = o.group_id AND e.id = o.source_expense_id AND e.state IN ('confirmed', 'voided') AND e.payer_participant_id = o.creditor_participant_id) OR NOT EXISTS (SELECT 1 FROM group_expense_shares s WHERE s.group_id = o.group_id AND s.expense_id = o.source_expense_id AND s.id = o.source_share_id AND s.participant_id = o.debtor_participant_id AND s.amount = o.original_amount) OR NOT EXISTS (SELECT 1 FROM group_participants p WHERE p.group_id = o.group_id AND p.id = o.creditor_participant_id AND p.user_id IS NOT NULL) OR (EXISTS (SELECT 1 FROM group_expenses e WHERE e.group_id = o.group_id AND e.id = o.source_expense_id AND e.state = 'confirmed') AND o.voided_at IS NOT NULL) OR (EXISTS (SELECT 1 FROM group_expenses e WHERE e.group_id = o.group_id AND e.id = o.source_expense_id AND e.state = 'voided') AND o.voided_at IS NULL)) +
       (SELECT count(*) FROM group_expense_receipts r WHERE NOT EXISTS (SELECT 1 FROM group_expenses e WHERE e.group_id = r.group_id AND e.id = r.expense_id)) +
+      (SELECT count(*) FROM group_settlements s WHERE NOT EXISTS (SELECT 1 FROM groups g WHERE g.id = s.group_id) OR NOT EXISTS (SELECT 1 FROM group_participants p WHERE p.group_id = s.group_id AND p.id = s.sender_participant_id AND p.user_id IS NOT NULL) OR NOT EXISTS (SELECT 1 FROM group_participants p WHERE p.group_id = s.group_id AND p.id = s.recipient_participant_id AND p.user_id IS NOT NULL) OR (s.state = 'pending' AND s.confirmed_at IS NOT NULL) OR (s.state = 'confirmed' AND s.confirmed_at IS NULL)) +
+      (SELECT count(*) FROM group_settlement_proofs p WHERE NOT EXISTS (SELECT 1 FROM group_settlements s WHERE s.group_id = p.group_id AND s.id = p.settlement_id)) +
       (SELECT count(*) FROM group_expenses e WHERE e.state IN ('confirmed', 'voided') AND (SELECT COALESCE(sum(s.amount), 0) FROM group_expense_shares s WHERE s.group_id = e.group_id AND s.expense_id = e.id) <> e.total_amount)
     )::int AS violations`,
   },

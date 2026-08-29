@@ -133,6 +133,7 @@ describe("groups", () => {
         .mockImplementationOnce(() => chain([{ role: "owner" }]))
         .mockImplementationOnce(() => chain([]))
         .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
         .mockImplementationOnce(() => chain([])),
       delete: vi.fn(() => chain([{ id: groupId }])),
     };

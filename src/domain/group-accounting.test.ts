@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGroupObligations, GroupAccountingInputError, normalizeGroupExpenseInput } from "./group-accounting";
+import { buildGroupObligations, calculateGroupBalances, GroupAccountingInputError, normalizeGroupExpenseInput } from "./group-accounting";
 
 const payer = "11111111-1111-4111-8111-111111111111";
 const debtor = "22222222-2222-4222-8222-222222222222";
@@ -40,5 +40,26 @@ describe("Group accounting domain", () => {
       { sourceShareId: "share-a", debtorParticipantId: debtor, creditorParticipantId: payer, originalAmount: 50 },
       { sourceShareId: "share-c", debtorParticipantId: otherDebtor, creditorParticipantId: payer, originalAmount: 30 },
     ]);
+  });
+
+  it("subtracts only confirmed settlements from the canonical bilateral balance", () => {
+    expect(calculateGroupBalances(
+      [{ debtorParticipantId: debtor, creditorParticipantId: payer, originalAmount: 100 }],
+      [
+        { senderParticipantId: debtor, recipientParticipantId: payer, amount: 70, state: "pending" },
+        { senderParticipantId: debtor, recipientParticipantId: payer, amount: 20, state: "confirmed" },
+      ],
+    )).toEqual([{ debtorParticipantId: debtor, creditorParticipantId: payer, amount: 80 }]);
+  });
+
+  it("derives a reversed bilateral position from preserved facts", () => {
+    expect(calculateGroupBalances(
+      [{ debtorParticipantId: debtor, creditorParticipantId: payer, originalAmount: 100 }],
+      [{ senderParticipantId: debtor, recipientParticipantId: payer, amount: 100, state: "confirmed" }],
+    )).toEqual([]);
+    expect(calculateGroupBalances(
+      [],
+      [{ senderParticipantId: debtor, recipientParticipantId: payer, amount: 100, state: "confirmed" }],
+    )).toEqual([{ debtorParticipantId: payer, creditorParticipantId: debtor, amount: 100 }]);
   });
 });
