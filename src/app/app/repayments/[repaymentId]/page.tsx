@@ -80,11 +80,28 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
           <h1>{plan.friendName}</h1>
           <Link className="repayment-record__back" href={contextTrip ? "/app/trips/" + contextTrip.id : "/app/repayments"}>← Back to {contextTrip ? contextTrip.name : "repayments"}</Link>
         </div>
-        {query?.created === "1" ? <RecordConfirmation queryKey="created" message="Repayment recorded. Review eligible shares below." /> : query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Repayment changes saved." /> : null}
+        {query?.created === "1" ? (
+          <RecordConfirmation
+            queryKey="created"
+            message="Repayment recorded. Review eligible shares below."
+          />
+        ) : query?.saved === "1" ? (
+          <RecordConfirmation
+            queryKey="saved"
+            message="Repayment changes saved."
+          />
+        ) : null}
         <div className="repayment-record__tasks">
           <div className="repayment-record__primary-task">
             <div className="repayment-record__allocations" id="repayment-allocations">
-              <RepaymentAllocationEditor action={replaceRepaymentAllocationsAction.bind(null, plan.id)} plan={plan} allocationQuery={first(query?.q)} allocationPage={plan.sharePage?.page} removeAction={removeRepaymentAllocationAction} undoAction={undoRepaymentAllocationAction} />
+              <RepaymentAllocationEditor
+                action={replaceRepaymentAllocationsAction.bind(null, plan.id)}
+                plan={plan}
+                allocationQuery={first(query?.q)}
+                allocationPage={plan.sharePage?.page}
+                removeAction={removeRepaymentAllocationAction}
+                undoAction={undoRepaymentAllocationAction}
+              />
             </div>
             <RepaymentPaymentProof repaymentId={plan.id} initialPaymentProof={paymentProof} />
           </div>
@@ -100,7 +117,25 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
               </div>
               <div className="repayment-record__form">
                 <p className="technical-label">EDIT RECORD</p>
-                <RepaymentForm action={updateRepaymentAction.bind(null, plan.id)} friends={friendOptions} searchFriends={searchFriendOptions} recentPaymentMethods={recentPaymentMethods} mode="edit" friendLocked={plan.allocatedAmount > 0} initialFriendContext={formContext} loadFriendContext={loadRepaymentFriendContext} initialPaidAtUtc={plan.paidAt.toISOString()} initialValues={{ friendId: plan.friendId, amountRupiah: plan.amount.toString(), paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: plan.paymentMethod ?? "", notes: plan.notes ?? "" }} />
+                <RepaymentForm
+                  action={updateRepaymentAction.bind(null, plan.id)}
+                  friends={friendOptions}
+                  searchFriends={searchFriendOptions}
+                  recentPaymentMethods={recentPaymentMethods}
+                  mode="edit"
+                  friendLocked={plan.allocatedAmount > 0}
+                  initialFriendContext={formContext}
+                  loadFriendContext={loadRepaymentFriendContext}
+                  initialPaidAtUtc={plan.paidAt.toISOString()}
+                  initialValues={{
+                    friendId: plan.friendId,
+                    amountRupiah: plan.amount.toString(),
+                    paidAtLocal: "",
+                    timezoneOffsetMinutes: "",
+                    paymentMethod: plan.paymentMethod ?? "",
+                    notes: plan.notes ?? "",
+                  }}
+                />
               </div>
               <DeleteRecordForm action={deleteRepaymentAction.bind(null, plan.id)} recordType="repayment" impact={deletionImpact} impactRevision={currentImpactRevision} />
             </div>
@@ -111,7 +146,19 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
   );
 }
 
-export default async function RepaymentRecordPage({ params, searchParams }: { params: Promise<{ repaymentId: string }>; searchParams?: Promise<{ created?: string | string[]; saved?: string | string[]; q?: string | string[]; page?: string | string[]; tripId?: string | string[] }> }) {
+export default async function RepaymentRecordPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ repaymentId: string }>;
+  searchParams?: Promise<{
+    created?: string | string[];
+    saved?: string | string[];
+    q?: string | string[];
+    page?: string | string[];
+    tripId?: string | string[];
+  }>;
+}) {
   const session = await requireSession();
   const { repaymentId } = await params;
   const query = await searchParams;

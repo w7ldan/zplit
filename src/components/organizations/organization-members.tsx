@@ -14,7 +14,17 @@ function roleLabel(role: string) {
 
 const initialState: OrganizationInvitationActionState = { error: "", values: { username: "", role: "member" } };
 
-export function OrganizationMembers({ organizationId, members, pendingInvitations, invitationRoles }: { organizationId: string; members?: OrganizationMember[]; pendingInvitations: OrganizationInvitationSummary[]; invitationRoles: OrganizationInvitationRole[] }) {
+export function OrganizationMembers({
+  organizationId,
+  members,
+  pendingInvitations,
+  invitationRoles,
+}: {
+  organizationId: string;
+  members?: OrganizationMember[];
+  pendingInvitations: OrganizationInvitationSummary[];
+  invitationRoles: OrganizationInvitationRole[];
+}) {
   const [state, formAction] = useActionState(createOrganizationInvitationAction.bind(null, organizationId), initialState);
   const search = searchOrganizationInvitationOptions.bind(null, organizationId) as (query: string, selectedId?: string) => Promise<SearchableOption[]>;
   const canInvite = invitationRoles.length > 0;
@@ -40,7 +50,34 @@ export function OrganizationMembers({ organizationId, members, pendingInvitation
         <p className="organization-invite__message" role={state.error && state.error !== "Invitation sent." ? "alert" : "status"}>{state.error || "Invitations use @username only."}</p>
         <button className="action-link action-link--primary" type="submit">Send invitation</button>
       </form>
-      {pendingInvitations.length > 0 ? <div className="organization-invite__pending"><h3>Pending invitations</h3><ul className="organization-members__list">{pendingInvitations.map((invitation) => <li className="organization-members__row" key={invitation.id}><span className="organization-members__identity"><strong>{invitation.displayName}</strong><span>@{invitation.username}</span></span><span className="organization-members__role">{roleLabel(invitation.role)} · Expires <LocalDateTime iso={invitation.expiresAt} mode="date" /></span><form action={revokeOrganizationInvitationAction.bind(null, organizationId, invitation.id)}><button className="text-link" type="submit">Revoke</button></form></li>)}</ul></div> : null}
+      {pendingInvitations.length > 0 ? (
+        <div className="organization-invite__pending">
+          <h3>Pending invitations</h3>
+          <ul className="organization-members__list">
+            {pendingInvitations.map((invitation) => (
+              <li className="organization-members__row" key={invitation.id}>
+                <span className="organization-members__identity">
+                  <strong>{invitation.displayName}</strong><span>@{invitation.username}</span>
+                </span>
+                <span className="organization-members__role">
+                  {roleLabel(invitation.role)} · Expires <LocalDateTime iso={invitation.expiresAt} mode="date" />
+                </span>
+                <form
+                  action={revokeOrganizationInvitationAction.bind(
+                    null,
+                    organizationId,
+                    invitation.id,
+                  )}
+                >
+                  <button className="text-link" type="submit">
+                    Revoke
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section> : null}
   </>;
 }

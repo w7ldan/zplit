@@ -39,7 +39,25 @@ function Amount({ value, className = "" }: { value: number; className?: string }
 }
 
 function ProductRow({ label, value, detail, detailClassName, connectorNode }: { label: string; value: string; detail?: string; detailClassName?: string; connectorNode?: string }) {
-  return <div className="journey-row" data-connector-node={connectorNode}><span className="journey-row__label" data-connector-anchor={connectorNode}>{label}</span><strong>{value}</strong>{detail ? <span key={detail} className={`journey-row__detail${detailClassName ? ` ${detailClassName}` : ""}`}>{detail}</span> : null}</div>;
+  return (
+    <div className="journey-row" data-connector-node={connectorNode}>
+      <span
+        className="journey-row__label"
+        data-connector-anchor={connectorNode}
+      >
+        {label}
+      </span>
+      <strong>{value}</strong>
+      {detail ? (
+        <span
+          key={detail}
+          className={`journey-row__detail${detailClassName ? ` ${detailClassName}` : ""}`}
+        >
+          {detail}
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 function JourneyConnectors() {
@@ -87,7 +105,26 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
                       <div className="journey-expense-row__shares-reveal">
                         {scenario.shares.filter((share) => share.expense === expense.description).map((share) => {
                           const covered = showRepayment && share.friend === "Rani";
-                          return <ProductRow key={`${share.expense}-${share.friend}`} label={share.friend} value={formatRupiah(share.amount)} detail={showShares ? covered ? "Covered by repayment" : "Outstanding · not covered" : undefined} detailClassName={covered ? "journey-share-detail--covered" : "journey-share-detail--outstanding"} connectorNode={`${share.expense.toLowerCase()}-${share.friend.toLowerCase()}`} />;
+                          return (
+                            <ProductRow
+                              key={`${share.expense}-${share.friend}`}
+                              label={share.friend}
+                              value={formatRupiah(share.amount)}
+                              detail={
+                                showShares
+                                  ? covered
+                                    ? "Covered by repayment"
+                                    : "Outstanding · not covered"
+                                  : undefined
+                              }
+                              detailClassName={
+                                covered
+                                  ? "journey-share-detail--covered"
+                                  : "journey-share-detail--outstanding"
+                              }
+                              connectorNode={`${share.expense.toLowerCase()}-${share.friend.toLowerCase()}`}
+                            />
+                          );
                         })}
                       </div>
                     </div>
@@ -118,15 +155,53 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
           </div>
 
           <div className="journey-summary__state-slot" data-summary-slot="state">
-            <div className="journey-summary__state journey-scene__section journey-scene__repayment" data-summary-state="repayment" data-visible={showRepaymentState} data-layout={showRepaymentState ? "expanded" : "collapsed"} aria-hidden={!showRepaymentState}>
+            <div
+              className="journey-summary__state journey-scene__section journey-scene__repayment"
+              data-summary-state="repayment"
+              data-visible={showRepaymentState}
+              data-layout={showRepaymentState ? "expanded" : "collapsed"}
+              aria-hidden={!showRepaymentState}
+            >
               <div className="journey-scene__section-reveal">
                 <div className="journey-scene__section-content">
                 <p className="technical-label">Repayment state</p>
-                <div className="journey-repayment-row" data-connector-node="repayment-rani"><span><strong>Rani repayment</strong><small>Received and ready to allocate</small></span><strong><Amount value={scenario.repayment.amount} /></strong></div>
-                <div className="journey-repayment__allocation journey-allocation" data-visible={showRepaymentState} data-layout={showRepaymentState ? "expanded" : "collapsed"} data-progress={showRepaymentState ? "complete" : "zero"} aria-hidden={!showRepaymentState}>
+                <div
+                  className="journey-repayment-row"
+                  data-connector-node="repayment-rani"
+                >
+                  <span>
+                    <strong>Rani repayment</strong>
+                    <small>Received and ready to allocate</small>
+                  </span>
+                  <strong>
+                    <Amount value={scenario.repayment.amount} />
+                  </strong>
+                </div>
+                <div
+                  className="journey-repayment__allocation journey-allocation"
+                  data-visible={showRepaymentState}
+                  data-layout={
+                    showRepaymentState ? "expanded" : "collapsed"
+                  }
+                  data-progress={showRepaymentState ? "complete" : "zero"}
+                  aria-hidden={!showRepaymentState}
+                >
                   <div className="journey-allocation__content">
                     <div className="journey-allocation__caption"><span>Repayment allocation</span><strong><Amount value={scenario.repayment.amount} /></strong></div>
-                    <div className="journey-allocation__track" role="progressbar" aria-label="Repayment allocation" aria-valuemin={0} aria-valuemax={scenario.repayment.amount} aria-valuenow={showRepaymentState ? scenario.repayment.amount : 0}><span style={{ "--repayment-allocation": 1 } as CSSProperties} /></div>
+                    <div
+                      className="journey-allocation__track"
+                      role="progressbar"
+                      aria-label="Repayment allocation"
+                      aria-valuemin={0}
+                      aria-valuemax={scenario.repayment.amount}
+                      aria-valuenow={
+                        showRepaymentState ? scenario.repayment.amount : 0
+                      }
+                    >
+                      <span
+                        style={{ "--repayment-allocation": 1 } as CSSProperties}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="journey-summary-list">
@@ -147,10 +222,49 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
                 <div className="journey-scene__section-content">
                 <p className="technical-label">Balance state</p>
                 <div className="journey-balance-list">
-                  <div className="journey-balance journey-balance--settled"><div><strong>Rani</strong><span>Assigned {formatRupiah(raniAssigned)}</span></div><div><span>Remaining</span><strong><Amount value={0} /></strong></div><span className="journey-state">SETTLED</span></div>
-                  <div className="journey-balance journey-balance--open"><div><strong>Dimas</strong><span>Assigned <span className="tabular-nums ledger-amount">{formatRupiah(dimasAssigned)}</span></span></div><div><span>Remaining</span><strong><Amount value={dimasAssigned} className="ledger-amount" /></strong></div><span className="journey-state">OPEN</span></div>
+                  <div className="journey-balance journey-balance--settled">
+                    <div>
+                      <strong>Rani</strong>
+                      <span>Assigned {formatRupiah(raniAssigned)}</span>
+                    </div>
+                    <div>
+                      <span>Remaining</span>
+                      <strong>
+                        <Amount value={0} />
+                      </strong>
+                    </div>
+                    <span className="journey-state">SETTLED</span>
+                  </div>
+                  <div className="journey-balance journey-balance--open">
+                    <div>
+                      <strong>Dimas</strong>
+                      <span>
+                        Assigned{" "}
+                        <span className="tabular-nums ledger-amount">
+                          {formatRupiah(dimasAssigned)}
+                        </span>
+                      </span>
+                    </div>
+                    <div>
+                      <span>Remaining</span>
+                      <strong>
+                        <Amount
+                          value={dimasAssigned}
+                          className="ledger-amount"
+                        />
+                      </strong>
+                    </div>
+                    <span className="journey-state">OPEN</span>
+                  </div>
                 </div>
-                <p className="journey-footnote">Rani is settled after her repayment. Remaining across this illustrative outing: <strong><Amount value={dimasAssigned} className="ledger-amount" /></strong>. The owner portion is already excluded from friend balances.</p>
+              <p className="journey-footnote">
+                Rani is settled after her repayment. Remaining across this
+                illustrative outing: {" "}
+                <strong>
+                  <Amount value={dimasAssigned} className="ledger-amount" />
+                </strong>
+                . The owner portion is already excluded from friend balances.
+              </p>
               </div>
               </div>
             </div>
@@ -410,9 +524,34 @@ export function JourneyShowcase() {
           <div className="section-layout editorial-grid editorial-shell journey-stage">
             <div className="product-journey" aria-label="Illustrative Zplit journey">
               <div className="journey-tabs" role="tablist" aria-label="Zplit journey steps">
-                {steps.map((item, index) => <button aria-controls="journey-panel" aria-selected={activeStep === index} className={`journey-tab${activeStep === index ? " journey-tab--active" : ""}`} id={`journey-tab-${index}`} key={item.label} onClick={() => selectStep(index)} onKeyDown={(event) => handleKeyDown(event, index)} ref={(element) => { tabs.current[index] = element; }} role="tab" tabIndex={activeStep === index ? 0 : -1} type="button"><span>{String(index + 1).padStart(2, "0")}</span>{item.label}</button>)}
+                {steps.map((item, index) => (
+                  <button
+                    aria-controls="journey-panel"
+                    aria-selected={activeStep === index}
+                    className={`journey-tab${activeStep === index ? " journey-tab--active" : ""}`}
+                    id={`journey-tab-${index}`}
+                    key={item.label}
+                    onClick={() => selectStep(index)}
+                    onKeyDown={(event) => handleKeyDown(event, index)}
+                    ref={(element) => {
+                      tabs.current[index] = element;
+                    }}
+                    role="tab"
+                    tabIndex={activeStep === index ? 0 : -1}
+                    type="button"
+                  >
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    {item.label}
+                  </button>
+                ))}
               </div>
-              <p className="journey-announcement" aria-live="polite"><span>{String(activeStep + 1).padStart(2, "0")} / {String(steps.length).padStart(2, "0")} · {steps[activeStep].label}</span><strong>{steps[activeStep].title}.</strong><span>{steps[activeStep].copy}</span></p>
+              <p className="journey-announcement" aria-live="polite">
+                <span>
+                  {String(activeStep + 1).padStart(2, "0")} / {String(steps.length).padStart(2, "0")} · {steps[activeStep].label}
+                </span>
+                <strong>{steps[activeStep].title}.</strong>
+                <span>{steps[activeStep].copy}</span>
+              </p>
               <div className="journey-frame" id="journey-panel" role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}>
                 <div className="journey-frame__header"><span className="technical-label">Bandung day out</span><span className="technical-label">Shared expense record</span></div>
                 <div className="journey-frame__body"><JourneyScene activeStep={activeStep} /></div>

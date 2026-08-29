@@ -15,5 +15,25 @@ export default async function GroupPeoplePage({ params }: { params: Promise<{ gr
   try { group = await getGroupForMember(getDatabase(), groupId, session.user.id); } catch { notFound(); }
   const participants = await listGroupParticipants(getDatabase(), groupId, session.user.id);
   const requests = group.canManageParticipants ? await listGroupJoinRequests(getDatabase(), groupId, session.user.id) : { invitations: [], links: [] };
-  return <section className="app-page group-people-page" id="top"><div className="editorial-shell app-page__layout"><header className="app-page__header"><div><p className="technical-label">Group people</p><h1>People</h1><p className="app-page__lede">Registered members and local external participants keep one durable identity per Group.</p></div></header><GroupPeople groupId={groupId} participants={participants} pendingInvitations={requests.invitations} pendingLinks={requests.links} canManageParticipants={group.canManageParticipants} canManageRoles={group.canManageRoles} /></div></section>;
+  return (
+    <section className="app-page group-people-page" id="top">
+      <div className="editorial-shell app-page__layout">
+        <header className="app-page__header">
+          <div>
+            <p className="technical-label">Group people</p>
+            <h1>People</h1>
+            <p className="app-page__lede">Registered members and local external participants keep one durable identity per Group.</p>
+          </div>
+        </header>
+        <GroupPeople
+          groupId={groupId}
+          participants={participants}
+          pendingInvitations={requests.invitations}
+          pendingLinks={requests.links}
+          canManageParticipants={group.canManageParticipants}
+          canManageRoles={group.canManageRoles}
+        />
+      </div>
+    </section>
+  );
 }

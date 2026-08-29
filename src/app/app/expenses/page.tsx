@@ -14,7 +14,17 @@ import { validateExpenseReturnTarget } from "@/domain/expense-return";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Expenses" };
 
-type ExpensesPageProps = { searchParams?: Promise<{ [key: string]: string | string[] | undefined; create?: string | string[]; outing?: string | string[]; q?: string | string[]; month?: string | string[]; assignment?: string | string[]; page?: string | string[] }> };
+type ExpensesPageProps = {
+  searchParams?: Promise<{
+    [key: string]: string | string[] | undefined;
+    create?: string | string[];
+    outing?: string | string[];
+    q?: string | string[];
+    month?: string | string[];
+    assignment?: string | string[];
+    page?: string | string[];
+  }>;
+};
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -54,7 +64,29 @@ function ExpenseRecordList({ data, params }: { data: ExpensesPageData; params: A
         <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
         {group.items.map((expense) => <ExpenseRow key={expense.id} expense={expense} />)}
       </div>) : (
-        <div className="ledger-empty"><h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2><p>{filtered ? "Try a different search or clear the filters." : "Record the first amount when you are ready. Every expense belongs to an outing."}</p>{filtered ? null : <Link className="text-link" href={recordHref(outingOptions.length ? "/app/expenses" : "/app/outings", params, { create: "1" })} data-task-trigger={outingOptions.length ? "expense-create" : "outing-create"}>{outingOptions.length ? "Add expense" : "Create an outing"} <span aria-hidden="true">→</span></Link>}</div>
+        <div className="ledger-empty">
+          <h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2>
+          <p>
+            {filtered
+              ? "Try a different search or clear the filters."
+              : "Record the first amount when you are ready. Every expense belongs to an outing."}
+          </p>
+          {filtered ? null : (
+            <Link
+              className="text-link"
+              href={recordHref(
+                outingOptions.length ? "/app/expenses" : "/app/outings",
+                params,
+                { create: "1" },
+              )}
+              data-task-trigger={
+                outingOptions.length ? "expense-create" : "outing-create"
+              }
+            >
+              {outingOptions.length ? "Add expense" : "Create an outing"} <span aria-hidden="true">→</span>
+            </Link>
+          )}
+        </div>
       )}
       <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={listHref} />
     </div>
@@ -66,7 +98,32 @@ function ExpenseCreatePanel({ data, outingId }: { data: ExpensesPageData; outing
   const { outingOptions, expenseReturnTarget } = data;
   return (
     <TaskPanel open title="Add an expense" description="Choose the outing, record the whole-rupiah amount, and assign shares next." triggerId="expense-create">
-      {outingOptions.length > 0 ? <ExpenseForm action={createExpenseAction} outings={outingOptions} searchOutings={searchOutingOptions} initialValues={{ description: "", amountRupiah: "", outingId: outingId ?? "" }} /> : <div className="task-panel__empty"><p>Create an outing before recording an expense.</p><Link className="action-link action-link--primary" href={"/app/outings?create=1&returnTo=" + encodeURIComponent(expenseReturnTarget)} data-task-trigger="outing-create">Create an outing and continue</Link></div>}
+      {outingOptions.length > 0 ? (
+        <ExpenseForm
+          action={createExpenseAction}
+          outings={outingOptions}
+          searchOutings={searchOutingOptions}
+          initialValues={{
+            description: "",
+            amountRupiah: "",
+            outingId: outingId ?? "",
+          }}
+        />
+      ) : (
+        <div className="task-panel__empty">
+          <p>Create an outing before recording an expense.</p>
+          <Link
+            className="action-link action-link--primary"
+            href={
+              "/app/outings?create=1&returnTo=" +
+              encodeURIComponent(expenseReturnTarget)
+            }
+            data-task-trigger="outing-create"
+          >
+            Create an outing and continue
+          </Link>
+        </div>
+      )}
     </TaskPanel>
   );
 }

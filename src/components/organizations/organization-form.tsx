@@ -26,7 +26,29 @@ export function OrganizationForm({ action, initialValues, edit = false }: { acti
         <textarea id="organization-description" name="description" rows={3} defaultValue={state.values.description} aria-invalid={Boolean(state.fieldErrors.description)} aria-describedby="organization-description-error" />
         <p className="organization-form__field-error" id="organization-description-error">{state.fieldErrors.description || "\u00a0"}</p>
       </div>
-      {!edit ? <div className="organization-form__field"><label htmlFor="organization-avatar">Photo <span>(optional)</span></label><input id="organization-avatar" name="avatar" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="organization-avatar-help organization-avatar-error" /><p className="organization-form__help" id="organization-avatar-help">JPEG, PNG, or WebP. Zplit will normalize it safely.</p><p className="organization-form__field-error" id="organization-avatar-error">{state.fieldErrors.avatar || "\u00a0"}</p></div> : null}
+      {!edit ? (
+        <div className="organization-form__field">
+          <label htmlFor="organization-avatar">
+            Photo <span>(optional)</span>
+          </label>
+          <input
+            id="organization-avatar"
+            name="avatar"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            aria-describedby="organization-avatar-help organization-avatar-error"
+          />
+          <p className="organization-form__help" id="organization-avatar-help">
+            JPEG, PNG, or WebP. Zplit will normalize it safely.
+          </p>
+          <p
+            className="organization-form__field-error"
+            id="organization-avatar-error"
+          >
+            {state.fieldErrors.avatar || "\u00a0"}
+          </p>
+        </div>
+      ) : null}
       <p className="organization-form__message" role={state.formError && state.formError !== "Profile saved." ? "alert" : "status"} aria-live="polite">{state.formError || "\u00a0"}</p>
       <div className="organization-form__actions">{!edit ? <Link className="action-link action-link--quiet" href="/app/organizations">Cancel</Link> : null}<SubmitButton edit={edit} /></div>
     </form>

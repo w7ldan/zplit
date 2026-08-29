@@ -17,7 +17,17 @@ import { OutingsTripsSwitch } from "@/components/outings/outings-trips-switch";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Outings" };
 
-type OutingsPageProps = { searchParams?: Promise<{ [key: string]: string | string[] | undefined; create?: string | string[]; created?: string | string[]; q?: string | string[]; month?: string | string[]; trip?: string | string[]; page?: string | string[] }> };
+type OutingsPageProps = {
+  searchParams?: Promise<{
+    [key: string]: string | string[] | undefined;
+    create?: string | string[];
+    created?: string | string[];
+    q?: string | string[];
+    month?: string | string[];
+    trip?: string | string[];
+    page?: string | string[];
+  }>;
+};
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -76,7 +86,25 @@ function OutingRecordList({ data }: { data: OutingsPageData }) {
         <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
         {group.items.map((outing) => <OutingRow key={outing.id} outing={outing} expenseCount={outing.expenseCount} expenseTotal={outing.expenseTotal} emphasized={created === outing.id} />)}
       </div>) : (
-        <div className="ledger-empty"><h2>{filtered ? "No matching outings." : "No outings yet."}</h2><p>{filtered ? "Try a different title, Trip, or month." : "Record the first shared moment before adding an expense."}</p>{filtered ? null : <Link className="text-link" href={recordHref("/app/outings", effectiveParams, { create: "1" })} data-task-trigger="outing-create">Add outing <span aria-hidden="true">→</span></Link>}</div>
+        <div className="ledger-empty">
+          <h2>{filtered ? "No matching outings." : "No outings yet."}</h2>
+          <p>
+            {filtered
+              ? "Try a different title, Trip, or month."
+              : "Record the first shared moment before adding an expense."}
+          </p>
+          {filtered ? null : (
+            <Link
+              className="text-link"
+              href={recordHref("/app/outings", effectiveParams, {
+                create: "1",
+              })}
+              data-task-trigger="outing-create"
+            >
+              Add outing <span aria-hidden="true">→</span>
+            </Link>
+          )}
+        </div>
       )}
       <RecordPagination page={outingPage.page} pageSize={outingPage.pageSize} totalItems={outingPage.totalItems} totalPages={outingPage.totalPages} href={listHref} />
     </div>
@@ -88,7 +116,24 @@ function OutingCreatePanel({ data }: { data: OutingsPageData }) {
   const { selectedTrip, initialOccurredAtUtc } = data;
   return (
     <TaskPanel open title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create">
-      <OutingForm action={createOutingAction.bind(null, data.returnTo)} initialOccurredAtUtc={initialOccurredAtUtc} trips={[{ id: "", label: "No trip" }, ...(selectedTrip ? [{ id: selectedTrip.id, label: selectedTrip.name }] : [])]} searchTrips={searchTripOptions} initialValues={{ title: "", occurredAtLocal: "", timezoneOffsetMinutes: "", notes: "", tripId: selectedTrip?.id ?? "" }} />
+      <OutingForm
+        action={createOutingAction.bind(null, data.returnTo)}
+        initialOccurredAtUtc={initialOccurredAtUtc}
+        trips={[
+          { id: "", label: "No trip" },
+          ...(selectedTrip
+            ? [{ id: selectedTrip.id, label: selectedTrip.name }]
+            : []),
+        ]}
+        searchTrips={searchTripOptions}
+        initialValues={{
+          title: "",
+          occurredAtLocal: "",
+          timezoneOffsetMinutes: "",
+          notes: "",
+          tripId: selectedTrip?.id ?? "",
+        }}
+      />
     </TaskPanel>
   );
 }
@@ -110,7 +155,44 @@ function OutingsPageContent({ data }: { data: OutingsPageData }) {
           <div className="records-workspace__toolbar">
             <OutingsTripsSwitch current="outings" />
             {created ? <RecordConfirmation queryKey="created" message="Outing added." /> : null}
-            <LiveRecordFilters action="/app/outings" search={{ label: "Search outings", placeholder: "Outing title", value: filters.q ?? "" }} selects={[{ name: "trip", label: "Trip", value: tripFilter ?? "", options: outingOptions, search: searchTripFilterOptions }]} month={{ label: "Month", value: filters.month ?? "" }} mobileDisclosure={{ activeCount: [tripFilter, filters.month].filter(Boolean).length }} clearHref={filtered ? recordHref("/app/outings", effectiveParams, { q: undefined, month: undefined, trip: undefined, page: undefined }) : undefined} resultStatus={outingPage.totalItems + " outing" + (outingPage.totalItems === 1 ? "" : "s") + " found."} preservedParams={effectiveParams} />
+            <LiveRecordFilters
+              action="/app/outings"
+              search={{
+                label: "Search outings",
+                placeholder: "Outing title",
+                value: filters.q ?? "",
+              }}
+              selects={[
+                {
+                  name: "trip",
+                  label: "Trip",
+                  value: tripFilter ?? "",
+                  options: outingOptions,
+                  search: searchTripFilterOptions,
+                },
+              ]}
+              month={{ label: "Month", value: filters.month ?? "" }}
+              mobileDisclosure={{
+                activeCount: [tripFilter, filters.month].filter(Boolean).length,
+              }}
+              clearHref={
+                filtered
+                  ? recordHref("/app/outings", effectiveParams, {
+                      q: undefined,
+                      month: undefined,
+                      trip: undefined,
+                      page: undefined,
+                    })
+                  : undefined
+              }
+              resultStatus={
+                outingPage.totalItems +
+                " outing" +
+                (outingPage.totalItems === 1 ? "" : "s") +
+                " found."
+              }
+              preservedParams={effectiveParams}
+            />
           </div>
           <OutingRecordList data={data} />
         </div>
