@@ -204,6 +204,13 @@
       "when": 1787982945418,
       "tag": "0028_many_victor_mancha",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1787995646471,
+      "tag": "0029_wealthy_nighthawk",
+      "breakpoints": true
     }
   ]
 }

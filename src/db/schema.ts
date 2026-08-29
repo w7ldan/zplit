@@ -581,6 +581,37 @@ export const groupSettlements = pgTable(
   ],
 );
 
+export const groupSettlementApplications = pgTable(
+  "group_settlement_applications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "restrict" }),
+    settlementId: uuid("settlement_id").notNull(),
+    obligationId: uuid("obligation_id").notNull(),
+    appliedAmount: integer("applied_amount").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("group_settlement_applications_amount_positive", sql`${table.appliedAmount} > 0`),
+    foreignKey({
+      columns: [table.groupId, table.settlementId],
+      foreignColumns: [groupSettlements.groupId, groupSettlements.id],
+      name: "group_settlement_applications_settlement_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.groupId, table.obligationId],
+      foreignColumns: [groupObligations.groupId, groupObligations.id],
+      name: "group_settlement_applications_obligation_fk",
+    }).onDelete("restrict"),
+    unique("group_settlement_applications_group_id_id_unique").on(table.groupId, table.id),
+    unique("group_settlement_applications_settlement_obligation_unique").on(table.groupId, table.settlementId, table.obligationId),
+    index("group_settlement_applications_group_settlement_idx").on(table.groupId, table.settlementId, table.createdAt, table.id),
+    index("group_settlement_applications_group_obligation_idx").on(table.groupId, table.obligationId, table.createdAt, table.id),
+  ],
+);
+
 export const groupSettlementProofs = pgTable(
   "group_settlement_proofs",
   {
@@ -1317,6 +1348,7 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   expenseShares: many(groupExpenseShares),
   obligations: many(groupObligations),
   settlements: many(groupSettlements),
+  settlementApplications: many(groupSettlementApplications),
   settlementProofs: many(groupSettlementProofs),
   expenseReceipts: many(groupExpenseReceipts),
 }));
@@ -1368,19 +1400,27 @@ export const groupExpenseSharesRelations = relations(groupExpenseShares, ({ one 
   obligation: one(groupObligations),
 }));
 
-export const groupObligationsRelations = relations(groupObligations, ({ one }) => ({
+export const groupObligationsRelations = relations(groupObligations, ({ one, many }) => ({
   group: one(groups, { fields: [groupObligations.groupId], references: [groups.id] }),
   expense: one(groupExpenses, { fields: [groupObligations.groupId, groupObligations.sourceExpenseId], references: [groupExpenses.groupId, groupExpenses.id] }),
   sourceShare: one(groupExpenseShares, { fields: [groupObligations.groupId, groupObligations.sourceExpenseId, groupObligations.sourceShareId], references: [groupExpenseShares.groupId, groupExpenseShares.expenseId, groupExpenseShares.id] }),
   debtor: one(groupParticipants, { fields: [groupObligations.groupId, groupObligations.debtorParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupObligationDebtors" }),
   creditor: one(groupParticipants, { fields: [groupObligations.groupId, groupObligations.creditorParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupObligationCreditors" }),
+  settlementApplications: many(groupSettlementApplications),
 }));
 
-export const groupSettlementsRelations = relations(groupSettlements, ({ one }) => ({
+export const groupSettlementsRelations = relations(groupSettlements, ({ one, many }) => ({
   group: one(groups, { fields: [groupSettlements.groupId], references: [groups.id] }),
   sender: one(groupParticipants, { fields: [groupSettlements.groupId, groupSettlements.senderParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupSettlementSenders" }),
   recipient: one(groupParticipants, { fields: [groupSettlements.groupId, groupSettlements.recipientParticipantId], references: [groupParticipants.groupId, groupParticipants.id], relationName: "groupSettlementRecipients" }),
   proof: one(groupSettlementProofs),
+  applications: many(groupSettlementApplications),
+}));
+
+export const groupSettlementApplicationsRelations = relations(groupSettlementApplications, ({ one }) => ({
+  group: one(groups, { fields: [groupSettlementApplications.groupId], references: [groups.id] }),
+  settlement: one(groupSettlements, { fields: [groupSettlementApplications.groupId, groupSettlementApplications.settlementId], references: [groupSettlements.groupId, groupSettlements.id] }),
+  obligation: one(groupObligations, { fields: [groupSettlementApplications.groupId, groupSettlementApplications.obligationId], references: [groupObligations.groupId, groupObligations.id] }),
 }));
 
 export const groupSettlementProofsRelations = relations(groupSettlementProofs, ({ one }) => ({

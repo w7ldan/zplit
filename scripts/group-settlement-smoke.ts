@@ -228,7 +228,7 @@ async function balance(database: Database, fixture: Fixture) {
 }
 
 async function runLifecycleAndMigrationChecks(pool: Pool, database: Database, fixtures: Fixture[]) {
-  const tables = ["group_settlements", "group_settlement_proofs"];
+  const tables = ["group_settlements", "group_settlement_applications", "group_settlement_proofs"];
   const result = await pool.query<{ table_name: string }>(
     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])",
     [tables],
@@ -252,6 +252,8 @@ async function runLifecycleAndMigrationChecks(pool: Pool, database: Database, fi
   const pending = await settlement(database, fixture, 70);
   assert(pending.state === "pending", "settlement did not start pending");
   assert(await balance(database, fixture) === 100, "pending settlement changed the balance");
+  const pendingApplications = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM group_settlement_applications WHERE settlement_id = $1", [pending.id]);
+  assert(pendingApplications.rows[0]?.count === "0", "pending settlement has applications");
   await expectCode(settlement(database, fixture, 101), "debt_exceeded");
   await expectCode(createGroupSettlement(database, fixture.groupId, fixture.ownerUserId, {
     senderParticipantId: fixture.senderParticipantId,
@@ -267,9 +269,12 @@ async function runLifecycleAndMigrationChecks(pool: Pool, database: Database, fi
   assert(notificationCount.rows[0]?.count === "1", "settlement creation did not create one deduplicated notification");
   const confirmed = await confirmGroupSettlement(database, fixture.groupId, pending.id, fixture.recipientUserId);
   assert(confirmed.state === "confirmed" && confirmed.confirmedAt !== null, "recipient confirmation did not persist");
+  assert(confirmed.applications.length === 1 && confirmed.applications[0]?.appliedAmount === 70, "settlement was not fully applied to the debt");
   assert(await balance(database, fixture) === 30, "confirmed settlement did not reduce the balance once");
   const repeated = await confirmGroupSettlement(database, fixture.groupId, pending.id, fixture.recipientUserId);
   assert(repeated.state === "confirmed" && await balance(database, fixture) === 30, "repeated confirmation changed the balance");
+  const applicationTotal = await pool.query<{ total: string }>("SELECT COALESCE(sum(applied_amount), 0)::text AS total FROM group_settlement_applications WHERE settlement_id = $1", [pending.id]);
+  assert(applicationTotal.rows[0]?.total === "70", "settlement application total changed on repeat confirmation");
 
   const directUpdate = await pool.query("UPDATE group_settlements SET amount = 1 WHERE id = $1", [pending.id]).then(() => null).catch((error) => error);
   assert(errorCode(directUpdate) === "P0001", "confirmed settlement financial fields were mutable");
@@ -308,6 +313,8 @@ async function runSameSettlementRace(pool: Pool, database: Database, fixtures: F
     () => confirmGroupSettlement(database, fixture.groupId, pending.id, fixture.recipientUserId));
   assert(results.every((result) => result.status === "fulfilled"), "same-settlement confirmation was not idempotent");
   assert(await balance(database, fixture) === 30, "same settlement had more than one financial effect");
+  const applications = await pool.query<{ count: string; total: string }>("SELECT count(*)::text AS count, COALESCE(sum(applied_amount), 0)::text AS total FROM group_settlement_applications WHERE settlement_id = $1", [pending.id]);
+  assert(applications.rows[0]?.count === "1" && applications.rows[0]?.total === "70", "same settlement duplicated applications");
 }
 
 async function runTwoPendingRace(pool: Pool, database: Database, fixtures: Fixture[], reverse = false) {
@@ -324,6 +331,11 @@ async function runTwoPendingRace(pool: Pool, database: Database, fixtures: Fixtu
   assert(results.filter((result) => result.status === "fulfilled").length === 1, "two pending settlements both confirmed");
   assert(results.filter((result) => result.status === "rejected" && errorCode(result.reason) === "debt_exceeded").length === 1, "losing settlement did not fail on current debt");
   assert(await balance(database, fixture) === 30, "two pending settlements overpaid the debt");
+  const applicationTotals = await pool.query<{ settlement_id: string; total: string }>(
+    "SELECT settlement_id, COALESCE(sum(applied_amount), 0)::text AS total FROM group_settlement_applications WHERE settlement_id IN ($1, $2) GROUP BY settlement_id",
+    [first.id, second.id],
+  );
+  assert(applicationTotals.rows.length === 1 && applicationTotals.rows[0]?.total === "70", "competing settlements produced an invalid application total");
 }
 
 async function runExpenseConfirmRace(pool: Pool, database: Database, fixtures: Fixture[], settlementFirst: boolean) {
@@ -351,9 +363,13 @@ async function runExpenseVoidRace(pool: Pool, database: Database, fixtures: Fixt
     assert(results.every((result) => result.status === "fulfilled"), `settlement-first void race did not serialize: ${results.map((result) => result.status === "rejected" ? errorCode(result.reason) ?? (result.reason instanceof Error ? result.reason.message : "unknown") : "fulfilled").join(",")}`);
     const row = await pool.query<{ state: string; confirmed_at: Date | null }>("SELECT state, confirmed_at FROM group_settlements WHERE id = $1", [payment.id]);
     assert(row.rows[0]?.state === "confirmed" && row.rows[0]?.confirmed_at !== null, "payment history was rewritten by a later void");
+    const application = await pool.query<{ total: string }>("SELECT COALESCE(sum(applied_amount), 0)::text AS total FROM group_settlement_applications WHERE settlement_id = $1", [payment.id]);
+    assert(application.rows[0]?.total === "100", "settlement-first void race lost application history");
   } else {
     assert(results.filter((result) => result.status === "fulfilled").length === 1, "void-first race allowed an overpayment");
     assert(results.some((result) => result.status === "rejected" && errorCode(result.reason) === "debt_exceeded"), "void-first settlement did not recompute debt");
+    const application = await pool.query<{ total: string }>("SELECT COALESCE(sum(applied_amount), 0)::text AS total FROM group_settlement_applications WHERE settlement_id = $1", [payment.id]);
+    assert(application.rows[0]?.total === "0", "void-first race applied a settlement to a voided obligation");
   }
 }
 
@@ -410,10 +426,14 @@ async function cleanup(pool: Pool, fixtures: Fixture[]) {
   if (fixtures.length === 0) return;
   const groupIds = fixtures.map(({ groupId }) => groupId);
   const userIds = fixtures.flatMap(({ userIds }) => userIds);
+  await pool.query("DROP TRIGGER IF EXISTS group_settlement_applications_totals ON group_settlement_applications");
+  await pool.query("DROP TRIGGER IF EXISTS group_settlements_applications_complete ON group_settlements");
+  await pool.query("DROP TRIGGER IF EXISTS group_settlement_applications_integrity ON group_settlement_applications");
   await pool.query("DROP TRIGGER IF EXISTS group_settlement_proofs_pending_only ON group_settlement_proofs");
   await pool.query("DROP TRIGGER IF EXISTS group_settlements_historical_facts ON group_settlements");
   try {
     await pool.query("DELETE FROM group_settlement_proofs WHERE group_id = ANY($1::uuid[])", [groupIds]);
+    await pool.query("DELETE FROM group_settlement_applications WHERE group_id = ANY($1::uuid[])", [groupIds]);
     await pool.query("DELETE FROM group_settlements WHERE group_id = ANY($1::uuid[])", [groupIds]);
     await pool.query("DELETE FROM notifications WHERE metadata->>'groupId' = ANY($1::text[])", [groupIds]);
     await pool.query("DELETE FROM group_expense_lifecycle_events WHERE group_id = ANY($1::uuid[])", [groupIds]);
@@ -425,6 +445,9 @@ async function cleanup(pool: Pool, fixtures: Fixture[]) {
     await pool.query("DELETE FROM groups WHERE id = ANY($1::uuid[])", [groupIds]);
     await pool.query("DELETE FROM users WHERE id = ANY($1::text[])", [userIds]);
   } finally {
+    await pool.query("CREATE TRIGGER group_settlement_applications_integrity BEFORE INSERT OR UPDATE OR DELETE ON group_settlement_applications FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_settlement_application()");
+    await pool.query("CREATE CONSTRAINT TRIGGER group_settlements_applications_complete AFTER INSERT OR UPDATE ON group_settlements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_settlement_application_totals()");
+    await pool.query("CREATE CONSTRAINT TRIGGER group_settlement_applications_totals AFTER INSERT ON group_settlement_applications DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_settlement_application_totals()");
     await pool.query("CREATE TRIGGER group_settlements_historical_facts BEFORE INSERT OR UPDATE OR DELETE ON group_settlements FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_settlement()");
     await pool.query("CREATE TRIGGER group_settlement_proofs_pending_only BEFORE INSERT OR UPDATE OR DELETE ON group_settlement_proofs FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_settlement_proof()");
   }

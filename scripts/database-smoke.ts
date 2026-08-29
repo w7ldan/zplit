@@ -29,6 +29,7 @@ const domainTables = [
   "group_expense_shares",
   "group_obligations",
   "group_settlements",
+  "group_settlement_applications",
   "group_settlement_proofs",
   "group_expense_receipts",
   "group_expense_lifecycle_events",

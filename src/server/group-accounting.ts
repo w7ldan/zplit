@@ -10,6 +10,7 @@ import {
   groupObligations,
   groupMemberships,
   groupParticipants,
+  groupSettlementApplications,
   groupSettlements,
   groups,
   notifications,
@@ -21,6 +22,7 @@ import {
   calculateGroupBalances,
   GROUP_EXPENSE_STATE_CHANGED_EVENT,
   normalizeGroupExpenseInput,
+  type GroupExpenseState,
   type GroupExpenseInput,
   type GroupExpenseLifecycleEventType,
 } from "@/domain/group-accounting";
@@ -80,6 +82,21 @@ export type GroupObligationPresentation = GroupObligationRecord & {
   debtor: GroupParticipantPresentation;
   creditor: GroupParticipantPresentation;
 };
+export type GroupObligationApplicationPresentation = {
+  id: string;
+  settlementId: string;
+  appliedAmount: number;
+  createdAt: Date;
+  settlementConfirmedAt: Date;
+};
+export type GroupObligationApplicationSummary = GroupObligationPresentation & {
+  sourceExpenseDescription: string;
+  sourceExpenseOccurredAt: Date;
+  sourceExpenseState: GroupExpenseState;
+  applications: GroupObligationApplicationPresentation[];
+  explanatoryUnappliedAmount: number;
+  collectibleAmount: number;
+};
 export type GroupBalanceRecord = ReturnType<typeof calculateGroupBalances>[number];
 export type GroupExpenseReceiptMetadata = {
   id: string;
@@ -112,6 +129,10 @@ function assertGroupId(groupId: string) {
 
 function assertUserId(userId: string) {
   if (typeof userId !== "string" || !userId.trim()) throw new GroupAccountingError("invalid_user");
+}
+
+function fallbackParticipant(id: string): GroupParticipantPresentation {
+  return { id, userId: null, displayName: "Participant", label: null, status: "former" };
 }
 
 function mapGroupError(error: unknown): never {
@@ -165,6 +186,60 @@ async function loadParticipantMap(database: Database, groupId: string, participa
     const status = row.userId === null ? "external" : row.membershipUserId ? "active" : "former";
     return [row.id, { id: row.id, userId: row.userId, displayName: row.userName ?? row.externalName ?? "Participant", label: row.label, status } satisfies GroupParticipantPresentation];
   }));
+}
+
+async function loadObligationApplicationSummary(database: Database, groupId: string, obligationId: string): Promise<GroupObligationApplicationSummary> {
+  const [obligation] = await database
+    .select()
+    .from(groupObligations)
+    .where(and(eq(groupObligations.groupId, groupId), eq(groupObligations.id, obligationId)))
+    .limit(1);
+  if (!obligation) throw new GroupAccountingError("not_found");
+  const [expense] = await database
+    .select({ description: groupExpenses.description, occurredAt: groupExpenses.occurredAt, state: groupExpenses.state })
+    .from(groupExpenses)
+    .where(and(eq(groupExpenses.groupId, groupId), eq(groupExpenses.id, obligation.sourceExpenseId)))
+    .limit(1);
+  if (!expense) throw new GroupAccountingError("financial_integrity");
+  const applications = await database
+    .select({
+      id: groupSettlementApplications.id,
+      settlementId: groupSettlementApplications.settlementId,
+      appliedAmount: groupSettlementApplications.appliedAmount,
+      createdAt: groupSettlementApplications.createdAt,
+      settlementConfirmedAt: groupSettlements.confirmedAt,
+    })
+    .from(groupSettlementApplications)
+    .innerJoin(
+      groupSettlements,
+      and(
+        eq(groupSettlements.groupId, groupSettlementApplications.groupId),
+        eq(groupSettlements.id, groupSettlementApplications.settlementId),
+      ),
+    )
+    .where(and(
+      eq(groupSettlementApplications.groupId, groupId),
+      eq(groupSettlementApplications.obligationId, obligationId),
+    ))
+    .orderBy(asc(groupSettlements.confirmedAt), asc(groupSettlementApplications.id));
+  const participantMap = await loadParticipantMap(database, groupId, [obligation.debtorParticipantId, obligation.creditorParticipantId]);
+  const appliedAmount = applications.reduce((total, application) => total + application.appliedAmount, 0);
+  const explanatoryUnappliedAmount = Math.max(0, obligation.originalAmount - appliedAmount);
+  const sourceExpenseState = expense.state as GroupExpenseState;
+  return {
+    ...obligation,
+    sourceExpenseDescription: expense.description,
+    sourceExpenseOccurredAt: expense.occurredAt,
+    sourceExpenseState,
+    debtor: participantMap.get(obligation.debtorParticipantId) ?? { ...fallbackParticipant(obligation.debtorParticipantId) },
+    creditor: participantMap.get(obligation.creditorParticipantId) ?? { ...fallbackParticipant(obligation.creditorParticipantId) },
+    applications: applications.map((application) => ({
+      ...application,
+      settlementConfirmedAt: application.settlementConfirmedAt!,
+    })),
+    explanatoryUnappliedAmount,
+    collectibleAmount: obligation.voidedAt === null && sourceExpenseState !== "voided" ? explanatoryUnappliedAmount : 0,
+  };
 }
 
 async function loadExpense(database: Database, groupId: string, expenseId: string): Promise<GroupExpenseDetail> {
@@ -791,6 +866,12 @@ export function createGroupAccountingRepository(database: Database, groupId: str
     return expense.lifecycleEvents;
   }
 
+  async function getObligationApplications(obligationId: string, viewerUserId: string) {
+    if (!normalizeUuid(obligationId)) throw new GroupAccountingError("not_found");
+    await authorize(viewerUserId);
+    return loadObligationApplicationSummary(database, groupId, obligationId);
+  }
+
   async function getParticipantEligibility(viewerUserId: string): Promise<GroupParticipantEligibility[]> {
     await authorize(viewerUserId);
     const rows = await database
@@ -919,6 +1000,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
     getShares,
     getSourceObligations,
     getLifecycleEvents,
+    getObligationApplications,
     getParticipantEligibility,
     getBalances: async (viewerUserId: string) => {
       await authorize(viewerUserId);
@@ -961,4 +1043,8 @@ export async function voidGroupExpenseAsPayer(database: Database, groupId: strin
 export async function voidGroupExpenseAsCurrentUser(groupId: string, expenseId: string) {
   const session = await requireSession();
   return voidGroupExpenseAsPayer(getDatabase(), groupId, expenseId, session.user.id);
+}
+
+export async function getGroupObligationApplicationSummary(database: Database, groupId: string, obligationId: string, viewerUserId: string) {
+  return createGroupAccountingRepository(database, groupId).getObligationApplications(obligationId, viewerUserId);
 }
