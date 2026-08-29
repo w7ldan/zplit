@@ -6,6 +6,7 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const sourceRootName = "src";
 const warningLength = 240;
 const errorLength = 400;
+const warningEvidenceThreshold = 10;
 
 export type ReadabilitySeverity = "error" | "warning";
 
@@ -58,6 +59,17 @@ type JsxCandidate = {
   rule: string;
   severity: ReadabilitySeverity;
   startLine: number;
+};
+
+type LineEvidence = {
+  executableNodes: number;
+  hasJsx: boolean;
+};
+
+type DiagnosticFinding = {
+  diagnostic: ReadabilityDiagnostic;
+  end: number;
+  start: number;
 };
 
 function parseSource(source: string, fileName: string) {
@@ -233,6 +245,40 @@ function collectJsxInfo(sourceFile: ts.SourceFile) {
 
   visit(sourceFile);
   return infos;
+}
+
+function collectLineEvidence(sourceFile: ts.SourceFile) {
+  const evidence = new Map<number, LineEvidence>();
+
+  function visit(node: ts.Node) {
+    if (node !== sourceFile) {
+      const line = sourceFile.getLineAndCharacterOfPosition(
+        node.getStart(sourceFile),
+      ).line;
+      const current = evidence.get(line) ?? { executableNodes: 0, hasJsx: false };
+      if (isJsxNode(node)) current.hasJsx = true;
+      if (
+        ts.isArrowFunction(node) ||
+        ts.isBinaryExpression(node) ||
+        ts.isCallExpression(node) ||
+        ts.isConditionalExpression(node) ||
+        ts.isNewExpression(node)
+      ) {
+        current.executableNodes += 1;
+      }
+      evidence.set(line, current);
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return evidence;
+}
+
+function hasWarningEvidence(evidence: LineEvidence | undefined) {
+  return Boolean(
+    evidence && !evidence.hasJsx && evidence.executableNodes >= warningEvidenceThreshold,
+  );
 }
 
 function hasComplexity(info: JsxInfo) {
@@ -420,79 +466,98 @@ function lineDiagnostics(
   sourceFile: ts.SourceFile,
   source: string,
   ranges: LiteralRange[],
-  jsxLines: Set<number>,
-  suppressedLines: Set<number>,
-): ReadabilityDiagnostic[] {
-  const diagnostics: ReadabilityDiagnostic[] = [];
+  lineEvidence: Map<number, LineEvidence>,
+): DiagnosticFinding[] {
+  const diagnostics: DiagnosticFinding[] = [];
   const lineStarts = sourceFile.getLineStarts();
   for (let index = 0; index < lineStarts.length; index += 1) {
     const start = lineStarts[index]!;
     const end = index + 1 < lineStarts.length ? lineStarts[index + 1]! : source.length;
     const line = source.slice(start, end).replace(/\r?\n$/, "");
-    if (
-      line.length <= warningLength ||
-      isCommentLine(line) ||
-      suppressedLines.has(index)
-    ) {
+    if (line.length <= warningLength || isCommentLine(line)) {
       continue;
     }
+    const evidence = lineEvidence.get(index);
     const strictLength = executableLineLength(
       line,
       start,
       ranges,
-      jsxLines.has(index),
+      evidence?.hasJsx ?? false,
       false,
     );
     const warningLengthValue = executableLineLength(
       line,
       start,
       ranges,
-      jsxLines.has(index),
+      evidence?.hasJsx ?? false,
       true,
     );
     if (strictLength > errorLength) {
       diagnostics.push({
-        file: sourceFile.fileName,
-        line: index + 1,
-        message: `Executable source line is ${line.length} characters; split the structure into readable multiline source.`,
-        rule: "line-length",
-        severity: "error",
+        diagnostic: {
+          file: sourceFile.fileName,
+          line: index + 1,
+          message: `Executable source line is ${line.length} characters; split the structure into readable multiline source.`,
+          rule: "line-length",
+          severity: "error",
+        },
+        end,
+        start,
       });
-    } else if (warningLengthValue > warningLength) {
+    } else if (
+      warningLengthValue > warningLength &&
+      hasWarningEvidence(evidence)
+    ) {
       diagnostics.push({
-        file: sourceFile.fileName,
-        line: index + 1,
-        message: `Executable source line is ${line.length} characters; consider splitting the structure into readable multiline source.`,
-        rule: "line-length",
-        severity: "warning",
+        diagnostic: {
+          file: sourceFile.fileName,
+          line: index + 1,
+          message: `Executable source line is ${line.length} characters; consider splitting the structure into readable multiline source.`,
+          rule: "line-length",
+          severity: "warning",
+        },
+        end,
+        start,
       });
     }
   }
   return diagnostics;
 }
 
-function coveredLines(candidates: JsxCandidate[]) {
-  const lines = new Set<number>();
-  for (const candidate of candidates) {
-    for (
-      let line = candidate.startLine;
-      line <= candidate.endLine;
-      line += 1
-    ) {
-      lines.add(line);
-    }
-  }
-  return lines;
+function toFindings(candidates: JsxCandidate[], file: string): DiagnosticFinding[] {
+  return candidates.map(({ line, message, node, rule, severity }) => ({
+    diagnostic: { file, line, message, rule, severity },
+    end: node.getEnd(),
+    start: node.getStart(),
+  }));
 }
 
-function toDiagnostics(candidates: JsxCandidate[], file: string) {
-  return candidates.map(({ line, message, rule, severity }) => ({
-    file,
-    line,
-    message,
-    rule,
-    severity,
-  }));
+function findingOverlaps(left: DiagnosticFinding, right: DiagnosticFinding) {
+  return left.start < right.end && right.start < left.end;
+}
+
+function deduplicateFindings(
+  jsxFindings: DiagnosticFinding[],
+  lineFindings: DiagnosticFinding[],
+) {
+  const jsxErrors = jsxFindings.filter(
+    ({ diagnostic }) => diagnostic.severity === "error",
+  );
+  const lineErrors = lineFindings.filter(
+    ({ diagnostic }) => diagnostic.severity === "error",
+  );
+  return [
+    ...jsxFindings.filter(
+      (finding) =>
+        finding.diagnostic.severity === "error" ||
+        !lineErrors.some((lineFinding) => findingOverlaps(finding, lineFinding)),
+    ),
+    ...lineFindings.filter((finding) =>
+      finding.diagnostic.severity === "error"
+        ? !jsxErrors.some((jsxFinding) => findingOverlaps(finding, jsxFinding))
+        : !jsxFindings.some((jsxFinding) => findingOverlaps(finding, jsxFinding)),
+    ),
+  ].map(({ diagnostic }) => diagnostic);
 }
 
 function severityOrder(severity: ReadabilitySeverity) {
@@ -522,24 +587,15 @@ export function checkSourceText(source: string, fileName: string) {
   const sourceFile = parseSource(source, fileName);
   const infos = collectJsxInfo(sourceFile);
   const candidates = selectJsxCandidates(jsxCandidates(infos));
-  const jsxLines = new Set(
-    infos.flatMap(({ startLine, endLine }) =>
-      Array.from(
-        { length: endLine - startLine + 1 },
-        (_, index) => startLine + index,
-      ),
-    ),
-  );
-  const diagnostics = [
-    ...toDiagnostics(candidates, fileName),
-    ...lineDiagnostics(
+  const diagnostics = deduplicateFindings(
+    toFindings(candidates, fileName),
+    lineDiagnostics(
       sourceFile,
       source,
       collectLiteralRanges(sourceFile),
-      jsxLines,
-      coveredLines(candidates),
+      collectLineEvidence(sourceFile),
     ),
-  ];
+  );
   return sortDiagnostics(diagnostics);
 }
 

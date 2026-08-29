@@ -29,6 +29,20 @@ describe("source readability checker", () => {
     });
   });
 
+  it("keeps a hard line error when JSX warning diagnostics overlap it", () => {
+    const diagnostics = checkSourceText(
+      `const rows = items.map((item) => <div><span /><strong /><button /><small />{${"value + ".repeat(50)}true}</div>);`,
+      file,
+    );
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      rule: "line-length",
+      severity: "error",
+    });
+    expect(diagnostics.some(({ rule }) => rule === "jsx-local-density")).toBe(false);
+    expect(exitCode(diagnostics)).toBe(1);
+  });
+
   it("warns on an executable line over 240 characters without failing", () => {
     const diagnostics = checkSourceText(
       `const value = ${"value + ".repeat(30)}true;`,
@@ -40,6 +54,16 @@ describe("source readability checker", () => {
       severity: "warning",
     });
     expect(exitCode(diagnostics)).toBe(0);
+  });
+
+  it("does not warn on a long cohesive function signature", () => {
+    const parameters = Array.from(
+      { length: 18 },
+      (_, index) => `argument${index}: string`,
+    ).join(", ");
+    const source = `function handler(${parameters}) { return argument0; }`;
+    expect(source.length).toBeGreaterThan(240);
+    expect(checkSourceText(source, "src/fixture.ts")).toEqual([]);
   });
 
   it("exempts SQL and theme bootstrap literals but not neighboring executable source", () => {
@@ -121,6 +145,16 @@ describe("source readability checker", () => {
     expect(formatDiagnostic(diagnostics[0]!, process.cwd())).toMatch(
       /^src\/fixture\.tsx:1 readability\/error line-length Executable source line is \d+ characters;/,
     );
+  });
+
+  it("sorts severity results deterministically", () => {
+    const warning = `const value = ${"value + ".repeat(30)}true;`;
+    const error = `const value = ${"value + ".repeat(50)}true;`;
+    const diagnostics = checkSourceText(`${warning}\n${error}`, file);
+    expect(diagnostics.map(({ line, severity }) => ({ line, severity }))).toEqual([
+      { line: 2, severity: "error" },
+      { line: 1, severity: "warning" },
+    ]);
   });
 
   it("returns a nonzero exit code only when errors exist", () => {
