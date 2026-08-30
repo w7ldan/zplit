@@ -125,4 +125,25 @@ describe("notification catalog", () => {
     });
     expect(() => normalizeNotificationMetadata("group.offset.confirmation", { ...metadata, offsetId: "not-an-id" })).toThrow("Invalid metadata");
   });
+
+  it("presents decision outcomes with stable object identity and no private fields", () => {
+    const ids = {
+      requestId: "11111111-1111-4111-8111-111111111111",
+      friendId: "22222222-2222-4222-8222-222222222222",
+      organizationId: "33333333-3333-4333-8333-333333333333",
+      invitationId: "44444444-4444-4444-8444-444444444444",
+      groupId: "55555555-5555-4555-8555-555555555555",
+      expenseId: "66666666-6666-4666-8666-666666666666",
+      settlementId: "77777777-7777-4777-8777-777777777777",
+      offsetId: "88888888-8888-4888-8888-888888888888",
+    };
+    expect(normalizeNotificationMetadata("friend.link.request.outcome", { requestId: ids.requestId, friendId: ids.friendId, status: "accepted" })).toEqual({ requestId: ids.requestId, friendId: ids.friendId, status: "accepted" });
+    expect(presentNotification("organization.invitation.outcome", { invitationId: ids.invitationId, organizationId: ids.organizationId, status: "declined" })).toEqual({ label: "Organization invitation outcome", primary: "Your Organization invitation was declined." });
+    expect(presentNotification("group.invitation.outcome", { requestId: ids.requestId, groupId: ids.groupId, status: "accepted" })).toEqual({ label: "Group invitation outcome", primary: "Your Group invitation was accepted." });
+    expect(presentNotification("group.participant.link.outcome", { requestId: ids.requestId, groupId: ids.groupId, status: "declined" })).toEqual({ label: "Group account link outcome", primary: "Your Group account link request was declined." });
+    expect(presentNotification("group.expense.payer.claim.outcome", { expenseId: ids.expenseId, groupId: ids.groupId, description: "Dinner", status: "rejected" })).toEqual({ label: "Group expense outcome", primary: "Your payer claim for “Dinner” was rejected." });
+    expect(presentNotification("group.settlement.outcome", { settlementId: ids.settlementId, groupId: ids.groupId, status: "confirmed" })).toEqual({ label: "Group payment outcome", primary: "Your Group payment was confirmed." });
+    expect(presentNotification("group.offset.outcome", { offsetId: ids.offsetId, groupId: ids.groupId, status: "confirmed" })).toEqual({ label: "Group offset outcome", primary: "Your Group offset proposal was confirmed." });
+    expect(() => normalizeNotificationMetadata("group.settlement.outcome", { settlementId: ids.settlementId, groupId: ids.groupId, status: "confirmed", email: "private@example.com" })).toThrow("Invalid metadata");
+  });
 });

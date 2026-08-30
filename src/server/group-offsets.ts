@@ -452,7 +452,7 @@ async function confirmOffset(database: Database, groupId: string, offsetId: stri
       if (!isActiveGroupParticipant(counterparty, locked.memberships.get(counterparty.id))) throw new GroupOffsetError("counterparty_not_active");
       if (!initiator) throw new GroupOffsetError("initiator_not_found");
       if (!isActiveGroupParticipant(initiator, locked.memberships.get(initiator.id))) throw new GroupOffsetError("initiator_not_active");
-      if (offset.state === "confirmed") return { changed: false, userIds: await activeGroupUserIds(transactionalDatabase, groupId) };
+      if (offset.state === "confirmed") return { changed: false, notificationUserId: null, userIds: await activeGroupUserIds(transactionalDatabase, groupId) };
       if (offset.state !== "pending") throw new GroupOffsetError("invalid_state");
       const now = new Date();
       const obligations = await loadOffsettableObligations(transactionalDatabase, groupId, [initiator.id, counterparty.id], now, true);
@@ -487,11 +487,20 @@ async function confirmOffset(database: Database, groupId: string, offsetId: stri
           eq(notifications.type, NOTIFICATION_TYPES.groupOffsetConfirmation),
           eq(notifications.dedupeKey, `group-offset-confirmation:${offsetId}`),
         ));
-      return { changed: true, userIds: await activeGroupUserIds(transactionalDatabase, groupId) };
+      if (initiator?.userId && initiator.userId !== actorUserId) {
+        await createNotificationInDatabase(transactionalDatabase, {
+          recipientUserId: initiator.userId,
+          type: NOTIFICATION_TYPES.groupOffsetOutcome,
+          metadata: { offsetId, groupId, status: "confirmed" },
+          dedupeKey: `group-offset-outcome:${offsetId}:confirmed`,
+        });
+      }
+      return { changed: true, notificationUserId: initiator?.userId ?? null, userIds: await activeGroupUserIds(transactionalDatabase, groupId) };
     });
     const confirmed = await loadOffset(database, groupId, offsetId);
     if (result.changed) publishGroupOffsetFreshness(result.userIds, groupId, offsetId, confirmed.state);
     if (result.changed) publishNotificationStateChange(actorUserId, "resolved");
+    if (result.changed && result.notificationUserId) publishNotificationStateChange(result.notificationUserId, "created");
     return confirmed;
   } catch (error) {
     if (error instanceof GroupOffsetAllocationError) throw new GroupOffsetError("financial_integrity");

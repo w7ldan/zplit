@@ -181,6 +181,12 @@ describe("Organization invitation responses", () => {
     await expect(acceptOrganizationInvitation(db, targetUserId, invitationId)).resolves.toMatchObject({ status: "accepted" });
     expect(db.insert).toHaveBeenCalledOnce();
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetUserId, "resolved");
+    expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(db, expect.objectContaining({
+      recipientUserId: inviterUserId,
+      type: "organization.invitation.outcome",
+      metadata: { invitationId, organizationId, status: "accepted" },
+      dedupeKey: `organization-invitation-outcome:${invitationId}:accepted`,
+    }));
   });
 
   it("rejects acceptance after the inviter loses current authority and creates no membership", async () => {
@@ -204,6 +210,12 @@ describe("Organization invitation responses", () => {
     const declineDb = database([[invitation()]], [], [[declined], []]);
     await expect(declineOrganizationInvitation(declineDb, targetUserId, invitationId)).resolves.toMatchObject({ status: "declined" });
     expect(declineDb.insert).not.toHaveBeenCalled();
+    expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(declineDb, expect.objectContaining({
+      recipientUserId: inviterUserId,
+      type: "organization.invitation.outcome",
+      metadata: { invitationId, organizationId, status: "declined" },
+      dedupeKey: `organization-invitation-outcome:${invitationId}:declined`,
+    }));
   });
 
   it("revokes only through current Organization members.invite access", async () => {

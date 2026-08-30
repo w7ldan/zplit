@@ -285,16 +285,22 @@ async function acceptOrDecline(database: Database, targetUserId: string, invitat
       .limit(1)
       .for("update");
     if (!invitation) throw new OrganizationInvitationError("not_found");
-    if (invitation.status !== "pending") return { organizationId: invitation.organizationId, targetUserId, changed: false, error: undefined, status: invitation.status };
+    if (invitation.status !== "pending") return { organizationId: invitation.organizationId, targetUserId, recipientUserId: invitation.invitedByUserId, changed: false, error: undefined, status: invitation.status };
     const now = new Date();
     if (isOrganizationInvitationExpired(invitation.expiresAt, now)) {
       const expired = await transitionPendingInvitation(transaction as Database, invitation.id, "expired", now, targetUserId);
-      return { organizationId: invitation.organizationId, targetUserId, changed: Boolean(expired), error: "expired" as const, status: "expired" as const };
+      return { organizationId: invitation.organizationId, targetUserId, recipientUserId: invitation.invitedByUserId, changed: Boolean(expired), error: "expired" as const, status: "expired" as const };
     }
     if (response === "decline") {
       const declined = await transitionPendingInvitation(transaction as Database, invitation.id, "declined", now, targetUserId);
       if (!declined) throw new OrganizationInvitationError("resolved");
-      return { organizationId: invitation.organizationId, targetUserId, changed: true, error: undefined, status: "declined" as const };
+      await createNotificationInDatabase(transaction as Database, {
+        recipientUserId: invitation.invitedByUserId,
+        type: NOTIFICATION_TYPES.organizationInvitationOutcome,
+        metadata: { invitationId: invitation.id, organizationId: invitation.organizationId, status: "declined" },
+        dedupeKey: `organization-invitation-outcome:${invitation.id}:declined`,
+      });
+      return { organizationId: invitation.organizationId, targetUserId, recipientUserId: invitation.invitedByUserId, changed: true, error: undefined, status: "declined" as const };
     }
 
     const [organization] = await transaction.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, invitation.organizationId)).limit(1).for("update");
@@ -305,7 +311,7 @@ async function acceptOrDecline(database: Database, targetUserId: string, invitat
     } catch (error) {
       if (!(error instanceof OrganizationError)) throw error;
       const revoked = await transitionPendingInvitation(transaction as Database, invitation.id, "revoked", now, targetUserId);
-      return { organizationId: invitation.organizationId, targetUserId, changed: Boolean(revoked), error: "stale_authority" as const, status: "revoked" as const };
+      return { organizationId: invitation.organizationId, targetUserId, recipientUserId: invitation.invitedByUserId, changed: Boolean(revoked), error: "stale_authority" as const, status: "revoked" as const };
     }
     if (!canGrantOrganizationInvitationRole(invitation.role, inviterAccess.can)) {
       const revoked = await transitionPendingInvitation(transaction as Database, invitation.id, "revoked", now, targetUserId);
@@ -319,7 +325,7 @@ async function acceptOrDecline(database: Database, targetUserId: string, invitat
       .for("update");
     if (existing) {
       const revoked = await transitionPendingInvitation(transaction as Database, invitation.id, "revoked", now, targetUserId);
-      return { organizationId: invitation.organizationId, targetUserId, changed: Boolean(revoked), error: "already_member" as const, status: "revoked" as const };
+      return { organizationId: invitation.organizationId, targetUserId, recipientUserId: invitation.invitedByUserId, changed: Boolean(revoked), error: "already_member" as const, status: "revoked" as const };
     }
     const [membership] = await transaction
       .insert(organizationMemberships)
@@ -328,13 +334,20 @@ async function acceptOrDecline(database: Database, targetUserId: string, invitat
       .returning();
     if (!membership) {
       const revoked = await transitionPendingInvitation(transaction as Database, invitation.id, "revoked", now, targetUserId);
-      return { organizationId: invitation.organizationId, targetUserId, changed: Boolean(revoked), error: "already_member" as const, status: "revoked" as const };
+      return { organizationId: invitation.organizationId, targetUserId, recipientUserId: invitation.invitedByUserId, changed: Boolean(revoked), error: "already_member" as const, status: "revoked" as const };
     }
     const accepted = await transitionPendingInvitation(transaction as Database, invitation.id, "accepted", now, targetUserId);
     if (!accepted) throw new OrganizationInvitationError("conflict");
-    return { organizationId: invitation.organizationId, targetUserId, changed: true, error: undefined, status: "accepted" as const };
+    await createNotificationInDatabase(transaction as Database, {
+      recipientUserId: invitation.invitedByUserId,
+      type: NOTIFICATION_TYPES.organizationInvitationOutcome,
+      metadata: { invitationId: invitation.id, organizationId: invitation.organizationId, status: "accepted" },
+      dedupeKey: `organization-invitation-outcome:${invitation.id}:accepted`,
+    });
+    return { organizationId: invitation.organizationId, targetUserId, recipientUserId: invitation.invitedByUserId, changed: true, error: undefined, status: "accepted" as const };
   });
   if (result.changed) publishNotificationStateChange(result.targetUserId, "resolved");
+  if (result.changed && (result.status === "accepted" || result.status === "declined")) publishNotificationStateChange(result.recipientUserId, "created");
   if (result.error) throw new OrganizationInvitationError(result.error);
   return result;
 }

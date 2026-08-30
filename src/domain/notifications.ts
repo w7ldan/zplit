@@ -4,12 +4,19 @@ import { isOrganizationInvitationRole, type OrganizationInvitationRole } from "@
 export const NOTIFICATION_TYPES = {
   test: "system.test",
   friendLinkRequest: "friend.link.request",
+  friendLinkRequestOutcome: "friend.link.request.outcome",
   organizationInvitation: "organization.invitation",
+  organizationInvitationOutcome: "organization.invitation.outcome",
   groupInvitation: "group.invitation",
+  groupInvitationOutcome: "group.invitation.outcome",
   groupParticipantLinkRequest: "group.participant.link.request",
+  groupParticipantLinkOutcome: "group.participant.link.outcome",
   groupExpensePayerClaim: "group.expense.payer.claim",
+  groupExpensePayerClaimOutcome: "group.expense.payer.claim.outcome",
   groupSettlementConfirmation: "group.settlement.confirmation",
+  groupSettlementOutcome: "group.settlement.outcome",
   groupOffsetConfirmation: "group.offset.confirmation",
+  groupOffsetOutcome: "group.offset.outcome",
 } as const;
 export const NOTIFICATION_STATE_CHANGED_EVENT = "notification.state.changed";
 
@@ -19,9 +26,15 @@ export type NotificationMetadata = {
   "system.test": { message: string };
   "friend.link.request": {
     requestId: string;
+    friendId?: string;
     requesterDisplayName: string;
     requesterUsername: string;
     friendName: string;
+  };
+  "friend.link.request.outcome": {
+    requestId: string;
+    friendId: string;
+    status: "accepted" | "declined";
   };
   "organization.invitation": {
     invitationId: string;
@@ -31,6 +44,11 @@ export type NotificationMetadata = {
     role: OrganizationInvitationRole;
     expiresAt: string;
   };
+  "organization.invitation.outcome": {
+    invitationId: string;
+    organizationId: string;
+    status: "accepted" | "declined";
+  };
   "group.invitation": {
     requestId: string;
     groupId: string;
@@ -38,6 +56,11 @@ export type NotificationMetadata = {
     requesterDisplayName: string;
     requesterUsername: string | null;
     expiresAt: string;
+  };
+  "group.invitation.outcome": {
+    requestId: string;
+    groupId: string;
+    status: "accepted" | "declined";
   };
   "group.participant.link.request": {
     requestId: string;
@@ -49,11 +72,22 @@ export type NotificationMetadata = {
     participantLabel: string | null;
     expiresAt: string;
   };
+  "group.participant.link.outcome": {
+    requestId: string;
+    groupId: string;
+    status: "accepted" | "declined";
+  };
   "group.expense.payer.claim": {
     expenseId: string;
     groupId: string;
     groupName: string;
     description: string;
+  };
+  "group.expense.payer.claim.outcome": {
+    expenseId: string;
+    groupId: string;
+    description: string;
+    status: "confirmed" | "rejected";
   };
   "group.settlement.confirmation": {
     settlementId: string;
@@ -62,12 +96,22 @@ export type NotificationMetadata = {
     senderParticipantId: string;
     senderDisplayName: string;
   };
+  "group.settlement.outcome": {
+    settlementId: string;
+    groupId: string;
+    status: "confirmed";
+  };
   "group.offset.confirmation": {
     offsetId: string;
     groupId: string;
     groupName: string;
     initiatorParticipantId: string;
     initiatorDisplayName: string;
+  };
+  "group.offset.outcome": {
+    offsetId: string;
+    groupId: string;
+    status: "confirmed";
   };
 };
 
@@ -91,17 +135,30 @@ function parseTestMetadata(value: unknown): NotificationMetadata["system.test"] 
 function parseFriendLinkRequestMetadata(value: unknown): NotificationMetadata["friend.link.request"] | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  if (Object.keys(record).length !== 4) return null;
+  if (Object.keys(record).length !== 4 && Object.keys(record).length !== 5) return null;
   if (typeof record.requestId !== "string" || !/^[0-9a-f-]{36}$/.test(record.requestId)) return null;
+  const friendId = record.friendId === undefined ? undefined : normalizeUuid(record.friendId);
+  if (Object.keys(record).length === 5 && !friendId) return null;
   if (typeof record.requesterDisplayName !== "string" || !record.requesterDisplayName.trim() || record.requesterDisplayName.length > 120) return null;
   if (typeof record.requesterUsername !== "string" || !/^[a-z0-9][a-z0-9._]*[a-z0-9]$/.test(record.requesterUsername)) return null;
   if (typeof record.friendName !== "string" || !record.friendName.trim() || record.friendName.length > 120) return null;
   return {
     requestId: record.requestId,
+    ...(friendId ? { friendId } : {}),
     requesterDisplayName: record.requesterDisplayName.trim(),
     requesterUsername: record.requesterUsername,
     friendName: record.friendName.trim(),
   };
+}
+
+function parseFriendLinkRequestOutcomeMetadata(value: unknown): NotificationMetadata["friend.link.request.outcome"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 3) return null;
+  const requestId = normalizeUuid(record.requestId);
+  const friendId = normalizeUuid(record.friendId);
+  if (!requestId || !friendId || (record.status !== "accepted" && record.status !== "declined")) return null;
+  return { requestId, friendId, status: record.status };
 }
 
 function parseOrganizationInvitationMetadata(value: unknown): NotificationMetadata["organization.invitation"] | null {
@@ -123,6 +180,16 @@ function parseOrganizationInvitationMetadata(value: unknown): NotificationMetada
     role: record.role,
     expiresAt: new Date(record.expiresAt).toISOString(),
   };
+}
+
+function parseOrganizationInvitationOutcomeMetadata(value: unknown): NotificationMetadata["organization.invitation.outcome"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 3) return null;
+  const invitationId = normalizeUuid(record.invitationId);
+  const organizationId = normalizeUuid(record.organizationId);
+  if (!invitationId || !organizationId || (record.status !== "accepted" && record.status !== "declined")) return null;
+  return { invitationId, organizationId, status: record.status };
 }
 
 function requesterFields(record: Record<string, unknown>) {
@@ -150,6 +217,16 @@ function parseGroupInvitationMetadata(value: unknown): NotificationMetadata["gro
   return { requestId: fields.requestId, groupId: fields.groupId, groupName: fields.groupName, ...fields.requester, expiresAt: fields.expiresAt };
 }
 
+function parseGroupInvitationOutcomeMetadata(value: unknown): NotificationMetadata["group.invitation.outcome"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 3) return null;
+  const requestId = normalizeUuid(record.requestId);
+  const groupId = normalizeUuid(record.groupId);
+  if (!requestId || !groupId || (record.status !== "accepted" && record.status !== "declined")) return null;
+  return { requestId, groupId, status: record.status };
+}
+
 function parseGroupParticipantLinkMetadata(value: unknown): NotificationMetadata["group.participant.link.request"] | null {
   const fields = groupRequestFields(value, 8);
   if (!fields) return null;
@@ -167,6 +244,16 @@ function parseGroupParticipantLinkMetadata(value: unknown): NotificationMetadata
   };
 }
 
+function parseGroupParticipantLinkOutcomeMetadata(value: unknown): NotificationMetadata["group.participant.link.outcome"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 3) return null;
+  const requestId = normalizeUuid(record.requestId);
+  const groupId = normalizeUuid(record.groupId);
+  if (!requestId || !groupId || (record.status !== "accepted" && record.status !== "declined")) return null;
+  return { requestId, groupId, status: record.status };
+}
+
 function parseGroupExpensePayerClaimMetadata(value: unknown): NotificationMetadata["group.expense.payer.claim"] | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -177,6 +264,18 @@ function parseGroupExpensePayerClaimMetadata(value: unknown): NotificationMetada
   if (typeof record.groupName !== "string" || !record.groupName.trim() || record.groupName.length > 160) return null;
   if (typeof record.description !== "string" || !record.description.trim() || record.description.length > 200) return null;
   return { expenseId, groupId, groupName: record.groupName.trim(), description: record.description.trim() };
+}
+
+function parseGroupExpensePayerClaimOutcomeMetadata(value: unknown): NotificationMetadata["group.expense.payer.claim.outcome"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 4) return null;
+  const expenseId = normalizeUuid(record.expenseId);
+  const groupId = normalizeUuid(record.groupId);
+  if (!expenseId || !groupId) return null;
+  if (typeof record.description !== "string" || !record.description.trim() || record.description.length > 200) return null;
+  if (record.status !== "confirmed" && record.status !== "rejected") return null;
+  return { expenseId, groupId, description: record.description.trim(), status: record.status };
 }
 
 function parseGroupSettlementConfirmationMetadata(value: unknown): NotificationMetadata["group.settlement.confirmation"] | null {
@@ -198,6 +297,16 @@ function parseGroupSettlementConfirmationMetadata(value: unknown): NotificationM
   };
 }
 
+function parseGroupSettlementOutcomeMetadata(value: unknown): NotificationMetadata["group.settlement.outcome"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 3) return null;
+  const settlementId = normalizeUuid(record.settlementId);
+  const groupId = normalizeUuid(record.groupId);
+  if (!settlementId || !groupId || record.status !== "confirmed") return null;
+  return { settlementId, groupId, status: "confirmed" };
+}
+
 function parseGroupOffsetConfirmationMetadata(value: unknown): NotificationMetadata["group.offset.confirmation"] | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -217,32 +326,70 @@ function parseGroupOffsetConfirmationMetadata(value: unknown): NotificationMetad
   };
 }
 
+function parseGroupOffsetOutcomeMetadata(value: unknown): NotificationMetadata["group.offset.outcome"] | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 3) return null;
+  const offsetId = normalizeUuid(record.offsetId);
+  const groupId = normalizeUuid(record.groupId);
+  if (!offsetId || !groupId || record.status !== "confirmed") return null;
+  return { offsetId, groupId, status: "confirmed" };
+}
+
 export function getFriendLinkRequestMetadata(value: unknown) {
   return parseFriendLinkRequestMetadata(value);
+}
+
+export function getFriendLinkRequestOutcomeMetadata(value: unknown) {
+  return parseFriendLinkRequestOutcomeMetadata(value);
 }
 
 export function getOrganizationInvitationMetadata(value: unknown) {
   return parseOrganizationInvitationMetadata(value);
 }
 
+export function getOrganizationInvitationOutcomeMetadata(value: unknown) {
+  return parseOrganizationInvitationOutcomeMetadata(value);
+}
+
 export function getGroupInvitationMetadata(value: unknown) {
   return parseGroupInvitationMetadata(value);
+}
+
+export function getGroupInvitationOutcomeMetadata(value: unknown) {
+  return parseGroupInvitationOutcomeMetadata(value);
 }
 
 export function getGroupParticipantLinkMetadata(value: unknown) {
   return parseGroupParticipantLinkMetadata(value);
 }
 
+export function getGroupParticipantLinkOutcomeMetadata(value: unknown) {
+  return parseGroupParticipantLinkOutcomeMetadata(value);
+}
+
 export function getGroupExpensePayerClaimMetadata(value: unknown) {
   return parseGroupExpensePayerClaimMetadata(value);
+}
+
+export function getGroupExpensePayerClaimOutcomeMetadata(value: unknown) {
+  return parseGroupExpensePayerClaimOutcomeMetadata(value);
 }
 
 export function getGroupSettlementConfirmationMetadata(value: unknown) {
   return parseGroupSettlementConfirmationMetadata(value);
 }
 
+export function getGroupSettlementOutcomeMetadata(value: unknown) {
+  return parseGroupSettlementOutcomeMetadata(value);
+}
+
 export function getGroupOffsetConfirmationMetadata(value: unknown) {
   return parseGroupOffsetConfirmationMetadata(value);
+}
+
+export function getGroupOffsetOutcomeMetadata(value: unknown) {
+  return parseGroupOffsetOutcomeMetadata(value);
 }
 
 function roleLabel(role: OrganizationInvitationRole) {
@@ -271,6 +418,14 @@ export const notificationCatalog = {
       secondary: "Identity confirmation only.",
     }),
   },
+  "friend.link.request.outcome": {
+    label: "Friend link outcome",
+    parseMetadata: parseFriendLinkRequestOutcomeMetadata,
+    present: (metadata: NotificationMetadata["friend.link.request.outcome"]): NotificationPresentation => ({
+      label: "Friend link outcome",
+      primary: `Your Friend link request was ${metadata.status}.`,
+    }),
+  },
   "organization.invitation": {
     label: "Organization invitation",
     parseMetadata: parseOrganizationInvitationMetadata,
@@ -279,12 +434,28 @@ export const notificationCatalog = {
       primary: `${metadata.inviterDisplayName} invited you to join ${metadata.organizationName} as ${roleLabel(metadata.role)}.`,
     }),
   },
+  "organization.invitation.outcome": {
+    label: "Organization invitation outcome",
+    parseMetadata: parseOrganizationInvitationOutcomeMetadata,
+    present: (metadata: NotificationMetadata["organization.invitation.outcome"]): NotificationPresentation => ({
+      label: "Organization invitation outcome",
+      primary: `Your Organization invitation was ${metadata.status}.`,
+    }),
+  },
   "group.invitation": {
     label: "Group invitation",
     parseMetadata: parseGroupInvitationMetadata,
     present: (metadata: NotificationMetadata["group.invitation"]): NotificationPresentation => ({
       label: "Group invitation",
       primary: `${requesterLabel(metadata)} invited you to join ${metadata.groupName}.`,
+    }),
+  },
+  "group.invitation.outcome": {
+    label: "Group invitation outcome",
+    parseMetadata: parseGroupInvitationOutcomeMetadata,
+    present: (metadata: NotificationMetadata["group.invitation.outcome"]): NotificationPresentation => ({
+      label: "Group invitation outcome",
+      primary: `Your Group invitation was ${metadata.status}.`,
     }),
   },
   "group.participant.link.request": {
@@ -296,6 +467,14 @@ export const notificationCatalog = {
       secondary: "This links your account to an existing Group participant.",
     }),
   },
+  "group.participant.link.outcome": {
+    label: "Group account link outcome",
+    parseMetadata: parseGroupParticipantLinkOutcomeMetadata,
+    present: (metadata: NotificationMetadata["group.participant.link.outcome"]): NotificationPresentation => ({
+      label: "Group account link outcome",
+      primary: `Your Group account link request was ${metadata.status}.`,
+    }),
+  },
   "group.expense.payer.claim": {
     label: "Group expense confirmation",
     parseMetadata: parseGroupExpensePayerClaimMetadata,
@@ -303,6 +482,14 @@ export const notificationCatalog = {
       label: "Group expense confirmation",
       primary: `Review the claim that you paid “${metadata.description}” in ${metadata.groupName}.`,
       secondary: "Confirm that you paid it or reject the claim.",
+    }),
+  },
+  "group.expense.payer.claim.outcome": {
+    label: "Group expense outcome",
+    parseMetadata: parseGroupExpensePayerClaimOutcomeMetadata,
+    present: (metadata: NotificationMetadata["group.expense.payer.claim.outcome"]): NotificationPresentation => ({
+      label: "Group expense outcome",
+      primary: `Your payer claim for “${metadata.description}” was ${metadata.status}.`,
     }),
   },
   "group.settlement.confirmation": {
@@ -314,6 +501,14 @@ export const notificationCatalog = {
       secondary: "Confirmation is required.",
     }),
   },
+  "group.settlement.outcome": {
+    label: "Group payment outcome",
+    parseMetadata: parseGroupSettlementOutcomeMetadata,
+    present: (metadata: NotificationMetadata["group.settlement.outcome"]): NotificationPresentation => ({
+      label: "Group payment outcome",
+      primary: `Your Group payment was ${metadata.status}.`,
+    }),
+  },
   "group.offset.confirmation": {
     label: "Group offset confirmation",
     parseMetadata: parseGroupOffsetConfirmationMetadata,
@@ -321,6 +516,14 @@ export const notificationCatalog = {
       label: "Group offset confirmation",
       primary: `${metadata.initiatorDisplayName} proposed an offset with you in ${metadata.groupName}.`,
       secondary: "No money moves; confirmation is required.",
+    }),
+  },
+  "group.offset.outcome": {
+    label: "Group offset outcome",
+    parseMetadata: parseGroupOffsetOutcomeMetadata,
+    present: (metadata: NotificationMetadata["group.offset.outcome"]): NotificationPresentation => ({
+      label: "Group offset outcome",
+      primary: `Your Group offset proposal was ${metadata.status}.`,
     }),
   },
 } as const;

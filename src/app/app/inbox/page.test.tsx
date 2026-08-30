@@ -213,4 +213,41 @@ describe("/app/inbox", () => {
     expect(screen.getByText("Wildan proposed an offset with you in Bandung Trip.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Review offset" })).toHaveAttribute("href", `/app/personal/groups/${groupId}/settlements/offsets/${offsetId}`);
   });
+
+  it("navigates terminal outcomes by their own durable object identity", async () => {
+    const friendId = "11111111-1111-4111-8111-111111111111";
+    const requestId = "22222222-2222-4222-8222-222222222222";
+    const organizationId = "33333333-3333-4333-8333-333333333333";
+    const invitationId = "44444444-4444-4444-8444-444444444444";
+    const groupId = "55555555-5555-4555-8555-555555555555";
+    const expenseId = "66666666-6666-4666-8666-666666666666";
+    const settlementId = "77777777-7777-4777-8777-777777777777";
+    const offsetId = "88888888-8888-4888-8888-888888888888";
+    const metadata = { createdAt: new Date("2026-08-25T07:00:00Z"), readAt: new Date("2026-08-25T08:00:00Z"), recipientUserId: "user-a" };
+    mocks.getPage.mockResolvedValue({
+      rows: [
+        { ...metadata, id: "friend-outcome", type: "friend.link.request.outcome", metadata: { requestId, friendId, status: "accepted" }, dedupeKey: `friend-link-request-outcome:${requestId}:accepted` },
+        { ...metadata, id: "organization-outcome", type: "organization.invitation.outcome", metadata: { invitationId, organizationId, status: "declined" }, dedupeKey: `organization-invitation-outcome:${invitationId}:declined` },
+        { ...metadata, id: "group-outcome", type: "group.invitation.outcome", metadata: { requestId, groupId, status: "accepted" }, dedupeKey: `group-join-request-outcome:${requestId}:accepted` },
+        { ...metadata, id: "link-outcome", type: "group.participant.link.outcome", metadata: { requestId, groupId, status: "declined" }, dedupeKey: `group-join-request-outcome:${requestId}:declined` },
+        { ...metadata, id: "expense-outcome", type: "group.expense.payer.claim.outcome", metadata: { expenseId, groupId, description: "Dinner", status: "rejected" }, dedupeKey: `group-expense-payer-claim-outcome:${expenseId}:rejected` },
+        { ...metadata, id: "settlement-outcome", type: "group.settlement.outcome", metadata: { settlementId, groupId, status: "confirmed" }, dedupeKey: `group-settlement-outcome:${settlementId}:confirmed` },
+        { ...metadata, id: "offset-outcome", type: "group.offset.outcome", metadata: { offsetId, groupId, status: "confirmed" }, dedupeKey: `group-offset-outcome:${offsetId}:confirmed` },
+      ],
+      page: 1,
+      pageSize: 20,
+      totalItems: 7,
+      totalPages: 1,
+    });
+    mocks.getUnread.mockResolvedValue(0);
+    render(await InboxPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText("Your Friend link request was accepted.")).toBeInTheDocument();
+    expect(screen.getByText("Your payer claim for “Dinner” was rejected.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Friend" })).toHaveAttribute("href", `/app/friends/${friendId}`);
+    expect(screen.getByRole("link", { name: "Open organization" })).toHaveAttribute("href", `/app/organizations/${organizationId}`);
+    expect(screen.getAllByRole("link", { name: "Open Group" })).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Open expense" })).toHaveAttribute("href", `/app/personal/groups/${groupId}/expenses/${expenseId}`);
+    expect(screen.getByRole("link", { name: "Open payment" })).toHaveAttribute("href", `/app/personal/groups/${groupId}/settlements/${settlementId}`);
+    expect(screen.getByRole("link", { name: "Open offset" })).toHaveAttribute("href", `/app/personal/groups/${groupId}/settlements/offsets/${offsetId}`);
+  });
 });

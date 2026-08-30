@@ -271,8 +271,23 @@ async function runLifecycleAndMigrationChecks(pool: Pool, database: Database, fi
   assert(confirmed.state === "confirmed" && confirmed.confirmedAt !== null, "recipient confirmation did not persist");
   assert(confirmed.applications.length === 1 && confirmed.applications[0]?.appliedAmount === 70, "settlement was not fully applied to the debt");
   assert(await balance(database, fixture) === 30, "confirmed settlement did not reduce the balance once");
+  const outcomeCount = await pool.query<{ count: string }>(
+    "SELECT count(*)::text AS count FROM notifications WHERE recipient_user_id = $1 AND type = $2 AND dedupe_key = $3",
+    [fixture.senderUserId, "group.settlement.outcome", `group-settlement-outcome:${pending.id}:confirmed`],
+  );
+  assert(outcomeCount.rows[0]?.count === "1", "settlement confirmation did not notify the sender once");
+  const selfOutcomeCount = await pool.query<{ count: string }>(
+    "SELECT count(*)::text AS count FROM notifications WHERE recipient_user_id = $1 AND type = $2 AND dedupe_key = $3",
+    [fixture.recipientUserId, "group.settlement.outcome", `group-settlement-outcome:${pending.id}:confirmed`],
+  );
+  assert(selfOutcomeCount.rows[0]?.count === "0", "settlement confirmation notified the recipient about their own action");
   const repeated = await confirmGroupSettlement(database, fixture.groupId, pending.id, fixture.recipientUserId);
   assert(repeated.state === "confirmed" && await balance(database, fixture) === 30, "repeated confirmation changed the balance");
+  const repeatedOutcomeCount = await pool.query<{ count: string }>(
+    "SELECT count(*)::text AS count FROM notifications WHERE recipient_user_id = $1 AND type = $2 AND dedupe_key = $3",
+    [fixture.senderUserId, "group.settlement.outcome", `group-settlement-outcome:${pending.id}:confirmed`],
+  );
+  assert(repeatedOutcomeCount.rows[0]?.count === "1", "repeated settlement confirmation duplicated the outcome notification");
   const applicationTotal = await pool.query<{ total: string }>("SELECT COALESCE(sum(applied_amount), 0)::text AS total FROM group_settlement_applications WHERE settlement_id = $1", [pending.id]);
   assert(applicationTotal.rows[0]?.total === "70", "settlement application total changed on repeat confirmation");
 

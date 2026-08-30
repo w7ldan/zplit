@@ -71,7 +71,7 @@ describe("Friend ↔ Zplit-user linking", () => {
     expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(db.transactionDb, expect.objectContaining({
       recipientUserId: targetId,
       type: "friend.link.request",
-      metadata: { requestId, requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" },
+      metadata: { requestId, friendId, requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" },
       dedupeKey: `friend-link-request:${requestId}`,
     }));
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetId, "created");
@@ -133,6 +133,12 @@ describe("Friend ↔ Zplit-user linking", () => {
     expect(db.transactionDb.update).toHaveBeenCalledTimes(4);
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith(ownerId, expect.objectContaining({ type: "friend.link.state.changed", data: expect.objectContaining({ friendId, status: "accepted" }) }));
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetId, "resolved");
+    expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(db.transactionDb, expect.objectContaining({
+      recipientUserId: ownerId,
+      type: "friend.link.request.outcome",
+      metadata: { requestId, friendId, status: "accepted" },
+      dedupeKey: `friend-link-request-outcome:${requestId}:accepted`,
+    }));
   });
 
   it("reuses and reactivates the reciprocal Friend instead of creating a duplicate", async () => {
@@ -171,6 +177,12 @@ describe("Friend ↔ Zplit-user linking", () => {
 
     await expect(respondToFriendLinkRequest(db, targetId, requestId, "decline")).resolves.toMatchObject({ status: "declined" });
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith(ownerId, expect.objectContaining({ type: "friend.link.state.changed", data: expect.objectContaining({ status: "declined" }) }));
+    expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(db.transactionDb, expect.objectContaining({
+      recipientUserId: ownerId,
+      type: "friend.link.request.outcome",
+      metadata: { requestId, friendId, status: "declined" },
+      dedupeKey: `friend-link-request-outcome:${requestId}:declined`,
+    }));
   });
 
   it("resolves historical notification states by request id, not the current pair connection", async () => {

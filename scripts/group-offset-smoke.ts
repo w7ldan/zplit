@@ -192,10 +192,25 @@ async function runCoreChecks(pool: Pool, database: Database, fixtures: Fixture[]
   const confirmed = await confirmGroupOffset(database, fixture.groupId, pending.id, fixture.secondUserId);
   assert(confirmed.state === "confirmed" && confirmed.applications.reduce((total, application) => total + application.appliedAmount, 0) === 120, "offset did not apply the full amount in both directions");
   assert(await balance(database, fixture, fixture.firstParticipantId, fixture.secondParticipantId) === before, "confirmed offset changed the canonical pair net");
+  const outcomeCount = await pool.query<{ count: string }>(
+    "SELECT count(*)::text AS count FROM notifications WHERE recipient_user_id = $1 AND type = $2 AND dedupe_key = $3",
+    [fixture.firstUserId, "group.offset.outcome", `group-offset-outcome:${pending.id}:confirmed`],
+  );
+  assert(outcomeCount.rows[0]?.count === "1", "offset confirmation did not notify the initiator once");
+  const selfOutcomeCount = await pool.query<{ count: string }>(
+    "SELECT count(*)::text AS count FROM notifications WHERE recipient_user_id = $1 AND type = $2 AND dedupe_key = $3",
+    [fixture.secondUserId, "group.offset.outcome", `group-offset-outcome:${pending.id}:confirmed`],
+  );
+  assert(selfOutcomeCount.rows[0]?.count === "0", "offset confirmation notified the counterparty about their own action");
   const originals = await pool.query<{ id: string; original_amount: number }>("SELECT id, original_amount FROM group_obligations WHERE id = ANY($1::uuid[]) ORDER BY id", [[forward.obligationId, reverse.obligationId]]);
   assert(originals.rows.some((row) => row.id === forward.obligationId && row.original_amount === 100) && originals.rows.some((row) => row.id === reverse.obligationId && row.original_amount === 60), "offset changed original obligation amounts");
   const repeated = await confirmGroupOffset(database, fixture.groupId, pending.id, fixture.secondUserId);
   assert(repeated.applications.length === 2, "repeated confirmation changed the application set");
+  const repeatedOutcomeCount = await pool.query<{ count: string }>(
+    "SELECT count(*)::text AS count FROM notifications WHERE recipient_user_id = $1 AND type = $2 AND dedupe_key = $3",
+    [fixture.firstUserId, "group.offset.outcome", `group-offset-outcome:${pending.id}:confirmed`],
+  );
+  assert(repeatedOutcomeCount.rows[0]?.count === "1", "repeated offset confirmation duplicated the outcome notification");
   await expectCode(pool.query("UPDATE group_offset_settlements SET amount = 1 WHERE id = $1", [pending.id]), "P0001");
   await expectCode(pool.query("DELETE FROM group_offset_settlements WHERE id = $1", [pending.id]), "P0001");
   await expectCode(pool.query("UPDATE group_offset_applications SET applied_amount = 1 WHERE offset_settlement_id = $1", [pending.id]), "P0001");

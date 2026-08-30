@@ -208,6 +208,12 @@ describe("Group join requests", () => {
     expect(calls[0]?.values).toMatchObject({ groupId, userId: targetUserId, displayName: null });
     expect(calls[1]?.values).toMatchObject({ groupId, userId: targetUserId, participantId, role: "member" });
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetUserId, "resolved");
+    expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(db, expect.objectContaining({
+      recipientUserId: requesterUserId,
+      type: "group.invitation.outcome",
+      metadata: { requestId, groupId, status: "accepted" },
+      dedupeKey: `group-join-request-outcome:${requestId}:accepted`,
+    }));
   });
 
   it("rejoins a former registered participant without replacing its identity", async () => {
@@ -262,6 +268,12 @@ describe("Group join requests", () => {
     const declineDb = database([[request()]], [], [[declined], []]);
     await expect(declineGroupJoinRequest(declineDb.db, targetUserId, requestId)).resolves.toMatchObject({ status: "declined" });
     expect(declineDb.db.insert).not.toHaveBeenCalled();
+    expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(declineDb.db, expect.objectContaining({
+      recipientUserId: requesterUserId,
+      type: "group.invitation.outcome",
+      metadata: { requestId, groupId, status: "declined" },
+      dedupeKey: `group-join-request-outcome:${requestId}:declined`,
+    }));
 
     const revoked = request({ kind: "participant_link", participantId, status: "revoked", revokedAt: new Date(), updatedAt: new Date() });
     const revokeDb = database([[request({ kind: "participant_link", participantId })]], [], [[revoked], []]);

@@ -94,7 +94,7 @@ describe("Group expense lifecycle server operations", () => {
   it("confirms only the claimed payer and appends obligations and lifecycle history atomically", async () => {
     const confirmed = expense("confirmed");
     const event = { id: "event-confirm", groupId, expenseId, eventType: "payer_confirmed", actorUserId: actorUserId, fromState: "pending", toState: "confirmed", createdAt: new Date() };
-    const db = databaseFor([[expense("pending")], [share], [payer], [membership], [expense("pending")], [share], ...detailSelects(confirmed, [{ id: "obligation-a", groupId, sourceExpenseId: expenseId, sourceShareId: share.id, debtorParticipantId, creditorParticipantId: payerParticipantId, originalAmount: 100, voidedAt: null, createdAt: new Date() }], event)], [[confirmed], []], [[], [event]]);
+    const db = databaseFor([[expense("pending")], [share], [payer, { id: debtorParticipantId, userId: "user-creator" }], [membership], [expense("pending")], [share], ...detailSelects(confirmed, [{ id: "obligation-a", groupId, sourceExpenseId: expenseId, sourceShareId: share.id, debtorParticipantId, creditorParticipantId: payerParticipantId, originalAmount: 100, voidedAt: null, createdAt: new Date() }], event)], [[confirmed], []], [[], [event]]);
 
     const result = await createGroupAccountingRepository(db.database, groupId).confirmExpenseAsPayer(expenseId, actorUserId);
 
@@ -104,6 +104,12 @@ describe("Group expense lifecycle server operations", () => {
       { table: groupExpenseLifecycleEvents, values: expect.objectContaining({ eventType: "payer_confirmed", actorUserId, fromState: "pending", toState: "confirmed" }) },
     ]));
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(actorUserId, "resolved");
+    expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      recipientUserId: "user-creator",
+      type: "group.expense.payer.claim.outcome",
+      metadata: { expenseId, groupId, description: "Dinner", status: "confirmed" },
+      dedupeKey: `group-expense-payer-claim-outcome:${expenseId}:confirmed`,
+    }));
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith(actorUserId, expect.objectContaining({ type: "group.expense.state.changed" }));
   });
 
@@ -112,11 +118,17 @@ describe("Group expense lifecycle server operations", () => {
     const event = { id: "event-reject", groupId, expenseId, eventType: "payer_rejected", actorUserId, fromState: "pending", toState: "rejected", createdAt: new Date() };
     const denied = databaseFor([[expense("pending")], [share], [payer], [membership]], [], []);
     await expect(createGroupAccountingRepository(denied.database, groupId).confirmExpenseAsPayer(expenseId, "user-creator")).rejects.toMatchObject({ code: "forbidden" });
-    const db = databaseFor([[expense("pending")], [payer], [membership], [expense("pending")], [rejected], ...detailSelects(rejected, [], event)], [[rejected], []], [[event]]);
+    const db = databaseFor([[expense("pending")], [payer, { id: debtorParticipantId, userId: "user-creator" }], [membership], [expense("pending")], [rejected], ...detailSelects(rejected, [], event)], [[rejected], []], [[event]]);
     const repository = createGroupAccountingRepository(db.database, groupId);
 
     await expect(repository.rejectExpenseAsPayer(expenseId, actorUserId)).resolves.toMatchObject({ state: "rejected" });
     expect(db.inserted.some(({ table }) => table === groupObligations)).toBe(false);
+    expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      recipientUserId: "user-creator",
+      type: "group.expense.payer.claim.outcome",
+      metadata: { expenseId, groupId, description: "Dinner", status: "rejected" },
+      dedupeKey: `group-expense-payer-claim-outcome:${expenseId}:rejected`,
+    }));
   });
 
   it("voids only an active payer claim and preserves reversed obligations", async () => {

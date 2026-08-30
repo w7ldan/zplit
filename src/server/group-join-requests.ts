@@ -84,6 +84,15 @@ async function transitionPendingRequest(database: Database, request: typeof grou
   return updated;
 }
 
+async function createRequestOutcomeNotification(database: Database, request: typeof groupJoinRequests.$inferSelect, status: "accepted" | "declined") {
+  await createNotificationInDatabase(database, {
+    recipientUserId: request.requesterUserId,
+    type: request.kind === "member_invitation" ? NOTIFICATION_TYPES.groupInvitationOutcome : NOTIFICATION_TYPES.groupParticipantLinkOutcome,
+    metadata: { requestId: request.id, groupId: request.groupId, status },
+    dedupeKey: `group-join-request-outcome:${request.id}:${status}`,
+  });
+}
+
 async function resolveTarget(database: Database, username: string) {
   const [target] = await database
     .select({ id: users.id, name: users.name, username: users.username })
@@ -385,6 +394,7 @@ async function resolveNonAcceptance(
   if (response !== "decline") return null;
   const declined = await transitionPendingRequest(database, request, "declined", now);
   if (!declined) throw new GroupJoinRequestError("resolved");
+  await createRequestOutcomeNotification(database, request, "declined");
   return { request: declined, changed: true };
 }
 
@@ -494,9 +504,14 @@ async function respondToRequestInTransaction(database: Database, targetUserId: s
     const revoked = await transitionPendingRequest(database, request, "revoked", now);
     return { request: revoked ?? request, changed: Boolean(revoked), error: "stale_authority" };
   }
-  return request.kind === "member_invitation"
+  const result = request.kind === "member_invitation"
     ? acceptMemberInvitation(database, request, targetUserId, now)
     : acceptParticipantLink(database, request, targetUserId, now);
+  const resolved = await result;
+  if (resolved.request.status === "accepted" || resolved.request.status === "declined") {
+    await createRequestOutcomeNotification(database, request, resolved.request.status);
+  }
+  return resolved;
 }
 
 async function respondToRequest(database: Database, targetUserId: string, requestId: string, response: "accept" | "decline") {
@@ -507,6 +522,7 @@ async function respondToRequest(database: Database, targetUserId: string, reques
     throw error;
   });
   if (result.changed) publishNotificationStateChange(targetUserId, "resolved");
+  if (result.changed && (result.request.status === "accepted" || result.request.status === "declined")) publishNotificationStateChange(result.request.requesterUserId, "created");
   if (result.error) throw new GroupJoinRequestError(result.error as GroupJoinRequestError["code"]);
   return result.request;
 }

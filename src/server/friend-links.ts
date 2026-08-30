@@ -175,6 +175,7 @@ export async function createFriendLinkRequest(database: Database, ownerUserId: s
 
     const metadata: NotificationMetadata["friend.link.request"] = {
       requestId: request.id,
+      friendId: request.friendId,
       requesterDisplayName: requester.name,
       requesterUsername: requester.username,
       friendName: friend.name,
@@ -311,6 +312,12 @@ export async function respondToFriendLinkRequest(database: Database, targetUserI
         .returning();
       if (!declined) throw new FriendLinkError("resolved");
       await resolveRequestNotification(transaction as Database, targetUserId, request.id, now);
+      await createNotificationInDatabase(transaction as Database, {
+        recipientUserId: request.ownerUserId,
+        type: NOTIFICATION_TYPES.friendLinkRequestOutcome,
+        metadata: { requestId: request.id, friendId: request.friendId, status: "declined" },
+        dedupeKey: `friend-link-request-outcome:${request.id}:declined`,
+      });
       return { request: declined, changed: true, targetUserIds: [targetUserId] };
     }
 
@@ -356,6 +363,12 @@ export async function respondToFriendLinkRequest(database: Database, targetUserI
       .where(and(eq(friendLinkRequests.id, request.id), eq(friendLinkRequests.status, "pending")))
       .returning();
     if (!accepted) throw new FriendLinkError("resolved");
+    await createNotificationInDatabase(transaction as Database, {
+      recipientUserId: request.ownerUserId,
+      type: NOTIFICATION_TYPES.friendLinkRequestOutcome,
+      metadata: { requestId: request.id, friendId: request.friendId, status: "accepted" },
+      dedupeKey: `friend-link-request-outcome:${request.id}:accepted`,
+    });
 
     const cancelled = await transaction
       .update(friendLinkRequests)
@@ -380,6 +393,7 @@ export async function respondToFriendLinkRequest(database: Database, targetUserI
   if (result.changed) {
     for (const userId of result.targetUserIds) publishNotificationStateChange(userId, "resolved");
     publishNotificationStateChange(result.request.ownerUserId, "resolved");
+    if (result.request.status === "accepted" || result.request.status === "declined") publishNotificationStateChange(result.request.ownerUserId, "created");
     publishFriendLinkChange(result.request.ownerUserId, result.request.friendId, result.request.id, result.request.status as FriendLinkRequestStatus);
   }
   return result.request;

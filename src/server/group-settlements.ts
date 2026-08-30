@@ -421,12 +421,13 @@ async function confirmSettlement(database: Database, groupId: string, settlement
         .limit(1)
         .for("update");
       if (!settlement) throw new GroupSettlementError("not_found");
+      const sender = locked.participants.get(settlement.senderParticipantId);
       const recipient = locked.participants.get(settlement.recipientParticipantId);
       if (!recipient) throw new GroupSettlementError("recipient_not_found");
       if (recipient.userId !== actorUserId) throw new GroupSettlementError("forbidden");
       if (!isActiveGroupParticipant(recipient, locked.memberships.get(recipient.id))) throw new GroupSettlementError("recipient_not_active");
       if (settlement.state === "confirmed") {
-        return { changed: false, userIds: await listActiveGroupUserIds(transactionalDatabase, groupId) };
+        return { changed: false, notificationUserId: null, userIds: await listActiveGroupUserIds(transactionalDatabase, groupId) };
       }
       if (settlement.state !== "pending") throw new GroupSettlementError("invalid_state");
       if (balanceAmount(await readGroupBalances(transactionalDatabase, groupId), settlement.senderParticipantId, settlement.recipientParticipantId) < settlement.amount) {
@@ -455,11 +456,20 @@ async function confirmSettlement(database: Database, groupId: string, settlement
           eq(notifications.type, NOTIFICATION_TYPES.groupSettlementConfirmation),
           eq(notifications.dedupeKey, `group-settlement-confirmation:${settlementId}`),
         ));
-      return { changed: true, userIds: await listActiveGroupUserIds(transactionalDatabase, groupId) };
+      if (sender?.userId && sender.userId !== actorUserId) {
+        await createNotificationInDatabase(transactionalDatabase, {
+          recipientUserId: sender.userId,
+          type: NOTIFICATION_TYPES.groupSettlementOutcome,
+          metadata: { settlementId, groupId, status: "confirmed" },
+          dedupeKey: `group-settlement-outcome:${settlementId}:confirmed`,
+        });
+      }
+      return { changed: true, notificationUserId: sender?.userId ?? null, userIds: await listActiveGroupUserIds(transactionalDatabase, groupId) };
     });
     const confirmed = await loadSettlement(database, groupId, settlementId);
     if (result.changed) publishGroupSettlementFreshness(result.userIds, groupId, settlementId, confirmed.state);
     if (result.changed) publishNotificationStateChange(actorUserId, "resolved");
+    if (result.changed && result.notificationUserId) publishNotificationStateChange(result.notificationUserId, "created");
     return confirmed;
   } catch (error) {
     if (error instanceof GroupSettlementAllocationError) throw new GroupSettlementError("financial_integrity");
