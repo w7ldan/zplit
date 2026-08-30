@@ -175,7 +175,6 @@ export async function createFriendLinkRequest(database: Database, ownerUserId: s
 
     const metadata: NotificationMetadata["friend.link.request"] = {
       requestId: request.id,
-      friendId: request.friendId,
       requesterDisplayName: requester.name,
       requesterUsername: requester.username,
       friendName: friend.name,

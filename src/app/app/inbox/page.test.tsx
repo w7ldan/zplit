@@ -64,18 +64,21 @@ describe("/app/inbox", () => {
   });
 
   it("renders a Friend-link request with safe identity-only actions", async () => {
+    const requesterFriendId = "11111111-1111-4111-8111-111111111111";
+    const requestId = "22222222-2222-4222-8222-222222222222";
     mocks.getPage.mockResolvedValue({
-      rows: [{ id: "notification-link", type: "friend.link.request", metadata: { requestId: "11111111-1111-4111-8111-111111111111", requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" }, createdAt: new Date("2026-08-25T07:00:00Z"), readAt: null, recipientUserId: "user-a", dedupeKey: "friend-link-request:11111111-1111-4111-8111-111111111111" }],
+      rows: [{ id: "notification-link", type: "friend.link.request", metadata: { requestId, friendId: requesterFriendId, requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" }, createdAt: new Date("2026-08-25T07:00:00Z"), readAt: null, recipientUserId: "user-a", dedupeKey: `friend-link-request:${requestId}` }],
       page: 1,
       pageSize: 20,
       totalItems: 1,
       totalPages: 1,
     });
-    mocks.getFriendLinkStatuses.mockResolvedValue(new Map([["11111111-1111-4111-8111-111111111111", "pending"]]));
+    mocks.getFriendLinkStatuses.mockResolvedValue(new Map([[requestId, "pending"]]));
     render(await InboxPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByText("Owner @owner wants to link “Office”.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Friend" })).not.toBeInTheDocument();
     expect(screen.queryByText(/email|private ledger|expense history/i)).not.toBeInTheDocument();
   });
 

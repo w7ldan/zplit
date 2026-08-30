@@ -38,7 +38,6 @@ function friendLinkActions(notification: NotificationRecord, statuses: Map<strin
     return metadata ? (
       <FriendLinkRequestActions
         requestId={metadata.requestId}
-        friendId={metadata.friendId}
         status={statuses.get(metadata.requestId)}
       />
     ) : null;

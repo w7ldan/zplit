@@ -71,7 +71,7 @@ describe("Friend ↔ Zplit-user linking", () => {
     expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(db.transactionDb, expect.objectContaining({
       recipientUserId: targetId,
       type: "friend.link.request",
-      metadata: { requestId, friendId, requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" },
+      metadata: { requestId, requesterDisplayName: "Owner", requesterUsername: "owner", friendName: "Office" },
       dedupeKey: `friend-link-request:${requestId}`,
     }));
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetId, "created");

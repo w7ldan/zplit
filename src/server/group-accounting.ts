@@ -425,13 +425,13 @@ async function lockExpenseEligibility(database: Database, groupId: string, creat
   return { creatorParticipantId: creator.id, payerUserId: payer.userId };
 }
 
-async function lockActivePayer(database: Database, groupId: string, participantId: string, creatorParticipantId?: string) {
-  const participants = await database
+async function lockActivePayer(database: Database, groupId: string, participantId: string) {
+  const [participant] = await database
     .select({ id: groupParticipants.id, userId: groupParticipants.userId })
     .from(groupParticipants)
-    .where(and(eq(groupParticipants.groupId, groupId), inArray(groupParticipants.id, [participantId, ...(creatorParticipantId ? [creatorParticipantId] : [])])))
+    .where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, participantId)))
+    .limit(1)
     .for("update");
-  const participant = participants.find(({ id }) => id === participantId);
   if (!participant) throw new GroupAccountingError("payer_not_found");
   if (!participant.userId) throw new GroupAccountingError("payer_external");
   const [membership] = await database
@@ -441,7 +441,7 @@ async function lockActivePayer(database: Database, groupId: string, participantI
     .limit(1)
     .for("update");
   if (!membership) throw new GroupAccountingError("not_member");
-  return { id: participant.id, userId: participant.userId, creatorUserId: participants.find(({ id }) => id === creatorParticipantId)?.userId ?? null };
+  return { id: participant.id, userId: participant.userId };
 }
 
 // Lock every participant involved before materializing obligations.
@@ -451,7 +451,7 @@ async function lockActivePayerForExpense(database: Database, groupId: string, ex
     .from(groupExpenseShares)
     .where(and(eq(groupExpenseShares.groupId, groupId), eq(groupExpenseShares.expenseId, expense.id)))
     .orderBy(asc(groupExpenseShares.participantId));
-  const participantIds = [...new Set([expense.creatorParticipantId, expense.payerParticipantId, ...shares.map(({ participantId }) => participantId)])].sort();
+  const participantIds = [...new Set([expense.payerParticipantId, ...shares.map(({ participantId }) => participantId)])].sort();
   const participants = await database
     .select({ id: groupParticipants.id, userId: groupParticipants.userId })
     .from(groupParticipants)
@@ -470,7 +470,7 @@ async function lockActivePayerForExpense(database: Database, groupId: string, ex
   const membership = memberships.find(({ participantId }) => participantId === payer.id);
   if (!membership) throw new GroupAccountingError("not_member");
   if (payer.userId !== payerUserId) throw new GroupAccountingError("forbidden");
-  return { id: payer.id, userId: payer.userId, creatorUserId: participants.find(({ id }) => id === expense.creatorParticipantId)?.userId ?? null };
+  return { id: payer.id, userId: payer.userId };
 }
 
 async function materializeObligations(database: Database, groupId: string, expense: GroupExpenseRecord, shares: GroupExpenseShareRecord[]) {
@@ -529,7 +529,6 @@ async function confirmPendingExpense(
   actorUserId: string,
   eventType: "created" | "payer_confirmed",
   now: Date,
-  outcomeRecipientUserId: string | null = null,
 ) {
   const [expense] = await database
     .select()
@@ -573,14 +572,6 @@ async function confirmPendingExpense(
     fromState: eventType === "created" ? null : "pending",
     toState: "confirmed",
   });
-  if (eventType === "payer_confirmed" && outcomeRecipientUserId && outcomeRecipientUserId !== actorUserId) {
-    await createNotificationInDatabase(database, {
-      recipientUserId: outcomeRecipientUserId,
-      type: NOTIFICATION_TYPES.groupExpensePayerClaimOutcome,
-      metadata: { expenseId, groupId, description: confirmed.description, status: "confirmed" },
-      dedupeKey: `group-expense-payer-claim-outcome:${expenseId}:confirmed`,
-    });
-  }
   return { expense: confirmed, changed: true };
 }
 
@@ -591,7 +582,6 @@ async function rejectPendingExpense(
   payerParticipantId: string,
   actorUserId: string,
   now: Date,
-  outcomeRecipientUserId: string | null = null,
 ) {
   const [expense] = await database
     .select()
@@ -622,14 +612,6 @@ async function rejectPendingExpense(
     fromState: "pending",
     toState: "rejected",
   });
-  if (outcomeRecipientUserId && outcomeRecipientUserId !== actorUserId) {
-    await createNotificationInDatabase(database, {
-      recipientUserId: outcomeRecipientUserId,
-      type: NOTIFICATION_TYPES.groupExpensePayerClaimOutcome,
-      metadata: { expenseId, groupId, description: rejected.description, status: "rejected" },
-      dedupeKey: `group-expense-payer-claim-outcome:${expenseId}:rejected`,
-    });
-  }
   await resolvePayerClaimNotification(database, expenseId, actorUserId, now);
   return { expense: rejected, changed: true };
 }
@@ -986,13 +968,22 @@ export function createGroupAccountingRepository(database: Database, groupId: str
           .for("update");
         if (!expense) throw new GroupAccountingError("not_found");
         const payer = await lockActivePayerForExpense(transactionalDatabase, groupId, expense, payerUserId);
-        const result = await confirmPendingExpense(transactionalDatabase, groupId, expenseId, payer.id, payerUserId, "payer_confirmed", new Date(), payer.creatorUserId);
+        const result = await confirmPendingExpense(transactionalDatabase, groupId, expenseId, payer.id, payerUserId, "payer_confirmed", new Date());
         if (result.changed) await resolvePayerClaimNotification(transactionalDatabase, expenseId, payerUserId, result.expense.updatedAt);
+        const loadedExpense = await loadExpense(transactionalDatabase, groupId, expenseId);
+        if (result.changed && loadedExpense.creator.userId && loadedExpense.creator.userId !== payerUserId) {
+          await createNotificationInDatabase(transactionalDatabase, {
+            recipientUserId: loadedExpense.creator.userId,
+            type: NOTIFICATION_TYPES.groupExpensePayerClaimOutcome,
+            metadata: { expenseId, groupId, description: loadedExpense.description, status: "confirmed" },
+            dedupeKey: `group-expense-payer-claim-outcome:${expenseId}:confirmed`,
+          });
+        }
         return {
-          expense: await loadExpense(transactionalDatabase, groupId, expenseId),
+          expense: loadedExpense,
           changed: result.changed,
           userIds: await activeGroupUserIds(transactionalDatabase, groupId),
-          notificationUserId: payer.creatorUserId,
+          notificationUserId: loadedExpense.creator.userId,
         };
       }).catch((error) => {
         if (error instanceof GroupError) mapGroupError(error);
@@ -1022,14 +1013,23 @@ export function createGroupAccountingRepository(database: Database, groupId: str
           .limit(1)
           .for("update");
         if (!expense) throw new GroupAccountingError("not_found");
-        const payer = await lockActivePayer(transactionalDatabase, groupId, expense.payerParticipantId, expense.creatorParticipantId);
+        const payer = await lockActivePayer(transactionalDatabase, groupId, expense.payerParticipantId);
         if (payer.userId !== payerUserId) throw new GroupAccountingError("forbidden");
-        const rejected = await rejectPendingExpense(transactionalDatabase, groupId, expenseId, payer.id, payerUserId, new Date(), payer.creatorUserId);
+        const rejected = await rejectPendingExpense(transactionalDatabase, groupId, expenseId, payer.id, payerUserId, new Date());
+        const loadedExpense = await loadExpense(transactionalDatabase, groupId, expenseId);
+        if (rejected.changed && loadedExpense.creator.userId && loadedExpense.creator.userId !== payerUserId) {
+          await createNotificationInDatabase(transactionalDatabase, {
+            recipientUserId: loadedExpense.creator.userId,
+            type: NOTIFICATION_TYPES.groupExpensePayerClaimOutcome,
+            metadata: { expenseId, groupId, description: loadedExpense.description, status: "rejected" },
+            dedupeKey: `group-expense-payer-claim-outcome:${expenseId}:rejected`,
+          });
+        }
         return {
-          expense: await loadExpense(transactionalDatabase, groupId, expenseId),
+          expense: loadedExpense,
           changed: rejected.changed,
           userIds: await activeGroupUserIds(transactionalDatabase, groupId),
-          notificationUserId: payer.creatorUserId,
+          notificationUserId: loadedExpense.creator.userId,
         };
       }).catch((error) => {
         if (error instanceof GroupError) mapGroupError(error);
