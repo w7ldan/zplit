@@ -56,19 +56,36 @@ describe("registered Personal Friend collaboration candidates", () => {
     ).resolves.toEqual([connectedFriend]);
   });
 
-  it("applies the same eligibility to Groups and supports username filtering", async () => {
+  it("excludes current members and live requests but includes former participants", async () => {
+    const currentMember = { userId: "current-member", displayName: "Current", username: "current" };
+    const formerParticipant = { userId: "former-participant", displayName: "Former", username: "former" };
+    const pendingFriend = { userId: "pending-friend", displayName: "Pending", username: "pending" };
     const db = database([
       [
-        { ...connectedFriend, archivedAt: null },
-        { userId: "user-b", displayName: "Bob", username: "bob", archivedAt: null },
-        { userId: "participant", displayName: "Former", username: "former", archivedAt: null },
+        { ...currentMember, archivedAt: null },
+        { ...formerParticipant, archivedAt: null },
+        { ...pendingFriend, archivedAt: null },
       ],
       [
-        { userAId: "user-friend", userBId: ownerUserId, status: "connected" },
-        { userAId: ownerUserId, userBId: "user-b", status: "connected" },
+        { userAId: ownerUserId, userBId: currentMember.userId, status: "connected" },
+        { userAId: ownerUserId, userBId: formerParticipant.userId, status: "connected" },
+        { userAId: ownerUserId, userBId: pendingFriend.userId, status: "connected" },
       ],
-      [{ userId: "participant" }],
-      [{ userId: "pending" }],
+      [{ userId: currentMember.userId }],
+      [{ userId: pendingFriend.userId }],
+    ]);
+
+    await expect(
+      listRegisteredFriendCandidates(db, ownerUserId, { kind: "group", id: "group-a" }),
+    ).resolves.toEqual([formerParticipant]);
+  });
+
+  it("supports username filtering for Group candidates", async () => {
+    const db = database([
+      [{ ...connectedFriend, archivedAt: null }],
+      [{ userAId: ownerUserId, userBId: connectedFriend.userId, status: "connected" }],
+      [],
+      [],
     ]);
 
     await expect(

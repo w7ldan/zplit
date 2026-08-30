@@ -205,9 +205,9 @@ describe("Group join requests", () => {
 
   it("uses the bounded username directory while excluding existing Group identities", async () => {
     mocks.searchUsernameDirectoryInDatabase.mockResolvedValue([{ id: "user-c", username: "carol", displayName: "Carol" }]);
-    const { db } = database([[{ userId: "user-b" }], []]);
+    const { db } = database([[{ userId: "user-b" }], [{ userId: "user-pending" }]]);
     await expect(searchGroupJoinUsers(db, groupId, requesterUserId, "@CAR")).resolves.toEqual([{ id: "user-c", username: "carol", displayName: "Carol" }]);
-    expect(mocks.searchUsernameDirectoryInDatabase).toHaveBeenCalledWith(db, "@CAR", { excludeUserIds: [requesterUserId, "user-b"] });
+    expect(mocks.searchUsernameDirectoryInDatabase).toHaveBeenCalledWith(db, "@CAR", { excludeUserIds: [requesterUserId, "user-b", "user-pending"] });
   });
 
   it("accepts a normal invitation with exactly one Member participant and membership", async () => {

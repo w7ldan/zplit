@@ -6,7 +6,7 @@ import {
   friendConnections,
   friends,
   groupJoinRequests,
-  groupParticipants,
+  groupMemberships,
   organizationInvitations,
   organizationMemberships,
   users,
@@ -61,11 +61,11 @@ async function excludedTargetUsers(database: Database, target: CollaborationCand
     return new Set([...members, ...pending].map(({ userId }) => userId));
   }
 
-  const [participants, pending] = await Promise.all([
+  const [members, pending] = await Promise.all([
     database
-      .select({ userId: groupParticipants.userId })
-      .from(groupParticipants)
-      .where(and(eq(groupParticipants.groupId, target.id), isNotNull(groupParticipants.userId))),
+      .select({ userId: groupMemberships.userId })
+      .from(groupMemberships)
+      .where(eq(groupMemberships.groupId, target.id)),
     database
       .select({ userId: groupJoinRequests.targetUserId })
       .from(groupJoinRequests)
@@ -75,7 +75,7 @@ async function excludedTargetUsers(database: Database, target: CollaborationCand
         gt(groupJoinRequests.expiresAt, now),
       )),
   ]);
-  return new Set([...participants, ...pending].map(({ userId }) => userId));
+  return new Set([...members, ...pending].map(({ userId }) => userId));
 }
 
 export async function listRegisteredFriendCandidates(
