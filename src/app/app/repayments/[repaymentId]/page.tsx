@@ -78,7 +78,7 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
         <div className="repayment-record__intro">
           <p className="technical-label">Repayment · allocate received money</p>
           <h1>{plan.friendName}</h1>
-          <Link className="repayment-record__back" href={contextTrip ? "/app/trips/" + contextTrip.id : "/app/repayments"}>← Back to {contextTrip ? contextTrip.name : "repayments"}</Link>
+          <Link className="repayment-record__back" href={contextTrip ? "/app/trips/" + contextTrip.id : "/app/repayments"}>← {contextTrip ? "Back to " + contextTrip.name : "Repayments"}</Link>
         </div>
         {query?.created === "1" ? (
           <RecordConfirmation

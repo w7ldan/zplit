@@ -6,27 +6,35 @@ import { SearchableCombobox, type SearchableOption } from "@/components/records/
 import { UserAvatar } from "@/components/identity/user-avatar";
 import type { OrganizationInvitationRole } from "@/domain/organization-permissions";
 import type { OrganizationInvitationActionState, OrganizationInvitationSummary, OrganizationMember } from "@/domain/organization-contracts";
+import type { RegisteredFriendCandidate } from "@/domain/collaboration-candidates";
 import { createOrganizationInvitationAction, revokeOrganizationInvitationAction, searchOrganizationInvitationOptions } from "@/app/app/organizations/actions";
 
 function roleLabel(role: string) {
   return role[0]?.toUpperCase() + role.slice(1);
 }
 
-const initialState: OrganizationInvitationActionState = { error: "", values: { username: "", role: "member" } };
+const initialState: OrganizationInvitationActionState = { error: "", values: { targetUserId: "", role: "member" } };
 
 export function OrganizationMembers({
   organizationId,
   members,
   pendingInvitations,
   invitationRoles,
+  friendCandidates = [],
 }: {
   organizationId: string;
   members?: OrganizationMember[];
   pendingInvitations: OrganizationInvitationSummary[];
   invitationRoles: OrganizationInvitationRole[];
+  friendCandidates?: RegisteredFriendCandidate[];
 }) {
   const [state, formAction] = useActionState(createOrganizationInvitationAction.bind(null, organizationId), initialState);
   const search = searchOrganizationInvitationOptions.bind(null, organizationId) as (query: string, selectedId?: string) => Promise<SearchableOption[]>;
+  const friendOptions = friendCandidates.map((friend) => ({
+    id: friend.userId,
+    label: `${friend.displayName} · @${friend.username}`,
+    group: "Friends",
+  }));
   const canInvite = invitationRoles.length > 0;
 
   return <>
@@ -53,13 +61,45 @@ export function OrganizationMembers({
     </section> : null}
     {canInvite ? <section className="organization-detail__section" aria-labelledby="organization-invite-heading">
       <h2 id="organization-invite-heading">Invite member</h2>
-      <form className="organization-invite__form" action={formAction} key={`${state.values.username}\u0000${state.values.role}\u0000${state.error}`}>
-        <label id="organization-invite-target-label" htmlFor="organization-invite-target">Find by @username</label>
-        <SearchableCombobox id="organization-invite-target" name="username" options={[]} search={search} required placeholder="Choose a username" searchLabel="Search @username" labelId="organization-invite-target-label" />
+      <form
+        className="organization-invite__form"
+        action={formAction}
+      >
+        <label id="organization-invite-target-label" htmlFor="organization-invite-target">
+          Choose a friend or search by @username
+        </label>
+        <SearchableCombobox
+          id="organization-invite-target"
+          name="targetUserId"
+          value={state.values.targetUserId}
+          options={friendOptions}
+          search={search}
+          required
+          placeholder="Choose a person"
+          searchLabel="Search friends or @username"
+          labelId="organization-invite-target-label"
+        />
         <label htmlFor="organization-invite-role">Role</label>
-        <select id="organization-invite-role" name="role" defaultValue={state.values.role}>{invitationRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}</select>
-        <p className="organization-invite__message" role={state.error && state.error !== "Invitation sent." ? "alert" : "status"}>{state.error || "Invitations use @username only."}</p>
-        <button className="action-link action-link--primary" type="submit">Send invitation</button>
+        <select
+          id="organization-invite-role"
+          name="role"
+          defaultValue={state.values.role}
+        >
+          {invitationRoles.map((role) => (
+            <option key={role} value={role}>
+              {roleLabel(role)}
+            </option>
+          ))}
+        </select>
+        <p
+          className="organization-invite__message"
+          role={state.error && state.error !== "Invitation sent." ? "alert" : "status"}
+        >
+          {state.error || "Friends appear first; username search is the fallback."}
+        </p>
+        <button className="action-link action-link--primary" type="submit">
+          Send invitation
+        </button>
       </form>
       {pendingInvitations.length > 0 ? (
         <div className="organization-invite__pending">

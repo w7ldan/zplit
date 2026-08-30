@@ -3,7 +3,8 @@
 import { useActionState, useState } from "react";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import type { GroupJoinRequestActionState, GroupJoinRequestSummary, GroupParticipant } from "@/domain/group-contracts";
-import { SearchableCombobox, type SearchableOptionAction } from "@/components/records/searchable-combobox";
+import type { RegisteredFriendCandidate } from "@/domain/collaboration-candidates";
+import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 import {
   createExternalParticipantAction,
   createGroupInvitationAction,
@@ -24,7 +25,7 @@ function requestStatusLabel(status: string) {
   return status[0]?.toUpperCase() + status.slice(1);
 }
 
-const initialJoinState: GroupJoinRequestActionState = { error: "", values: { username: "" } };
+const initialJoinState: GroupJoinRequestActionState = { error: "", values: { targetUserId: "" } };
 
 function GroupJoinForm({
   id,
@@ -32,6 +33,7 @@ function GroupJoinForm({
   action,
   buttonLabel,
   description,
+  initialOptions = [],
   onCancel,
 }: {
   id: string;
@@ -42,6 +44,7 @@ function GroupJoinForm({
   ) => Promise<GroupJoinRequestActionState>;
   buttonLabel: string;
   description?: string;
+  initialOptions?: SearchableOption[];
   onCancel?: () => void;
 }) {
   const [state, formAction] = useActionState(action, initialJoinState);
@@ -51,23 +54,24 @@ function GroupJoinForm({
         <p className="group-detail__supporting-copy">{description}</p>
       ) : null}
       <label id={`${id}-label`} htmlFor={id}>
-        Find by @username
+        Choose a friend or search by @username
       </label>
       <SearchableCombobox
         id={id}
-        name="username"
-        options={[]}
+        name="targetUserId"
+        value={state.values.targetUserId}
+        options={initialOptions}
         search={search}
         required
-        placeholder="Choose a username"
-        searchLabel="Search @username"
+        placeholder="Choose a person"
+        searchLabel="Search friends or @username"
         labelId={`${id}-label`}
       />
       <p
         className="group-join-form__message"
         role={state.error && !state.error.endsWith("sent.") ? "alert" : "status"}
       >
-        {state.error || "Search uses @username only."}
+        {state.error || "Friends appear first; username search is the fallback."}
       </p>
       <div className="group-join-form__actions">
         {onCancel ? (
@@ -146,6 +150,7 @@ export function GroupPeople({
   participants,
   pendingInvitations = [],
   pendingLinks = [],
+  friendCandidates = [],
   canManageParticipants,
   canManageRoles,
 }: {
@@ -153,6 +158,7 @@ export function GroupPeople({
   participants: GroupParticipant[];
   pendingInvitations?: GroupJoinRequestSummary[];
   pendingLinks?: GroupJoinRequestSummary[];
+  friendCandidates?: RegisteredFriendCandidate[];
   canManageParticipants: boolean;
   canManageRoles: boolean;
 }) {
@@ -161,6 +167,11 @@ export function GroupPeople({
   const external = participants.filter((participant) => participant.isExternal);
   const pendingLinkByParticipant = new Map(pendingLinks.map((request) => [request.participantId, request]));
   const search = searchGroupJoinUserOptions.bind(null, groupId) as SearchableOptionAction;
+  const friendOptions = friendCandidates.map((friend) => ({
+    id: friend.userId,
+    label: `${friend.displayName} · @${friend.username}`,
+    group: "Friends",
+  }));
   return (
     <>
       <section
@@ -243,6 +254,7 @@ export function GroupPeople({
               search={search}
               action={createGroupInvitationAction.bind(null, groupId)}
               buttonLabel="Send invitation"
+              initialOptions={friendOptions}
             />
           </div>
         ) : null}

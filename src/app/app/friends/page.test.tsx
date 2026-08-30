@@ -34,6 +34,7 @@ describe("/app/friends", () => {
     render(await FriendsPage({ searchParams: Promise.resolve({ view: "active", q: "Ada" }) }));
 
     expect(screen.getByRole("heading", { level: 1, name: "Friends" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Personal" })).toHaveAttribute("href", "/app/personal");
     expect(document.querySelector(".friends-toolbar")!).toContainElement(document.querySelector(".live-record-filters"));
     expect(document.querySelector(".friends-toolbar")!).toContainElement(document.querySelector(".friends-page__views"));
     expect(screen.getByText("Friends · people you split with")).toBeInTheDocument();

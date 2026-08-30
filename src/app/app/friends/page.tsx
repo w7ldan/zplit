@@ -123,6 +123,7 @@ function FriendsPageContent({ data, params, returnTo }: { data: FriendsPageData;
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
+            <Link className="personal-parent-link" href="/app/personal">← Personal</Link>
             <p className="technical-label">Friends · people you split with</p>
             <h1>Friends</h1>
             <p className="app-page__lede">Find people connected to your shared expenses and review what remains open.</p>

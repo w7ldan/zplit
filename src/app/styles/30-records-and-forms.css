@@ -89,6 +89,22 @@
   color: var(--muted-ink);
 }
 
+.personal-parent-link {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 0.75rem;
+  padding-block: 0.2rem;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.personal-parent-link:hover,
+.personal-parent-link:focus-visible {
+  color: var(--ink);
+}
+
 .friend-row__primary {
   display: grid;
   grid-template-columns: 5rem minmax(0, 1fr);

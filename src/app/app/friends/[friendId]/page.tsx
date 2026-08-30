@@ -302,7 +302,7 @@ function FriendRecordContent({
               </Link>
             ) : null}
             <Link className="friend-record__back" href="/app/friends">
-              ← Back to friends
+              ← Friends
             </Link>
           </div>
         </div>

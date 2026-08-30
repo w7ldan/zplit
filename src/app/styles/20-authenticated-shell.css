@@ -1353,6 +1353,7 @@ body.global-search-open {
 }
 
 .personal-destinations,
+.personal-snapshot-section,
 .future-section {
   display: grid;
   gap: 0.75rem;
@@ -1368,45 +1369,50 @@ body.global-search-open {
 
 .personal-destination,
 .future-section__empty,
+.group-card,
 .organization-card {
   min-width: 0;
   padding: 1rem;
   border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
-.group-card {
+.group-card,
+.organization-card {
   display: flex;
   min-height: 5rem;
   gap: 0.75rem;
   align-items: center;
   min-width: 0;
-  padding: 1rem;
-  border: 1px solid var(--rule);
-  background: var(--surface);
   color: var(--ink);
   text-align: left;
   text-decoration: none;
 }
 
 .group-card:hover,
-.group-card:focus-visible {
+.group-card:focus-visible,
+.organization-card:hover,
+.organization-card:focus-visible {
   border-color: var(--ink);
 }
 
-.group-card__details {
+.group-card__details,
+.organization-card__details {
   display: grid;
   min-width: 0;
   gap: 0.2rem;
 }
 
-.group-card__details strong {
+.group-card__details strong,
+.organization-card__details strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.group-card__details span {
+.group-card__details span,
+.organization-card__details span {
   color: var(--muted-ink);
   font-size: 0.75rem;
 }
@@ -1454,46 +1460,13 @@ body.global-search-open {
   margin: 0;
 }
 
-.organization-card {
-  display: flex;
-  min-height: 5rem;
-  gap: 0.75rem;
-  align-items: center;
-  color: var(--ink);
-  text-align: left;
-  text-decoration: none;
-}
-
-.organization-card:hover,
-.organization-card:focus-visible {
-  border-color: var(--ink);
-}
-
-.organization-card__details {
-  display: grid;
-  min-width: 0;
-  gap: 0.2rem;
-}
-
-.organization-card__details strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.organization-card__details span {
-  color: var(--muted-ink);
-  font-size: 0.75rem;
-}
-
 .overview-section__link {
   margin-top: 0;
 }
 
 .organization-card__ledger {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
+  gap: 0.15rem;
   margin-top: 0.35rem;
 }
 
@@ -1504,12 +1477,18 @@ body.global-search-open {
 }
 
 .organization-card__ledger strong {
-  overflow: hidden;
   color: var(--ink);
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+
+.group-section .group-grid,
+.overview-space-section .group-grid,
+.overview-space-section .organization-grid,
+.organization-section .organization-grid,
+.personal-destinations__grid {
+  padding-bottom: 2rem;
 }
 
 .organization-form {
@@ -2071,10 +2050,6 @@ body.global-search-open {
   .personal-destinations__grid,
   .organization-grid,
   .group-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .organization-card__ledger {
     grid-template-columns: 1fr;
   }
 

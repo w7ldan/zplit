@@ -3,7 +3,7 @@ import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { listOrganizations } from "@/server/organizations";
 import { OrganizationForm } from "@/components/organizations/organization-form";
-import { OrganizationAvatar } from "@/components/organizations/organization-avatar";
+import { OrganizationCard } from "@/components/organizations/organization-card";
 import { TaskPanel } from "@/components/app/task-panel";
 import { createOrganizationAction } from "./actions";
 
@@ -54,26 +54,10 @@ export default async function OrganizationsPage({
           {organizations.length > 0 ? (
             <div className="organization-grid">
               {organizations.map((organization) => (
-                <Link
-                  className="organization-card"
-                  href={`/app/organizations/${organization.id}`}
+                <OrganizationCard
+                  organization={organization}
                   key={organization.id}
-                >
-                  <OrganizationAvatar
-                    organizationId={organization.id}
-                    customAvatar={organization.avatar}
-                    size="md"
-                    decorative
-                  />
-                  <span className="organization-card__details">
-                    <strong>{organization.name}</strong>
-                    <span>
-                      {organization.role[0]?.toUpperCase()}
-                      {organization.role.slice(1)} · {organization.memberCount}{" "}
-                      {organization.memberCount === 1 ? "member" : "members"}
-                    </span>
-                  </span>
-                </Link>
+                />
               ))}
             </div>
           ) : (

@@ -42,4 +42,4 @@ export type OrganizationInvitationSummary = {
 
 export type OrganizationFormValues = { name: string; description: string };
 export type OrganizationActionState = { fieldErrors: Partial<Record<keyof OrganizationFormValues | "avatar", string>>; formError: string; values: OrganizationFormValues };
-export type OrganizationInvitationActionState = { error: string; values: { username: string; role: OrganizationInvitationRole } };
+export type OrganizationInvitationActionState = { error: string; values: { targetUserId: string; role: OrganizationInvitationRole } };

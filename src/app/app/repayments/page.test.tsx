@@ -37,6 +37,7 @@ describe("/app/repayments", () => {
     render(await RepaymentsPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Repayments" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Personal" })).toHaveAttribute("href", "/app/personal");
     expect(screen.getByText("Repayments · money returned")).toBeInTheDocument();
     expect(screen.getByText("Record money received and apply it to outstanding expense shares.")).toBeInTheDocument();
     expect(screen.getByText("Rp 44.000 needs allocation")).toBeInTheDocument();

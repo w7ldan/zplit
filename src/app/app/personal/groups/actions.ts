@@ -15,6 +15,7 @@ import {
   revokeGroupJoinRequest,
   searchGroupJoinUsers,
 } from "@/server/group-join-requests";
+import { listRegisteredFriendCandidates } from "@/server/collaboration-candidates";
 
 import type { GroupActionState, GroupFormValues, GroupJoinRequestActionState } from "@/domain/group-contracts";
 export type { GroupActionState, GroupFormValues, GroupJoinRequestActionState } from "@/domain/group-contracts";
@@ -121,7 +122,18 @@ export async function removeGroupMemberAction(groupId: string, targetUserId: str
 export async function searchGroupJoinUserOptions(groupId: string, query = ""): Promise<SearchableOption[]> {
   const session = await requireSession();
   try {
-    return (await searchGroupJoinUsers(getDatabase(), groupId, session.user.id, query)).map((user) => ({ id: user.username, label: `${user.displayName} · @${user.username}` }));
+    const database = getDatabase();
+    const [friends, users] = await Promise.all([
+      listRegisteredFriendCandidates(database, session.user.id, { kind: "group", id: groupId }, query),
+      searchGroupJoinUsers(database, groupId, session.user.id, query),
+    ]);
+    const friendIds = new Set(friends.map((friend) => friend.userId));
+    return [
+      ...friends.map((friend) => ({ id: friend.userId, label: `${friend.displayName} · @${friend.username}`, group: "Friends" })),
+      ...users
+        .filter((user) => !friendIds.has(user.id))
+        .map((user) => ({ id: user.id, label: `${user.displayName} · @${user.username}`, group: "Other Zplit users" })),
+    ];
   } catch {
     return [];
   }
@@ -147,36 +159,40 @@ function groupJoinRequestErrorMessage(error: unknown, operation: "invite" | "lin
   }[error.code];
 }
 
-function joinUsername(formData: FormData) {
-  return typeof formData.get("username") === "string" ? String(formData.get("username")) : "";
+function joinTarget(formData: FormData) {
+  const selectedTarget = formData.get("targetUserId");
+  if (typeof selectedTarget === "string") return { value: selectedTarget, target: { targetUserId: selectedTarget } };
+  const legacyUsername = formData.get("username");
+  const value = typeof legacyUsername === "string" ? legacyUsername : "";
+  return { value, target: { username: value } };
 }
 
 export async function createGroupInvitationAction(groupId: string, _previousState: GroupJoinRequestActionState, formData: FormData): Promise<GroupJoinRequestActionState> {
-  const username = joinUsername(formData);
-  if (!username.trim()) return { error: "Choose an existing Zplit username.", values: { username } };
+  const { value: targetUserId, target } = joinTarget(formData);
+  if (!targetUserId.trim()) return { error: "Choose an existing Zplit username.", values: { targetUserId } };
   const session = await requireSession();
   try {
-    await createGroupInvitation(getDatabase(), groupId, session.user.id, username);
+    await createGroupInvitation(getDatabase(), groupId, session.user.id, target);
   } catch (error) {
-    return { error: groupJoinRequestErrorMessage(error, "invite"), values: { username } };
+    return { error: groupJoinRequestErrorMessage(error, "invite"), values: { targetUserId } };
   }
   revalidatePath(`/app/personal/groups/${groupId}`);
   revalidatePath(`/app/personal/groups/${groupId}/people`);
-  return { error: "Invitation sent.", values: { username: "" } };
+  return { error: "Invitation sent.", values: { targetUserId: "" } };
 }
 
 export async function createGroupParticipantLinkRequestAction(groupId: string, participantId: string, _previousState: GroupJoinRequestActionState, formData: FormData): Promise<GroupJoinRequestActionState> {
-  const username = joinUsername(formData);
-  if (!username.trim()) return { error: "Choose an existing Zplit username.", values: { username } };
+  const { value: targetUserId, target } = joinTarget(formData);
+  if (!targetUserId.trim()) return { error: "Choose an existing Zplit username.", values: { targetUserId } };
   const session = await requireSession();
   try {
-    await createGroupParticipantLinkRequest(getDatabase(), groupId, participantId, session.user.id, username);
+    await createGroupParticipantLinkRequest(getDatabase(), groupId, participantId, session.user.id, target);
   } catch (error) {
-    return { error: groupJoinRequestErrorMessage(error, "link"), values: { username } };
+    return { error: groupJoinRequestErrorMessage(error, "link"), values: { targetUserId } };
   }
   revalidatePath(`/app/personal/groups/${groupId}`);
   revalidatePath(`/app/personal/groups/${groupId}/people`);
-  return { error: "Link request sent.", values: { username: "" } };
+  return { error: "Link request sent.", values: { targetUserId: "" } };
 }
 
 export async function revokeGroupJoinRequestAction(groupId: string, requestId: string) {

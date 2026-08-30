@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { getDatabase, type Database } from "@/db/client";
 import { groupJoinRequests, groupMemberships, groupParticipants, groups, notifications, users } from "@/db/schema";
 import type { GroupJoinRequestSummary } from "@/domain/group-contracts";
@@ -51,6 +51,11 @@ function parseRequestUsername(value: unknown) {
   return parsed.value;
 }
 
+function parseRequestTargetId(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) throw new GroupJoinRequestError("invalid_target");
+  return value.trim();
+}
+
 function notificationType(kind: GroupJoinRequestKind) {
   return kind === "member_invitation" ? NOTIFICATION_TYPES.groupInvitation : NOTIFICATION_TYPES.groupParticipantLinkRequest;
 }
@@ -93,11 +98,14 @@ async function createRequestOutcomeNotification(database: Database, request: typ
   });
 }
 
-async function resolveTarget(database: Database, username: string) {
+async function resolveTarget(database: Database, input: { targetUserId?: unknown; username?: unknown }) {
+  const targetCondition = input.targetUserId !== undefined
+    ? eq(users.id, parseRequestTargetId(input.targetUserId))
+    : eq(users.username, parseRequestUsername(input.username));
   const [target] = await database
     .select({ id: users.id, name: users.name, username: users.username })
     .from(users)
-    .where(eq(users.username, username))
+    .where(targetCondition)
     .limit(1)
     .for("update");
   return target?.username ? target : null;
@@ -156,7 +164,8 @@ async function expirePendingForParticipant(database: Database, groupId: string, 
 type CreateRequestInput = {
   groupId: string;
   requesterUserId: string;
-  username: unknown;
+  targetUserId?: unknown;
+  username?: unknown;
   kind: GroupJoinRequestKind;
   participantId?: string;
 };
@@ -219,8 +228,7 @@ function requestMetadata(
 async function createRequestInTransaction(database: Database, input: CreateRequestInput) {
   const access = await requireGroupAccess(database, input.groupId, input.requesterUserId);
   access.requireManageParticipants();
-  const username = parseRequestUsername(input.username);
-  const target = await resolveTarget(database, username);
+  const target = await resolveTarget(database, input);
   if (!target) throw new GroupJoinRequestError("invalid_target");
   if (target.id === input.requesterUserId) throw new GroupJoinRequestError("self");
 
@@ -265,16 +273,37 @@ export async function searchGroupJoinUsers(database: Database, groupId: string, 
   assertUserId(requesterUserId);
   const access = await requireGroupAccess(database, groupId, requesterUserId);
   access.requireManageParticipants();
-  const members = await database.select({ userId: groupMemberships.userId }).from(groupMemberships).where(eq(groupMemberships.groupId, groupId));
-  return searchUsernameDirectoryInDatabase(database, query, { excludeUserIds: [requesterUserId, ...members.map(({ userId }) => userId)] });
+  const [members, pending] = await Promise.all([
+    database
+      .select({ userId: groupMemberships.userId })
+      .from(groupMemberships)
+      .where(eq(groupMemberships.groupId, groupId)),
+    database
+      .select({ userId: groupJoinRequests.targetUserId })
+      .from(groupJoinRequests)
+      .where(and(
+        eq(groupJoinRequests.groupId, groupId),
+        eq(groupJoinRequests.status, "pending"),
+        gt(groupJoinRequests.expiresAt, new Date()),
+      )),
+  ]);
+  return searchUsernameDirectoryInDatabase(database, query, {
+    excludeUserIds: [requesterUserId, ...members.map(({ userId }) => userId), ...pending.map(({ userId }) => userId)],
+  });
 }
 
-export async function createGroupInvitation(database: Database, groupId: string, requesterUserId: string, username: unknown) {
-  return createRequest(database, { groupId, requesterUserId, username, kind: "member_invitation" });
+function targetInput(value: unknown) {
+  return typeof value === "object" && value !== null && "targetUserId" in value
+    ? { targetUserId: (value as { targetUserId: unknown }).targetUserId }
+    : { username: value };
 }
 
-export async function createGroupParticipantLinkRequest(database: Database, groupId: string, participantId: string, requesterUserId: string, username: unknown) {
-  return createRequest(database, { groupId, requesterUserId, username, kind: "participant_link", participantId });
+export async function createGroupInvitation(database: Database, groupId: string, requesterUserId: string, target: unknown) {
+  return createRequest(database, { groupId, requesterUserId, ...targetInput(target), kind: "member_invitation" });
+}
+
+export async function createGroupParticipantLinkRequest(database: Database, groupId: string, participantId: string, requesterUserId: string, target: unknown) {
+  return createRequest(database, { groupId, requesterUserId, ...targetInput(target), kind: "participant_link", participantId });
 }
 
 export async function listGroupJoinRequests(database: Database, groupId: string, viewerUserId: string) {

@@ -124,8 +124,23 @@ describe("Organization invitation policy and creation", () => {
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetUserId, "created");
   });
 
+  it("accepts a selected canonical target user id", async () => {
+    const db = database([
+      [access("owner")],
+      [{ id: targetUserId, name: "Target", username: "target" }],
+      [],
+      [],
+      [{ name: "Team" }],
+      [{ name: "Inviter" }],
+    ], [[invitation()]]);
+
+    await expect(
+      createOrganizationInvitation(db, organizationId, inviterUserId, { targetUserId, role: "member" }),
+    ).resolves.toMatchObject({ targetUserId });
+  });
+
   it("searches username prefixes only, excludes the inviter and members, and preserves the exact projection", async () => {
-    const db = database([[access("owner")], [{ userId: "existing-member" }], [{ id: targetUserId, username: "target", displayName: "Target" }]]);
+    const db = database([[access("owner")], [{ userId: "existing-member" }], [], [{ id: targetUserId, username: "target", displayName: "Target" }]]);
     await expect(searchOrganizationInvitationUsers(db, organizationId, inviterUserId, "@TAR")).resolves.toEqual([{ id: targetUserId, username: "target", displayName: "Target" }]);
     const emailDb = database([[access("owner")], []]);
     await expect(searchOrganizationInvitationUsers(emailDb, organizationId, inviterUserId, "target@example.com")).resolves.toEqual([]);

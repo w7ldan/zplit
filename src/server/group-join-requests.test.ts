@@ -119,6 +119,22 @@ describe("Group join requests", () => {
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetUserId, "created");
   });
 
+  it("accepts a selected canonical target user id", async () => {
+    const created = request();
+    const { db } = database([
+      [{ id: targetUserId, name: "Alice", username: "alice" }],
+      [],
+      [],
+      [],
+      [{ id: groupId, name: "Trip" }],
+      [{ name: "Owner", username: "owner" }],
+    ], [[created]]);
+
+    await expect(
+      createGroupInvitation(db, groupId, requesterUserId, { targetUserId }),
+    ).resolves.toEqual(created);
+  });
+
   it("rejects a Member, email-shaped lookup, existing representation, and duplicate pending request", async () => {
     mocks.requireGroupAccess.mockResolvedValue({ requireManageParticipants: vi.fn(() => { throw new GroupJoinRequestError("forbidden"); }) });
     const memberDb = database([]);
@@ -189,7 +205,7 @@ describe("Group join requests", () => {
 
   it("uses the bounded username directory while excluding existing Group identities", async () => {
     mocks.searchUsernameDirectoryInDatabase.mockResolvedValue([{ id: "user-c", username: "carol", displayName: "Carol" }]);
-    const { db } = database([[{ userId: "user-b" }], [{ userId: "user-c" }]]);
+    const { db } = database([[{ userId: "user-b" }], []]);
     await expect(searchGroupJoinUsers(db, groupId, requesterUserId, "@CAR")).resolves.toEqual([{ id: "user-c", username: "carol", displayName: "Carol" }]);
     expect(mocks.searchUsernameDirectoryInDatabase).toHaveBeenCalledWith(db, "@CAR", { excludeUserIds: [requesterUserId, "user-b"] });
   });

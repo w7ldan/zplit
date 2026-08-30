@@ -234,6 +234,7 @@ function RepaymentsPageContent({ data }: { data: RepaymentsPageData }) {
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
+            <Link className="personal-parent-link" href="/app/personal">← Personal</Link>
             <p className="technical-label">Repayments · money returned</p>
             <h1>Repayments</h1>
             <p className="app-page__lede">Record money received and apply it to outstanding expense shares.</p>

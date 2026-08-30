@@ -32,6 +32,7 @@ describe("/app/expenses", () => {
     render(await ExpensesPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Expenses" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Personal" })).toHaveAttribute("href", "/app/personal");
     expect(screen.getByText("Expenses · money you paid")).toBeInTheDocument();
     expect(screen.getByText("Record shared spending and assign the amounts each friend owes.")).toBeInTheDocument();
     expect(screen.getByText("Rp 84.000")).toBeInTheDocument();

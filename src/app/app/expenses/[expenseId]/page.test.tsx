@@ -79,7 +79,7 @@ describe("expense record", () => {
     expect(document.querySelector(`time[datetime="${expense.outingOccurredAt.toISOString()}"]`)).toBeInTheDocument();
     expect(screen.getByLabelText("Description")).toHaveValue("Dinner");
     expect(screen.getByLabelText("Amount in rupiah")).toHaveValue("84000");
-    expect(screen.getByRole("link", { name: /Back to expenses/ })).toHaveAttribute("href", "/app/expenses");
+    expect(screen.getByRole("link", { name: "← Expenses" })).toHaveAttribute("href", "/app/expenses");
     expect(screen.getByRole("heading", { level: 2, name: "Assign the split" })).toBeInTheDocument();
     expect(screen.getByLabelText("Rani")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove Rani" })).toBeInTheDocument();

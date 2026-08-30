@@ -31,6 +31,7 @@ describe("/app/outings", () => {
     render(await OutingsPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Outings" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Personal" })).toHaveAttribute("href", "/app/personal");
     expect(document.querySelector(".records-workspace")!).toContainElement(document.querySelector(".outings-trips-switch"));
     expect(document.querySelector(".records-workspace")!).toContainElement(document.querySelector(".live-record-filters"));
     expect(document.querySelector(".records-workspace")!).toContainElement(document.querySelector(".ledger-list"));

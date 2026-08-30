@@ -73,7 +73,7 @@ describe("repayment record", () => {
     expect(screen.getAllByText("Bank transfer")).not.toHaveLength(0);
     expect(screen.getByLabelText("Notes")).toHaveValue("Received in full");
     expect(document.querySelector(`time[datetime="${repayment.paidAt.toISOString()}"]`)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Back to repayments/ })).toHaveAttribute("href", "/app/repayments");
+    expect(screen.getByRole("link", { name: "← Repayments" })).toHaveAttribute("href", "/app/repayments");
     expect(screen.getByRole("combobox", { name: "Friend" })).toHaveTextContent(friend.name);
     expect(screen.getByText("Apply the received money")).toBeInTheDocument();
     expect(screen.queryByText("How this repayment adds up")).not.toBeInTheDocument();

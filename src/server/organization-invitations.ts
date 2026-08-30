@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { getDatabase } from "@/db/client";
 import { organizationInvitations, organizationMemberships, organizations, notifications, users } from "@/db/schema";
@@ -57,11 +57,19 @@ function parseInvitationUsername(value: unknown) {
   return parsed.value;
 }
 
-async function resolveInvitationTarget(database: Database, username: string) {
+function parseInvitationTargetId(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) throw new OrganizationInvitationError("invalid_target");
+  return value.trim();
+}
+
+async function resolveInvitationTarget(database: Database, input: { targetUserId?: unknown; username?: unknown }) {
+  const targetCondition = input.targetUserId !== undefined
+    ? eq(users.id, parseInvitationTargetId(input.targetUserId))
+    : eq(users.username, parseInvitationUsername(input.username));
   const [target] = await database
     .select({ id: users.id, name: users.name, username: users.username })
     .from(users)
-    .where(eq(users.username, username))
+    .where(targetCondition)
     .limit(1)
     .for("update");
   return target?.username ? target : null;
@@ -111,11 +119,23 @@ export async function searchOrganizationInvitationUsers(database: Database, orga
   assertUserId(inviterUserId);
   const access = await requireOrganizationAccess(database, organizationId, inviterUserId);
   access.require("members.invite");
-  const members = await database
-    .select({ userId: organizationMemberships.userId })
-    .from(organizationMemberships)
-    .where(eq(organizationMemberships.organizationId, organizationId));
-  return searchUsernameDirectoryInDatabase(database, query, { excludeUserIds: [inviterUserId, ...members.map(({ userId }) => userId)] });
+  const [members, pending] = await Promise.all([
+    database
+      .select({ userId: organizationMemberships.userId })
+      .from(organizationMemberships)
+      .where(eq(organizationMemberships.organizationId, organizationId)),
+    database
+      .select({ userId: organizationInvitations.targetUserId })
+      .from(organizationInvitations)
+      .where(and(
+        eq(organizationInvitations.organizationId, organizationId),
+        eq(organizationInvitations.status, "pending"),
+        gt(organizationInvitations.expiresAt, new Date()),
+      )),
+  ]);
+  return searchUsernameDirectoryInDatabase(database, query, {
+    excludeUserIds: [inviterUserId, ...members.map(({ userId }) => userId), ...pending.map(({ userId }) => userId)],
+  });
 }
 
 export async function listOrganizationMembers(database: Database, organizationId: string, viewerUserId: string): Promise<OrganizationMember[]> {
@@ -173,7 +193,7 @@ export async function listPendingOrganizationInvitations(database: Database, org
   return result.pending;
 }
 
-export async function createOrganizationInvitation(database: Database, organizationId: string, inviterUserId: string, input: { username: unknown; role: unknown }) {
+export async function createOrganizationInvitation(database: Database, organizationId: string, inviterUserId: string, input: { targetUserId?: unknown; username?: unknown; role: unknown }) {
   assertOrganizationId(organizationId);
   assertUserId(inviterUserId);
   const requestedRole = input.role === undefined ? "member" : input.role;
@@ -182,8 +202,7 @@ export async function createOrganizationInvitation(database: Database, organizat
   const created = await database.transaction(async (transaction) => {
     const access = await requireOrganizationAccess(transaction as Database, organizationId, inviterUserId);
     if (!canGrantOrganizationInvitationRole(role, access.can)) throw new OrganizationInvitationError("forbidden");
-    const username = parseInvitationUsername(input.username);
-    const target = await resolveInvitationTarget(transaction as Database, username);
+    const target = await resolveInvitationTarget(transaction as Database, input);
     if (!target) throw new OrganizationInvitationError("invalid_target");
     if (target.id === inviterUserId) throw new OrganizationInvitationError("self");
 

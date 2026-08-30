@@ -63,7 +63,7 @@ export type GroupJoinRequestSummary = {
 
 export type GroupFormValues = { name: string; description: string };
 export type GroupActionState = { fieldErrors: Partial<Record<keyof GroupFormValues | "avatar", string>>; formError: string; values: GroupFormValues };
-export type GroupJoinRequestActionState = { error: string; values: { username: string } };
+export type GroupJoinRequestActionState = { error: string; values: { targetUserId: string } };
 
 export type GroupExpenseShareFormValue = { participantId: string; amount: string };
 export type GroupExpenseFormValues = { description: string; totalAmount: string; occurredAtLocal: string; timezoneOffsetMinutes: string; payerParticipantId: string; shares: GroupExpenseShareFormValue[] };

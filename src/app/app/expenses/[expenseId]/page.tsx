@@ -78,7 +78,7 @@ export default async function ExpenseRecordPage({
         <div className="expense-record__intro">
           <p className="technical-label">Expense · assign shares</p>
           <h1>{expense.description}</h1>
-          <Link className="expense-record__back" href="/app/expenses">← Back to expenses</Link>
+          <Link className="expense-record__back" href="/app/expenses">← Expenses</Link>
         </div>
         {query?.created === "1" ? (
           <RecordConfirmation

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { GroupJoinRequestSummary, GroupParticipant } from "@/domain/group-contracts";
+import type { RegisteredFriendCandidate } from "@/domain/collaboration-candidates";
 import { assertPlainDto } from "@/test/assert-plain-dto";
 
 vi.mock("server-only", () => ({}));
@@ -20,6 +21,7 @@ import { GroupPeople } from "./group-people";
 
 const externalParticipant: GroupParticipant = { id: "participant-external", userId: null, displayName: "Taxi", label: "Driver", role: null, isExternal: true, isFormer: false };
 const pendingLink: GroupJoinRequestSummary = { id: "request-a", kind: "participant_link", status: "pending", targetUserId: "user-b", targetDisplayName: "Alice", targetUsername: "alice", participantId: externalParticipant.id, participantDisplayName: "Taxi", participantLabel: "Driver", expiresAt: "2026-09-01T00:00:00.000Z" };
+const friendCandidate: RegisteredFriendCandidate = { userId: "user-friend", displayName: "Carol", username: "carol" };
 
 describe("GroupPeople", () => {
   it("renders external participant data as read-only for non-managers", () => {
@@ -60,10 +62,11 @@ describe("GroupPeople", () => {
   });
 
   it("separates the member invitation control from external participants", () => {
-    render(<GroupPeople groupId="group-a" participants={[]} canManageParticipants canManageRoles={false} />);
+    const { container } = render(<GroupPeople groupId="group-a" participants={[]} friendCandidates={[friendCandidate]} canManageParticipants canManageRoles={false} />);
 
     expect(screen.getByRole("heading", { name: "Invite member" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send invitation" })).toBeInTheDocument();
+    expect(container.querySelector('option[value="user-friend"]')).toHaveTextContent("Carol · @carol");
     expect(screen.getByText("No external participants yet.")).toBeInTheDocument();
   });
 });

@@ -5,7 +5,8 @@ import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { readOverviewSpaces } from "@/server/app-overview";
 import { formatRupiah } from "@/domain/rupiah";
 import { GroupCard } from "@/components/groups/group-card";
-import { OrganizationAvatar } from "@/components/organizations/organization-avatar";
+import { OrganizationCard } from "@/components/organizations/organization-card";
+import { PersonalLedgerSnapshot } from "@/components/ledger/personal-ledger-snapshot";
 
 export const metadata = { title: "Overview" };
 import { LocalDateTime } from "@/components/editorial/local-date-time";
@@ -48,27 +49,7 @@ export default async function AppPage() {
               Open Personal <span aria-hidden="true">→</span>
             </Link>
           </div>
-          <section className="overview-summary" aria-label="Personal ledger summary">
-            <div className="overview-summary__primary">
-              <span className="technical-label">Still owed to you</span>
-              <strong>{formatRupiah(summary.totalOutstandingAmount)}</strong>
-              <span>Open balances across your friends.</span>
-            </div>
-            <div className={summary.totalUnallocatedRepaymentAmount > 0 ? "overview-summary__attention" : undefined}>
-              <span className="technical-label">Needs allocation</span>
-              <strong>{formatRupiah(summary.totalUnallocatedRepaymentAmount)}</strong>
-              <span>
-                {summary.totalUnallocatedRepaymentAmount > 0
-                  ? "Received money still needs an expense."
-                  : "All received money is applied to shares."}
-              </span>
-            </div>
-            <div>
-              <span className="technical-label">Total spending</span>
-              <strong>{formatRupiah(summary.totalExpenseAmount)}</strong>
-              <span>All expenses recorded in this ledger.</span>
-            </div>
-          </section>
+          <PersonalLedgerSnapshot summary={summary} />
 
           <details className="overview-ledger-clarity">
             <summary>How are these totals calculated?</summary>
@@ -170,42 +151,11 @@ export default async function AppPage() {
           {spaces.organizations.length ? (
             <div className="organization-grid">
               {spaces.organizations.map((organization) => (
-                <Link
-                  className="organization-card"
-                  href={`/app/organizations/${organization.id}`}
+                <OrganizationCard
+                  ledgerSummary={organization.ledgerSummary}
+                  organization={organization}
                   key={organization.id}
-                >
-                  <OrganizationAvatar
-                    organizationId={organization.id}
-                    customAvatar={organization.avatar}
-                    size="md"
-                    decorative
-                  />
-                  <span className="organization-card__details">
-                    <strong>{organization.name}</strong>
-                    <span>
-                      {organization.role[0]?.toUpperCase()}
-                      {organization.role.slice(1)} · {organization.memberCount}{" "}
-                      {organization.memberCount === 1 ? "member" : "members"}
-                    </span>
-                    {organization.ledgerSummary ? (
-                      <span className="organization-card__ledger">
-                        <span>
-                          <span className="technical-label">OUTSTANDING</span>
-                          <strong>{formatRupiah(organization.ledgerSummary.totalOutstandingAmount)}</strong>
-                        </span>
-                        <span>
-                          <span className="technical-label">EXPENSES</span>
-                          <strong>{formatRupiah(organization.ledgerSummary.totalExpenseAmount)}</strong>
-                        </span>
-                        <span>
-                          <span className="technical-label">REPAID</span>
-                          <strong>{formatRupiah(organization.ledgerSummary.totalRepaidAmount)}</strong>
-                        </span>
-                      </span>
-                    ) : null}
-                  </span>
-                </Link>
+                />
               ))}
             </div>
           ) : (

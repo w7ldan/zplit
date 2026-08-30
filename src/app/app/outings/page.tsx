@@ -145,6 +145,7 @@ function OutingsPageContent({ data }: { data: OutingsPageData }) {
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
+            <Link className="personal-parent-link" href="/app/personal">← Personal</Link>
             <p className="technical-label">Outings · shared events</p>
             <h1>Outings</h1>
             <p className="app-page__lede">Keep related expenses together under the event where they happened.</p>

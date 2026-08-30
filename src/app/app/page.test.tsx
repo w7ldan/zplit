@@ -144,7 +144,10 @@ describe("/app overview", () => {
     expect(screen.getByText("Rp 20.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Acme/ })).toHaveAttribute("href", "/app/organizations/org-a");
     expect(screen.getByText("OUTSTANDING")).toBeInTheDocument();
-    expect(screen.getByText("Rp 80.000")).toBeInTheDocument();
+    expect(screen.getByText("Rp 40.000")).toBeInTheDocument();
+    expect(screen.queryByText("Rp 80.000")).not.toBeInTheDocument();
+    expect(screen.queryByText("EXPENSES")).not.toBeInTheDocument();
+    expect(screen.queryByText("REPAID")).not.toBeInTheDocument();
     expect(screen.queryByText("Groups will appear here when they are available.")).not.toBeInTheDocument();
     expect(screen.queryByText("No organizations yet.")).not.toBeInTheDocument();
   });

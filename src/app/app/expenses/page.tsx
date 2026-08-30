@@ -145,6 +145,7 @@ function ExpensesPageContent({ data, params }: { data: ExpensesPageData; params:
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
+            <Link className="personal-parent-link" href="/app/personal">← Personal</Link>
             <p className="technical-label">Expenses · money you paid</p>
             <h1>Expenses</h1>
             <p className="app-page__lede">Record shared spending and assign the amounts each friend owes.</p>

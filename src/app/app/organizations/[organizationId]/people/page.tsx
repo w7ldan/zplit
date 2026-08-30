@@ -4,6 +4,7 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getOrganizationForMember } from "@/server/organizations";
 import { listOrganizationMembers, listPendingOrganizationInvitations } from "@/server/organization-invitations";
+import { listRegisteredFriendCandidates } from "@/server/collaboration-candidates";
 import { OrganizationMembers } from "@/components/organizations/organization-members";
 
 export const dynamic = "force-dynamic";
@@ -16,18 +17,22 @@ export default async function OrganizationPeoplePage({
 }) {
   const session = await requireSession();
   const { organizationId } = await params;
+  const database = getDatabase();
   let organization;
   try {
-    organization = await getOrganizationForMember(getDatabase(), organizationId, session.user.id);
+    organization = await getOrganizationForMember(database, organizationId, session.user.id);
   } catch {
     notFound();
   }
-  const [members, pendingInvitations] = await Promise.all([
+  const [members, pendingInvitations, friendCandidates] = await Promise.all([
     organization.canViewMembers
-      ? listOrganizationMembers(getDatabase(), organizationId, session.user.id)
+      ? listOrganizationMembers(database, organizationId, session.user.id)
       : Promise.resolve(undefined),
     organization.invitationRoles?.length
-      ? listPendingOrganizationInvitations(getDatabase(), organizationId, session.user.id)
+      ? listPendingOrganizationInvitations(database, organizationId, session.user.id)
+      : Promise.resolve([]),
+    organization.invitationRoles?.length
+      ? listRegisteredFriendCandidates(database, session.user.id, { kind: "organization", id: organizationId })
       : Promise.resolve([]),
   ]);
   return (
@@ -47,6 +52,7 @@ export default async function OrganizationPeoplePage({
           members={members}
           pendingInvitations={pendingInvitations}
           invitationRoles={organization.invitationRoles ?? []}
+          friendCandidates={friendCandidates}
         />
         {organization.canViewLedger ? (
           <section

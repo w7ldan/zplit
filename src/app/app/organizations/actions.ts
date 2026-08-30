@@ -15,6 +15,7 @@ import {
   revokeOrganizationInvitation,
   searchOrganizationInvitationUsers,
 } from "@/server/organization-invitations";
+import { listRegisteredFriendCandidates } from "@/server/collaboration-candidates";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 
 export type { OrganizationActionState, OrganizationFormValues, OrganizationInvitationActionState } from "@/domain/organization-contracts";
@@ -88,7 +89,18 @@ export async function deleteOrganizationAction(organizationId: string) {
 export async function searchOrganizationInvitationOptions(organizationId: string, query = ""): Promise<SearchableOption[]> {
   const session = await requireSession();
   try {
-    return (await searchOrganizationInvitationUsers(getDatabase(), organizationId, session.user.id, query)).map((user) => ({ id: user.username, label: `${user.displayName} · @${user.username}` }));
+    const database = getDatabase();
+    const [friends, users] = await Promise.all([
+      listRegisteredFriendCandidates(database, session.user.id, { kind: "organization", id: organizationId }, query),
+      searchOrganizationInvitationUsers(database, organizationId, session.user.id, query),
+    ]);
+    const friendIds = new Set(friends.map((friend) => friend.userId));
+    return [
+      ...friends.map((friend) => ({ id: friend.userId, label: `${friend.displayName} · @${friend.username}`, group: "Friends" })),
+      ...users
+        .filter((user) => !friendIds.has(user.id))
+        .map((user) => ({ id: user.id, label: `${user.displayName} · @${user.username}`, group: "Other Zplit users" })),
+    ];
   } catch {
     return [];
   }
@@ -113,18 +125,25 @@ function organizationInvitationErrorMessage(error: unknown) {
 }
 
 export async function createOrganizationInvitationAction(organizationId: string, previousState: OrganizationInvitationActionState, formData: FormData): Promise<OrganizationInvitationActionState> {
-  const username = typeof formData.get("username") === "string" ? String(formData.get("username")) : "";
+  const selectedTarget = formData.get("targetUserId");
+  const legacyUsername = formData.get("username");
+  const targetUserId = typeof selectedTarget === "string"
+    ? selectedTarget
+    : typeof legacyUsername === "string"
+      ? legacyUsername
+      : "";
+  const target = typeof selectedTarget === "string" ? { targetUserId } : { username: targetUserId };
   const roleValue = formData.get("role") ?? "member";
-  if (!isOrganizationInvitationRole(roleValue)) return { error: "Choose Member, Treasurer, or Admin.", values: { username, role: previousState.values.role } };
-  if (!username.trim()) return { error: "Choose an existing Zplit username.", values: { username, role: roleValue } };
+  if (!isOrganizationInvitationRole(roleValue)) return { error: "Choose Member, Treasurer, or Admin.", values: { targetUserId, role: previousState.values.role } };
+  if (!targetUserId.trim()) return { error: "Choose an existing Zplit username.", values: { targetUserId, role: roleValue } };
   const session = await requireSession();
   try {
-    await createOrganizationInvitation(getDatabase(), organizationId, session.user.id, { username, role: roleValue });
+    await createOrganizationInvitation(getDatabase(), organizationId, session.user.id, { ...target, role: roleValue });
   } catch (error) {
-    return { error: organizationInvitationErrorMessage(error), values: { username, role: roleValue } };
+    return { error: organizationInvitationErrorMessage(error), values: { targetUserId, role: roleValue } };
   }
   revalidatePath(`/app/organizations/${organizationId}`);
-  return { error: "Invitation sent.", values: { username: "", role: "member" } };
+  return { error: "Invitation sent.", values: { targetUserId: "", role: "member" } };
 }
 
 export async function revokeOrganizationInvitationAction(organizationId: string, invitationId: string) {
