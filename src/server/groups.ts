@@ -2,16 +2,42 @@ import "server-only";
 
 import { and, asc, count, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { chatMessages, groupAvatars, groupExpenseShares, groupExpenses, groupJoinRequests, groupMemberships, groupObligations, groupOffsetSettlements, groupParticipants, groupSettlements, groups, users } from "@/db/schema";
+import {
+  chatMessages,
+  friends,
+  groupAvatars,
+  groupExpenseShares,
+  groupExpenses,
+  groupJoinRequests,
+  groupMemberships,
+  groupObligations,
+  groupOffsetSettlements,
+  groupParticipants,
+  groupSettlements,
+  groups,
+  users,
+} from "@/db/schema";
 import type { GroupAvatarMetadata, GroupCapabilities, GroupDetail, GroupParticipant, GroupSummary } from "@/domain/group-contracts";
 import { calculateGroupBalances } from "@/domain/group-accounting";
 import { groupAccessForRole, isGroupRole, type GroupRole } from "@/domain/group-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
+import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
 import { publishNotificationStateChange } from "@/server/notifications";
 
 export type { GroupRole } from "@/domain/group-permissions";
 export class GroupError extends Error {
-  constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden" | "participant_not_found" | "registered_participant" | "owner_required" | "financial_history") {
+  constructor(readonly code:
+    | "not_found"
+    | "invalid_id"
+    | "invalid_input"
+    | "not_member"
+    | "forbidden"
+    | "participant_not_found"
+    | "registered_participant"
+    | "personal_friend_not_found"
+    | "registered_personal_friend"
+    | "owner_required"
+    | "financial_history") {
     super(code);
     this.name = "GroupError";
   }
@@ -85,6 +111,19 @@ export async function requireGroupAccess(database: Database, groupId: string, us
     requireManageRoles: () => { if (!access.canManageRoles) throw new GroupError("forbidden"); },
     requireDelete: () => { if (!access.canDelete) throw new GroupError("forbidden"); },
   };
+}
+
+async function requireLockedGroupAccess(database: Database, groupId: string, userId: string) {
+  const [membership] = await database
+    .select({ userId: groupMemberships.userId })
+    .from(groupMemberships)
+    .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, userId)))
+    .limit(1)
+    .for("update");
+  if (!membership) throw new GroupError("not_member");
+  const access = await requireGroupAccess(database, groupId, userId);
+  access.requireManageParticipants();
+  return access;
 }
 
 export async function listGroups(database: Database, userId: string, limit?: number): Promise<GroupSummary[]> {
@@ -261,6 +300,56 @@ export async function createExternalParticipant(database: Database, groupId: str
   const [participant] = await database.insert(groupParticipants).values({ groupId, ...cleanParticipantInput(input) }).returning();
   if (!participant) throw new Error("External participant was not created");
   return participant;
+}
+
+export async function addPersonalFriendAsGroupParticipant(
+  database: Database,
+  groupId: string,
+  actorUserId: string,
+  personalFriendId: string,
+) {
+  assertGroupId(groupId);
+  if (!normalizeUuid(personalFriendId)) throw new GroupError("personal_friend_not_found");
+  return database.transaction(async (transaction) => {
+    const transactionalDatabase = transaction as Database;
+    await requireLockedGroupAccess(transactionalDatabase, groupId, actorUserId);
+    const personalScopeId = await getPersonalLedgerScopeId(transactionalDatabase, actorUserId);
+    const [friend] = await transaction
+      .select({ id: friends.id, name: friends.name, linkedUserId: friends.linkedUserId, archivedAt: friends.archivedAt })
+      .from(friends)
+      .where(and(eq(friends.ledgerScopeId, personalScopeId), eq(friends.id, personalFriendId)))
+      .limit(1)
+      .for("update");
+    if (!friend || friend.archivedAt) throw new GroupError("personal_friend_not_found");
+    if (friend.linkedUserId) throw new GroupError("registered_personal_friend");
+
+    const [existing] = await transaction
+      .select()
+      .from(groupParticipants)
+      .where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.sourcePersonalFriendId, friend.id)))
+      .limit(1)
+      .for("update");
+    if (existing) return existing;
+
+    const [participant] = await transaction
+      .insert(groupParticipants)
+      .values({
+        groupId,
+        displayName: cleanParticipantInput({ displayName: friend.name }).displayName,
+        sourcePersonalFriendId: friend.id,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (participant) return participant;
+    const [existingParticipant] = await transaction
+      .select()
+      .from(groupParticipants)
+      .where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.sourcePersonalFriendId, friend.id)))
+      .limit(1)
+      .for("update");
+    if (!existingParticipant) throw new Error("External participant was not created");
+    return existingParticipant;
+  });
 }
 
 async function getParticipant(database: Database, groupId: string, participantId: string) {

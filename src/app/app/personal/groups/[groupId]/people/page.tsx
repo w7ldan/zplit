@@ -3,7 +3,7 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getGroupForMember, listGroupParticipants } from "@/server/groups";
 import { listGroupJoinRequests } from "@/server/group-join-requests";
-import { listRegisteredFriendCandidates } from "@/server/collaboration-candidates";
+import { listPersonalFriendCandidates } from "@/server/collaboration-candidates";
 import { GroupPeople } from "@/components/groups/group-people";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export default async function GroupPeoplePage({ params }: { params: Promise<{ gr
     listGroupParticipants(database, groupId, session.user.id),
     group.canManageParticipants ? listGroupJoinRequests(database, groupId, session.user.id) : Promise.resolve({ invitations: [], links: [] }),
     group.canManageParticipants
-      ? listRegisteredFriendCandidates(database, session.user.id, { kind: "group", id: groupId })
+      ? listPersonalFriendCandidates(database, session.user.id, { kind: "group", id: groupId })
       : Promise.resolve([]),
   ]);
   return (

@@ -1737,6 +1737,28 @@ body.global-search-open {
   text-align: right;
 }
 
+.organization-members__personal-friends .organization-members__row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.organization-members__friend-identity,
+.organization-members__friend-invite {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.organization-members__friend-invite select {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+}
+
 .organization-invite__form {
   display: grid;
   gap: 0.65rem;
@@ -2133,6 +2155,18 @@ body.global-search-open {
   flex: 1 1 12rem;
   gap: 0.15rem;
   overflow-wrap: anywhere;
+}
+
+.group-people__personal-friend-identity {
+  display: flex;
+  flex: 1 1 12rem;
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.group-people__personal-friend-identity .group-people__identity {
+  flex: 1 1 auto;
 }
 
 .group-people__identity span,

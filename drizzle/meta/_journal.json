@@ -232,6 +232,13 @@
       "when": 1788033794906,
       "tag": "0032_unique_baron_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788136993156,
+      "tag": "0033_sturdy_kulan_gath",
+      "breakpoints": true
     }
   ]
 }

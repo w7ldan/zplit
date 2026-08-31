@@ -17,7 +17,7 @@ import {
 } from "../../ledger-actions";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Organization friend details" };
+export const metadata = { title: "Organization expense contact details" };
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -65,7 +65,7 @@ export default async function OrganizationFriendPage({
         <div className="friend-record__intro">
           <div className="friend-record__title">
             <p className="technical-label">
-              Organization Friend · ledger contact
+              Organization expense contact
             </p>
             <h1>{friend.name}</h1>
           </div>
@@ -79,11 +79,11 @@ export default async function OrganizationFriendPage({
               </Link>
             ) : null}
             <Link className="friend-record__back" href={`${base}/friends`}>
-              ← Back to friends
+              ← Back to expense contacts
             </Link>
           </div>
         </div>
-        <section className="friend-record__summary" aria-label="Friend summary">
+        <section className="friend-record__summary" aria-label="Expense contact summary">
           <section
             className="friend-record__balance"
             aria-labelledby="friend-balance-heading"

@@ -2,7 +2,13 @@ import "server-only";
 
 import { and, asc, count, eq, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { ledgerScopes, organizationAvatars, organizationMemberships, organizations } from "@/db/schema";
+import {
+  friends,
+  ledgerScopes,
+  organizationAvatars,
+  organizationMemberships,
+  organizations,
+} from "@/db/schema";
 import type { OrganizationAvatarMetadata, OrganizationCapabilities, OrganizationDetail, OrganizationSummary } from "@/domain/organization-contracts";
 import {
   isOrganizationRole,
@@ -12,7 +18,7 @@ import {
   type OrganizationRole,
 } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
-import { createOrganizationLedgerScope } from "@/server/ledger-scopes";
+import { createOrganizationLedgerScope, getPersonalLedgerScopeId } from "@/server/ledger-scopes";
 import { createLedgerRepository } from "@/domain/ledger-repository";
 
 export type { OrganizationRole } from "@/domain/organization-permissions";
@@ -68,6 +74,7 @@ function toOrganizationCapabilities(access: OrganizationAccess): OrganizationCap
     canDelete: access.can("organization.delete"),
     canViewMembers: access.can("members.view"),
     canViewLedger: access.can("ledger.view"),
+    canManageFriends: access.can("friends.manage"),
     canViewChat: access.can("chat.view"),
     canManageRepaymentDestinations: access.can("repayment_destinations.manage"),
     canExport: access.can("exports.create"),
@@ -109,6 +116,103 @@ export async function requireOrganizationLedgerAccess(
     .limit(1);
   if (!scope) throw new OrganizationError("not_found");
   return { ...access, organizationId, ledgerScopeId: scope.id, ledger: createLedgerRepository(database, scope.id) };
+}
+
+async function requireLockedOrganizationLedgerAccess(database: Database, organizationId: string, userId: string) {
+  const [membership] = await database
+    .select({ userId: organizationMemberships.userId })
+    .from(organizationMemberships)
+    .where(and(eq(organizationMemberships.organizationId, organizationId), eq(organizationMemberships.userId, userId)))
+    .limit(1)
+    .for("update");
+  if (!membership) throw new OrganizationError("not_member");
+  return requireOrganizationLedgerAccess(database, organizationId, userId, "friends.manage");
+}
+
+export async function addPersonalFriendAsOrganizationExpenseContact(
+  database: Database,
+  organizationId: string,
+  actorUserId: string,
+  personalFriendId: string,
+) {
+  assertOrganizationId(organizationId);
+  if (!normalizeUuid(personalFriendId)) throw new OrganizationError("not_found");
+  return database.transaction(async (transaction) => {
+    const transactionalDatabase = transaction as Database;
+    const access = await requireLockedOrganizationLedgerAccess(transactionalDatabase, organizationId, actorUserId);
+    const personalScopeId = await getPersonalLedgerScopeId(transactionalDatabase, actorUserId);
+    const [source] = await transaction
+      .select({
+        id: friends.id,
+        name: friends.name,
+        linkedUserId: friends.linkedUserId,
+        archivedAt: friends.archivedAt,
+      })
+      .from(friends)
+      .where(and(eq(friends.ledgerScopeId, personalScopeId), eq(friends.id, personalFriendId)))
+      .limit(1)
+      .for("update");
+    if (!source || source.archivedAt) throw new OrganizationError("not_found");
+
+    const [sourceContact] = await transaction
+      .select()
+      .from(friends)
+      .where(and(eq(friends.ledgerScopeId, access.ledgerScopeId), eq(friends.sourcePersonalFriendId, source.id)))
+      .limit(1)
+      .for("update");
+    const [linkedContact] = source.linkedUserId
+      ? await transaction
+        .select()
+        .from(friends)
+        .where(and(
+          eq(friends.ledgerScopeId, access.ledgerScopeId),
+          eq(friends.linkedUserId, source.linkedUserId),
+        ))
+        .limit(1)
+        .for("update")
+      : [];
+    const existing = linkedContact ?? sourceContact;
+    if (existing) {
+      const shouldLink = Boolean(source.linkedUserId && existing.linkedUserId !== source.linkedUserId);
+      if (!shouldLink && existing.archivedAt === null) return existing;
+      const [updated] = await transaction
+        .update(friends)
+        .set({
+          ...(shouldLink ? { linkedUserId: source.linkedUserId } : {}),
+          archivedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(friends.ledgerScopeId, access.ledgerScopeId), eq(friends.id, existing.id)))
+        .returning();
+      if (!updated) throw new OrganizationError("not_found");
+      return updated;
+    }
+
+    const [contact] = await transaction
+      .insert(friends)
+      .values({
+        ledgerScopeId: access.ledgerScopeId,
+        name: source.name,
+        sourcePersonalFriendId: source.id,
+        ...(source.linkedUserId ? { linkedUserId: source.linkedUserId } : {}),
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (contact) return contact;
+    const [existingContact] = await transaction
+      .select()
+      .from(friends)
+      .where(and(
+        eq(friends.ledgerScopeId, access.ledgerScopeId),
+        source.linkedUserId
+          ? eq(friends.linkedUserId, source.linkedUserId)
+          : eq(friends.sourcePersonalFriendId, source.id),
+      ))
+      .limit(1)
+      .for("update");
+    if (!existingContact) throw new OrganizationError("not_found");
+    return existingContact;
+  });
 }
 
 type OrganizationListRow = {

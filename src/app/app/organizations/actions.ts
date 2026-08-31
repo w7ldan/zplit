@@ -8,7 +8,13 @@ import { AvatarFileValidationError, validateAvatarFile } from "@/domain/avatar-f
 import type { OrganizationActionState, OrganizationFormValues, OrganizationInvitationActionState } from "@/domain/organization-contracts";
 import { isOrganizationInvitationRole } from "@/domain/organization-permissions";
 import { normalizeUserAvatar } from "@/server/user-avatars";
-import { createOrganization, deleteOrganization, OrganizationError, updateOrganization } from "@/server/organizations";
+import {
+  addPersonalFriendAsOrganizationExpenseContact,
+  createOrganization,
+  deleteOrganization,
+  OrganizationError,
+  updateOrganization,
+} from "@/server/organizations";
 import {
   createOrganizationInvitation,
   OrganizationInvitationError,
@@ -91,12 +97,11 @@ export async function searchOrganizationInvitationOptions(organizationId: string
   try {
     const database = getDatabase();
     const [friends, users] = await Promise.all([
-      listRegisteredFriendCandidates(database, session.user.id, { kind: "organization", id: organizationId }, query),
+      listRegisteredFriendCandidates(database, session.user.id, { kind: "organization", id: organizationId }),
       searchOrganizationInvitationUsers(database, organizationId, session.user.id, query),
     ]);
     const friendIds = new Set(friends.map((friend) => friend.userId));
     return [
-      ...friends.map((friend) => ({ id: friend.userId, label: `${friend.displayName} · @${friend.username}`, group: "Friends" })),
       ...users
         .filter((user) => !friendIds.has(user.id))
         .map((user) => ({ id: user.id, label: `${user.displayName} · @${user.username}`, group: "Other Zplit users" })),
@@ -104,6 +109,43 @@ export async function searchOrganizationInvitationOptions(organizationId: string
   } catch {
     return [];
   }
+}
+
+export async function invitePersonalFriendToOrganizationAction(
+  organizationId: string,
+  userId: string,
+  formData: FormData,
+) {
+  const role = formData.get("role");
+  if (!isOrganizationInvitationRole(role)) return;
+  const session = await requireSession();
+  try {
+    await createOrganizationInvitation(getDatabase(), organizationId, session.user.id, { targetUserId: userId, role });
+  } catch {
+    // The Organization People page refetches canonical state below.
+  }
+  revalidatePath(`/app/organizations/${organizationId}`);
+  revalidatePath(`/app/organizations/${organizationId}/people`);
+}
+
+export async function addPersonalFriendAsOrganizationExpenseContactAction(
+  organizationId: string,
+  personalFriendId: string,
+) {
+  const session = await requireSession();
+  try {
+    await addPersonalFriendAsOrganizationExpenseContact(
+      getDatabase(),
+      organizationId,
+      session.user.id,
+      personalFriendId,
+    );
+  } catch {
+    // The Organization People page refetches canonical state below.
+  }
+  revalidatePath(`/app/organizations/${organizationId}`);
+  revalidatePath(`/app/organizations/${organizationId}/people`);
+  revalidatePath(`/app/organizations/${organizationId}/friends`);
 }
 
 function organizationInvitationErrorMessage(error: unknown) {

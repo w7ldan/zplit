@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
   return {
     requireSession: vi.fn(),
     getDatabase: vi.fn(),
+    addPersonalFriendAsGroupParticipant: vi.fn(),
     createGroupInvitation: vi.fn(),
     createGroupParticipantLinkRequest: vi.fn(),
     searchGroupJoinUsers: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/groups", () => ({
+  addPersonalFriendAsGroupParticipant: mocks.addPersonalFriendAsGroupParticipant,
   createExternalParticipant: mocks.createExternalParticipant,
   createGroup: mocks.createGroup,
   deleteExternalParticipant: mocks.deleteExternalParticipant,
@@ -56,7 +58,12 @@ vi.mock("@/server/user-avatars", () => ({ normalizeUserAvatar: mocks.normalizeUs
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
-import { createGroupInvitationAction, searchGroupJoinUserOptions } from "./actions";
+import {
+  addPersonalFriendAsGroupParticipantAction,
+  createGroupInvitationAction,
+  invitePersonalFriendToGroupAction,
+  searchGroupJoinUserOptions,
+} from "./actions";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -65,12 +72,11 @@ beforeEach(() => {
 });
 
 describe("Group collaboration candidate actions", () => {
-  it("groups Personal Friends before unrelated username results", async () => {
+  it("keeps username discovery as the fallback after first-class Personal Friend rows", async () => {
     mocks.listRegisteredFriendCandidates.mockResolvedValue([{ userId: "user-friend", displayName: "Alice", username: "alice" }]);
     mocks.searchGroupJoinUsers.mockResolvedValue([{ id: "user-other", displayName: "Other", username: "other" }]);
 
     await expect(searchGroupJoinUserOptions("group-a")).resolves.toEqual([
-      { id: "user-friend", label: "Alice · @alice", group: "Friends" },
       { id: "user-other", label: "Other · @other", group: "Other Zplit users" },
     ]);
   });
@@ -88,6 +94,24 @@ describe("Group collaboration candidate actions", () => {
       "group-a",
       "user-owner",
       { targetUserId: "user-friend" },
+    );
+  });
+
+  it("uses stable IDs for registered invitations and local participant projections", async () => {
+    await invitePersonalFriendToGroupAction("group-a", "user-friend");
+    await addPersonalFriendAsGroupParticipantAction("group-a", "friend-local");
+
+    expect(mocks.createGroupInvitation).toHaveBeenCalledWith(
+      "database",
+      "group-a",
+      "user-owner",
+      { targetUserId: "user-friend" },
+    );
+    expect(mocks.addPersonalFriendAsGroupParticipant).toHaveBeenCalledWith(
+      "database",
+      "group-a",
+      "user-owner",
+      "friend-local",
     );
   });
 });

@@ -3,6 +3,7 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getGroupForMember, listGroupParticipants } from "@/server/groups";
 import { listGroupJoinRequests } from "@/server/group-join-requests";
+import { listPersonalFriendCandidates } from "@/server/collaboration-candidates";
 import { GroupPeople } from "@/components/groups/group-people";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +21,14 @@ export default async function GroupDetailPage({
   } catch {
     notFound();
   }
-  const participants = await listGroupParticipants(getDatabase(), groupId, session.user.id);
+  const database = getDatabase();
+  const participants = await listGroupParticipants(database, groupId, session.user.id);
   const requests = group.canManageParticipants
-    ? await listGroupJoinRequests(getDatabase(), groupId, session.user.id)
+    ? await listGroupJoinRequests(database, groupId, session.user.id)
     : { invitations: [], links: [] };
+  const friendCandidates = group.canManageParticipants
+    ? await listPersonalFriendCandidates(database, session.user.id, { kind: "group", id: groupId })
+    : [];
   return (
     <section className="app-page group-detail-page" id="top">
       <div className="editorial-shell app-page__layout">
@@ -61,6 +66,7 @@ export default async function GroupDetailPage({
             participants={participants}
             pendingInvitations={requests.invitations}
             pendingLinks={requests.links}
+            friendCandidates={friendCandidates}
             canManageParticipants={group.canManageParticipants}
             canManageRoles={group.canManageRoles}
           />

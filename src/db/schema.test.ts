@@ -169,9 +169,15 @@ describe("database schema", () => {
     const group = getTableConfig(schema.groups);
     expect(group.columns.map((column) => column.name)).toEqual(["id", "name", "description", "created_by_user_id", "created_at", "updated_at"]);
     const participants = getTableConfig(schema.groupParticipants);
-    expect(participants.columns.map((column) => column.name)).toEqual(["id", "group_id", "user_id", "display_name", "label", "created_at", "updated_at"]);
+    expect(participants.columns.map((column) => column.name)).toEqual([
+      "id", "group_id", "user_id", "source_personal_friend_id", "display_name", "label", "created_at", "updated_at",
+    ]);
     expect(participants.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_participants_identity_shape", "group_participants_label_not_blank"]));
     expect(indexColumns(schema.groupParticipants, "group_participants_registered_user_uidx")).toEqual(["group_id", "user_id"]);
+    expect(indexColumns(
+      schema.groupParticipants,
+      "group_participants_group_source_personal_friend_uidx",
+    )).toEqual(["group_id", "source_personal_friend_id"]);
     const memberships = getTableConfig(schema.groupMemberships);
     expect(memberships.columns.map((column) => column.name)).toEqual(["group_id", "user_id", "participant_id", "role", "joined_at"]);
     expect(memberships.checks.map((check) => check.name)).toContain("group_memberships_role_allowed");
@@ -180,6 +186,12 @@ describe("database schema", () => {
       { from: ["group_id", "participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
       { from: ["group_id", "user_id", "participant_id"], to: "group_participants", target: ["group_id", "user_id", "id"], onDelete: "restrict" },
     ]));
+    expect(foreignKeyShape(schema.groupParticipants)).toContainEqual({
+      from: ["source_personal_friend_id"],
+      to: "friends",
+      target: ["id"],
+      onDelete: "restrict",
+    });
     expect(getTableConfig(schema.groupAvatars).checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_avatars_media_type_allowed", "group_avatars_content_size_matches"]));
   });
 
@@ -261,8 +273,13 @@ describe("database schema", () => {
     expect(friend.columns.find((column) => column.name === "linked_user_id")?.notNull).toBe(false);
     expect(foreignKeyShape(schema.friends)).toEqual(expect.arrayContaining([
       { from: ["linked_user_id"], to: "users", target: ["id"], onDelete: "set null" },
+      { from: ["source_personal_friend_id"], to: "friends", target: ["id"], onDelete: "restrict" },
     ]));
     expect(indexColumns(schema.friends, "friends_ledger_scope_linked_user_uidx")).toEqual(["ledger_scope_id", "linked_user_id"]);
+    expect(indexColumns(
+      schema.friends,
+      "friends_ledger_scope_source_personal_friend_uidx",
+    )).toEqual(["ledger_scope_id", "source_personal_friend_id"]);
     const requests = getTableConfig(schema.friendLinkRequests);
     expect(requests.columns.map((column) => column.name)).toEqual([
       "id", "owner_user_id", "friend_id", "friend_ledger_scope_id", "target_user_id", "status", "created_at", "accepted_at", "declined_at", "cancelled_at",

@@ -74,6 +74,7 @@ export const friends = pgTable(
       .notNull()
       .references(() => ledgerScopes.id, { onDelete: "restrict" }),
     linkedUserId: text("linked_user_id").references(() => users.id, { onDelete: "set null" }),
+    sourcePersonalFriendId: uuid("source_personal_friend_id"),
     name: varchar("name", { length: 120 }).notNull(),
     phoneNumber: varchar("phone_number", { length: 32 }),
     notes: text("notes"),
@@ -87,6 +88,14 @@ export const friends = pgTable(
     uniqueIndex("friends_ledger_scope_linked_user_uidx")
       .on(table.ledgerScopeId, table.linkedUserId)
       .where(sql`${table.linkedUserId} IS NOT NULL`),
+    uniqueIndex("friends_ledger_scope_source_personal_friend_uidx")
+      .on(table.ledgerScopeId, table.sourcePersonalFriendId)
+      .where(sql`${table.sourcePersonalFriendId} IS NOT NULL`),
+    foreignKey({
+      columns: [table.sourcePersonalFriendId],
+      foreignColumns: [table.id],
+      name: "friends_source_personal_friend_id_friends_id_fk",
+    }).onDelete("restrict"),
     index("friends_name_idx").on(table.ledgerScopeId, table.name),
     index("friends_linked_user_idx").on(table.ledgerScopeId, table.linkedUserId),
     index("friends_archived_at_idx").on(table.ledgerScopeId, table.archivedAt),
@@ -310,6 +319,7 @@ export const groupParticipants = pgTable(
       .notNull()
       .references(() => groups.id, { onDelete: "cascade" }),
     userId: text("user_id").references(() => users.id, { onDelete: "restrict" }),
+    sourcePersonalFriendId: uuid("source_personal_friend_id").references(() => friends.id, { onDelete: "restrict" }),
     displayName: varchar("display_name", { length: 160 }),
     label: varchar("label", { length: 120 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -321,6 +331,9 @@ export const groupParticipants = pgTable(
     unique("group_participants_group_id_id_unique").on(table.groupId, table.id),
     unique("group_participants_group_user_id_unique").on(table.groupId, table.userId, table.id),
     uniqueIndex("group_participants_registered_user_uidx").on(table.groupId, table.userId).where(sql`${table.userId} IS NOT NULL`),
+    uniqueIndex("group_participants_group_source_personal_friend_uidx")
+      .on(table.groupId, table.sourcePersonalFriendId)
+      .where(sql`${table.sourcePersonalFriendId} IS NOT NULL`),
     index("group_participants_group_idx").on(table.groupId),
   ],
 );

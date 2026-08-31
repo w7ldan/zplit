@@ -1,6 +1,6 @@
 import { and, asc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
-import { expenseShares, friends, repayments } from "../../db/schema";
+import { expenseShares, friends, repayments, users } from "../../db/schema";
 import { literalContains, notFound, persistenceError, safeRetrievalInteger } from "./query-utils";
 import {
   clampPage,
@@ -220,13 +220,27 @@ async function searchFriends(options: { q?: unknown; selectedId?: unknown; activ
       const totalItems = safeRetrievalInteger(count, "Friend count");
       const page = clampPage(filters.page, totalItems);
       const items = await database
-        .select()
+        .select({
+          id: friends.id,
+          name: friends.name,
+          phoneNumber: friends.phoneNumber,
+          archivedAt: friends.archivedAt,
+          createdAt: friends.createdAt,
+          linkedDisplayName: users.name,
+          linkedUsername: users.username,
+        })
         .from(friends)
+        .leftJoin(users, eq(users.id, friends.linkedUserId))
         .where(and(...conditions))
         .orderBy(asc(friends.name), asc(friends.id))
         .limit(RECORD_PAGE_SIZE)
         .offset((page - 1) * RECORD_PAGE_SIZE);
-      return pageResult(items, totalItems, page);
+      return pageResult(items.map(({ linkedDisplayName, linkedUsername, ...friend }) => ({
+        ...friend,
+        ...(linkedDisplayName && linkedUsername
+          ? { linkedUser: { displayName: linkedDisplayName, username: linkedUsername } }
+          : {}),
+      })), totalItems, page);
     } catch (error) {
       return persistenceError(error);
     }

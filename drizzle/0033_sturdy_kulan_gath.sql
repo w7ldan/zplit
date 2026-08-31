@@ -1,0 +1,6 @@
+ALTER TABLE "friends" ADD COLUMN "source_personal_friend_id" uuid;--> statement-breakpoint
+ALTER TABLE "group_participants" ADD COLUMN "source_personal_friend_id" uuid;--> statement-breakpoint
+ALTER TABLE "friends" ADD CONSTRAINT "friends_source_personal_friend_id_friends_id_fk" FOREIGN KEY ("source_personal_friend_id") REFERENCES "public"."friends"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "group_participants" ADD CONSTRAINT "group_participants_source_personal_friend_id_friends_id_fk" FOREIGN KEY ("source_personal_friend_id") REFERENCES "public"."friends"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "friends_ledger_scope_source_personal_friend_uidx" ON "friends" USING btree ("ledger_scope_id","source_personal_friend_id") WHERE "friends"."source_personal_friend_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "group_participants_group_source_personal_friend_uidx" ON "group_participants" USING btree ("group_id","source_personal_friend_id") WHERE "group_participants"."source_personal_friend_id" IS NOT NULL;

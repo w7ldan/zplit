@@ -6,7 +6,18 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { AvatarFileValidationError, validateAvatarFile } from "@/domain/avatar-file";
 import { normalizeUserAvatar } from "@/server/user-avatars";
-import { createExternalParticipant, createGroup, deleteExternalParticipant, deleteGroup, GroupError, removeGroupMember, updateExternalParticipant, updateGroup, updateGroupMemberRole } from "@/server/groups";
+import {
+  addPersonalFriendAsGroupParticipant,
+  createExternalParticipant,
+  createGroup,
+  deleteExternalParticipant,
+  deleteGroup,
+  GroupError,
+  removeGroupMember,
+  updateExternalParticipant,
+  updateGroup,
+  updateGroupMemberRole,
+} from "@/server/groups";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 import {
   createGroupInvitation,
@@ -102,6 +113,17 @@ export async function deleteExternalParticipantAction(groupId: string, participa
   revalidatePath(`/app/personal/groups/${groupId}/people`);
 }
 
+export async function addPersonalFriendAsGroupParticipantAction(groupId: string, personalFriendId: string) {
+  const session = await requireSession();
+  try {
+    await addPersonalFriendAsGroupParticipant(getDatabase(), groupId, session.user.id, personalFriendId);
+  } catch {
+    // The Group People page refetches canonical state below.
+  }
+  revalidatePath(`/app/personal/groups/${groupId}`);
+  revalidatePath(`/app/personal/groups/${groupId}/people`);
+}
+
 export async function updateGroupMemberRoleAction(groupId: string, targetUserId: string, formData: FormData) {
   const session = await requireSession();
   const role = formData.get("role");
@@ -124,12 +146,11 @@ export async function searchGroupJoinUserOptions(groupId: string, query = ""): P
   try {
     const database = getDatabase();
     const [friends, users] = await Promise.all([
-      listRegisteredFriendCandidates(database, session.user.id, { kind: "group", id: groupId }, query),
+      listRegisteredFriendCandidates(database, session.user.id, { kind: "group", id: groupId }),
       searchGroupJoinUsers(database, groupId, session.user.id, query),
     ]);
     const friendIds = new Set(friends.map((friend) => friend.userId));
     return [
-      ...friends.map((friend) => ({ id: friend.userId, label: `${friend.displayName} · @${friend.username}`, group: "Friends" })),
       ...users
         .filter((user) => !friendIds.has(user.id))
         .map((user) => ({ id: user.id, label: `${user.displayName} · @${user.username}`, group: "Other Zplit users" })),
@@ -137,6 +158,17 @@ export async function searchGroupJoinUserOptions(groupId: string, query = ""): P
   } catch {
     return [];
   }
+}
+
+export async function invitePersonalFriendToGroupAction(groupId: string, userId: string) {
+  const session = await requireSession();
+  try {
+    await createGroupInvitation(getDatabase(), groupId, session.user.id, { targetUserId: userId });
+  } catch {
+    // The Group People page refetches canonical state below.
+  }
+  revalidatePath(`/app/personal/groups/${groupId}`);
+  revalidatePath(`/app/personal/groups/${groupId}/people`);
 }
 
 function groupJoinRequestErrorMessage(error: unknown, operation: "invite" | "link") {

@@ -5,6 +5,7 @@ export type OrganizationCapabilities = {
   canDelete: boolean;
   canViewMembers: boolean;
   canViewLedger: boolean;
+  canManageFriends: boolean;
   canViewChat: boolean;
   canManageRepaymentDestinations: boolean;
   canExport: boolean;

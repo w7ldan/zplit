@@ -1,27 +1,35 @@
 import "server-only";
 
-import { and, asc, eq, gt, isNotNull, isNull, or } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, or } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
   friendConnections,
   friends,
   groupJoinRequests,
   groupMemberships,
+  groupParticipants,
+  ledgerScopes,
   organizationInvitations,
   organizationMemberships,
   users,
 } from "@/db/schema";
 import { normalizeUsername } from "@/domain/username";
-import type { RegisteredFriendCandidate } from "@/domain/collaboration-candidates";
+import type {
+  PersonalFriendCandidate,
+  RegisteredFriendCandidate,
+} from "@/domain/collaboration-candidates";
 import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
 
 export type CollaborationCandidateTarget =
   | { kind: "organization"; id: string }
-  | { kind: "group"; id: string };
+  | { kind: "group"; id: string }
+  | { kind: "organization_expense_contact"; id: string };
 
 type FriendCandidateRow = {
+  personalFriendId: string;
   userId: string | null;
-  displayName: string;
+  friendDisplayName: string;
+  linkedDisplayName: string | null;
   username: string | null;
   archivedAt: Date | null;
 };
@@ -30,6 +38,11 @@ type ConnectionRow = {
   userAId: string;
   userBId: string;
   status: string;
+};
+
+type RepresentedOrganizationFriends = {
+  sourcePersonalFriendIds: Set<string>;
+  userIds: Set<string>;
 };
 
 function connectedUserIds(userId: string, rows: ConnectionRow[]) {
@@ -43,6 +56,7 @@ function connectedUserIds(userId: string, rows: ConnectionRow[]) {
 }
 
 async function excludedTargetUsers(database: Database, target: CollaborationCandidateTarget, now: Date) {
+  if (target.kind === "organization_expense_contact") return new Set<string>();
   if (target.kind === "organization") {
     const [members, pending] = await Promise.all([
       database
@@ -78,30 +92,118 @@ async function excludedTargetUsers(database: Database, target: CollaborationCand
   return new Set([...members, ...pending].map(({ userId }) => userId));
 }
 
-export async function listRegisteredFriendCandidates(
+async function representedGroupFriends(database: Database, target: CollaborationCandidateTarget) {
+  if (target.kind !== "group") return new Set<string>();
+  const rows = await database
+    .select({ personalFriendId: groupParticipants.sourcePersonalFriendId })
+    .from(groupParticipants)
+    .where(eq(groupParticipants.groupId, target.id));
+  return new Set(rows.flatMap(({ personalFriendId }) => personalFriendId ? [personalFriendId] : []));
+}
+
+async function representedOrganizationFriends(database: Database, target: CollaborationCandidateTarget): Promise<RepresentedOrganizationFriends> {
+  if (target.kind !== "organization_expense_contact") {
+    return {
+      sourcePersonalFriendIds: new Set<string>(),
+      userIds: new Set<string>(),
+    };
+  }
+  const rows = await database
+    .select({ sourcePersonalFriendId: friends.sourcePersonalFriendId, userId: friends.linkedUserId })
+    .from(friends)
+    .innerJoin(ledgerScopes, eq(ledgerScopes.id, friends.ledgerScopeId))
+    .where(and(
+      eq(ledgerScopes.kind, "organization"),
+      eq(ledgerScopes.organizationId, target.id),
+      isNull(friends.archivedAt),
+    ));
+  return {
+    sourcePersonalFriendIds: new Set(rows.flatMap(({ sourcePersonalFriendId }) => (
+      sourcePersonalFriendId ? [sourcePersonalFriendId] : []
+    ))),
+    userIds: new Set(rows.flatMap(({ userId }) => userId ? [userId] : [])),
+  };
+}
+
+function matchesUsername(friend: FriendCandidateRow, usernameQuery: string) {
+  return !usernameQuery || (friend.username !== null && friend.username.startsWith(usernameQuery));
+}
+
+function registeredFriendIsEligible(
+  friend: FriendCandidateRow,
+  ownerUserId: string,
+  target: CollaborationCandidateTarget,
+  connected: Set<string>,
+  excludedUsers: Set<string>,
+  representedOrganizationContacts: RepresentedOrganizationFriends,
+  seenUsers: Set<string>,
+) {
+  const userId = friend.userId;
+  if (!userId) return false;
+  return userId !== ownerUserId
+    && friend.username !== null
+    && connected.has(userId)
+    && !excludedUsers.has(userId)
+    && !(target.kind === "organization_expense_contact" && representedOrganizationContacts.userIds.has(userId))
+    && !seenUsers.has(userId);
+}
+
+function localFriendIsEligible(
+  friend: FriendCandidateRow,
+  target: CollaborationCandidateTarget,
+  representedFriends: Set<string>,
+  representedOrganizationContacts: RepresentedOrganizationFriends,
+) {
+  if (target.kind === "organization") return false;
+  return !(target.kind === "group" && representedFriends.has(friend.personalFriendId))
+    && !(target.kind === "organization_expense_contact" && representedOrganizationContacts.sourcePersonalFriendIds.has(friend.personalFriendId));
+}
+
+function friendIsEligible(
+  friend: FriendCandidateRow,
+  ownerUserId: string,
+  target: CollaborationCandidateTarget,
+  usernameQuery: string,
+  connected: Set<string>,
+  excludedUsers: Set<string>,
+  representedFriends: Set<string>,
+  representedOrganizationContacts: RepresentedOrganizationFriends,
+  seenUsers: Set<string>,
+) {
+  if (!friend.personalFriendId || friend.archivedAt !== null || !matchesUsername(friend, usernameQuery)) return false;
+  return friend.userId
+    ? registeredFriendIsEligible(friend, ownerUserId, target, connected, excludedUsers, representedOrganizationContacts, seenUsers)
+    : localFriendIsEligible(friend, target, representedFriends, representedOrganizationContacts);
+}
+
+export async function listPersonalFriendCandidates(
   database: Database,
   ownerUserId: string,
   target: CollaborationCandidateTarget,
   query?: unknown,
-): Promise<RegisteredFriendCandidate[]> {
+): Promise<PersonalFriendCandidate[]> {
   const scopeId = await getPersonalLedgerScopeId(database, ownerUserId);
   const now = new Date();
-  const [friendRows, connectionRows, excludedUsers] = await Promise.all([
+  const [
+    friendRows,
+    connectionRows,
+    excludedUsers,
+    representedFriends,
+    representedOrganizationContacts,
+  ] = await Promise.all([
     database
       .select({
+        personalFriendId: friends.id,
         userId: friends.linkedUserId,
-        displayName: users.name,
+        friendDisplayName: friends.name,
+        linkedDisplayName: users.name,
         username: users.username,
         archivedAt: friends.archivedAt,
       })
       .from(friends)
-      .innerJoin(users, eq(users.id, friends.linkedUserId))
-      .where(and(
-        eq(friends.ledgerScopeId, scopeId),
-        isNull(friends.archivedAt),
-        isNotNull(friends.linkedUserId),
-      ))
-      .orderBy(asc(users.name), asc(users.username), asc(users.id)),
+      .leftJoin(users, eq(users.id, friends.linkedUserId))
+      .where(and(eq(friends.ledgerScopeId, scopeId), isNull(friends.archivedAt)))
+      .orderBy(asc(friends.name), asc(users.name), asc(users.username), asc(users.id)),
     database
       .select({
         userAId: friendConnections.userAId,
@@ -111,25 +213,45 @@ export async function listRegisteredFriendCandidates(
       .from(friendConnections)
       .where(or(eq(friendConnections.userAId, ownerUserId), eq(friendConnections.userBId, ownerUserId))),
     excludedTargetUsers(database, target, now),
+    representedGroupFriends(database, target),
+    representedOrganizationFriends(database, target),
   ]);
-  const connected = connectedUserIds(ownerUserId, connectionRows);
+  const connected = connectedUserIds(ownerUserId, connectionRows as ConnectionRow[]);
   const usernameQuery = normalizeUsername(query);
-  const seen = new Set<string>();
+  const seenUsers = new Set<string>();
 
   return (friendRows as FriendCandidateRow[]).flatMap((friend) => {
-    if (
-      !friend.userId ||
-      friend.userId === ownerUserId ||
-      friend.archivedAt !== null ||
-      !friend.username ||
-      !connected.has(friend.userId) ||
-      excludedUsers.has(friend.userId) ||
-      (usernameQuery && !friend.username.startsWith(usernameQuery)) ||
-      seen.has(friend.userId)
-    ) {
-      return [];
-    }
-    seen.add(friend.userId);
-    return [{ userId: friend.userId, displayName: friend.displayName, username: friend.username }];
+    if (!friendIsEligible(
+      friend,
+      ownerUserId,
+      target,
+      usernameQuery,
+      connected,
+      excludedUsers,
+      representedFriends,
+      representedOrganizationContacts,
+      seenUsers,
+    )) return [];
+    if (friend.userId) seenUsers.add(friend.userId);
+    return [{
+      personalFriendId: friend.personalFriendId,
+      kind: friend.userId ? "registered" : "local",
+      userId: friend.userId,
+      displayName: friend.linkedDisplayName ?? friend.friendDisplayName,
+      username: friend.username,
+      label: null,
+    }];
   });
+}
+
+export async function listRegisteredFriendCandidates(
+  database: Database,
+  ownerUserId: string,
+  target: CollaborationCandidateTarget,
+  query?: unknown,
+): Promise<RegisteredFriendCandidate[]> {
+  const candidates = await listPersonalFriendCandidates(database, ownerUserId, target, query);
+  return candidates.flatMap((candidate) => candidate.kind === "registered" && candidate.userId && candidate.username
+    ? [{ userId: candidate.userId, displayName: candidate.displayName, username: candidate.username }]
+    : []);
 }

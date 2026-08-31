@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getOrganizationForMember } from "@/server/organizations";
 import { listOrganizationMembers, listPendingOrganizationInvitations } from "@/server/organization-invitations";
-import { listRegisteredFriendCandidates } from "@/server/collaboration-candidates";
+import { listPersonalFriendCandidates } from "@/server/collaboration-candidates";
 import { OrganizationMembers } from "@/components/organizations/organization-members";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +23,7 @@ export default async function OrganizationPeoplePage({
   } catch {
     notFound();
   }
-  const [members, pendingInvitations, friendCandidates] = await Promise.all([
+  const [members, pendingInvitations, friendCandidates, expenseFriendCandidates] = await Promise.all([
     organization.canViewMembers
       ? listOrganizationMembers(database, organizationId, session.user.id)
       : Promise.resolve(undefined),
@@ -32,7 +31,14 @@ export default async function OrganizationPeoplePage({
       ? listPendingOrganizationInvitations(database, organizationId, session.user.id)
       : Promise.resolve([]),
     organization.invitationRoles?.length
-      ? listRegisteredFriendCandidates(database, session.user.id, { kind: "organization", id: organizationId })
+      ? listPersonalFriendCandidates(database, session.user.id, { kind: "organization", id: organizationId })
+      : Promise.resolve([]),
+    organization.canViewLedger && organization.canManageFriends
+      ? listPersonalFriendCandidates(
+        database,
+        session.user.id,
+        { kind: "organization_expense_contact", id: organizationId },
+      )
       : Promise.resolve([]),
   ]);
   return (
@@ -43,7 +49,7 @@ export default async function OrganizationPeoplePage({
             <p className="technical-label">Organization people</p>
             <h1>People</h1>
             <p className="app-page__lede">
-              Keep members, invitations, and ledger contacts in one place.
+              Keep members, invitations, and expense contacts in one place.
             </p>
           </div>
         </header>
@@ -53,28 +59,10 @@ export default async function OrganizationPeoplePage({
           pendingInvitations={pendingInvitations}
           invitationRoles={organization.invitationRoles ?? []}
           friendCandidates={friendCandidates}
+          expenseFriendCandidates={expenseFriendCandidates}
+          canViewExpenseContacts={organization.canViewLedger}
+          canManageExpenseContacts={organization.canManageFriends}
         />
-        {organization.canViewLedger ? (
-          <section
-            className="organization-detail__section organization-people__contacts"
-            aria-labelledby="organization-contacts-heading"
-          >
-            <div>
-              <p className="technical-label">LEDGER CONTACTS</p>
-              <h2 id="organization-contacts-heading">Ledger contacts</h2>
-              <p className="organization-detail__supporting-copy">
-                These local contacts represent people connected to Organization expenses.
-                They are separate from registered members.
-              </p>
-            </div>
-            <Link
-              className="action-link action-link--quiet"
-              href={`/app/organizations/${organizationId}/friends`}
-            >
-              Manage ledger contacts
-            </Link>
-          </section>
-        ) : null}
       </div>
     </section>
   );

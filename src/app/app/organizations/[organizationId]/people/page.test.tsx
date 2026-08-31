@@ -21,10 +21,10 @@ describe("Organization People capability composition", () => {
     mocks.listPendingOrganizationInvitations.mockResolvedValue([]);
   });
 
-  it("does not expose ledger contacts to members.view alone", async () => {
+  it("does not expose expense contacts to members.view alone", async () => {
     mocks.getOrganizationForMember.mockResolvedValue({ id: "org-a", name: "Studio", description: null, canViewMembers: true, canViewLedger: false, invitationRoles: [] });
     render(await OrganizationPeoplePage({ params: Promise.resolve({ organizationId: "org-a" }) }));
-    expect(screen.queryByRole("heading", { name: "Ledger contacts" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Manage ledger contacts" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Expense contacts" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Add someone else" })).not.toBeInTheDocument();
   });
 });

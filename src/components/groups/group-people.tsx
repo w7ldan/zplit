@@ -3,9 +3,11 @@
 import { useActionState, useState } from "react";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import type { GroupJoinRequestActionState, GroupJoinRequestSummary, GroupParticipant } from "@/domain/group-contracts";
-import type { RegisteredFriendCandidate } from "@/domain/collaboration-candidates";
-import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
+import type { PersonalFriendCandidate } from "@/domain/collaboration-candidates";
+import { SearchableCombobox, type SearchableOptionAction } from "@/components/records/searchable-combobox";
+import { UserAvatar } from "@/components/identity/user-avatar";
 import {
+  addPersonalFriendAsGroupParticipantAction,
   createExternalParticipantAction,
   createGroupInvitationAction,
   createGroupParticipantLinkRequestAction,
@@ -13,6 +15,7 @@ import {
   removeGroupMemberAction,
   revokeGroupJoinRequestAction,
   searchGroupJoinUserOptions,
+  invitePersonalFriendToGroupAction,
   updateExternalParticipantAction,
   updateGroupMemberRoleAction,
 } from "@/app/app/personal/groups/actions";
@@ -33,7 +36,6 @@ function GroupJoinForm({
   action,
   buttonLabel,
   description,
-  initialOptions = [],
   onCancel,
 }: {
   id: string;
@@ -44,7 +46,6 @@ function GroupJoinForm({
   ) => Promise<GroupJoinRequestActionState>;
   buttonLabel: string;
   description?: string;
-  initialOptions?: SearchableOption[];
   onCancel?: () => void;
 }) {
   const [state, formAction] = useActionState(action, initialJoinState);
@@ -54,24 +55,24 @@ function GroupJoinForm({
         <p className="group-detail__supporting-copy">{description}</p>
       ) : null}
       <label id={`${id}-label`} htmlFor={id}>
-        Choose a friend or search by @username
+        Search by @username
       </label>
       <SearchableCombobox
         id={id}
         name="targetUserId"
         value={state.values.targetUserId}
-        options={initialOptions}
+        options={[]}
         search={search}
         required
-        placeholder="Choose a person"
-        searchLabel="Search friends or @username"
+        placeholder="Search @username"
+        searchLabel="Search @username"
         labelId={`${id}-label`}
       />
       <p
         className="group-join-form__message"
         role={state.error && !state.error.endsWith("sent.") ? "alert" : "status"}
       >
-        {state.error || "Friends appear first; username search is the fallback."}
+        {state.error || "Search by username to find another Zplit user."}
       </p>
       <div className="group-join-form__actions">
         {onCancel ? (
@@ -90,6 +91,53 @@ function GroupJoinForm({
           {buttonLabel}
         </button>
       </div>
+    </form>
+  );
+}
+
+function PersonalFriendIdentity({ candidate }: { candidate: PersonalFriendCandidate }) {
+  if (candidate.kind === "registered" && candidate.userId && candidate.username) {
+    return (
+      <span className="group-people__personal-friend-identity">
+        <UserAvatar
+          userId={candidate.userId}
+          size="sm"
+          decorative
+        />
+        <span className="group-people__identity">
+          <strong>{candidate.displayName}</strong>
+          <span>@{candidate.username}</span>
+          <span>Registered</span>
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className="group-people__personal-friend-identity">
+      <span className="group-people__identity">
+        <strong>{candidate.displayName}</strong>
+        <span>{candidate.label ?? "Local contact"}</span>
+        <span>Local</span>
+      </span>
+    </span>
+  );
+}
+
+function PersonalFriendAction({ groupId, candidate }: { groupId: string; candidate: PersonalFriendCandidate }) {
+  if (candidate.kind === "registered" && candidate.userId && candidate.username) {
+    return (
+      <form action={invitePersonalFriendToGroupAction.bind(null, groupId, candidate.userId)}>
+        <button className="text-link" type="submit">
+          Invite
+        </button>
+      </form>
+    );
+  }
+  return (
+    <form action={addPersonalFriendAsGroupParticipantAction.bind(null, groupId, candidate.personalFriendId)}>
+      <button className="text-link" type="submit">
+        Add
+      </button>
     </form>
   );
 }
@@ -158,7 +206,7 @@ export function GroupPeople({
   participants: GroupParticipant[];
   pendingInvitations?: GroupJoinRequestSummary[];
   pendingLinks?: GroupJoinRequestSummary[];
-  friendCandidates?: RegisteredFriendCandidate[];
+  friendCandidates?: PersonalFriendCandidate[];
   canManageParticipants: boolean;
   canManageRoles: boolean;
 }) {
@@ -167,11 +215,6 @@ export function GroupPeople({
   const external = participants.filter((participant) => participant.isExternal);
   const pendingLinkByParticipant = new Map(pendingLinks.map((request) => [request.participantId, request]));
   const search = searchGroupJoinUserOptions.bind(null, groupId) as SearchableOptionAction;
-  const friendOptions = friendCandidates.map((friend) => ({
-    id: friend.userId,
-    label: `${friend.displayName} · @${friend.username}`,
-    group: "Friends",
-  }));
   return (
     <>
       <section
@@ -248,13 +291,28 @@ export function GroupPeople({
         ) : null}
         {canManageParticipants ? (
           <div className="group-people__invite">
-            <h3>Invite member</h3>
+            <h3>Invite a member</h3>
+            <p className="technical-label">FROM PERSONAL FRIENDS</p>
+            {friendCandidates.length ? (
+              <ul className="group-people__list group-people__personal-friends">
+                {friendCandidates.map((candidate) => (
+                  <li className="group-people__row" key={candidate.personalFriendId}>
+                    <PersonalFriendIdentity candidate={candidate} />
+                    <PersonalFriendAction groupId={groupId} candidate={candidate} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="group-detail__empty">
+                No Personal friends available here. Search by @username or add another person below.
+              </p>
+            )}
+            <p className="technical-label">OTHER ZPLIT USERS</p>
             <GroupJoinForm
               id="group-invite-target"
               search={search}
               action={createGroupInvitationAction.bind(null, groupId)}
               buttonLabel="Send invitation"
-              initialOptions={friendOptions}
             />
           </div>
         ) : null}

@@ -2,13 +2,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { groupMemberships, groupParticipants, groups } from "@/db/schema";
 import { assertPlainDto } from "@/test/assert-plain-dto";
-import { createExternalParticipant, createGroup, deleteExternalParticipant, deleteGroup, getGroupForMember, GroupError, listGroupOverviewSummaries, removeGroupMember, requireGroupAccess, updateExternalParticipant } from "./groups";
+import {
+  addPersonalFriendAsGroupParticipant,
+  createExternalParticipant,
+  createGroup,
+  deleteExternalParticipant,
+  deleteGroup,
+  getGroupForMember,
+  GroupError,
+  listGroupOverviewSummaries,
+  removeGroupMember,
+  requireGroupAccess,
+  updateExternalParticipant,
+} from "./groups";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/server/ledger-scopes", () => ({ getPersonalLedgerScopeId: vi.fn().mockResolvedValue("scope-personal") }));
 
 function chain(result: unknown) {
   const query = {} as Record<string, unknown> & { then: Promise<unknown>["then"] };
-  for (const method of ["from", "innerJoin", "leftJoin", "where", "limit", "orderBy", "for", "set", "values", "onConflictDoUpdate"]) query[method] = vi.fn(() => query);
+  for (const method of [
+    "from", "innerJoin", "leftJoin", "where", "limit", "orderBy", "for", "set", "values",
+    "onConflictDoNothing", "onConflictDoUpdate",
+  ]) query[method] = vi.fn(() => query);
   query.returning = vi.fn(async () => result);
   query.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
   return query;
@@ -130,6 +146,88 @@ describe("groups", () => {
       { groupId, displayName: "Alice", label: "Fasilkom" },
       { groupId, displayName: "Alice", label: "SMA" },
     ]);
+  });
+
+  it("projects an active local Personal Friend into a distinct Group participant", async () => {
+    const personalFriendId = "44444444-4444-4444-8444-444444444444";
+    const calls: Array<{ table: unknown; values: unknown }> = [];
+    const participant = {
+      id: "55555555-5555-4555-8555-555555555555",
+      groupId,
+      userId: null,
+      displayName: "Alex",
+      label: null,
+      sourcePersonalFriendId: personalFriendId,
+    };
+    const selections = [
+      [{ userId: "admin-a" }],
+      [{ role: "admin" }],
+      [{ id: personalFriendId, name: "Alex", linkedUserId: null, archivedAt: null }],
+      [],
+    ];
+    const transaction = {
+      select: vi.fn(() => chain(selections.shift() ?? [])),
+      insert: vi.fn(() => insertBuilder(groupParticipants, calls, [participant])),
+    };
+    const database = {
+      transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)),
+    } as unknown as Database;
+
+    await expect(
+      addPersonalFriendAsGroupParticipant(database, groupId, "admin-a", personalFriendId),
+    ).resolves.toEqual(participant);
+    expect(calls).toEqual([{
+      table: groupParticipants,
+      values: { groupId, displayName: "Alex", sourcePersonalFriendId: personalFriendId },
+    }]);
+    expect(participant.id).not.toBe(personalFriendId);
+  });
+
+  it("reuses a source Personal Friend projection and rejects registered or inaccessible sources", async () => {
+    const personalFriendId = "44444444-4444-4444-8444-444444444444";
+    const existing = {
+      id: "55555555-5555-4555-8555-555555555555",
+      groupId,
+      userId: null,
+      displayName: "Alex",
+      label: null,
+      sourcePersonalFriendId: personalFriendId,
+    };
+    const insert = vi.fn();
+    const database = {
+      transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback({
+        select: vi.fn()
+          .mockImplementationOnce(() => chain([{ userId: "admin-a" }]))
+          .mockImplementationOnce(() => chain([{ role: "admin" }]))
+          .mockImplementationOnce(() => chain([{ id: personalFriendId, name: "Alex", linkedUserId: null, archivedAt: null }]))
+          .mockImplementationOnce(() => chain([existing])),
+        insert,
+      })),
+    } as unknown as Database;
+
+    await expect(
+      addPersonalFriendAsGroupParticipant(database, groupId, "admin-a", personalFriendId),
+    ).resolves.toEqual(existing);
+    expect(insert).not.toHaveBeenCalled();
+
+    const registered = {
+      transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback({
+        select: vi.fn()
+          .mockImplementationOnce(() => chain([{ userId: "admin-a" }]))
+          .mockImplementationOnce(() => chain([{ role: "admin" }]))
+          .mockImplementationOnce(() => chain([{ id: personalFriendId, name: "Alex", linkedUserId: "user-alex", archivedAt: null }])),
+      })),
+    } as unknown as Database;
+    await expect(
+      addPersonalFriendAsGroupParticipant(registered, groupId, "admin-a", personalFriendId),
+    ).rejects.toMatchObject({ code: "registered_personal_friend" });
+
+    const inaccessible = {
+      transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback({ select: vi.fn(() => chain([])) })),
+    } as unknown as Database;
+    await expect(
+      addPersonalFriendAsGroupParticipant(inaccessible, groupId, "outsider", personalFriendId),
+    ).rejects.toMatchObject({ code: "not_member" });
   });
 
   it("refuses to delete a Group with financial history before touching its records", async () => {

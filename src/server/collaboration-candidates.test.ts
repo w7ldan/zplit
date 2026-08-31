@@ -6,12 +6,12 @@ const mocks = vi.hoisted(() => ({ getPersonalLedgerScopeId: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/ledger-scopes", () => ({ getPersonalLedgerScopeId: mocks.getPersonalLedgerScopeId }));
 
-import { listRegisteredFriendCandidates } from "./collaboration-candidates";
+import { listPersonalFriendCandidates, listRegisteredFriendCandidates } from "./collaboration-candidates";
 
 function queryBuilder(result: unknown) {
   type Query = Record<string, ReturnType<typeof vi.fn>> & { then: Promise<unknown>["then"] };
   const query = {} as Query;
-  for (const method of ["from", "innerJoin", "where", "orderBy"]) query[method] = vi.fn(() => query);
+  for (const method of ["from", "innerJoin", "leftJoin", "where", "orderBy"]) query[method] = vi.fn(() => query);
   query.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
   return query;
 }
@@ -24,7 +24,14 @@ function database(selectResults: unknown[][]) {
 }
 
 const ownerUserId = "user-owner";
-const connectedFriend = { userId: "user-friend", displayName: "Alice", username: "alice" };
+const connectedFriend = {
+  personalFriendId: "friend-connected",
+  userId: "user-friend",
+  friendDisplayName: "Alice",
+  linkedDisplayName: "Alice",
+  username: "alice",
+  archivedAt: null,
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -53,13 +60,34 @@ describe("registered Personal Friend collaboration candidates", () => {
 
     await expect(
       listRegisteredFriendCandidates(db, ownerUserId, { kind: "organization", id: "organization-a" }),
-    ).resolves.toEqual([connectedFriend]);
+    ).resolves.toEqual([{ userId: "user-friend", displayName: "Alice", username: "alice" }]);
   });
 
   it("excludes current members and live requests but includes former participants", async () => {
-    const currentMember = { userId: "current-member", displayName: "Current", username: "current" };
-    const formerParticipant = { userId: "former-participant", displayName: "Former", username: "former" };
-    const pendingFriend = { userId: "pending-friend", displayName: "Pending", username: "pending" };
+    const currentMember = {
+      personalFriendId: "friend-current",
+      userId: "current-member",
+      friendDisplayName: "Current",
+      linkedDisplayName: "Current",
+      username: "current",
+      archivedAt: null,
+    };
+    const formerParticipant = {
+      personalFriendId: "friend-former",
+      userId: "former-participant",
+      friendDisplayName: "Former",
+      linkedDisplayName: "Former",
+      username: "former",
+      archivedAt: null,
+    };
+    const pendingFriend = {
+      personalFriendId: "friend-pending",
+      userId: "pending-friend",
+      friendDisplayName: "Pending",
+      linkedDisplayName: "Pending",
+      username: "pending",
+      archivedAt: null,
+    };
     const db = database([
       [
         { ...currentMember, archivedAt: null },
@@ -77,12 +105,12 @@ describe("registered Personal Friend collaboration candidates", () => {
 
     await expect(
       listRegisteredFriendCandidates(db, ownerUserId, { kind: "group", id: "group-a" }),
-    ).resolves.toEqual([formerParticipant]);
+    ).resolves.toEqual([{ userId: "former-participant", displayName: "Former", username: "former" }]);
   });
 
   it("supports username filtering for Group candidates", async () => {
     const db = database([
-      [{ ...connectedFriend, archivedAt: null }],
+      [connectedFriend],
       [{ userAId: ownerUserId, userBId: connectedFriend.userId, status: "connected" }],
       [],
       [],
@@ -90,6 +118,137 @@ describe("registered Personal Friend collaboration candidates", () => {
 
     await expect(
       listRegisteredFriendCandidates(db, ownerUserId, { kind: "group", id: "group-a" }, "@ali"),
-    ).resolves.toEqual([connectedFriend]);
+    ).resolves.toEqual([{ userId: "user-friend", displayName: "Alice", username: "alice" }]);
+  });
+
+  it("returns active local and registered Friends for collaboration surfaces", async () => {
+    const localFriend = {
+      personalFriendId: "friend-local",
+      userId: null,
+      friendDisplayName: "Alex",
+      linkedDisplayName: null,
+      username: null,
+      archivedAt: null,
+    };
+    const registeredFriend = { ...connectedFriend };
+    const db = database([
+      [localFriend, registeredFriend],
+      [{ userAId: ownerUserId, userBId: registeredFriend.userId, status: "connected" }],
+      [],
+      [],
+      [],
+    ]);
+
+    await expect(
+      listPersonalFriendCandidates(db, ownerUserId, { kind: "organization_expense_contact", id: "organization-a" }),
+    ).resolves.toEqual([
+      {
+        personalFriendId: "friend-local",
+        kind: "local",
+        userId: null,
+        displayName: "Alex",
+        username: null,
+        label: null,
+      },
+      {
+        personalFriendId: "friend-connected",
+        kind: "registered",
+        userId: "user-friend",
+        displayName: "Alice",
+        username: "alice",
+        label: null,
+      },
+    ]);
+  });
+
+  it("hides active Organization contact projections so the empty state is accurate", async () => {
+    const localFriend = {
+      personalFriendId: "friend-local",
+      userId: null,
+      friendDisplayName: "Alex",
+      linkedDisplayName: null,
+      username: null,
+      archivedAt: null,
+    };
+    const registeredFriend = { ...connectedFriend };
+    const db = database([
+      [localFriend, registeredFriend],
+      [{ userAId: ownerUserId, userBId: registeredFriend.userId, status: "connected" }],
+      [
+        { sourcePersonalFriendId: localFriend.personalFriendId, userId: null },
+        { sourcePersonalFriendId: null, userId: registeredFriend.userId },
+      ],
+    ]);
+
+    await expect(
+      listPersonalFriendCandidates(db, ownerUserId, { kind: "organization_expense_contact", id: "organization-a" }),
+    ).resolves.toEqual([]);
+  });
+
+  it("does not offer local Personal Friends as Organization members", async () => {
+    const localFriend = {
+      personalFriendId: "friend-local",
+      userId: null,
+      friendDisplayName: "Alex",
+      linkedDisplayName: null,
+      username: null,
+      archivedAt: null,
+    };
+    const db = database([
+      [localFriend, connectedFriend],
+      [{ userAId: ownerUserId, userBId: connectedFriend.userId, status: "connected" }],
+      [],
+      [],
+    ]);
+
+    await expect(
+      listPersonalFriendCandidates(db, ownerUserId, { kind: "organization", id: "organization-a" }),
+    ).resolves.toEqual([{
+      personalFriendId: connectedFriend.personalFriendId,
+      kind: "registered",
+      userId: connectedFriend.userId,
+      displayName: "Alice",
+      username: "alice",
+      label: null,
+    }]);
+  });
+
+  it("excludes an already-projected local Friend from Group candidates without merging duplicate names", async () => {
+    const alex = {
+      personalFriendId: "friend-alex",
+      userId: null,
+      friendDisplayName: "Alex",
+      linkedDisplayName: null,
+      username: null,
+      archivedAt: null,
+    };
+    const otherAlex = {
+      personalFriendId: "friend-other-alex",
+      userId: null,
+      friendDisplayName: "Alex",
+      linkedDisplayName: null,
+      username: null,
+      archivedAt: null,
+    };
+    const db = database([
+      [alex, otherAlex],
+      [],
+      [],
+      [],
+      [{ personalFriendId: alex.personalFriendId }],
+    ]);
+
+    await expect(
+      listPersonalFriendCandidates(db, ownerUserId, { kind: "group", id: "group-a" }),
+    ).resolves.toEqual([
+      {
+        personalFriendId: "friend-other-alex",
+        kind: "local",
+        userId: null,
+        displayName: "Alex",
+        username: null,
+        label: null,
+      },
+    ]);
   });
 });

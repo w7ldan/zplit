@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
   return {
     requireSession: vi.fn(),
     getDatabase: vi.fn(),
+    addPersonalFriendAsOrganizationExpenseContact: vi.fn(),
     createOrganizationInvitation: vi.fn(),
     searchOrganizationInvitationUsers: vi.fn(),
     listRegisteredFriendCandidates: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/organizations", () => ({
+  addPersonalFriendAsOrganizationExpenseContact: mocks.addPersonalFriendAsOrganizationExpenseContact,
   createOrganization: mocks.createOrganization,
   deleteOrganization: mocks.deleteOrganization,
   OrganizationError: mocks.OrganizationError,
@@ -43,7 +45,12 @@ vi.mock("@/server/user-avatars", () => ({ normalizeUserAvatar: mocks.normalizeUs
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
-import { createOrganizationInvitationAction, searchOrganizationInvitationOptions } from "./actions";
+import {
+  addPersonalFriendAsOrganizationExpenseContactAction,
+  createOrganizationInvitationAction,
+  invitePersonalFriendToOrganizationAction,
+  searchOrganizationInvitationOptions,
+} from "./actions";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -52,12 +59,11 @@ beforeEach(() => {
 });
 
 describe("Organization collaboration candidate actions", () => {
-  it("groups Personal Friends first while keeping username fallback candidates", async () => {
+  it("keeps username discovery as the fallback after first-class Personal Friend rows", async () => {
     mocks.listRegisteredFriendCandidates.mockResolvedValue([{ userId: "user-friend", displayName: "Alice", username: "alice" }]);
     mocks.searchOrganizationInvitationUsers.mockResolvedValue([{ id: "user-other", displayName: "Other", username: "other" }]);
 
     await expect(searchOrganizationInvitationOptions("organization-a")).resolves.toEqual([
-      { id: "user-friend", label: "Alice · @alice", group: "Friends" },
       { id: "user-other", label: "Other · @other", group: "Other Zplit users" },
     ]);
   });
@@ -76,6 +82,26 @@ describe("Organization collaboration candidate actions", () => {
       "organization-a",
       "user-owner",
       { targetUserId: "user-friend", role: "member" },
+    );
+  });
+
+  it("uses canonical user IDs for member invites and Personal Friend IDs for expense contacts", async () => {
+    const role = new FormData();
+    role.set("role", "member");
+    await invitePersonalFriendToOrganizationAction("organization-a", "user-friend", role);
+    await addPersonalFriendAsOrganizationExpenseContactAction("organization-a", "friend-local");
+
+    expect(mocks.createOrganizationInvitation).toHaveBeenCalledWith(
+      "database",
+      "organization-a",
+      "user-owner",
+      { targetUserId: "user-friend", role: "member" },
+    );
+    expect(mocks.addPersonalFriendAsOrganizationExpenseContact).toHaveBeenCalledWith(
+      "database",
+      "organization-a",
+      "user-owner",
+      "friend-local",
     );
   });
 });

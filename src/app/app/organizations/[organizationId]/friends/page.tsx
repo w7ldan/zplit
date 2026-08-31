@@ -10,7 +10,7 @@ import { normalizeFriendFilters, recordHref } from "@/domain/record-retrieval";
 import { createFriendAction } from "../ledger-actions";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Organization friends" };
+export const metadata = { title: "Organization expense contacts" };
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -49,10 +49,10 @@ export default async function OrganizationFriendsPage({
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
-            <p className="technical-label">Organization friends · ledger contacts</p>
-            <h1>Friends</h1>
+            <p className="technical-label">Organization expense contacts</p>
+            <h1>Expense contacts</h1>
             <p className="app-page__lede">
-              People connected to this Organization’s shared expenses.
+              People available when recording Organization expenses.
             </p>
           </div>
           {canManage ? (
@@ -60,7 +60,7 @@ export default async function OrganizationFriendsPage({
               className="action-link action-link--primary"
               href={recordHref(base, query, { create: "1" })}
             >
-              Add friend
+              Add expense contact
             </Link>
           ) : null}
         </div>
@@ -68,17 +68,17 @@ export default async function OrganizationFriendsPage({
           <LiveRecordFilters
             action={base}
             search={{
-              label: "Search friends",
+              label: "Search expense contacts",
               placeholder: "Name or phone number",
               value: filters.q ?? "",
             }}
             clearHref={
               filters.q ? recordHref(base, query, { q: undefined, page: undefined }) : undefined
             }
-            resultStatus={`${friendPage.totalItems} friend${friendPage.totalItems === 1 ? "" : "s"} found.`}
+            resultStatus={`${friendPage.totalItems} contact${friendPage.totalItems === 1 ? "" : "s"} found.`}
             preservedParams={query}
           />
-          <nav className="friends-page__views" aria-label="Friend record views">
+          <nav className="friends-page__views" aria-label="Expense contact record views">
             <Link
               className={
                 view === "active"
@@ -121,13 +121,13 @@ export default async function OrganizationFriendsPage({
             <div className="ledger-empty">
               <h2>
                 {filters.q
-                  ? "No matching friends."
+                  ? "No matching expense contacts."
                   : view === "active"
-                    ? "No active friends yet."
-                    : "No archived friends yet."}
+                    ? "No active expense contacts yet."
+                    : "No archived expense contacts yet."}
               </h2>
               <p>
-                Organization Friends are local ledger contacts, not Zplit mutual friendships.
+                Expense contacts are scoped to this Organization and are not Zplit mutual friendships.
               </p>
             </div>
           )}
@@ -143,7 +143,7 @@ export default async function OrganizationFriendsPage({
       {openCreate ? (
         <TaskPanel
           open
-          title="Add a friend"
+          title="Add an expense contact"
           description="Keep the person’s details beside this Organization’s records."
           triggerId="friend-create"
         >
