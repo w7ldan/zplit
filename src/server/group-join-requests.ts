@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { getDatabase, type Database } from "@/db/client";
-import { groupJoinRequests, groupMemberships, groupParticipants, groups, notifications, users } from "@/db/schema";
+import { friends, groupJoinRequests, groupMemberships, groupParticipants, groups, notifications, users } from "@/db/schema";
 import type { GroupJoinRequestSummary } from "@/domain/group-contracts";
 import { isGroupJoinRequestExpired, groupJoinRequestExpiresAt, type GroupJoinRequestKind, type GroupJoinRequestStatus } from "@/domain/group-join-requests";
 import { normalizeUuid } from "@/domain/record-retrieval";
@@ -444,19 +444,38 @@ async function acceptMemberInvitation(database: Database, request: typeof groupJ
     const revoked = await transitionPendingRequest(database, request, "revoked", now);
     return { request: revoked ?? request, changed: Boolean(revoked), error: "already_member" };
   }
-  const participant = registered ?? (await database
+  const [sourceLinked] = registered ? [] : await database
+    .select({ id: groupParticipants.id })
+    .from(groupParticipants)
+    .innerJoin(friends, eq(friends.id, groupParticipants.sourcePersonalFriendId))
+    .where(and(
+      eq(groupParticipants.groupId, request.groupId),
+      isNull(groupParticipants.userId),
+      eq(friends.linkedUserId, targetUserId),
+    ))
+    .limit(1)
+    .for("update");
+  const participant = registered ?? sourceLinked ?? (await database
     .insert(groupParticipants)
     .values({ groupId: request.groupId, userId: targetUserId, displayName: null, createdAt: now, updatedAt: now })
     .onConflictDoNothing()
     .returning({ id: groupParticipants.id }))[0];
   if (!participant) throw new GroupJoinRequestError("conflict");
+  if (sourceLinked) {
+    const [linked] = await database
+      .update(groupParticipants)
+      .set({ userId: targetUserId, displayName: null, updatedAt: now })
+      .where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, sourceLinked.id), isNull(groupParticipants.userId)))
+      .returning({ id: groupParticipants.id });
+    if (!linked) throw new GroupJoinRequestError("conflict");
+  }
   const [createdMembership] = await database
     .insert(groupMemberships)
     .values({ groupId: request.groupId, userId: targetUserId, participantId: participant.id, role: "member", joinedAt: now })
     .onConflictDoNothing({ target: [groupMemberships.groupId, groupMemberships.userId] })
     .returning();
   if (!createdMembership) {
-    if (!registered) await database.delete(groupParticipants).where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, participant.id), eq(groupParticipants.userId, targetUserId)));
+    if (!registered && !sourceLinked) await database.delete(groupParticipants).where(and(eq(groupParticipants.groupId, request.groupId), eq(groupParticipants.id, participant.id), eq(groupParticipants.userId, targetUserId)));
     const revoked = await transitionPendingRequest(database, request, "revoked", now);
     return { request: revoked ?? request, changed: Boolean(revoked), error: "already_member" };
   }

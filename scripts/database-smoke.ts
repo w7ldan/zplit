@@ -21,6 +21,7 @@ const domainTables = [
   "trips",
   "organizations",
   "organization_memberships",
+  "organization_participants",
   "organization_avatars",
   "groups",
   "group_participants",

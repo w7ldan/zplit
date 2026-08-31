@@ -11,6 +11,7 @@ import {
   ledgerScopes,
   organizationInvitations,
   organizationMemberships,
+  organizationParticipants,
   users,
 } from "@/db/schema";
 import { normalizeUsername } from "@/domain/username";
@@ -43,6 +44,10 @@ type ConnectionRow = {
 type RepresentedOrganizationFriends = {
   sourcePersonalFriendIds: Set<string>;
   userIds: Set<string>;
+};
+
+type RepresentedOrganizationParticipants = {
+  sourcePersonalFriendIds: Set<string>;
 };
 
 function connectedUserIds(userId: string, rows: ConnectionRow[]) {
@@ -101,6 +106,17 @@ async function representedGroupFriends(database: Database, target: Collaboration
   return new Set(rows.flatMap(({ personalFriendId }) => personalFriendId ? [personalFriendId] : []));
 }
 
+async function getRepresentedOrganizationParticipants(database: Database, target: CollaborationCandidateTarget): Promise<RepresentedOrganizationParticipants> {
+  if (target.kind !== "organization") return { sourcePersonalFriendIds: new Set<string>() };
+  const rows = await database
+    .select({ sourcePersonalFriendId: organizationParticipants.sourcePersonalFriendId })
+    .from(organizationParticipants)
+    .where(eq(organizationParticipants.organizationId, target.id));
+  return {
+    sourcePersonalFriendIds: new Set(rows.flatMap(({ sourcePersonalFriendId }) => sourcePersonalFriendId ? [sourcePersonalFriendId] : [])),
+  };
+}
+
 async function representedOrganizationFriends(database: Database, target: CollaborationCandidateTarget): Promise<RepresentedOrganizationFriends> {
   if (target.kind !== "organization_expense_contact") {
     return {
@@ -129,6 +145,15 @@ function matchesUsername(friend: FriendCandidateRow, usernameQuery: string) {
   return !usernameQuery || (friend.username !== null && friend.username.startsWith(usernameQuery));
 }
 
+function matchesQuery(friend: FriendCandidateRow, query: unknown) {
+  if (typeof query !== "string" || !query.trim()) return true;
+  const text = query.trim().toLowerCase();
+  const username = normalizeUsername(query);
+  return friend.friendDisplayName.toLowerCase().includes(text)
+    || (friend.linkedDisplayName?.toLowerCase().includes(text) ?? false)
+    || matchesUsername(friend, username);
+}
+
 function registeredFriendIsEligible(
   friend: FriendCandidateRow,
   ownerUserId: string,
@@ -152,10 +177,11 @@ function localFriendIsEligible(
   friend: FriendCandidateRow,
   target: CollaborationCandidateTarget,
   representedFriends: Set<string>,
+  representedOrganizationParticipants: RepresentedOrganizationParticipants,
   representedOrganizationContacts: RepresentedOrganizationFriends,
 ) {
-  if (target.kind === "organization") return false;
   return !(target.kind === "group" && representedFriends.has(friend.personalFriendId))
+    && !(target.kind === "organization" && representedOrganizationParticipants.sourcePersonalFriendIds.has(friend.personalFriendId))
     && !(target.kind === "organization_expense_contact" && representedOrganizationContacts.sourcePersonalFriendIds.has(friend.personalFriendId));
 }
 
@@ -167,13 +193,14 @@ function friendIsEligible(
   connected: Set<string>,
   excludedUsers: Set<string>,
   representedFriends: Set<string>,
+  representedOrganizationParticipants: RepresentedOrganizationParticipants,
   representedOrganizationContacts: RepresentedOrganizationFriends,
   seenUsers: Set<string>,
 ) {
-  if (!friend.personalFriendId || friend.archivedAt !== null || !matchesUsername(friend, usernameQuery)) return false;
+  if (!friend.personalFriendId || friend.archivedAt !== null || !matchesQuery(friend, usernameQuery)) return false;
   return friend.userId
     ? registeredFriendIsEligible(friend, ownerUserId, target, connected, excludedUsers, representedOrganizationContacts, seenUsers)
-    : localFriendIsEligible(friend, target, representedFriends, representedOrganizationContacts);
+    : localFriendIsEligible(friend, target, representedFriends, representedOrganizationParticipants, representedOrganizationContacts);
 }
 
 export async function listPersonalFriendCandidates(
@@ -189,6 +216,7 @@ export async function listPersonalFriendCandidates(
     connectionRows,
     excludedUsers,
     representedFriends,
+    representedOrganizationParticipants,
     representedOrganizationContacts,
   ] = await Promise.all([
     database
@@ -214,6 +242,7 @@ export async function listPersonalFriendCandidates(
       .where(or(eq(friendConnections.userAId, ownerUserId), eq(friendConnections.userBId, ownerUserId))),
     excludedTargetUsers(database, target, now),
     representedGroupFriends(database, target),
+    getRepresentedOrganizationParticipants(database, target),
     representedOrganizationFriends(database, target),
   ]);
   const connected = connectedUserIds(ownerUserId, connectionRows as ConnectionRow[]);
@@ -229,6 +258,7 @@ export async function listPersonalFriendCandidates(
       connected,
       excludedUsers,
       representedFriends,
+      representedOrganizationParticipants,
       representedOrganizationContacts,
       seenUsers,
     )) return [];

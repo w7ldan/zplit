@@ -1,21 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import type { GroupJoinRequestActionState, GroupJoinRequestSummary, GroupParticipant } from "@/domain/group-contracts";
-import type { PersonalFriendCandidate } from "@/domain/collaboration-candidates";
 import { SearchableCombobox, type SearchableOptionAction } from "@/components/records/searchable-combobox";
-import { UserAvatar } from "@/components/identity/user-avatar";
 import {
-  addPersonalFriendAsGroupParticipantAction,
-  createExternalParticipantAction,
   createGroupInvitationAction,
   createGroupParticipantLinkRequestAction,
   deleteExternalParticipantAction,
   removeGroupMemberAction,
   revokeGroupJoinRequestAction,
   searchGroupJoinUserOptions,
-  invitePersonalFriendToGroupAction,
+  searchGroupMemberOptions,
   updateExternalParticipantAction,
   updateGroupMemberRoleAction,
 } from "@/app/app/personal/groups/actions";
@@ -36,6 +33,7 @@ function GroupJoinForm({
   action,
   buttonLabel,
   description,
+  searchLabel = "Search by @username",
   onCancel,
 }: {
   id: string;
@@ -46,6 +44,7 @@ function GroupJoinForm({
   ) => Promise<GroupJoinRequestActionState>;
   buttonLabel: string;
   description?: string;
+  searchLabel?: string;
   onCancel?: () => void;
 }) {
   const [state, formAction] = useActionState(action, initialJoinState);
@@ -55,7 +54,7 @@ function GroupJoinForm({
         <p className="group-detail__supporting-copy">{description}</p>
       ) : null}
       <label id={`${id}-label`} htmlFor={id}>
-        Search by @username
+        {searchLabel}
       </label>
       <SearchableCombobox
         id={id}
@@ -64,13 +63,13 @@ function GroupJoinForm({
         options={[]}
         search={search}
         required
-        placeholder="Search @username"
-        searchLabel="Search @username"
+        placeholder={searchLabel}
+        searchLabel={searchLabel}
         labelId={`${id}-label`}
       />
       <p
         className="group-join-form__message"
-        role={state.error && !state.error.endsWith("sent.") ? "alert" : "status"}
+        role={state.error && !state.error.endsWith("sent.") && !state.error.endsWith("added.") ? "alert" : "status"}
       >
         {state.error || "Search by username to find another Zplit user."}
       </p>
@@ -91,53 +90,6 @@ function GroupJoinForm({
           {buttonLabel}
         </button>
       </div>
-    </form>
-  );
-}
-
-function PersonalFriendIdentity({ candidate }: { candidate: PersonalFriendCandidate }) {
-  if (candidate.kind === "registered" && candidate.userId && candidate.username) {
-    return (
-      <span className="group-people__personal-friend-identity">
-        <UserAvatar
-          userId={candidate.userId}
-          size="sm"
-          decorative
-        />
-        <span className="group-people__identity">
-          <strong>{candidate.displayName}</strong>
-          <span>@{candidate.username}</span>
-          <span>Registered</span>
-        </span>
-      </span>
-    );
-  }
-  return (
-    <span className="group-people__personal-friend-identity">
-      <span className="group-people__identity">
-        <strong>{candidate.displayName}</strong>
-        <span>{candidate.label ?? "Local contact"}</span>
-        <span>Local</span>
-      </span>
-    </span>
-  );
-}
-
-function PersonalFriendAction({ groupId, candidate }: { groupId: string; candidate: PersonalFriendCandidate }) {
-  if (candidate.kind === "registered" && candidate.userId && candidate.username) {
-    return (
-      <form action={invitePersonalFriendToGroupAction.bind(null, groupId, candidate.userId)}>
-        <button className="text-link" type="submit">
-          Invite
-        </button>
-      </form>
-    );
-  }
-  return (
-    <form action={addPersonalFriendAsGroupParticipantAction.bind(null, groupId, candidate.personalFriendId)}>
-      <button className="text-link" type="submit">
-        Add
-      </button>
     </form>
   );
 }
@@ -198,7 +150,6 @@ export function GroupPeople({
   participants,
   pendingInvitations = [],
   pendingLinks = [],
-  friendCandidates = [],
   canManageParticipants,
   canManageRoles,
 }: {
@@ -206,15 +157,14 @@ export function GroupPeople({
   participants: GroupParticipant[];
   pendingInvitations?: GroupJoinRequestSummary[];
   pendingLinks?: GroupJoinRequestSummary[];
-  friendCandidates?: PersonalFriendCandidate[];
   canManageParticipants: boolean;
   canManageRoles: boolean;
 }) {
-  const members = participants.filter((participant) => !participant.isExternal && !participant.isFormer);
   const former = participants.filter((participant) => participant.isFormer);
-  const external = participants.filter((participant) => participant.isExternal);
+  const current = participants.filter((participant) => !participant.isFormer);
   const pendingLinkByParticipant = new Map(pendingLinks.map((request) => [request.participantId, request]));
   const search = searchGroupJoinUserOptions.bind(null, groupId) as SearchableOptionAction;
+  const memberSearch = searchGroupMemberOptions.bind(null, groupId) as SearchableOptionAction;
   return (
     <>
       <section
@@ -223,52 +173,80 @@ export function GroupPeople({
       >
         <div className="group-section-heading">
           <div>
-            <p className="technical-label">REGISTERED</p>
             <h2 id="group-members-heading">Members</h2>
           </div>
-          <span className="technical-label">{members.length}</span>
+          <span className="technical-label">{current.length}</span>
         </div>
         <ul className="group-people__list">
-          {members.map((member) => (
-            <li className="group-people__row" key={member.id}>
+          {current.map((participant) => participant.isExternal ? (
+            <li className="group-people__row group-people__row--external" key={participant.id}>
+              <div className="group-people__external-main">
+                {canManageParticipants ? (
+                  <form
+                    className="group-external-form"
+                    action={updateExternalParticipantAction.bind(null, groupId, participant.id)}
+                  >
+                    <div>
+                      <input
+                        name="displayName"
+                        aria-label={`Name for ${participant.displayName}`}
+                        defaultValue={participant.displayName}
+                      />
+                      <input
+                        name="label"
+                        aria-label={`Label for ${participant.displayName}`}
+                        defaultValue={participant.label ?? ""}
+                        placeholder="Label (optional)"
+                      />
+                    </div>
+                    <button className="text-link" type="submit">Save</button>
+                    <button
+                      className="text-link"
+                      type="submit"
+                      formAction={deleteExternalParticipantAction.bind(null, groupId, participant.id)}
+                    >
+                      Remove
+                    </button>
+                  </form>
+                ) : (
+                  <span className="group-people__identity">
+                    <strong>{participant.displayName}</strong>
+                    {participant.label ? <span>{participant.label}</span> : null}
+                  </span>
+                )}
+                <span className="group-people__external-meta">Local member</span>
+              </div>
+              {canManageParticipants ? (
+                <GroupParticipantLinkControl
+                  groupId={groupId}
+                  participant={participant}
+                  pending={pendingLinkByParticipant.get(participant.id)}
+                  search={search}
+                />
+              ) : null}
+            </li>
+          ) : (
+            <li className="group-people__row" key={participant.id}>
               <span className="group-people__identity">
-                <strong>{member.displayName}</strong>
-                <span>{roleLabel(member.role)}</span>
+                <strong>{participant.displayName}</strong>
+                <span>{roleLabel(participant.role)} · Zplit member</span>
               </span>
-              {member.role !== "owner" && canManageRoles ? (
-                <form
-                  action={updateGroupMemberRoleAction.bind(
-                    null,
-                    groupId,
-                    member.userId ?? "",
-                  )}
-                >
+              {participant.role !== "owner" && canManageRoles ? (
+                <form action={updateGroupMemberRoleAction.bind(null, groupId, participant.userId ?? "")}>
                   <select
                     name="role"
-                    defaultValue={member.role ?? "member"}
-                    aria-label={`Role for ${member.displayName}`}
+                    defaultValue={participant.role ?? "member"}
+                    aria-label={`Role for ${participant.displayName}`}
                   >
                     <option value="member">Member</option>
                     <option value="admin">Admin</option>
                   </select>
-                  <button className="text-link" type="submit">
-                    Save role
-                  </button>
+                  <button className="text-link" type="submit">Save role</button>
                 </form>
               ) : null}
-              {member.role !== "owner" &&
-              (canManageRoles ||
-                (canManageParticipants && member.role === "member")) ? (
-                <form
-                  action={removeGroupMemberAction.bind(
-                    null,
-                    groupId,
-                    member.userId ?? "",
-                  )}
-                >
-                  <button className="text-link" type="submit">
-                    Remove
-                  </button>
+              {participant.role !== "owner" && (canManageRoles || (canManageParticipants && participant.role === "member")) ? (
+                <form action={removeGroupMemberAction.bind(null, groupId, participant.userId ?? "")}>
+                  <button className="text-link" type="submit">Remove</button>
                 </form>
               ) : null}
             </li>
@@ -282,7 +260,7 @@ export function GroupPeople({
                 <li className="group-people__row" key={participant.id}>
                   <span className="group-people__identity">
                     <strong>{participant.displayName}</strong>
-                    <span>Former participant</span>
+                    <span>Former member</span>
                   </span>
                 </li>
               ))}
@@ -291,29 +269,17 @@ export function GroupPeople({
         ) : null}
         {canManageParticipants ? (
           <div className="group-people__invite">
-            <h3>Invite a member</h3>
-            <p className="technical-label">FROM PERSONAL FRIENDS</p>
-            {friendCandidates.length ? (
-              <ul className="group-people__list group-people__personal-friends">
-                {friendCandidates.map((candidate) => (
-                  <li className="group-people__row" key={candidate.personalFriendId}>
-                    <PersonalFriendIdentity candidate={candidate} />
-                    <PersonalFriendAction groupId={groupId} candidate={candidate} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="group-detail__empty">
-                No Personal friends available here. Search by @username or add another person below.
-              </p>
-            )}
-            <p className="technical-label">OTHER ZPLIT USERS</p>
+            <h3>Add member</h3>
             <GroupJoinForm
               id="group-invite-target"
-              search={search}
+              search={memberSearch}
               action={createGroupInvitationAction.bind(null, groupId)}
-              buttonLabel="Send invitation"
+              buttonLabel="Add member"
+              searchLabel="Search by name or @username..."
             />
+            <p className="group-detail__supporting-copy">
+              No matching person? <Link href="/app/friends?create=1">Add a Personal Friend first.</Link>
+            </p>
           </div>
         ) : null}
         {canManageParticipants && pendingInvitations.length > 0 ? (
@@ -347,111 +313,6 @@ export function GroupPeople({
               ))}
             </ul>
           </div>
-        ) : null}
-      </section>
-      <section
-        className="group-detail__section"
-        aria-labelledby="group-external-heading"
-      >
-        <div className="group-section-heading">
-          <div>
-            <p className="technical-label">LOCAL CONTEXT</p>
-            <h2 id="group-external-heading">External participants</h2>
-          </div>
-          <span className="technical-label">{external.length}</span>
-        </div>
-        {external.length ? (
-          <ul className="group-people__list">
-            {external.map((participant) => (
-              <li
-                className="group-people__row group-people__row--external"
-                key={participant.id}
-              >
-                <div className="group-people__external-main">
-                  {canManageParticipants ? (
-                    <form
-                      className="group-external-form"
-                      action={updateExternalParticipantAction.bind(
-                        null,
-                        groupId,
-                        participant.id,
-                      )}
-                    >
-                      <div>
-                        <input
-                          name="displayName"
-                          aria-label={`Name for ${participant.displayName}`}
-                          defaultValue={participant.displayName}
-                        />
-                        <input
-                          name="label"
-                          aria-label={`Label for ${participant.displayName}`}
-                          defaultValue={participant.label ?? ""}
-                          placeholder="Label (optional)"
-                        />
-                      </div>
-                      <button className="text-link" type="submit">
-                        Save
-                      </button>
-                      <button
-                        className="text-link"
-                        type="submit"
-                        formAction={deleteExternalParticipantAction.bind(
-                          null,
-                          groupId,
-                          participant.id,
-                        )}
-                      >
-                        Remove
-                      </button>
-                    </form>
-                  ) : (
-                    <span className="group-people__identity">
-                      <strong>{participant.displayName}</strong>
-                      {participant.label ? (
-                        <span>{participant.label}</span>
-                      ) : null}
-                    </span>
-                  )}
-                  <span className="group-people__external-meta">External</span>
-                </div>
-                {canManageParticipants ? (
-                  <GroupParticipantLinkControl
-                    groupId={groupId}
-                    participant={participant}
-                    pending={pendingLinkByParticipant.get(participant.id)}
-                    search={search}
-                  />
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="group-detail__empty">No external participants yet.</p>
-        )}
-        {canManageParticipants ? (
-          <form
-            className="group-external-create"
-            action={createExternalParticipantAction.bind(null, groupId)}
-          >
-            <input
-              name="displayName"
-              placeholder="Name"
-              aria-label="External participant name"
-              required
-            />
-            <input
-              name="label"
-              placeholder="Label (optional)"
-              aria-label="External participant label"
-            />
-            <button
-              className="action-link action-link--quiet"
-              type="submit"
-            >
-              Add external participant
-            </button>
-          </form>
         ) : null}
       </section>
     </>

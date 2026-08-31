@@ -239,6 +239,13 @@
       "when": 1788136993156,
       "tag": "0033_sturdy_kulan_gath",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788149863137,
+      "tag": "0034_jazzy_scrambler",
+      "breakpoints": true
     }
   ]
 }

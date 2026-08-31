@@ -121,6 +121,35 @@ describe("registered Personal Friend collaboration candidates", () => {
     ).resolves.toEqual([{ userId: "user-friend", displayName: "Alice", username: "alice" }]);
   });
 
+  it("matches local Personal Friends by display name", async () => {
+    const localFriend = {
+      personalFriendId: "friend-local",
+      userId: null,
+      friendDisplayName: "Kayla Local",
+      linkedDisplayName: null,
+      username: null,
+      archivedAt: null,
+    };
+    const db = database([
+      [localFriend],
+      [],
+      [],
+      [],
+      [],
+    ]);
+
+    await expect(
+      listPersonalFriendCandidates(db, ownerUserId, { kind: "group", id: "group-a" }, "kayla"),
+    ).resolves.toEqual([{
+      personalFriendId: "friend-local",
+      kind: "local",
+      userId: null,
+      displayName: "Kayla Local",
+      username: null,
+      label: null,
+    }]);
+  });
+
   it("returns active local and registered Friends for collaboration surfaces", async () => {
     const localFriend = {
       personalFriendId: "friend-local",
@@ -185,7 +214,7 @@ describe("registered Personal Friend collaboration candidates", () => {
     ).resolves.toEqual([]);
   });
 
-  it("does not offer local Personal Friends as Organization members", async () => {
+  it("offers local Personal Friends as Organization members", async () => {
     const localFriend = {
       personalFriendId: "friend-local",
       userId: null,
@@ -203,14 +232,24 @@ describe("registered Personal Friend collaboration candidates", () => {
 
     await expect(
       listPersonalFriendCandidates(db, ownerUserId, { kind: "organization", id: "organization-a" }),
-    ).resolves.toEqual([{
-      personalFriendId: connectedFriend.personalFriendId,
-      kind: "registered",
-      userId: connectedFriend.userId,
-      displayName: "Alice",
-      username: "alice",
-      label: null,
-    }]);
+    ).resolves.toEqual([
+      {
+        personalFriendId: "friend-local",
+        kind: "local",
+        userId: null,
+        displayName: "Alex",
+        username: null,
+        label: null,
+      },
+      {
+        personalFriendId: connectedFriend.personalFriendId,
+        kind: "registered",
+        userId: connectedFriend.userId,
+        displayName: "Alice",
+        username: "alice",
+        label: null,
+      },
+    ]);
   });
 
   it("excludes an already-projected local Friend from Group candidates without merging duplicate names", async () => {

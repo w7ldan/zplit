@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => {
     createGroupInvitation: vi.fn(),
     createGroupParticipantLinkRequest: vi.fn(),
     searchGroupJoinUsers: vi.fn(),
-    listRegisteredFriendCandidates: vi.fn(),
+    listPersonalFriendCandidates: vi.fn(),
     revalidatePath: vi.fn(),
     createExternalParticipant: vi.fn(),
     createGroup: vi.fn(),
@@ -53,7 +53,7 @@ vi.mock("@/server/group-join-requests", () => ({
   revokeGroupJoinRequest: mocks.revokeGroupJoinRequest,
   searchGroupJoinUsers: mocks.searchGroupJoinUsers,
 }));
-vi.mock("@/server/collaboration-candidates", () => ({ listRegisteredFriendCandidates: mocks.listRegisteredFriendCandidates }));
+vi.mock("@/server/collaboration-candidates", () => ({ listPersonalFriendCandidates: mocks.listPersonalFriendCandidates }));
 vi.mock("@/server/user-avatars", () => ({ normalizeUserAvatar: mocks.normalizeUserAvatar }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
@@ -62,7 +62,7 @@ import {
   addPersonalFriendAsGroupParticipantAction,
   createGroupInvitationAction,
   invitePersonalFriendToGroupAction,
-  searchGroupJoinUserOptions,
+  searchGroupMemberOptions,
 } from "./actions";
 
 beforeEach(() => {
@@ -72,12 +72,14 @@ beforeEach(() => {
 });
 
 describe("Group collaboration candidate actions", () => {
-  it("keeps username discovery as the fallback after first-class Personal Friend rows", async () => {
-    mocks.listRegisteredFriendCandidates.mockResolvedValue([{ userId: "user-friend", displayName: "Alice", username: "alice" }]);
+  it("combines Personal Friends and username discovery without duplicate registered rows", async () => {
+    mocks.listPersonalFriendCandidates.mockResolvedValue([{ personalFriendId: "friend-local", kind: "local", userId: null, displayName: "Local", username: null, label: null }, { personalFriendId: "friend-a", kind: "registered", userId: "user-friend", displayName: "Alice", username: "alice", label: null }]);
     mocks.searchGroupJoinUsers.mockResolvedValue([{ id: "user-other", displayName: "Other", username: "other" }]);
 
-    await expect(searchGroupJoinUserOptions("group-a")).resolves.toEqual([
-      { id: "user-other", label: "Other · @other", group: "Other Zplit users" },
+    await expect(searchGroupMemberOptions("group-a", "ali")).resolves.toEqual([
+      { id: "personalFriend:friend-local", label: "Local · Local friend" },
+      { id: "user-friend", label: "Alice · @alice · Zplit friend" },
+      { id: "user-other", label: "Other · @other · Zplit user" },
     ]);
   });
 
@@ -95,6 +97,22 @@ describe("Group collaboration candidate actions", () => {
       "user-owner",
       { targetUserId: "user-friend" },
     );
+  });
+
+  it("routes a selected local Personal Friend to participant projection", async () => {
+    const formData = new FormData();
+    formData.set("targetUserId", "personalFriend:friend-local");
+
+    await expect(
+      createGroupInvitationAction("group-a", { error: "", values: { targetUserId: "" } }, formData),
+    ).resolves.toEqual({ error: "Member added.", values: { targetUserId: "" } });
+    expect(mocks.addPersonalFriendAsGroupParticipant).toHaveBeenCalledWith(
+      "database",
+      "group-a",
+      "user-owner",
+      "friend-local",
+    );
+    expect(mocks.createGroupInvitation).not.toHaveBeenCalled();
   });
 
   it("uses stable IDs for registered invitations and local participant projections", async () => {

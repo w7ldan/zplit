@@ -3,13 +3,12 @@ import "server-only";
 import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { getDatabase } from "@/db/client";
-import { organizationInvitations, organizationMemberships, organizations, notifications, users } from "@/db/schema";
+import { organizationInvitations, organizationMemberships, organizationParticipants, organizations, notifications, users } from "@/db/schema";
 import type { OrganizationInvitationSummary, OrganizationMember } from "@/domain/organization-contracts";
 import {
   canGrantOrganizationInvitationRole,
   isOrganizationInvitationRole,
   type OrganizationInvitationRole,
-  type OrganizationRole,
 } from "@/domain/organization-permissions";
 import { isOrganizationInvitationExpired, organizationInvitationExpiresAt, type OrganizationInvitationStatus } from "@/domain/organization-invitations";
 import { normalizeUuid } from "@/domain/record-retrieval";
@@ -19,9 +18,10 @@ import { requireSession } from "@/auth/require-session";
 import { OrganizationError, requireOrganizationAccess } from "@/server/organizations";
 import { createNotificationInDatabase, publishNotificationStateChange } from "@/server/notifications";
 import { searchUsernameDirectoryInDatabase } from "@/server/user-directory";
+import { findOrganizationParticipantFromLinkedFriend, listOrganizationParticipants } from "@/server/organization-participants";
 
 export class OrganizationInvitationError extends Error {
-  constructor(readonly code: "invalid_id" | "forbidden" | "invalid_role" | "invalid_target" | "self" | "already_member" | "duplicate" | "not_found" | "resolved" | "expired" | "stale_authority" | "conflict") {
+  constructor(readonly code: "invalid_id" | "forbidden" | "invalid_role" | "invalid_target" | "self" | "already_member" | "duplicate" | "not_found" | "resolved" | "expired" | "stale_authority" | "conflict" | "participant_not_found") {
     super(code);
     this.name = "OrganizationInvitationError";
   }
@@ -139,22 +139,7 @@ export async function searchOrganizationInvitationUsers(database: Database, orga
 }
 
 export async function listOrganizationMembers(database: Database, organizationId: string, viewerUserId: string): Promise<OrganizationMember[]> {
-  assertOrganizationId(organizationId);
-  assertUserId(viewerUserId);
-  const access = await requireOrganizationAccess(database, organizationId, viewerUserId);
-  access.require("members.view");
-  const rows = await database
-    .select({
-      id: users.id,
-      displayName: users.name,
-      username: users.username,
-      role: organizationMemberships.role,
-    })
-    .from(organizationMemberships)
-    .innerJoin(users, eq(users.id, organizationMemberships.userId))
-    .where(eq(organizationMemberships.organizationId, organizationId))
-    .orderBy(asc(users.name), asc(users.id));
-  return rows.map((row) => ({ ...row, role: row.role as OrganizationRole }));
+  return listOrganizationParticipants(database, organizationId, viewerUserId);
 }
 
 export async function listPendingOrganizationInvitations(database: Database, organizationId: string, viewerUserId: string): Promise<OrganizationInvitationSummary[]> {
@@ -166,6 +151,7 @@ export async function listPendingOrganizationInvitations(database: Database, org
     const rows = await transaction
       .select({
         id: organizationInvitations.id,
+        participantId: organizationInvitations.participantId,
         targetUserId: organizationInvitations.targetUserId,
         displayName: users.name,
         username: users.username,
@@ -193,7 +179,7 @@ export async function listPendingOrganizationInvitations(database: Database, org
   return result.pending;
 }
 
-export async function createOrganizationInvitation(database: Database, organizationId: string, inviterUserId: string, input: { targetUserId?: unknown; username?: unknown; role: unknown }) {
+export async function createOrganizationInvitation(database: Database, organizationId: string, inviterUserId: string, input: { targetUserId?: unknown; username?: unknown; role: unknown; participantId?: unknown }) {
   assertOrganizationId(organizationId);
   assertUserId(inviterUserId);
   const requestedRole = input.role === undefined ? "member" : input.role;
@@ -205,6 +191,19 @@ export async function createOrganizationInvitation(database: Database, organizat
     const target = await resolveInvitationTarget(transaction as Database, input);
     if (!target) throw new OrganizationInvitationError("invalid_target");
     if (target.id === inviterUserId) throw new OrganizationInvitationError("self");
+
+    let participantId: string | null = null;
+    if (input.participantId !== undefined) {
+      if (typeof input.participantId !== "string" || !normalizeUuid(input.participantId)) throw new OrganizationInvitationError("participant_not_found");
+      const [participant] = await transaction
+        .select({ id: organizationParticipants.id, userId: organizationParticipants.userId })
+        .from(organizationParticipants)
+        .where(and(eq(organizationParticipants.organizationId, organizationId), eq(organizationParticipants.id, input.participantId)))
+        .limit(1)
+        .for("update");
+      if (!participant || participant.userId && participant.userId !== target.id) throw new OrganizationInvitationError("participant_not_found");
+      participantId = participant.id;
+    }
 
     const [member] = await transaction
       .select({ userId: organizationMemberships.userId })
@@ -235,7 +234,7 @@ export async function createOrganizationInvitation(database: Database, organizat
     const expiresAt = organizationInvitationExpiresAt(now);
     const [invitation] = await transaction
       .insert(organizationInvitations)
-      .values({ organizationId, targetUserId: target.id, invitedByUserId: inviterUserId, role, status: "pending", createdAt: now, expiresAt, updatedAt: now })
+      .values({ organizationId, targetUserId: target.id, participantId, invitedByUserId: inviterUserId, role, status: "pending", createdAt: now, expiresAt, updatedAt: now })
       .returning();
     if (!invitation) throw new Error("Organization invitation was not created");
     const metadata: NotificationMetadata["organization.invitation"] = {
@@ -293,6 +292,57 @@ export async function getCurrentUserOrganizationInvitationStatuses(invitationIds
   return getOrganizationInvitationStatuses(getDatabase(), session.user.id, invitationIds);
 }
 
+async function resolveOrganizationParticipant(
+  database: Database,
+  invitation: typeof organizationInvitations.$inferSelect,
+  targetUserId: string,
+  now: Date,
+) {
+  const [registeredParticipant] = await database
+    .select({ id: organizationParticipants.id })
+    .from(organizationParticipants)
+    .where(and(eq(organizationParticipants.organizationId, invitation.organizationId), eq(organizationParticipants.userId, targetUserId)))
+    .limit(1)
+    .for("update");
+  if (registeredParticipant) return registeredParticipant.id;
+
+  if (invitation.participantId) {
+    const [selectedParticipant] = await database
+      .select({ id: organizationParticipants.id, userId: organizationParticipants.userId })
+      .from(organizationParticipants)
+      .where(and(eq(organizationParticipants.organizationId, invitation.organizationId), eq(organizationParticipants.id, invitation.participantId)))
+      .limit(1)
+      .for("update");
+    if (!selectedParticipant || selectedParticipant.userId && selectedParticipant.userId !== targetUserId) {
+      throw new OrganizationInvitationError("participant_not_found");
+    }
+    if (!selectedParticipant.userId) {
+      await database
+        .update(organizationParticipants)
+        .set({ userId: targetUserId, displayName: null, updatedAt: now })
+        .where(and(eq(organizationParticipants.id, selectedParticipant.id), isNull(organizationParticipants.userId)));
+    }
+    return selectedParticipant.id;
+  }
+
+  const sourceParticipant = await findOrganizationParticipantFromLinkedFriend(database, invitation.organizationId, targetUserId);
+  if (sourceParticipant) {
+    await database
+      .update(organizationParticipants)
+      .set({ userId: targetUserId, displayName: null, updatedAt: now })
+      .where(and(eq(organizationParticipants.id, sourceParticipant.id), isNull(organizationParticipants.userId)));
+    return sourceParticipant.id;
+  }
+
+  const [createdParticipant] = await database
+    .insert(organizationParticipants)
+    .values({ organizationId: invitation.organizationId, userId: targetUserId, createdByUserId: invitation.invitedByUserId, createdAt: now, updatedAt: now })
+    .onConflictDoNothing()
+    .returning({ id: organizationParticipants.id });
+  if (!createdParticipant) throw new OrganizationInvitationError("conflict");
+  return createdParticipant.id;
+}
+
 async function acceptOrDecline(database: Database, targetUserId: string, invitationId: string, response: "accept" | "decline") {
   assertUserId(targetUserId);
   assertInvitationId(invitationId);
@@ -346,9 +396,10 @@ async function acceptOrDecline(database: Database, targetUserId: string, invitat
       const revoked = await transitionPendingInvitation(transaction as Database, invitation.id, "revoked", now, targetUserId);
       return { organizationId: invitation.organizationId, targetUserId, recipientUserId: invitation.invitedByUserId, changed: Boolean(revoked), error: "already_member" as const, status: "revoked" as const };
     }
+    const participantId = await resolveOrganizationParticipant(transaction as Database, invitation, targetUserId, now);
     const [membership] = await transaction
       .insert(organizationMemberships)
-      .values({ organizationId: invitation.organizationId, userId: targetUserId, role: invitation.role, customCapabilities: [], joinedAt: now })
+      .values({ organizationId: invitation.organizationId, userId: targetUserId, participantId, role: invitation.role, customCapabilities: [], joinedAt: now })
       .onConflictDoNothing({ target: [organizationMemberships.organizationId, organizationMemberships.userId] })
       .returning();
     if (!membership) {

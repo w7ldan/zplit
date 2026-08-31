@@ -3,7 +3,6 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getGroupForMember, listGroupParticipants } from "@/server/groups";
 import { listGroupJoinRequests } from "@/server/group-join-requests";
-import { listPersonalFriendCandidates } from "@/server/collaboration-candidates";
 import { GroupPeople } from "@/components/groups/group-people";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +14,9 @@ export default async function GroupPeoplePage({ params }: { params: Promise<{ gr
   const database = getDatabase();
   let group;
   try { group = await getGroupForMember(database, groupId, session.user.id); } catch { notFound(); }
-  const [participants, requests, friendCandidates] = await Promise.all([
+  const [participants, requests] = await Promise.all([
     listGroupParticipants(database, groupId, session.user.id),
     group.canManageParticipants ? listGroupJoinRequests(database, groupId, session.user.id) : Promise.resolve({ invitations: [], links: [] }),
-    group.canManageParticipants
-      ? listPersonalFriendCandidates(database, session.user.id, { kind: "group", id: groupId })
-      : Promise.resolve([]),
   ]);
   return (
     <section className="app-page group-people-page" id="top">
@@ -29,7 +25,7 @@ export default async function GroupPeoplePage({ params }: { params: Promise<{ gr
           <div>
             <p className="technical-label">Group people</p>
             <h1>People</h1>
-            <p className="app-page__lede">Registered members and local external participants keep one durable identity per Group.</p>
+            <p className="app-page__lede">Members keep one durable identity per Group, whether or not they have a Zplit account.</p>
           </div>
         </header>
         <GroupPeople
@@ -37,7 +33,6 @@ export default async function GroupPeoplePage({ params }: { params: Promise<{ gr
           participants={participants}
           pendingInvitations={requests.invitations}
           pendingLinks={requests.links}
-          friendCandidates={friendCandidates}
           canManageParticipants={group.canManageParticipants}
           canManageRoles={group.canManageRoles}
         />

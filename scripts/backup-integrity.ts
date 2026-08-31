@@ -13,6 +13,7 @@ export const EXPECTED_TABLES = [
   "organizations",
   "ledger_scopes",
   "organization_memberships",
+  "organization_participants",
   "organization_avatars",
   "organization_invitations",
   "debtor_share_links",

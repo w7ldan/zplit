@@ -4,6 +4,7 @@ export type OrganizationCapabilities = {
   canUpdate: boolean;
   canDelete: boolean;
   canViewMembers: boolean;
+  canManageMembers: boolean;
   canViewLedger: boolean;
   canManageFriends: boolean;
   canViewChat: boolean;
@@ -27,13 +28,17 @@ export type OrganizationDetail = OrganizationSummary & OrganizationCapabilities;
 
 export type OrganizationMember = {
   id: string;
+  userId: string | null;
   displayName: string;
   username: string | null;
-  role: OrganizationRole;
+  label: string | null;
+  role: OrganizationRole | null;
+  isLocal: boolean;
 };
 
 export type OrganizationInvitationSummary = {
   id: string;
+  participantId: string | null;
   targetUserId: string;
   displayName: string;
   username: string;

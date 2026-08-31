@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
-import { ledgerScopes, organizationMemberships, organizations } from "@/db/schema";
+import { ledgerScopes, organizationMemberships, organizationParticipants, organizations } from "@/db/schema";
 import type { OrganizationRole } from "@/domain/organization-permissions";
 import { assertPlainDto } from "@/test/assert-plain-dto";
 
@@ -86,7 +86,7 @@ describe("organizations", () => {
     const calls: Array<{ table: unknown; values?: unknown }> = [];
     const organization = { id: organizationId, name: "Studio", description: null };
     const transaction = {
-      insert: vi.fn((table: unknown) => insertBuilder(table, calls, table === organizations ? [organization] : table === ledgerScopes ? [{ id: "scope-organization" }] : [{ organizationId: organization.id, userId: "user-a", role: "owner" }])),
+      insert: vi.fn((table: unknown) => insertBuilder(table, calls, table === organizations ? [organization] : table === ledgerScopes ? [{ id: "scope-organization" }] : table === organizationParticipants ? [{ id: "participant-owner" }] : [{ organizationId: organization.id, userId: "user-a", participantId: "participant-owner", role: "owner" }])),
     };
     const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
 
@@ -95,7 +95,8 @@ describe("organizations", () => {
     expect(calls).toEqual([
       { table: organizations, values: { name: "Studio", description: null } },
       { table: ledgerScopes, values: { kind: "organization", organizationId: organization.id } },
-      { table: organizationMemberships, values: { organizationId: organization.id, userId: "user-a", role: "owner" } },
+      { table: organizationParticipants, values: { organizationId: organization.id, userId: "user-a", createdByUserId: "user-a" } },
+      { table: organizationMemberships, values: { organizationId: organization.id, userId: "user-a", participantId: "participant-owner", role: "owner" } },
     ]);
   });
 

@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getOrganizationForMember } from "@/server/organizations";
-import { listOrganizationMembers, listPendingOrganizationInvitations } from "@/server/organization-invitations";
+import { listPendingOrganizationInvitations } from "@/server/organization-invitations";
+import { listOrganizationParticipants } from "@/server/organization-participants";
 import { listPersonalFriendCandidates } from "@/server/collaboration-candidates";
 import { OrganizationMembers } from "@/components/organizations/organization-members";
 
@@ -23,15 +24,12 @@ export default async function OrganizationPeoplePage({
   } catch {
     notFound();
   }
-  const [members, pendingInvitations, friendCandidates, expenseFriendCandidates] = await Promise.all([
+  const [members, pendingInvitations, expenseFriendCandidates] = await Promise.all([
     organization.canViewMembers
-      ? listOrganizationMembers(database, organizationId, session.user.id)
+      ? listOrganizationParticipants(database, organizationId, session.user.id)
       : Promise.resolve(undefined),
     organization.invitationRoles?.length
       ? listPendingOrganizationInvitations(database, organizationId, session.user.id)
-      : Promise.resolve([]),
-    organization.invitationRoles?.length
-      ? listPersonalFriendCandidates(database, session.user.id, { kind: "organization", id: organizationId })
       : Promise.resolve([]),
     organization.canViewLedger && organization.canManageFriends
       ? listPersonalFriendCandidates(
@@ -58,7 +56,7 @@ export default async function OrganizationPeoplePage({
           members={members}
           pendingInvitations={pendingInvitations}
           invitationRoles={organization.invitationRoles ?? []}
-          friendCandidates={friendCandidates}
+          canManageMembers={organization.canManageMembers}
           expenseFriendCandidates={expenseFriendCandidates}
           canViewExpenseContacts={organization.canViewLedger}
           canManageExpenseContacts={organization.canManageFriends}

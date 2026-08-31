@@ -16,12 +16,18 @@ import {
   updateOrganization,
 } from "@/server/organizations";
 import {
+  addPersonalFriendAsOrganizationParticipant,
+  createLocalOrganizationParticipant,
+  organizationParticipantErrorMessage,
+} from "@/server/organization-participants";
+import {
   createOrganizationInvitation,
   OrganizationInvitationError,
   revokeOrganizationInvitation,
   searchOrganizationInvitationUsers,
 } from "@/server/organization-invitations";
-import { listRegisteredFriendCandidates } from "@/server/collaboration-candidates";
+import { listPersonalFriendCandidates } from "@/server/collaboration-candidates";
+import { requireOrganizationAccess } from "@/server/organizations";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 
 export type { OrganizationActionState, OrganizationFormValues, OrganizationInvitationActionState } from "@/domain/organization-contracts";
@@ -92,23 +98,62 @@ export async function deleteOrganizationAction(organizationId: string) {
   redirect("/app/organizations");
 }
 
+function memberOption(candidate: Awaited<ReturnType<typeof listPersonalFriendCandidates>>[number]): SearchableOption {
+  return candidate.kind === "local"
+    ? { id: `personalFriend:${candidate.personalFriendId}`, label: `${candidate.displayName} · ${candidate.label ?? "Local friend"}` }
+    : { id: candidate.userId!, label: `${candidate.displayName} · @${candidate.username} · Zplit friend` };
+}
+
 export async function searchOrganizationInvitationOptions(organizationId: string, query = ""): Promise<SearchableOption[]> {
   const session = await requireSession();
   try {
+    if (!query.trim()) return [];
     const database = getDatabase();
-    const [friends, users] = await Promise.all([
-      listRegisteredFriendCandidates(database, session.user.id, { kind: "organization", id: organizationId }),
-      searchOrganizationInvitationUsers(database, organizationId, session.user.id, query),
-    ]);
+    const access = await requireOrganizationAccess(database, organizationId, session.user.id);
+    const friends = access.can("members.invite") || access.can("members.manage")
+      ? (await listPersonalFriendCandidates(database, session.user.id, { kind: "organization", id: organizationId }, query))
+        .filter((friend) => access.can("members.manage") || friend.kind !== "local")
+      : [];
+    const users = access.can("members.invite")
+      ? await searchOrganizationInvitationUsers(database, organizationId, session.user.id, query)
+      : [];
     const friendIds = new Set(friends.map((friend) => friend.userId));
     return [
+      ...friends.map(memberOption),
       ...users
         .filter((user) => !friendIds.has(user.id))
-        .map((user) => ({ id: user.id, label: `${user.displayName} · @${user.username}`, group: "Other Zplit users" })),
+        .map((user) => ({ id: user.id, label: `${user.displayName} · @${user.username} · Zplit user` })),
     ];
   } catch {
     return [];
   }
+}
+
+export async function searchOrganizationInvitationUserOptions(organizationId: string, query = ""): Promise<SearchableOption[]> {
+  const session = await requireSession();
+  try {
+    if (!query.trim()) return [];
+    return (await searchOrganizationInvitationUsers(getDatabase(), organizationId, session.user.id, query)).map((user) => ({
+      id: user.id,
+      label: `${user.displayName} · @${user.username}`,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function createLocalOrganizationParticipantAction(organizationId: string, formData: FormData) {
+  const session = await requireSession();
+  try {
+    await createLocalOrganizationParticipant(getDatabase(), organizationId, session.user.id, {
+      displayName: typeof formData.get("displayName") === "string" ? String(formData.get("displayName")) : "",
+      label: typeof formData.get("label") === "string" ? String(formData.get("label")) : "",
+    });
+  } catch {
+    // The Organization People page refetches canonical state below.
+  }
+  revalidatePath(`/app/organizations/${organizationId}`);
+  revalidatePath(`/app/organizations/${organizationId}/people`);
 }
 
 export async function invitePersonalFriendToOrganizationAction(
@@ -163,6 +208,7 @@ function organizationInvitationErrorMessage(error: unknown) {
     expired: "This invitation has expired.",
     stale_authority: "This invitation is no longer available.",
     conflict: "This invitation could not be completed.",
+    participant_not_found: "This member is no longer available.",
   }[error.code];
 }
 
@@ -174,14 +220,28 @@ export async function createOrganizationInvitationAction(organizationId: string,
     : typeof legacyUsername === "string"
       ? legacyUsername
       : "";
-  const target = typeof selectedTarget === "string" ? { targetUserId } : { username: targetUserId };
   const roleValue = formData.get("role") ?? "member";
   if (!isOrganizationInvitationRole(roleValue)) return { error: "Choose Member, Treasurer, or Admin.", values: { targetUserId, role: previousState.values.role } };
   if (!targetUserId.trim()) return { error: "Choose an existing Zplit username.", values: { targetUserId, role: roleValue } };
   const session = await requireSession();
   try {
-    await createOrganizationInvitation(getDatabase(), organizationId, session.user.id, { ...target, role: roleValue });
+    if (targetUserId.startsWith("personalFriend:")) {
+      await addPersonalFriendAsOrganizationParticipant(getDatabase(), organizationId, session.user.id, targetUserId.slice("personalFriend:".length));
+      revalidatePath(`/app/organizations/${organizationId}`);
+      revalidatePath(`/app/organizations/${organizationId}/people`);
+      return { error: "Member added.", values: { targetUserId: "", role: "member" } };
+    }
+    const canonicalUserId = targetUserId.startsWith("user:") ? targetUserId.slice("user:".length) : targetUserId;
+    const participantId = formData.get("participantId");
+    await createOrganizationInvitation(getDatabase(), organizationId, session.user.id, {
+      targetUserId: canonicalUserId,
+      ...(typeof participantId === "string" && participantId ? { participantId } : {}),
+      role: roleValue,
+    });
   } catch (error) {
+    if (targetUserId.startsWith("personalFriend:")) {
+      return { error: organizationParticipantErrorMessage(error), values: { targetUserId, role: roleValue } };
+    }
     return { error: organizationInvitationErrorMessage(error), values: { targetUserId, role: roleValue } };
   }
   revalidatePath(`/app/organizations/${organizationId}`);

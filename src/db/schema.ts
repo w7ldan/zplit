@@ -213,6 +213,37 @@ export const ledgerScopes = pgTable(
   ],
 );
 
+export const organizationParticipants = pgTable(
+  "organization_participants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => users.id, { onDelete: "restrict" }),
+    sourcePersonalFriendId: uuid("source_personal_friend_id").references(() => friends.id, { onDelete: "restrict" }),
+    displayName: varchar("display_name", { length: 160 }),
+    label: varchar("label", { length: 120 }),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("organization_participants_identity_shape", sql`(${table.userId} IS NOT NULL AND ${table.displayName} IS NULL) OR (${table.userId} IS NULL AND ${table.displayName} IS NOT NULL AND btrim(${table.displayName}) <> '')`),
+    check("organization_participants_label_not_blank", sql`${table.label} IS NULL OR btrim(${table.label}) <> ''`),
+    unique("organization_participants_organization_id_id_unique").on(table.organizationId, table.id),
+    uniqueIndex("organization_participants_registered_user_uidx")
+      .on(table.organizationId, table.userId)
+      .where(sql`${table.userId} IS NOT NULL`),
+    uniqueIndex("organization_participants_source_personal_friend_uidx")
+      .on(table.organizationId, table.sourcePersonalFriendId)
+      .where(sql`${table.sourcePersonalFriendId} IS NOT NULL`),
+    index("organization_participants_organization_idx").on(table.organizationId),
+  ],
+);
+
 export const organizationMemberships = pgTable(
   "organization_memberships",
   {
@@ -222,6 +253,7 @@ export const organizationMemberships = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    participantId: uuid("participant_id").notNull(),
     role: varchar("role", { length: 32 }).default("member").notNull(),
     customCapabilities: jsonb("custom_capabilities").$type<OrganizationCapability[]>().notNull().default([]),
     joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
@@ -229,6 +261,12 @@ export const organizationMemberships = pgTable(
   (table) => [
     primaryKey({ columns: [table.organizationId, table.userId] }),
     check("organization_memberships_role_allowed", sql`${table.role} IN ('owner', 'admin', 'treasurer', 'member', 'custom')`),
+    foreignKey({
+      columns: [table.organizationId, table.participantId],
+      foreignColumns: [organizationParticipants.organizationId, organizationParticipants.id],
+      name: "organization_memberships_participant_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("organization_memberships_participant_uidx").on(table.organizationId, table.participantId),
     index("organization_memberships_user_idx").on(table.userId),
   ],
 );
@@ -243,6 +281,7 @@ export const organizationInvitations = pgTable(
     targetUserId: text("target_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    participantId: uuid("participant_id"),
     invitedByUserId: text("invited_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
@@ -268,6 +307,11 @@ export const organizationInvitations = pgTable(
     uniqueIndex("organization_invitations_pending_organization_target_uidx")
       .on(table.organizationId, table.targetUserId)
       .where(sql`${table.status} = 'pending'`),
+    foreignKey({
+      columns: [table.organizationId, table.participantId],
+      foreignColumns: [organizationParticipants.organizationId, organizationParticipants.id],
+      name: "organization_invitations_participant_fk",
+    }).onDelete("set null"),
     index("organization_invitations_organization_status_idx").on(table.organizationId, table.status),
     index("organization_invitations_target_status_idx").on(table.targetUserId, table.status),
     index("organization_invitations_expires_at_idx").on(table.expiresAt),
@@ -1404,6 +1448,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   createdInvitations: many(accountInvitations, { relationName: "createdInvitations" }),
   acceptedInvitations: many(accountInvitations, { relationName: "acceptedInvitations" }),
   organizationMemberships: many(organizationMemberships),
+  organizationParticipants: many(organizationParticipants),
   groupMemberships: many(groupMemberships),
   groupParticipants: many(groupParticipants),
   groupJoinRequestTargets: many(groupJoinRequests, { relationName: "groupJoinRequestTargets" }),
@@ -1459,10 +1504,19 @@ export const friendConnectionsRelations = relations(friendConnections, ({ one })
 
 export const organizationsRelations = relations(organizations, ({ many, one }) => ({
   memberships: many(organizationMemberships),
+  participants: many(organizationParticipants),
   invitations: many(organizationInvitations),
   avatar: one(organizationAvatars),
   ledgerScope: one(ledgerScopes),
   chatThreads: many(chatThreads),
+}));
+
+export const organizationParticipantsRelations = relations(organizationParticipants, ({ one, many }) => ({
+  organization: one(organizations, { fields: [organizationParticipants.organizationId], references: [organizations.id] }),
+  user: one(users, { fields: [organizationParticipants.userId], references: [users.id] }),
+  sourcePersonalFriend: one(friends, { fields: [organizationParticipants.sourcePersonalFriendId], references: [friends.id] }),
+  membership: one(organizationMemberships),
+  invitations: many(organizationInvitations),
 }));
 
 export const ledgerScopesRelations = relations(ledgerScopes, ({ one }) => ({
@@ -1485,6 +1539,10 @@ export const organizationMembershipsRelations = relations(organizationMembership
     fields: [organizationMemberships.userId],
     references: [users.id],
   }),
+  participant: one(organizationParticipants, {
+    fields: [organizationMemberships.organizationId, organizationMemberships.participantId],
+    references: [organizationParticipants.organizationId, organizationParticipants.id],
+  }),
 }));
 
 export const organizationInvitationsRelations = relations(organizationInvitations, ({ one }) => ({
@@ -1501,6 +1559,10 @@ export const organizationInvitationsRelations = relations(organizationInvitation
     fields: [organizationInvitations.invitedByUserId],
     references: [users.id],
     relationName: "organizationInvitationInviters",
+  }),
+  participant: one(organizationParticipants, {
+    fields: [organizationInvitations.organizationId, organizationInvitations.participantId],
+    references: [organizationParticipants.organizationId, organizationParticipants.id],
   }),
 }));
 

@@ -7,6 +7,7 @@ import {
   ledgerScopes,
   organizationAvatars,
   organizationMemberships,
+  organizationParticipants,
   organizations,
 } from "@/db/schema";
 import type { OrganizationAvatarMetadata, OrganizationCapabilities, OrganizationDetail, OrganizationSummary } from "@/domain/organization-contracts";
@@ -73,6 +74,7 @@ function toOrganizationCapabilities(access: OrganizationAccess): OrganizationCap
     canUpdate: access.can("organization.update"),
     canDelete: access.can("organization.delete"),
     canViewMembers: access.can("members.view"),
+    canManageMembers: access.can("members.manage"),
     canViewLedger: access.can("ledger.view"),
     canManageFriends: access.can("friends.manage"),
     canViewChat: access.can("chat.view"),
@@ -235,8 +237,8 @@ async function listOrganizationRows(database: Database, userId: string, limit?: 
       role: organizationMemberships.role,
       memberCount: sql<number>`(
         select count(*)
-        from organization_memberships members
-        where members.organization_id = ${organizations.id}
+        from organization_participants participants
+        where participants.organization_id = ${organizations.id}
       )`.mapWith(Number),
       avatar: avatarSelection(),
       customCapabilities: organizationMemberships.customCapabilities,
@@ -310,8 +312,8 @@ export async function getOrganizationForMember(database: Database, organizationI
   if (!row) throw new OrganizationError("not_member");
   const [{ memberCount }] = await database
     .select({ memberCount: count() })
-    .from(organizationMemberships)
-    .where(eq(organizationMemberships.organizationId, organizationId));
+    .from(organizationParticipants)
+    .where(eq(organizationParticipants.organizationId, organizationId));
   return {
     ...row,
     role: row.role as OrganizationRole,
@@ -331,7 +333,12 @@ export async function createOrganization(
     const [organization] = await transaction.insert(organizations).values(values).returning();
     if (!organization) throw new Error("Organization was not created");
     await createOrganizationLedgerScope(transaction as Database, organization.id);
-    await transaction.insert(organizationMemberships).values({ organizationId: organization.id, userId, role: "owner" });
+    const [participant] = await transaction
+      .insert(organizationParticipants)
+      .values({ organizationId: organization.id, userId, createdByUserId: userId })
+      .returning({ id: organizationParticipants.id });
+    if (!participant) throw new Error("Organization participant was not created");
+    await transaction.insert(organizationMemberships).values({ organizationId: organization.id, userId, participantId: participant.id, role: "owner" });
     if (input.avatar) {
       await transaction.insert(organizationAvatars).values({ ...input.avatar, organizationId: organization.id, content: Buffer.from(input.avatar.content) });
     }

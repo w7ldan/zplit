@@ -43,7 +43,9 @@ async function main() {
       if (!organization) throw new Error("organization fixture was not created");
       const [scope] = await transaction.insert(schema.ledgerScopes).values({ kind: "organization", organizationId: organization.id }).returning({ id: schema.ledgerScopes.id });
       if (!scope) throw new Error("organization scope fixture was not created");
-      await transaction.insert(schema.organizationMemberships).values({ organizationId: organization.id, userId, role: "owner" });
+      const [participant] = await transaction.insert(schema.organizationParticipants).values({ organizationId: organization.id, userId, createdByUserId: userId }).returning({ id: schema.organizationParticipants.id });
+      if (!participant) throw new Error("organization participant fixture was not created");
+      await transaction.insert(schema.organizationMemberships).values({ organizationId: organization.id, userId, participantId: participant.id, role: "owner" });
       return { organization, scopeId: scope.id };
     });
     const { organization, scopeId } = await createOrganizationFixture(`Scope A ${suffix}`);

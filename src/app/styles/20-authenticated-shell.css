@@ -1759,6 +1759,28 @@ body.global-search-open {
   color: var(--ink);
 }
 
+.organization-people__link-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  grid-column: 2 / -1;
+}
+
+.organization-people__link-form .searchable-combobox {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+}
+
+.organization-people__link-form select {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+}
+
 .organization-invite__form {
   display: grid;
   gap: 0.65rem;

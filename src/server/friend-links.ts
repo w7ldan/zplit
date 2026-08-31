@@ -3,7 +3,7 @@ import "server-only";
 import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { getDatabase } from "@/db/client";
-import { friendConnections, friendLinkRequests, friends, notifications, users } from "@/db/schema";
+import { friendConnections, friendLinkRequests, friends, groupParticipants, notifications, organizationParticipants, users } from "@/db/schema";
 import { NOTIFICATION_TYPES, type NotificationMetadata } from "@/domain/notifications";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { FRIEND_LINK_STATE_CHANGED_EVENT } from "@/domain/friend-links";
@@ -281,6 +281,65 @@ async function ensureActiveLinkedFriend(transaction: Database, ledgerScopeId: st
   return created.id;
 }
 
+async function enrichGroupParticipant(database: Database, friendId: string, userId: string) {
+  try {
+    await database.transaction(async (transaction) => {
+      const projections = await transaction
+        .select({ id: groupParticipants.id, groupId: groupParticipants.groupId })
+        .from(groupParticipants)
+        .where(and(eq(groupParticipants.sourcePersonalFriendId, friendId), isNull(groupParticipants.userId)))
+        .for("update");
+      for (const projection of projections) {
+        const [registered] = await transaction
+          .select({ id: groupParticipants.id })
+          .from(groupParticipants)
+          .where(and(eq(groupParticipants.groupId, projection.groupId), eq(groupParticipants.userId, userId)))
+          .limit(1)
+          .for("update");
+        if (registered) continue;
+        await transaction
+          .update(groupParticipants)
+          .set({ userId, displayName: null, updatedAt: new Date() })
+          .where(and(eq(groupParticipants.id, projection.id), isNull(groupParticipants.userId)));
+      }
+    });
+  } catch {
+    // Downstream identity enrichment must never reject the Friend link.
+  }
+}
+
+async function enrichOrganizationParticipant(database: Database, friendId: string, userId: string) {
+  try {
+    await database.transaction(async (transaction) => {
+      const projections = await transaction
+        .select({ id: organizationParticipants.id, organizationId: organizationParticipants.organizationId })
+        .from(organizationParticipants)
+        .where(and(eq(organizationParticipants.sourcePersonalFriendId, friendId), isNull(organizationParticipants.userId)))
+        .for("update");
+      for (const projection of projections) {
+        const [registered] = await transaction
+          .select({ id: organizationParticipants.id })
+          .from(organizationParticipants)
+          .where(and(eq(organizationParticipants.organizationId, projection.organizationId), eq(organizationParticipants.userId, userId)))
+          .limit(1)
+          .for("update");
+        if (registered) continue;
+        await transaction
+          .update(organizationParticipants)
+          .set({ userId, displayName: null, updatedAt: new Date() })
+          .where(and(eq(organizationParticipants.id, projection.id), isNull(organizationParticipants.userId)));
+      }
+    });
+  } catch {
+    // Downstream identity enrichment must never reject the Friend link.
+  }
+}
+
+async function enrichLinkedParticipants(database: Database, friendId: string, userId: string) {
+  await enrichGroupParticipant(database, friendId, userId);
+  await enrichOrganizationParticipant(database, friendId, userId);
+}
+
 export async function respondToFriendLinkRequest(database: Database, targetUserId: string, requestId: string, response: "accept" | "decline") {
   assertUserId(targetUserId);
   assertFriendId(requestId);
@@ -390,6 +449,7 @@ export async function respondToFriendLinkRequest(database: Database, targetUserI
   });
 
   if (result.changed) {
+    if (result.request.status === "accepted") await enrichLinkedParticipants(database, result.request.friendId, targetUserId);
     for (const userId of result.targetUserIds) publishNotificationStateChange(userId, "resolved");
     publishNotificationStateChange(result.request.ownerUserId, "resolved");
     if (result.request.status === "accepted" || result.request.status === "declined") publishNotificationStateChange(result.request.ownerUserId, "created");

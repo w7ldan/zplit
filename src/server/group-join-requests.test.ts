@@ -232,6 +232,40 @@ describe("Group join requests", () => {
     }));
   });
 
+  it("reuses a Group participant projected from a Personal Friend after that Friend links", async () => {
+    const pending = request();
+    const accepted = request({ status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });
+    const { db, calls, updateCalls } = database([
+      [pending],
+      [{ userId: requesterUserId }],
+      [],
+      [],
+      [{ id: participantId }],
+    ], [[{ groupId, userId: targetUserId, participantId, role: "member" }]], [[{ id: participantId }], [accepted], []]);
+
+    await expect(acceptGroupJoinRequest(db, targetUserId, requestId)).resolves.toMatchObject({ status: "accepted" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.values).toMatchObject({ groupId, userId: targetUserId, participantId });
+    expect(updateCalls[0]).toEqual(expect.objectContaining({ userId: targetUserId, displayName: null }));
+    expect(calls[0]?.values).not.toHaveProperty("id", participantId);
+  });
+
+  it("uses the existing registered participant when a source projection conflicts", async () => {
+    const pending = request();
+    const accepted = request({ status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });
+    const registeredParticipantId = "44444444-4444-4444-8444-444444444444";
+    const { db, calls } = database([
+      [pending],
+      [{ userId: requesterUserId }],
+      [],
+      [{ id: registeredParticipantId }],
+    ], [[{ groupId, userId: targetUserId, participantId: registeredParticipantId, role: "member" }]], [[accepted], []]);
+
+    await expect(acceptGroupJoinRequest(db, targetUserId, requestId)).resolves.toMatchObject({ status: "accepted" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.values).toMatchObject({ participantId: registeredParticipantId });
+  });
+
   it("rejoins a former registered participant without replacing its identity", async () => {
     const pending = request();
     const accepted = request({ status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });

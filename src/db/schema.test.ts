@@ -34,6 +34,7 @@ const domainTables = [
   "organization_avatars",
   "organization_invitations",
   "organization_memberships",
+  "organization_participants",
   "organizations",
   "outings",
   "repayment_allocations",
@@ -87,7 +88,7 @@ describe("database schema", () => {
 
   it("exports the domain tables and four auth tables", () => {
     expect(
-      [schema.chatMessages, schema.chatThreadReads, schema.chatThreads, schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupSettlementProofs, schema.groupSettlements, schema.groupSettlementApplications, schema.groupOffsetSettlements, schema.groupOffsetApplications, schema.groupExpenseReceipts, schema.groupExpenseLifecycleEvents]
+      [schema.chatMessages, schema.chatThreadReads, schema.chatThreads, schema.friends, schema.friendConnections, schema.friendLinkRequests, schema.outings, schema.trips, schema.expenses, schema.expenseShares, schema.expenseCharges, schema.expenseChargeTargets, schema.expenseReceipts, schema.repayments, schema.repaymentProofs, schema.repaymentAllocations, schema.repaymentDestinations, schema.notifications, schema.organizations, schema.organizationParticipants, schema.organizationMemberships, schema.organizationInvitations, schema.organizationAvatars, schema.ledgerScopes, schema.groups, schema.groupParticipants, schema.groupMemberships, schema.groupAvatars, schema.groupJoinRequests, schema.groupExpenses, schema.groupExpenseShares, schema.groupObligations, schema.groupSettlementProofs, schema.groupSettlements, schema.groupSettlementApplications, schema.groupOffsetSettlements, schema.groupOffsetApplications, schema.groupExpenseReceipts, schema.groupExpenseLifecycleEvents]
         .map((table) => getTableConfig(table).name)
         .sort(),
     ).toEqual(domainTables);
@@ -315,19 +316,25 @@ describe("database schema", () => {
     expect(organization.columns.map((column) => column.name)).toEqual(["id", "name", "description", "created_at", "updated_at"]);
     expect(organization.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["organizations_name_not_blank"]));
     const memberships = getTableConfig(schema.organizationMemberships);
-    expect(memberships.columns.map((column) => column.name)).toEqual(["organization_id", "user_id", "role", "custom_capabilities", "joined_at"]);
+    expect(memberships.columns.map((column) => column.name)).toEqual(["organization_id", "user_id", "participant_id", "role", "custom_capabilities", "joined_at"]);
     expect(memberships.columns.find((column) => column.name === "custom_capabilities")?.notNull).toBe(true);
     expect(memberships.checks.map((check) => check.name)).toContain("organization_memberships_role_allowed");
     expect(foreignKeyShape(schema.organizationMemberships)).toEqual(expect.arrayContaining([
       { from: ["organization_id"], to: "organizations", target: ["id"], onDelete: "cascade" },
       { from: ["user_id"], to: "users", target: ["id"], onDelete: "restrict" },
+      { from: ["organization_id", "participant_id"], to: "organization_participants", target: ["organization_id", "id"], onDelete: "restrict" },
     ]));
+    const participants = getTableConfig(schema.organizationParticipants);
+    expect(participants.columns.map((column) => column.name)).toEqual(["id", "organization_id", "user_id", "source_personal_friend_id", "display_name", "label", "created_by_user_id", "created_at", "updated_at"]);
+    expect(participants.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["organization_participants_identity_shape", "organization_participants_label_not_blank"]));
+    expect(indexColumns(schema.organizationParticipants, "organization_participants_registered_user_uidx")).toEqual(["organization_id", "user_id"]);
+    expect(indexColumns(schema.organizationParticipants, "organization_participants_source_personal_friend_uidx")).toEqual(["organization_id", "source_personal_friend_id"]);
     expect(getTableConfig(schema.organizationAvatars).checks.map((check) => check.name)).toEqual(expect.arrayContaining([
       "organization_avatars_media_type_allowed",
       "organization_avatars_content_size_matches",
     ]));
     const invitations = getTableConfig(schema.organizationInvitations);
-    expect(invitations.columns.map((column) => column.name)).toEqual(["id", "organization_id", "target_user_id", "invited_by_user_id", "role", "status", "created_at", "expires_at", "updated_at", "accepted_at", "declined_at", "revoked_at", "expired_at"]);
+    expect(invitations.columns.map((column) => column.name)).toEqual(["id", "organization_id", "target_user_id", "participant_id", "invited_by_user_id", "role", "status", "created_at", "expires_at", "updated_at", "accepted_at", "declined_at", "revoked_at", "expired_at"]);
     expect(invitations.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
       "organization_invitations_target_not_inviter",
       "organization_invitations_role_allowed",
@@ -335,6 +342,7 @@ describe("database schema", () => {
       "organization_invitations_transition_timestamps",
     ]));
     expect(indexColumns(schema.organizationInvitations, "organization_invitations_pending_organization_target_uidx")).toEqual(["organization_id", "target_user_id"]);
+    expect(foreignKeyShape(schema.organizationInvitations)).toContainEqual({ from: ["organization_id", "participant_id"], to: "organization_participants", target: ["organization_id", "id"], onDelete: "set null" });
   });
 
   it("defines ledger scopes with subject XOR and one-scope-per-subject indexes", () => {

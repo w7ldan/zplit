@@ -38,6 +38,7 @@ function invitation(overrides: Record<string, unknown> = {}) {
     declinedAt: null,
     revokedAt: null,
     expiredAt: null,
+    participantId: null,
     ...overrides,
   };
 }
@@ -192,9 +193,9 @@ describe("Organization invitation responses", () => {
       [access("owner")],
       [],
       [],
-    ], [[{ organizationId, userId: targetUserId, role: "admin", customCapabilities: [] }]], [[accepted], []]);
+    ], [[{ id: "participant-target" }], [{ organizationId, userId: targetUserId, participantId: "participant-target", role: "admin", customCapabilities: [] }]], [[accepted], []]);
     await expect(acceptOrganizationInvitation(db, targetUserId, invitationId)).resolves.toMatchObject({ status: "accepted" });
-    expect(db.insert).toHaveBeenCalledOnce();
+    expect(db.insert).toHaveBeenCalledTimes(2);
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetUserId, "resolved");
     expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(db, expect.objectContaining({
       recipientUserId: inviterUserId,
@@ -202,6 +203,40 @@ describe("Organization invitation responses", () => {
       metadata: { invitationId, organizationId, status: "accepted" },
       dedupeKey: `organization-invitation-outcome:${invitationId}:accepted`,
     }));
+  });
+
+  it("binds a direct local Organization participant during invitation acceptance", async () => {
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const accepted = invitation({ participantId, status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });
+    const db = database([
+      [invitation({ participantId })],
+      [{ id: organizationId }],
+      [access("owner")],
+      [],
+      [],
+      [{ id: participantId, userId: null }],
+    ], [[{ organizationId, userId: targetUserId, participantId, role: "member", customCapabilities: [] }]], [[{ id: participantId }], [accepted], []]);
+
+    await expect(acceptOrganizationInvitation(db, targetUserId, invitationId)).resolves.toMatchObject({ status: "accepted" });
+    expect(db.insert).toHaveBeenCalledOnce();
+    expect(db.update).toHaveBeenCalledWith(expect.anything());
+  });
+
+  it("uses the existing registered participant on a conflict without creating another", async () => {
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const existingRegisteredId = "44444444-4444-4444-8444-444444444444";
+    const accepted = invitation({ participantId, status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });
+    const db = database([
+      [invitation({ participantId })],
+      [{ id: organizationId }],
+      [access("owner")],
+      [],
+      [{ id: existingRegisteredId }],
+    ], [[{ organizationId, userId: targetUserId, participantId: existingRegisteredId, role: "member", customCapabilities: [] }]], [[accepted], []]);
+
+    await expect(acceptOrganizationInvitation(db, targetUserId, invitationId)).resolves.toMatchObject({ status: "accepted" });
+    expect(db.insert).toHaveBeenCalledOnce();
+    expect(db.insert).not.toHaveBeenCalledWith(expect.objectContaining({ id: participantId }));
   });
 
   it("rejects acceptance after the inviter loses current authority and creates no membership", async () => {

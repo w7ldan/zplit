@@ -1,7 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { OrganizationInvitationSummary, OrganizationMember } from "@/domain/organization-contracts";
-import type { PersonalFriendCandidate } from "@/domain/collaboration-candidates";
 import { assertPlainDto } from "@/test/assert-plain-dto";
 
 const mocks = vi.hoisted(() => ({
@@ -15,32 +14,18 @@ const mocks = vi.hoisted(() => ({
 vi.mock("server-only", () => ({}));
 vi.mock("@/app/app/organizations/actions", () => ({
   addPersonalFriendAsOrganizationExpenseContactAction: mocks.addExpense,
+  createLocalOrganizationParticipantAction: vi.fn(),
   createOrganizationInvitationAction: mocks.create,
   invitePersonalFriendToOrganizationAction: mocks.invite,
   searchOrganizationInvitationOptions: mocks.search,
+  searchOrganizationInvitationUserOptions: mocks.search,
   revokeOrganizationInvitationAction: mocks.revoke,
 }));
 
 import { OrganizationMembers } from "./organization-members";
 
-const member: OrganizationMember = { id: "user-a", displayName: "Alice Tan", username: "alice", role: "member" };
-const pendingInvitation: OrganizationInvitationSummary = { id: "invitation-a", targetUserId: "user-b", displayName: "Bob", username: "bob", role: "member", expiresAt: "2026-09-01T00:00:00.000Z" };
-const friendCandidate: PersonalFriendCandidate = {
-  personalFriendId: "friend-carol",
-  kind: "registered",
-  userId: "user-friend",
-  displayName: "Carol",
-  username: "carol",
-  label: null,
-};
-const localFriendCandidate: PersonalFriendCandidate = {
-  personalFriendId: "friend-alex",
-  kind: "local",
-  userId: null,
-  displayName: "Alex",
-  username: null,
-  label: null,
-};
+const member: OrganizationMember = { id: "participant-a", userId: "user-a", displayName: "Alice Tan", username: "alice", label: null, role: "member", isLocal: false };
+const pendingInvitation: OrganizationInvitationSummary = { id: "invitation-a", participantId: null, targetUserId: "user-b", displayName: "Bob", username: "bob", role: "member", expiresAt: "2026-09-01T00:00:00.000Z" };
 
 describe("OrganizationMembers", () => {
   it("shows identity-only roster data and capability-derived invite roles", () => {
@@ -50,21 +35,19 @@ describe("OrganizationMembers", () => {
       members={[member]}
       pendingInvitations={[]}
       invitationRoles={["admin", "treasurer", "member"]}
-      friendCandidates={[friendCandidate]}
+      canManageMembers
     />);
 
     expect(screen.getByText("Alice Tan")).toBeInTheDocument();
     expect(screen.getByText("@alice")).toBeInTheDocument();
-    expect(screen.getByText("Member", { selector: ".organization-members__role" })).toBeInTheDocument();
+    expect(screen.getByText("Member · Zplit member")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Alice Tan avatar" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Alice Tan avatar" }).tagName).toBe("svg");
     expect(container.querySelector('img[src*="/app/avatar?userId=user-a"]')).not.toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Role" })).toHaveValue("member");
-    expect(screen.getByText("Carol")).toBeInTheDocument();
-    expect(screen.getByText("@carol")).toBeInTheDocument();
-    expect(screen.getByText("Registered")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Invite" })).toBeInTheDocument();
-    expect(container.querySelector('option[value="user-friend"]')).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Role for registered account" })).toHaveValue("member");
+    expect(screen.getByRole("heading", { name: "Add member" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Search by name or @username..." })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Add member" })).toHaveLength(2);
     expect(container.querySelector('select[name="targetUserId"]')).toBeInTheDocument();
     expect(screen.getAllByRole("option", { name: "Admin" })).not.toHaveLength(0);
     expect(screen.getAllByRole("option", { name: "Treasurer" })).not.toHaveLength(0);
@@ -79,22 +62,23 @@ describe("OrganizationMembers", () => {
       organizationId="11111111-1111-4111-8111-111111111111"
       pendingInvitations={[pendingInvitation]}
       invitationRoles={["member"]}
+      canManageMembers={false}
     />);
 
-    expect(screen.getByRole("combobox", { name: "Role" })).toHaveValue("member");
-    expect(screen.getByRole("combobox", { name: "Role" }).querySelectorAll("option")).toHaveLength(1);
+    expect(screen.getByRole("combobox", { name: "Role for registered account" })).toHaveValue("member");
+    expect(screen.getByRole("combobox", { name: "Role for registered account" }).querySelectorAll("option")).toHaveLength(1);
     expect(screen.getByText("Bob")).toBeInTheDocument();
     expect(screen.getByText("@bob")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Revoke" })).toBeInTheDocument();
   });
 
-  it("keeps local Personal Friends under Expense contacts instead of membership invites", () => {
+  it("keeps Expense contacts separate from Organization members", () => {
     render(<OrganizationMembers
       organizationId="11111111-1111-4111-8111-111111111111"
       pendingInvitations={[]}
       invitationRoles={["member"]}
-      friendCandidates={[localFriendCandidate]}
-      expenseFriendCandidates={[localFriendCandidate]}
+      canManageMembers
+      expenseFriendCandidates={[{ personalFriendId: "friend-alex", userId: null, displayName: "Alex", username: null, label: null }]}
       canViewExpenseContacts
       canManageExpenseContacts
     />);
@@ -102,8 +86,8 @@ describe("OrganizationMembers", () => {
     expect(screen.getByRole("heading", { name: "Expense contacts" })).toBeInTheDocument();
     expect(screen.getByText("Alex")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Use in expenses" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Invite" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Add someone else" })).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "Add local member" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Manage expense contacts" })).toHaveAttribute(
       "href",
       "/app/organizations/11111111-1111-4111-8111-111111111111/friends?create=1",
     );

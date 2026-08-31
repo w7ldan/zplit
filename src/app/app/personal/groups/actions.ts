@@ -26,7 +26,7 @@ import {
   revokeGroupJoinRequest,
   searchGroupJoinUsers,
 } from "@/server/group-join-requests";
-import { listRegisteredFriendCandidates } from "@/server/collaboration-candidates";
+import { listPersonalFriendCandidates } from "@/server/collaboration-candidates";
 
 import type { GroupActionState, GroupFormValues, GroupJoinRequestActionState } from "@/domain/group-contracts";
 export type { GroupActionState, GroupFormValues, GroupJoinRequestActionState } from "@/domain/group-contracts";
@@ -141,20 +141,43 @@ export async function removeGroupMemberAction(groupId: string, targetUserId: str
   revalidatePath(`/app/personal/groups/${groupId}/people`);
 }
 
+function memberOption(candidate: Awaited<ReturnType<typeof listPersonalFriendCandidates>>[number]): SearchableOption {
+  return candidate.kind === "local"
+    ? { id: `personalFriend:${candidate.personalFriendId}`, label: `${candidate.displayName} · ${candidate.label ?? "Local friend"}` }
+    : { id: candidate.userId!, label: `${candidate.displayName} · @${candidate.username} · Zplit friend` };
+}
+
+async function searchGroupMemberCandidates(groupId: string, query: string) {
+  const session = await requireSession();
+  const database = getDatabase();
+  const users = await searchGroupJoinUsers(database, groupId, session.user.id, query);
+  const friends = await listPersonalFriendCandidates(database, session.user.id, { kind: "group", id: groupId }, query);
+  const friendUserIds = new Set(friends.flatMap((friend) => friend.userId ? [friend.userId] : []));
+  return [
+    ...friends.map(memberOption),
+    ...users
+      .filter((user) => !friendUserIds.has(user.id))
+      .map((user) => ({ id: user.id, label: `${user.displayName} · @${user.username} · Zplit user` })),
+  ];
+}
+
+export async function searchGroupMemberOptions(groupId: string, query = ""): Promise<SearchableOption[]> {
+  try {
+    if (!query.trim()) return [];
+    return await searchGroupMemberCandidates(groupId, query);
+  } catch {
+    return [];
+  }
+}
+
 export async function searchGroupJoinUserOptions(groupId: string, query = ""): Promise<SearchableOption[]> {
   const session = await requireSession();
   try {
-    const database = getDatabase();
-    const [friends, users] = await Promise.all([
-      listRegisteredFriendCandidates(database, session.user.id, { kind: "group", id: groupId }),
-      searchGroupJoinUsers(database, groupId, session.user.id, query),
-    ]);
-    const friendIds = new Set(friends.map((friend) => friend.userId));
-    return [
-      ...users
-        .filter((user) => !friendIds.has(user.id))
-        .map((user) => ({ id: user.id, label: `${user.displayName} · @${user.username}`, group: "Other Zplit users" })),
-    ];
+    if (!query.trim()) return [];
+    return (await searchGroupJoinUsers(getDatabase(), groupId, session.user.id, query)).map((user) => ({
+      id: user.id,
+      label: `${user.displayName} · @${user.username}`,
+    }));
   } catch {
     return [];
   }
@@ -200,12 +223,22 @@ function joinTarget(formData: FormData) {
 }
 
 export async function createGroupInvitationAction(groupId: string, _previousState: GroupJoinRequestActionState, formData: FormData): Promise<GroupJoinRequestActionState> {
-  const { value: targetUserId, target } = joinTarget(formData);
+  const { value: targetUserId } = joinTarget(formData);
   if (!targetUserId.trim()) return { error: "Choose an existing Zplit username.", values: { targetUserId } };
   const session = await requireSession();
   try {
-    await createGroupInvitation(getDatabase(), groupId, session.user.id, target);
+    if (targetUserId.startsWith("personalFriend:")) {
+      await addPersonalFriendAsGroupParticipant(getDatabase(), groupId, session.user.id, targetUserId.slice("personalFriend:".length));
+      revalidatePath(`/app/personal/groups/${groupId}`);
+      revalidatePath(`/app/personal/groups/${groupId}/people`);
+      return { error: "Member added.", values: { targetUserId: "" } };
+    }
+    const canonicalUserId = targetUserId.startsWith("user:") ? targetUserId.slice("user:".length) : targetUserId;
+    await createGroupInvitation(getDatabase(), groupId, session.user.id, { targetUserId: canonicalUserId });
   } catch (error) {
+    if (targetUserId.startsWith("personalFriend:")) {
+      return { error: error instanceof GroupError && error.code === "forbidden" ? "You do not have permission to manage Group people." : "Unable to add this member.", values: { targetUserId } };
+    }
     return { error: groupJoinRequestErrorMessage(error, "invite"), values: { targetUserId } };
   }
   revalidatePath(`/app/personal/groups/${groupId}`);

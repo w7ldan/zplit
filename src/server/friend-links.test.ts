@@ -128,7 +128,7 @@ describe("Friend ↔ Zplit-user linking", () => {
     ], [[], [{ id: "target-friend" }]], [[{ id: friendId }], [accepted], [], []]);
 
     await expect(respondToFriendLinkRequest(db, targetId, requestId, "accept")).resolves.toMatchObject({ status: "accepted" });
-    expect(db.transaction).toHaveBeenCalledOnce();
+    expect(db.transaction).toHaveBeenCalledTimes(3);
     expect(db.transactionDb.insert).toHaveBeenCalledTimes(2);
     expect(db.transactionDb.update).toHaveBeenCalledTimes(4);
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith(ownerId, expect.objectContaining({ type: "friend.link.state.changed", data: expect.objectContaining({ friendId, status: "accepted" }) }));
@@ -159,6 +159,28 @@ describe("Friend ↔ Zplit-user linking", () => {
     expect(db.transactionDb.insert).toHaveBeenCalledOnce();
     expect(db.transactionDb.update).toHaveBeenCalledWith(expect.anything());
     expect(db.transactionDb.update).toHaveBeenCalledTimes(5);
+  });
+
+  it("enriches source-linked Group and Organization participants without replacing their IDs", async () => {
+    const request = { id: requestId, friendLedgerScopeId: "scope-owner-user", ownerUserId: ownerId, friendId, targetUserId: targetId, status: "pending" };
+    const accepted = { ...request, status: "accepted" };
+    const db = database([
+      [request],
+      [{ id: friendId, linkedUserId: null }],
+      [{ id: ownerId, name: "Owner" }, { id: targetId, name: "Target" }],
+      [],
+      [{ id: "connection", userAId: ownerId, userBId: targetId, status: "connected" }],
+      [],
+      [],
+      [{ id: "group-participant", groupId: "group-a" }],
+      [],
+      [{ id: "organization-participant", organizationId: "organization-a" }],
+      [],
+    ], [[], [{ id: "target-friend" }]], [[{ id: friendId }], [accepted], [], [], [], []]);
+
+    await expect(respondToFriendLinkRequest(db, targetId, requestId, "accept")).resolves.toMatchObject({ status: "accepted" });
+    expect(db.transaction).toHaveBeenCalledTimes(3);
+    expect(db.transactionDb.update).toHaveBeenCalledTimes(6);
   });
 
   it("rejects a response from a different user without touching the Friend", async () => {
