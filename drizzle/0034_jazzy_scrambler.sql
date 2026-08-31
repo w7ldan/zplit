@@ -24,8 +24,7 @@ CREATE UNIQUE INDEX "organization_participants_source_personal_friend_uidx" ON "
 CREATE INDEX "organization_participants_organization_idx" ON "organization_participants" USING btree ("organization_id");--> statement-breakpoint
 INSERT INTO "organization_participants" ("organization_id", "user_id", "created_by_user_id", "created_at", "updated_at")
 SELECT "organization_id", "user_id", "user_id", "joined_at", "joined_at"
-FROM "organization_memberships"
-ON CONFLICT ("organization_id", "user_id") DO NOTHING;--> statement-breakpoint
+FROM "organization_memberships";--> statement-breakpoint
 UPDATE "organization_memberships" AS memberships
 SET "participant_id" = participants."id"
 FROM "organization_participants" AS participants
