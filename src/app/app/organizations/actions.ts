@@ -202,7 +202,7 @@ function organizationInvitationErrorMessage(error: unknown) {
     invalid_target: "Choose an existing Zplit username.",
     self: "You cannot invite yourself.",
     already_member: "That user is already a member of this organization.",
-    duplicate: "That user already has a pending invitation.",
+    duplicate: "That user or member already has a pending invitation.",
     not_found: "This invitation is no longer available.",
     resolved: "This invitation is no longer pending.",
     expired: "This invitation has expired.",

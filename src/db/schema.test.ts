@@ -342,6 +342,7 @@ describe("database schema", () => {
       "organization_invitations_transition_timestamps",
     ]));
     expect(indexColumns(schema.organizationInvitations, "organization_invitations_pending_organization_target_uidx")).toEqual(["organization_id", "target_user_id"]);
+    expect(indexColumns(schema.organizationInvitations, "organization_invitations_pending_organization_participant_uidx")).toEqual(["organization_id", "participant_id"]);
     expect(foreignKeyShape(schema.organizationInvitations)).toContainEqual({ from: ["organization_id", "participant_id"], to: "organization_participants", target: ["organization_id", "id"], onDelete: "set null" });
   });
 

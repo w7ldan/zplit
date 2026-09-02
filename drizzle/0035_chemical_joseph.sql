@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "organization_invitations_pending_organization_participant_uidx" ON "organization_invitations" USING btree ("organization_id","participant_id") WHERE "organization_invitations"."status" = 'pending' AND "organization_invitations"."participant_id" IS NOT NULL;

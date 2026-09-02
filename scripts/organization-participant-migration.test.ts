@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const databaseUrl = process.env.ORGANIZATION_PARTICIPANT_MIGRATION_DATABASE_URL?.trim();
 const migrationDirectory = path.resolve(process.cwd(), "drizzle");
 const migrationFiles = readdirSync(migrationDirectory)
-  .filter((file) => /^\d{4}_.+\.sql$/.test(file) && Number(file.slice(0, 4)) <= 34)
+  .filter((file) => /^\d{4}_.+\.sql$/.test(file) && Number(file.slice(0, 4)) <= 35)
   .sort();
 
 async function applyMigration(client: Client, file: string) {
@@ -23,11 +23,12 @@ describe("Organization participant migration", () => {
       await client.query("DROP SCHEMA public CASCADE");
       await client.query("CREATE SCHEMA public");
       for (const file of migrationFiles.filter((file) => Number(file.slice(0, 4)) <= 33)) await applyMigration(client, file);
-      await client.query("INSERT INTO users (id, name, email) VALUES ('owner', 'Owner', 'owner@migration.test'), ('member', 'Member', 'member@migration.test')");
+      await client.query("INSERT INTO users (id, name, email) VALUES ('owner', 'Owner', 'owner@migration.test'), ('member', 'Member', 'member@migration.test'), ('other', 'Other', 'other@migration.test')");
       const { rows: [organization] } = await client.query<{ id: string }>("INSERT INTO organizations (name) VALUES ('Migration Organization') RETURNING id");
       if (!organization) throw new Error("organization fixture was not created");
       await client.query("INSERT INTO organization_memberships (organization_id, user_id, role) VALUES ($1, 'owner', 'owner'), ($1, 'member', 'member')", [organization.id]);
       await applyMigration(client, "0034_jazzy_scrambler.sql");
+      await applyMigration(client, "0035_chemical_joseph.sql");
 
       await expect(client.query("SELECT count(*)::int AS count FROM organization_participants WHERE organization_id = $1", [organization.id])).resolves.toMatchObject({ rows: [{ count: 2 }] });
       await expect(client.query("SELECT count(*)::int AS count FROM organization_memberships WHERE organization_id = $1 AND participant_id IS NOT NULL", [organization.id])).resolves.toMatchObject({ rows: [{ count: 2 }] });
@@ -36,10 +37,13 @@ describe("Organization participant migration", () => {
       if (!scope) throw new Error("personal scope fixture was not created");
       const { rows: [friend] } = await client.query<{ id: string }>("INSERT INTO friends (ledger_scope_id, name) VALUES ($1, 'Alex') RETURNING id", [scope.id]);
       if (!friend) throw new Error("friend fixture was not created");
-      await client.query("INSERT INTO organization_participants (organization_id, source_personal_friend_id, display_name, created_by_user_id) VALUES ($1, $2, 'Alex', 'owner')", [organization.id, friend.id]);
+      const { rows: [participant] } = await client.query<{ id: string }>("INSERT INTO organization_participants (organization_id, source_personal_friend_id, display_name, created_by_user_id) VALUES ($1, $2, 'Alex', 'owner') RETURNING id", [organization.id, friend.id]);
+      if (!participant) throw new Error("participant fixture was not created");
       await expect(client.query("INSERT INTO organization_participants (organization_id, source_personal_friend_id, display_name, created_by_user_id) VALUES ($1, $2, 'Alex', 'owner')", [organization.id, friend.id])).rejects.toMatchObject({ code: "23505" });
       await expect(client.query("INSERT INTO organization_participants (organization_id, user_id, created_by_user_id) VALUES ($1, 'owner', 'owner')", [organization.id])).rejects.toMatchObject({ code: "23505" });
       await client.query("INSERT INTO organization_participants (organization_id, display_name, created_by_user_id) VALUES ($1, 'Alex', 'owner'), ($1, 'Alex', 'owner')", [organization.id]);
+      await client.query("INSERT INTO organization_invitations (organization_id, target_user_id, participant_id, invited_by_user_id, role, expires_at) VALUES ($1, 'member', $2, 'owner', 'member', now() + interval '1 day')", [organization.id, participant.id]);
+      await expect(client.query("INSERT INTO organization_invitations (organization_id, target_user_id, participant_id, invited_by_user_id, role, expires_at) VALUES ($1, 'other', $2, 'owner', 'member', now() + interval '1 day')", [organization.id, participant.id])).rejects.toMatchObject({ code: "23505" });
     } finally {
       await client.query("DROP SCHEMA public CASCADE");
       await client.query("CREATE SCHEMA public");

@@ -246,6 +246,13 @@
       "when": 1788149863137,
       "tag": "0034_jazzy_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788348102580,
+      "tag": "0035_chemical_joseph",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { friends, organizationMemberships, organizationParticipants, users } from "@/db/schema";
+import { friends, ledgerScopes, organizationMemberships, organizationParticipants, users } from "@/db/schema";
 import type { OrganizationMember } from "@/domain/organization-contracts";
 import { isOrganizationRole, type OrganizationRole } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
@@ -162,6 +162,37 @@ export async function findOrganizationParticipantForUser(database: Database, org
     .limit(1)
     .for("update");
   return participant;
+}
+
+export async function lockOrganizationParticipantForInvitation(database: Database, organizationId: string, participantId: string) {
+  const [candidate] = await database
+    .select({ id: organizationParticipants.id, userId: organizationParticipants.userId, sourcePersonalFriendId: organizationParticipants.sourcePersonalFriendId })
+    .from(organizationParticipants)
+    .where(and(eq(organizationParticipants.organizationId, organizationId), eq(organizationParticipants.id, participantId)))
+    .limit(1);
+  if (!candidate) return;
+
+  let sourceLinkedUserId: string | null = null;
+  if (candidate.sourcePersonalFriendId) {
+    const [source] = await database
+      .select({ linkedUserId: friends.linkedUserId })
+      .from(friends)
+      .innerJoin(ledgerScopes, eq(ledgerScopes.id, friends.ledgerScopeId))
+      .where(and(eq(friends.id, candidate.sourcePersonalFriendId), eq(ledgerScopes.kind, "personal")))
+      .limit(1)
+      .for("update");
+    if (!source) return;
+    sourceLinkedUserId = source.linkedUserId;
+  }
+
+  const [participant] = await database
+    .select({ id: organizationParticipants.id, userId: organizationParticipants.userId, sourcePersonalFriendId: organizationParticipants.sourcePersonalFriendId })
+    .from(organizationParticipants)
+    .where(and(eq(organizationParticipants.organizationId, organizationId), eq(organizationParticipants.id, participantId)))
+    .limit(1)
+    .for("update");
+  if (!participant || participant.sourcePersonalFriendId !== candidate.sourcePersonalFriendId) return;
+  return { ...participant, sourceLinkedUserId };
 }
 
 export async function findOrganizationParticipantFromLinkedFriend(database: Database, organizationId: string, userId: string) {

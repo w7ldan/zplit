@@ -18,7 +18,7 @@ import { requireSession } from "@/auth/require-session";
 import { OrganizationError, requireOrganizationAccess } from "@/server/organizations";
 import { createNotificationInDatabase, publishNotificationStateChange } from "@/server/notifications";
 import { searchUsernameDirectoryInDatabase } from "@/server/user-directory";
-import { findOrganizationParticipantFromLinkedFriend, listOrganizationParticipants } from "@/server/organization-participants";
+import { findOrganizationParticipantFromLinkedFriend, listOrganizationParticipants, lockOrganizationParticipantForInvitation } from "@/server/organization-participants";
 
 export class OrganizationInvitationError extends Error {
   constructor(readonly code: "invalid_id" | "forbidden" | "invalid_role" | "invalid_target" | "self" | "already_member" | "duplicate" | "not_found" | "resolved" | "expired" | "stale_authority" | "conflict" | "participant_not_found") {
@@ -114,6 +114,22 @@ function stateFromInvitation(invitation: typeof organizationInvitations.$inferSe
   };
 }
 
+async function expirePendingInvitationForParticipant(database: Database, organizationId: string, participantId: string, now: Date) {
+  const [pending] = await database
+    .select()
+    .from(organizationInvitations)
+    .where(and(
+      eq(organizationInvitations.organizationId, organizationId),
+      eq(organizationInvitations.participantId, participantId),
+      eq(organizationInvitations.status, "pending"),
+    ))
+    .limit(1)
+    .for("update");
+  if (!pending) return;
+  if (!isOrganizationInvitationExpired(pending.expiresAt, now)) throw new OrganizationInvitationError("duplicate");
+  await transitionPendingInvitation(database, pending.id, "expired", now, pending.targetUserId);
+}
+
 export async function searchOrganizationInvitationUsers(database: Database, organizationId: string, inviterUserId: string, query: unknown) {
   assertOrganizationId(organizationId);
   assertUserId(inviterUserId);
@@ -195,14 +211,11 @@ export async function createOrganizationInvitation(database: Database, organizat
     let participantId: string | null = null;
     if (input.participantId !== undefined) {
       if (typeof input.participantId !== "string" || !normalizeUuid(input.participantId)) throw new OrganizationInvitationError("participant_not_found");
-      const [participant] = await transaction
-        .select({ id: organizationParticipants.id, userId: organizationParticipants.userId })
-        .from(organizationParticipants)
-        .where(and(eq(organizationParticipants.organizationId, organizationId), eq(organizationParticipants.id, input.participantId)))
-        .limit(1)
-        .for("update");
-      if (!participant || participant.userId && participant.userId !== target.id) throw new OrganizationInvitationError("participant_not_found");
+      const participant = await lockOrganizationParticipantForInvitation(transaction as Database, organizationId, input.participantId);
+      if (!participant || participant.userId && participant.userId !== target.id || participant.sourceLinkedUserId && participant.sourceLinkedUserId !== target.id) throw new OrganizationInvitationError("participant_not_found");
       participantId = participant.id;
+      const now = new Date();
+      await expirePendingInvitationForParticipant(transaction as Database, organizationId, participant.id, now);
     }
 
     const [member] = await transaction
@@ -298,31 +311,31 @@ async function resolveOrganizationParticipant(
   targetUserId: string,
   now: Date,
 ) {
+  const selectedParticipant = invitation.participantId
+    ? await lockOrganizationParticipantForInvitation(database, invitation.organizationId, invitation.participantId)
+    : undefined;
+  if (invitation.participantId && (!selectedParticipant || selectedParticipant.userId && selectedParticipant.userId !== targetUserId || selectedParticipant.sourceLinkedUserId && selectedParticipant.sourceLinkedUserId !== targetUserId)) {
+    throw new OrganizationInvitationError("participant_not_found");
+  }
+
   const [registeredParticipant] = await database
     .select({ id: organizationParticipants.id })
     .from(organizationParticipants)
     .where(and(eq(organizationParticipants.organizationId, invitation.organizationId), eq(organizationParticipants.userId, targetUserId)))
     .limit(1)
     .for("update");
-  if (registeredParticipant) return registeredParticipant.id;
+  if (registeredParticipant && (!invitation.participantId || !selectedParticipant?.sourcePersonalFriendId)) return registeredParticipant.id;
 
   if (invitation.participantId) {
-    const [selectedParticipant] = await database
-      .select({ id: organizationParticipants.id, userId: organizationParticipants.userId })
-      .from(organizationParticipants)
-      .where(and(eq(organizationParticipants.organizationId, invitation.organizationId), eq(organizationParticipants.id, invitation.participantId)))
-      .limit(1)
-      .for("update");
-    if (!selectedParticipant || selectedParticipant.userId && selectedParticipant.userId !== targetUserId) {
-      throw new OrganizationInvitationError("participant_not_found");
-    }
-    if (!selectedParticipant.userId) {
+    const participant = selectedParticipant;
+    if (!participant) throw new OrganizationInvitationError("participant_not_found");
+    if (!participant.userId) {
       await database
         .update(organizationParticipants)
         .set({ userId: targetUserId, displayName: null, updatedAt: now })
-        .where(and(eq(organizationParticipants.id, selectedParticipant.id), isNull(organizationParticipants.userId)));
+        .where(and(eq(organizationParticipants.id, participant.id), isNull(organizationParticipants.userId)));
     }
-    return selectedParticipant.id;
+    return participant.id;
   }
 
   const sourceParticipant = await findOrganizationParticipantFromLinkedFriend(database, invitation.organizationId, targetUserId);

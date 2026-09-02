@@ -307,6 +307,9 @@ export const organizationInvitations = pgTable(
     uniqueIndex("organization_invitations_pending_organization_target_uidx")
       .on(table.organizationId, table.targetUserId)
       .where(sql`${table.status} = 'pending'`),
+    uniqueIndex("organization_invitations_pending_organization_participant_uidx")
+      .on(table.organizationId, table.participantId)
+      .where(sql`${table.status} = 'pending' AND ${table.participantId} IS NOT NULL`),
     foreignKey({
       columns: [table.organizationId, table.participantId],
       foreignColumns: [organizationParticipants.organizationId, organizationParticipants.id],

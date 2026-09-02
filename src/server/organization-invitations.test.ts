@@ -32,7 +32,7 @@ function invitation(overrides: Record<string, unknown> = {}) {
     role: "member",
     status: "pending",
     createdAt,
-    expiresAt: new Date("2026-09-01T00:00:00.000Z"),
+    expiresAt: new Date("2099-01-01T00:00:00.000Z"),
     updatedAt: createdAt,
     acceptedAt: null,
     declinedAt: null,
@@ -181,6 +181,127 @@ describe("Organization invitation policy and creation", () => {
     const expired = invitation({ expiresAt: new Date("2026-08-24T00:00:00.000Z") });
     const reinviteDb = database([[access("owner")], [{ id: targetUserId, name: "Target", username: "target" }], [], [expired], [{ name: "Team" }], [{ name: "Inviter" }]], [[invitation()]], [[expired]]);
     await expect(createOrganizationInvitation(reinviteDb, organizationId, inviterUserId, { username: "target", role: "member" })).resolves.toBeDefined();
+
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const targetDuplicateDb = database([
+      [access("owner")],
+      [{ id: targetUserId, name: "Target", username: "target" }],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
+      [],
+      [],
+      [invitation({ participantId })],
+    ]);
+    await expect(createOrganizationInvitation(targetDuplicateDb, organizationId, inviterUserId, { targetUserId, participantId, role: "member" })).rejects.toMatchObject({ code: "duplicate" });
+  });
+
+  it("rejects a second pending invitation for the same participant", async () => {
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const pending = invitation({ targetUserId: "alice", participantId });
+    const db = database([
+      [access("owner")],
+      [{ id: "bob", name: "Bob", username: "bob" }],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
+      [pending],
+    ]);
+
+    await expect(createOrganizationInvitation(db, organizationId, inviterUserId, { targetUserId: "bob", participantId, role: "member" })).rejects.toMatchObject({ code: "duplicate" });
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(mocks.createNotificationInDatabase).not.toHaveBeenCalled();
+  });
+
+  it("expires a participant invitation before allowing a reinvite", async () => {
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const expired = invitation({ targetUserId: "alice", participantId, expiresAt: new Date("2026-08-24T00:00:00.000Z") });
+    const created = invitation({ targetUserId: "bob", participantId });
+    const db = database([
+      [access("owner")],
+      [{ id: "bob", name: "Bob", username: "bob" }],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
+      [expired],
+      [],
+      [],
+      [{ name: "Team" }],
+      [{ name: "Inviter" }],
+    ], [[created]], [[expired]]);
+
+    await expect(createOrganizationInvitation(db, organizationId, inviterUserId, { targetUserId: "bob", participantId, role: "member" })).resolves.toMatchObject({ participantId });
+    expect(db.insert).toHaveBeenCalledOnce();
+  });
+
+  it("allows pending invitations for different participants", async () => {
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const otherParticipantId = "44444444-4444-4444-8444-444444444444";
+    const db = database([
+      [access("owner")],
+      [{ id: "bob", name: "Bob", username: "bob" }],
+      [{ id: otherParticipantId, userId: null, sourcePersonalFriendId: null }],
+      [{ id: otherParticipantId, userId: null, sourcePersonalFriendId: null }],
+      [],
+      [],
+      [],
+      [{ name: "Team" }],
+      [{ name: "Inviter" }],
+    ], [[invitation({ targetUserId: "alice", participantId })]]);
+
+    await expect(createOrganizationInvitation(db, organizationId, inviterUserId, { targetUserId: "bob", participantId: otherParticipantId, role: "member" })).resolves.toBeDefined();
+  });
+
+  it("only allows a source-linked participant to invite its linked user", async () => {
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const friendId = "44444444-4444-4444-8444-444444444444";
+    const participant = { id: participantId, userId: null, sourcePersonalFriendId: friendId };
+    const base = [
+      [access("owner")],
+      [{ id: "target", name: "Target", username: "target" }],
+      [participant],
+      [{ linkedUserId: "target" }],
+      [participant],
+    ];
+    const allowedDb = database([...base, [], [], [], [{ name: "Team" }], [{ name: "Inviter" }]], [[invitation({ targetUserId: "target", participantId })]]);
+    await expect(createOrganizationInvitation(allowedDb, organizationId, inviterUserId, { targetUserId: "target", participantId, role: "member" })).resolves.toBeDefined();
+
+    const rejectedDb = database([
+      [access("owner")],
+      [{ id: "unrelated", name: "Unrelated", username: "unrelated" }],
+      [participant],
+      [{ linkedUserId: "target" }],
+      [participant],
+    ]);
+    await expect(createOrganizationInvitation(rejectedDb, organizationId, inviterUserId, { targetUserId: "unrelated", participantId, role: "member" })).rejects.toMatchObject({ code: "participant_not_found" });
+    expect(rejectedDb.insert).not.toHaveBeenCalled();
+    expect(mocks.createNotificationInDatabase).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows an explicitly selected account for a direct local participant", async () => {
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const db = database([
+      [access("owner")],
+      [{ id: "target", name: "Target", username: "target" }],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
+      [],
+      [],
+      [],
+      [{ name: "Team" }],
+      [{ name: "Inviter" }],
+    ], [[invitation({ targetUserId: "target", participantId })]]);
+
+    await expect(createOrganizationInvitation(db, organizationId, inviterUserId, { targetUserId: "target", participantId, role: "member" })).resolves.toBeDefined();
+  });
+
+  it("rejects a participant-bound invitation to a different registered participant identity", async () => {
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const db = database([
+      [access("owner")],
+      [{ id: "unrelated", name: "Unrelated", username: "unrelated" }],
+      [{ id: participantId, userId: "user-a", sourcePersonalFriendId: null }],
+      [{ id: participantId, userId: "user-a", sourcePersonalFriendId: null }],
+    ]);
+
+    await expect(createOrganizationInvitation(db, organizationId, inviterUserId, { targetUserId: "unrelated", participantId, role: "member" })).rejects.toMatchObject({ code: "participant_not_found" });
   });
 });
 
@@ -213,13 +334,54 @@ describe("Organization invitation responses", () => {
       [{ id: organizationId }],
       [access("owner")],
       [],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
       [],
-      [{ id: participantId, userId: null }],
     ], [[{ organizationId, userId: targetUserId, participantId, role: "member", customCapabilities: [] }]], [[{ id: participantId }], [accepted], []]);
 
     await expect(acceptOrganizationInvitation(db, targetUserId, invitationId)).resolves.toMatchObject({ status: "accepted" });
     expect(db.insert).toHaveBeenCalledOnce();
     expect(db.update).toHaveBeenCalledWith(expect.anything());
+  });
+
+  it("accepts a compatible source-linked invitation without replacing the participant", async () => {
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const friendId = "44444444-4444-4444-8444-444444444444";
+    const accepted = invitation({ participantId, status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });
+    const participant = { id: participantId, userId: null, sourcePersonalFriendId: friendId };
+    const db = database([
+      [invitation({ participantId })],
+      [{ id: organizationId }],
+      [access("owner")],
+      [],
+      [participant],
+      [{ linkedUserId: targetUserId }],
+      [participant],
+      [],
+    ], [[{ organizationId, userId: targetUserId, participantId, role: "member", customCapabilities: [] }]], [[{ id: participantId }], [accepted], []]);
+
+    await expect(acceptOrganizationInvitation(db, targetUserId, invitationId)).resolves.toMatchObject({ status: "accepted" });
+    expect(db.insert).toHaveBeenCalledOnce();
+    expect(db.insert).toHaveBeenCalledWith(expect.anything());
+  });
+
+  it("rejects acceptance when a source-linked participant is bound to another user", async () => {
+    const participantId = "33333333-3333-4333-8333-333333333333";
+    const friendId = "44444444-4444-4444-8444-444444444444";
+    const participant = { id: participantId, userId: null, sourcePersonalFriendId: friendId };
+    const db = database([
+      [invitation({ participantId, targetUserId: "unrelated" })],
+      [{ id: organizationId }],
+      [access("owner")],
+      [],
+      [participant],
+      [{ linkedUserId: targetUserId }],
+      [participant],
+    ]);
+
+    await expect(acceptOrganizationInvitation(db, "unrelated", invitationId)).rejects.toMatchObject({ code: "participant_not_found" });
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("uses the existing registered participant on a conflict without creating another", async () => {
@@ -231,6 +393,8 @@ describe("Organization invitation responses", () => {
       [{ id: organizationId }],
       [access("owner")],
       [],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
+      [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
       [{ id: existingRegisteredId }],
     ], [[{ organizationId, userId: targetUserId, participantId: existingRegisteredId, role: "member", customCapabilities: [] }]], [[accepted], []]);
 
