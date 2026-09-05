@@ -8,13 +8,18 @@ import {
   chatMessages,
   friends,
   groupAvatars,
+  groupExpenseLifecycleEvents,
+  groupExpenseReceipts,
   groupExpenseShares,
   groupExpenses,
   groupJoinRequests,
   groupMemberships,
   groupObligations,
+  groupOffsetApplications,
   groupOffsetSettlements,
   groupParticipants,
+  groupSettlementApplications,
+  groupSettlementProofs,
   groupSettlements,
   groups,
   users,
@@ -39,6 +44,7 @@ export class GroupError extends Error {
     | "personal_friend_not_found"
     | "registered_personal_friend"
     | "owner_required"
+    | "archived"
     | "financial_history") {
     super(code);
     this.name = "GroupError";
@@ -122,7 +128,29 @@ async function requireLockedGroupAccess(database: Database, groupId: string, use
   return access;
 }
 
-export async function listGroups(database: Database, userId: string, limit?: number): Promise<GroupSummary[]> {
+export type GroupListScope = "active" | "archived" | "all";
+
+async function getGroupLifecycle(database: Database, groupId: string) {
+  const [row] = await database
+    .select({ id: groups.id, archivedAt: groups.archivedAt })
+    .from(groups)
+    .where(eq(groups.id, groupId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function assertGroupActiveForOperationalMutation(database: Database, groupId: string) {
+  const row = await getGroupLifecycle(database, groupId);
+  if (!row) throw new GroupError("not_found");
+  if (row.archivedAt) throw new GroupError("archived");
+}
+
+export async function listGroups(database: Database, userId: string, limit?: number, scope: GroupListScope = "active"): Promise<GroupSummary[]> {
+  const archivedFilter = scope === "active"
+    ? isNull(groups.archivedAt)
+    : scope === "archived"
+      ? sql`${groups.archivedAt} IS NOT NULL`
+      : undefined;
   const query = database
     .select({
       id: groups.id,
@@ -131,14 +159,15 @@ export async function listGroups(database: Database, userId: string, limit?: num
       role: groupMemberships.role,
       participantCount: sql<number>`(select count(*) from group_participants participants where participants.group_id = ${groups.id})`.mapWith(Number),
       avatar: avatarSelection(),
+      archivedAt: groups.archivedAt,
     })
     .from(groupMemberships)
     .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
     .leftJoin(groupAvatars, eq(groupAvatars.groupId, groups.id))
-    .where(eq(groupMemberships.userId, userId))
+    .where(archivedFilter ? and(eq(groupMemberships.userId, userId), archivedFilter) : eq(groupMemberships.userId, userId))
     .orderBy(asc(groups.name), asc(groups.id));
   const rows = await (limit === undefined ? query : query.limit(limit));
-  return rows.map((row) => ({ ...row, role: row.role as GroupRole, participantCount: Number(row.participantCount), avatar: mapAvatar(row.avatar) }));
+  return rows.map((row) => ({ ...row, role: row.role as GroupRole, participantCount: Number(row.participantCount), avatar: mapAvatar(row.avatar), archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null }));
 }
 
 export type GroupOverviewSummary = GroupSummary & {
@@ -215,7 +244,7 @@ export async function listGroupOverviewSummaries(
 export async function getGroupForMember(database: Database, groupId: string, userId: string): Promise<GroupDetail> {
   const access = await requireGroupAccess(database, groupId, userId);
   const [row] = await database
-    .select({ id: groups.id, name: groups.name, description: groups.description, role: groupMemberships.role, avatar: avatarSelection() })
+    .select({ id: groups.id, name: groups.name, description: groups.description, role: groupMemberships.role, avatar: avatarSelection(), archivedAt: groups.archivedAt })
     .from(groupMemberships)
     .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
     .leftJoin(groupAvatars, eq(groupAvatars.groupId, groups.id))
@@ -229,6 +258,7 @@ export async function getGroupForMember(database: Database, groupId: string, use
   const [memberCounts] = await database.select({ memberCount: count() }).from(groupMemberships).where(eq(groupMemberships.groupId, groupId));
   return {
     ...row,
+    archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
     participantCount: Number(participantCounts?.participantCount ?? 0),
     memberCount: Number(memberCounts?.memberCount ?? 0),
     externalParticipantCount: Number(participantCounts?.externalParticipantCount ?? 0),
@@ -267,6 +297,7 @@ export async function updateGroup(database: Database, groupId: string, userId: s
   assertGroupId(groupId);
   const access = await requireGroupAccess(database, groupId, userId);
   access.requireManageGroup();
+  await assertGroupActiveForOperationalMutation(database, groupId);
   const [group] = await database.update(groups).set({ ...cleanInput(input), updatedAt: new Date() }).where(eq(groups.id, groupId)).returning();
   if (!group) throw new GroupError("not_found");
   return group;
@@ -281,11 +312,66 @@ export async function deleteGroup(database: Database, groupId: string, userId: s
     if (await hasFinancialHistory(transactionalDatabase, groupId)) throw new GroupError("financial_history");
     try {
       const deleted = await transaction.delete(groups).where(eq(groups.id, groupId)).returning({ id: groups.id });
-      return deleted.length > 0;
+      if (deleted.length === 0) throw new GroupError("not_found");
+      return true;
     } catch (error) {
+      if (error instanceof GroupError) throw error;
       if (databaseCode(error, true) === "23503") throw new GroupError("financial_history");
       throw error;
     }
+  });
+}
+
+export async function archiveGroup(database: Database, groupId: string, userId: string) {
+  assertGroupId(groupId);
+  return database.transaction(async (transaction) => {
+    const transactionalDatabase = transaction as Database;
+    const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
+    access.requireDelete();
+    const [row] = await transaction
+      .select({ id: groups.id, archivedAt: groups.archivedAt })
+      .from(groups)
+      .where(eq(groups.id, groupId))
+      .limit(1)
+      .for("update");
+    if (!row) throw new GroupError("not_found");
+    if (row.archivedAt) return row;
+    const now = new Date();
+    const [archived] = await transaction
+      .update(groups)
+      .set({ archivedAt: now, updatedAt: now })
+      .where(eq(groups.id, groupId))
+      .returning();
+    if (!archived) throw new GroupError("not_found");
+    await transaction
+      .update(groupJoinRequests)
+      .set({ status: "revoked", revokedAt: now, updatedAt: now })
+      .where(and(eq(groupJoinRequests.groupId, groupId), eq(groupJoinRequests.status, "pending")));
+    return archived;
+  });
+}
+
+export async function restoreGroup(database: Database, groupId: string, userId: string) {
+  assertGroupId(groupId);
+  return database.transaction(async (transaction) => {
+    const transactionalDatabase = transaction as Database;
+    const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
+    access.requireDelete();
+    const [row] = await transaction
+      .select({ id: groups.id, archivedAt: groups.archivedAt })
+      .from(groups)
+      .where(eq(groups.id, groupId))
+      .limit(1)
+      .for("update");
+    if (!row) throw new GroupError("not_found");
+    if (!row.archivedAt) return row;
+    const [restored] = await transaction
+      .update(groups)
+      .set({ archivedAt: null, updatedAt: new Date() })
+      .where(eq(groups.id, groupId))
+      .returning();
+    if (!restored) throw new GroupError("not_found");
+    return restored;
   });
 }
 
@@ -293,6 +379,7 @@ export async function createExternalParticipant(database: Database, groupId: str
   assertGroupId(groupId);
   const access = await requireGroupAccess(database, groupId, userId);
   access.requireManageParticipants();
+  await assertGroupActiveForOperationalMutation(database, groupId);
   const [participant] = await database.insert(groupParticipants).values({ groupId, ...cleanParticipantInput(input) }).returning();
   if (!participant) throw new Error("External participant was not created");
   return participant;
@@ -309,6 +396,7 @@ export async function addPersonalFriendAsGroupParticipant(
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
     await requireLockedGroupAccess(transactionalDatabase, groupId, actorUserId);
+    await assertGroupActiveForOperationalMutation(transactionalDatabase, groupId);
     const personalScopeId = await getPersonalLedgerScopeId(transactionalDatabase, actorUserId);
     const [friend] = await transaction
       .select({ id: friends.id, name: friends.name, linkedUserId: friends.linkedUserId, archivedAt: friends.archivedAt })
@@ -362,7 +450,7 @@ async function revokePendingParticipantLinks(database: Database, groupId: string
     .returning({ targetUserId: groupJoinRequests.targetUserId });
 }
 
-async function hasFinancialHistory(database: Database, groupId: string, participantId?: string) {
+export async function hasFinancialHistory(database: Database, groupId: string, participantId?: string) {
   const expenseFilter = participantId === undefined ? eq(groupExpenses.groupId, groupId) : and(eq(groupExpenses.groupId, groupId), or(eq(groupExpenses.creatorParticipantId, participantId), eq(groupExpenses.payerParticipantId, participantId)));
   const [expense] = await database
     .select({ id: groupExpenses.id })
@@ -398,6 +486,38 @@ async function hasFinancialHistory(database: Database, groupId: string, particip
     .where(offsetFilter)
     .limit(1);
   if (offset) return true;
+  if (participantId === undefined) {
+    const [application] = await database
+      .select({ id: groupSettlementApplications.id })
+      .from(groupSettlementApplications)
+      .where(eq(groupSettlementApplications.groupId, groupId))
+      .limit(1);
+    if (application) return true;
+    const [offsetApplication] = await database
+      .select({ id: groupOffsetApplications.id })
+      .from(groupOffsetApplications)
+      .where(eq(groupOffsetApplications.groupId, groupId))
+      .limit(1);
+    if (offsetApplication) return true;
+    const [proof] = await database
+      .select({ id: groupSettlementProofs.id })
+      .from(groupSettlementProofs)
+      .where(eq(groupSettlementProofs.groupId, groupId))
+      .limit(1);
+    if (proof) return true;
+    const [receipt] = await database
+      .select({ id: groupExpenseReceipts.id })
+      .from(groupExpenseReceipts)
+      .where(eq(groupExpenseReceipts.groupId, groupId))
+      .limit(1);
+    if (receipt) return true;
+    const [event] = await database
+      .select({ id: groupExpenseLifecycleEvents.id })
+      .from(groupExpenseLifecycleEvents)
+      .where(eq(groupExpenseLifecycleEvents.groupId, groupId))
+      .limit(1);
+    if (event) return true;
+  }
   return false;
 }
 
@@ -409,6 +529,7 @@ export async function updateExternalParticipant(database: Database, groupId: str
   assertGroupId(groupId);
   const access = await requireGroupAccess(database, groupId, userId);
   access.requireManageParticipants();
+  await assertGroupActiveForOperationalMutation(database, groupId);
   const participant = await getParticipant(database, groupId, participantId);
   if (participant.userId) throw new GroupError("registered_participant");
   const [updated] = await database.update(groupParticipants).set({ ...cleanParticipantInput(input), updatedAt: new Date() }).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, participantId))).returning();
@@ -422,6 +543,7 @@ export async function deleteExternalParticipant(database: Database, groupId: str
     const transactionalDatabase = transaction as Database;
     const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
     access.requireManageParticipants();
+    await assertGroupActiveForOperationalMutation(transactionalDatabase, groupId);
     const now = new Date();
     const [participant] = await transaction.select().from(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, participantId))).limit(1).for("update");
     if (!participant) throw new GroupError("participant_not_found");
@@ -439,6 +561,7 @@ export async function updateGroupMemberRole(database: Database, groupId: string,
   assertGroupId(groupId);
   const access = await requireGroupAccess(database, groupId, actorUserId);
   access.requireManageRoles();
+  await assertGroupActiveForOperationalMutation(database, groupId);
   if (!isGroupRole(role) || actorUserId === targetUserId) throw new GroupError("owner_required");
   const [target] = await database.select({ role: groupMemberships.role }).from(groupMemberships).where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId))).limit(1);
   if (!target || target.role === "owner") throw new GroupError("owner_required");
@@ -446,12 +569,39 @@ export async function updateGroupMemberRole(database: Database, groupId: string,
   return updated;
 }
 
+type RemovableGroupTarget = {
+  role: string;
+  participantId: string;
+  userId: string;
+  participantGroupId: string;
+  participantUserId: string | null;
+};
+
+function assertRemovableTarget(
+  access: GroupAccess,
+  groupId: string,
+  actorUserId: string,
+  targetUserId: string,
+  target: RemovableGroupTarget | null,
+) {
+  const removable = target !== null
+    && isGroupRole(target.role)
+    && Boolean(target.participantId)
+    && target.participantGroupId === groupId
+    && target.participantUserId === targetUserId
+    && target.role !== "owner"
+    && targetUserId !== actorUserId
+    && (target.role !== "admin" || access.isOwner)
+    && (access.isOwner || access.canManageParticipants);
+  if (!removable) throw new GroupError("forbidden");
+}
+
 export async function removeGroupMember(database: Database, groupId: string, actorUserId: string, targetUserId: string) {
   assertGroupId(groupId);
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
     const access = await requireGroupAccess(transactionalDatabase, groupId, actorUserId);
-    const [participant] = await transaction
+    await assertGroupActiveForOperationalMutation(transactionalDatabase, groupId);    const [participant] = await transaction
       .select({ id: groupParticipants.id, participantGroupId: groupParticipants.groupId, participantUserId: groupParticipants.userId })
       .from(groupParticipants)
       .where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.userId, targetUserId)))
@@ -464,7 +614,8 @@ export async function removeGroupMember(database: Database, groupId: string, act
       .limit(1)
       .for("update") : [];
     const target = participant && membership ? { ...membership, participantGroupId: participant.participantGroupId, participantUserId: participant.participantUserId } : null;
-    if (!target || !isGroupRole(target.role) || !target.participantId || target.participantGroupId !== groupId || target.participantUserId !== targetUserId || target.role === "owner" || targetUserId === actorUserId || (target.role === "admin" && !access.isOwner) || (!access.isOwner && !access.canManageParticipants)) throw new GroupError("forbidden");
+    assertRemovableTarget(access, groupId, actorUserId, targetUserId, target);
+    if (!target) throw new GroupError("forbidden");
 
     const hasFinancialHistory = await participantHasFinancialHistory(transactionalDatabase, groupId, target.participantId);
     const [chatHistory] = !hasFinancialHistory
@@ -500,6 +651,7 @@ export async function getGroupAvatar(database: Database, groupId: string, userId
 export async function saveGroupAvatar(database: Database, groupId: string, userId: string, avatar: { mediaType: "image/webp"; byteSize: number; sha256: string; content: Uint8Array }) {
   const access = await requireGroupAccess(database, groupId, userId);
   access.requireManageGroup();
+  await assertGroupActiveForOperationalMutation(database, groupId);
   const [saved] = await database.insert(groupAvatars).values({ ...avatar, groupId, content: Buffer.from(avatar.content) }).onConflictDoUpdate({ target: groupAvatars.groupId, set: { mediaType: avatar.mediaType, byteSize: avatar.byteSize, sha256: avatar.sha256, content: Buffer.from(avatar.content), updatedAt: new Date() } }).returning(avatarSelection());
   if (!saved) throw new Error("Unable to save the group avatar");
   return { ...saved, mediaType: "image/webp" as const };
@@ -508,6 +660,7 @@ export async function saveGroupAvatar(database: Database, groupId: string, userI
 export async function deleteGroupAvatar(database: Database, groupId: string, userId: string) {
   const access = await requireGroupAccess(database, groupId, userId);
   access.requireManageGroup();
+  await assertGroupActiveForOperationalMutation(database, groupId);
   const deleted = await database.delete(groupAvatars).where(eq(groupAvatars.groupId, groupId)).returning({ groupId: groupAvatars.groupId });
   return deleted.length > 0;
 }

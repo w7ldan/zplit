@@ -168,7 +168,7 @@ describe("database schema", () => {
 
   it("defines stable Group participants and membership scope constraints", () => {
     const group = getTableConfig(schema.groups);
-    expect(group.columns.map((column) => column.name)).toEqual(["id", "name", "description", "created_by_user_id", "created_at", "updated_at"]);
+    expect(group.columns.map((column) => column.name)).toEqual(["id", "name", "description", "archived_at", "created_by_user_id", "created_at", "updated_at"]);
     const participants = getTableConfig(schema.groupParticipants);
     expect(participants.columns.map((column) => column.name)).toEqual([
       "id", "group_id", "user_id", "source_personal_friend_id", "display_name", "label", "created_at", "updated_at",
@@ -313,7 +313,7 @@ describe("database schema", () => {
 
   it("defines organizations with capability-bearing memberships and normalized avatar storage", () => {
     const organization = getTableConfig(schema.organizations);
-    expect(organization.columns.map((column) => column.name)).toEqual(["id", "name", "description", "created_at", "updated_at"]);
+    expect(organization.columns.map((column) => column.name)).toEqual(["id", "name", "description", "archived_at", "created_at", "updated_at"]);
     expect(organization.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["organizations_name_not_blank"]));
     const memberships = getTableConfig(schema.organizationMemberships);
     expect(memberships.columns.map((column) => column.name)).toEqual(["organization_id", "user_id", "participant_id", "role", "custom_capabilities", "joined_at"]);

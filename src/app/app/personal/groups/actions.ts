@@ -8,12 +8,14 @@ import { AvatarFileValidationError, validateAvatarFile } from "@/domain/avatar-f
 import { normalizeUserAvatar } from "@/server/user-avatars";
 import {
   addPersonalFriendAsGroupParticipant,
+  archiveGroup,
   createExternalParticipant,
   createGroup,
   deleteExternalParticipant,
   deleteGroup,
   GroupError,
   removeGroupMember,
+  restoreGroup,
   updateExternalParticipant,
   updateGroup,
   updateGroupMemberRole,
@@ -82,12 +84,37 @@ export async function updateGroupAction(groupId: string, _previousState: GroupAc
 
 export async function deleteGroupAction(groupId: string) {
   const session = await requireSession();
-  let blockedByFinancialHistory = false;
-  try { await deleteGroup(getDatabase(), groupId, session.user.id); }
-  catch (error) { blockedByFinancialHistory = error instanceof GroupError && error.code === "financial_history"; }
+  try {
+    await deleteGroup(getDatabase(), groupId, session.user.id);
+  } catch (error) {
+    if (error instanceof GroupError && error.code === "financial_history") {
+      revalidatePath("/app/personal");
+      revalidatePath("/app/personal/groups");
+      redirect(`/app/personal/groups/${groupId}/settings?error=financial_history`);
+    }
+    throw error;
+  }
   revalidatePath("/app/personal");
   revalidatePath("/app/personal/groups");
-  redirect(blockedByFinancialHistory ? `/app/personal/groups/${groupId}/settings?error=financial_history` : "/app/personal/groups");
+  redirect("/app/personal/groups");
+}
+
+export async function archiveGroupAction(groupId: string) {
+  const session = await requireSession();
+  await archiveGroup(getDatabase(), groupId, session.user.id);
+  revalidatePath("/app/personal");
+  revalidatePath("/app/personal/groups");
+  revalidatePath(`/app/personal/groups/${groupId}`);
+  redirect(`/app/personal/groups/${groupId}`);
+}
+
+export async function restoreGroupAction(groupId: string) {
+  const session = await requireSession();
+  await restoreGroup(getDatabase(), groupId, session.user.id);
+  revalidatePath("/app/personal");
+  revalidatePath("/app/personal/groups");
+  revalidatePath(`/app/personal/groups/${groupId}`);
+  redirect(`/app/personal/groups/${groupId}`);
 }
 
 function participantValues(formData: FormData) { return { displayName: typeof formData.get("displayName") === "string" ? String(formData.get("displayName")) : "", label: typeof formData.get("label") === "string" ? String(formData.get("label")) : "" }; }

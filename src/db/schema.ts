@@ -183,6 +183,7 @@ export const organizations = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     name: varchar("name", { length: 160 }).notNull(),
     description: text("description"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -344,6 +345,7 @@ export const groups = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     name: varchar("name", { length: 160 }).notNull(),
     description: text("description"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),

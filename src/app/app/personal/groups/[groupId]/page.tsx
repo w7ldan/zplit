@@ -28,6 +28,12 @@ export default async function GroupDetailPage({
   return (
     <section className="app-page group-detail-page" id="top">
       <div className="editorial-shell app-page__layout">
+        {group.archivedAt !== null ? (
+          <section className="group-detail__section" aria-label="Archived status">
+            <h2>Archived</h2>
+            <p>This group is archived. Its history is preserved, but new activity is limited.</p>
+          </section>
+        ) : null}
         <section className="group-detail__section group-detail__overview">
           <p className="technical-label">PEER-TO-PEER SPACE</p>
           <h2>Shared participants, ready for accounting</h2>

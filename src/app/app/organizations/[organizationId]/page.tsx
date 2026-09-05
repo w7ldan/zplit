@@ -30,6 +30,12 @@ export default async function OrganizationDetailPage({
   return (
     <section className="app-page organization-detail-page" id="top">
       <div className="editorial-shell app-page__layout">
+        {organization.archivedAt !== null ? (
+          <section className="organization-detail__section" aria-label="Archived status">
+            <h2>Archived</h2>
+            <p>This organization is archived. Its history is preserved, but new activity is limited.</p>
+          </section>
+        ) : null}
         {organization.canViewLedger && ledgerSummary ? (
           <section
             className="organization-detail__section organization-detail__overview"

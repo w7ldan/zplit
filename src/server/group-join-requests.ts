@@ -13,7 +13,7 @@ import { NOTIFICATION_TYPES, type NotificationMetadata } from "@/domain/notifica
 import { requireSession } from "@/auth/require-session";
 import { createNotificationInDatabase, publishNotificationStateChange } from "@/server/notifications";
 import { searchUsernameDirectoryInDatabase } from "@/server/user-directory";
-import { GroupError, requireGroupAccess } from "@/server/groups";
+import { GroupError, assertGroupActiveForOperationalMutation, requireGroupAccess } from "@/server/groups";
 
 export class GroupJoinRequestError extends Error {
   constructor(readonly code: "invalid_id" | "forbidden" | "invalid_target" | "self" | "already_member" | "registered_participant" | "duplicate" | "not_found" | "resolved" | "expired" | "stale_authority" | "participant_not_found" | "already_linked" | "conflict") {
@@ -110,9 +110,10 @@ async function resolveTarget(database: Database, input: { targetUserId?: unknown
 }
 
 async function resolveGroupContext(database: Database, groupId: string, requesterUserId: string) {
-  const [group] = await database.select({ id: groups.id, name: groups.name }).from(groups).where(eq(groups.id, groupId)).limit(1);
+  const [group] = await database.select({ id: groups.id, name: groups.name, archivedAt: groups.archivedAt }).from(groups).where(eq(groups.id, groupId)).limit(1).for("update");
   const [requester] = await database.select({ name: users.name, username: users.username }).from(users).where(eq(users.id, requesterUserId)).limit(1);
   if (!group || !requester) throw new GroupJoinRequestError("not_found");
+  if (group.archivedAt) throw new GroupJoinRequestError("forbidden");
   return { group, requester };
 }
 
@@ -544,6 +545,17 @@ async function respondToRequestInTransaction(database: Database, targetUserId: s
   if (!request) throw new GroupJoinRequestError("not_found");
   if (request.status !== "pending") return { request, changed: false };
   const now = new Date();
+  if (response === "accept") {
+    try {
+      await assertGroupActiveForOperationalMutation(database, request.groupId);
+    } catch (error) {
+      if (error instanceof GroupError && error.code === "archived") {
+        const revoked = await transitionPendingRequest(database, request, "revoked", now);
+        return { request: revoked ?? request, changed: Boolean(revoked), error: "resolved" };
+      }
+      throw error;
+    }
+  }
   const nonAcceptance = await resolveNonAcceptance(database, request, response, now);
   if (nonAcceptance) return nonAcceptance;
   if (!await currentRequesterHasAuthority(database, request.groupId, request.requesterUserId)) {

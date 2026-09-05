@@ -1,29 +1,30 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), getOrganizationForMember: vi.fn(), getAuthenticatedOrganizationLedger: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), getOrganizationForMember: vi.fn(), hasOrganizationFinancialHistory: vi.fn(), getAuthenticatedOrganizationLedger: vi.fn() }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
-vi.mock("@/server/organizations", () => ({ getOrganizationForMember: mocks.getOrganizationForMember }));
+vi.mock("@/server/organizations", () => ({ getOrganizationForMember: mocks.getOrganizationForMember, hasOrganizationFinancialHistory: mocks.hasOrganizationFinancialHistory }));
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedOrganizationLedger: mocks.getAuthenticatedOrganizationLedger }));
 vi.mock("@/components/organizations/organization-detail", () => ({ OrganizationProfile: () => <h2>Organization profile</h2> }));
 vi.mock("@/components/settings/repayment-destinations-settings", () => ({ RepaymentDestinationsSettings: () => <div>Manage repayment destinations</div> }));
-vi.mock("../../actions", () => ({ deleteOrganizationAction: vi.fn(), updateOrganizationAction: vi.fn() }));
+vi.mock("../../actions", () => ({ deleteOrganizationAction: vi.fn(), archiveOrganizationAction: vi.fn(), restoreOrganizationAction: vi.fn(), updateOrganizationAction: vi.fn() }));
 vi.mock("../ledger-actions", () => ({ createRepaymentDestinationAction: vi.fn(), deleteRepaymentDestinationAction: vi.fn(), setRepaymentDestinationOrderAction: vi.fn(), updateRepaymentDestinationAction: vi.fn() }));
 
 import OrganizationSettingsPage from "./page";
-import { deleteOrganizationAction } from "../../actions";
+import { archiveOrganizationAction, deleteOrganizationAction } from "../../actions";
 
 const session = { user: { id: "user-a" } };
-const organization = { id: "org-a", name: "Studio", description: null, canUpdate: false, canDelete: false, canViewLedger: false, canManageRepaymentDestinations: false, canExport: false };
+const organization = { id: "org-a", name: "Studio", description: null, archivedAt: null, canUpdate: false, canDelete: false, canViewLedger: false, canManageRepaymentDestinations: false, canExport: false };
 
 describe("Organization Settings capability composition", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireSession.mockResolvedValue(session);
     mocks.getDatabase.mockReturnValue("database");
+    mocks.hasOrganizationFinancialHistory.mockResolvedValue(false);
     mocks.getAuthenticatedOrganizationLedger.mockResolvedValue({ ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue([]) } });
   });
 
@@ -63,7 +64,6 @@ describe("Organization Settings capability composition", () => {
 
   it("confirms organization deletion with the organization name", async () => {
     await renderPage({ canDelete: true, name: "Acme Studio" });
-
     expect(
       screen.getByRole("button", { name: "Delete organization" }),
     ).toBeInTheDocument();
@@ -82,5 +82,30 @@ describe("Organization Settings capability composition", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(vi.mocked(deleteOrganizationAction)).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows archive instead of permanent deletion when financial history exists", async () => {
+    mocks.hasOrganizationFinancialHistory.mockResolvedValue(true);
+    await renderPage({ canDelete: true, name: "Acme Studio" });
+
+    expect(screen.queryByRole("button", { name: "Delete organization" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Archive organization" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Archive organization" }));
+    expect(vi.mocked(archiveOrganizationAction)).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Archive organization?" })).toBeInTheDocument();
+    expect(within(dialog).getByText(/archived instead of permanently deleted/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(vi.mocked(archiveOrganizationAction)).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows restore for an archived organization", async () => {
+    await renderPage({ canDelete: true, name: "Acme Studio", archivedAt: new Date("2026-01-01T00:00:00.000Z").toISOString() });
+
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete organization" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Archive organization" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Restore organization" })).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@ import "server-only";
 
 import { aliasedTable, and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { chatMessages, chatThreadReads, chatThreads, groupMemberships, groupParticipants, organizationMemberships, users } from "@/db/schema";
+import { chatMessages, chatThreadReads, chatThreads, groupMemberships, groupParticipants, groups, organizationMemberships, organizations, users } from "@/db/schema";
 import { CHAT_PAGE_SIZE, CHAT_STATE_CHANGED_EVENT, type ChatScope, normalizeChatMessageBody } from "@/domain/chat";
 import type { ChatMessageDto, ChatViewDto } from "@/domain/chat-contracts";
 import { resolveOrganizationCapabilities } from "@/domain/organization-permissions";
@@ -13,7 +13,7 @@ import { publishRealtimeEvent, type RealtimeData } from "@/server/realtime";
 import { getUserAvatarMetadataForViewer } from "@/server/user-avatar-access";
 
 export class ChatError extends Error {
-  constructor(readonly code: "invalid_id" | "not_found" | "message_not_found" | "forbidden" | "invalid_cursor" | "deleted" | "not_member") {
+  constructor(readonly code: "invalid_id" | "not_found" | "message_not_found" | "forbidden" | "invalid_cursor" | "deleted" | "archived" | "not_member") {
     super(code);
     this.name = "ChatError";
   }
@@ -259,21 +259,42 @@ async function listMessages(database: Database, scope: ChatScope, threadId: stri
   return { messages, nextCursor: hasMore && oldest ? encodeChatCursor(oldest) : null, unreadCount: unread, latestVisibleMessageId };
 }
 
+async function isScopeArchived(database: Database, scope: ChatScope) {
+  if (scope.type === "organization") {
+    const [row] = await database
+      .select({ archivedAt: organizations.archivedAt })
+      .from(organizations)
+      .where(eq(organizations.id, scope.id))
+      .limit(1);
+    return row?.archivedAt != null;
+  }
+  const [row] = await database
+    .select({ archivedAt: groups.archivedAt })
+    .from(groups)
+    .where(eq(groups.id, scope.id))
+    .limit(1);
+  return row?.archivedAt != null;
+}
+
 export async function getOrganizationChat(database: Database, organizationId: string, viewerUserId: string, before?: unknown): Promise<ChatViewDto> {
   const scope = normalizeScope({ type: "organization", id: organizationId });
   const access = await requireOrganizationAccess(database, scope.id, viewerUserId);
   access.require("chat.view");
+  const archived = await isScopeArchived(database, scope);
+  const canSend = access.can("chat.send") && !archived;
   const thread = await findThread(database, scope);
-  const page = thread ? await listMessages(database, scope, thread.id, viewerUserId, access.can("chat.send"), access.can("chat.moderate"), before) : { messages: [], nextCursor: null, unreadCount: 0, latestVisibleMessageId: null };
-  return { scope, threadId: thread?.id ?? null, ...page, canSend: access.can("chat.send"), canModerate: access.can("chat.moderate") };
+  const page = thread ? await listMessages(database, scope, thread.id, viewerUserId, canSend, access.can("chat.moderate"), before) : { messages: [], nextCursor: null, unreadCount: 0, latestVisibleMessageId: null };
+  return { scope, threadId: thread?.id ?? null, ...page, canSend, canModerate: access.can("chat.moderate") };
 }
 
 export async function getGroupChat(database: Database, groupId: string, viewerUserId: string, before?: unknown): Promise<ChatViewDto> {
   const scope = normalizeScope({ type: "group", id: groupId });
   const access = await requireGroupAccess(database, scope.id, viewerUserId);
+  const archived = await isScopeArchived(database, scope);
+  const canSend = !archived;
   const thread = await findThread(database, scope);
-  const page = thread ? await listMessages(database, scope, thread.id, viewerUserId, true, access.canManageGroup, before) : { messages: [], nextCursor: null, unreadCount: 0, latestVisibleMessageId: null };
-  return { scope, threadId: thread?.id ?? null, ...page, canSend: true, canModerate: access.canManageGroup };
+  const page = thread ? await listMessages(database, scope, thread.id, viewerUserId, canSend, access.canManageGroup, before) : { messages: [], nextCursor: null, unreadCount: 0, latestVisibleMessageId: null };
+  return { scope, threadId: thread?.id ?? null, ...page, canSend, canModerate: access.canManageGroup };
 }
 
 async function getChatUnreadCount(database: Database, scope: ChatScope, viewerUserId: string) {
@@ -315,6 +336,7 @@ export async function sendChatMessage(database: Database, input: { scope: ChatSc
   const body = normalizeChatMessageBody(input.body);
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
+    if (await isScopeArchived(transactionalDatabase, scope)) throw new ChatError("archived");
     let senderParticipantId: string | undefined;
     if (scope.type === "organization") {
       const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);
@@ -388,6 +410,7 @@ export async function editChatMessage(database: Database, input: { scope: ChatSc
   const body = normalizeChatMessageBody(input.body);
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
+    if (await isScopeArchived(transactionalDatabase, scope)) throw new ChatError("archived");
     if (scope.type === "organization") {
       const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);
       access.require("chat.send");

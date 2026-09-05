@@ -7,7 +7,7 @@ import { validateTripInput, type TripFieldErrors, type TripInputValues } from "@
 import { LedgerNotFoundError } from "@/domain/ledger-repository";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
-import { getLedgerForAction, ledgerPath } from "@/server/organization-ledger";
+import { getLedgerForAction, assertOrganizationLedgerWritableFromForm, ledgerPath } from "@/server/organization-ledger";
 
 export type TripActionState = { fieldErrors: TripFieldErrors; formError: string; values: TripInputValues };
 export type TripDeleteActionState = DeleteRecordActionState;
@@ -32,6 +32,11 @@ export async function createTripAction(_previousState: TripActionState, formData
   const session = await requireSession();
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
+  try {
+    await assertOrganizationLedgerWritableFromForm(formData);
+  } catch {
+    return { fieldErrors: {}, formError: "This organization is archived. Its history is preserved, but new activity is limited.", values: result.values };
+  }
   let trip;
   try {
     const { ledger } = await actionLedger(session, formData, "trips.manage");

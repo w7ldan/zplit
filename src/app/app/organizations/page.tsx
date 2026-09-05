@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Organizations" };
 
 type OrganizationsPageProps = {
-  searchParams?: Promise<{ create?: string | string[] }>;
+  searchParams?: Promise<{ create?: string | string[]; filter?: string | string[] }>;
 };
 
 function first(value: string | string[] | undefined) {
@@ -23,7 +23,8 @@ export default async function OrganizationsPage({
 }: OrganizationsPageProps = {}) {
   const session = await requireSession();
   const params = await searchParams;
-  const organizations = await listOrganizations(getDatabase(), session.user.id);
+  const showArchived = first(params.filter) === "archived";
+  const organizations = await listOrganizations(getDatabase(), session.user.id, showArchived ? "archived" : "active");
   const openCreate = first(params.create) === "1";
   return (
     <section className="app-page organizations-page" id="top">
@@ -46,10 +47,21 @@ export default async function OrganizationsPage({
         </div>
         <div className="ledger-section organization-section">
           <div className="ledger-section__heading">
-            <h2 id="organization-grid-heading">Your organizations</h2>
+            <h2 id="organization-grid-heading">{showArchived ? "Archived organizations" : "Your organizations"}</h2>
             <span className="technical-label">
               {organizations.length} {organizations.length === 1 ? "organization" : "organizations"}
             </span>
+          </div>
+          <div>
+            {showArchived ? (
+              <Link className="text-link" href="/app/organizations">
+                View active organizations <span aria-hidden="true">→</span>
+              </Link>
+            ) : (
+              <Link className="text-link" href="/app/organizations?filter=archived">
+                View archived organizations <span aria-hidden="true">→</span>
+              </Link>
+            )}
           </div>
           {organizations.length > 0 ? (
             <div className="organization-grid">
@@ -59,6 +71,13 @@ export default async function OrganizationsPage({
                   key={organization.id}
                 />
               ))}
+            </div>
+          ) : showArchived ? (
+            <div className="ledger-empty organization-empty">
+              <h2>No archived organizations.</h2>
+              <p>
+                Organizations with financial history appear here when archived.
+              </p>
             </div>
           ) : (
             <div className="ledger-empty organization-empty">

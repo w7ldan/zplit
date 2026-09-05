@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   createNotificationInDatabase: vi.fn(),
   publishNotificationStateChange: vi.fn(),
   requireGroupAccess: vi.fn(),
+  assertGroupActiveForOperationalMutation: vi.fn(),
   requireSession: vi.fn(),
   getDatabase: vi.fn(),
   searchUsernameDirectoryInDatabase: vi.fn(),
@@ -12,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/notifications", () => ({ createNotificationInDatabase: mocks.createNotificationInDatabase, publishNotificationStateChange: mocks.publishNotificationStateChange }));
-vi.mock("@/server/groups", () => ({ GroupError: class GroupError extends Error {}, requireGroupAccess: mocks.requireGroupAccess }));
+vi.mock("@/server/groups", () => ({ GroupError: class GroupError extends Error {}, requireGroupAccess: mocks.requireGroupAccess, assertGroupActiveForOperationalMutation: mocks.assertGroupActiveForOperationalMutation }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/user-directory", () => ({ searchUsernameDirectoryInDatabase: mocks.searchUsernameDirectoryInDatabase }));
@@ -95,6 +96,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.createNotificationInDatabase.mockResolvedValue({ id: "notification" });
   mocks.requireGroupAccess.mockResolvedValue({ requireManageParticipants: vi.fn() });
+  mocks.assertGroupActiveForOperationalMutation.mockResolvedValue(undefined);
 });
 
 describe("Group join requests", () => {
@@ -133,6 +135,18 @@ describe("Group join requests", () => {
     await expect(
       createGroupInvitation(db, groupId, requesterUserId, { targetUserId }),
     ).resolves.toEqual(created);
+  });
+
+  it("refuses new invitations for archived Groups", async () => {
+    const { db } = database([
+      [{ id: targetUserId, name: "Alice", username: "alice" }],
+      [],
+      [],
+      [],
+      [{ id: groupId, name: "Trip", archivedAt: new Date("2026-01-01T00:00:00.000Z") }],
+      [{ name: "Owner", username: "owner" }],
+    ]);
+    await expect(createGroupInvitation(db, groupId, requesterUserId, "alice")).rejects.toMatchObject({ code: "forbidden" });
   });
 
   it("rejects a Member, email-shaped lookup, existing representation, and duplicate pending request", async () => {

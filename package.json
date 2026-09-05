@@ -26,6 +26,7 @@
     "test:group-settlement-applications": "tsx scripts/group-settlement-application-smoke.ts",
     "test:group-offsets": "tsx scripts/group-offset-smoke.ts",
     "test:group-receipts": "tsx scripts/group-receipt-smoke.ts",
+    "test:workspace-archive": "tsx scripts/workspace-archive-smoke.ts",
     "test:ownership": "tsx scripts/ownership-smoke.ts",
     "test:receipts": "tsx scripts/receipt-smoke.ts",
     "test:shared-receipts": "tsx scripts/shared-receipts-smoke.ts",

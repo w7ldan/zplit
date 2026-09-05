@@ -7,7 +7,7 @@ import { validateFriendInput, type FriendFieldErrors, type FriendInputValues } f
 import { LedgerNotFoundError, type FriendArchiveReversalReceipt } from "@/domain/ledger-repository";
 import { addFriendToRepaymentReturnTarget, validateRepaymentReturnTarget } from "@/domain/repayment-return";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
-import { getLedgerForAction, ledgerPath } from "@/server/organization-ledger";
+import { getLedgerForAction, assertOrganizationLedgerWritableFromForm, ledgerPath } from "@/server/organization-ledger";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 import { searchUsernameDirectory } from "@/server/user-directory";
 import { cancelFriendLinkRequest, createFriendLinkRequest, FriendLinkError, unlinkFriendLink } from "@/server/friend-links";
@@ -127,6 +127,11 @@ export async function createFriendAction(
   const returnTo = validateRepaymentReturnTarget(boundReturnTo);
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
+  try {
+    await assertOrganizationLedgerWritableFromForm(formData);
+  } catch {
+    return { fieldErrors: {}, formError: "This organization is archived. Its history is preserved, but new activity is limited.", values: result.values };
+  }
 
   let friend;
   try {

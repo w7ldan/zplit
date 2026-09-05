@@ -80,7 +80,7 @@ describe("chat server ownership", () => {
   });
 
   it("requires organization capability and creates one thread with conflict safety", async () => {
-    const db = database([[{ id: threadId }], [{ userId: "user-a" }, { userId: "user-b" }]], [{ id: "message-a" }], [{ threadId }]);
+    const db = database([[{ archivedAt: null }], [{ id: threadId }], [{ userId: "user-a" }, { userId: "user-b" }]], [{ id: "message-a" }], [{ threadId }]);
     await sendChatMessage(db, { scope: { type: "organization", id: organizationId }, userId: "user-a", body: " hello " });
 
     expect(mocks.requireOrganizationAccess).toHaveBeenCalledWith(db.tx, organizationId, "user-a");
@@ -116,7 +116,7 @@ describe("chat server ownership", () => {
   });
 
   it("uses the active registered Group participant and never accepts an external identity", async () => {
-    const db = database([[{ participantId }], [{ id: threadId }], [{ userId: "user-a" }]], [{ id: "message-a" }]);
+    const db = database([[{ archivedAt: null }], [{ participantId }], [{ id: threadId }], [{ userId: "user-a" }]], [{ id: "message-a" }]);
     await sendChatMessage(db, { scope: { type: "group", id: groupId }, userId: "user-a", body: "message" });
 
     expect(mocks.requireGroupAccess).toHaveBeenCalledWith(db.tx, groupId, "user-a");
@@ -126,6 +126,7 @@ describe("chat server ownership", () => {
   it("maps deleted messages to tombstones and derives consecutive grouping server-side", async () => {
     const first = new Date("2026-08-29T00:00:00Z");
     const db = database([
+      [{ archivedAt: null }],
       [{ id: threadId }],
       [
         { id: "message-c", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "secret", createdAt: new Date(first.getTime() + 2_000), editedAt: null, deletedAt: first },
@@ -145,6 +146,7 @@ describe("chat server ownership", () => {
   it("derives receipts from current member cursors without counting the sender", async () => {
     const first = new Date("2026-08-29T00:00:00Z");
     const db = database([
+      [{ archivedAt: null }],
       [{ id: threadId }],
       [
         { id: "message-d", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "latest", createdAt: new Date(first.getTime() + 3_000), editedAt: null, deletedAt: null },
@@ -168,7 +170,7 @@ describe("chat server ownership", () => {
     expect(chat.messages[1]).toMatchObject({ id: "message-b", seenByCount: 1, seenBy: ["Bob"] });
     expect(chat.messages[2]).toMatchObject({ id: "message-c", seenByCount: 0 });
     expect(chat.messages[3]).toMatchObject({ id: "message-d", seenByCount: 0, seenBy: [] });
-    expect(db.select).toHaveBeenCalledTimes(5);
+    expect(db.select).toHaveBeenCalledTimes(6);
   });
 
   it.each([
@@ -179,6 +181,7 @@ describe("chat server ownership", () => {
     ["custom", [], false],
   ] as const)("uses effective Organization chat.view for %s readers", async (role, customCapabilities, expected) => {
     const db = database([
+      [{ archivedAt: null }],
       [{ id: threadId }],
       [{ id: "message-a", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "hello", createdAt: new Date("2026-08-29T00:00:00Z"), editedAt: null, deletedAt: null }],
       [{ userId: "user-a", displayName: "Alice", cursorId: "message-a", role, customCapabilities }],
@@ -193,6 +196,7 @@ describe("chat server ownership", () => {
   it("excludes a member after chat.view is removed while retaining its cursor row", async () => {
     const message = { id: "message-a", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "hello", createdAt: new Date("2026-08-29T00:00:00Z"), editedAt: null, deletedAt: null };
     const withAccess = database([
+      [{ archivedAt: null }],
       [{ id: threadId }],
       [message],
       [{ userId: "user-a", displayName: "Alice", cursorId: "message-a", role: "custom", customCapabilities: ["chat.view"] }],
@@ -203,6 +207,7 @@ describe("chat server ownership", () => {
     expect(before.messages[0]?.seenByCount).toBe(1);
 
     const withoutAccess = database([
+      [{ archivedAt: null }],
       [{ id: threadId }],
       [message],
       [{ userId: "user-a", displayName: "Alice", cursorId: "message-a", role: "custom", customCapabilities: [] }],
@@ -210,12 +215,13 @@ describe("chat server ownership", () => {
     ]);
     const after = await getOrganizationChat(withoutAccess, organizationId, "user-a");
     expect(after.messages[0]?.seenByCount).toBe(0);
-    expect(withoutAccess.select).toHaveBeenCalledTimes(4);
+    expect(withoutAccess.select).toHaveBeenCalledTimes(5);
   });
 
   it("batches sender avatar metadata into the read DTO", async () => {
     const avatar = { sha256: "a".repeat(64) };
     const db = database([
+      [{ archivedAt: null }],
       [{ id: threadId }],
       [{ id: "message-a", senderUserId: "user-b", senderName: "Bob", participantName: null, body: "hello", createdAt: new Date("2026-08-29T00:00:00Z"), editedAt: null, deletedAt: null }],
     ]);
@@ -228,16 +234,22 @@ describe("chat server ownership", () => {
   });
 
   it("edits only the author and publishes the existing entity scope", async () => {
-    const db = database([[{ id: "message-a", senderUserId: "user-a", deletedAt: null, threadId }], [{ userId: "user-a" }]]);
+    const db = database([[{ archivedAt: null }], [{ id: "message-a", senderUserId: "user-a", deletedAt: null, threadId }], [{ userId: "user-a" }]]);
     db.tx.update = vi.fn(() => queryBuilder([{ id: "message-a" }])) as never;
     await editChatMessage(db, { scope: { type: "organization", id: organizationId }, messageId: "message-a", userId: "user-a", body: "updated" });
 
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith("user-a", expect.objectContaining({ data: expect.objectContaining({ organizationId, threadId }) }));
-    await expect(editChatMessage(database([[{ id: "message-a", senderUserId: "user-b", deletedAt: null, threadId }]]), { scope: { type: "organization", id: organizationId }, messageId: "message-a", userId: "user-a", body: "updated" })).rejects.toMatchObject({ code: "forbidden" });
+    await expect(editChatMessage(database([[{ archivedAt: null }], [{ id: "message-a", senderUserId: "user-b", deletedAt: null, threadId }]]), { scope: { type: "organization", id: organizationId }, messageId: "message-a", userId: "user-a", body: "updated" })).rejects.toMatchObject({ code: "forbidden" });
   });
 
-  it("makes a second delete a safe no-op and allows Group management moderation", async () => {
-    mocks.requireGroupAccess.mockResolvedValue({ canManageGroup: true });
+  it("rejects new messages for archived workspaces while keeping history readable", async () => {
+    const archived = new Date("2026-01-01T00:00:00.000Z");
+    await expect(sendChatMessage(database([[{ archivedAt: archived }]]), { scope: { type: "group", id: groupId }, userId: "user-a", body: "late" })).rejects.toMatchObject({ code: "archived" });
+    await expect(sendChatMessage(database([[{ archivedAt: archived }]]), { scope: { type: "organization", id: organizationId }, userId: "user-a", body: "late" })).rejects.toMatchObject({ code: "archived" });
+    await expect(editChatMessage(database([[{ archivedAt: archived }]]), { scope: { type: "group", id: groupId }, messageId: "message-a", userId: "user-a", body: "late" })).rejects.toMatchObject({ code: "archived" });
+  });
+
+  it("makes a second delete a safe no-op and allows Group management moderation", async () => {    mocks.requireGroupAccess.mockResolvedValue({ canManageGroup: true });
     const db = database([[{ id: "message-a", senderUserId: "user-b", deletedAt: new Date(), threadId }]]);
     await expect(deleteChatMessage(db, { scope: { type: "group", id: groupId }, messageId: "message-a", userId: "user-a" })).resolves.toMatchObject({ changed: false });
     expect(mocks.publishRealtimeEvent).not.toHaveBeenCalled();

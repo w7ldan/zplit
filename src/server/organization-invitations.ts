@@ -239,9 +239,10 @@ export async function createOrganizationInvitation(database: Database, organizat
       }
     }
 
-    const [organization] = await transaction.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+    const [organization] = await transaction.select({ name: organizations.name, archivedAt: organizations.archivedAt }).from(organizations).where(eq(organizations.id, organizationId)).limit(1).for("update");
     const [inviter] = await transaction.select({ name: users.name }).from(users).where(eq(users.id, inviterUserId)).limit(1);
     if (!organization || !inviter) throw new OrganizationInvitationError("not_found");
+    if (organization.archivedAt) throw new OrganizationInvitationError("forbidden");
     const expiresAt = organizationInvitationExpiresAt(now);
     const [invitation] = await transaction
       .insert(organizationInvitations)
@@ -383,8 +384,12 @@ async function acceptOrDecline(database: Database, targetUserId: string, invitat
       return { organizationId: invitation.organizationId, targetUserId, recipientUserId: invitation.invitedByUserId, changed: true, error: undefined, status: "declined" as const };
     }
 
-    const [organization] = await transaction.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, invitation.organizationId)).limit(1).for("update");
+    const [organization] = await transaction.select({ id: organizations.id, archivedAt: organizations.archivedAt }).from(organizations).where(eq(organizations.id, invitation.organizationId)).limit(1).for("update");
     if (!organization) throw new OrganizationInvitationError("not_found");
+    if (organization.archivedAt) {
+      const revoked = await transitionPendingInvitation(transaction as Database, invitation.id, "revoked", now, targetUserId);
+      return { organizationId: invitation.organizationId, targetUserId, recipientUserId: invitation.invitedByUserId, changed: Boolean(revoked), error: "resolved" as const, status: "revoked" as const };
+    }
     let inviterAccess;
     try {
       inviterAccess = await requireOrganizationAccess(transaction as Database, invitation.organizationId, invitation.invitedByUserId);

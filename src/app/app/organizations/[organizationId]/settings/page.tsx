@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
-import { getOrganizationForMember } from "@/server/organizations";
+import { getOrganizationForMember, hasOrganizationFinancialHistory } from "@/server/organizations";
 import { getAuthenticatedOrganizationLedger } from "@/server/authenticated-ledger";
 import { DeleteConfirmationDialog } from "@/components/app/delete-confirmation-dialog";
 import { OrganizationProfile } from "@/components/organizations/organization-detail";
 import { RepaymentDestinationsSettings } from "@/components/settings/repayment-destinations-settings";
 import {
+  archiveOrganizationAction,
   deleteOrganizationAction,
+  restoreOrganizationAction,
   updateOrganizationAction,
 } from "../../actions";
 import {
@@ -22,16 +24,22 @@ export const metadata = { title: "Organization settings" };
 
 export default async function OrganizationSettingsPage({
   params,
+  searchParams = Promise.resolve({}),
 }: {
   params: Promise<{ organizationId: string }>;
+  searchParams?: Promise<{ error?: string | string[] }>;
 }) {
   const session = await requireSession();
   const { organizationId } = await params;
+  const query = await searchParams;
   const organization = await getOrganizationForMember(
     getDatabase(),
     organizationId,
     session.user.id,
   );
+  const ledgerBlocked = (Array.isArray(query.error) ? query.error[0] : query.error) === "ledger_not_empty";
+  const archived = organization.archivedAt !== null;
+  const financialHistory = archived ? true : await hasOrganizationFinancialHistory(getDatabase(), organizationId).catch(() => true);
   const canViewDestinations =
     organization.canViewLedger || organization.canManageRepaymentDestinations;
   const destinationAccess = canViewDestinations
@@ -80,7 +88,7 @@ export default async function OrganizationSettingsPage({
             </p>
           </div>
         </header>
-        {organization.canUpdate ? (
+        {organization.canUpdate && !archived ? (
           <section className="settings-page__section organization-settings__profile">
             <OrganizationProfile
               organization={organization}
@@ -149,13 +157,44 @@ export default async function OrganizationSettingsPage({
         ) : null}
         {organization.canDelete ? (
           <div className="organization-detail__delete">
-            <DeleteConfirmationDialog
-              title="Delete organization?"
-              entityName={organization.name}
-              confirmLabel="Delete organization"
-              pendingLabel="Deleting organization…"
-              action={deleteOrganizationAction.bind(null, organizationId)}
-            />
+            {archived ? (
+              <>
+                <h2>Archived</h2>
+                <p>This organization is archived. Its history is preserved, but new activity is limited.</p>
+                <DeleteConfirmationDialog
+                  title="Restore organization?"
+                  entityName={organization.name}
+                  confirmLabel="Restore organization"
+                  pendingLabel="Restoring organization…"
+                  description={`“${organization.name}” will become active again with its history preserved.`}
+                  action={restoreOrganizationAction.bind(null, organizationId)}
+                />
+              </>
+            ) : financialHistory ? (
+              <>
+                {ledgerBlocked ? (
+                  <p className="group-form__field-error" role="alert">
+                    This organization cannot be deleted because it has financial history. The records remain untouched.
+                  </p>
+                ) : null}
+                <DeleteConfirmationDialog
+                  title="Archive organization?"
+                  entityName={organization.name}
+                  confirmLabel="Archive organization"
+                  pendingLabel="Archiving organization…"
+                  description={`“${organization.name}” has financial history, so it will be archived instead of permanently deleted. Its financial records and history will be preserved.`}
+                  action={archiveOrganizationAction.bind(null, organizationId)}
+                />
+              </>
+            ) : (
+              <DeleteConfirmationDialog
+                title="Delete organization?"
+                entityName={organization.name}
+                confirmLabel="Delete organization"
+                pendingLabel="Deleting organization…"
+                action={deleteOrganizationAction.bind(null, organizationId)}
+              />
+            )}
           </div>
         ) : null}
       </div>

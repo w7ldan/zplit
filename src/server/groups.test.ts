@@ -4,15 +4,20 @@ import { groupMemberships, groupParticipants, groups } from "@/db/schema";
 import { assertPlainDto } from "@/test/assert-plain-dto";
 import {
   addPersonalFriendAsGroupParticipant,
+  archiveGroup,
+  assertGroupActiveForOperationalMutation,
   createExternalParticipant,
   createGroup,
   deleteExternalParticipant,
   deleteGroup,
   getGroupForMember,
   GroupError,
+  hasFinancialHistory,
   listGroupOverviewSummaries,
+  listGroups,
   removeGroupMember,
   requireGroupAccess,
+  restoreGroup,
   updateExternalParticipant,
 } from "./groups";
 
@@ -41,7 +46,7 @@ const otherGroupId = "22222222-2222-4222-8222-222222222222";
 const participantId = "33333333-3333-4333-8333-333333333333";
 
 function removalDatabase(actorRole: string, target: Record<string, unknown> | null = { role: "member", participantId, participantGroupId: groupId, participantUserId: "user-b" }, membershipDelete: unknown[] = [{ userId: "user-b" }], participantDelete: unknown[] = [{ id: participantId }], hasFinancialHistory = false, hasChatHistory = false) {
-  const selects = [[{ role: actorRole }], target && target.participantGroupId === groupId ? [{ id: target.participantId, participantGroupId: target.participantGroupId, participantUserId: target.participantUserId }] : [], target ? [{ role: target.role, participantId: target.participantId, userId: target.participantUserId }] : [], hasFinancialHistory ? [{ id: "expense-a" }] : [], [], [], [], [], hasChatHistory ? [{ id: "message-a" }] : []];
+  const selects = [[{ role: actorRole }], [{ id: groupId, archivedAt: null }], target && target.participantGroupId === groupId ? [{ id: target.participantId, participantGroupId: target.participantGroupId, participantUserId: target.participantUserId }] : [], target ? [{ role: target.role, participantId: target.participantId, userId: target.participantUserId }] : [], hasFinancialHistory ? [{ id: "expense-a" }] : [], [], [], [], [], hasChatHistory ? [{ id: "message-a" }] : []];
   const deletedTables: unknown[] = [];
   const transaction = {
     select: vi.fn(() => chain(selects.shift() ?? [])),
@@ -162,6 +167,7 @@ describe("groups", () => {
     const selections = [
       [{ userId: "admin-a" }],
       [{ role: "admin" }],
+      [{ id: groupId, archivedAt: null }],
       [{ id: personalFriendId, name: "Alex", linkedUserId: null, archivedAt: null }],
       [],
     ];
@@ -199,6 +205,7 @@ describe("groups", () => {
         select: vi.fn()
           .mockImplementationOnce(() => chain([{ userId: "admin-a" }]))
           .mockImplementationOnce(() => chain([{ role: "admin" }]))
+          .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }]))
           .mockImplementationOnce(() => chain([{ id: personalFriendId, name: "Alex", linkedUserId: null, archivedAt: null }]))
           .mockImplementationOnce(() => chain([existing])),
         insert,
@@ -215,6 +222,7 @@ describe("groups", () => {
         select: vi.fn()
           .mockImplementationOnce(() => chain([{ userId: "admin-a" }]))
           .mockImplementationOnce(() => chain([{ role: "admin" }]))
+          .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }]))
           .mockImplementationOnce(() => chain([{ id: personalFriendId, name: "Alex", linkedUserId: "user-alex", archivedAt: null }])),
       })),
     } as unknown as Database;
@@ -251,6 +259,11 @@ describe("groups", () => {
         .mockImplementationOnce(() => chain([]))
         .mockImplementationOnce(() => chain([]))
         .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
         .mockImplementationOnce(() => chain([])),
       delete: vi.fn(() => chain([{ id: groupId }])),
     };
@@ -261,10 +274,10 @@ describe("groups", () => {
   });
 
   it("cannot update a participant from another Group or edit a registered identity", async () => {
-    const isolated = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([])) } as unknown as Database;
+    const isolated = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }])).mockImplementationOnce(() => chain([])) } as unknown as Database;
     await expect(updateExternalParticipant(isolated, groupId, "admin-a", "foreign-participant", { displayName: "Alice" })).rejects.toMatchObject({ code: "participant_not_found" });
 
-    const registered = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([{ userId: "user-b" }])) } as unknown as Database;
+    const registered = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }])).mockImplementationOnce(() => chain([{ userId: "user-b" }])) } as unknown as Database;
     await expect(updateExternalParticipant(registered, groupId, "admin-a", "registered-participant", { displayName: "Alice" })).rejects.toMatchObject({ code: "registered_participant" });
     expect(new GroupError("forbidden")).toBeInstanceOf(Error);
   });
@@ -285,7 +298,7 @@ describe("groups", () => {
 
   it("retains a registered participant with chat history", async () => {
     const deletedTables: unknown[] = [];
-    const selected = [[{ role: "owner" }], [{ id: participantId, participantGroupId: groupId, participantUserId: "user-b" }], [{ role: "member", participantId, userId: "user-b" }], [], [], [], [], [], [{ id: "message-a" }]];
+    const selected = [[{ role: "owner" }], [{ id: groupId, archivedAt: null }], [{ id: participantId, participantGroupId: groupId, participantUserId: "user-b" }], [{ role: "member", participantId, userId: "user-b" }], [], [], [], [], [], [{ id: "message-a" }]];
     let selectedIndex = 0;
     const transaction = {
       select: vi.fn(() => chain(selected[selectedIndex++] ?? [])),
@@ -304,6 +317,7 @@ describe("groups", () => {
     const transaction = {
       select: vi.fn()
         .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }]))
         .mockImplementationOnce(() => chain([{ id: participantId, userId: null }]))
         .mockImplementation(() => chain([])),
       update: vi.fn(() => chain([{ targetUserId: "user-b" }])),
@@ -320,6 +334,7 @@ describe("groups", () => {
     const transaction = {
       select: vi.fn()
         .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }]))
         .mockImplementationOnce(() => chain([{ id: participantId, userId: null }]))
         .mockImplementationOnce(() => chain([{ id: "expense-a" }]))
         .mockImplementation(() => chain([])),
@@ -375,5 +390,94 @@ describe("groups", () => {
     await expect(removeGroupMember(database, groupId, "user-a", "user-b")).rejects.toMatchObject({ code: "participant_not_found" });
     expect(deletedTables).toEqual([groupMemberships, groupParticipants]);
     expect(wasCommitted()).toBe(false);
+  });
+
+  it("detects settlement applications as financial history", async () => {
+    const transaction = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([]))
+        .mockImplementationOnce(() => chain([{ id: "application-a" }])),
+    };
+    const database = { transaction: vi.fn(), select: transaction.select } as unknown as Database;
+
+    await expect(hasFinancialHistory(database, groupId)).resolves.toBe(true);
+  });
+
+  it("archives a Group with financial history while preserving its identity", async () => {
+    const transaction = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }])),
+      update: vi.fn()
+        .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: new Date("2026-01-01T00:00:00.000Z") }]))
+        .mockImplementationOnce(() => chain([])),
+    };
+    const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
+
+    const archived = await archiveGroup(database, groupId, "user-a");
+    expect(archived.id).toBe(groupId);
+    expect(archived.archivedAt).not.toBeNull();
+    expect(transaction.update).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats archive and restore as idempotent lifecycle transitions", async () => {
+    const archivedRow = [{ id: groupId, archivedAt: new Date("2026-01-01T00:00:00.000Z") }];
+    const alreadyArchived = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain(archivedRow)),
+      update: vi.fn(() => chain([])),
+    };
+    const archivedDatabase = { transaction: vi.fn(async (callback: (tx: typeof alreadyArchived) => unknown) => callback(alreadyArchived)) } as unknown as Database;
+    await expect(archiveGroup(archivedDatabase, groupId, "user-a")).resolves.toEqual(archivedRow[0]);
+    expect(alreadyArchived.update).not.toHaveBeenCalled();
+
+    const activeRow = [{ id: groupId, archivedAt: null }];
+    const alreadyActive = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain(activeRow)),
+      update: vi.fn(() => chain([])),
+    };
+    const activeDatabase = { transaction: vi.fn(async (callback: (tx: typeof alreadyActive) => unknown) => callback(alreadyActive)) } as unknown as Database;
+    await expect(restoreGroup(activeDatabase, groupId, "user-a")).resolves.toEqual(activeRow[0]);
+    expect(alreadyActive.update).not.toHaveBeenCalled();
+  });
+
+  it("restores an archived Group to the active lifecycle", async () => {
+    const transaction = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: new Date("2026-01-01T00:00:00.000Z") }])),
+      update: vi.fn(() => chain([{ id: groupId, archivedAt: null }])),
+    };
+    const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
+
+    const restored = await restoreGroup(database, groupId, "user-a");
+    expect(restored.id).toBe(groupId);
+    expect(restored.archivedAt).toBeNull();
+  });
+
+  it("blocks new operational mutations in archived Groups", async () => {
+    const archived = { select: vi.fn(() => chain([{ id: groupId, archivedAt: new Date("2026-01-01T00:00:00.000Z") }])) } as unknown as Database;
+    await expect(assertGroupActiveForOperationalMutation(archived, groupId)).rejects.toMatchObject({ code: "archived" });
+
+    const active = { select: vi.fn(() => chain([{ id: groupId, archivedAt: null }])) } as unknown as Database;
+    await expect(assertGroupActiveForOperationalMutation(active, groupId)).resolves.toBeUndefined();
+  });
+
+  it("exposes the archived lifecycle on Group summaries", async () => {
+    const archivedAt = new Date("2026-01-01T00:00:00.000Z");
+    const database = {
+      select: vi.fn(() => chain([{ id: groupId, name: "Trip", description: null, role: "owner", participantCount: 1, avatar: null, archivedAt }])),
+    } as unknown as Database;
+
+    await expect(listGroups(database, "user-a", undefined, "archived")).resolves.toEqual([
+      expect.objectContaining({ id: groupId, archivedAt: archivedAt.toISOString() }),
+    ]);
   });
 });

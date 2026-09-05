@@ -8,6 +8,7 @@ type DeleteConfirmationDialogProps = {
   entityName: string;
   confirmLabel: string;
   pendingLabel: string;
+  description?: string;
   action: (formData: FormData) => void | Promise<void>;
 };
 
@@ -36,6 +37,7 @@ export function DeleteConfirmationDialog({
   entityName,
   confirmLabel,
   pendingLabel,
+  description,
   action,
 }: DeleteConfirmationDialogProps) {
   const [open, setOpen] = useState(false);
@@ -93,7 +95,7 @@ export function DeleteConfirmationDialog({
         >
           <h2 id={titleId}>{title}</h2>
           <p id={descriptionId}>
-            {`This will permanently delete “${entityName}”. This action cannot be undone.`}
+            {description ?? `This will permanently delete “${entityName}”. This action cannot be undone.`}
           </p>
           <div className="delete-confirmation-dialog__actions">
             <button
@@ -116,3 +118,5 @@ export function DeleteConfirmationDialog({
     </>
   );
 }
+
+export const ConfirmationDialog = DeleteConfirmationDialog;

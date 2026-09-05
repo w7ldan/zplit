@@ -10,9 +10,11 @@ import { isOrganizationInvitationRole } from "@/domain/organization-permissions"
 import { normalizeUserAvatar } from "@/server/user-avatars";
 import {
   addPersonalFriendAsOrganizationExpenseContact,
+  archiveOrganization,
   createOrganization,
   deleteOrganization,
   OrganizationError,
+  restoreOrganization,
   updateOrganization,
 } from "@/server/organizations";
 import {
@@ -91,11 +93,39 @@ export async function deleteOrganizationAction(organizationId: string) {
   const session = await requireSession();
   try {
     await deleteOrganization(getDatabase(), organizationId, session.user.id);
-  } catch {
-    // Do not reveal ownership or membership details through the response.
+  } catch (error) {
+    if (error instanceof OrganizationError && error.code === "ledger_not_empty") {
+      revalidatePath("/app/organizations");
+      redirect(`/app/organizations/${organizationId}/settings?error=ledger_not_empty`);
+    }
+    if (
+      error instanceof OrganizationError &&
+      (error.code === "not_found" || error.code === "not_member" || error.code === "forbidden" || error.code === "invalid_id")
+    ) {
+      // Do not reveal ownership or membership details through the response.
+      revalidatePath("/app/organizations");
+      redirect("/app/organizations");
+    }
+    throw error;
   }
   revalidatePath("/app/organizations");
   redirect("/app/organizations");
+}
+
+export async function archiveOrganizationAction(organizationId: string) {
+  const session = await requireSession();
+  await archiveOrganization(getDatabase(), organizationId, session.user.id);
+  revalidatePath("/app/organizations");
+  revalidatePath(`/app/organizations/${organizationId}`);
+  redirect(`/app/organizations/${organizationId}`);
+}
+
+export async function restoreOrganizationAction(organizationId: string) {
+  const session = await requireSession();
+  await restoreOrganization(getDatabase(), organizationId, session.user.id);
+  revalidatePath("/app/organizations");
+  revalidatePath(`/app/organizations/${organizationId}`);
+  redirect(`/app/organizations/${organizationId}`);
 }
 
 function memberOption(candidate: Awaited<ReturnType<typeof listPersonalFriendCandidates>>[number]): SearchableOption {

@@ -22,6 +22,7 @@ export type OrganizationSummary = {
   role: OrganizationRole;
   memberCount: number;
   avatar: OrganizationAvatarMetadata | null;
+  archivedAt: string | null;
 };
 
 export type OrganizationDetail = OrganizationSummary & OrganizationCapabilities;

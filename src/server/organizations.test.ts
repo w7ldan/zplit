@@ -7,14 +7,18 @@ import { assertPlainDto } from "@/test/assert-plain-dto";
 vi.mock("server-only", () => ({}));
 
 import {
+  archiveOrganization,
+  assertOrganizationActiveForOperationalMutation,
   createOrganization,
   deleteOrganization,
   deleteOrganizationAvatar,
   getOrganizationForMember,
+  hasOrganizationFinancialHistory,
   listOrganizationOverviewSummaries,
   OrganizationError,
   requireOrganizationAccess,
   requireOrganizationLedgerAccess,
+  restoreOrganization,
   saveOrganizationAvatar,
   updateOrganization,
 } from "./organizations";
@@ -31,14 +35,14 @@ function insertBuilder(table: unknown, calls: Array<{ table: unknown; values?: u
 function queryBuilder(result: unknown) {
   type Query = Record<string, ReturnType<typeof vi.fn>> & { then: Promise<unknown>["then"] };
   const chain = {} as Query;
-  for (const method of ["from", "innerJoin", "leftJoin", "where", "limit", "orderBy", "set", "values", "onConflictDoUpdate"]) chain[method] = vi.fn(() => chain);
+  for (const method of ["from", "innerJoin", "leftJoin", "where", "limit", "orderBy", "for", "set", "values", "onConflictDoUpdate"]) chain[method] = vi.fn(() => chain);
   chain.returning = vi.fn(async () => result);
   chain.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
   return chain;
 }
 
 function databaseForMembership(membership: { role: string; customCapabilities?: unknown } | undefined, mutationResult: unknown[] = []) {
-  const selects = [membership ? [membership] : []];
+  const selects = [membership ? [membership] : [], [{ id: organizationId, archivedAt: null }]];
   const database = {
     select: vi.fn(() => queryBuilder(selects.shift() ?? [])),
     update: vi.fn(() => queryBuilder(mutationResult)),
@@ -226,5 +230,86 @@ describe("organizations", () => {
   it("rejects blank organization names", async () => {
     await expect(createOrganization({} as Database, "user-a", { name: "  " })).rejects.toMatchObject({ code: "invalid_input" });
     expect(new OrganizationError("invalid_id")).toBeInstanceOf(Error);
+  });
+
+  it("detects expenses and repayments as Organization financial history", async () => {
+    const withExpense = {
+      select: vi.fn()
+        .mockImplementationOnce(() => queryBuilder([{ id: "scope-a" }]))
+        .mockImplementationOnce(() => queryBuilder([{ id: "expense-a" }])),
+    } as unknown as Database;
+    await expect(hasOrganizationFinancialHistory(withExpense, organizationId)).resolves.toBe(true);
+
+    const withRepayment = {
+      select: vi.fn()
+        .mockImplementationOnce(() => queryBuilder([{ id: "scope-a" }]))
+        .mockImplementationOnce(() => queryBuilder([]))
+        .mockImplementationOnce(() => queryBuilder([{ id: "repayment-a" }])),
+    } as unknown as Database;
+    await expect(hasOrganizationFinancialHistory(withRepayment, organizationId)).resolves.toBe(true);
+
+    const empty = {
+      select: vi.fn()
+        .mockImplementationOnce(() => queryBuilder([{ id: "scope-a" }]))
+        .mockImplementationOnce(() => queryBuilder([]))
+        .mockImplementationOnce(() => queryBuilder([])),
+    } as unknown as Database;
+    await expect(hasOrganizationFinancialHistory(empty, organizationId)).resolves.toBe(false);
+  });
+
+  it("refuses permanent deletion when Organization financial history exists", async () => {
+    const database = {
+      select: vi.fn()
+        .mockImplementationOnce(() => queryBuilder([{ role: "owner", customCapabilities: [] }]))
+        .mockImplementationOnce(() => queryBuilder([{ id: "scope-a" }]))
+        .mockImplementationOnce(() => queryBuilder([{ id: "expense-a" }])),
+      transaction: vi.fn(),
+    } as unknown as Database;
+
+    await expect(deleteOrganization(database, organizationId, "user-a")).rejects.toMatchObject({ code: "ledger_not_empty" });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  it("archives an Organization with financial history while preserving its identity", async () => {
+    const transaction = {
+      select: vi.fn()
+        .mockImplementationOnce(() => queryBuilder([{ id: organizationId, archivedAt: null }])),
+      update: vi.fn()
+        .mockImplementationOnce(() => queryBuilder([{ id: organizationId, archivedAt: new Date("2026-01-01T00:00:00.000Z") }]))
+        .mockImplementationOnce(() => queryBuilder([])),
+    };
+    const database = {
+      select: vi.fn(() => queryBuilder([{ role: "owner", customCapabilities: [] }])),
+      transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)),
+    } as unknown as Database;
+
+    const archived = await archiveOrganization(database, organizationId, "user-a");
+    expect(archived.id).toBe(organizationId);
+    expect(archived.archivedAt).not.toBeNull();
+    expect(transaction.update).toHaveBeenCalledTimes(2);
+  });
+
+  it("restores an archived Organization to the active lifecycle", async () => {
+    const transaction = {
+      select: vi.fn()
+        .mockImplementationOnce(() => queryBuilder([{ id: organizationId, archivedAt: new Date("2026-01-01T00:00:00.000Z") }])),
+      update: vi.fn(() => queryBuilder([{ id: organizationId, archivedAt: null }])),
+    };
+    const database = {
+      select: vi.fn(() => queryBuilder([{ role: "owner", customCapabilities: [] }])),
+      transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)),
+    } as unknown as Database;
+
+    const restored = await restoreOrganization(database, organizationId, "user-a");
+    expect(restored.id).toBe(organizationId);
+    expect(restored.archivedAt).toBeNull();
+  });
+
+  it("blocks new operational mutations in archived Organizations", async () => {
+    const archived = { select: vi.fn(() => queryBuilder([{ id: organizationId, archivedAt: new Date("2026-01-01T00:00:00.000Z") }])) } as unknown as Database;
+    await expect(assertOrganizationActiveForOperationalMutation(archived, organizationId)).rejects.toMatchObject({ code: "archived" });
+
+    const active = { select: vi.fn(() => queryBuilder([{ id: organizationId, archivedAt: null }])) } as unknown as Database;
+    await expect(assertOrganizationActiveForOperationalMutation(active, organizationId)).resolves.toBeUndefined();
   });
 });

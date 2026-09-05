@@ -19,7 +19,8 @@ const mocks = vi.hoisted(() => {
     revalidatePath: vi.fn(),
     createOrganization: vi.fn(),
     deleteOrganization: vi.fn(),
-    updateOrganization: vi.fn(),
+    archiveOrganization: vi.fn(),
+    restoreOrganization: vi.fn(),
     OrganizationError: class OrganizationError extends Error {},
     OrganizationInvitationError: TestOrganizationInvitationError,
     revokeOrganizationInvitation: vi.fn(),
@@ -35,6 +36,8 @@ vi.mock("@/server/organizations", () => ({
   requireOrganizationAccess: mocks.requireOrganizationAccess,
   createOrganization: mocks.createOrganization,
   deleteOrganization: mocks.deleteOrganization,
+  archiveOrganization: mocks.archiveOrganization,
+  restoreOrganization: mocks.restoreOrganization,
   OrganizationError: mocks.OrganizationError,
   updateOrganization: mocks.updateOrganization,
 }));

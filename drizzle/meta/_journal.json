@@ -253,6 +253,13 @@
       "when": 1788348102580,
       "tag": "0035_chemical_joseph",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788592769540,
+      "tag": "0036_archive-workspaces",
+      "breakpoints": true
     }
   ]
 }

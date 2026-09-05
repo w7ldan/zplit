@@ -53,6 +53,7 @@ describe("Organization Personal Friend expense contacts", () => {
     const contact = { id: contactId, ledgerScopeId: "scope-organization", name: "Alex", linkedUserId: null, sourcePersonalFriendId: personalFriendId, archivedAt: null };
     const databaseForTest = database([
       ...accessSelects,
+      [{ id: organizationId, archivedAt: null }],
       [{ id: personalFriendId, name: "Alex", linkedUserId: null, archivedAt: null }],
       [],
     ], calls, contact);
@@ -71,6 +72,7 @@ describe("Organization Personal Friend expense contacts", () => {
     const existing = { id: contactId, ledgerScopeId: "scope-organization", name: "Old name", linkedUserId: "user-alex", sourcePersonalFriendId: null, archivedAt: null };
     const databaseForTest = database([
       ...accessSelects,
+      [{ id: organizationId, archivedAt: null }],
       [{ id: personalFriendId, name: "Alex", linkedUserId: "user-alex", archivedAt: null }],
       [],
       [existing],
@@ -84,6 +86,7 @@ describe("Organization Personal Friend expense contacts", () => {
     const existing = { id: contactId, ledgerScopeId: "scope-organization", name: "Alex", linkedUserId: null, sourcePersonalFriendId: personalFriendId, archivedAt: null };
     const databaseForTest = database([
       ...accessSelects,
+      [{ id: organizationId, archivedAt: null }],
       [{ id: personalFriendId, name: "Alex", linkedUserId: null, archivedAt: null }],
       [existing],
     ], []);
@@ -101,6 +104,7 @@ describe("Organization Personal Friend expense contacts", () => {
 
     const missingSource = database([
       ...accessSelects,
+      [{ id: organizationId, archivedAt: null }],
       [],
     ], []);
     await expect(addPersonalFriendAsOrganizationExpenseContact(missingSource, organizationId, "user-owner", personalFriendId)).rejects.toMatchObject({ code: "not_found" });

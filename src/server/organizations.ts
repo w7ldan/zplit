@@ -5,12 +5,15 @@ import { databaseCode } from "@/server/database-error-code";
 import { and, asc, count, eq, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
+  expenses,
   friends,
   ledgerScopes,
   organizationAvatars,
+  organizationInvitations,
   organizationMemberships,
   organizationParticipants,
   organizations,
+  repayments,
 } from "@/db/schema";
 import type { OrganizationAvatarMetadata, OrganizationCapabilities, OrganizationDetail, OrganizationSummary } from "@/domain/organization-contracts";
 import {
@@ -26,7 +29,7 @@ import { createLedgerRepository } from "@/domain/ledger-repository";
 
 export type { OrganizationRole } from "@/domain/organization-permissions";
 export class OrganizationError extends Error {
-  constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden" | "ledger_not_empty") {
+  constructor(readonly code: "not_found" | "invalid_id" | "invalid_input" | "not_member" | "forbidden" | "archived" | "ledger_not_empty") {
     super(code);
     this.name = "OrganizationError";
   }
@@ -129,6 +132,39 @@ async function requireLockedOrganizationLedgerAccess(database: Database, organiz
   return requireOrganizationLedgerAccess(database, organizationId, userId, "friends.manage");
 }
 
+export type OrganizationListScope = "active" | "archived" | "all";
+
+export async function assertOrganizationActiveForOperationalMutation(database: Database, organizationId: string) {
+  const [row] = await database
+    .select({ id: organizations.id, archivedAt: organizations.archivedAt })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  if (!row) throw new OrganizationError("not_found");
+  if (row.archivedAt) throw new OrganizationError("archived");
+}
+
+export async function hasOrganizationFinancialHistory(database: Database, organizationId: string) {
+  const [scope] = await database
+    .select({ id: ledgerScopes.id })
+    .from(ledgerScopes)
+    .where(and(eq(ledgerScopes.kind, "organization"), eq(ledgerScopes.organizationId, organizationId)))
+    .limit(1);
+  if (!scope) return false;
+  const [expense] = await database
+    .select({ id: expenses.id })
+    .from(expenses)
+    .where(eq(expenses.ledgerScopeId, scope.id))
+    .limit(1);
+  if (expense) return true;
+  const [repayment] = await database
+    .select({ id: repayments.id })
+    .from(repayments)
+    .where(eq(repayments.ledgerScopeId, scope.id))
+    .limit(1);
+  return Boolean(repayment);
+}
+
 export async function addPersonalFriendAsOrganizationExpenseContact(
   database: Database,
   organizationId: string,
@@ -140,6 +176,7 @@ export async function addPersonalFriendAsOrganizationExpenseContact(
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
     const access = await requireLockedOrganizationLedgerAccess(transactionalDatabase, organizationId, actorUserId);
+    await assertOrganizationActiveForOperationalMutation(transactionalDatabase, organizationId);
     const personalScopeId = await getPersonalLedgerScopeId(transactionalDatabase, actorUserId);
     const [source] = await transaction
       .select({
@@ -222,11 +259,17 @@ type OrganizationListRow = {
   role: string;
   memberCount: number;
   avatar: { mediaType: string; byteSize: number; sha256: string } | null;
+  archivedAt: Date | null;
   customCapabilities: unknown;
   ledgerScopeId: string | null;
 };
 
-async function listOrganizationRows(database: Database, userId: string, limit?: number): Promise<OrganizationListRow[]> {
+async function listOrganizationRows(database: Database, userId: string, limit?: number, scope: OrganizationListScope = "active"): Promise<OrganizationListRow[]> {
+  const archivedFilter = scope === "active"
+    ? sql`${organizations.archivedAt} IS NULL`
+    : scope === "archived"
+      ? sql`${organizations.archivedAt} IS NOT NULL`
+      : undefined;
   const query = database
     .select({
       id: organizations.id,
@@ -239,6 +282,7 @@ async function listOrganizationRows(database: Database, userId: string, limit?: 
         where participants.organization_id = ${organizations.id}
       )`.mapWith(Number),
       avatar: avatarSelection(),
+      archivedAt: organizations.archivedAt,
       customCapabilities: organizationMemberships.customCapabilities,
       ledgerScopeId: ledgerScopes.id,
     })
@@ -246,13 +290,13 @@ async function listOrganizationRows(database: Database, userId: string, limit?: 
     .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
     .leftJoin(organizationAvatars, eq(organizationAvatars.organizationId, organizations.id))
     .leftJoin(ledgerScopes, eq(ledgerScopes.organizationId, organizations.id))
-    .where(eq(organizationMemberships.userId, userId))
+    .where(archivedFilter ? and(eq(organizationMemberships.userId, userId), archivedFilter) : eq(organizationMemberships.userId, userId))
     .orderBy(asc(organizations.name), asc(organizations.id));
   return await (limit === undefined ? query : query.limit(limit));
 }
 
-export async function listOrganizations(database: Database, userId: string): Promise<OrganizationSummary[]> {
-  const rows = await listOrganizationRows(database, userId);
+export async function listOrganizations(database: Database, userId: string, scope: OrganizationListScope = "active"): Promise<OrganizationSummary[]> {
+  const rows = await listOrganizationRows(database, userId, undefined, scope);
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
@@ -260,6 +304,7 @@ export async function listOrganizations(database: Database, userId: string): Pro
     role: row.role as OrganizationRole,
     memberCount: Number(row.memberCount),
     avatar: mapAvatar(row.avatar),
+    archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
   }));
 }
 
@@ -285,6 +330,7 @@ export async function listOrganizationOverviewSummaries(
       role,
       memberCount: Number(row.memberCount),
       avatar: mapAvatar(row.avatar),
+      archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
       canViewLedger: capabilities.has("ledger.view"),
       ledgerScopeId: row.ledgerScopeId,
     }];
@@ -301,6 +347,7 @@ export async function getOrganizationForMember(database: Database, organizationI
       description: organizations.description,
       role: organizationMemberships.role,
       avatar: avatarSelection(),
+      archivedAt: organizations.archivedAt,
     })
     .from(organizationMemberships)
     .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
@@ -317,6 +364,7 @@ export async function getOrganizationForMember(database: Database, organizationI
     role: row.role as OrganizationRole,
     memberCount: Number(memberCount),
     avatar: mapAvatar(row.avatar),
+    archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
     ...toOrganizationCapabilities(access),
   };
 }
@@ -347,6 +395,7 @@ export async function createOrganization(
 export async function updateOrganization(database: Database, organizationId: string, userId: string, input: { name: string; description?: string | null }) {
   const access = await requireOrganizationAccess(database, organizationId, userId);
   access.require("organization.update");
+  await assertOrganizationActiveForOperationalMutation(database, organizationId);
   const [organization] = await database
     .update(organizations)
     .set({ ...cleanInput(input), updatedAt: new Date() })
@@ -359,22 +408,76 @@ export async function updateOrganization(database: Database, organizationId: str
 export async function deleteOrganization(database: Database, organizationId: string, userId: string) {
   const access = await requireOrganizationAccess(database, organizationId, userId);
   access.require("organization.delete");
-  return database.transaction(async (transaction) => {
-    const [scope] = await transaction
-      .select({ id: ledgerScopes.id })
-      .from(ledgerScopes)
-      .where(and(eq(ledgerScopes.kind, "organization"), eq(ledgerScopes.organizationId, organizationId)))
-      .limit(1);
-    if (scope) {
-      try {
+  if (await hasOrganizationFinancialHistory(database, organizationId)) throw new OrganizationError("ledger_not_empty");
+  try {
+    return await database.transaction(async (transaction) => {
+      const [scope] = await transaction
+        .select({ id: ledgerScopes.id })
+        .from(ledgerScopes)
+        .where(and(eq(ledgerScopes.kind, "organization"), eq(ledgerScopes.organizationId, organizationId)))
+        .limit(1);
+      if (scope) {
         await transaction.delete(ledgerScopes).where(eq(ledgerScopes.id, scope.id));
-      } catch (error) {
-        if (databaseCode(error) === "23503") throw new OrganizationError("ledger_not_empty");
-        throw error;
       }
+      const deleted = await transaction.delete(organizations).where(eq(organizations.id, organizationId)).returning({ id: organizations.id });
+      if (deleted.length === 0) throw new OrganizationError("not_found");
+      return true;
+    });
+  } catch (error) {
+    if (error instanceof OrganizationError) throw error;
+    if (databaseCode(error) === "23503" && await hasOrganizationFinancialHistory(database, organizationId)) {
+      throw new OrganizationError("ledger_not_empty");
     }
-    const deleted = await transaction.delete(organizations).where(eq(organizations.id, organizationId)).returning({ id: organizations.id });
-    return deleted.length > 0;
+    throw error;
+  }
+}
+
+export async function archiveOrganization(database: Database, organizationId: string, userId: string) {
+  const access = await requireOrganizationAccess(database, organizationId, userId);
+  access.require("organization.delete");
+  return database.transaction(async (transaction) => {
+    const [row] = await transaction
+      .select({ id: organizations.id, archivedAt: organizations.archivedAt })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1)
+      .for("update");
+    if (!row) throw new OrganizationError("not_found");
+    if (row.archivedAt) return row;
+    const now = new Date();
+    const [archived] = await transaction
+      .update(organizations)
+      .set({ archivedAt: now, updatedAt: now })
+      .where(eq(organizations.id, organizationId))
+      .returning();
+    if (!archived) throw new OrganizationError("not_found");
+    await transaction
+      .update(organizationInvitations)
+      .set({ status: "revoked", revokedAt: now, updatedAt: now })
+      .where(and(eq(organizationInvitations.organizationId, organizationId), eq(organizationInvitations.status, "pending")));
+    return archived;
+  });
+}
+
+export async function restoreOrganization(database: Database, organizationId: string, userId: string) {
+  const access = await requireOrganizationAccess(database, organizationId, userId);
+  access.require("organization.delete");
+  return database.transaction(async (transaction) => {
+    const [row] = await transaction
+      .select({ id: organizations.id, archivedAt: organizations.archivedAt })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1)
+      .for("update");
+    if (!row) throw new OrganizationError("not_found");
+    if (!row.archivedAt) return row;
+    const [restored] = await transaction
+      .update(organizations)
+      .set({ archivedAt: null, updatedAt: new Date() })
+      .where(eq(organizations.id, organizationId))
+      .returning();
+    if (!restored) throw new OrganizationError("not_found");
+    return restored;
   });
 }
 
@@ -387,6 +490,7 @@ export async function getOrganizationAvatar(database: Database, organizationId: 
 export async function saveOrganizationAvatar(database: Database, organizationId: string, userId: string, avatar: { mediaType: "image/webp"; byteSize: number; sha256: string; content: Uint8Array }) {
   const access = await requireOrganizationAccess(database, organizationId, userId);
   access.require("organization.update");
+  await assertOrganizationActiveForOperationalMutation(database, organizationId);
   const [saved] = await database
     .insert(organizationAvatars)
     .values({ ...avatar, organizationId, content: Buffer.from(avatar.content) })
@@ -402,6 +506,7 @@ export async function saveOrganizationAvatar(database: Database, organizationId:
 export async function deleteOrganizationAvatar(database: Database, organizationId: string, userId: string) {
   const access = await requireOrganizationAccess(database, organizationId, userId);
   access.require("organization.update");
+  await assertOrganizationActiveForOperationalMutation(database, organizationId);
   const deleted = await database.delete(organizationAvatars).where(eq(organizationAvatars.organizationId, organizationId)).returning({ organizationId: organizationAvatars.organizationId });
   return deleted.length > 0;
 }

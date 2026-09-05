@@ -51,7 +51,7 @@ import {
   RECORD_PAGE_SIZE,
   type RecordPage,
 } from "@/domain/record-retrieval";
-import { GroupError, requireGroupAccess } from "@/server/groups";
+import { GroupError, assertGroupActiveForOperationalMutation, requireGroupAccess } from "@/server/groups";
 import { createNotificationInDatabase, publishNotificationStateChange } from "@/server/notifications";
 import { publishRealtimeEvent } from "@/server/realtime";
 
@@ -674,6 +674,7 @@ async function createExpense(database: Database, groupId: string, creatorUserId:
     const result = await database.transaction(async (transaction) => {
       const transactionalDatabase = transaction as Database;
       await requireGroupAccess(transactionalDatabase, groupId, creatorUserId);
+      await assertGroupActiveForOperationalMutation(transactionalDatabase, groupId);
       const { creatorParticipantId, payerUserId } = await lockExpenseEligibility(transactionalDatabase, groupId, creatorUserId, values);
       const now = new Date();
       const [expense] = await transaction

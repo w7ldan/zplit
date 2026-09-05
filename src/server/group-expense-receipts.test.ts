@@ -26,7 +26,7 @@ function query(rows: unknown[], locks: string[], name: string) {
 function databaseFor(rows: unknown[][], returning: unknown[] = []) {
   const locks: string[] = [];
   let index = 0;
-  const select = vi.fn(() => query(rows[index++] ?? [], locks, ["access", "expense", "participant", "membership", "receipts", "receipt"][index - 1] ?? "select"));
+  const select = vi.fn(() => query(rows[index++] ?? [], locks, ["lifecycle", "access", "expense", "participant", "membership", "receipts", "receipt"][index - 1] ?? "select"));
   const transaction = {
     select,
     insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: vi.fn(async () => returning) })) })),
@@ -52,7 +52,7 @@ function authorizedRows(receipts: unknown[] = []) {
 describe("Group expense receipt service", () => {
   it("locks expense, creator participant, membership, and receipts in the compatible order", async () => {
     const created = { id: receiptId, originalFilename: file.originalFilename, mediaType: file.mediaType, byteSize: file.byteSize, createdAt: new Date() };
-    const database = databaseFor(authorizedRows(), [created]);
+    const database = databaseFor([[{ id: groupId, archivedAt: null }], ...authorizedRows()], [created]);
 
     await expect(createGroupExpenseReceipt(database.database, groupId, expenseId, "user-b", file)).resolves.toEqual(created);
     expect(database.locks).toEqual(["expense:update", "participant:update", "membership:update", "receipts:update"]);
@@ -60,7 +60,7 @@ describe("Group expense receipt service", () => {
   });
 
   it("rejects stale or non-creator authorization before a receipt mutation", async () => {
-    const staleMembership = databaseFor([...authorizedRows().slice(0, 3), []], [{ id: receiptId }]);
+    const staleMembership = databaseFor([[{ id: groupId, archivedAt: null }], ...authorizedRows().slice(0, 3), []], [{ id: receiptId }]);
     await expect(createGroupExpenseReceipt(staleMembership.database, groupId, expenseId, "user-b", file)).rejects.toBeInstanceOf(GroupExpenseReceiptPermissionError);
     expect(staleMembership.transaction.insert).not.toHaveBeenCalled();
 

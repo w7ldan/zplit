@@ -10,7 +10,7 @@ import type { DeleteRecordActionState } from "@/components/app/delete-record-for
 import type { SearchableOption } from "@/components/records/searchable-combobox";
 import { parseCascadeConfirmation, parseImpactRevision } from "@/domain/deletion-confirmation";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
-import { getLedgerForAction, ledgerPath } from "@/server/organization-ledger";
+import { getLedgerForAction, assertOrganizationLedgerWritableFromForm, ledgerPath } from "@/server/organization-ledger";
 
 export type OutingActionState = {
   fieldErrors: OutingFieldErrors;
@@ -79,6 +79,11 @@ export async function createOutingAction(
   const returnTo = validateExpenseReturnTarget(boundReturnTo);
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
+  try {
+    await assertOrganizationLedgerWritableFromForm(formData);
+  } catch {
+    return { fieldErrors: {}, formError: "This organization is archived. Its history is preserved, but new activity is limited.", values: result.values };
+  }
 
   let outing;
   try {

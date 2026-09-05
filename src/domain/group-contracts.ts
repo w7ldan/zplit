@@ -19,6 +19,7 @@ export type GroupSummary = {
   role: GroupRole;
   participantCount: number;
   avatar: GroupAvatarMetadata | null;
+  archivedAt: string | null;
 };
 
 export type GroupDetail = GroupSummary & GroupCapabilities & {

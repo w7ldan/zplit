@@ -7,7 +7,7 @@ import type { Database } from "@/db/client";
 import { groupExpenseReceipts, groupExpenses, groupMemberships, groupParticipants } from "@/db/schema";
 import { MAX_RECEIPT_BYTES_PER_EXPENSE, MAX_RECEIPTS_PER_EXPENSE, type ValidatedReceiptFile } from "@/domain/receipt-file";
 import { normalizeUuid } from "@/domain/record-retrieval";
-import { GroupError, requireGroupAccess } from "@/server/groups";
+import { GroupError, assertGroupActiveForOperationalMutation, requireGroupAccess } from "@/server/groups";
 
 export const GROUP_RECEIPT_COUNT_LIMIT_MESSAGE = "An expense can have up to 5 receipts.";
 export const GROUP_RECEIPT_TOTAL_LIMIT_MESSAGE = "Receipts for one expense cannot exceed 15 MiB.";
@@ -87,6 +87,7 @@ export async function createGroupExpenseReceipt(database: Database, groupId: str
   assertIds(groupId, expenseId);
   try {
     return await database.transaction(async (transaction) => {
+      await assertGroupActiveForOperationalMutation(transaction as Database, groupId);
       await requireExpense(transaction as Database, groupId, expenseId, creatorUserId, true);
       const existing = await transaction.select({ id: groupExpenseReceipts.id, byteSize: groupExpenseReceipts.byteSize, sha256: groupExpenseReceipts.sha256 }).from(groupExpenseReceipts).where(and(eq(groupExpenseReceipts.groupId, groupId), eq(groupExpenseReceipts.expenseId, expenseId))).orderBy(asc(groupExpenseReceipts.id)).for("update");
       if (existing.length >= MAX_RECEIPTS_PER_EXPENSE) throw new GroupExpenseReceiptCountError();

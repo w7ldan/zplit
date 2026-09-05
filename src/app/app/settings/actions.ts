@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 import { getDatabase } from "@/db/client";
 import { users } from "@/db/schema";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
-import { getLedgerForAction, ledgerPath } from "@/server/organization-ledger";
+import { getLedgerForAction, assertOrganizationLedgerWritableFromForm, ledgerPath } from "@/server/organization-ledger";
 
 export type RepaymentDestinationActionState = {
   fieldErrors: RepaymentDestinationFieldErrors;
@@ -102,6 +102,11 @@ export async function createRepaymentDestinationAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
   try {
+    await assertOrganizationLedgerWritableFromForm(formData);
+  } catch {
+    return { fieldErrors: {}, formError: "This organization is archived. Its history is preserved, but new activity is limited.", values: result.values };
+  }
+  try {
     await (await actionLedger(session, formData)).ledger.createRepaymentDestination(result.value);
   } catch (error) {
     return errorState(error, result.values);
@@ -120,6 +125,11 @@ export async function updateRepaymentDestinationAction(
   const result = valuesFromForm(formData);
   if (!result.ok) return invalidState(result);
   try {
+    await assertOrganizationLedgerWritableFromForm(formData);
+  } catch {
+    return { fieldErrors: {}, formError: "This organization is archived. Its history is preserved, but new activity is limited.", values: result.values };
+  }
+  try {
     await (await actionLedger(session, formData)).ledger.updateRepaymentDestination(destinationId, result.value);
   } catch (error) {
     return errorState(error, result.values);
@@ -132,6 +142,7 @@ export async function updateRepaymentDestinationAction(
 export async function deleteRepaymentDestinationAction(destinationId: string, formData: FormData) {
   const session = await requireSession();
   try {
+    await assertOrganizationLedgerWritableFromForm(formData);
     await (await actionLedger(session, formData)).ledger.deleteRepaymentDestination(destinationId);
   } catch {
     redirect(`${ledgerPath(formData, "/settings")}?error=1#repays-to`);
