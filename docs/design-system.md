@@ -83,12 +83,29 @@ debtor actions, or another capability that is not implemented.
 The authenticated working canvas is currently:
 
 ```css
-width: min(calc(100% - 2rem), 76rem);
+--authenticated-canvas-gutter: clamp(2rem, 5vw, 5rem);
+--authenticated-canvas-max-width: 118rem;
+width: min(
+  calc(100% - var(--authenticated-canvas-gutter)),
+  var(--authenticated-canvas-max-width)
+);
 ```
 
-On small screens it uses `calc(100% - 1.5rem)` with the same `76rem` ceiling.
-Treat approximately `76rem` as the current maximum, not as permission to add a
-new container system.
+The gutter is about `1rem` per side on mobile and scales to about `2.5rem`
+per side on desktop. The normal authenticated header uses the same canvas so
+its navigation and utility actions share the page alignment.
+
+The detached header remains an intentional compact surface, capped at `72rem`;
+it is not widened automatically when the attached application canvas widens.
+
+This is a current implementation contract, not a permanent maximum. Do not
+introduce multiple arbitrary page-width systems or compensate for the canvas
+with page-specific width hacks.
+
+The wide application canvas is not a requirement that every child stretch
+indefinitely. Prose, forms, settings editors, repayment editors, receipt and
+payment previews, dialogs, destructive explanations, and Chat conversation
+content keep intentional local reading or interaction bounds.
 
 Use strict shared grid lines. Public/editorial desktop layouts use the
 existing 12-column grid; the mobile grid reduces to four columns. Authenticated

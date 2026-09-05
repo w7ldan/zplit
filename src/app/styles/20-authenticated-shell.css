@@ -880,21 +880,23 @@
 
 /* Authenticated product layer: compact ledger utility with restrained motion. */
 .app-shell {
+  --authenticated-canvas-gutter: clamp(2rem, 5vw, 5rem);
+  --authenticated-canvas-max-width: 118rem;
   --authenticated-header-height: 4.5rem;
   min-height: 100svh;
   background: var(--paper);
 }
 
-.app-shell .editorial-shell {
-  width: min(calc(100% - 2rem), 76rem);
-  max-width: 76rem;
+.app-shell .editorial-shell,
+.app-shell .header-shell__panel {
+  width: min(calc(100% - var(--authenticated-canvas-gutter)), var(--authenticated-canvas-max-width));
+  max-width: var(--authenticated-canvas-max-width);
 }
 
-.app-shell .header-shell__panel,
 .app-shell .header-shell__panel--detached {
   display: flex;
-  width: min(calc(100% - 2rem), 76rem);
-  max-width: 76rem;
+  width: min(calc(100% - 2rem), 72rem);
+  max-width: 72rem;
 }
 
 .app-shell__header {
@@ -1367,7 +1369,7 @@ body.global-search-open {
 .organization-grid,
 .group-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
   gap: 0.75rem;
 }
 
@@ -2037,13 +2039,6 @@ body.global-search-open {
 }
 
 @media (max-width: 767px) {
-  .app-shell .editorial-shell,
-  .app-shell .header-shell__panel,
-  .app-shell .header-shell__panel--detached {
-    width: min(calc(100% - 1.5rem), 76rem);
-    max-width: 76rem;
-  }
-
   .app-page__columns {
     grid-template-columns: 1fr;
     gap: 1.5rem;
