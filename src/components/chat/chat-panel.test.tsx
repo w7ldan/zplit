@@ -97,6 +97,35 @@ describe("ChatPanel", () => {
     expect(chatStyles).toMatch(/\.chat-message--own \.chat-message__content \{[^}]*background: var\(--pastel-blue\);/);
   });
 
+  it("reserves the avatar rail for grouped other-user messages without rendering another avatar", () => {
+    const chat = {
+      ...organizationChat,
+      latestVisibleMessageId: "message-f",
+      messages: [
+        { ...organizationChat.messages[2], id: "message-e", body: "First from Bob", grouped: false },
+        { ...organizationChat.messages[3], id: "message-f", body: "Second from Bob", grouped: true },
+      ],
+    };
+    const { container } = render(<ChatPanel chat={chat} title="General" olderHref={null} />);
+    const otherMessages = container.querySelectorAll(".chat-message--other");
+
+    expect(otherMessages).toHaveLength(2);
+    expect(otherMessages[0]?.querySelector(".user-avatar")).toBeInTheDocument();
+    expect(otherMessages[1]?.querySelector(".user-avatar")).not.toBeInTheDocument();
+    expect(chatStyles).toMatch(/\.chat-message--other \{[^}]*grid-template-columns: 2rem minmax\(0, 1fr\);/);
+  });
+
+  it("keeps the Chat heading and empty state aligned with conversation spacing", () => {
+    const emptyChat = { ...organizationChat, messages: [], latestVisibleMessageId: null };
+    const { container } = render(<ChatPanel chat={emptyChat} title="General" olderHref={null} />);
+
+    expect(container.querySelector(".chat-page .app-page__header")).toBeInTheDocument();
+    expect(screen.getByText("No messages yet. Start the conversation.")).toBeInTheDocument();
+    expect(chatStyles).toMatch(/\.chat-page \.app-page__header \{[^}]*width: min\(100%, 72rem\);[^}]*justify-self: center;/);
+    expect(chatStyles).toMatch(/\.chat__empty \{[^}]*padding: 1\.25rem clamp\(1rem, 3vw, 1\.75rem\) 1\.5rem;/);
+    expect(chatStyles).toMatch(/\.chat__empty \{[^}]*padding: 0\.9rem 0\.75rem 1\.1rem;/);
+  });
+
   it("keeps the composer outside a bounded, scrollable history region", () => {
     const { container } = render(<ChatPanel chat={organizationChat} title="General" olderHref="/older" />);
     const history = container.querySelector<HTMLOListElement>(".chat__history");

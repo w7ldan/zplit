@@ -185,6 +185,11 @@
   margin-top: 0;
 }
 
+.chat-page .app-page__header {
+  width: min(100%, 72rem);
+  justify-self: center;
+}
+
 .chat {
   position: relative;
   display: grid;
@@ -246,6 +251,10 @@
   color: var(--muted-ink);
 }
 
+.chat__empty {
+  padding: 1.25rem clamp(1rem, 3vw, 1.75rem) 1.5rem;
+}
+
 .chat__older {
   justify-self: start;
   margin: 1rem clamp(1rem, 3vw, 1.75rem) 0;
@@ -263,6 +272,7 @@
 }
 
 .chat-message--other {
+  grid-template-columns: 2rem minmax(0, 1fr);
   justify-self: start;
 }
 
@@ -460,6 +470,10 @@
   }
 
   .chat__history {
+    padding: 0.9rem 0.75rem 1.1rem;
+  }
+
+  .chat__empty {
     padding: 0.9rem 0.75rem 1.1rem;
   }
 
