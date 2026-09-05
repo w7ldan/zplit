@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -12,10 +13,6 @@ if (!require.cache[serverOnlyPath]) require.cache[serverOnlyPath] = { exports: {
 const { createGroupExpense, confirmGroupExpenseAsPayer, rejectGroupExpenseAsPayer, voidGroupExpenseAsPayer, createGroupAccountingRepository } = await import("../src/server/group-accounting");
 const { createExternalParticipant, createGroup, removeGroupMember } = await import("../src/server/groups");
 const { acceptGroupJoinRequest, createGroupParticipantLinkRequest } = await import("../src/server/group-join-requests");
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function errorCode(error: unknown) {
   return error instanceof Error && "code" in error ? (error as { code?: unknown }).code : error instanceof Error && error.cause && typeof error.cause === "object" && "code" in error.cause ? (error.cause as { code?: unknown }).code : undefined;
@@ -177,7 +174,6 @@ async function countRaceRows(pool: Pool, groupId: string, memberId: string, part
 }
 
 export async function runGroupAccountingSmoke() {
-  if (process.env.DB_NAME !== "zplit_test") throw new Error("Group accounting smoke requires DB_NAME=zplit_test");
   const config = readDatabaseConfig("zplit_test");
   const pool = new Pool({ ...config, max: 8, connectionTimeoutMillis: 5_000 });
   const database = drizzle(pool, { schema });

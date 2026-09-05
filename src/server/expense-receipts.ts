@@ -6,6 +6,7 @@ import {
   MAX_RECEIPTS_PER_EXPENSE,
   type ValidatedReceiptFile,
 } from "../domain/receipt-file";
+import { databaseCode } from "./database-error-code";
 import { getPersonalLedgerScopeId } from "./ledger-scopes";
 
 export const RECEIPT_COUNT_LIMIT_MESSAGE = "An expense can have up to 5 receipts.";
@@ -68,10 +69,6 @@ function metadataSelection() {
     byteSize: expenseReceipts.byteSize,
     createdAt: expenseReceipts.createdAt,
   };
-}
-
-function databaseCode(error: unknown) {
-  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
 }
 
 type LedgerOwner = string | { ledgerScopeId: string };
@@ -175,5 +172,3 @@ export async function deleteExpenseReceipt(database: Database, owner: LedgerOwne
     .returning({ id: expenseReceipts.id });
   return deleted.length > 0;
 }
-
-export const listExpenseReceiptsForScope = (database: Database, ledgerScopeId: string, expenseId: string) => listExpenseReceipts(database, { ledgerScopeId }, expenseId);

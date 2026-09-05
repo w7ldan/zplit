@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { PoolClient } from "pg";
@@ -16,10 +17,6 @@ const domainTables = [
   "repayment_allocations",
 ];
 const authTables = ["users", "sessions", "accounts", "verifications"];
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();

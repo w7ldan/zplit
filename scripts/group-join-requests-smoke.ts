@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -11,10 +12,6 @@ const serverOnlyPath = require.resolve("server-only");
 if (!require.cache[serverOnlyPath]) require.cache[serverOnlyPath] = { exports: {} } as never;
 const { acceptGroupJoinRequest, createGroupInvitation, createGroupParticipantLinkRequest, declineGroupJoinRequest, getGroupJoinRequestStatuses, revokeGroupJoinRequest } = await import("../src/server/group-join-requests");
 const { createExternalParticipant, createGroup, deleteExternalParticipant, removeGroupMember } = await import("../src/server/groups");
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function sqlLiteral(value: string) {
   return `'${value.replaceAll("'", "''")}'`;
@@ -45,7 +42,6 @@ async function removeMembershipFailure(pool: Pool) {
 }
 
 export async function runGroupJoinRequestSmoke() {
-  if (process.env.DB_NAME !== "zplit_test") throw new Error("Group request smoke requires DB_NAME=zplit_test");
   const config = readDatabaseConfig("zplit_test");
   const pool = new Pool({ ...config, max: 8, connectionTimeoutMillis: 5_000 });
   const database = drizzle(pool, { schema });

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { databaseCode } from "@/server/database-error-code";
+
 import { and, asc, count, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
@@ -67,12 +69,6 @@ function avatarSelection() {
 
 function mapAvatar(avatar: { mediaType: string; byteSize: number; sha256: string } | null | undefined): GroupAvatarMetadata | null {
   return avatar ? { mediaType: "image/webp", byteSize: avatar.byteSize, sha256: avatar.sha256 } : null;
-}
-
-function databaseCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null) return undefined;
-  if ("code" in error && typeof error.code === "string") return error.code;
-  return "cause" in error ? databaseCode(error.cause) : undefined;
 }
 
 export type GroupAccess = ReturnType<typeof groupAccessForRole> & {
@@ -287,7 +283,7 @@ export async function deleteGroup(database: Database, groupId: string, userId: s
       const deleted = await transaction.delete(groups).where(eq(groups.id, groupId)).returning({ id: groups.id });
       return deleted.length > 0;
     } catch (error) {
-      if (databaseCode(error) === "23503") throw new GroupError("financial_history");
+      if (databaseCode(error, true) === "23503") throw new GroupError("financial_history");
       throw error;
     }
   });

@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -21,10 +22,6 @@ type Fixture = {
   creatorParticipantId: string;
   expenseId: string;
 };
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function file(seed: string) {
   return { originalFilename: `${seed}.png`, mediaType: "image/png" as const, byteSize: 4, sha256: seed.repeat(64), content: Uint8Array.from([1, 2, 3, 4]) };
@@ -227,7 +224,6 @@ async function runDeleteRaces(pool: Pool, database: Database, ownerId: string, c
 }
 
 export async function runGroupReceiptSmoke() {
-  if (process.env.DB_NAME !== "zplit_test") throw new Error("Group receipt smoke requires DB_NAME=zplit_test");
   const config = readDatabaseConfig("zplit_test");
   const pool = new Pool({ ...config, max: 8, connectionTimeoutMillis: 5_000 });
   const database = drizzle(pool, { schema });

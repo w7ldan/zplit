@@ -12,7 +12,7 @@ import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { formatRupiah } from "@/domain/rupiah";
-import { listExpenseReceiptsForScope } from "@/server/expense-receipts";
+import { listExpenseReceipts } from "@/server/expense-receipts";
 import {
   deleteExpenseAction,
   replaceExpenseSharesAction,
@@ -55,9 +55,9 @@ export default async function OrganizationExpensePage({
     access.ledger.searchFriends({ activeOnly: true }),
     access.ledger.listExpenseShares(expense.id),
     access.ledger.listExpenseCharges(expense.id),
-    listExpenseReceiptsForScope(
+    listExpenseReceipts(
       getDatabase(),
-      access.ledgerScopeId,
+      { ledgerScopeId: access.ledgerScopeId },
       expense.id,
     ),
     access.ledger.getPreviousExpenseSplit(expense.id),

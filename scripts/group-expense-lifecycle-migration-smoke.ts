@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { readFileSync, readdirSync } from "node:fs";
@@ -40,10 +41,6 @@ type LifecycleEvent = {
   to_state: string;
   created_at: Date;
 };
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function errorCode(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
@@ -168,7 +165,6 @@ async function cleanup(client: PoolClient, fixture: Fixture) {
 }
 
 export async function runGroupExpenseLifecycleMigrationSmoke() {
-  if (process.env.DB_NAME !== "zplit_test") throw new Error("Group expense lifecycle migration smoke requires DB_NAME=zplit_test");
   const config = readDatabaseConfig("zplit_test");
   const pool = new Pool({ ...config, max: 8, connectionTimeoutMillis: 5_000 });
   let client: PoolClient | undefined;

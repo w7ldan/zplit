@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { Database } from "@/db/client";
-import { groupExpenseLifecycleEvents, groupMemberships, groupObligations, groupParticipants } from "@/db/schema";
+import { groupExpenseLifecycleEvents, groupMemberships, groupObligations, groupParticipants, groupSettlementApplications, groupOffsetApplications } from "@/db/schema";
 
 const mocks = vi.hoisted(() => {
   class FakeGroupError extends Error {
@@ -23,6 +23,7 @@ vi.mock("@/server/realtime", () => ({ publishRealtimeEvent: mocks.publishRealtim
 vi.mock("@/db/client", () => ({ getDatabase: vi.fn() }));
 
 import { createGroupAccountingRepository } from "./group-accounting";
+import { loadAvailableGroupObligations } from "./group-obligation-applications";
 
 const groupId = "11111111-1111-4111-8111-111111111111";
 const expenseId = "22222222-2222-4222-8222-222222222222";
@@ -227,5 +228,53 @@ describe("Group expense lifecycle server operations", () => {
 
     mocks.requireGroupAccess.mockRejectedValueOnce(new mocks.FakeGroupError("not_member"));
     await expect(createGroupAccountingRepository(db.database, groupId).getObligationApplications(obligation.id, "former-user")).rejects.toMatchObject({ code: "not_member" });
+  });
+
+  it("projects registered, former and local eligibility without changing participant identity", async () => {
+    const rows = [
+      { id: payerParticipantId, userId: actorUserId, externalName: "Old name", label: null, userName: "Alice", membershipUserId: actorUserId },
+      { id: debtorParticipantId, userId: "former-user", externalName: "Former", label: "Office", userName: null, membershipUserId: null },
+      { id: creatorParticipantId, userId: null, externalName: "Local", label: null, userName: null, membershipUserId: null },
+    ];
+    const db = databaseFor([rows], [], []);
+    const result = await createGroupAccountingRepository(db.database, groupId).getParticipantEligibility(actorUserId);
+    expect(result).toEqual([
+      { id: payerParticipantId, userId: actorUserId, displayName: "Alice", label: null, status: "active", canCreate: true, canPay: true, canParticipate: true, canBeCreditor: true },
+      { id: debtorParticipantId, userId: "former-user", displayName: "Former", label: "Office", status: "former", canCreate: false, canPay: false, canParticipate: false, canBeCreditor: false },
+      { id: creatorParticipantId, userId: null, displayName: "Local", label: null, status: "external", canCreate: false, canPay: false, canParticipate: true, canBeCreditor: false },
+    ]);
+    expect(db.queries).toHaveLength(1);
+    expect(db.queries[0]?.orderBy).toHaveLength(3);
+    expect(db.inserted).toEqual([]);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("reads payment and offset capacity under the original ordered application locks", async () => {
+    const obligationId = "obligation-a";
+    const authoritativeAt = new Date("2026-08-01T00:00:00Z");
+    const db = databaseFor([
+      [{ id: obligationId, authoritativeAt, originalAmount: 100, debtorParticipantId, creditorParticipantId: payerParticipantId }],
+      [{ obligationId, amount: 20 }, { obligationId, amount: 10 }],
+      [{ obligationId, amount: 15 }],
+      [],
+      [],
+    ], [], []);
+    const result = await loadAvailableGroupObligations(db.database, groupId, [debtorParticipantId, payerParticipantId], authoritativeAt, true);
+    expect(result).toEqual([{
+      id: obligationId,
+      authoritativeAt,
+      originalAmount: 100,
+      debtorParticipantId,
+      creditorParticipantId: payerParticipantId,
+      paymentAppliedAmount: 30,
+      offsetAppliedAmount: 15,
+    }]);
+    expect(db.queries.filter(({ lock }) => lock === "update").map(({ from, orderBy }) => ({ from, orderBy }))).toEqual([
+      { from: groupObligations, orderBy: [expect.anything()] },
+      { from: groupSettlementApplications, orderBy: [expect.anything(), expect.anything()] },
+      { from: groupOffsetApplications, orderBy: [expect.anything(), expect.anything()] },
+    ]);
+    expect(db.inserted).toEqual([]);
+    expect(db.update).not.toHaveBeenCalled();
   });
 });

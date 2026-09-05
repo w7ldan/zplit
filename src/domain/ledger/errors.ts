@@ -147,10 +147,3 @@ export class LedgerDeletionConfirmationRequiredError extends LedgerRepositoryErr
     this.name = "LedgerDeletionConfirmationRequiredError";
   }
 }
-
-/** @deprecated Use LedgerDeletionConfirmationRequiredError. */
-export class OutingDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}
-/** @deprecated Use LedgerDeletionConfirmationRequiredError. */
-export class ExpenseDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}
-/** @deprecated Use LedgerDeletionConfirmationRequiredError. */
-export class RepaymentDeletionInvariantError extends LedgerDeletionConfirmationRequiredError {}

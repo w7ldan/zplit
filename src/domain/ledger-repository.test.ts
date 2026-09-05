@@ -5,14 +5,11 @@ import { debtorShareReceipts, expenseReceipts, expenseShares, expenses, outings,
 import {
   createLedgerRepository,
   deletionImpactRevision,
-  ExpenseDeletionInvariantError,
   LedgerDeletionConfirmationRequiredError,
   LedgerNotFoundError,
   LedgerRepositoryError,
-  OutingDeletionInvariantError,
   RepaymentAllocationAmountInvariantError,
   RepaymentAllocationShareInvariantError,
-  RepaymentDeletionInvariantError,
 } from "./ledger-repository";
 import { LedgerIntegrityError } from "./ledger-summary";
 
@@ -1802,9 +1799,9 @@ describe("ledger repository", () => {
     };
     const dependentDb = { transaction: async (callback: (tx: typeof dependent) => Promise<unknown>) => callback(dependent) } as unknown as Database;
     const dependentRepository = createLedgerRepository(dependentDb, owner);
-    await expect(dependentRepository.deleteOuting("outing-a", { cascadeDependents: false })).rejects.toBeInstanceOf(OutingDeletionInvariantError);
-    await expect(dependentRepository.deleteExpense("expense-a", { cascadeDependents: false })).rejects.toBeInstanceOf(ExpenseDeletionInvariantError);
-    await expect(dependentRepository.deleteRepayment("repayment-a", { cascadeDependents: false })).rejects.toBeInstanceOf(RepaymentDeletionInvariantError);
+    await expect(dependentRepository.deleteOuting("outing-a", { cascadeDependents: false })).rejects.toBeInstanceOf(LedgerDeletionConfirmationRequiredError);
+    await expect(dependentRepository.deleteExpense("expense-a", { cascadeDependents: false })).rejects.toBeInstanceOf(LedgerDeletionConfirmationRequiredError);
+    await expect(dependentRepository.deleteRepayment("repayment-a", { cascadeDependents: false })).rejects.toBeInstanceOf(LedgerDeletionConfirmationRequiredError);
     expect(lockLog).toContain("share:update");
     expect(lockLog).toContain("allocation:update");
   });

@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import type { PoolClient } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -50,10 +51,6 @@ export function validateScaleCommandEnvironment(command: ScaleCommand, environme
     throw new Error(`ZPLIT_SCALE_TEST_CONFIRM must be ${SCALE_FIXTURE_CONFIRMATION}`);
   }
   return { ownerEmail: requiredEnvironment(environment, "SCALE_TEST_OWNER_EMAIL") };
-}
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
 }
 
 function count(value: string | number) {

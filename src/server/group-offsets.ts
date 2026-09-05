@@ -1,30 +1,41 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
+import {
+  loadAvailableGroupObligations,
+  loadOffsetApplications,
+  writeOffsetApplications,
+  splitObligations,
+  resolveOffsetApplications,
+  type GroupOffsetApplicationPresentation,
+} from "@/server/group-obligation-applications";
+
+import {
+  fallbackParticipant,
+  loadParticipantMap,
+  listActiveGroupUserIds,
+  type GroupParticipantPresentation,
+  listActiveRegisteredGroupParticipants,
+} from "@/server/group-participant-presentation";
+
+import { databaseCode } from "@/server/database-error-code";
+
+import { and, count, desc, eq, or } from "drizzle-orm";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase, type Database } from "@/db/client";
 import {
   groupMemberships,
-  groupObligations,
-  groupOffsetApplications,
   groupOffsetSettlements,
-  groupExpenses,
-  groupSettlementApplications,
-  groupParticipants,
   groups,
   notifications,
   users,
 } from "@/db/schema";
 import {
-  allocateGroupOffset,
   GROUP_OFFSET_CHANGED_EVENT,
   GroupOffsetAllocationError,
   normalizeGroupOffsetInput,
   offsettableAmount,
-  type GroupOffsetAllocationObligation,
   type GroupOffsetSettlementState,
 } from "@/domain/group-offsets";
-import type { GroupExpenseState } from "@/domain/group-accounting";
 import type { GroupOffsetCounterpartyOption } from "@/domain/group-contracts";
 import { NOTIFICATION_TYPES } from "@/domain/notifications";
 import {
@@ -69,37 +80,10 @@ export type GroupOffsetPresentation = GroupOffsetSettlementRecord & {
   initiator: GroupParticipantPresentation;
   counterparty: GroupParticipantPresentation;
 };
-export type GroupOffsetApplicationPresentation = {
-  id: string;
-  offsetSettlementId: string;
-  obligationId: string;
-  appliedAmount: number;
-  createdAt: Date;
-  sourceExpenseId: string;
-  sourceExpenseDescription: string;
-  sourceExpenseOccurredAt: Date;
-  sourceExpenseState: GroupExpenseState;
-  obligationOriginalAmount: number;
-  obligationVoidedAt: Date | null;
-  debtor: GroupParticipantPresentation;
-  creditor: GroupParticipantPresentation;
-};
+
 export type GroupOffsetDetail = GroupOffsetPresentation & {
   applications: GroupOffsetApplicationPresentation[];
 };
-export type GroupParticipantPresentation = {
-  id: string;
-  userId: string | null;
-  displayName: string;
-  label: string | null;
-  status: "active" | "former" | "external";
-};
-
-function databaseCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null) return undefined;
-  if ("code" in error && typeof error.code === "string") return error.code;
-  return "cause" in error ? databaseCode(error.cause) : undefined;
-}
 
 function assertGroupId(groupId: string) {
   if (!normalizeUuid(groupId)) throw new GroupOffsetError("invalid_id");
@@ -121,44 +105,6 @@ function mapGroupError(error: unknown): never {
     if (error.code === "forbidden") throw new GroupOffsetError("forbidden");
   }
   throw error;
-}
-
-function fallbackParticipant(id: string): GroupParticipantPresentation {
-  return { id, userId: null, displayName: "Participant", label: null, status: "former" };
-}
-
-async function loadParticipantMap(database: Database, groupId: string, participantIds: string[]) {
-  const ids = [...new Set(participantIds)];
-  if (ids.length === 0) return new Map<string, GroupParticipantPresentation>();
-  const rows = await database
-    .select({
-      id: groupParticipants.id,
-      userId: groupParticipants.userId,
-      externalName: groupParticipants.displayName,
-      label: groupParticipants.label,
-      userName: users.name,
-      membershipUserId: groupMemberships.userId,
-    })
-    .from(groupParticipants)
-    .leftJoin(users, eq(users.id, groupParticipants.userId))
-    .leftJoin(
-      groupMemberships,
-      and(
-        eq(groupMemberships.groupId, groupParticipants.groupId),
-        eq(groupMemberships.participantId, groupParticipants.id),
-      ),
-    )
-    .where(and(eq(groupParticipants.groupId, groupId), inArray(groupParticipants.id, ids)));
-  return new Map(rows.map((row) => {
-    const status = row.userId === null ? "external" : row.membershipUserId ? "active" : "former";
-    return [row.id, {
-      id: row.id,
-      userId: row.userId,
-      displayName: row.userName ?? row.externalName ?? "Participant",
-      label: row.label,
-      status,
-    } satisfies GroupParticipantPresentation];
-  }));
 }
 
 function offsetColumns() {
@@ -185,130 +131,10 @@ function offsetPresentation(
   };
 }
 
-type OffsettableObligation = GroupOffsetAllocationObligation & {
-  debtorParticipantId: string;
-  creditorParticipantId: string;
-};
-
-export async function loadOffsettableObligations(
-  database: Database,
-  groupId: string,
-  participantIds: [string, string],
-  at: Date,
-  lockRows: boolean,
-): Promise<OffsettableObligation[]> {
-  const [firstParticipantId, secondParticipantId] = participantIds;
-  const query = database
-    .select({
-      id: groupObligations.id,
-      authoritativeAt: groupObligations.createdAt,
-      originalAmount: groupObligations.originalAmount,
-      debtorParticipantId: groupObligations.debtorParticipantId,
-      creditorParticipantId: groupObligations.creditorParticipantId,
-    })
-    .from(groupObligations)
-    .where(and(
-      eq(groupObligations.groupId, groupId),
-      or(
-        and(eq(groupObligations.debtorParticipantId, firstParticipantId), eq(groupObligations.creditorParticipantId, secondParticipantId)),
-        and(eq(groupObligations.debtorParticipantId, secondParticipantId), eq(groupObligations.creditorParticipantId, firstParticipantId)),
-      ),
-      lte(groupObligations.createdAt, at),
-      or(isNull(groupObligations.voidedAt), gt(groupObligations.voidedAt, at)),
-    ))
-    .orderBy(asc(groupObligations.id));
-  const obligations = await (lockRows ? query.for("update") : query);
-  const obligationIds = obligations.map(({ id }) => id);
-  if (obligationIds.length === 0) return [];
-  const paymentApplications = await database
-    .select({ obligationId: groupSettlementApplications.obligationId, amount: groupSettlementApplications.appliedAmount })
-    .from(groupSettlementApplications)
-    .where(and(eq(groupSettlementApplications.groupId, groupId), inArray(groupSettlementApplications.obligationId, obligationIds)))
-    .orderBy(asc(groupSettlementApplications.obligationId), asc(groupSettlementApplications.id));
-  const offsetApplications = await database
-    .select({ obligationId: groupOffsetApplications.obligationId, amount: groupOffsetApplications.appliedAmount })
-    .from(groupOffsetApplications)
-    .where(and(eq(groupOffsetApplications.groupId, groupId), inArray(groupOffsetApplications.obligationId, obligationIds)))
-    .orderBy(asc(groupOffsetApplications.obligationId), asc(groupOffsetApplications.id));
-  if (lockRows) {
-    await database
-      .select({ id: groupSettlementApplications.id })
-      .from(groupSettlementApplications)
-      .where(and(eq(groupSettlementApplications.groupId, groupId), inArray(groupSettlementApplications.obligationId, obligationIds)))
-      .orderBy(asc(groupSettlementApplications.obligationId), asc(groupSettlementApplications.id))
-      .for("update");
-    await database
-      .select({ id: groupOffsetApplications.id })
-      .from(groupOffsetApplications)
-      .where(and(eq(groupOffsetApplications.groupId, groupId), inArray(groupOffsetApplications.obligationId, obligationIds)))
-      .orderBy(asc(groupOffsetApplications.obligationId), asc(groupOffsetApplications.id))
-      .for("update");
-  }
-  const paymentsByObligation = new Map<string, number>();
-  for (const application of paymentApplications) paymentsByObligation.set(application.obligationId, (paymentsByObligation.get(application.obligationId) ?? 0) + application.amount);
-  const offsetsByObligation = new Map<string, number>();
-  for (const application of offsetApplications) offsetsByObligation.set(application.obligationId, (offsetsByObligation.get(application.obligationId) ?? 0) + application.amount);
-  return obligations.map((obligation) => ({
-    ...obligation,
-    paymentAppliedAmount: paymentsByObligation.get(obligation.id) ?? 0,
-    offsetAppliedAmount: offsetsByObligation.get(obligation.id) ?? 0,
-  }));
-}
-
-function splitObligations(obligations: OffsettableObligation[], initiatorParticipantId: string, counterpartyParticipantId: string) {
-  return {
-    initiator: obligations.filter((obligation) => obligation.debtorParticipantId === initiatorParticipantId && obligation.creditorParticipantId === counterpartyParticipantId),
-    counterparty: obligations.filter((obligation) => obligation.debtorParticipantId === counterpartyParticipantId && obligation.creditorParticipantId === initiatorParticipantId),
-  };
-}
-
 async function readOffsetAmount(database: Database, groupId: string, initiatorParticipantId: string, counterpartyParticipantId: string, at = new Date()) {
-  const obligations = await loadOffsettableObligations(database, groupId, [initiatorParticipantId, counterpartyParticipantId], at, false);
+  const obligations = await loadAvailableGroupObligations(database, groupId, [initiatorParticipantId, counterpartyParticipantId], at, false);
   const split = splitObligations(obligations, initiatorParticipantId, counterpartyParticipantId);
   return Math.min(offsettableAmount(split.initiator), offsettableAmount(split.counterparty));
-}
-
-async function loadOffsetApplications(database: Database, groupId: string, offsetId: string): Promise<GroupOffsetApplicationPresentation[]> {
-  const rows = await database
-    .select({
-      id: groupOffsetApplications.id,
-      offsetSettlementId: groupOffsetApplications.offsetSettlementId,
-      obligationId: groupOffsetApplications.obligationId,
-      appliedAmount: groupOffsetApplications.appliedAmount,
-      createdAt: groupOffsetApplications.createdAt,
-      sourceExpenseId: groupObligations.sourceExpenseId,
-      sourceExpenseDescription: groupExpenses.description,
-      sourceExpenseOccurredAt: groupExpenses.occurredAt,
-      sourceExpenseState: groupExpenses.state,
-      obligationOriginalAmount: groupObligations.originalAmount,
-      obligationVoidedAt: groupObligations.voidedAt,
-      debtorParticipantId: groupObligations.debtorParticipantId,
-      creditorParticipantId: groupObligations.creditorParticipantId,
-    })
-    .from(groupOffsetApplications)
-    .innerJoin(
-      groupObligations,
-      and(
-        eq(groupObligations.groupId, groupOffsetApplications.groupId),
-        eq(groupObligations.id, groupOffsetApplications.obligationId),
-      ),
-    )
-    .innerJoin(
-      groupExpenses,
-      and(
-        eq(groupExpenses.groupId, groupObligations.groupId),
-        eq(groupExpenses.id, groupObligations.sourceExpenseId),
-      ),
-    )
-    .where(and(eq(groupOffsetApplications.groupId, groupId), eq(groupOffsetApplications.offsetSettlementId, offsetId)))
-    .orderBy(asc(groupObligations.createdAt), asc(groupObligations.id), asc(groupOffsetApplications.id));
-  const participants = await loadParticipantMap(database, groupId, rows.flatMap((row) => [row.debtorParticipantId, row.creditorParticipantId]));
-  return rows.map(({ debtorParticipantId, creditorParticipantId, ...row }) => ({
-    ...row,
-    sourceExpenseState: row.sourceExpenseState as GroupExpenseState,
-    debtor: participants.get(debtorParticipantId) ?? fallbackParticipant(debtorParticipantId),
-    creditor: participants.get(creditorParticipantId) ?? fallbackParticipant(creditorParticipantId),
-  }));
 }
 
 async function loadOffset(database: Database, groupId: string, offsetId: string): Promise<GroupOffsetDetail> {
@@ -323,11 +149,6 @@ async function loadOffset(database: Database, groupId: string, offsetId: string)
     loadOffsetApplications(database, groupId, offsetId),
   ]);
   return { ...offsetPresentation(offset, participants), applications };
-}
-
-async function activeGroupUserIds(database: Database, groupId: string) {
-  const rows = await database.select({ userId: groupMemberships.userId }).from(groupMemberships).where(eq(groupMemberships.groupId, groupId));
-  return rows.map(({ userId }) => userId);
 }
 
 function publishGroupOffsetFreshness(userIds: string[], groupId: string, offsetId: string, state: GroupOffsetSettlementState) {
@@ -380,7 +201,7 @@ async function createOffset(database: Database, groupId: string, actorUserId: st
         .limit(1);
       if (pending) throw new GroupOffsetError("pending_exists");
       const now = new Date();
-      const obligations = await loadOffsettableObligations(transactionalDatabase, groupId, [initiator.id, counterparty.id], now, true);
+      const obligations = await loadAvailableGroupObligations(transactionalDatabase, groupId, [initiator.id, counterparty.id], now, true);
       const split = splitObligations(obligations, initiator.id, counterparty.id);
       const amount = Math.min(offsettableAmount(split.initiator), offsettableAmount(split.counterparty));
       if (amount < 1) throw new GroupOffsetError("no_capacity");
@@ -414,7 +235,7 @@ async function createOffset(database: Database, groupId: string, actorUserId: st
       return {
         offsetId: offset.id,
         recipientUserId: counterparty.userId,
-        userIds: await activeGroupUserIds(transactionalDatabase, groupId),
+        userIds: await listActiveGroupUserIds(transactionalDatabase, groupId),
       };
     });
     const created = await loadOffset(database, groupId, result.offsetId);
@@ -424,8 +245,8 @@ async function createOffset(database: Database, groupId: string, actorUserId: st
   } catch (error) {
     if (error instanceof GroupError) mapGroupError(error);
     if (error instanceof GroupOffsetError) throw error;
-    if (databaseCode(error) === "23505") throw new GroupOffsetError("pending_exists");
-    if (databaseCode(error) === "23514" || databaseCode(error) === "P0001") throw new GroupOffsetError("financial_integrity");
+    if (databaseCode(error, true) === "23505") throw new GroupOffsetError("pending_exists");
+    if (databaseCode(error, true) === "23514" || databaseCode(error, true) === "P0001") throw new GroupOffsetError("financial_integrity");
     throw error;
   }
 }
@@ -452,16 +273,12 @@ async function confirmOffset(database: Database, groupId: string, offsetId: stri
       if (!isActiveGroupParticipant(counterparty, locked.memberships.get(counterparty.id))) throw new GroupOffsetError("counterparty_not_active");
       if (!initiator) throw new GroupOffsetError("initiator_not_found");
       if (!isActiveGroupParticipant(initiator, locked.memberships.get(initiator.id))) throw new GroupOffsetError("initiator_not_active");
-      if (offset.state === "confirmed") return { changed: false, notificationUserId: null, userIds: await activeGroupUserIds(transactionalDatabase, groupId) };
+      if (offset.state === "confirmed") return { changed: false, notificationUserId: null, userIds: await listActiveGroupUserIds(transactionalDatabase, groupId) };
       if (offset.state !== "pending") throw new GroupOffsetError("invalid_state");
       const now = new Date();
-      const obligations = await loadOffsettableObligations(transactionalDatabase, groupId, [initiator.id, counterparty.id], now, true);
-      const split = splitObligations(obligations, initiator.id, counterparty.id);
-      let initiatorAllocations;
-      let counterpartyAllocations;
+      let allocations;
       try {
-        initiatorAllocations = allocateGroupOffset(offset.amount, split.initiator);
-        counterpartyAllocations = allocateGroupOffset(offset.amount, split.counterparty);
+        allocations = await resolveOffsetApplications(transactionalDatabase, offset, now);
       } catch (error) {
         if (error instanceof GroupOffsetAllocationError) throw new GroupOffsetError("capacity_changed");
         throw error;
@@ -472,13 +289,12 @@ async function confirmOffset(database: Database, groupId: string, offsetId: stri
         .where(and(eq(groupOffsetSettlements.groupId, groupId), eq(groupOffsetSettlements.id, offsetId), eq(groupOffsetSettlements.state, "pending")))
         .returning();
       if (!confirmed) throw new GroupOffsetError("financial_integrity");
-      await transactionalDatabase.insert(groupOffsetApplications).values([...initiatorAllocations, ...counterpartyAllocations].map((allocation) => ({
+      await writeOffsetApplications(transactionalDatabase, {
         groupId,
-        offsetSettlementId: offsetId,
-        obligationId: allocation.obligationId,
-        appliedAmount: allocation.amount,
+        recordId: offsetId,
+        allocations,
         createdAt: now,
-      })));
+      });
       await transactionalDatabase
         .update(notifications)
         .set({ readAt: now })
@@ -495,7 +311,7 @@ async function confirmOffset(database: Database, groupId: string, offsetId: stri
           dedupeKey: `group-offset-outcome:${offsetId}:confirmed`,
         });
       }
-      return { changed: true, notificationUserId: initiator?.userId ?? null, userIds: await activeGroupUserIds(transactionalDatabase, groupId) };
+      return { changed: true, notificationUserId: initiator?.userId ?? null, userIds: await listActiveGroupUserIds(transactionalDatabase, groupId) };
     });
     const confirmed = await loadOffset(database, groupId, offsetId);
     if (result.changed) publishGroupOffsetFreshness(result.userIds, groupId, offsetId, confirmed.state);
@@ -505,7 +321,7 @@ async function confirmOffset(database: Database, groupId: string, offsetId: stri
   } catch (error) {
     if (error instanceof GroupOffsetAllocationError) throw new GroupOffsetError("financial_integrity");
     if (error instanceof GroupOffsetError) throw error;
-    if (databaseCode(error) === "23514" || databaseCode(error) === "P0001") throw new GroupOffsetError("financial_integrity");
+    if (databaseCode(error, true) === "23514" || databaseCode(error, true) === "P0001") throw new GroupOffsetError("financial_integrity");
     throw error;
   }
 }
@@ -552,22 +368,12 @@ export function createGroupOffsetRepository(database: Database, groupId: string)
       .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, viewerUserId)))
       .limit(1);
     if (!membership) return [];
-    const rows = await database
-      .select({ id: groupParticipants.id, label: groupParticipants.label, externalName: groupParticipants.displayName, userName: users.name })
-      .from(groupParticipants)
-      .innerJoin(groupMemberships, and(
-        eq(groupMemberships.groupId, groupParticipants.groupId),
-        eq(groupMemberships.participantId, groupParticipants.id),
-        eq(groupMemberships.userId, groupParticipants.userId),
-      ))
-      .leftJoin(users, eq(users.id, groupParticipants.userId))
-      .where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.userId, groupMemberships.userId)))
-      .orderBy(asc(groupParticipants.id));
+    const rows = await listActiveRegisteredGroupParticipants(database, groupId);
     const options = [];
     for (const row of rows) {
       if (row.id === membership.participantId) continue;
       const amount = await readOffsetAmount(database, groupId, membership.participantId, row.id);
-      if (amount > 0) options.push({ id: row.id, displayName: row.userName ?? row.externalName ?? "Group member", label: row.label, offsetAmount: amount });
+      if (amount > 0) options.push({ id: row.id, displayName: row.displayName, label: row.label, offsetAmount: amount });
     }
     return options;
   }
@@ -606,3 +412,9 @@ export async function getGroupOffset(database: Database, groupId: string, offset
 export async function listGroupOffsets(database: Database, groupId: string, viewerUserId: string, requestedPage: unknown = 1) {
   return createGroupOffsetRepository(database, groupId).listOffsets(viewerUserId, requestedPage);
 }
+
+export type { GroupParticipantPresentation } from "@/server/group-participant-presentation";
+
+export type { GroupOffsetApplicationPresentation } from "@/server/group-obligation-applications";
+
+export { loadAvailableGroupObligations as loadOffsettableObligations } from "@/server/group-obligation-applications";

@@ -1,14 +1,25 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import {
+  loadSettlementApplications,
+  resolveSettlementApplications,
+  writeSettlementApplications,
+  type GroupSettlementApplicationPresentation,
+} from "@/server/group-obligation-applications";
+
+import {
+  fallbackParticipant,
+  loadParticipantMap,
+  listActiveGroupUserIds,
+  type GroupParticipantPresentation,
+} from "@/server/group-participant-presentation";
+
+import { databaseCode } from "@/server/database-error-code";
+
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase, type Database } from "@/db/client";
 import {
-  groupMemberships,
-  groupObligations,
-  groupExpenses,
-  groupParticipants,
-  groupSettlementApplications,
   groupSettlementProofs,
   groupSettlements,
   groups,
@@ -16,17 +27,13 @@ import {
   users,
 } from "@/db/schema";
 import {
-  allocateGroupSettlement,
   GroupSettlementAllocationError,
   GROUP_SETTLEMENT_CHANGED_EVENT,
   normalizeGroupSettlementInput,
   type GroupSettlementState,
 } from "@/domain/group-settlements";
-import type { GroupExpenseState } from "@/domain/group-accounting";
 import { NOTIFICATION_TYPES } from "@/domain/notifications";
-import type { GroupParticipantPresentation } from "@/server/group-accounting";
 import { readGroupBalances } from "@/server/group-accounting";
-import { loadOffsettableObligations } from "@/server/group-offsets";
 import {
   clampPage,
   normalizePage,
@@ -75,30 +82,10 @@ export type GroupSettlementPresentation = GroupSettlementRecord & {
   recipient: GroupParticipantPresentation;
   proof: GroupSettlementProofMetadata | null;
 };
-export type GroupSettlementApplicationPresentation = {
-  id: string;
-  settlementId: string;
-  obligationId: string;
-  appliedAmount: number;
-  createdAt: Date;
-  sourceExpenseId: string;
-  sourceExpenseDescription: string;
-  sourceExpenseOccurredAt: Date;
-  sourceExpenseState: GroupExpenseState;
-  obligationOriginalAmount: number;
-  obligationVoidedAt: Date | null;
-  debtor: GroupParticipantPresentation;
-  creditor: GroupParticipantPresentation;
-};
+
 export type GroupSettlementDetail = GroupSettlementPresentation & {
   applications: GroupSettlementApplicationPresentation[];
 };
-
-function databaseCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null) return undefined;
-  if ("code" in error && typeof error.code === "string") return error.code;
-  return "cause" in error ? databaseCode(error.cause) : undefined;
-}
 
 function assertGroupId(groupId: string) {
   if (!normalizeUuid(groupId)) throw new GroupSettlementError("invalid_id");
@@ -136,44 +123,6 @@ function settlementColumns() {
   };
 }
 
-function fallbackParticipant(id: string): GroupParticipantPresentation {
-  return { id, userId: null, displayName: "Participant", label: null, status: "former" };
-}
-
-async function loadParticipantMap(database: Database, groupId: string, participantIds: string[]) {
-  const ids = [...new Set(participantIds)];
-  if (ids.length === 0) return new Map<string, GroupParticipantPresentation>();
-  const rows = await database
-    .select({
-      id: groupParticipants.id,
-      userId: groupParticipants.userId,
-      externalName: groupParticipants.displayName,
-      label: groupParticipants.label,
-      userName: users.name,
-      membershipUserId: groupMemberships.userId,
-    })
-    .from(groupParticipants)
-    .leftJoin(users, eq(users.id, groupParticipants.userId))
-    .leftJoin(
-      groupMemberships,
-      and(
-        eq(groupMemberships.groupId, groupParticipants.groupId),
-        eq(groupMemberships.participantId, groupParticipants.id),
-      ),
-    )
-    .where(and(eq(groupParticipants.groupId, groupId), inArray(groupParticipants.id, ids)));
-  return new Map(rows.map((row) => {
-    const status = row.userId === null ? "external" : row.membershipUserId ? "active" : "former";
-    return [row.id, {
-      id: row.id,
-      userId: row.userId,
-      displayName: row.userName ?? row.externalName ?? "Participant",
-      label: row.label,
-      status,
-    } satisfies GroupParticipantPresentation];
-  }));
-}
-
 function proofSelection() {
   return {
     id: groupSettlementProofs.id,
@@ -195,56 +144,6 @@ function settlementPresentation(
     recipient: participants.get(settlement.recipientParticipantId) ?? fallbackParticipant(settlement.recipientParticipantId),
     proof,
   };
-}
-
-async function loadSettlementApplications(database: Database, groupId: string, settlementId: string): Promise<GroupSettlementApplicationPresentation[]> {
-  const rows = await database
-    .select({
-      id: groupSettlementApplications.id,
-      settlementId: groupSettlementApplications.settlementId,
-      obligationId: groupSettlementApplications.obligationId,
-      appliedAmount: groupSettlementApplications.appliedAmount,
-      createdAt: groupSettlementApplications.createdAt,
-      sourceExpenseId: groupObligations.sourceExpenseId,
-      sourceExpenseDescription: groupExpenses.description,
-      sourceExpenseOccurredAt: groupExpenses.occurredAt,
-      sourceExpenseState: groupExpenses.state,
-      obligationOriginalAmount: groupObligations.originalAmount,
-      obligationVoidedAt: groupObligations.voidedAt,
-      debtorParticipantId: groupObligations.debtorParticipantId,
-      creditorParticipantId: groupObligations.creditorParticipantId,
-    })
-    .from(groupSettlementApplications)
-    .innerJoin(
-      groupObligations,
-      and(
-        eq(groupObligations.groupId, groupSettlementApplications.groupId),
-        eq(groupObligations.id, groupSettlementApplications.obligationId),
-      ),
-    )
-    .innerJoin(
-      groupExpenses,
-      and(
-        eq(groupExpenses.groupId, groupObligations.groupId),
-        eq(groupExpenses.id, groupObligations.sourceExpenseId),
-      ),
-    )
-    .where(and(
-      eq(groupSettlementApplications.groupId, groupId),
-      eq(groupSettlementApplications.settlementId, settlementId),
-    ))
-    .orderBy(asc(groupObligations.createdAt), asc(groupObligations.id), asc(groupSettlementApplications.id));
-  const participants = await loadParticipantMap(
-    database,
-    groupId,
-    rows.flatMap((row) => [row.debtorParticipantId, row.creditorParticipantId]),
-  );
-  return rows.map(({ debtorParticipantId, creditorParticipantId, ...row }) => ({
-    ...row,
-    sourceExpenseState: row.sourceExpenseState as GroupExpenseState,
-    debtor: participants.get(debtorParticipantId) ?? fallbackParticipant(debtorParticipantId),
-    creditor: participants.get(creditorParticipantId) ?? fallbackParticipant(creditorParticipantId),
-  }));
 }
 
 async function loadSettlement(database: Database, groupId: string, settlementId: string): Promise<GroupSettlementDetail> {
@@ -286,14 +185,6 @@ async function loadSettlementPage(database: Database, groupId: string, settlemen
   ));
 }
 
-export async function listActiveGroupUserIds(database: Database, groupId: string) {
-  const rows = await database
-    .select({ userId: groupMemberships.userId })
-    .from(groupMemberships)
-    .where(eq(groupMemberships.groupId, groupId));
-  return rows.map(({ userId }) => userId);
-}
-
 export function publishGroupSettlementFreshness(
   userIds: string[],
   groupId: string,
@@ -314,24 +205,6 @@ export function publishGroupSettlementFreshness(
 
 function balanceAmount(balances: Awaited<ReturnType<typeof readGroupBalances>>, debtorParticipantId: string, creditorParticipantId: string) {
   return balances.find((balance) => balance.debtorParticipantId === debtorParticipantId && balance.creditorParticipantId === creditorParticipantId)?.amount ?? 0;
-}
-
-async function resolveSettlementApplications(database: Database, settlement: GroupSettlementRecord, confirmedAt: Date) {
-  const obligations = await loadOffsettableObligations(
-    database,
-    settlement.groupId,
-    [settlement.senderParticipantId, settlement.recipientParticipantId],
-    confirmedAt,
-    true,
-  );
-  return allocateGroupSettlement(settlement.amount, obligations
-    .filter((obligation) =>
-      obligation.debtorParticipantId === settlement.senderParticipantId &&
-      obligation.creditorParticipantId === settlement.recipientParticipantId)
-    .map((obligation) => ({
-      ...obligation,
-      appliedAmount: obligation.paymentAppliedAmount + obligation.offsetAppliedAmount,
-    })));
 }
 
 async function createSettlement(database: Database, groupId: string, creatorUserId: string, input: unknown) {
@@ -395,7 +268,7 @@ async function createSettlement(database: Database, groupId: string, creatorUser
     return created;
   } catch (error) {
     if (error instanceof GroupError) mapGroupError(error);
-    if (databaseCode(error) === "23514" || databaseCode(error) === "P0001") throw new GroupSettlementError("financial_integrity");
+    if (databaseCode(error, true) === "23514" || databaseCode(error, true) === "P0001") throw new GroupSettlementError("financial_integrity");
     throw error;
   }
 }
@@ -441,13 +314,12 @@ async function confirmSettlement(database: Database, groupId: string, settlement
         .where(and(eq(groupSettlements.groupId, groupId), eq(groupSettlements.id, settlementId), eq(groupSettlements.state, "pending")))
         .returning();
       if (!confirmed) throw new GroupSettlementError("financial_integrity");
-      await transactionalDatabase.insert(groupSettlementApplications).values(allocations.map((allocation) => ({
+      await writeSettlementApplications(transactionalDatabase, {
         groupId,
-        settlementId,
-        obligationId: allocation.obligationId,
-        appliedAmount: allocation.amount,
+        recordId: settlementId,
+        allocations,
         createdAt: now,
-      })));
+      });
       await transactionalDatabase
         .update(notifications)
         .set({ readAt: now })
@@ -473,7 +345,7 @@ async function confirmSettlement(database: Database, groupId: string, settlement
     return confirmed;
   } catch (error) {
     if (error instanceof GroupSettlementAllocationError) throw new GroupSettlementError("financial_integrity");
-    if (databaseCode(error) === "23514" || databaseCode(error) === "P0001") throw new GroupSettlementError("financial_integrity");
+    if (databaseCode(error, true) === "23514" || databaseCode(error, true) === "P0001") throw new GroupSettlementError("financial_integrity");
     throw error;
   }
 }
@@ -552,3 +424,7 @@ export async function listGroupSettlements(database: Database, groupId: string, 
 export async function getGroupSettlementBalances(database: Database, groupId: string, viewerUserId: string) {
   return createGroupSettlementRepository(database, groupId).getBalances(viewerUserId);
 }
+
+export { listActiveGroupUserIds } from "@/server/group-participant-presentation";
+
+export type { GroupSettlementApplicationPresentation } from "@/server/group-obligation-applications";

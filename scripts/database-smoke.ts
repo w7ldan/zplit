@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -37,10 +38,6 @@ const domainTables = [
   "group_expense_receipts",
   "group_expense_lifecycle_events",
 ];
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function postgresCode(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"

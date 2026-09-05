@@ -10,7 +10,7 @@ import {
   LedgerRepositoryError,
 } from "./errors";
 import { deletionImpactRevision } from "./errors";
-import type { DeleteRecordOptions, DeletionImpact, LedgerDeletionConfirmationReason } from "./types";
+import type { DeleteRecordOptions, DeletionImpact } from "./types";
 
 export function notFound(): never {
   throw new LedgerNotFoundError();
@@ -67,16 +67,15 @@ function deletionImpactHasDependents(impact: DeletionImpact) {
 export function assertDeletionConfirmation(
   impact: DeletionImpact,
   options: DeleteRecordOptions,
-  ErrorType: new (impact: DeletionImpact, reason?: LedgerDeletionConfirmationReason) => LedgerDeletionConfirmationRequiredError,
 ) {
   if (options.expectedImpactRevision !== undefined && deletionImpactRevision(impact) !== options.expectedImpactRevision) {
-    throw new ErrorType(impact, "impact_changed");
+    throw new LedgerDeletionConfirmationRequiredError(impact, "impact_changed");
   }
   if (options.expectedImpactRevision !== undefined && options.cascadeDependents && !deletionImpactHasDependents(impact)) {
-    throw new ErrorType(impact, "cascade_confirmation_obsolete");
+    throw new LedgerDeletionConfirmationRequiredError(impact, "cascade_confirmation_obsolete");
   }
   if (deletionImpactHasDependents(impact) && !options.cascadeDependents) {
-    throw new ErrorType(impact);
+    throw new LedgerDeletionConfirmationRequiredError(impact);
   }
 }
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { formatRupiah } from "@/domain/rupiah";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
-import type { GroupExpenseListRecord, GroupParticipantPresentation } from "@/server/group-accounting";
+import type { GroupParticipantPresentation } from "@/server/group-participant-presentation";
+import type { GroupExpenseListRecord } from "@/server/group-accounting";
 
 export function GroupParticipantLabel({ participant }: { participant: GroupParticipantPresentation }) {
   const state = participant.status === "external" ? "External" : participant.status === "former" ? "Former member" : "";

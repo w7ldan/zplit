@@ -1,5 +1,7 @@
 import "server-only";
 
+import { databaseCode } from "@/server/database-error-code";
+
 import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { getDatabase } from "@/db/client";
@@ -34,10 +36,6 @@ function assertUserId(userId: string) {
 
 function assertFriendId(friendId: string) {
   if (!normalizeUuid(friendId)) throw new FriendLinkError("not_found");
-}
-
-function databaseCode(error: unknown) {
-  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
 }
 
 function canonicalPair(left: string, right: string) {

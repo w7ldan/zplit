@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -8,10 +9,6 @@ import { buildLedgerSummary } from "../src/domain/ledger-summary";
 import { createLedgerRepository } from "../src/domain/ledger-repository";
 import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 import { SCALE_FIXTURE_CONFIRMATION, SCALE_FIXTURE_DATABASE, generateScaleFixture } from "./scale-fixture-data";
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function required(name: string) {
   const value = process.env[name]?.trim();

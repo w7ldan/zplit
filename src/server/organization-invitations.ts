@@ -1,5 +1,7 @@
 import "server-only";
 
+import { databaseCode } from "@/server/database-error-code";
+
 import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { getDatabase } from "@/db/client";
@@ -34,10 +36,6 @@ export type OrganizationInvitationState = {
   role: OrganizationInvitationRole;
   expiresAt: Date;
 };
-
-function databaseCode(error: unknown) {
-  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
-}
 
 function assertUserId(userId: string) {
   if (typeof userId !== "string" || !userId.trim()) throw new TypeError("An organization invitation user id is required");

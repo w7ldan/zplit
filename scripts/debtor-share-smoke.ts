@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -16,10 +17,6 @@ const {
   resolveDebtorShareLink,
   revokeDebtorShareLink,
 } = await import("../src/server/debtor-share-links");
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 async function runDebtorShareSmoke() {
   const databaseConfig = readRuntimeDatabaseConfig();

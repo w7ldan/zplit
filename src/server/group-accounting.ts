@@ -1,5 +1,20 @@
 import "server-only";
 
+import {
+  loadObligationApplicationRows,
+  type ObligationApplicationRow,
+} from "@/server/group-obligation-applications";
+
+import {
+  fallbackParticipant,
+  loadParticipantMap,
+  listActiveGroupUserIds,
+  type GroupParticipantPresentation,
+  readGroupParticipantEligibility,
+} from "@/server/group-participant-presentation";
+
+import { databaseCode } from "@/server/database-error-code";
+
 import { and, asc, count, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { getDatabase, type Database } from "@/db/client";
 import {
@@ -10,11 +25,9 @@ import {
   groupObligations,
   groupMemberships,
   groupParticipants,
-  groupSettlementApplications,
   groupSettlements,
   groups,
   notifications,
-  users,
 } from "@/db/schema";
 import { requireSession } from "@/auth/require-session";
 import {
@@ -68,13 +81,6 @@ export type GroupExpenseRecord = typeof groupExpenses.$inferSelect;
 export type GroupExpenseShareRecord = typeof groupExpenseShares.$inferSelect;
 export type GroupObligationRecord = typeof groupObligations.$inferSelect;
 export type GroupExpenseLifecycleEventRecord = typeof groupExpenseLifecycleEvents.$inferSelect;
-export type GroupParticipantPresentation = {
-  id: string;
-  userId: string | null;
-  displayName: string;
-  label: string | null;
-  status: "active" | "former" | "external";
-};
 export type GroupExpenseSharePresentation = GroupExpenseShareRecord & {
   participant: GroupParticipantPresentation;
 };
@@ -116,22 +122,12 @@ export type GroupExpenseDetail = GroupExpenseRecord & {
   receipts: GroupExpenseReceiptMetadata[];
   lifecycleEvents: GroupExpenseLifecycleEventRecord[];
 };
-function databaseCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null) return undefined;
-  if ("code" in error && typeof error.code === "string") return error.code;
-  return "cause" in error ? databaseCode(error.cause) : undefined;
-}
-
 function assertGroupId(groupId: string) {
   if (!normalizeUuid(groupId)) throw new GroupAccountingError("invalid_id");
 }
 
 function assertUserId(userId: string) {
   if (typeof userId !== "string" || !userId.trim()) throw new GroupAccountingError("invalid_user");
-}
-
-function fallbackParticipant(id: string): GroupParticipantPresentation {
-  return { id, userId: null, displayName: "Participant", label: null, status: "former" };
 }
 
 function mapGroupError(error: unknown): never {
@@ -157,73 +153,6 @@ function expenseColumns() {
     createdAt: groupExpenses.createdAt,
     updatedAt: groupExpenses.updatedAt,
   };
-}
-
-async function loadParticipantMap(database: Database, groupId: string, participantIds: string[]) {
-  const uniqueIds = [...new Set(participantIds)];
-  if (!uniqueIds.length) return new Map<string, GroupParticipantPresentation>();
-  const rows = await database
-    .select({
-      id: groupParticipants.id,
-      userId: groupParticipants.userId,
-      externalName: groupParticipants.displayName,
-      label: groupParticipants.label,
-      userName: users.name,
-      membershipUserId: groupMemberships.userId,
-    })
-    .from(groupParticipants)
-    .leftJoin(users, eq(users.id, groupParticipants.userId))
-    .leftJoin(
-      groupMemberships,
-      and(
-        eq(groupMemberships.groupId, groupParticipants.groupId),
-        eq(groupMemberships.participantId, groupParticipants.id),
-      ),
-    )
-    .where(and(eq(groupParticipants.groupId, groupId), inArray(groupParticipants.id, uniqueIds)));
-  return new Map(rows.map((row) => {
-    const status = row.userId === null ? "external" : row.membershipUserId ? "active" : "former";
-    return [row.id, { id: row.id, userId: row.userId, displayName: row.userName ?? row.externalName ?? "Participant", label: row.label, status } satisfies GroupParticipantPresentation];
-  }));
-}
-
-type ObligationApplicationRow = {
-  id: string;
-  obligationId: string;
-  settlementId: string;
-  appliedAmount: number;
-  createdAt: Date;
-  settlementConfirmedAt: Date | null;
-};
-
-async function loadObligationApplicationRows(database: Database, groupId: string, obligationIds: string[]): Promise<ObligationApplicationRow[]> {
-  if (obligationIds.length === 0) return [];
-  return database
-    .select({
-      id: groupSettlementApplications.id,
-      obligationId: groupSettlementApplications.obligationId,
-      settlementId: groupSettlementApplications.settlementId,
-      appliedAmount: groupSettlementApplications.appliedAmount,
-      createdAt: groupSettlementApplications.createdAt,
-      settlementConfirmedAt: groupSettlements.confirmedAt,
-    })
-    .from(groupSettlementApplications)
-    .innerJoin(
-      groupSettlements,
-      and(
-        eq(groupSettlements.groupId, groupSettlementApplications.groupId),
-        eq(groupSettlements.id, groupSettlementApplications.settlementId),
-      ),
-    )
-    .where(and(
-      eq(groupSettlementApplications.groupId, groupId),
-      inArray(groupSettlementApplications.obligationId, obligationIds),
-    ))
-    .orderBy(
-      asc(groupSettlementApplications.obligationId),
-      asc(groupSettlements.confirmedAt),
-      asc(groupSettlementApplications.id),
-    );
 }
 
 function buildObligationApplicationSummary(
@@ -616,11 +545,6 @@ async function rejectPendingExpense(
   return { expense: rejected, changed: true };
 }
 
-async function activeGroupUserIds(database: Database, groupId: string) {
-  const rows = await database.select({ userId: groupMemberships.userId }).from(groupMemberships).where(eq(groupMemberships.groupId, groupId));
-  return rows.map(({ userId }) => userId);
-}
-
 export async function readGroupBalances(database: Database, groupId: string): Promise<GroupBalanceRecord[]> {
   assertGroupId(groupId);
   const obligations = await database
@@ -739,7 +663,7 @@ async function voidConfirmedExpense(database: Database, groupId: string, expense
     fromState: "confirmed",
     toState: "voided",
   });
-  return { expense: voided, userIds: await activeGroupUserIds(database, groupId) };
+  return { expense: voided, userIds: await listActiveGroupUserIds(database, groupId) };
 }
 
 async function createExpense(database: Database, groupId: string, creatorUserId: string, input: unknown) {
@@ -803,7 +727,7 @@ async function createExpense(database: Database, groupId: string, creatorUserId:
       }
       return {
         expense: await loadExpense(transactionalDatabase, groupId, expense.id),
-        userIds: await activeGroupUserIds(transactionalDatabase, groupId),
+        userIds: await listActiveGroupUserIds(transactionalDatabase, groupId),
         notificationUserId:
           creatorParticipantId === values.payerParticipantId ? null : payerUserId,
       };
@@ -813,7 +737,7 @@ async function createExpense(database: Database, groupId: string, creatorUserId:
     return result.expense;
   } catch (error) {
     if (error instanceof GroupError) mapGroupError(error);
-    if (databaseCode(error) === "23514") throw new GroupAccountingError("financial_integrity");
+    if (databaseCode(error, true) === "23514") throw new GroupAccountingError("financial_integrity");
     throw error;
   }
 }
@@ -911,40 +835,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
 
   async function getParticipantEligibility(viewerUserId: string): Promise<GroupParticipantEligibility[]> {
     await authorize(viewerUserId);
-    const rows = await database
-      .select({
-        id: groupParticipants.id,
-        userId: groupParticipants.userId,
-        externalName: groupParticipants.displayName,
-        label: groupParticipants.label,
-        userName: users.name,
-        membershipUserId: groupMemberships.userId,
-      })
-      .from(groupParticipants)
-      .leftJoin(users, eq(users.id, groupParticipants.userId))
-      .leftJoin(
-        groupMemberships,
-        and(
-          eq(groupMemberships.groupId, groupParticipants.groupId),
-          eq(groupMemberships.participantId, groupParticipants.id),
-        ),
-      )
-      .where(eq(groupParticipants.groupId, groupId))
-      .orderBy(asc(groupParticipants.userId), asc(groupParticipants.displayName), asc(groupParticipants.id));
-    return rows.map((row) => {
-      const status = row.userId === null ? "external" : row.membershipUserId ? "active" : "former";
-      return {
-        id: row.id,
-        userId: row.userId,
-        displayName: row.userName ?? row.externalName ?? "Participant",
-        label: row.label,
-        status,
-        canCreate: status === "active",
-        canPay: status === "active",
-        canParticipate: status !== "former",
-        canBeCreditor: status === "active",
-      };
-    });
+    return readGroupParticipantEligibility(database, groupId);
   }
 
   return {
@@ -982,7 +873,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
         return {
           expense: loadedExpense,
           changed: result.changed,
-          userIds: await activeGroupUserIds(transactionalDatabase, groupId),
+          userIds: await listActiveGroupUserIds(transactionalDatabase, groupId),
           notificationUserId: loadedExpense.creator.userId,
         };
       }).catch((error) => {
@@ -1028,7 +919,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
         return {
           expense: loadedExpense,
           changed: rejected.changed,
-          userIds: await activeGroupUserIds(transactionalDatabase, groupId),
+          userIds: await listActiveGroupUserIds(transactionalDatabase, groupId),
           notificationUserId: loadedExpense.creator.userId,
         };
       }).catch((error) => {
@@ -1107,3 +998,5 @@ export async function voidGroupExpenseAsCurrentUser(groupId: string, expenseId: 
 export async function getGroupObligationApplicationSummary(database: Database, groupId: string, obligationId: string, viewerUserId: string) {
   return createGroupAccountingRepository(database, groupId).getObligationApplications(obligationId, viewerUserId);
 }
+
+export type { GroupParticipantPresentation } from "@/server/group-participant-presentation";

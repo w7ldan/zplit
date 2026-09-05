@@ -3,6 +3,7 @@ import type { Database } from "../db/client";
 import { repaymentProofs, repayments } from "../db/schema";
 import { type ValidatedReceiptFile } from "../domain/receipt-file";
 import { RECEIPT_READ_HEADERS } from "./expense-receipts";
+import { databaseCode } from "./database-error-code";
 import { getPersonalLedgerScopeId } from "./ledger-scopes";
 
 export const PAYMENT_PROOF_UNAVAILABLE_MESSAGE = "This repayment or payment proof is no longer available.";
@@ -43,10 +44,6 @@ function metadataSelection() {
     byteSize: repaymentProofs.byteSize,
     createdAt: repaymentProofs.createdAt,
   };
-}
-
-function databaseCode(error: unknown) {
-  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
 }
 
 type LedgerOwner = string | { ledgerScopeId: string };
@@ -213,5 +210,3 @@ export async function deleteRepaymentPaymentProof(database: Database, owner: Led
     return deleted.length > 0;
   });
 }
-
-export const getRepaymentPaymentProofMetadataForScope = (database: Database, ledgerScopeId: string, repaymentId: string) => getRepaymentPaymentProofMetadata(database, { ledgerScopeId }, repaymentId);

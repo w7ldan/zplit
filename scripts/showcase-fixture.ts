@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -61,10 +62,6 @@ export type ShowcaseFixtureDependencies = {
   createPool?: typeof createDatabasePool;
   generateToken?: typeof generateDebtorShareToken;
 };
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function requiredEnvironment(environment: ShowcaseEnvironment, name: keyof ShowcaseEnvironment) {
   const value = environment[name]?.trim();

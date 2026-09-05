@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { readFileSync, readdirSync } from "node:fs";
@@ -32,10 +33,6 @@ type Fixture = {
 };
 
 type Debt = { expenseId: string; shareId: string; obligationId: string };
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function errorCode(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null) return undefined;
@@ -387,7 +384,6 @@ async function runMigrationSmoke(config: ReturnType<typeof readDatabaseConfig>) 
 }
 
 export async function runGroupSettlementApplicationSmoke() {
-  if (process.env.DB_NAME !== "zplit_test") throw new Error("Group settlement application smoke requires DB_NAME=zplit_test");
   const config = readDatabaseConfig("zplit_test");
   const pool = new Pool({ ...config, max: 8, connectionTimeoutMillis: 5_000 });
   const database = drizzle(pool, { schema }) as Database;

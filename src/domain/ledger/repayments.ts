@@ -13,7 +13,6 @@ import {
   LedgerRepositoryError,
   RepaymentAmountInvariantError,
   RepaymentFriendInvariantError,
-  RepaymentDeletionInvariantError,
 } from "./errors";
 
 const NEEDS_ATTENTION_PREVIEW_LIMIT = 4;
@@ -305,7 +304,7 @@ async function deleteRepayment(repaymentId: string, options: DeleteRecordOptions
           allocationCount: safeRetrievalInteger(allocations.length, "Repayment allocation count"),
           friendId,
         };
-        assertDeletionConfirmation(impact, options, RepaymentDeletionInvariantError);
+        assertDeletionConfirmation(impact, options);
         const deleted = await transaction
           .delete(repayments)
           .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))

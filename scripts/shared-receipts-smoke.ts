@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -23,10 +24,6 @@ const {
   revokeDebtorShareLink,
   updateDebtorShareReceiptSelection,
 } = await import("../src/server/debtor-share-links");
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function receipt(seed: number, filename: string) {
   const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, seed]);

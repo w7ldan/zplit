@@ -4,18 +4,7 @@ import { InboxLiveRefresh } from "@/components/notifications/inbox-live-refresh"
 import { InboxIcon } from "@/components/notifications/inbox-icon";
 import { NotificationRowActions } from "@/components/notifications/notification-row-actions";
 import { RecordPagination } from "@/components/records/record-pagination";
-import {
-  getFriendLinkRequestMetadata,
-  getGroupInvitationMetadata,
-  getGroupParticipantLinkMetadata,
-  getOrganizationInvitationMetadata,
-  NOTIFICATION_TYPES,
-  presentNotification,
-} from "@/domain/notifications";
-import { getCurrentUserNotificationPage, getCurrentUserUnreadNotificationCount } from "@/server/notifications";
-import { getCurrentUserFriendLinkRequestStatuses } from "@/server/friend-links";
-import { getCurrentUserOrganizationInvitationStatuses } from "@/server/organization-invitations";
-import { getCurrentUserGroupJoinRequestStatuses } from "@/server/group-join-requests";
+import { getCurrentUserInboxPage } from "@/server/inbox";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -29,22 +18,8 @@ function first(value: string | string[] | undefined) {
 
 export default async function InboxPage({ searchParams }: { searchParams?: Promise<InboxSearchParams> }) {
   const query = searchParams ? await searchParams : {};
-  const [page, unreadCount] = await Promise.all([
-    getCurrentUserNotificationPage(first(query.page)),
-    getCurrentUserUnreadNotificationCount(),
-  ]);
-  const friendLinkRequestIds = page.rows.flatMap((notification) => notification.type === NOTIFICATION_TYPES.friendLinkRequest ? [getFriendLinkRequestMetadata(notification.metadata)?.requestId].filter((id): id is string => Boolean(id)) : []);
-  const organizationInvitationIds = page.rows.flatMap((notification) => notification.type === NOTIFICATION_TYPES.organizationInvitation ? [getOrganizationInvitationMetadata(notification.metadata)?.invitationId].filter((id): id is string => Boolean(id)) : []);
-  const groupJoinRequestIds = page.rows.flatMap((notification) => {
-    if (notification.type === NOTIFICATION_TYPES.groupInvitation) return [getGroupInvitationMetadata(notification.metadata)?.requestId].filter((id): id is string => Boolean(id));
-    if (notification.type === NOTIFICATION_TYPES.groupParticipantLinkRequest) return [getGroupParticipantLinkMetadata(notification.metadata)?.requestId].filter((id): id is string => Boolean(id));
-    return [];
-  });
-  const [friendLinkRequestStatuses, organizationInvitationStatuses, groupJoinRequestStatuses] = await Promise.all([
-    getCurrentUserFriendLinkRequestStatuses(friendLinkRequestIds),
-    getCurrentUserOrganizationInvitationStatuses(organizationInvitationIds),
-    getCurrentUserGroupJoinRequestStatuses(groupJoinRequestIds),
-  ]);
+  const page = await getCurrentUserInboxPage(first(query.page));
+  const { unreadCount } = page;
 
   return (
     <section className="app-page inbox-page" id="top">
@@ -62,7 +37,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
           {page.rows.length > 0 ? (
             <ul className="inbox-list">
               {page.rows.map((notification) => {
-                const presentation = presentNotification(notification.type, notification.metadata);
+                const { presentation } = notification;
                 const unread = notification.readAt === null;
                 return (
                   <li className={`notification-row${unread ? " notification-row--unread" : ""}`} key={notification.id}>
@@ -77,12 +52,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
                     </div>
                     <div className="notification-row__state">
                       {unread ? <form action={markNotificationReadAction.bind(null, notification.id)}><button className="text-link" type="submit">Mark read</button></form> : <span>Read</span>}
-                      <NotificationRowActions
-                        notification={notification}
-                        friendLinkRequestStatuses={friendLinkRequestStatuses}
-                        organizationInvitationStatuses={organizationInvitationStatuses}
-                        groupJoinRequestStatuses={groupJoinRequestStatuses}
-                      />
+                      <NotificationRowActions action={notification.action} />
                     </div>
                   </li>
                 );

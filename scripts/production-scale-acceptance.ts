@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { readFileSync, statfsSync } from "node:fs";
 import os from "node:os";
@@ -66,10 +67,6 @@ type RecordPage = {
 };
 
 type DomainFingerprint = Record<string, { count: number; digest: string }>;
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function required(name: string, environment: Environment = process.env) {
   const value = environment[name]?.trim();

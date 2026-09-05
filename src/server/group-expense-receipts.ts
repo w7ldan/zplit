@@ -1,5 +1,7 @@
 import "server-only";
 
+import { databaseCode } from "@/server/database-error-code";
+
 import { asc, and, eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { groupExpenseReceipts, groupExpenses, groupMemberships, groupParticipants } from "@/db/schema";
@@ -46,12 +48,6 @@ const metadataSelection = () => ({ id: groupExpenseReceipts.id, originalFilename
 
 function assertIds(groupId: string, expenseId: string) {
   if (!normalizeUuid(groupId) || !normalizeUuid(expenseId)) throw new GroupExpenseReceiptUnavailableError();
-}
-
-function databaseCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null) return undefined;
-  if ("code" in error && typeof error.code === "string") return error.code;
-  return "cause" in error ? databaseCode(error.cause) : undefined;
 }
 
 async function requireExpense(database: Database, groupId: string, expenseId: string, viewerUserId: string, lockForMutation = false) {
@@ -103,7 +99,7 @@ export async function createGroupExpenseReceipt(database: Database, groupId: str
   } catch (error) {
     if (error instanceof GroupError) throw new GroupExpenseReceiptUnavailableError();
     if (error instanceof GroupExpenseReceiptUnavailableError || error instanceof GroupExpenseReceiptPermissionError || error instanceof GroupExpenseReceiptCountError || error instanceof GroupExpenseReceiptTotalSizeError || error instanceof GroupExpenseReceiptDuplicateError) throw error;
-    if (databaseCode(error) === "23505") throw new GroupExpenseReceiptDuplicateError();
+    if (databaseCode(error, true) === "23505") throw new GroupExpenseReceiptDuplicateError();
     throw error;
   }
 }

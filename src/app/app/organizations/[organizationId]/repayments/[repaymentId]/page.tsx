@@ -12,7 +12,7 @@ import { RepaymentPaymentProof } from "@/components/repayments/repayment-payment
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { formatRupiah } from "@/domain/rupiah";
-import { getRepaymentPaymentProofMetadataForScope } from "@/server/repayment-payment-proofs";
+import { getRepaymentPaymentProofMetadata } from "@/server/repayment-payment-proofs";
 import {
   deleteRepaymentAction,
   loadRepaymentFriendContext,
@@ -59,9 +59,9 @@ export default async function OrganizationRepaymentPage({
       access.ledger.searchFriends({ selectedId: plan.friendId }),
       access.ledger.getRepaymentFriendContext(plan.friendId),
       access.ledger.listRecentPaymentMethods(),
-      getRepaymentPaymentProofMetadataForScope(
+      getRepaymentPaymentProofMetadata(
         getDatabase(),
-        access.ledgerScopeId,
+        { ledgerScopeId: access.ledgerScopeId },
         plan.id,
       ),
     ],

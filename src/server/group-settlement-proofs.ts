@@ -1,5 +1,7 @@
 import "server-only";
 
+import { listActiveGroupUserIds } from "@/server/group-participant-presentation";
+
 import { and, asc, eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
@@ -11,7 +13,6 @@ import {
 import { MAX_RECEIPT_BYTES, type ValidatedReceiptFile } from "@/domain/receipt-file";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import {
-  listActiveGroupUserIds,
   publishGroupSettlementFreshness,
 } from "@/server/group-settlements";
 import { requireGroupAccess } from "@/server/groups";

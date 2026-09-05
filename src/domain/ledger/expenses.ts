@@ -4,7 +4,7 @@ import { debtorShareReceipts, expenseCharges, expenseChargeTargets, expenseRecei
 import { LedgerIntegrityError } from "../ledger-summary";
 import { calculateShareBreakdown } from "../expense-share-input";
 import type { RepaymentAllocationRepository } from "./allocations";
-import { ExpenseDeletionInvariantError, ExpenseShareAllocationInvariantError, ExpenseShareInvariantError, LedgerRepositoryError } from "./errors";
+import { ExpenseShareAllocationInvariantError, ExpenseShareInvariantError, LedgerRepositoryError } from "./errors";
 import { assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
 import { clampPage, monthStart, nextMonthStart, normalizeExpenseFilters, normalizePage, normalizeTimezoneOffset, pageResult, parseAmountSearch, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
 import { assertExpenseChargesInput, assertExpenseId, assertExpenseInput, assertExpenseSharesInput, assertFriendId, assertTripId, shareBaseAmount } from "./validation";
@@ -559,7 +559,7 @@ async function deleteExpense(expenseId: string, options: DeleteRecordOptions = {
           affectedRepaymentIds,
           affectedFriendIds: safeDeletionIds(dependents.shares.map((share) => share.friendId), "Affected friend ID"),
         };
-        assertDeletionConfirmation(impact, options, ExpenseDeletionInvariantError);
+        assertDeletionConfirmation(impact, options);
         const reconciliation = await reconcileDeletedExpenseAllocations(transaction, expenseId, dependents.shares, dependents.allocations);
         const deleted = await transaction
           .delete(expenses)

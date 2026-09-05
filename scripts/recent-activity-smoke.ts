@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -18,10 +19,6 @@ try {
 const databaseName = decodeURIComponent(parsedUrl.pathname.slice(1));
 if (!databaseName || databaseName !== "zplit_recent_activity_smoke") {
   throw new Error("DATABASE_URL must name zplit_recent_activity_smoke");
-}
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
 }
 
 function id(base: string, order: number) {

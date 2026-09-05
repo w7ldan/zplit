@@ -1,7 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
 import { expenseReceipts, expenseShares, expenses, outings, repaymentAllocations, repayments, trips } from "../../db/schema";
-import { OutingDeletionInvariantError } from "./errors";
 import { addDeletionAmount, assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
 import {
   clampPage,
@@ -300,7 +299,7 @@ async function deleteOuting(outingId: string, options: DeleteRecordOptions = { c
           affectedRepaymentIds,
           affectedFriendIds: safeDeletionIds(dependents.shares.map((share) => share.friendId), "Affected friend ID"),
         };
-        assertDeletionConfirmation(impact, options, OutingDeletionInvariantError);
+        assertDeletionConfirmation(impact, options);
         const deleted = await transaction
           .delete(outings)
           .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))

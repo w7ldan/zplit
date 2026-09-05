@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -34,10 +35,6 @@ const domainTables = [
   "repayments",
   "repayment_allocations",
 ];
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();

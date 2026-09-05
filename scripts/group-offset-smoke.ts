@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -28,10 +29,6 @@ type Fixture = {
 };
 
 type Debt = { expenseId: string; obligationId: string };
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function errorCode(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null) return undefined;
@@ -598,7 +595,6 @@ async function cleanup(pool: Pool, fixtures: Fixture[]) {
 }
 
 export async function runGroupOffsetSmoke() {
-  if (process.env.DB_NAME !== "zplit_test") throw new Error("Group offset smoke requires DB_NAME=zplit_test");
   const config = readDatabaseConfig("zplit_test");
   const pool = new Pool({ ...config, max: 12, connectionTimeoutMillis: 5_000 });
   const database = drizzle(pool, { schema }) as Database;

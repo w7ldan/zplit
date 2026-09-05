@@ -1,5 +1,7 @@
 import "server-only";
 
+import { databaseCode } from "@/server/database-error-code";
+
 import { and, asc, count, eq, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
@@ -32,10 +34,6 @@ export class OrganizationError extends Error {
 
 function assertOrganizationId(organizationId: string) {
   if (!normalizeUuid(organizationId)) throw new OrganizationError("invalid_id");
-}
-
-function databaseCode(error: unknown) {
-  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
 }
 
 function cleanInput(input: { name: string; description?: string | null }) {

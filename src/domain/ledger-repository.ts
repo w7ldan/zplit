@@ -7,16 +7,13 @@ export {
   deletionImpactRevision,
   ExpenseShareAllocationInvariantError,
   ExpenseShareInvariantError,
-  ExpenseDeletionInvariantError,
   LedgerDeletionConfirmationRequiredError,
   LedgerNotFoundError,
   LedgerRepositoryError,
-  OutingDeletionInvariantError,
   RepaymentAllocationAmountInvariantError,
   RepaymentAllocationShareInvariantError,
   RepaymentAmountInvariantError,
   RepaymentFriendInvariantError,
-  RepaymentDeletionInvariantError,
 } from "./ledger/errors";
 import { createFriendsReadRepository } from "./ledger/friends";
 import { createTripsReadRepository } from "./ledger/trips";

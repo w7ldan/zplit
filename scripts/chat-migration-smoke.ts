@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -8,10 +9,6 @@ import { formatSafeError, readDatabaseConfig, type DatabaseConfig } from "./migr
 import { resolveOrganizationCapabilities } from "../src/domain/organization-permissions";
 
 const migrationDirectory = new URL("../drizzle/", import.meta.url);
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function migrationFiles(before: number) {
   return readdirSync(migrationDirectory).filter((file) => /^\d{4}_.+\.sql$/.test(file) && Number(file.slice(0, 4)) < before).sort();
@@ -245,7 +242,6 @@ async function runMigrationSmoke(config: DatabaseConfig) {
 }
 
 export async function runChatMigrationSmoke() {
-  if (process.env.DB_NAME !== "zplit_test") throw new Error("Chat migration smoke requires DB_NAME=zplit_test");
   const config = readDatabaseConfig("zplit_test");
   try {
     await runMigrationSmoke(config);

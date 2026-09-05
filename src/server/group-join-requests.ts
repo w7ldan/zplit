@@ -1,5 +1,7 @@
 import "server-only";
 
+import { databaseCode } from "@/server/database-error-code";
+
 import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { getDatabase, type Database } from "@/db/client";
 import { friends, groupJoinRequests, groupMemberships, groupParticipants, groups, notifications, users } from "@/db/schema";
@@ -28,10 +30,6 @@ export type GroupJoinRequestState = {
   status: GroupJoinRequestStatus;
   expiresAt: Date;
 };
-
-function databaseCode(error: unknown) {
-  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
-}
 
 function assertUserId(userId: string) {
   if (typeof userId !== "string" || !userId.trim()) throw new TypeError("A Group request user id is required");

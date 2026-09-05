@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -19,10 +20,6 @@ try {
   throw new Error("history-delete smoke requires a valid DATABASE_URL");
 }
 if (databaseName !== "zplit_test") throw new Error("history-delete smoke requires the disposable zplit_test database");
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 async function count(pool: Pool, table: string, ledgerScopeId: string) {
   const result = await pool.query<{ count: string }>(`SELECT count(*)::text AS count FROM ${table} WHERE ledger_scope_id = $1`, [ledgerScopeId]);

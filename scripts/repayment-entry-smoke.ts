@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client";
@@ -6,10 +7,6 @@ import { createLedgerRepository } from "../src/domain/ledger-repository";
 import { ensurePersonalLedgerScope } from "../src/server/ledger-scopes";
 
 if (process.env.DB_NAME !== "zplit_test") throw new Error("repayment entry smoke requires DB_NAME=zplit_test");
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 async function expectLedgerError(action: () => Promise<unknown>, code: string, message: string) {
   try {

@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -22,17 +23,13 @@ import {
   listExpenseReceipts,
   RECEIPT_READ_HEADERS,
 } from "../src/server/expense-receipts";
-import { createLedgerRepository, ExpenseDeletionInvariantError } from "../src/domain/ledger-repository";
+import { createLedgerRepository, LedgerDeletionConfirmationRequiredError } from "../src/domain/ledger-repository";
 import { readSecretFile } from "../src/server/secret-file";
 import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 
 const suffix = randomBytes(6).toString("hex");
 const emailA = `receipt-smoke-a-${suffix}@example.com`;
 const emailB = `receipt-smoke-b-${suffix}@example.com`;
-
-function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 function image(kind: "jpeg" | "png" | "webp", size: number, seed: number) {
   const bytes = Buffer.alloc(size, seed);
@@ -157,7 +154,7 @@ export async function runReceiptSmoke() {
     await repositoryA.replaceRepaymentAllocations(repayment.id, [{ expenseShareId: share!.id, amount: 3000 }]);
     const allocatedReceipt = await createExpenseReceipt(db, userA, allocatedExpense.id, webp);
     let deletionFailed = false;
-    try { await repositoryA.deleteExpense(allocatedExpense.id); } catch (error) { deletionFailed = error instanceof ExpenseDeletionInvariantError; }
+    try { await repositoryA.deleteExpense(allocatedExpense.id); } catch (error) { deletionFailed = error instanceof LedgerDeletionConfirmationRequiredError; }
     assert(deletionFailed, "allocated expense deletion succeeded");
     assert(await getExpenseReceipt(db, userA, allocatedExpense.id, allocatedReceipt.id) !== null, "allocated deletion removed receipt");
     assert(!(await repositoryA.getFriendDebtorStatement(friend.id)).items.some((item) => Object.hasOwn(item, "receipt")), "debtor statement contains receipt data");
