@@ -10,6 +10,7 @@ const group: GroupSummary = {
   role: "member",
   participantCount: 3,
   avatar: null,
+  archivedAt: null,
 };
 
 describe("GroupCard", () => {

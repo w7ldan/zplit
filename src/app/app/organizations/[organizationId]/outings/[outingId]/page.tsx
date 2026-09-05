@@ -57,7 +57,7 @@ export default async function OrganizationOutingPage({
       page: first(query.expensePage),
     }),
   ]);
-  const canEdit = access.can("outings.manage");
+  const canEdit = access.can("outings.manage") && !access.archivedAt;
   return (
     <section className="app-page outing-record" id="top">
       <div className="editorial-grid editorial-shell outing-record__layout">
@@ -67,7 +67,7 @@ export default async function OrganizationOutingPage({
           </p>
           <h1>{outing.title}</h1>
           <div className="outing-record__actions">
-            {access.can("expenses.create") ? (
+            {access.can("expenses.create") && !access.archivedAt ? (
               <Link
                 className="action-link action-link--quiet"
                 href={`${base}/expenses?create=1&outing=${outing.id}`}

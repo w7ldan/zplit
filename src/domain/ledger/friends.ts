@@ -270,13 +270,23 @@ async function searchFriends(options: { q?: unknown; selectedId?: unknown; activ
   return { getFriend, listFriends, searchFriends, listFriendRecords, listFriendsExperience };
 }
 
-export function createFriendsMutationRepository(database: Database, scope: string) {
+export function createFriendsMutationRepository(database: Database, scope: string, mutationGuard?: (database: Database) => Promise<void>) {
+async function mutate<T>(operation: (database: Database) => Promise<T>) {
+    if (!mutationGuard) return operation(database);
+    return database.transaction(async (transaction) => {
+      await mutationGuard(transaction as Database);
+      return operation(transaction as Database);
+    });
+  }
+
 async function createFriend(input: CreateFriendInput) {
     assertFriendInput(input);
     try {
-      const [friend] = await database.insert(friends).values({ ...input, ledgerScopeId: scope }).returning();
-      if (!friend) return persistenceError(new Error("friend insert returned no row"));
-      return friend;
+      return await mutate(async (transaction) => {
+        const [friend] = await transaction.insert(friends).values({ ...input, ledgerScopeId: scope }).returning();
+        if (!friend) return persistenceError(new Error("friend insert returned no row"));
+        return friend;
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -286,13 +296,15 @@ async function updateFriend(friendId: string, input: UpdateFriendInput) {
     assertFriendId(friendId);
     assertFriendInput(input);
     try {
-      const [friend] = await database
-        .update(friends)
-        .set({ ...input, updatedAt: new Date() })
-        .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
-        .returning();
-      if (!friend) return notFound();
-      return friend;
+      return await mutate(async (transaction) => {
+        const [friend] = await transaction
+          .update(friends)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
+          .returning();
+        if (!friend) return notFound();
+        return friend;
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -301,13 +313,15 @@ async function updateFriend(friendId: string, input: UpdateFriendInput) {
 async function setFriendArchived(friendId: string, archived: boolean) {
     assertFriendId(friendId);
     try {
-      const [friend] = await database
-        .update(friends)
-        .set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() })
-        .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
-        .returning();
-      if (!friend) return notFound();
-      return friend;
+      return await mutate(async (transaction) => {
+        const [friend] = await transaction
+          .update(friends)
+          .set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() })
+          .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId)))
+          .returning();
+        if (!friend) return notFound();
+        return friend;
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -318,21 +332,23 @@ async function archiveFriend(friendId: string) {
     const archivedAt = new Date();
     const updatedAt = new Date();
     try {
-      const [friend] = await database
-        .update(friends)
-        .set({ archivedAt, updatedAt })
-        .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId), isNull(friends.archivedAt)))
-        .returning();
-      if (!friend) return notFound();
-      return {
-        friend,
-        reversalReceipt: {
-          version: 1 as const,
-          friendId: friend.id,
-          archivedAt: friend.archivedAt?.toISOString() ?? archivedAt.toISOString(),
-          updatedAt: friend.updatedAt.toISOString(),
-        },
-      };
+      return await mutate(async (transaction) => {
+        const [friend] = await transaction
+          .update(friends)
+          .set({ archivedAt, updatedAt })
+          .where(and(eq(friends.ledgerScopeId, scope), eq(friends.id, friendId), isNull(friends.archivedAt)))
+          .returning();
+        if (!friend) return notFound();
+        return {
+          friend,
+          reversalReceipt: {
+            version: 1 as const,
+            friendId: friend.id,
+            archivedAt: friend.archivedAt?.toISOString() ?? archivedAt.toISOString(),
+            updatedAt: friend.updatedAt.toISOString(),
+          },
+        };
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -341,18 +357,20 @@ async function archiveFriend(friendId: string) {
 async function undoFriendArchive(receipt: FriendArchiveReversalReceipt) {
     assertFriendArchiveReversalReceipt(receipt);
     try {
-      const [friend] = await database
-        .update(friends)
-        .set({ archivedAt: null, updatedAt: new Date() })
-        .where(and(
-          eq(friends.ledgerScopeId, scope),
-          eq(friends.id, receipt.friendId),
-          eq(friends.archivedAt, new Date(receipt.archivedAt)),
-          eq(friends.updatedAt, new Date(receipt.updatedAt)),
-        ))
-        .returning();
-      if (!friend) return notFound();
-      return friend;
+      return await mutate(async (transaction) => {
+        const [friend] = await transaction
+          .update(friends)
+          .set({ archivedAt: null, updatedAt: new Date() })
+          .where(and(
+            eq(friends.ledgerScopeId, scope),
+            eq(friends.id, receipt.friendId),
+            eq(friends.archivedAt, new Date(receipt.archivedAt)),
+            eq(friends.updatedAt, new Date(receipt.updatedAt)),
+          ))
+          .returning();
+        if (!friend) return notFound();
+        return friend;
+      });
     } catch (error) {
       return persistenceError(error);
     }

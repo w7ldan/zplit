@@ -23,6 +23,8 @@ import {
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/ledger-scopes", () => ({ getPersonalLedgerScopeId: vi.fn().mockResolvedValue("scope-personal") }));
+const notificationMocks = vi.hoisted(() => ({ publishNotificationStateChange: vi.fn() }));
+vi.mock("@/server/notifications", () => notificationMocks);
 
 function chain(result: unknown) {
   const query = {} as Record<string, unknown> & { then: Promise<unknown>["then"] };
@@ -141,10 +143,11 @@ describe("groups", () => {
 
   it("allows duplicate external names while preserving local labels", async () => {
     const calls: Array<{ table: unknown; values: unknown }> = [];
-    const database = {
+    const transaction = {
       select: vi.fn(() => chain([{ role: "admin" }])),
       insert: vi.fn(() => insertBuilder(groupParticipants, calls, [{ id: "p" }])),
     } as unknown as Database;
+    const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
     await createExternalParticipant(database, groupId, "admin-a", { displayName: "Alice", label: "Fasilkom" });
     await createExternalParticipant(database, groupId, "admin-a", { displayName: "Alice", label: "SMA" });
     expect(calls.map(({ values }) => values)).toEqual([
@@ -242,6 +245,7 @@ describe("groups", () => {
     const transaction = {
       select: vi.fn()
         .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }]))
         .mockImplementationOnce(() => chain([{ id: "expense-a" }])),
       delete: vi.fn(() => chain([])),
     };
@@ -255,16 +259,8 @@ describe("groups", () => {
     const transaction = {
       select: vi.fn()
         .mockImplementationOnce(() => chain([{ role: "owner" }]))
-        .mockImplementationOnce(() => chain([]))
-        .mockImplementationOnce(() => chain([]))
-        .mockImplementationOnce(() => chain([]))
-        .mockImplementationOnce(() => chain([]))
-        .mockImplementationOnce(() => chain([]))
-        .mockImplementationOnce(() => chain([]))
-        .mockImplementationOnce(() => chain([]))
-        .mockImplementationOnce(() => chain([]))
-        .mockImplementationOnce(() => chain([]))
-        .mockImplementationOnce(() => chain([])),
+        .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }]))
+        .mockImplementation(() => chain([])),
       delete: vi.fn(() => chain([{ id: groupId }])),
     };
     const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
@@ -273,11 +269,31 @@ describe("groups", () => {
     expect(transaction.delete).toHaveBeenCalledWith(groups);
   });
 
+  it.each([false, true])("does not blindly map a 23503 delete failure (financial history: %s)", async (hasHistory) => {
+    const transaction = {
+      select: vi.fn()
+        .mockImplementationOnce(() => chain([{ role: "owner" }]))
+        .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }]))
+        .mockImplementation(() => chain([])),
+      delete: vi.fn(() => { throw Object.assign(new Error("foreign key"), { code: "23503" }); }),
+    };
+    const database = {
+      transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)),
+      select: vi.fn(() => chain(hasHistory ? [{ id: "expense-a" }] : [])),
+    } as unknown as Database;
+
+    const result = deleteGroup(database, groupId, "user-a");
+    if (hasHistory) await expect(result).rejects.toMatchObject({ code: "financial_history" });
+    else await expect(result).rejects.toMatchObject({ code: "23503" });
+  });
+
   it("cannot update a participant from another Group or edit a registered identity", async () => {
-    const isolated = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }])).mockImplementationOnce(() => chain([])) } as unknown as Database;
+    const isolatedTransaction = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }])).mockImplementationOnce(() => chain([])), update: vi.fn(() => chain([])) };
+    const isolated = { transaction: vi.fn(async (callback: (tx: typeof isolatedTransaction) => unknown) => callback(isolatedTransaction)) } as unknown as Database;
     await expect(updateExternalParticipant(isolated, groupId, "admin-a", "foreign-participant", { displayName: "Alice" })).rejects.toMatchObject({ code: "participant_not_found" });
 
-    const registered = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }])).mockImplementationOnce(() => chain([{ userId: "user-b" }])) } as unknown as Database;
+    const registeredTransaction = { select: vi.fn().mockImplementationOnce(() => chain([{ role: "admin" }])).mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }])).mockImplementationOnce(() => chain([{ userId: "user-b" }])), update: vi.fn(() => chain([])) };
+    const registered = { transaction: vi.fn(async (callback: (tx: typeof registeredTransaction) => unknown) => callback(registeredTransaction)) } as unknown as Database;
     await expect(updateExternalParticipant(registered, groupId, "admin-a", "registered-participant", { displayName: "Alice" })).rejects.toMatchObject({ code: "registered_participant" });
     expect(new GroupError("forbidden")).toBeInstanceOf(Error);
   });
@@ -414,7 +430,7 @@ describe("groups", () => {
         .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: null }])),
       update: vi.fn()
         .mockImplementationOnce(() => chain([{ id: groupId, archivedAt: new Date("2026-01-01T00:00:00.000Z") }]))
-        .mockImplementationOnce(() => chain([])),
+        .mockImplementationOnce(() => chain([{ targetUserId: "user-b" }, { targetUserId: "user-b" }])),
     };
     const database = { transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)) } as unknown as Database;
 
@@ -422,6 +438,8 @@ describe("groups", () => {
     expect(archived.id).toBe(groupId);
     expect(archived.archivedAt).not.toBeNull();
     expect(transaction.update).toHaveBeenCalledTimes(2);
+    expect(notificationMocks.publishNotificationStateChange).toHaveBeenCalledWith("user-b", "resolved");
+    expect(notificationMocks.publishNotificationStateChange).toHaveBeenCalledTimes(1);
   });
 
   it("treats archive and restore as idempotent lifecycle transitions", async () => {

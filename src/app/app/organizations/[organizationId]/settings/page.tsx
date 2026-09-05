@@ -42,6 +42,7 @@ export default async function OrganizationSettingsPage({
   const financialHistory = archived ? true : await hasOrganizationFinancialHistory(getDatabase(), organizationId).catch(() => true);
   const canViewDestinations =
     organization.canViewLedger || organization.canManageRepaymentDestinations;
+  const canManageDestinations = organization.canManageRepaymentDestinations && !archived;
   const destinationAccess = canViewDestinations
     ? await getAuthenticatedOrganizationLedger(
         organizationId,
@@ -113,7 +114,7 @@ export default async function OrganizationSettingsPage({
                 {destinations.length} destinations
               </span>
             </div>
-            {organization.canManageRepaymentDestinations ? (
+            {canManageDestinations ? (
               <RepaymentDestinationsSettings
                 destinations={entries}
                 createAction={createRepaymentDestinationAction.bind(

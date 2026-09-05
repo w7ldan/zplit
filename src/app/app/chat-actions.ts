@@ -28,6 +28,7 @@ function errorMessage(error: unknown) {
       invalid_cursor: "Older messages are unavailable. Reload the chat.",
       deleted: "Deleted messages cannot be edited.",
       not_member: "You are no longer a member of this Group.",
+      archived: "This workspace is archived and cannot accept new chat activity.",
     }[error.code];
   }
   return "Unable to update the chat.";

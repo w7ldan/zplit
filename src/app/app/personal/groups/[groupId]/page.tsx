@@ -22,7 +22,7 @@ export default async function GroupDetailPage({
   }
   const database = getDatabase();
   const participants = await listGroupParticipants(database, groupId, session.user.id);
-  const requests = group.canManageParticipants
+  const requests = group.canManageParticipants && group.archivedAt === null
     ? await listGroupJoinRequests(database, groupId, session.user.id)
     : { invitations: [], links: [] };
   return (
@@ -65,8 +65,8 @@ export default async function GroupDetailPage({
             participants={participants}
             pendingInvitations={requests.invitations}
             pendingLinks={requests.links}
-            canManageParticipants={group.canManageParticipants}
-            canManageRoles={group.canManageRoles}
+            canManageParticipants={group.canManageParticipants && group.archivedAt === null}
+            canManageRoles={group.canManageRoles && group.archivedAt === null}
           />
         </section>
       </div>

@@ -28,9 +28,17 @@ function orderedIds(value: unknown) {
   return ids;
 }
 
-export function createRepaymentDestinationRepository(database: Database, ledgerScopeId: string) {
+export function createRepaymentDestinationRepository(database: Database, ledgerScopeId: string, mutationGuard?: (database: Database) => Promise<void>) {
   const scope = ledgerScopeId.trim();
   if (!scope) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger scope is required");
+
+  async function mutate<T>(operation: (database: Database) => Promise<T>) {
+    if (!mutationGuard) return operation(database);
+    return database.transaction(async (transaction) => {
+      await mutationGuard(transaction as Database);
+      return operation(transaction as Database);
+    });
+  }
 
   async function listRepaymentDestinations() {
     try {
@@ -62,6 +70,7 @@ export function createRepaymentDestinationRepository(database: Database, ledgerS
     assertInput(input);
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database);
         const [last] = await transaction
           .select({ sortOrder: repaymentDestinations.sortOrder })
           .from(repaymentDestinations)
@@ -85,13 +94,15 @@ export function createRepaymentDestinationRepository(database: Database, ledgerS
     const destinationId = assertDestinationId(id);
     assertInput(input);
     try {
-      const [updated] = await database
-        .update(repaymentDestinations)
-        .set({ ...input, updatedAt: new Date() })
-        .where(and(eq(repaymentDestinations.ledgerScopeId, scope), eq(repaymentDestinations.id, destinationId)))
-        .returning();
-      if (!updated) throw new LedgerNotFoundError();
-      return updated;
+      return await mutate(async (transaction) => {
+        const [updated] = await transaction
+          .update(repaymentDestinations)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(repaymentDestinations.ledgerScopeId, scope), eq(repaymentDestinations.id, destinationId)))
+          .returning();
+        if (!updated) throw new LedgerNotFoundError();
+        return updated;
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -100,12 +111,14 @@ export function createRepaymentDestinationRepository(database: Database, ledgerS
   async function deleteRepaymentDestination(id: string) {
     const destinationId = assertDestinationId(id);
     try {
-      const [deleted] = await database
-        .delete(repaymentDestinations)
-        .where(and(eq(repaymentDestinations.ledgerScopeId, scope), eq(repaymentDestinations.id, destinationId)))
-        .returning({ id: repaymentDestinations.id });
-      if (!deleted) throw new LedgerNotFoundError();
-      return deleted;
+      return await mutate(async (transaction) => {
+        const [deleted] = await transaction
+          .delete(repaymentDestinations)
+          .where(and(eq(repaymentDestinations.ledgerScopeId, scope), eq(repaymentDestinations.id, destinationId)))
+          .returning({ id: repaymentDestinations.id });
+        if (!deleted) throw new LedgerNotFoundError();
+        return deleted;
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -115,6 +128,7 @@ export function createRepaymentDestinationRepository(database: Database, ledgerS
     const requestedIds = orderedIds(ids);
     try {
       await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database);
         const existing = await transaction
           .select({ id: repaymentDestinations.id })
           .from(repaymentDestinations)

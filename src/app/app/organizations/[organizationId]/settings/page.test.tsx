@@ -17,7 +17,7 @@ import OrganizationSettingsPage from "./page";
 import { archiveOrganizationAction, deleteOrganizationAction } from "../../actions";
 
 const session = { user: { id: "user-a" } };
-const organization = { id: "org-a", name: "Studio", description: null, archivedAt: null, canUpdate: false, canDelete: false, canViewLedger: false, canManageRepaymentDestinations: false, canExport: false };
+const organization = { id: "org-a", name: "Studio", description: null, archivedAt: null as string | null, canUpdate: false, canDelete: false, canViewLedger: false, canManageRepaymentDestinations: false, canExport: false };
 
 describe("Organization Settings capability composition", () => {
   beforeEach(() => {
@@ -107,5 +107,12 @@ describe("Organization Settings capability composition", () => {
     expect(screen.queryByRole("button", { name: "Delete organization" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Archive organization" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore organization" })).toBeInTheDocument();
+  });
+
+  it("keeps archived repayment destinations read-only", async () => {
+    await renderPage({ archivedAt: new Date("2026-01-01T00:00:00.000Z").toISOString(), canManageRepaymentDestinations: true, canViewLedger: true });
+
+    expect(screen.getByRole("heading", { name: "Repayment destinations" })).toBeInTheDocument();
+    expect(screen.queryByText("Manage repayment destinations")).not.toBeInTheDocument();
   });
 });

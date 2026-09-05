@@ -9,7 +9,7 @@ import { addPersonalFriendAsOrganizationExpenseContact } from "./organizations";
 
 function query(result: unknown) {
   const builder = {} as Record<string, unknown> & { then: Promise<unknown>["then"] };
-  for (const method of ["from", "where", "limit", "for", "orderBy", "onConflictDoNothing"]) builder[method] = vi.fn(() => builder);
+  for (const method of ["from", "innerJoin", "where", "limit", "for", "orderBy", "onConflictDoNothing"]) builder[method] = vi.fn(() => builder);
   builder.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
   builder.returning = vi.fn(async () => result);
   return builder;

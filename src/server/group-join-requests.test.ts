@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   createNotificationInDatabase: vi.fn(),
   publishNotificationStateChange: vi.fn(),
   requireGroupAccess: vi.fn(),
-  assertGroupActiveForOperationalMutation: vi.fn(),
+  lockActiveGroupForOperationalMutation: vi.fn(),
   requireSession: vi.fn(),
   getDatabase: vi.fn(),
   searchUsernameDirectoryInDatabase: vi.fn(),
@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/notifications", () => ({ createNotificationInDatabase: mocks.createNotificationInDatabase, publishNotificationStateChange: mocks.publishNotificationStateChange }));
-vi.mock("@/server/groups", () => ({ GroupError: class GroupError extends Error {}, requireGroupAccess: mocks.requireGroupAccess, assertGroupActiveForOperationalMutation: mocks.assertGroupActiveForOperationalMutation }));
+vi.mock("@/server/groups", () => ({ GroupError: class GroupError extends Error {}, requireGroupAccess: mocks.requireGroupAccess, lockActiveGroupForOperationalMutation: mocks.lockActiveGroupForOperationalMutation }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/user-directory", () => ({ searchUsernameDirectoryInDatabase: mocks.searchUsernameDirectoryInDatabase }));
@@ -96,7 +96,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.createNotificationInDatabase.mockResolvedValue({ id: "notification" });
   mocks.requireGroupAccess.mockResolvedValue({ requireManageParticipants: vi.fn() });
-  mocks.assertGroupActiveForOperationalMutation.mockResolvedValue(undefined);
+  mocks.lockActiveGroupForOperationalMutation.mockResolvedValue(undefined);
 });
 
 describe("Group join requests", () => {

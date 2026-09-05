@@ -402,6 +402,7 @@ export function createExpenseMutationRepository(
   scope: string,
   read: Pick<ReturnType<typeof createExpenseReadRepository>, "expenseSelection" | "listExpenseChargesFor" | "listExpenseSharesFor">,
   allocations: Pick<RepaymentAllocationRepository, "lockRepaymentAllocationsForShares" | "reconcileDeletedExpenseAllocations">,
+  mutationGuard?: (database: Database) => Promise<void>,
 ) {
   const { expenseSelection, listExpenseChargesFor, listExpenseSharesFor } = read;
   const { lockRepaymentAllocationsForShares, reconcileDeletedExpenseAllocations } = allocations;
@@ -446,6 +447,7 @@ async function createExpense(input: CreateExpenseInput) {
     assertExpenseInput(input);
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database);
         await assertOwnedOuting(transaction, input.outingId);
         const [expense] = await transaction.insert(expenses).values({ ...input, ledgerScopeId: scope }).returning();
         if (!expense) return persistenceError(new Error("expense insert returned no row"));
@@ -468,6 +470,7 @@ async function updateExpense(expenseId: string, input: UpdateExpenseInput) {
     assertExpenseInput(input);
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database);
         const [currentExpense] = await transaction
           .select({ id: expenses.id, amount: expenses.amount })
           .from(expenses)
@@ -541,6 +544,7 @@ async function deleteExpense(expenseId: string, options: DeleteRecordOptions = {
     assertDeleteOptions(options);
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database);
         const [expense] = await transaction
           .select({ id: expenses.id })
           .from(expenses)
@@ -734,6 +738,7 @@ async function prepareExpenseShareReplacement(
     if (charges !== undefined) assertExpenseChargesInput(charges);
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database);
         const replacement = await prepareExpenseShareReplacement(transaction, expenseId, shares, charges);
         await persistExpenseShareRows(transaction, expenseId, replacement);
         await persistExpenseCharges(transaction, expenseId, replacement, charges);

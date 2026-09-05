@@ -55,7 +55,7 @@ describe("Group expense receipt service", () => {
     const database = databaseFor([[{ id: groupId, archivedAt: null }], ...authorizedRows()], [created]);
 
     await expect(createGroupExpenseReceipt(database.database, groupId, expenseId, "user-b", file)).resolves.toEqual(created);
-    expect(database.locks).toEqual(["expense:update", "participant:update", "membership:update", "receipts:update"]);
+    expect(database.locks).toEqual(["lifecycle:update", "expense:update", "participant:update", "membership:update", "receipts:update"]);
     expect(database.transaction.insert).toHaveBeenCalledOnce();
   });
 
@@ -65,6 +65,7 @@ describe("Group expense receipt service", () => {
     expect(staleMembership.transaction.insert).not.toHaveBeenCalled();
 
     const nonCreator = databaseFor([
+      [{ id: groupId, archivedAt: null }],
       [{ role: "member" }],
       [{ id: expenseId, state: "pending", creatorParticipantId: participantId }],
       [{ userId: "user-a" }],

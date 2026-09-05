@@ -279,13 +279,23 @@ async function getTripSummary(tripId: string): Promise<TripFinancialSummary> {
   return { getTrip, searchTrips, listTripRecords, getTripSummary };
 }
 
-export function createTripsMutationRepository(database: Database, scope: string) {
+export function createTripsMutationRepository(database: Database, scope: string, mutationGuard?: (database: Database) => Promise<void>) {
+async function mutate<T>(operation: (database: Database) => Promise<T>) {
+    if (!mutationGuard) return operation(database);
+    return database.transaction(async (transaction) => {
+      await mutationGuard(transaction as Database);
+      return operation(transaction as Database);
+    });
+  }
+
 async function createTrip(input: CreateTripInput) {
     assertTripInput(input);
     try {
-      const [trip] = await database.insert(trips).values({ ...input, ledgerScopeId: scope }).returning();
-      if (!trip) return persistenceError(new Error("trip insert returned no row"));
-      return trip;
+      return await mutate(async (transaction) => {
+        const [trip] = await transaction.insert(trips).values({ ...input, ledgerScopeId: scope }).returning();
+        if (!trip) return persistenceError(new Error("trip insert returned no row"));
+        return trip;
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -295,13 +305,15 @@ async function updateTrip(tripId: string, input: UpdateTripInput) {
     assertTripId(tripId);
     assertTripInput(input);
     try {
-      const [trip] = await database
-        .update(trips)
-        .set({ ...input, updatedAt: new Date() })
-        .where(and(eq(trips.ledgerScopeId, scope), eq(trips.id, tripId)))
-        .returning();
-      if (!trip) return notFound();
-      return trip;
+      return await mutate(async (transaction) => {
+        const [trip] = await transaction
+          .update(trips)
+          .set({ ...input, updatedAt: new Date() })
+          .where(and(eq(trips.ledgerScopeId, scope), eq(trips.id, tripId)))
+          .returning();
+        if (!trip) return notFound();
+        return trip;
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -311,6 +323,7 @@ async function deleteTrip(tripId: string) {
     assertTripId(tripId);
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database);
         const [trip] = await transaction
           .select({ id: trips.id })
           .from(trips)

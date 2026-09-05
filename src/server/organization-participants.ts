@@ -7,7 +7,7 @@ import type { OrganizationMember } from "@/domain/organization-contracts";
 import { isOrganizationRole, type OrganizationRole } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
-import { assertOrganizationActiveForOperationalMutation, requireOrganizationAccess } from "@/server/organizations";
+import { lockActiveOrganizationForOperationalMutation, requireOrganizationAccess } from "@/server/organizations";
 
 export class OrganizationParticipantError extends Error {
   constructor(readonly code: "invalid_id" | "invalid_input" | "not_found" | "forbidden" | "registered_personal_friend" | "conflict") {
@@ -88,7 +88,7 @@ export async function addPersonalFriendAsOrganizationParticipant(
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
     await requireMemberManagement(transactionalDatabase, organizationId, actorUserId);
-    await assertOrganizationActiveForOperationalMutation(transactionalDatabase, organizationId);
+    await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
     const personalScopeId = await getPersonalLedgerScopeId(transactionalDatabase, actorUserId);
     const [source] = await transaction
       .select({ id: friends.id, name: friends.name, linkedUserId: friends.linkedUserId, archivedAt: friends.archivedAt })
@@ -146,7 +146,7 @@ export async function createLocalOrganizationParticipant(
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
     await requireMemberManagement(transactionalDatabase, organizationId, actorUserId);
-    await assertOrganizationActiveForOperationalMutation(transactionalDatabase, organizationId);
+    await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
     const [participant] = await transaction
       .insert(organizationParticipants)
       .values({ organizationId, ...values, createdByUserId: actorUserId })

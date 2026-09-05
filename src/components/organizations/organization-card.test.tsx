@@ -11,6 +11,7 @@ const organization: OrganizationSummary = {
   role: "owner",
   memberCount: 2,
   avatar: null,
+  archivedAt: null,
 };
 
 describe("OrganizationCard", () => {

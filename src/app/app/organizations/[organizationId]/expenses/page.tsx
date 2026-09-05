@@ -55,7 +55,7 @@ async function loadOrganizationExpenses(
     outingId,
     outingOptions,
     page,
-    canCreate: access.can("expenses.create"),
+    canCreate: access.can("expenses.create") && !access.archivedAt,
     openCreate: first(query.create) === "1",
     groups: groupRecordsByMonth(page.items, (expense) => expense.outingOccurredAt, timezoneOffsetMinutes),
     filtered: Boolean(filters.q || filters.month || filters.outingId || filters.assignment !== "all"),

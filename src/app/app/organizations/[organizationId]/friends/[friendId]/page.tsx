@@ -53,7 +53,7 @@ export default async function OrganizationFriendPage({
       page: first(query.repaymentPage),
     }),
   ]);
-  const canManage = access.can("friends.manage");
+  const canManage = access.can("friends.manage") && !access.archivedAt;
   const currentBalance = balance ?? {
     assignedAmount: 0,
     repaidAmount: 0,

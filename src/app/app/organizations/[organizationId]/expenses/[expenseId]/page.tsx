@@ -82,7 +82,7 @@ export default async function OrganizationExpensePage({
     id: outing.id,
     label: outing.title,
   }));
-  const canEdit = access.can("expenses.edit");
+  const canEdit = access.can("expenses.edit") && !access.archivedAt;
   return (
     <section className="app-page expense-record" id="top">
       <div className="editorial-grid editorial-shell expense-record__layout">

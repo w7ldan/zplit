@@ -26,6 +26,7 @@ import {
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { createOrganizationLedgerScope, getPersonalLedgerScopeId } from "@/server/ledger-scopes";
 import { createLedgerRepository } from "@/domain/ledger-repository";
+import { publishNotificationStateChange } from "@/server/notifications";
 
 export type { OrganizationRole } from "@/domain/organization-permissions";
 export class OrganizationError extends Error {
@@ -60,6 +61,7 @@ function mapAvatar(avatar: { mediaType: string; byteSize: number; sha256: string
 
 export type OrganizationAccess = {
   role: OrganizationRole;
+  archivedAt: Date | null;
   can(capability: OrganizationCapability): boolean;
   require(capability: OrganizationCapability): void;
 };
@@ -88,8 +90,9 @@ function toOrganizationCapabilities(access: OrganizationAccess): OrganizationCap
 export async function requireOrganizationAccess(database: Database, organizationId: string, userId: string): Promise<OrganizationAccess> {
   assertOrganizationId(organizationId);
   const [membership] = await database
-    .select({ role: organizationMemberships.role, customCapabilities: organizationMemberships.customCapabilities })
+    .select({ role: organizationMemberships.role, customCapabilities: organizationMemberships.customCapabilities, archivedAt: organizations.archivedAt })
     .from(organizationMemberships)
+    .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
     .where(and(eq(organizationMemberships.organizationId, organizationId), eq(organizationMemberships.userId, userId)))
     .limit(1);
   if (!membership) throw new OrganizationError("not_member");
@@ -97,6 +100,7 @@ export async function requireOrganizationAccess(database: Database, organization
   const capabilities = resolveOrganizationCapabilities(membership.role, membership.customCapabilities);
   return {
     role: membership.role,
+    archivedAt: membership.archivedAt ?? null,
     can: (capability) => capabilities.has(capability),
     require: (capability) => {
       if (!capabilities.has(capability)) throw new OrganizationError("forbidden");
@@ -118,7 +122,14 @@ export async function requireOrganizationLedgerAccess(
     .where(and(eq(ledgerScopes.kind, "organization"), eq(ledgerScopes.organizationId, organizationId)))
     .limit(1);
   if (!scope) throw new OrganizationError("not_found");
-  return { ...access, organizationId, ledgerScopeId: scope.id, ledger: createLedgerRepository(database, scope.id) };
+  return {
+    ...access,
+    organizationId,
+    ledgerScopeId: scope.id,
+    ledger: createLedgerRepository(database, scope.id, {
+      mutationGuard: (transaction) => lockActiveOrganizationForOperationalMutation(transaction, organizationId).then(() => undefined),
+    }),
+  };
 }
 
 async function requireLockedOrganizationLedgerAccess(database: Database, organizationId: string, userId: string) {
@@ -133,6 +144,23 @@ async function requireLockedOrganizationLedgerAccess(database: Database, organiz
 }
 
 export type OrganizationListScope = "active" | "archived" | "all";
+
+async function lockOrganizationLifecycle(database: Database, organizationId: string) {
+  const [row] = await database
+    .select({ id: organizations.id, archivedAt: organizations.archivedAt })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1)
+    .for("update");
+  if (!row) throw new OrganizationError("not_found");
+  return row;
+}
+
+export async function lockActiveOrganizationForOperationalMutation(database: Database, organizationId: string) {
+  const row = await lockOrganizationLifecycle(database, organizationId);
+  if (row.archivedAt) throw new OrganizationError("archived");
+  return row;
+}
 
 export async function assertOrganizationActiveForOperationalMutation(database: Database, organizationId: string) {
   const [row] = await database
@@ -176,7 +204,7 @@ export async function addPersonalFriendAsOrganizationExpenseContact(
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
     const access = await requireLockedOrganizationLedgerAccess(transactionalDatabase, organizationId, actorUserId);
-    await assertOrganizationActiveForOperationalMutation(transactionalDatabase, organizationId);
+    await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
     const personalScopeId = await getPersonalLedgerScopeId(transactionalDatabase, actorUserId);
     const [source] = await transaction
       .select({
@@ -393,24 +421,29 @@ export async function createOrganization(
 }
 
 export async function updateOrganization(database: Database, organizationId: string, userId: string, input: { name: string; description?: string | null }) {
-  const access = await requireOrganizationAccess(database, organizationId, userId);
-  access.require("organization.update");
-  await assertOrganizationActiveForOperationalMutation(database, organizationId);
-  const [organization] = await database
-    .update(organizations)
-    .set({ ...cleanInput(input), updatedAt: new Date() })
-    .where(eq(organizations.id, organizationId))
-    .returning();
-  if (!organization) throw new OrganizationError("not_found");
-  return organization;
+  return database.transaction(async (transaction) => {
+    const transactionalDatabase = transaction as Database;
+    const access = await requireOrganizationAccess(transactionalDatabase, organizationId, userId);
+    access.require("organization.update");
+    await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
+    const [organization] = await transaction
+      .update(organizations)
+      .set({ ...cleanInput(input), updatedAt: new Date() })
+      .where(eq(organizations.id, organizationId))
+      .returning();
+    if (!organization) throw new OrganizationError("not_found");
+    return organization;
+  });
 }
 
 export async function deleteOrganization(database: Database, organizationId: string, userId: string) {
-  const access = await requireOrganizationAccess(database, organizationId, userId);
-  access.require("organization.delete");
-  if (await hasOrganizationFinancialHistory(database, organizationId)) throw new OrganizationError("ledger_not_empty");
   try {
     return await database.transaction(async (transaction) => {
+      const transactionalDatabase = transaction as Database;
+      const access = await requireOrganizationAccess(transactionalDatabase, organizationId, userId);
+      access.require("organization.delete");
+      await lockOrganizationLifecycle(transactionalDatabase, organizationId);
+      if (await hasOrganizationFinancialHistory(transactionalDatabase, organizationId)) throw new OrganizationError("ledger_not_empty");
       const [scope] = await transaction
         .select({ id: ledgerScopes.id })
         .from(ledgerScopes)
@@ -425,7 +458,7 @@ export async function deleteOrganization(database: Database, organizationId: str
     });
   } catch (error) {
     if (error instanceof OrganizationError) throw error;
-    if (databaseCode(error) === "23503" && await hasOrganizationFinancialHistory(database, organizationId)) {
+    if (databaseCode(error, true) === "23503" && await hasOrganizationFinancialHistory(database, organizationId)) {
       throw new OrganizationError("ledger_not_empty");
     }
     throw error;
@@ -433,17 +466,12 @@ export async function deleteOrganization(database: Database, organizationId: str
 }
 
 export async function archiveOrganization(database: Database, organizationId: string, userId: string) {
-  const access = await requireOrganizationAccess(database, organizationId, userId);
-  access.require("organization.delete");
-  return database.transaction(async (transaction) => {
-    const [row] = await transaction
-      .select({ id: organizations.id, archivedAt: organizations.archivedAt })
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
-      .limit(1)
-      .for("update");
-    if (!row) throw new OrganizationError("not_found");
-    if (row.archivedAt) return row;
+  const result = await database.transaction(async (transaction) => {
+    const transactionalDatabase = transaction as Database;
+    const access = await requireOrganizationAccess(transactionalDatabase, organizationId, userId);
+    access.require("organization.delete");
+    const row = await lockOrganizationLifecycle(transactionalDatabase, organizationId);
+    if (row.archivedAt) return { archived: row, targetUserIds: [] as string[] };
     const now = new Date();
     const [archived] = await transaction
       .update(organizations)
@@ -451,25 +479,23 @@ export async function archiveOrganization(database: Database, organizationId: st
       .where(eq(organizations.id, organizationId))
       .returning();
     if (!archived) throw new OrganizationError("not_found");
-    await transaction
+    const revoked = await transaction
       .update(organizationInvitations)
       .set({ status: "revoked", revokedAt: now, updatedAt: now })
-      .where(and(eq(organizationInvitations.organizationId, organizationId), eq(organizationInvitations.status, "pending")));
-    return archived;
+      .where(and(eq(organizationInvitations.organizationId, organizationId), eq(organizationInvitations.status, "pending")))
+      .returning({ targetUserId: organizationInvitations.targetUserId });
+    return { archived, targetUserIds: revoked.map(({ targetUserId }) => targetUserId) };
   });
+  for (const targetUserId of new Set(result.targetUserIds)) publishNotificationStateChange(targetUserId, "resolved");
+  return result.archived;
 }
 
 export async function restoreOrganization(database: Database, organizationId: string, userId: string) {
-  const access = await requireOrganizationAccess(database, organizationId, userId);
-  access.require("organization.delete");
   return database.transaction(async (transaction) => {
-    const [row] = await transaction
-      .select({ id: organizations.id, archivedAt: organizations.archivedAt })
-      .from(organizations)
-      .where(eq(organizations.id, organizationId))
-      .limit(1)
-      .for("update");
-    if (!row) throw new OrganizationError("not_found");
+    const transactionalDatabase = transaction as Database;
+    const access = await requireOrganizationAccess(transactionalDatabase, organizationId, userId);
+    access.require("organization.delete");
+    const row = await lockOrganizationLifecycle(transactionalDatabase, organizationId);
     if (!row.archivedAt) return row;
     const [restored] = await transaction
       .update(organizations)
@@ -488,25 +514,31 @@ export async function getOrganizationAvatar(database: Database, organizationId: 
 }
 
 export async function saveOrganizationAvatar(database: Database, organizationId: string, userId: string, avatar: { mediaType: "image/webp"; byteSize: number; sha256: string; content: Uint8Array }) {
-  const access = await requireOrganizationAccess(database, organizationId, userId);
-  access.require("organization.update");
-  await assertOrganizationActiveForOperationalMutation(database, organizationId);
-  const [saved] = await database
-    .insert(organizationAvatars)
-    .values({ ...avatar, organizationId, content: Buffer.from(avatar.content) })
-    .onConflictDoUpdate({
-      target: organizationAvatars.organizationId,
-      set: { mediaType: avatar.mediaType, byteSize: avatar.byteSize, sha256: avatar.sha256, content: Buffer.from(avatar.content), updatedAt: new Date() },
-    })
-    .returning(avatarSelection());
-  if (!saved) throw new Error("Unable to save the organization avatar");
-  return { ...saved, mediaType: "image/webp" as const };
+  return database.transaction(async (transaction) => {
+    const transactionalDatabase = transaction as Database;
+    const access = await requireOrganizationAccess(transactionalDatabase, organizationId, userId);
+    access.require("organization.update");
+    await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
+    const [saved] = await transaction
+      .insert(organizationAvatars)
+      .values({ ...avatar, organizationId, content: Buffer.from(avatar.content) })
+      .onConflictDoUpdate({
+        target: organizationAvatars.organizationId,
+        set: { mediaType: avatar.mediaType, byteSize: avatar.byteSize, sha256: avatar.sha256, content: Buffer.from(avatar.content), updatedAt: new Date() },
+      })
+      .returning(avatarSelection());
+    if (!saved) throw new Error("Unable to save the organization avatar");
+    return { ...saved, mediaType: "image/webp" as const };
+  });
 }
 
 export async function deleteOrganizationAvatar(database: Database, organizationId: string, userId: string) {
-  const access = await requireOrganizationAccess(database, organizationId, userId);
-  access.require("organization.update");
-  await assertOrganizationActiveForOperationalMutation(database, organizationId);
-  const deleted = await database.delete(organizationAvatars).where(eq(organizationAvatars.organizationId, organizationId)).returning({ organizationId: organizationAvatars.organizationId });
-  return deleted.length > 0;
+  return database.transaction(async (transaction) => {
+    const transactionalDatabase = transaction as Database;
+    const access = await requireOrganizationAccess(transactionalDatabase, organizationId, userId);
+    access.require("organization.update");
+    await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
+    const deleted = await transaction.delete(organizationAvatars).where(eq(organizationAvatars.organizationId, organizationId)).returning({ organizationId: organizationAvatars.organizationId });
+    return deleted.length > 0;
+  });
 }

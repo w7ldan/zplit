@@ -52,6 +52,112 @@ async function orgScope(pool: Pool, organizationId: string) {
   return result.rows[0]!.id;
 }
 
+async function waitForBlockedQuery(pool: Pool, fragment: string) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const result = await pool.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query ILIKE $1",
+      [`%${fragment}%`],
+    );
+    if (Number(result.rows[0]?.count ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Timed out waiting for a PostgreSQL lock on ${fragment}`);
+}
+
+async function holdRow(pool: Pool, statement: string, values: unknown[]) {
+  const client = await pool.connect();
+  await client.query("BEGIN");
+  await client.query(statement, values);
+  return async () => {
+    await client.query("COMMIT");
+    client.release();
+  };
+}
+
+async function runLifecycleRaces({ pool, database, owner, invitee, groupIds, organizationIds }: ArchiveSmokeContext) {
+  const mutationFirstGroup = await createGroup(database, owner.id, { name: "Mutation-first race" });
+  groupIds.push(mutationFirstGroup.id);
+  const mutationFirstParticipantId = await participantFor(pool, mutationFirstGroup.id, owner.id);
+  const releaseParticipant = await holdRow(pool, "SELECT id FROM group_participants WHERE id = $1 FOR UPDATE", [mutationFirstParticipantId]);
+  const mutationFirstExpense = createGroupExpense(database, mutationFirstGroup.id, owner.id, {
+    description: "Serialized expense",
+    occurredAt: new Date("2026-08-28T00:00:00.000Z"),
+    totalAmount: 10,
+    payerParticipantId: mutationFirstParticipantId,
+    shares: [{ participantId: mutationFirstParticipantId, amount: 10 }],
+  });
+  await waitForBlockedQuery(pool, "group_participants");
+  const mutationFirstArchive = archiveGroup(database, mutationFirstGroup.id, owner.id);
+  await releaseParticipant();
+  await mutationFirstExpense;
+  await mutationFirstArchive;
+  const mutationFirstState = await pool.query<{ archived_at: Date | null; expenses: string }>(
+    "SELECT groups.archived_at, (SELECT count(*)::text FROM group_expenses WHERE group_id = groups.id) AS expenses FROM groups WHERE groups.id = $1",
+    [mutationFirstGroup.id],
+  );
+  assert(mutationFirstState.rows[0]?.archived_at !== null && mutationFirstState.rows[0]?.expenses === "1", "Group mutation did not serialize before archive");
+
+  const archiveFirstGroup = await createGroup(database, owner.id, { name: "Archive-first race" });
+  groupIds.push(archiveFirstGroup.id);
+  const archiveFirstParticipantId = await participantFor(pool, archiveFirstGroup.id, owner.id);
+  const pending = await createGroupInvitation(database, archiveFirstGroup.id, owner.id, { targetUserId: invitee.id });
+  const releaseRequest = await holdRow(pool, "SELECT id FROM group_join_requests WHERE id = $1 FOR UPDATE", [pending.id]);
+  const archiveFirstArchive = archiveGroup(database, archiveFirstGroup.id, owner.id);
+  await waitForBlockedQuery(pool, "group_join_requests");
+  const archiveFirstExpense = createGroupExpense(database, archiveFirstGroup.id, owner.id, {
+    description: "Rejected after archive",
+    occurredAt: new Date("2026-08-28T00:00:00.000Z"),
+    totalAmount: 10,
+    payerParticipantId: archiveFirstParticipantId,
+    shares: [{ participantId: archiveFirstParticipantId, amount: 10 }],
+  }).then(() => undefined, (error) => error);
+  await releaseRequest();
+  await archiveFirstArchive;
+  const archiveFirstError = await archiveFirstExpense;
+  assert(errorCode(archiveFirstError) === "archived", "Group mutation bypassed an archive that won the lifecycle lock");
+  const archiveFirstCount = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM group_expenses WHERE group_id = $1", [archiveFirstGroup.id]);
+  assert(archiveFirstCount.rows[0]?.count === "0", "Archive-first Group race left post-archive activity");
+
+  const mutationFirstOrganization = await createOrganization(database, owner.id, { name: "Organization mutation-first race" });
+  organizationIds.push(mutationFirstOrganization.id);
+  const mutationFirstScope = await orgScope(pool, mutationFirstOrganization.id);
+  const destinationIds = [randomUUID(), randomUUID()];
+  await pool.query(
+    "INSERT INTO repayment_destinations (id, ledger_scope_id, type, name, identifier, sort_order) VALUES ($1, $3, 'bank_account', 'A', '1', 0), ($2, $3, 'bank_account', 'B', '2', 1)",
+    [...destinationIds, mutationFirstScope],
+  );
+  const mutationFirstLedger = (await requireOrganizationLedgerAccess(database, mutationFirstOrganization.id, owner.id, "repayment_destinations.manage")).ledger;
+  const releaseDestination = await holdRow(pool, "SELECT id FROM repayment_destinations WHERE id = $1 FOR UPDATE", [destinationIds[0]]);
+  const reorderBeforeArchive = mutationFirstLedger.reorderRepaymentDestinations([destinationIds[1]!, destinationIds[0]!]);
+  await waitForBlockedQuery(pool, "repayment_destinations");
+  const organizationArchive = archiveOrganization(database, mutationFirstOrganization.id, owner.id);
+  await releaseDestination();
+  await reorderBeforeArchive;
+  await organizationArchive;
+  await restoreOrganization(database, mutationFirstOrganization.id, owner.id);
+  await mutationFirstLedger.reorderRepaymentDestinations([destinationIds[0]!, destinationIds[1]!]);
+
+  const archiveFirstOrganization = await createOrganization(database, owner.id, { name: "Organization archive-first race" });
+  organizationIds.push(archiveFirstOrganization.id);
+  const archiveFirstScope = await orgScope(pool, archiveFirstOrganization.id);
+  const archiveFirstDestinationIds = [randomUUID(), randomUUID()];
+  await pool.query(
+    "INSERT INTO repayment_destinations (id, ledger_scope_id, type, name, identifier, sort_order) VALUES ($1, $3, 'bank_account', 'A', '1', 0), ($2, $3, 'bank_account', 'B', '2', 1)",
+    [...archiveFirstDestinationIds, archiveFirstScope],
+  );
+  const organizationInvitation = await createOrganizationInvitation(database, archiveFirstOrganization.id, owner.id, { targetUserId: invitee.id, role: "member" });
+  const releaseInvitation = await holdRow(pool, "SELECT id FROM organization_invitations WHERE id = $1 FOR UPDATE", [organizationInvitation.id]);
+  const archiveFirstOrganizationArchive = archiveOrganization(database, archiveFirstOrganization.id, owner.id);
+  await waitForBlockedQuery(pool, "organization_invitations");
+  const archiveFirstReorder = (await requireOrganizationLedgerAccess(database, archiveFirstOrganization.id, owner.id, "repayment_destinations.manage")).ledger
+    .reorderRepaymentDestinations([archiveFirstDestinationIds[1]!, archiveFirstDestinationIds[0]!])
+    .then(() => undefined, (error) => error);
+  await releaseInvitation();
+  await archiveFirstOrganizationArchive;
+  const archiveFirstReorderError = await archiveFirstReorder;
+  assert(archiveFirstReorderError instanceof Error, "Organization reorder unexpectedly succeeded after archive");
+}
+
 type ArchiveSmokeContext = {
   pool: Pool;
   database: Database;
@@ -264,6 +370,7 @@ export async function runWorkspaceArchiveSmoke() {
 
     await runGroupArchiveSmoke(context);
     await runOrganizationArchiveSmoke(context);
+    await runLifecycleRaces(context);
     console.log("workspace archive smoke passed");
   } catch (error) {
     console.error(`workspace archive smoke failed: ${formatSafeError(error)}`);

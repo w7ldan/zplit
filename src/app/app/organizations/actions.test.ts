@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => {
     requireOrganizationAccess: vi.fn(),
     revalidatePath: vi.fn(),
     createOrganization: vi.fn(),
+    updateOrganization: vi.fn(),
     deleteOrganization: vi.fn(),
     archiveOrganization: vi.fn(),
     restoreOrganization: vi.fn(),

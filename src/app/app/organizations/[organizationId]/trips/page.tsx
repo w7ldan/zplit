@@ -30,7 +30,7 @@ export default async function OrganizationTripsPage({
   const access = await getAuthenticatedOrganizationLedger(organizationId, "ledger.view");
   const filters = normalizeTripFilters({ q: first(query.q), page: first(query.page) });
   const page = await access.ledger.listTripRecords({ q: first(query.q), page: first(query.page) });
-  const canManage = access.can("trips.manage");
+  const canManage = access.can("trips.manage") && !access.archivedAt;
   return (
     <section className="app-page trips-page" id="top">
       <div className="editorial-shell app-page__layout">

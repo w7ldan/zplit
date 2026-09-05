@@ -5,6 +5,8 @@ import type { OrganizationRole } from "@/domain/organization-permissions";
 import { assertPlainDto } from "@/test/assert-plain-dto";
 
 vi.mock("server-only", () => ({}));
+const notificationMocks = vi.hoisted(() => ({ publishNotificationStateChange: vi.fn() }));
+vi.mock("@/server/notifications", () => notificationMocks);
 
 import {
   archiveOrganization,
@@ -258,25 +260,29 @@ describe("organizations", () => {
   });
 
   it("refuses permanent deletion when Organization financial history exists", async () => {
-    const database = {
+    const transaction = {
       select: vi.fn()
         .mockImplementationOnce(() => queryBuilder([{ role: "owner", customCapabilities: [] }]))
+        .mockImplementationOnce(() => queryBuilder([{ id: organizationId, archivedAt: null }]))
         .mockImplementationOnce(() => queryBuilder([{ id: "scope-a" }]))
         .mockImplementationOnce(() => queryBuilder([{ id: "expense-a" }])),
-      transaction: vi.fn(),
+    };
+    const database = {
+      transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => callback(transaction)),
     } as unknown as Database;
 
     await expect(deleteOrganization(database, organizationId, "user-a")).rejects.toMatchObject({ code: "ledger_not_empty" });
-    expect(database.transaction).not.toHaveBeenCalled();
+    expect(database.transaction).toHaveBeenCalledOnce();
   });
 
   it("archives an Organization with financial history while preserving its identity", async () => {
     const transaction = {
       select: vi.fn()
+        .mockImplementationOnce(() => queryBuilder([{ role: "owner", customCapabilities: [] }]))
         .mockImplementationOnce(() => queryBuilder([{ id: organizationId, archivedAt: null }])),
       update: vi.fn()
         .mockImplementationOnce(() => queryBuilder([{ id: organizationId, archivedAt: new Date("2026-01-01T00:00:00.000Z") }]))
-        .mockImplementationOnce(() => queryBuilder([])),
+        .mockImplementationOnce(() => queryBuilder([{ targetUserId: "user-b" }, { targetUserId: "user-b" }])),
     };
     const database = {
       select: vi.fn(() => queryBuilder([{ role: "owner", customCapabilities: [] }])),
@@ -287,11 +293,14 @@ describe("organizations", () => {
     expect(archived.id).toBe(organizationId);
     expect(archived.archivedAt).not.toBeNull();
     expect(transaction.update).toHaveBeenCalledTimes(2);
+    expect(notificationMocks.publishNotificationStateChange).toHaveBeenCalledWith("user-b", "resolved");
+    expect(notificationMocks.publishNotificationStateChange).toHaveBeenCalledTimes(1);
   });
 
   it("restores an archived Organization to the active lifecycle", async () => {
     const transaction = {
       select: vi.fn()
+        .mockImplementationOnce(() => queryBuilder([{ role: "owner", customCapabilities: [] }]))
         .mockImplementationOnce(() => queryBuilder([{ id: organizationId, archivedAt: new Date("2026-01-01T00:00:00.000Z") }])),
       update: vi.fn(() => queryBuilder([{ id: organizationId, archivedAt: null }])),
     };

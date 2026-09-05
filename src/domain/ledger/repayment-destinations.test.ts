@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/pg-proxy";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Database } from "../../db/client";
 import { createRepaymentDestinationRepository } from "./repayment-destinations";
 
@@ -71,5 +71,12 @@ describe("repayment destination repository", () => {
     const database = mutationDatabase();
     await createRepaymentDestinationRepository(database.database, scope).reorderRepaymentDestinations([destinationB, destinationA]);
     expect(database.updates).toEqual([{ id: "updated", sortOrder: 0 }, { id: "updated", sortOrder: 1 }]);
+  });
+
+  it("checks the workspace lifecycle inside the reorder transaction", async () => {
+    const guard = vi.fn(async () => { throw new Error("archived"); });
+    const repository = createRepaymentDestinationRepository(mutationDatabase().database, scope, guard);
+    await expect(repository.reorderRepaymentDestinations([destinationB, destinationA])).rejects.toMatchObject({ code: "PERSISTENCE_ERROR" });
+    expect(guard).toHaveBeenCalledOnce();
   });
 });

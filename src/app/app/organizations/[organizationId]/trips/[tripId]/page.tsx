@@ -42,7 +42,7 @@ export default async function OrganizationTripPage({
     access.ledger.getTripSummary(trip.id),
     access.ledger.listOutingRecords({ trip: trip.id, page: first(query.page) }),
   ]);
-  const canEdit = access.can("trips.manage");
+  const canEdit = access.can("trips.manage") && !access.archivedAt;
   const copy = [
     `${trip.name}`,
     "",
@@ -63,7 +63,7 @@ export default async function OrganizationTripPage({
           </div>
           <div className="trip-record__actions">
             <TripSummaryCopy text={copy} />
-            {access.can("outings.manage") ? (
+            {access.can("outings.manage") && !access.archivedAt ? (
               <Link
                 className="action-link action-link--quiet"
                 href={`${base}/outings?create=1&trip=${trip.id}`}

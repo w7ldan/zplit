@@ -181,7 +181,16 @@ export function createOutingsMutationRepository(
   database: Database,
   scope: string,
   { lockExpenseDependents }: Pick<ReturnType<typeof createExpenseMutationRepository>, "lockExpenseDependents">,
+  mutationGuard?: (database: Database) => Promise<void>,
 ) {
+async function mutate<T>(operation: (database: Database) => Promise<T>) {
+    if (!mutationGuard) return operation(database);
+    return database.transaction(async (transaction) => {
+      await mutationGuard(transaction as Database);
+      return operation(transaction as Database);
+    });
+  }
+
 async function assertOwnedTrip(databaseLike: Pick<Database, "select">, tripId: string) {
     const [trip] = await databaseLike
       .select({ id: trips.id })
@@ -195,10 +204,12 @@ async function createOuting(input: CreateOutingInput) {
     assertOutingInput(input);
     const requested = { ...input, tripId: input.tripId ?? null };
     try {
-      if (requested.tripId) await assertOwnedTrip(database, requested.tripId);
-      const [outing] = await database.insert(outings).values({ ...requested, ledgerScopeId: scope }).returning();
-      if (!outing) return persistenceError(new Error("outing insert returned no row"));
-      return outing;
+      return await mutate(async (transaction) => {
+        if (requested.tripId) await assertOwnedTrip(transaction, requested.tripId);
+        const [outing] = await transaction.insert(outings).values({ ...requested, ledgerScopeId: scope }).returning();
+        if (!outing) return persistenceError(new Error("outing insert returned no row"));
+        return outing;
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -209,14 +220,16 @@ async function updateOuting(outingId: string, input: UpdateOutingInput) {
     assertOutingInput(input);
     const requested = { ...input, tripId: input.tripId ?? null };
     try {
-      if (requested.tripId) await assertOwnedTrip(database, requested.tripId);
-      const [outing] = await database
-        .update(outings)
-        .set({ ...requested, updatedAt: new Date() })
-        .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
-        .returning();
-      if (!outing) return notFound();
-      return outing;
+      return await mutate(async (transaction) => {
+        if (requested.tripId) await assertOwnedTrip(transaction, requested.tripId);
+        const [outing] = await transaction
+          .update(outings)
+          .set({ ...requested, updatedAt: new Date() })
+          .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
+          .returning();
+        if (!outing) return notFound();
+        return outing;
+      });
     } catch (error) {
       return persistenceError(error);
     }
@@ -272,6 +285,7 @@ async function deleteOuting(outingId: string, options: DeleteRecordOptions = { c
     assertDeleteOptions(options);
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database);
         const [outing] = await transaction
           .select({ id: outings.id })
           .from(outings)
@@ -286,7 +300,7 @@ async function deleteOuting(outingId: string, options: DeleteRecordOptions = { c
           .orderBy(asc(expenses.id))
           .for("update");
         const expenseIds = safeDeletionIds(dependentExpenses.map((expense) => expense.id), "Outing expense ID");
-        const dependents = await lockExpenseDependents(transaction, expenseIds);
+        const dependents = await lockExpenseDependents(transaction as Parameters<Parameters<Database["transaction"]>[0]>[0], expenseIds);
         const affectedRepaymentIds = safeDeletionIds(dependents.allocations.map((allocation) => allocation.repaymentId), "Affected repayment ID");
         const impact: OutingDeletionImpact = {
           recordType: "outing",

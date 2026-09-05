@@ -52,7 +52,7 @@ async function loadOrganizationOutings(
     filters,
     selectedTrip,
     page,
-    canManage: access.can("outings.manage"),
+    canManage: access.can("outings.manage") && !access.archivedAt,
     openCreate: first(query.create) === "1",
     groups: groupRecordsByMonth(page.items, (outing) => outing.occurredAt, timezoneOffsetMinutes),
     outingOptions: [

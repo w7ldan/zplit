@@ -28,7 +28,7 @@ export default async function OrganizationPeoplePage({
     organization.canViewMembers
       ? listOrganizationParticipants(database, organizationId, session.user.id)
       : Promise.resolve(undefined),
-    organization.invitationRoles?.length
+    organization.invitationRoles?.length && organization.archivedAt === null
       ? listPendingOrganizationInvitations(database, organizationId, session.user.id)
       : Promise.resolve([]),
     organization.canViewLedger && organization.canManageFriends
@@ -55,11 +55,11 @@ export default async function OrganizationPeoplePage({
           organizationId={organizationId}
           members={members}
           pendingInvitations={pendingInvitations}
-          invitationRoles={organization.invitationRoles ?? []}
-          canManageMembers={organization.canManageMembers}
+          invitationRoles={organization.archivedAt === null ? organization.invitationRoles ?? [] : []}
+          canManageMembers={organization.canManageMembers && organization.archivedAt === null}
           expenseFriendCandidates={expenseFriendCandidates}
           canViewExpenseContacts={organization.canViewLedger}
-          canManageExpenseContacts={organization.canManageFriends}
+          canManageExpenseContacts={organization.canManageFriends && organization.archivedAt === null}
         />
       </div>
     </section>

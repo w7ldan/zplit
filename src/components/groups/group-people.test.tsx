@@ -77,4 +77,21 @@ describe("GroupPeople", () => {
     expect(container.querySelector('input[aria-label="External participant name"]')).not.toBeInTheDocument();
     expect(screen.queryByText("FROM PERSONAL FRIENDS")).not.toBeInTheDocument();
   });
+
+  it("renders archived management data read-only", () => {
+    render(
+      <GroupPeople
+        groupId="group-a"
+        participants={[externalParticipant]}
+        canManageParticipants={false}
+        canManageRoles={false}
+      />,
+    );
+
+    expect(screen.getByText("Taxi")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Add member" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Link Zplit account" })).not.toBeInTheDocument();
+  });
 });

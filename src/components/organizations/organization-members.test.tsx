@@ -92,4 +92,22 @@ describe("OrganizationMembers", () => {
       "/app/organizations/11111111-1111-4111-8111-111111111111/friends?create=1",
     );
   });
+
+  it("renders archived members without management affordances", () => {
+    render(
+      <OrganizationMembers
+        organizationId="11111111-1111-4111-8111-111111111111"
+        members={[member]}
+        pendingInvitations={[]}
+        invitationRoles={[]}
+        canManageMembers={false}
+        canManageExpenseContacts={false}
+      />,
+    );
+
+    expect(screen.getByText("Alice Tan")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Add member" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add member" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Add local member" })).not.toBeInTheDocument();
+  });
 });

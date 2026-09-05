@@ -7,8 +7,8 @@ import { CHAT_PAGE_SIZE, CHAT_STATE_CHANGED_EVENT, type ChatScope, normalizeChat
 import type { ChatMessageDto, ChatViewDto } from "@/domain/chat-contracts";
 import { resolveOrganizationCapabilities } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
-import { requireGroupAccess, GroupError } from "@/server/groups";
-import { requireOrganizationAccess } from "@/server/organizations";
+import { lockActiveGroupForOperationalMutation, requireGroupAccess, GroupError } from "@/server/groups";
+import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireOrganizationAccess } from "@/server/organizations";
 import { publishRealtimeEvent, type RealtimeData } from "@/server/realtime";
 import { getUserAvatarMetadataForViewer } from "@/server/user-avatar-access";
 
@@ -276,6 +276,26 @@ async function isScopeArchived(database: Database, scope: ChatScope) {
   return row?.archivedAt != null;
 }
 
+async function lockActiveScopeForMutation(database: Database, scope: ChatScope) {
+  try {
+    if (scope.type === "organization") {
+      await lockActiveOrganizationForOperationalMutation(database, scope.id);
+    } else {
+      await lockActiveGroupForOperationalMutation(database, scope.id);
+    }
+  } catch (error) {
+    const code = error instanceof GroupError || error instanceof OrganizationError
+      ? error.code
+      : error instanceof Error && "code" in error && typeof error.code === "string"
+        ? error.code
+        : undefined;
+    if (code === "archived") {
+      throw new ChatError("archived");
+    }
+    throw error;
+  }
+}
+
 export async function getOrganizationChat(database: Database, organizationId: string, viewerUserId: string, before?: unknown): Promise<ChatViewDto> {
   const scope = normalizeScope({ type: "organization", id: organizationId });
   const access = await requireOrganizationAccess(database, scope.id, viewerUserId);
@@ -336,7 +356,7 @@ export async function sendChatMessage(database: Database, input: { scope: ChatSc
   const body = normalizeChatMessageBody(input.body);
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    if (await isScopeArchived(transactionalDatabase, scope)) throw new ChatError("archived");
+    await lockActiveScopeForMutation(transactionalDatabase, scope);
     let senderParticipantId: string | undefined;
     if (scope.type === "organization") {
       const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);
@@ -410,7 +430,7 @@ export async function editChatMessage(database: Database, input: { scope: ChatSc
   const body = normalizeChatMessageBody(input.body);
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    if (await isScopeArchived(transactionalDatabase, scope)) throw new ChatError("archived");
+    await lockActiveScopeForMutation(transactionalDatabase, scope);
     if (scope.type === "organization") {
       const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);
       access.require("chat.send");
@@ -433,6 +453,7 @@ export async function deleteChatMessage(database: Database, input: { scope: Chat
   const scope = normalizeScope(input.scope);
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
+    await lockActiveScopeForMutation(transactionalDatabase, scope);
     let canModerate = false;
     if (scope.type === "organization") {
       const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);

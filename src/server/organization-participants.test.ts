@@ -5,12 +5,12 @@ import { organizationParticipants } from "@/db/schema";
 const mocks = vi.hoisted(() => ({
   getPersonalLedgerScopeId: vi.fn(),
   requireOrganizationAccess: vi.fn(),
-  assertOrganizationActiveForOperationalMutation: vi.fn(),
+  lockActiveOrganizationForOperationalMutation: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/ledger-scopes", () => ({ getPersonalLedgerScopeId: mocks.getPersonalLedgerScopeId }));
-vi.mock("@/server/organizations", () => ({ requireOrganizationAccess: mocks.requireOrganizationAccess, assertOrganizationActiveForOperationalMutation: mocks.assertOrganizationActiveForOperationalMutation }));
+vi.mock("@/server/organizations", () => ({ requireOrganizationAccess: mocks.requireOrganizationAccess, lockActiveOrganizationForOperationalMutation: mocks.lockActiveOrganizationForOperationalMutation }));
 
 import {
   addPersonalFriendAsOrganizationParticipant,
@@ -54,7 +54,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getPersonalLedgerScopeId.mockResolvedValue("scope-owner");
   mocks.requireOrganizationAccess.mockResolvedValue({ require: vi.fn() });
-  mocks.assertOrganizationActiveForOperationalMutation.mockResolvedValue(undefined);
+  mocks.lockActiveOrganizationForOperationalMutation.mockResolvedValue(undefined);
 });
 
 describe("Organization participants", () => {

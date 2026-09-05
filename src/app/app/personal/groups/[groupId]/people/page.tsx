@@ -16,7 +16,7 @@ export default async function GroupPeoplePage({ params }: { params: Promise<{ gr
   try { group = await getGroupForMember(database, groupId, session.user.id); } catch { notFound(); }
   const [participants, requests] = await Promise.all([
     listGroupParticipants(database, groupId, session.user.id),
-    group.canManageParticipants ? listGroupJoinRequests(database, groupId, session.user.id) : Promise.resolve({ invitations: [], links: [] }),
+    group.canManageParticipants && group.archivedAt === null ? listGroupJoinRequests(database, groupId, session.user.id) : Promise.resolve({ invitations: [], links: [] }),
   ]);
   return (
     <section className="app-page group-people-page" id="top">
@@ -33,8 +33,8 @@ export default async function GroupPeoplePage({ params }: { params: Promise<{ gr
           participants={participants}
           pendingInvitations={requests.invitations}
           pendingLinks={requests.links}
-          canManageParticipants={group.canManageParticipants}
-          canManageRoles={group.canManageRoles}
+          canManageParticipants={group.canManageParticipants && group.archivedAt === null}
+          canManageRoles={group.canManageRoles && group.archivedAt === null}
         />
       </div>
     </section>

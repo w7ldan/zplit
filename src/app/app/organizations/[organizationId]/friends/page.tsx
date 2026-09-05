@@ -42,7 +42,7 @@ export default async function OrganizationFriendsPage({
         : []
     ).map((balance) => [balance.friendId, balance]),
   );
-  const canManage = access.can("friends.manage");
+  const canManage = access.can("friends.manage") && !access.archivedAt;
   const openCreate = canManage && first(query.create) === "1";
   return (
     <section className="app-page friends-page" id="top">

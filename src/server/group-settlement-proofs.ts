@@ -15,7 +15,7 @@ import { normalizeUuid } from "@/domain/record-retrieval";
 import {
   publishGroupSettlementFreshness,
 } from "@/server/group-settlements";
-import { assertGroupActiveForOperationalMutation, requireGroupAccess } from "@/server/groups";
+import { lockActiveGroupForOperationalMutation, requireGroupAccess } from "@/server/groups";
 import { RECEIPT_READ_HEADERS } from "@/server/expense-receipts";
 
 export const GROUP_SETTLEMENT_PROOF_UNAVAILABLE_MESSAGE = "This Group settlement or payment proof is no longer available.";
@@ -116,7 +116,7 @@ async function mutateProof(
   if (validatedFile.byteSize > MAX_RECEIPT_BYTES) throw new RangeError("Settlement proof is too large");
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    await assertGroupActiveForOperationalMutation(transactionalDatabase, groupId);
+    await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
     await lockPendingSettlementForProof(transactionalDatabase, groupId, settlementId, senderUserId);
     const [existing] = await transactionalDatabase
       .select({ id: groupSettlementProofs.id })
@@ -189,6 +189,7 @@ export async function deleteGroupSettlementProof(database: Database, groupId: st
   if (!normalizeUuid(proofId)) return false;
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
+    await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
     await lockPendingSettlementForProof(transactionalDatabase, groupId, settlementId, senderUserId);
     const deleted = await transactionalDatabase
       .delete(groupSettlementProofs)

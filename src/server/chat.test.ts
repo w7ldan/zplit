@@ -4,15 +4,18 @@ import { chatMessages, chatThreadReads } from "@/db/schema";
 
 const mocks = vi.hoisted(() => ({
   requireOrganizationAccess: vi.fn(),
+  lockActiveOrganizationForOperationalMutation: vi.fn(),
   requireGroupAccess: vi.fn(),
+  lockActiveGroupForOperationalMutation: vi.fn(),
   getUserAvatarMetadataForViewer: vi.fn(),
   publishRealtimeEvent: vi.fn(async () => undefined),
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/server/organizations", () => ({ requireOrganizationAccess: mocks.requireOrganizationAccess }));
+vi.mock("@/server/organizations", () => ({ requireOrganizationAccess: mocks.requireOrganizationAccess, OrganizationError: class OrganizationError extends Error { constructor(readonly code: string) { super(code); } }, lockActiveOrganizationForOperationalMutation: mocks.lockActiveOrganizationForOperationalMutation }));
 vi.mock("@/server/groups", () => ({
   requireGroupAccess: mocks.requireGroupAccess,
+  lockActiveGroupForOperationalMutation: mocks.lockActiveGroupForOperationalMutation,
   GroupError: class GroupError extends Error {
     constructor(readonly code: string) {
       super(code);
@@ -76,6 +79,14 @@ describe("chat server ownership", () => {
     vi.clearAllMocks();
     mocks.requireOrganizationAccess.mockResolvedValue(organizationAccess());
     mocks.requireGroupAccess.mockResolvedValue({ canManageGroup: false });
+    mocks.lockActiveOrganizationForOperationalMutation.mockImplementation(async (database: Database) => {
+      const [row] = await database.select() as unknown as [{ archivedAt?: unknown }?];
+      if (row?.archivedAt) throw Object.assign(new Error("archived"), { code: "archived" });
+    });
+    mocks.lockActiveGroupForOperationalMutation.mockImplementation(async (database: Database) => {
+      const [row] = await database.select() as unknown as [{ archivedAt?: unknown }?];
+      if (row?.archivedAt) throw Object.assign(new Error("archived"), { code: "archived" });
+    });
     mocks.getUserAvatarMetadataForViewer.mockResolvedValue(new Map());
   });
 
@@ -250,7 +261,7 @@ describe("chat server ownership", () => {
   });
 
   it("makes a second delete a safe no-op and allows Group management moderation", async () => {    mocks.requireGroupAccess.mockResolvedValue({ canManageGroup: true });
-    const db = database([[{ id: "message-a", senderUserId: "user-b", deletedAt: new Date(), threadId }]]);
+    const db = database([[{ archivedAt: null }], [{ id: "message-a", senderUserId: "user-b", deletedAt: new Date(), threadId }]]);
     await expect(deleteChatMessage(db, { scope: { type: "group", id: groupId }, messageId: "message-a", userId: "user-a" })).resolves.toMatchObject({ changed: false });
     expect(mocks.publishRealtimeEvent).not.toHaveBeenCalled();
   });
