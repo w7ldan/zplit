@@ -3,6 +3,7 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getOrganizationForMember } from "@/server/organizations";
 import { getAuthenticatedOrganizationLedger } from "@/server/authenticated-ledger";
+import { DeleteConfirmationDialog } from "@/components/app/delete-confirmation-dialog";
 import { OrganizationProfile } from "@/components/organizations/organization-detail";
 import { RepaymentDestinationsSettings } from "@/components/settings/repayment-destinations-settings";
 import {
@@ -147,14 +148,15 @@ export default async function OrganizationSettingsPage({
           </section>
         ) : null}
         {organization.canDelete ? (
-          <form
-            className="organization-detail__delete"
-            action={deleteOrganizationAction.bind(null, organizationId)}
-          >
-            <button className="action-link action-link--quiet" type="submit">
-              Delete organization
-            </button>
-          </form>
+          <div className="organization-detail__delete">
+            <DeleteConfirmationDialog
+              title="Delete organization?"
+              entityName={organization.name}
+              confirmLabel="Delete organization"
+              pendingLabel="Deleting organization…"
+              action={deleteOrganizationAction.bind(null, organizationId)}
+            />
+          </div>
         ) : null}
       </div>
     </section>

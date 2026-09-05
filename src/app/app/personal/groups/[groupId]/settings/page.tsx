@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getGroupForMember } from "@/server/groups";
+import { DeleteConfirmationDialog } from "@/components/app/delete-confirmation-dialog";
 import { GroupProfile } from "@/components/groups/group-detail";
 import { deleteGroupAction, updateGroupAction } from "../../actions";
 
@@ -53,14 +54,13 @@ export default async function GroupSettingsPage({
                 This Group cannot be deleted because it has financial history. The records remain untouched.
               </p>
             ) : null}
-            <form action={deleteGroupAction.bind(null, groupId)}>
-              <button
-                className="action-link action-link--quiet"
-                type="submit"
-              >
-                Delete group
-              </button>
-            </form>
+            <DeleteConfirmationDialog
+              title="Delete group?"
+              entityName={group.name}
+              confirmLabel="Delete group"
+              pendingLabel="Deleting group…"
+              action={deleteGroupAction.bind(null, groupId)}
+            />
           </section>
         ) : (
           <Link

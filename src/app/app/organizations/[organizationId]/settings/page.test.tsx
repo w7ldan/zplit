@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), getOrganizationForMember: vi.fn(), getAuthenticatedOrganizationLedger: vi.fn() }));
@@ -14,6 +14,7 @@ vi.mock("../../actions", () => ({ deleteOrganizationAction: vi.fn(), updateOrgan
 vi.mock("../ledger-actions", () => ({ createRepaymentDestinationAction: vi.fn(), deleteRepaymentDestinationAction: vi.fn(), setRepaymentDestinationOrderAction: vi.fn(), updateRepaymentDestinationAction: vi.fn() }));
 
 import OrganizationSettingsPage from "./page";
+import { deleteOrganizationAction } from "../../actions";
 
 const session = { user: { id: "user-a" } };
 const organization = { id: "org-a", name: "Studio", description: null, canUpdate: false, canDelete: false, canViewLedger: false, canManageRepaymentDestinations: false, canExport: false };
@@ -58,5 +59,28 @@ describe("Organization Settings capability composition", () => {
     expect(screen.getByRole("heading", { name: "Export management" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View exports" })).toHaveAttribute("href", "/app/organizations/org-a/exports");
     expect(mocks.getAuthenticatedOrganizationLedger).not.toHaveBeenCalled();
+  });
+
+  it("confirms organization deletion with the organization name", async () => {
+    await renderPage({ canDelete: true, name: "Acme Studio" });
+
+    expect(
+      screen.getByRole("button", { name: "Delete organization" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete organization" }),
+    );
+    expect(vi.mocked(deleteOrganizationAction)).not.toHaveBeenCalled();
+
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByRole("heading", { name: "Delete organization?" }),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText(/Acme Studio/)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(vi.mocked(deleteOrganizationAction)).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
