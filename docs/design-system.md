@@ -225,21 +225,30 @@ rather than decorative effects.
 
 ## 6. Public landing and Journey
 
-The public homepage is an editorial financial record transformed into a
-product website. It uses real or faithful Zplit-like record UI as illustration,
-with bounded reading measures and wider compositions for product surfaces.
+The public homepage is an editorial financial world built from faithful Zplit
+record UI. Its physical-record metaphor uses paper surfaces, attached proof,
+thin relationship rules, and stacked depth to make hierarchy, provenance, and
+state visible. This dimensional storytelling is scoped to expressive public
+surfaces; Zplit does not use 3D everywhere.
 
 The current public narrative moves through:
 
-1. a product-scale hero record;
-2. expense → shares → repayment → balance relationships;
-3. distinct Personal, Group, and Organization contexts;
-4. a compact four-state Journey;
-5. Group ledger beside Group Chat;
-6. record detail with attached proof;
+1. a product-scale hero record with an attached proof plane;
+2. one expense physically reorganizing into shares, repayment, and balance;
+3. distinct Personal, Group, and Organization arrangements;
+4. a keyboard-operable four-state Journey;
+5. Group ledger beside a separate Group Chat plane;
+6. record detail with a receipt that remains attached;
 7. private, read-only balance sharing;
 8. Search, Inbox, and history as one findability story; and
 9. a settled/open balance payoff.
+
+One shared public input owner batches passive scroll, resize, visibility, and
+fine-pointer input in a requestAnimationFrame loop. Scenes consume normalized
+CSS custom properties for reversible depth and parallax; they do not update
+React state on every input event. IntersectionObserver may be used for scene
+activity, but the narrative remains understandable through normal page
+progression.
 
 The Journey demonstrates:
 
@@ -249,10 +258,13 @@ The Journey demonstrates:
 4. reading resulting balances.
 
 The Journey uses one stable product composition with direct step controls. It
-does not require a long scroll runway or scroll-linked geometry to explain one
-scenario.
+does not require a long scroll runway to explain one scenario. Other scenes
+may use scroll-linked depth because the same record surfaces physically
+reorganize as the story progresses.
 
-On narrow screens, reduced-motion environments, or constrained viewports, the same content must remain understandable in a native stacked composition.
+On narrow screens, reduced-motion environments, or constrained viewports, the
+same content remains understandable in a native stacked composition. The DOM
+content is visible without JavaScript; motion is progressive enhancement.
 
 Do not imply capabilities the demonstrated flow does not actually support.
 
@@ -260,7 +272,9 @@ Public motion may be more expressive than authenticated motion but must remain:
 
 - keyboard-operable;
 - reduced-motion-safe;
-- understandable without animation.
+- understandable without animation;
+- interruptible when scrolling reverses; and
+- bounded to transform and opacity work where possible.
 
 ---
 
@@ -335,7 +349,7 @@ establishes authorship.
 Public/editorial desktop layouts use a 12-column grid, reducing to four
 columns on mobile. The public canvas may extend to an ultrawide ceiling for
 product compositions while readable copy keeps an intentional local measure.
-The current Landing V2 canvas ceiling is `118rem`; this is a public
+The immersive public landing canvas ceiling is `150rem`; this is a public
 implementation contract and not a requirement that every child stretch to the
 viewport edge.
 

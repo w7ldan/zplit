@@ -1,57 +1,34 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LandingReveal, LandingStoryMotion } from "./landing-reveal";
+import { LandingStoryMotion } from "./landing-reveal";
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("LandingReveal", () => {
-  it("uses a one-shot observer and disconnects it on cleanup", () => {
-    let callback: IntersectionObserverCallback = () => {};
-    const disconnect = vi.fn();
-    class MockIntersectionObserver {
-      constructor(next: IntersectionObserverCallback) { callback = next; }
-      observe = vi.fn();
-      disconnect = disconnect;
-    }
-    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
-    render(<LandingReveal><p>Supporting copy</p></LandingReveal>);
-    const target = screen.getByText("Supporting copy").parentElement!;
-    expect(target).toHaveClass("landing-reveal--ready");
-    expect(target).not.toHaveClass("landing-reveal--visible");
-    act(() => callback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver));
-    expect(target).toHaveClass("landing-reveal--visible");
-    expect(disconnect).toHaveBeenCalled();
-  });
-
-  it("reveals immediately when reduced motion is preferred", () => {
-    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: true })) });
-    render(<LandingReveal><p>Immediate copy</p></LandingReveal>);
-    expect(screen.getByText("Immediate copy").parentElement).toHaveClass("landing-reveal--visible");
-  });
-});
-
 describe("LandingStoryMotion", () => {
-  it("observes story sections without scroll-linked staging", () => {
-    let callback: IntersectionObserverCallback = () => {};
-    const observe = vi.fn();
-    const unobserve = vi.fn();
-    const disconnect = vi.fn();
-    class MockIntersectionObserver {
-      constructor(next: IntersectionObserverCallback) { callback = next; }
-      observe = observe;
-      unobserve = unobserve;
-      disconnect = disconnect;
-    }
-    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn(() => ({ matches: false })) });
-    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
-    const { unmount } = render(<LandingStoryMotion><section data-story-motion="model">Model</section><section data-story-motion="history">History</section></LandingStoryMotion>);
-    const model = screen.getByText("Model");
-    expect(observe).toHaveBeenCalledTimes(2);
-    expect(model).toHaveClass("story-motion--ready");
-    act(() => callback([{ isIntersecting: true, target: model } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
-    expect(model).toHaveClass("story-motion--visible");
-    expect(unobserve).toHaveBeenCalledWith(model);
+  it("owns one scroll/pointer-ready public input surface and writes scene variables", () => {
+    const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    const cancelAnimationFrame = vi.fn();
+    vi.stubGlobal("requestAnimationFrame", requestAnimationFrame);
+    vi.stubGlobal("cancelAnimationFrame", cancelAnimationFrame);
+    const { container, unmount } = render(<LandingStoryMotion><section data-spatial-scene="model">Model</section></LandingStoryMotion>);
+
+    const root = container.querySelector("main")!;
+    const scene = container.querySelector<HTMLElement>("[data-spatial-scene]")!;
+    expect(root).toHaveClass("spatial-landing--motion-ready");
+    expect(scene.style.getPropertyValue("--scene-progress")).not.toBe("");
+    act(() => window.dispatchEvent(new Event("scroll")));
+    expect(requestAnimationFrame).toHaveBeenCalled();
     unmount();
-    expect(disconnect).toHaveBeenCalled();
+    expect(cancelAnimationFrame).toHaveBeenCalled();
+  });
+
+  it("marks reduced motion while keeping the complete DOM path available", () => {
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn((query: string) => ({ matches: query.includes("prefers-reduced-motion") })) });
+    const { container } = render(<LandingStoryMotion><section data-spatial-scene="model">Model content</section></LandingStoryMotion>);
+    expect(container.querySelector("main")).toHaveClass("spatial-landing--reduced");
+    expect(container).toHaveTextContent("Model content");
   });
 });

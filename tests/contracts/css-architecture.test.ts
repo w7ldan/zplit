@@ -148,11 +148,10 @@ describe("Repository CSS architecture contract", () => {
     expect(publicSource).toContain(".public-home .site-header__access");
     expect(publicSource).toContain(".public-home .site-header.header-shell__panel--detached");
     expect(publicSource).toContain(".journey-scene__body");
-    expect(publicSource).toContain(".landing-reveal");
-    expect(publicSource).toContain(".capability--search");
-    expect(publicSource).toContain(".capability--receipt");
-    expect(publicSource).toContain(".capability--private");
-    expect(publicSource).toContain(".story-close");
+    expect(publicSource).toContain(".spatial-landing");
+    expect(publicSource).toContain(".findability-search");
+    expect(publicSource).toContain(".proof-receipt");
+    expect(publicSource).toContain(".private-statement");
     expect(lateOverridesSource).not.toContain(".journey-");
     expect(lateOverridesSource).not.toContain(".landing-reveal");
     expect(lateOverridesSource).not.toContain(".public-home");

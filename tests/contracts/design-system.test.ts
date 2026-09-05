@@ -42,25 +42,15 @@ describe("Repository design-system contract", () => {
     expect(css.indexOf("/* Explicit Zplit browser baseline. */")).toBeGreaterThanOrEqual(0);
     expect(css.indexOf("/* Explicit Zplit browser baseline. */")).toBeLessThan(css.indexOf(".editorial-shell {"));
     for (const statement of [
-      "information-clear",
-      "Public surfaces can be more expressive",
-      "The Journey is a keyboard-operable five-step scenario",
-      "prefers-reduced-motion: reduce",
-      "The authenticated shell currently has a compact header.",
-      "Record retrieval is URL-backed.",
-      "The searchable combobox contract is strict:",
-      "The repayment-destination list is the reference for simple list reordering:",
-      "The current toast system is a bounded, polite status surface",
-      "Future realtime updates must use the same restraint",
-      "Receipt and payment-proof previews use a bounded overlay.",
-      "Future implementation prompts must follow both documents.",
-      "Edit forms remain direct",
-      "Creating the prerequisite Friend from Add repayment returns to",
-      "On mobile, search stays visible",
-      "active-filter count excludes free-text search",
-      "filters remains available whenever filtering is active.",
-      "Result updates announce",
-      "`30-records-and-forms` owns record rows",
+      "Public surfaces may be more expressive.",
+      "The public homepage is an editorial financial world",
+      "requestAnimationFrame loop",
+      "The Journey demonstrates:",
+      "reduced-motion-safe",
+      "The authenticated application uses one fluid working canvas",
+      "no horizontal overflow",
+      "Financial records are:",
+      "Ledger records are not generic rounded cards.",
     ]) {
       expect(documentation).toContain(statement);
     }
@@ -69,16 +59,14 @@ describe("Repository design-system contract", () => {
 
   it("keeps prohibited visual patterns out of the product contract", () => {
     for (const prohibitedPattern of [
-      "generic SaaS-dashboard aesthetic",
-      "Ledger rows are not generic",
+      "generic dashboard",
       "excessive pills",
-      "colored “Live” status-dot styling",
       "glassmorphism",
-      "gradient",
+      "gradient blobs",
       "heavy shadows",
       "decorative 3D",
       "fake analytics",
-      "perpetual animation",
+      "unnecessary visual effects",
     ]) {
       expect(documentation).toContain(prohibitedPattern);
     }

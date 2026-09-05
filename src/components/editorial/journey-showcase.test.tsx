@@ -9,22 +9,20 @@ describe("JourneyShowcase", () => {
     expect(screen.getByRole("heading", { level: 2, name: "From an outing to a balance you can explain." })).toBeInTheDocument();
     expect(screen.getAllByRole("tab")).toHaveLength(4);
     expect(document.querySelectorAll(".journey-panel")).toHaveLength(1);
-    expect(document.querySelector(".journey-runway")).not.toBeInTheDocument();
-    expect(document.querySelector("[data-journey-connectors]")).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /ADD Add the record/ })).toHaveAttribute("aria-selected", "true");
-    expect(document.querySelectorAll('.journey-share-list[data-visible="false"]')).toHaveLength(2);
+    expect(document.querySelectorAll('.journey-expense-row__shares[data-visible="false"]')).toHaveLength(2);
   });
 
   it("progresses through explicit shares, repayment, and balances", () => {
     render(<JourneyShowcase />);
 
     fireEvent.click(screen.getByRole("tab", { name: /ASSIGN Assign shares/ }));
-    expect(document.querySelectorAll('.journey-share-list[data-visible="true"]')).toHaveLength(2);
+    expect(document.querySelectorAll('.journey-expense-row__shares[data-visible="true"]')).toHaveLength(2);
     expect(screen.getByText("Shares are entered explicitly.", { exact: true })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /REPAY Record repayment/ }));
     expect(screen.getByText("Received from Rani", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Allocation complete", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("100% allocated", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Rp 126.500", { exact: true })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /SETTLE Read the balance/ }));

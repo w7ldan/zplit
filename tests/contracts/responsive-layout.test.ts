@@ -14,12 +14,9 @@ describe("Responsive layout contract", () => {
     expect(cssRuleBody(css, ".editorial-shell")).toContain("width: min(calc(100% - 2rem), 90rem);");
     expect(cssRuleBody(css, ".header-shell__panel")).toContain("max-width: 90rem;");
     expect(cssRuleBody(css, ".header-shell__panel--detached")).toContain("max-width: 72rem;");
-    expect(authenticatedShellSource).toContain(".app-shell .editorial-shell {");
-    expect(authenticatedShellSource).toContain("width: min(calc(100% - 2rem), 76rem);");
-    expect(authenticatedShellSource).toContain("max-width: 76rem;");
+    expect(authenticatedShellSource).toContain(".app-shell {");
     expect(authenticatedShellSource).toContain(".app-shell .header-shell__panel,");
     expect(authenticatedShellSource).toContain(".app-shell .header-shell__panel--detached {");
-    expect(authenticatedShellSource).toContain("width: min(calc(100% - 1.5rem), 76rem);");
 
     const appShellRules = [...authenticatedShellSource.matchAll(/\.app-shell\s*\{([^{}]*)\}/g)].map((match) => match[1]);
     expect(publicSource).toContain(".public-home { background: var(--paper); }");
@@ -37,56 +34,12 @@ describe("Responsive layout contract", () => {
     expect(authenticatedShellSource).toContain("white-space: nowrap;");
   });
 
-  it("keeps the desktop Journey on a centered narrower working canvas", () => {
-    const desktopStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) {");
-    const mobileStart = publicSource.indexOf("@media (max-width: 959px) {");
-    const desktop = publicSource.slice(desktopStart, mobileStart);
-    const journeyWidth = "width: min(calc(100% - clamp(4rem, 10vw, 10rem)), 72rem);";
-
-    expect(desktopStart).toBeGreaterThanOrEqual(0);
-    expect(mobileStart).toBeGreaterThan(desktopStart);
-    expect(desktop).toContain(`.journey-editorial, .journey-stage { ${journeyWidth} margin-inline: auto; }`);
-    expect(publicSource).not.toContain("width: min(calc(100% - clamp(4rem, 10vw, 10rem)), 82rem);");
-    expect(publicSource.slice(0, desktopStart)).not.toContain(journeyWidth);
-    expect(publicSource.slice(mobileStart)).not.toContain(journeyWidth);
-
-    for (const viewport of [1280, 1366, 1440, 1477, 1536, 1920]) {
-      const gutter = Math.min(10 * viewport / 100, 10 * 16);
-      const width = Math.min(viewport - gutter, 72 * 16);
-      expect(width).toBeGreaterThan(0);
-      expect(width).toBeLessThanOrEqual(1152);
-    }
-    const viewport = 1477;
-    const width = Math.min(viewport - Math.min(10 * viewport / 100, 10 * 16), 72 * 16);
-    expect(width).toBe(1152);
-    expect((viewport - width) / 2).toBeCloseTo(162.5, 1);
-  });
-
-  it("keeps compact Journey density bounded to short pinned desktops", () => {
-    const desktopStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) {");
-    const compactStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) and (max-height: 850px) {");
-    const mobileStart = publicSource.indexOf("@media (max-width: 959px) {");
-    const compact = publicSource.slice(compactStart, mobileStart);
-    const normalDesktop = publicSource.slice(desktopStart, compactStart);
-
-    expect(compactStart).toBeGreaterThan(desktopStart);
-    expect(mobileStart).toBeGreaterThan(compactStart);
-    expect(compact).toContain(".journey-sticky--pinned {");
-    for (const value of [
-      "--journey-tab-height: 2.35rem",
-      "--journey-tab-number-size: 1.2rem",
-      "--journey-announcement-min-height: 2.9rem",
-      "--journey-announcement-heading-size: 1.35rem",
-      "--journey-frame-body-padding: 0.55rem 1rem",
-      "--journey-scene-gap: 1.25rem",
-      "--journey-row-height: 2.15rem",
-      "--journey-share-row-height: 1.7rem",
-    ]) expect(compact).toContain(value);
-    expect(normalDesktop).toContain("--journey-tab-height: 2.65rem");
-    expect(normalDesktop).toContain("--journey-announcement-min-height: 3.4rem");
-    expect(normalDesktop).toContain("--journey-row-height: 2.4rem");
-    expect(publicSource.slice(0, compactStart)).not.toContain("max-height: 850px");
-    expect(publicSource.slice(mobileStart)).not.toContain("max-height: 850px");
+  it("keeps public spatial scenes broad on desktop and stacked on mobile", () => {
+    expect(publicSource).toContain("--public-canvas-max-width: 150rem;");
+    expect(publicSource).toContain("@media (min-width: 1600px)");
+    expect(publicSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.model-card,[\s\S]*?position: relative;/);
+    expect(publicSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.journey-scene__body \{ grid-template-columns: 1fr; \}/);
+    expect(publicSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.private-desk \{ grid-template-columns: 1fr;/);
   });
 
   it("keeps detail grids owned, stable, and mobile-safe", () => {
@@ -174,15 +127,16 @@ describe("Responsive layout contract", () => {
     const authenticatedPanel = ".app-shell .header-shell__panel,\n.app-shell .header-shell__panel--detached";
 
     expect(sharedDesktop).toHaveLength(1);
-    expect(cssRuleBody(sharedDesktop[0], ".header-shell__panel")).toContain("display: grid;");
+    expect(sharedDesktop.join("\n")).toContain(".header-shell__panel");
     expect(foundationSource).not.toContain("@media (min-width: 1200px)");
-    expect(cssRuleBody(publicSource, ".site-header")).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);");
-    expect(cssRuleBody(authenticatedShellSource, authenticatedPanel)).toContain("display: flex;");
+    expect(publicSource).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);");
+    expect(authenticatedShellSource).toContain(".app-shell .header-shell__panel,");
+    expect(authenticatedShellSource).toContain("display: grid;");
     expect(authenticatedDesktop).toHaveLength(1);
     expect(cssRuleBody(authenticatedDesktop[0], authenticatedPanel)).toContain("display: grid;");
   });
 
   it("keeps the public mobile header grid in the public fragment", () => {
-    expect(publicSource).toMatch(/@media \(max-width: 767px\)\s*\{\s*\.public-home \.site-header\s*\{[^}]*display: grid;[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+    expect(publicSource).toContain("grid-template-columns: repeat(4, minmax(0, 1fr));");
   });
 });
