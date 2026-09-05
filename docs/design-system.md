@@ -225,19 +225,32 @@ rather than decorative effects.
 
 ## 6. Public landing and Journey
 
-The public homepage tells a practical product story using Zplit-like UI.
+The public homepage is an editorial financial record transformed into a
+product website. It uses real or faithful Zplit-like record UI as illustration,
+with bounded reading measures and wider compositions for product surfaces.
+
+The current public narrative moves through:
+
+1. a product-scale hero record;
+2. expense → shares → repayment → balance relationships;
+3. distinct Personal, Group, and Organization contexts;
+4. a compact four-state Journey;
+5. Group ledger beside Group Chat;
+6. record detail with attached proof;
+7. private, read-only balance sharing;
+8. Search, Inbox, and history as one findability story; and
+9. a settled/open balance payoff.
 
 The Journey demonstrates:
 
-1. creating an outing;
-2. adding expenses;
-3. assigning Friend shares;
-4. recording and allocating repayment;
-5. showing resulting balances.
+1. adding an illustrative outing record;
+2. assigning Friend shares explicitly;
+3. recording and allocating a repayment; and
+4. reading resulting balances.
 
-On appropriate wide and tall screens, ordinary vertical scrolling may drive the horizontal Journey presentation.
-
-Direct step controls remain available.
+The Journey uses one stable product composition with direct step controls. It
+does not require a long scroll runway or scroll-linked geometry to explain one
+scenario.
 
 On narrow screens, reduced-motion environments, or constrained viewports, the same content must remain understandable in a native stacked composition.
 
@@ -319,7 +332,12 @@ establishes authorship.
 
 ## 9. Grid and alignment
 
-Public/editorial desktop layouts currently use a 12-column grid, reducing to four columns on mobile.
+Public/editorial desktop layouts use a 12-column grid, reducing to four
+columns on mobile. The public canvas may extend to an ultrawide ceiling for
+product compositions while readable copy keeps an intentional local measure.
+The current Landing V2 canvas ceiling is `118rem`; this is a public
+implementation contract and not a requirement that every child stretch to the
+viewport edge.
 
 Authenticated layouts do not need to visibly expose the same grid, but page headers, tools, summaries, records, metadata, financial values, and actions should feel aligned to shared structural lines.
 

@@ -22,7 +22,8 @@ export function SiteHeader() {
       navigation={(
         <>
           <a href="#journey">How it works</a>
-          <a href="#ledger">The ledger</a>
+          <a href="#scopes">Contexts</a>
+          <a href="#records">Records</a>
         </>
       )}
       actions={<ActionLink href="/app" variant="primary" className="site-header__access">Open Zplit</ActionLink>}

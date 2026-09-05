@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { formatRupiah } from "@/domain/rupiah";
 import { bandungStory as scenario } from "./public-scenario";
 
@@ -11,494 +11,95 @@ const raniAssigned = scenario.shares.filter((share) => share.friend === "Rani").
 const dimasAssigned = scenario.shares.filter((share) => share.friend === "Dimas").reduce((total, share) => total + share.amount, 0);
 
 const steps = [
-  { label: "An outing is created", title: "Start with the occasion", copy: "Give the shared moment a name and date so every expense has a clear home." },
-  { label: "Expenses enter the outing", title: "Record what happened", copy: "Add each expense as its own row. Zplit keeps the amount attached to the outing." },
-  { label: "Friend shares are assigned", title: "Enter each share yourself", copy: "Choose a friend and enter the amount they owe. Zplit does not auto-split or allocate it for you." },
-  { label: "A repayment is recorded", title: "Show money received", copy: "Record who paid and allocate that repayment to their outstanding expense shares." },
-  { label: "The balance becomes settled", title: "Read what remains", copy: "A friend reaches settled when their assigned shares are fully covered by allocated repayments." },
+  { short: "ADD", label: "Add the record", title: "Give the outing a home.", copy: "Name the outing, then add each expense as its own record." },
+  { short: "ASSIGN", label: "Assign shares", title: "Enter each share yourself.", copy: "Choose the Friend and enter the amount they owe. Zplit does not auto-split it for you." },
+  { short: "REPAY", label: "Record repayment", title: "Show money received.", copy: "Record who paid, then allocate that repayment to their outstanding shares." },
+  { short: "SETTLE", label: "Read the balance", title: "See what remains.", copy: "Each Friend's balance follows the shares and repayments recorded against them." },
 ];
 
-export const JOURNEY_STEP_TRAVEL_RATIO = 0.42;
-export const JOURNEY_TRANSITION_HOLD = 0.10;
-export const JOURNEY_SCROLL_IDLE_MS = 200;
-export const JOURNEY_MAGNET_RADIUS_RATIO = 0.09;
-const JOURNEY_PROGRAMMATIC_SCROLL_IDLE_MS = 180;
-
-type ConnectorPoint = { x: number; y: number };
-
-export function ledgerBranchPath(source: ConnectorPoint, destinations: ConnectorPoint[]) {
-  const points = [source, ...destinations];
-  if (!destinations.length || points.some(({ x, y }) => !Number.isFinite(x) || !Number.isFinite(y))) return "";
-  const stemEnd = Math.max(...destinations.map(({ y }) => y));
-  const format = (value: number) => value.toFixed(1);
-  return [`M ${format(source.x)} ${format(source.y)}`, `V ${format(stemEnd)}`, ...destinations.map(({ x, y }) => `M ${format(source.x)} ${format(y)} H ${format(x)}`)].join(" ");
+function Amount({ value }: { value: number }) {
+  return <span className="tabular-nums">{formatRupiah(value)}</span>;
 }
 
-function Amount({ value, className = "" }: { value: number; className?: string }) {
-  return <span className={`tabular-nums${className ? ` ${className}` : ""}`}>{formatRupiah(value)}</span>;
-}
-
-function ProductRow({ label, value, detail, detailClassName, connectorNode }: { label: string; value: string; detail?: string; detailClassName?: string; connectorNode?: string }) {
-  return (
-    <div className="journey-row" data-connector-node={connectorNode}>
-      <span
-        className="journey-row__label"
-        data-connector-anchor={connectorNode}
-      >
-        {label}
-      </span>
-      <strong>{value}</strong>
-      {detail ? (
-        <span
-          key={detail}
-          className={`journey-row__detail${detailClassName ? ` ${detailClassName}` : ""}`}
-        >
-          {detail}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-function JourneyConnectors() {
-  return (
-    <svg className="journey-connectors" data-journey-connectors="desktop" aria-hidden="true" focusable="false" preserveAspectRatio="none">
-      <path className="journey-connectors__share" data-relationship="dinner-share" pathLength="1" />
-      <path className="journey-connectors__share" data-relationship="taxi-share" pathLength="1" />
-      <path className="journey-connectors__repayment" data-relationship="repayment-dinner-rani" pathLength="1" />
-      <path className="journey-connectors__repayment" data-relationship="repayment-taxi-rani" pathLength="1" />
-    </svg>
-  );
+function ProductRow({ label, value, detail, className = "" }: { label: string; value: string; detail?: string; className?: string }) {
+  return <div className={`journey-record-row${className ? ` ${className}` : ""}`}><span><strong>{label}</strong>{detail ? <small>{detail}</small> : null}</span><b>{value}</b></div>;
 }
 
 function JourneyScene({ activeStep }: { activeStep: number }) {
-  const allocationStyle = { "--allocation": `${assignedTotal / expenseTotal}` } as CSSProperties;
-  const showExpenses = activeStep >= 1;
-  const showShares = activeStep >= 2;
-  const showRepayment = activeStep >= 3;
-  const showRepaymentState = activeStep === 3;
-  const showBalances = activeStep >= 4;
+  const sharesVisible = activeStep >= 1;
+  const repaymentVisible = activeStep >= 2;
+  const balancesVisible = activeStep >= 3;
 
   return (
-    <article className="journey-panel journey-panel--active" data-journey-step={activeStep} data-journey-layout="persistent-ledger">
-      <div className="journey-scene__body" data-repayment-active={showRepayment}>
-        <div className="journey-scene__main">
-          <div className="journey-scene__outing">
-            <p className="technical-label">Outing record</p>
-            <h3>{scenario.outing}</h3>
-            <div className="journey-record-meta">
-              <ProductRow label="When" value="Sunday, 12 April 2026" />
-              <ProductRow label="Expenses" value={showExpenses ? "2 recorded" : "None yet"} detail={showExpenses ? "Rows attached to this outing" : "Ready for the first row"} />
-            </div>
-          </div>
-
-          <div className="journey-scene__section journey-scene__expenses" data-visible={showExpenses} data-layout={showExpenses ? "expanded" : "collapsed"} aria-hidden={!showExpenses}>
-            <div className="journey-scene__section-reveal">
-              <div className="journey-scene__section-content">
-              <p className="technical-label">Expense rows · {scenario.outing}</p>
-              <h3>Two things paid for</h3>
-              <div className="journey-list">
-                {scenario.expenses.map((expense) => (
-                  <div className="journey-expense-row" data-expense={expense.description} key={expense.description}>
-                    <ProductRow label={expense.description} value={formatRupiah(expense.amount)} connectorNode={`expense-${expense.description.toLowerCase()}`} />
-                    <div className="journey-expense-row__shares" data-visible={showShares} data-layout={showShares ? "expanded" : "collapsed"} aria-hidden={!showShares}>
-                      <div className="journey-expense-row__shares-reveal">
-                        {scenario.shares.filter((share) => share.expense === expense.description).map((share) => {
-                          const covered = showRepayment && share.friend === "Rani";
-                          return (
-                            <ProductRow
-                              key={`${share.expense}-${share.friend}`}
-                              label={share.friend}
-                              value={formatRupiah(share.amount)}
-                              detail={
-                                showShares
-                                  ? covered
-                                    ? "Covered by repayment"
-                                    : "Outstanding · not covered"
-                                  : undefined
-                              }
-                              detailClassName={
-                                covered
-                                  ? "journey-share-detail--covered"
-                                  : "journey-share-detail--outstanding"
-                              }
-                              connectorNode={`${share.expense.toLowerCase()}-${share.friend.toLowerCase()}`}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="journey-total"><span>Outing expense total</span><strong><Amount value={expenseTotal} /></strong></div>
-              <div className="journey-allocation" style={allocationStyle} data-visible={showShares} data-layout={showShares ? "expanded" : "collapsed"} aria-hidden={!showShares}>
-                <div className="journey-allocation__content">
-                  <div className="journey-allocation__caption"><span>Assigned to friends</span><strong><Amount value={assignedTotal} /></strong></div>
-                  <div className="journey-allocation__track" aria-label={`${formatRupiah(assignedTotal)} assigned of ${formatRupiah(expenseTotal)}`}><span /></div>
-                  <div className="journey-allocation__caption"><span>Your portion</span><strong><Amount value={ownerPortion} /></strong></div>
-                </div>
-              </div>
-            </div>
-            </div>
-          </div>
-        </div>
-
-        <aside className="journey-scene__summary" aria-label="Persistent ledger summary">
-          <div className="journey-summary__section" data-summary-slot="totals">
-            <p className="technical-label">Ledger summary</p>
-            <div className="journey-summary-list">
-              <ProductRow label="Expense total" value={showExpenses ? formatRupiah(expenseTotal) : "None yet"} />
-              <ProductRow label="Assigned to friends" value={showShares ? formatRupiah(assignedTotal) : "—"} />
-              <ProductRow label="Your portion" value={showShares ? formatRupiah(ownerPortion) : "—"} />
-            </div>
-          </div>
-
-          <div className="journey-summary__state-slot" data-summary-slot="state">
-            <div
-              className="journey-summary__state journey-scene__section journey-scene__repayment"
-              data-summary-state="repayment"
-              data-visible={showRepaymentState}
-              data-layout={showRepaymentState ? "expanded" : "collapsed"}
-              aria-hidden={!showRepaymentState}
-            >
-              <div className="journey-scene__section-reveal">
-                <div className="journey-scene__section-content">
-                <p className="technical-label">Repayment state</p>
-                <div
-                  className="journey-repayment-row"
-                  data-connector-node="repayment-rani"
-                >
-                  <span>
-                    <strong>Rani repayment</strong>
-                    <small>Received and ready to allocate</small>
-                  </span>
-                  <strong>
-                    <Amount value={scenario.repayment.amount} />
-                  </strong>
-                </div>
-                <div
-                  className="journey-repayment__allocation journey-allocation"
-                  data-visible={showRepaymentState}
-                  data-layout={
-                    showRepaymentState ? "expanded" : "collapsed"
-                  }
-                  data-progress={showRepaymentState ? "complete" : "zero"}
-                  aria-hidden={!showRepaymentState}
-                >
-                  <div className="journey-allocation__content">
-                    <div className="journey-allocation__caption"><span>Repayment allocation</span><strong><Amount value={scenario.repayment.amount} /></strong></div>
-                    <div
-                      className="journey-allocation__track"
-                      role="progressbar"
-                      aria-label="Repayment allocation"
-                      aria-valuemin={0}
-                      aria-valuemax={scenario.repayment.amount}
-                      aria-valuenow={
-                        showRepaymentState ? scenario.repayment.amount : 0
-                      }
-                    >
-                      <span
-                        style={{ "--repayment-allocation": 1 } as CSSProperties}
-                      />
-                    </div>
+    <article className="journey-panel" data-journey-step={activeStep} data-journey-layout="stable-record">
+      <div className="journey-panel__grid">
+        <main className="journey-panel__main">
+          <div className="journey-panel__outing"><span className="technical-label">Outing record</span><h3>{scenario.outing}</h3><div className="journey-meta"><span>Sunday, 12 April 2026</span><span>Personal · illustrative</span></div></div>
+          <section className="journey-record-block" aria-labelledby="journey-expenses-title">
+            <div className="journey-block-heading"><span className="technical-label">Expense rows</span><strong id="journey-expenses-title">What happened</strong></div>
+            <div className="journey-record-list">
+              {scenario.expenses.map((expense) => (
+                <div className="journey-expense" data-expense={expense.description} key={expense.description}>
+                  <ProductRow label={expense.description} value={formatRupiah(expense.amount)} detail={`Paid by you · ${scenario.outing}`} />
+                  <div className="journey-share-list" data-visible={sharesVisible} aria-hidden={!sharesVisible}>
+                    {scenario.shares.filter((share) => share.expense === expense.description).map((share) => {
+                      const covered = repaymentVisible && share.friend === "Rani";
+                      return <ProductRow key={`${share.expense}-${share.friend}`} label={share.friend} value={formatRupiah(share.amount)} detail={covered ? "Covered by repayment" : "Outstanding · not covered"} className="journey-record-row--share" />;
+                    })}
                   </div>
                 </div>
-                <div className="journey-summary-list">
-                  <ProductRow label="Received" value={formatRupiah(scenario.repayment.amount)} />
-                  <ProductRow label="Applied" value={formatRupiah(scenario.repayment.amount)} />
-                </div>
-                <div className="journey-allocation-list">
-                  <ProductRow label="Dinner applied" value={formatRupiah(84000)} />
-                  <ProductRow label="Taxi applied" value={formatRupiah(42500)} />
-                  <ProductRow label="Needs allocation" value={formatRupiah(0)} detail="Nothing left" />
-                </div>
-              </div>
-              </div>
+              ))}
             </div>
+            <div className="journey-record-total">
+              <span>Outing expense total</span>
+              <strong><Amount value={expenseTotal} /></strong>
+            </div>
+            <div className="journey-assignment" data-visible={sharesVisible} aria-hidden={!sharesVisible}>
+              <span>Assigned to Friends</span>
+              <strong><Amount value={assignedTotal} /></strong>
+              <small>Your portion · <Amount value={ownerPortion} /></small>
+            </div>
+          </section>
+        </main>
 
-            <div className="journey-summary__state journey-scene__section journey-scene__balances" data-summary-state="balances" data-visible={showBalances} data-layout={showBalances ? "expanded" : "collapsed"} aria-hidden={!showBalances}>
-              <div className="journey-scene__section-reveal">
-                <div className="journey-scene__section-content">
-                <p className="technical-label">Balance state</p>
-                <div className="journey-balance-list">
-                  <div className="journey-balance journey-balance--settled">
-                    <div>
-                      <strong>Rani</strong>
-                      <span>Assigned {formatRupiah(raniAssigned)}</span>
-                    </div>
-                    <div>
-                      <span>Remaining</span>
-                      <strong>
-                        <Amount value={0} />
-                      </strong>
-                    </div>
-                    <span className="journey-state">SETTLED</span>
-                  </div>
-                  <div className="journey-balance journey-balance--open">
-                    <div>
-                      <strong>Dimas</strong>
-                      <span>
-                        Assigned{" "}
-                        <span className="tabular-nums ledger-amount">
-                          {formatRupiah(dimasAssigned)}
-                        </span>
-                      </span>
-                    </div>
-                    <div>
-                      <span>Remaining</span>
-                      <strong>
-                        <Amount
-                          value={dimasAssigned}
-                          className="ledger-amount"
-                        />
-                      </strong>
-                    </div>
-                    <span className="journey-state">OPEN</span>
-                  </div>
-                </div>
-              <p className="journey-footnote">
-                Rani is settled after her repayment. Remaining across this
-                illustrative outing: {" "}
-                <strong>
-                  <Amount value={dimasAssigned} className="ledger-amount" />
-                </strong>
-                . The owner portion is already excluded from friend balances.
-              </p>
-              </div>
-              </div>
+        <aside className="journey-panel__summary" aria-label="Journey state">
+          <div className="journey-summary-block">
+            <span className="technical-label">Current state</span>
+            <strong>{steps[activeStep].short}</strong>
+            <p>{steps[activeStep].copy}</p>
+          </div>
+          <div className="journey-summary-block journey-summary-block--state" data-visible={repaymentVisible} aria-hidden={!repaymentVisible}>
+            <span className="technical-label">Repayment</span>
+            <ProductRow label="Rani received" value={formatRupiah(scenario.repayment.amount)} detail="Allocated to Dinner + Taxi" />
+            <div className="journey-allocation"><span>Allocation complete</span><strong>100%</strong></div>
+          </div>
+          <div className="journey-summary-block journey-summary-block--balances" data-visible={balancesVisible} aria-hidden={!balancesVisible}>
+            <span className="technical-label">Balances</span>
+            <div className="journey-balance">
+              <span><strong>Rani</strong><small>Assigned {formatRupiah(raniAssigned)}</small></span>
+              <strong>{formatRupiah(0)}</strong>
+              <span className="record-status record-status--settled">Settled</span>
+            </div>
+            <div className="journey-balance">
+              <span><strong>Dimas</strong><small>Assigned {formatRupiah(dimasAssigned)}</small></span>
+              <strong>{formatRupiah(dimasAssigned)}</strong>
+              <span className="record-status record-status--open">Open</span>
             </div>
           </div>
+          <div className="journey-summary-block journey-summary-block--note"><span className="technical-label">Record rule</span><p>{activeStep === 0 ? "Start with the amount and its outing." : activeStep === 1 ? "Shares are entered explicitly." : activeStep === 2 ? "Repayment allocation stays attached to shares." : "Open and settled states remain visible."}</p></div>
         </aside>
       </div>
     </article>
   );
 }
 
-function clampProgress(value: number) {
-  return Math.min(1, Math.max(0, value));
-}
-
-export function journeyTransitionProgress(rawProgress: number) {
-  const progress = clampProgress((rawProgress - JOURNEY_TRANSITION_HOLD) / (1 - 2 * JOURNEY_TRANSITION_HOLD));
-  return progress * progress * (3 - 2 * progress);
-}
-
-function listenToMediaQuery(query: MediaQueryList, listener: () => void) {
-  query.addEventListener?.("change", listener);
-  return () => query.removeEventListener?.("change", listener);
-}
-
 export function JourneyShowcase() {
   const [activeStep, setActiveStep] = useState(0);
-  const [desktopSequence, setDesktopSequence] = useState(false);
-  const activeStepRef = useRef(0);
   const tabs = useRef<Array<HTMLButtonElement | null>>([]);
-  const runway = useRef<HTMLDivElement>(null);
-  const stage = useRef<HTMLDivElement>(null);
-  const ignoredProgress = useRef<number | null>(null);
-  const scrollToJourneyStep = useRef<(step: number) => void>(() => {});
-  const pinnedStageHeight = useRef(0);
-  const pinnedViewport = useRef({ width: 0, height: 0 });
-
-  const stageHeight = useCallback(() => Math.max(stage.current?.offsetHeight ?? 0, 1), []);
-  const stickyTop = useCallback(() => {
-    const value = Number.parseFloat(window.getComputedStyle(stage.current ?? document.body).top);
-    return Number.isFinite(value) ? value : 0;
-  }, []);
-
-  const updateActiveStep = useCallback((step: number, protectFromStaleProgress = false) => {
-    if (protectFromStaleProgress) ignoredProgress.current = step;
-    if (activeStepRef.current === step) return;
-    activeStepRef.current = step;
-    setActiveStep(step);
-  }, []);
-
-  useLayoutEffect(() => {
-    const wide = window.matchMedia?.("(min-width: 960px)");
-    const tall = window.matchMedia?.("(min-height: 720px)");
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    const updateMode = () => {
-      const next = Boolean(wide?.matches && tall?.matches && !reduced?.matches);
-      setDesktopSequence((current) => {
-        if (current && !next) runway.current?.style.removeProperty("height");
-        return current === next ? current : next;
-      });
-    };
-    updateMode();
-    const removeWide = wide ? listenToMediaQuery(wide, updateMode) : undefined;
-    const removeTall = tall ? listenToMediaQuery(tall, updateMode) : undefined;
-    const removeReduced = reduced ? listenToMediaQuery(reduced, updateMode) : undefined;
-    window.addEventListener("resize", updateMode);
-    return () => { removeWide?.(); removeTall?.(); removeReduced?.(); window.removeEventListener("resize", updateMode); };
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!desktopSequence) return;
-    const runwayElement = runway.current;
-    const stageElement = stage.current;
-    const frameElement = stageElement?.querySelector<HTMLElement>(".journey-frame");
-    const connectorSvg = frameElement?.querySelector<SVGSVGElement>("[data-journey-connectors]");
-    let frame: number | null = null;
-    let idleTimer: ReturnType<typeof setTimeout> | null = null;
-    let programmaticTimer: ReturnType<typeof setTimeout> | null = null;
-    let programmaticScroll = false;
-    const capturePinnedHeight = (force = false) => {
-      const viewport = { width: window.innerWidth, height: window.innerHeight };
-      const viewportChanged = viewport.width !== pinnedViewport.current.width || viewport.height !== pinnedViewport.current.height;
-      if (force || pinnedStageHeight.current === 0 || viewportChanged) pinnedStageHeight.current = stage.current?.offsetHeight ?? 0;
-      pinnedViewport.current = viewport;
-    };
-    const pinnedHeight = () => Math.max(pinnedStageHeight.current || stageHeight(), 1);
-    const sequenceTravel = () => Math.max(window.innerHeight, pinnedHeight()) * JOURNEY_STEP_TRAVEL_RATIO * (steps.length - 1);
-    const updateDimensions = () => {
-      const element = runway.current;
-      if (element) element.style.height = `${pinnedHeight() + sequenceTravel()}px`;
-    };
-    const connectorPath = (from: { x: number; y: number }, to: { x: number; y: number }) => {
-      const bend = Math.min(36, Math.max(12, Math.abs(to.x - from.x) * 0.25));
-      const direction = to.x >= from.x ? 1 : -1;
-      return `M ${from.x.toFixed(1)} ${from.y.toFixed(1)} C ${(from.x + direction * bend).toFixed(1)} ${from.y.toFixed(1)}, ${(to.x - direction * bend).toFixed(1)} ${to.y.toFixed(1)}, ${to.x.toFixed(1)} ${to.y.toFixed(1)}`;
-    };
-    const reconcileConnectors = () => {
-      if (!frameElement || !connectorSvg) return;
-      const frameRect = frameElement.getBoundingClientRect();
-      if (!frameRect.width || !frameRect.height) return;
-      connectorSvg.setAttribute("viewBox", `0 0 ${frameRect.width} ${frameRect.height}`);
-      const point = (name: string, edge: "left" | "right") => {
-        const element = frameElement.querySelector<HTMLElement>(`[data-connector-node="${name}"]`);
-        if (!element) return null;
-        const rect = element.getBoundingClientRect();
-        return { x: (edge === "left" ? rect.left : rect.right) - frameRect.left + (edge === "left" ? 6 : -6), y: rect.top - frameRect.top + rect.height / 2 };
-      };
-      const labelPoint = (name: string) => {
-        const element = frameElement.querySelector<HTMLElement>(`[data-connector-anchor="${name}"]`);
-        if (!element) return null;
-        const rect = element.getBoundingClientRect();
-        return { x: rect.left - frameRect.left, y: rect.top - frameRect.top, height: rect.height };
-      };
-      const shareBranch = (sourceName: string, destinationNames: string[]) => {
-        const source = labelPoint(sourceName);
-        const destinations = destinationNames.map(labelPoint);
-        if (!source || destinations.some((destination) => !destination)) return "";
-        return ledgerBranchPath(
-          { x: source.x + 4, y: source.y + source.height + 2 },
-          destinations.map((destination) => ({ x: destination!.x - 4, y: destination!.y + destination!.height / 2 })),
-        );
-      };
-      const repaymentPath = (sourceName: string, targetName: string) => {
-        const from = point(sourceName, "left");
-        const to = point(targetName, "right");
-        return from && to ? connectorPath(from, to) : "";
-      };
-      const paths = [
-        ["dinner-share", shareBranch("expense-dinner", ["dinner-rani", "dinner-dimas"])],
-        ["taxi-share", shareBranch("expense-taxi", ["taxi-rani"])],
-        ["repayment-dinner-rani", repaymentPath("repayment-rani", "dinner-rani")],
-        ["repayment-taxi-rani", repaymentPath("repayment-rani", "taxi-rani")],
-      ] as const;
-      for (const [relationship, pathData] of paths) {
-        const path = connectorSvg.querySelector<SVGPathElement>(`[data-relationship="${relationship}"]`);
-        if (path && pathData) path.setAttribute("d", pathData);
-      }
-    };
-    const geometry = () => {
-      const element = runway.current;
-      const travel = Math.max((element?.offsetHeight ?? 0) - pinnedHeight(), 1);
-      const start = (element?.getBoundingClientRect().top ?? 0) + window.scrollY - stickyTop();
-      return { start, travel, stepTravel: travel / (steps.length - 1) };
-    };
-    const clearTimer = (timer: ReturnType<typeof setTimeout> | null) => { if (timer !== null) clearTimeout(timer); };
-    const finishProgrammaticScroll = () => { programmaticScroll = false; programmaticTimer = null; };
-    const beginProgrammaticScroll = (step: number) => {
-      const { start, stepTravel } = geometry();
-      programmaticScroll = true;
-      clearTimer(idleTimer);
-      clearTimer(programmaticTimer);
-      idleTimer = null;
-      programmaticTimer = setTimeout(finishProgrammaticScroll, JOURNEY_PROGRAMMATIC_SCROLL_IDLE_MS);
-      window.scrollTo({ top: start + step * stepTravel, behavior: "smooth" });
-    };
-    const settleNearestChapter = () => {
-      idleTimer = null;
-      if (programmaticScroll) return;
-      const { start, travel, stepTravel } = geometry();
-      if (window.scrollY < start || window.scrollY > start + travel) return;
-      const step = Math.round(clampProgress((window.scrollY - start) / travel) * (steps.length - 1));
-      const target = start + step * stepTravel;
-      const distance = Math.abs(window.scrollY - target);
-      if (distance > 0.5 && distance <= stepTravel * JOURNEY_MAGNET_RADIUS_RATIO) beginProgrammaticScroll(step);
-    };
-    const updateProgress = () => {
-      frame = null;
-      const element = runway.current;
-      if (!element) return;
-      const { start, travel } = geometry();
-      const progress = clampProgress((window.scrollY - start) / travel);
-      const scaled = progress * (steps.length - 1);
-      const transition = (offset: number) => journeyTransitionProgress(scaled - offset);
-      stage.current?.style.setProperty("--journey-progress", String(progress));
-      stage.current?.style.setProperty("--journey-expense-progress", String(transition(0)));
-      stage.current?.style.setProperty("--journey-share-progress", String(transition(1)));
-      stage.current?.style.setProperty("--journey-allocation-progress", String(transition(1) * assignedTotal / expenseTotal));
-      stage.current?.style.setProperty("--journey-repayment-progress", String(transition(2)));
-      stage.current?.style.setProperty("--journey-balance-progress", String(transition(3)));
-      stage.current?.style.setProperty("--journey-connector-share-progress", String(Math.max(0, Math.min(transition(1), 1 - transition(2)))));
-      stage.current?.style.setProperty("--journey-connector-repayment-progress", String(Math.max(0, Math.min(transition(2), 1 - transition(3)))));
-      if (ignoredProgress.current !== null) {
-        ignoredProgress.current = null;
-        return;
-      }
-      updateActiveStep(Math.round(progress * (steps.length - 1)));
-    };
-    const scheduleUpdate = () => { if (frame === null) frame = window.requestAnimationFrame(updateProgress); };
-    const onScroll = () => {
-      scheduleUpdate();
-      if (programmaticScroll) {
-        clearTimer(programmaticTimer);
-        programmaticTimer = setTimeout(finishProgrammaticScroll, JOURNEY_PROGRAMMATIC_SCROLL_IDLE_MS);
-        return;
-      }
-      clearTimer(idleTimer);
-      idleTimer = setTimeout(settleNearestChapter, JOURNEY_SCROLL_IDLE_MS);
-    };
-    const onResize = () => { capturePinnedHeight(); updateDimensions(); reconcileConnectors(); scheduleUpdate(); };
-    const onPageShow = () => { capturePinnedHeight(true); updateDimensions(); reconcileConnectors(); scheduleUpdate(); };
-    capturePinnedHeight();
-    updateDimensions();
-    reconcileConnectors();
-    updateProgress();
-    scrollToJourneyStep.current = beginProgrammaticScroll;
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onResize);
-    window.addEventListener("pageshow", onPageShow);
-    void document.fonts?.ready.then(onPageShow);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("pageshow", onPageShow);
-      if (frame !== null) window.cancelAnimationFrame(frame);
-      clearTimer(idleTimer);
-      clearTimer(programmaticTimer);
-      scrollToJourneyStep.current = () => {};
-      runwayElement?.style.removeProperty("height");
-      stageElement?.style.removeProperty("--journey-progress");
-      stageElement?.style.removeProperty("--journey-expense-progress");
-      stageElement?.style.removeProperty("--journey-share-progress");
-      stageElement?.style.removeProperty("--journey-allocation-progress");
-      stageElement?.style.removeProperty("--journey-repayment-progress");
-      stageElement?.style.removeProperty("--journey-balance-progress");
-      stageElement?.style.removeProperty("--journey-connector-share-progress");
-      stageElement?.style.removeProperty("--journey-connector-repayment-progress");
-      pinnedStageHeight.current = 0;
-      pinnedViewport.current = { width: 0, height: 0 };
-    };
-  }, [desktopSequence, stageHeight, stickyTop, updateActiveStep]);
 
   function selectStep(step: number, moveFocus = false) {
-    updateActiveStep(step, desktopSequence);
-    if (desktopSequence) scrollToJourneyStep.current(step);
-    if (moveFocus) window.requestAnimationFrame(() => tabs.current[step]?.focus());
+    setActiveStep(step);
+    if (moveFocus) tabs.current[step]?.focus();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, step: number) {
@@ -513,55 +114,38 @@ export function JourneyShowcase() {
   }
 
   return (
-    <section className="editorial-section journey-section" id="journey" aria-labelledby="journey-title">
-      <div className="section-layout editorial-grid editorial-shell journey-editorial">
-        <p className="section-label technical-label">01 / How it works</p>
-        <h2 className="section-heading" id="journey-title">From one outing to a balance you can settle.</h2>
-        <p className="section-intro">The Bandung ledger gains detail, receives Rani&apos;s payment, and leaves one explicit balance.</p>
+    <section className="landing-section journey-section" id="journey" aria-labelledby="journey-title" data-story-motion="journey">
+      <div className="editorial-shell journey-section__intro">
+        <p className="section-label technical-label">03 / A compact journey</p>
+        <div><h2 id="journey-title">From an outing to a balance you can explain.</h2><p>One stable record, four states. Use the controls or keyboard to move through the illustrative Bandung day out.</p></div>
       </div>
-      <div className="journey-runway" ref={runway}>
-        <div className={`journey-sticky${desktopSequence ? " journey-sticky--pinned" : ""}`} ref={stage}>
-          <div className="section-layout editorial-grid editorial-shell journey-stage">
-            <div className="product-journey" aria-label="Illustrative Zplit journey">
-              <div className="journey-tabs" role="tablist" aria-label="Zplit journey steps">
-                {steps.map((item, index) => (
-                  <button
-                    aria-controls="journey-panel"
-                    aria-selected={activeStep === index}
-                    className={`journey-tab${activeStep === index ? " journey-tab--active" : ""}`}
-                    id={`journey-tab-${index}`}
-                    key={item.label}
-                    onClick={() => selectStep(index)}
-                    onKeyDown={(event) => handleKeyDown(event, index)}
-                    ref={(element) => {
-                      tabs.current[index] = element;
-                    }}
-                    role="tab"
-                    tabIndex={activeStep === index ? 0 : -1}
-                    type="button"
-                  >
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-              <p className="journey-announcement" aria-live="polite">
-                <span>
-                  {String(activeStep + 1).padStart(2, "0")} / {String(steps.length).padStart(2, "0")} · {steps[activeStep].label}
-                </span>
-                <strong>{steps[activeStep].title}.</strong>
-                <span>{steps[activeStep].copy}</span>
-              </p>
-              <div className="journey-frame" id="journey-panel" role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}>
-                <div className="journey-frame__header"><span className="technical-label">Bandung day out</span><span className="technical-label">Shared expense record</span></div>
-                <div className="journey-frame__body"><JourneyScene activeStep={activeStep} /></div>
-                {desktopSequence ? <JourneyConnectors /> : null}
-              </div>
-            </div>
-          </div>
+      <div className="editorial-shell journey-stage">
+        <div className="journey-controls" role="tablist" aria-label="Zplit journey steps">
+          {steps.map((step, index) => (
+            <button
+              aria-label={`${step.short} ${step.label}`}
+              aria-controls="journey-panel"
+              aria-selected={activeStep === index}
+              className={`journey-tab${activeStep === index ? " journey-tab--active" : ""}`}
+              id={`journey-tab-${index}`}
+              key={step.short}
+              onClick={() => selectStep(index)}
+              onKeyDown={(event) => handleKeyDown(event, index)}
+              ref={(element) => { tabs.current[index] = element; }}
+              role="tab"
+              tabIndex={activeStep === index ? 0 : -1}
+              type="button"
+            >
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{step.short}</strong>
+              <small>{step.label}</small>
+            </button>
+          ))}
         </div>
+        <p className="journey-announcement" aria-live="polite"><span>{String(activeStep + 1).padStart(2, "0")} / {String(steps.length).padStart(2, "0")}</span><strong>{steps[activeStep].title}</strong><span>{steps[activeStep].copy}</span></p>
+        <div className="journey-frame" id="journey-panel" role="tabpanel" aria-labelledby={`journey-tab-${activeStep}`} tabIndex={0}><div className="journey-frame__header"><span className="technical-label">Bandung day out</span><span className="technical-label">Shared expense record</span></div><div className="journey-frame__body"><JourneyScene activeStep={activeStep} /></div></div>
       </div>
-      <noscript><p className="journey-noscript">This example starts with the Bandung day out, then records Dinner and Taxi, assigns Rani and Dimas explicit shares, allocates Rani&apos;s Rp 126.500 repayment, and leaves Dimas&apos;s Rp 42.500 balance open.</p></noscript>
+      <p className="journey-note editorial-shell"><span>Illustrative flow.</span> Shares, repayments, and allocations are shown as recorded actions; nothing here is automatic.</p>
     </section>
   );
 }
