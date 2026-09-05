@@ -147,7 +147,7 @@ export type OrganizationListScope = "active" | "archived" | "all";
 
 async function lockOrganizationLifecycle(database: Database, organizationId: string) {
   const [row] = await database
-    .select({ id: organizations.id, archivedAt: organizations.archivedAt })
+    .select({ id: organizations.id, name: organizations.name, archivedAt: organizations.archivedAt })
     .from(organizations)
     .where(eq(organizations.id, organizationId))
     .limit(1)

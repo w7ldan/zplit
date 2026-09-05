@@ -74,6 +74,200 @@ async function holdRow(pool: Pool, statement: string, values: unknown[]) {
   };
 }
 
+async function capture(action: () => Promise<unknown>) {
+  try {
+    return { value: await action() };
+  } catch (error) {
+    return { error };
+  }
+}
+
+async function runInvitationAcceptanceRaces(context: ArchiveSmokeContext) {
+  await runGroupInvitationAcceptanceRaces(context);
+  await runOrganizationInvitationAcceptanceRaces(context);
+  await runInvitationCreationRaces(context);
+}
+
+async function runGroupInvitationAcceptanceRaces({ pool, database, owner, invitee, groupIds }: ArchiveSmokeContext) {
+  const groupAcceptanceFirst = await createGroup(database, owner.id, { name: "Group acceptance-first invitation race" });
+  groupIds.push(groupAcceptanceFirst.id);
+  const groupAcceptanceFirstInvitation = await createGroupInvitation(database, groupAcceptanceFirst.id, owner.id, { targetUserId: invitee.id });
+  const releaseGroupRequest = await holdRow(pool, "SELECT id FROM group_join_requests WHERE id = $1 FOR UPDATE", [groupAcceptanceFirstInvitation.id]);
+  const groupAcceptance = capture(() => acceptGroupJoinRequest(database, invitee.id, groupAcceptanceFirstInvitation.id));
+  await waitForBlockedQuery(pool, "group_join_requests");
+  const groupAcceptanceArchive = archiveGroup(database, groupAcceptanceFirst.id, owner.id);
+  await releaseGroupRequest();
+  const [groupAcceptanceResult] = await Promise.all([groupAcceptance, groupAcceptanceArchive]);
+  assert(!groupAcceptanceResult.error, "Group acceptance-first race failed");
+  const groupAcceptanceState = await pool.query<{ archived_at: Date | null; invitation_status: string; memberships: string; participants: string }>(
+    "SELECT groups.archived_at, (SELECT status FROM group_join_requests WHERE id = $2) AS invitation_status, (SELECT count(*)::text FROM group_memberships WHERE group_id = $1 AND user_id = $3) AS memberships, (SELECT count(*)::text FROM group_participants WHERE group_id = $1 AND user_id = $3) AS participants FROM groups WHERE groups.id = $1",
+    [groupAcceptanceFirst.id, groupAcceptanceFirstInvitation.id, invitee.id],
+  );
+  assert(groupAcceptanceState.rows[0]?.archived_at !== null && groupAcceptanceState.rows[0]?.invitation_status === "accepted" && groupAcceptanceState.rows[0]?.memberships === "1" && groupAcceptanceState.rows[0]?.participants === "1", "Group acceptance-first race did not preserve the accepted membership before archive");
+
+  const groupArchiveFirst = await createGroup(database, owner.id, { name: "Group archive-first invitation race" });
+  groupIds.push(groupArchiveFirst.id);
+  const groupArchiveFirstInvitation = await createGroupInvitation(database, groupArchiveFirst.id, owner.id, { targetUserId: invitee.id });
+  const releaseArchivedGroupRequest = await holdRow(pool, "SELECT id FROM group_join_requests WHERE id = $1 FOR UPDATE", [groupArchiveFirstInvitation.id]);
+  const groupArchive = archiveGroup(database, groupArchiveFirst.id, owner.id);
+  await waitForBlockedQuery(pool, "group_join_requests");
+  const groupArchiveAcceptance = capture(() => acceptGroupJoinRequest(database, invitee.id, groupArchiveFirstInvitation.id));
+  await waitForBlockedQuery(pool, "groups");
+  await releaseArchivedGroupRequest();
+  const [groupArchiveResult, groupArchiveAcceptanceResult] = await Promise.all([groupArchive, groupArchiveAcceptance]);
+  assert(groupArchiveResult.id === groupArchiveFirst.id && errorCode(groupArchiveAcceptanceResult.error) === "resolved", "Group archive-first acceptance did not fail with the existing resolved contract");
+  const groupArchiveState = await pool.query<{ archived_at: Date | null; invitation_status: string; memberships: string; participants: string }>(
+    "SELECT groups.archived_at, (SELECT status FROM group_join_requests WHERE id = $2) AS invitation_status, (SELECT count(*)::text FROM group_memberships WHERE group_id = $1 AND user_id = $3) AS memberships, (SELECT count(*)::text FROM group_participants WHERE group_id = $1 AND user_id = $3) AS participants FROM groups WHERE groups.id = $1",
+    [groupArchiveFirst.id, groupArchiveFirstInvitation.id, invitee.id],
+  );
+  assert(groupArchiveState.rows[0]?.archived_at !== null && groupArchiveState.rows[0]?.invitation_status === "revoked" && groupArchiveState.rows[0]?.memberships === "0" && groupArchiveState.rows[0]?.participants === "0", "Group archive-first acceptance activated a membership or participant");
+
+}
+
+async function runOrganizationInvitationAcceptanceRaces({ pool, database, owner, invitee, organizationIds }: ArchiveSmokeContext) {
+  const organizationAcceptanceFirst = await createOrganization(database, owner.id, { name: "Organization acceptance-first invitation race" });
+  organizationIds.push(organizationAcceptanceFirst.id);
+  const organizationAcceptanceFirstInvitation = await createOrganizationInvitation(database, organizationAcceptanceFirst.id, owner.id, { targetUserId: invitee.id, role: "member" });
+  const releaseOrganizationInvitation = await holdRow(pool, "SELECT id FROM organization_invitations WHERE id = $1 FOR UPDATE", [organizationAcceptanceFirstInvitation.id]);
+  const organizationAcceptance = capture(() => acceptOrganizationInvitation(database, invitee.id, organizationAcceptanceFirstInvitation.id));
+  await waitForBlockedQuery(pool, "organization_invitations");
+  const organizationAcceptanceArchive = archiveOrganization(database, organizationAcceptanceFirst.id, owner.id);
+  await releaseOrganizationInvitation();
+  const [organizationAcceptanceResult] = await Promise.all([organizationAcceptance, organizationAcceptanceArchive]);
+  assert(!organizationAcceptanceResult.error, "Organization acceptance-first race failed");
+  const organizationAcceptanceState = await pool.query<{ archived_at: Date | null; invitation_status: string; memberships: string; participants: string }>(
+    "SELECT organizations.archived_at, (SELECT status FROM organization_invitations WHERE id = $2) AS invitation_status, (SELECT count(*)::text FROM organization_memberships WHERE organization_id = $1 AND user_id = $3) AS memberships, (SELECT count(*)::text FROM organization_participants WHERE organization_id = $1 AND user_id = $3) AS participants FROM organizations WHERE organizations.id = $1",
+    [organizationAcceptanceFirst.id, organizationAcceptanceFirstInvitation.id, invitee.id],
+  );
+  assert(organizationAcceptanceState.rows[0]?.archived_at !== null && organizationAcceptanceState.rows[0]?.invitation_status === "accepted" && organizationAcceptanceState.rows[0]?.memberships === "1" && organizationAcceptanceState.rows[0]?.participants === "1", "Organization acceptance-first race did not preserve the accepted membership before archive");
+
+  const organizationArchiveFirst = await createOrganization(database, owner.id, { name: "Organization archive-first invitation race" });
+  organizationIds.push(organizationArchiveFirst.id);
+  const organizationArchiveFirstInvitation = await createOrganizationInvitation(database, organizationArchiveFirst.id, owner.id, { targetUserId: invitee.id, role: "member" });
+  const releaseArchivedOrganizationInvitation = await holdRow(pool, "SELECT id FROM organization_invitations WHERE id = $1 FOR UPDATE", [organizationArchiveFirstInvitation.id]);
+  const organizationArchive = archiveOrganization(database, organizationArchiveFirst.id, owner.id);
+  await waitForBlockedQuery(pool, "organization_invitations");
+  const organizationArchiveAcceptance = capture(() => acceptOrganizationInvitation(database, invitee.id, organizationArchiveFirstInvitation.id));
+  await waitForBlockedQuery(pool, "organizations");
+  await releaseArchivedOrganizationInvitation();
+  const [organizationArchiveResult, organizationArchiveAcceptanceResult] = await Promise.all([organizationArchive, organizationArchiveAcceptance]);
+  assert(organizationArchiveResult.id === organizationArchiveFirst.id && errorCode(organizationArchiveAcceptanceResult.error) === "resolved", "Organization archive-first acceptance did not fail with the existing resolved contract");
+  const organizationArchiveState = await pool.query<{ archived_at: Date | null; invitation_status: string; memberships: string; participants: string }>(
+    "SELECT organizations.archived_at, (SELECT status FROM organization_invitations WHERE id = $2) AS invitation_status, (SELECT count(*)::text FROM organization_memberships WHERE organization_id = $1 AND user_id = $3) AS memberships, (SELECT count(*)::text FROM organization_participants WHERE organization_id = $1 AND user_id = $3) AS participants FROM organizations WHERE organizations.id = $1",
+    [organizationArchiveFirst.id, organizationArchiveFirstInvitation.id, invitee.id],
+  );
+  assert(organizationArchiveState.rows[0]?.archived_at !== null && organizationArchiveState.rows[0]?.invitation_status === "revoked" && organizationArchiveState.rows[0]?.memberships === "0" && organizationArchiveState.rows[0]?.participants === "0", "Organization archive-first acceptance activated a membership or participant");
+}
+
+async function runInvitationCreationRaces(context: ArchiveSmokeContext) {
+  await runGroupInvitationCreationRaces(context);
+  await runOrganizationInvitationCreationRaces(context);
+  await runOrganizationParticipantCreationRaces(context);
+}
+
+async function runGroupInvitationCreationRaces({ pool, database, owner, member, invitee, groupIds }: ArchiveSmokeContext) {
+  const groupCreateFirst = await createGroup(database, owner.id, { name: "Group create-first invitation race" });
+  groupIds.push(groupCreateFirst.id);
+  const releaseGroupTarget = await holdRow(pool, "SELECT id FROM users WHERE id = $1 FOR UPDATE", [invitee.id]);
+  const groupCreate = capture(() => createGroupInvitation(database, groupCreateFirst.id, owner.id, { targetUserId: invitee.id }));
+  await waitForBlockedQuery(pool, "users");
+  const groupCreateArchive = archiveGroup(database, groupCreateFirst.id, owner.id);
+  await releaseGroupTarget();
+  const [groupCreateResult] = await Promise.all([groupCreate, groupCreateArchive]);
+  assert(!groupCreateResult.error, "Group create-first invitation race failed");
+  const groupCreateState = await pool.query<{ archived_at: Date | null; invitations: string; pending: string }>(
+    "SELECT groups.archived_at, (SELECT count(*)::text FROM group_join_requests WHERE group_id = $1) AS invitations, (SELECT count(*)::text FROM group_join_requests WHERE group_id = $1 AND status = 'pending') AS pending FROM groups WHERE id = $1",
+    [groupCreateFirst.id],
+  );
+  assert(groupCreateState.rows[0]?.archived_at !== null && groupCreateState.rows[0]?.invitations === "1" && groupCreateState.rows[0]?.pending === "0", "Group create-first invitation was not archived atomically");
+
+  const groupCreateArchiveFirst = await createGroup(database, owner.id, { name: "Group archive-first creation race" });
+  groupIds.push(groupCreateArchiveFirst.id);
+  const groupExistingInvitation = await createGroupInvitation(database, groupCreateArchiveFirst.id, owner.id, { targetUserId: member.id });
+  const releaseGroupExistingRequest = await holdRow(pool, "SELECT id FROM group_join_requests WHERE id = $1 FOR UPDATE", [groupExistingInvitation.id]);
+  const groupCreateArchiveFirstArchive = archiveGroup(database, groupCreateArchiveFirst.id, owner.id);
+  await waitForBlockedQuery(pool, "group_join_requests");
+  const groupArchiveFirstCreate = capture(() => createGroupInvitation(database, groupCreateArchiveFirst.id, owner.id, { targetUserId: invitee.id }));
+  await waitForBlockedQuery(pool, "groups");
+  await releaseGroupExistingRequest();
+  const [groupCreateArchiveFirstResult, groupCreateArchiveFirstCreateResult] = await Promise.all([groupCreateArchiveFirstArchive, groupArchiveFirstCreate]);
+  assert(groupCreateArchiveFirstResult.id === groupCreateArchiveFirst.id && errorCode(groupCreateArchiveFirstCreateResult.error) === "forbidden", "Group archive-first creation was not rejected as archived");
+  const groupCreateArchiveFirstState = await pool.query<{ archived_at: Date | null; invitations: string; invitee_invitations: string }>(
+    "SELECT groups.archived_at, (SELECT count(*)::text FROM group_join_requests WHERE group_id = $1) AS invitations, (SELECT count(*)::text FROM group_join_requests WHERE group_id = $1 AND target_user_id = $2) AS invitee_invitations FROM groups WHERE id = $1",
+    [groupCreateArchiveFirst.id, invitee.id],
+  );
+  assert(groupCreateArchiveFirstState.rows[0]?.archived_at !== null && groupCreateArchiveFirstState.rows[0]?.invitations === "1" && groupCreateArchiveFirstState.rows[0]?.invitee_invitations === "0", "Group archive-first creation left a request behind");
+
+}
+
+async function runOrganizationInvitationCreationRaces({ pool, database, owner, member, invitee, organizationIds }: ArchiveSmokeContext) {
+  const organizationCreateFirst = await createOrganization(database, owner.id, { name: "Organization create-first invitation race" });
+  organizationIds.push(organizationCreateFirst.id);
+  const releaseOrganizationTarget = await holdRow(pool, "SELECT id FROM users WHERE id = $1 FOR UPDATE", [invitee.id]);
+  const organizationCreate = capture(() => createOrganizationInvitation(database, organizationCreateFirst.id, owner.id, { targetUserId: invitee.id, role: "member" }));
+  await waitForBlockedQuery(pool, "users");
+  const organizationCreateArchive = archiveOrganization(database, organizationCreateFirst.id, owner.id);
+  await releaseOrganizationTarget();
+  const [organizationCreateResult] = await Promise.all([organizationCreate, organizationCreateArchive]);
+  assert(!organizationCreateResult.error, "Organization create-first invitation race failed");
+  const organizationCreateState = await pool.query<{ archived_at: Date | null; invitations: string; pending: string }>(
+    "SELECT organizations.archived_at, (SELECT count(*)::text FROM organization_invitations WHERE organization_id = $1) AS invitations, (SELECT count(*)::text FROM organization_invitations WHERE organization_id = $1 AND status = 'pending') AS pending FROM organizations WHERE id = $1",
+    [organizationCreateFirst.id],
+  );
+  assert(organizationCreateState.rows[0]?.archived_at !== null && organizationCreateState.rows[0]?.invitations === "1" && organizationCreateState.rows[0]?.pending === "0", "Organization create-first invitation was not archived atomically");
+
+  const organizationCreateArchiveFirst = await createOrganization(database, owner.id, { name: "Organization archive-first creation race" });
+  organizationIds.push(organizationCreateArchiveFirst.id);
+  const organizationExistingInvitation = await createOrganizationInvitation(database, organizationCreateArchiveFirst.id, owner.id, { targetUserId: member.id, role: "member" });
+  const releaseOrganizationExistingInvitation = await holdRow(pool, "SELECT id FROM organization_invitations WHERE id = $1 FOR UPDATE", [organizationExistingInvitation.id]);
+  const organizationCreateArchiveFirstArchive = archiveOrganization(database, organizationCreateArchiveFirst.id, owner.id);
+  await waitForBlockedQuery(pool, "organization_invitations");
+  const organizationArchiveFirstCreate = capture(() => createOrganizationInvitation(database, organizationCreateArchiveFirst.id, owner.id, { targetUserId: invitee.id, role: "member" }));
+  await waitForBlockedQuery(pool, "organizations");
+  await releaseOrganizationExistingInvitation();
+  const [organizationCreateArchiveFirstResult, organizationCreateArchiveFirstCreateResult] = await Promise.all([organizationCreateArchiveFirstArchive, organizationArchiveFirstCreate]);
+  assert(organizationCreateArchiveFirstResult.id === organizationCreateArchiveFirst.id && errorCode(organizationCreateArchiveFirstCreateResult.error) === "forbidden", "Organization archive-first creation was not rejected as archived");
+  const organizationCreateArchiveFirstState = await pool.query<{ archived_at: Date | null; invitations: string; invitee_invitations: string }>(
+    "SELECT organizations.archived_at, (SELECT count(*)::text FROM organization_invitations WHERE organization_id = $1) AS invitations, (SELECT count(*)::text FROM organization_invitations WHERE organization_id = $1 AND target_user_id = $2) AS invitee_invitations FROM organizations WHERE id = $1",
+    [organizationCreateArchiveFirst.id, invitee.id],
+  );
+  assert(organizationCreateArchiveFirstState.rows[0]?.archived_at !== null && organizationCreateArchiveFirstState.rows[0]?.invitations === "1" && organizationCreateArchiveFirstState.rows[0]?.invitee_invitations === "0", "Organization archive-first creation left an invitation behind");
+}
+
+async function runOrganizationParticipantCreationRaces({ pool, database, owner, member, organizationIds }: ArchiveSmokeContext) {
+  const participantCreateFirst = await createOrganization(database, owner.id, { name: "Organization participant-first lifecycle race" });
+  organizationIds.push(participantCreateFirst.id);
+  const releaseOwnerMembership = await holdRow(pool, "SELECT organization_id FROM organization_memberships WHERE organization_id = $1 AND user_id = $2 FOR UPDATE", [participantCreateFirst.id, owner.id]);
+  const participantCreate = capture(() => createLocalOrganizationParticipant(database, participantCreateFirst.id, owner.id, { displayName: "Local race participant" }));
+  await waitForBlockedQuery(pool, "organization_memberships");
+  const participantCreateArchive = archiveOrganization(database, participantCreateFirst.id, owner.id);
+  await releaseOwnerMembership();
+  const [participantCreateResult] = await Promise.all([participantCreate, participantCreateArchive]);
+  assert(!participantCreateResult.error, "Organization local participant create-first race failed");
+  const participantCreateState = await pool.query<{ archived_at: Date | null; participants: string }>(
+    "SELECT organizations.archived_at, (SELECT count(*)::text FROM organization_participants WHERE organization_id = $1 AND display_name = 'Local race participant') AS participants FROM organizations WHERE id = $1",
+    [participantCreateFirst.id],
+  );
+  assert(participantCreateState.rows[0]?.archived_at !== null && participantCreateState.rows[0]?.participants === "1", "Organization local participant create-first race was not serialized before archive");
+
+  const participantArchiveFirst = await createOrganization(database, owner.id, { name: "Organization participant archive-first race" });
+  organizationIds.push(participantArchiveFirst.id);
+  const participantArchiveFirstInvitation = await createOrganizationInvitation(database, participantArchiveFirst.id, owner.id, { targetUserId: member.id, role: "member" });
+  const releaseParticipantInvitation = await holdRow(pool, "SELECT id FROM organization_invitations WHERE id = $1 FOR UPDATE", [participantArchiveFirstInvitation.id]);
+  const participantArchive = archiveOrganization(database, participantArchiveFirst.id, owner.id);
+  await waitForBlockedQuery(pool, "organization_invitations");
+  const participantArchiveCreate = capture(() => createLocalOrganizationParticipant(database, participantArchiveFirst.id, owner.id, { displayName: "Should not be created" }));
+  await waitForBlockedQuery(pool, "organizations");
+  await releaseParticipantInvitation();
+  const [participantArchiveResult, participantArchiveCreateResult] = await Promise.all([participantArchive, participantArchiveCreate]);
+  assert(participantArchiveResult.id === participantArchiveFirst.id && errorCode(participantArchiveCreateResult.error) === "archived", "Organization archive-first local participant creation was not rejected as archived");
+  const participantArchiveState = await pool.query<{ archived_at: Date | null; participants: string }>(
+    "SELECT organizations.archived_at, (SELECT count(*)::text FROM organization_participants WHERE organization_id = $1 AND display_name = 'Should not be created') AS participants FROM organizations WHERE id = $1",
+    [participantArchiveFirst.id],
+  );
+  assert(participantArchiveState.rows[0]?.archived_at !== null && participantArchiveState.rows[0]?.participants === "0", "Organization archive-first local participant creation left a participant behind");
+}
+
 async function runLifecycleRaces({ pool, database, owner, invitee, groupIds, organizationIds }: ArchiveSmokeContext) {
   const mutationFirstGroup = await createGroup(database, owner.id, { name: "Mutation-first race" });
   groupIds.push(mutationFirstGroup.id);
@@ -370,6 +564,7 @@ export async function runWorkspaceArchiveSmoke() {
 
     await runGroupArchiveSmoke(context);
     await runOrganizationArchiveSmoke(context);
+    await runInvitationAcceptanceRaces(context);
     await runLifecycleRaces(context);
     console.log("workspace archive smoke passed");
   } catch (error) {

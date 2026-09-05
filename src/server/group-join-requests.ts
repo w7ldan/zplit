@@ -54,6 +54,11 @@ function parseRequestTargetId(value: unknown) {
   return value.trim();
 }
 
+function validateRequestTarget(input: { targetUserId?: unknown; username?: unknown }) {
+  if (input.targetUserId !== undefined) parseRequestTargetId(input.targetUserId);
+  else parseRequestUsername(input.username);
+}
+
 function notificationType(kind: GroupJoinRequestKind) {
   return kind === "member_invitation" ? NOTIFICATION_TYPES.groupInvitation : NOTIFICATION_TYPES.groupParticipantLinkRequest;
 }
@@ -227,6 +232,8 @@ function requestMetadata(
 async function createRequestInTransaction(database: Database, input: CreateRequestInput) {
   const access = await requireGroupAccess(database, input.groupId, input.requesterUserId);
   access.requireManageParticipants();
+  validateRequestTarget(input);
+  const { group, requester } = await resolveGroupContext(database, input.groupId, input.requesterUserId);
   const target = await resolveTarget(database, input);
   if (!target) throw new GroupJoinRequestError("invalid_target");
   if (target.id === input.requesterUserId) throw new GroupJoinRequestError("self");
@@ -237,7 +244,6 @@ async function createRequestInTransaction(database: Database, input: CreateReque
   if (input.kind === "participant_link") await expirePendingForParticipant(database, input.groupId, input.participantId!, now);
   await ensureTargetIsUnrepresented(database, input.groupId, target.id, input.kind);
   participant = await lockParticipantForRequest(database, input, participant);
-  const { group, requester } = await resolveGroupContext(database, input.groupId, input.requesterUserId);
   const expiresAt = groupJoinRequestExpiresAt(now);
   const [request] = await database
     .insert(groupJoinRequests)
@@ -536,25 +542,43 @@ async function acceptParticipantLink(database: Database, request: typeof groupJo
 }
 
 async function respondToRequestInTransaction(database: Database, targetUserId: string, requestId: string, response: "accept" | "decline"): Promise<RequestResponse> {
-  const [request] = await database
-    .select()
-    .from(groupJoinRequests)
-    .where(and(eq(groupJoinRequests.id, requestId), eq(groupJoinRequests.targetUserId, targetUserId)))
-    .limit(1)
-    .for("update");
-  if (!request) throw new GroupJoinRequestError("not_found");
-  if (request.status !== "pending") return { request, changed: false };
-  const now = new Date();
+  let request: typeof groupJoinRequests.$inferSelect | undefined;
+  let archived = false;
+  let referenceWasPending = false;
   if (response === "accept") {
+    const [reference] = await database
+      .select()
+      .from(groupJoinRequests)
+      .where(and(eq(groupJoinRequests.id, requestId), eq(groupJoinRequests.targetUserId, targetUserId)))
+      .limit(1);
+    if (!reference) throw new GroupJoinRequestError("not_found");
+    referenceWasPending = reference.status === "pending";
     try {
-      await lockActiveGroupForOperationalMutation(database, request.groupId);
+      await lockActiveGroupForOperationalMutation(database, reference.groupId);
     } catch (error) {
-      if (error instanceof GroupError && error.code === "archived") {
-        const revoked = await transitionPendingRequest(database, request, "revoked", now);
-        return { request: revoked ?? request, changed: Boolean(revoked), error: "resolved" };
-      }
-      throw error;
+      if (error instanceof GroupError && error.code === "archived") archived = true;
+      else throw error;
     }
+    [request] = await database
+      .select()
+      .from(groupJoinRequests)
+      .where(and(eq(groupJoinRequests.id, requestId), eq(groupJoinRequests.targetUserId, targetUserId)))
+      .limit(1)
+      .for("update");
+  } else {
+    [request] = await database
+      .select()
+      .from(groupJoinRequests)
+      .where(and(eq(groupJoinRequests.id, requestId), eq(groupJoinRequests.targetUserId, targetUserId)))
+      .limit(1)
+      .for("update");
+  }
+  if (!request) throw new GroupJoinRequestError("not_found");
+  if (request.status !== "pending") return { request, changed: false, error: archived && referenceWasPending ? "resolved" : undefined };
+  const now = new Date();
+  if (archived) {
+    const revoked = await transitionPendingRequest(database, request, "revoked", now);
+    return { request: revoked ?? request, changed: Boolean(revoked), error: "resolved" };
   }
   const nonAcceptance = await resolveNonAcceptance(database, request, response, now);
   if (nonAcceptance) return nonAcceptance;

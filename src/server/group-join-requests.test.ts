@@ -104,12 +104,12 @@ describe("Group join requests", () => {
     mocks.requireGroupAccess.mockResolvedValue({ role, requireManageParticipants: vi.fn() });
     const created = request();
     const { db } = database([
+      [{ id: groupId, name: "Trip" }],
+      [{ name: "Owner", username: "owner" }],
       [{ id: targetUserId, name: "Alice", username: "alice" }],
       [],
       [],
       [],
-      [{ id: groupId, name: "Trip" }],
-      [{ name: "Owner", username: "owner" }],
     ], [[created]]);
     await expect(createGroupInvitation(db, groupId, requesterUserId, "@ALICE")).resolves.toEqual(created);
     expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
@@ -124,12 +124,12 @@ describe("Group join requests", () => {
   it("accepts a selected canonical target user id", async () => {
     const created = request();
     const { db } = database([
+      [{ id: groupId, name: "Trip" }],
+      [{ name: "Owner", username: "owner" }],
       [{ id: targetUserId, name: "Alice", username: "alice" }],
       [],
       [],
       [],
-      [{ id: groupId, name: "Trip" }],
-      [{ name: "Owner", username: "owner" }],
     ], [[created]]);
 
     await expect(
@@ -139,12 +139,12 @@ describe("Group join requests", () => {
 
   it("refuses new invitations for archived Groups", async () => {
     const { db } = database([
+      [{ id: groupId, name: "Trip", archivedAt: new Date("2026-01-01T00:00:00.000Z") }],
+      [{ name: "Owner", username: "owner" }],
       [{ id: targetUserId, name: "Alice", username: "alice" }],
       [],
       [],
       [],
-      [{ id: groupId, name: "Trip", archivedAt: new Date("2026-01-01T00:00:00.000Z") }],
-      [{ name: "Owner", username: "owner" }],
     ]);
     await expect(createGroupInvitation(db, groupId, requesterUserId, "alice")).rejects.toMatchObject({ code: "forbidden" });
   });
@@ -155,19 +155,21 @@ describe("Group join requests", () => {
     await expect(createGroupInvitation(memberDb.db, groupId, requesterUserId, "alice")).rejects.toMatchObject({ code: "forbidden" });
 
     mocks.requireGroupAccess.mockResolvedValue({ requireManageParticipants: vi.fn() });
-    const emailDb = database([[{ id: targetUserId, name: "Alice", username: "alice" }]]);
+    const emailDb = database([[{ id: groupId, name: "Trip" }], [{ name: "Owner", username: "owner" }]]);
     await expect(createGroupInvitation(emailDb.db, groupId, requesterUserId, "alice@example.com")).rejects.toMatchObject({ code: "invalid_target" });
 
-    const representedDb = database([[{ id: targetUserId, name: "Alice", username: "alice" }], [], [{ userId: targetUserId }]]);
+    const representedDb = database([[{ id: groupId, name: "Trip" }], [{ name: "Owner", username: "owner" }], [{ id: targetUserId, name: "Alice", username: "alice" }], [], [{ userId: targetUserId }]]);
     await expect(createGroupInvitation(representedDb.db, groupId, requesterUserId, "alice")).rejects.toMatchObject({ code: "already_member" });
 
-    const duplicateDb = database([[{ id: targetUserId, name: "Alice", username: "alice" }], [request()], [], []]);
+    const duplicateDb = database([[{ id: groupId, name: "Trip" }], [{ name: "Owner", username: "owner" }], [{ id: targetUserId, name: "Alice", username: "alice" }], [request()]]);
     await expect(createGroupInvitation(duplicateDb.db, groupId, requesterUserId, "alice")).rejects.toMatchObject({ code: "duplicate" });
   });
 
   it("creates an external link request only for an unlinked participant in the same Group", async () => {
     const created = request({ kind: "participant_link", participantId, targetUserId });
     const { db, calls } = database([
+      [{ id: groupId, name: "Trip" }],
+      [{ name: "Owner", username: "owner" }],
       [{ id: targetUserId, name: "Alice", username: "alice" }],
       [{ id: participantId, displayName: "Alice", label: "Fasilkom", userId: null }],
       [],
@@ -175,8 +177,6 @@ describe("Group join requests", () => {
       [],
       [],
       [{ id: participantId, displayName: "Alice", label: "Fasilkom", userId: null }],
-      [{ id: groupId, name: "Trip" }],
-      [{ name: "Owner", username: "owner" }],
     ], [[created]]);
     await expect(createGroupParticipantLinkRequest(db, groupId, participantId, requesterUserId, "alice")).resolves.toEqual(created);
     expect(mocks.createNotificationInDatabase).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
@@ -191,6 +191,8 @@ describe("Group join requests", () => {
     const expired = request({ kind: "participant_link", participantId, status: "expired", expiredAt: new Date(), updatedAt: new Date() });
     const created = request({ kind: "participant_link", participantId });
     const { db, calls } = database([
+      [{ id: groupId, name: "Trip" }],
+      [{ name: "Owner", username: "owner" }],
       [{ id: targetUserId, name: "Alice", username: "alice" }],
       [{ id: participantId, displayName: "Taxi", label: null, userId: null }],
       [],
@@ -198,8 +200,6 @@ describe("Group join requests", () => {
       [],
       [],
       [{ id: participantId, displayName: "Taxi", label: null, userId: null }],
-      [{ id: groupId, name: "Trip" }],
-      [{ name: "Owner", username: "owner" }],
     ], [[created]], [[expired], []]);
 
     await expect(createGroupParticipantLinkRequest(db, groupId, participantId, requesterUserId, "alice")).resolves.toMatchObject({ id: requestId });
@@ -208,6 +208,8 @@ describe("Group join requests", () => {
 
   it("keeps a non-expired participant conflict blocking a new link", async () => {
     const { db } = database([
+      [{ id: groupId, name: "Trip" }],
+      [{ name: "Owner", username: "owner" }],
       [{ id: targetUserId, name: "Alice", username: "alice" }],
       [{ id: participantId, displayName: "Taxi", label: null, userId: null }],
       [],
@@ -228,6 +230,7 @@ describe("Group join requests", () => {
     const pending = request();
     const accepted = request({ status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });
     const { db, calls } = database([
+      [pending],
       [pending],
       [{ userId: requesterUserId }],
       [],
@@ -251,6 +254,7 @@ describe("Group join requests", () => {
     const accepted = request({ status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });
     const { db, calls, updateCalls } = database([
       [pending],
+      [pending],
       [{ userId: requesterUserId }],
       [],
       [],
@@ -270,6 +274,7 @@ describe("Group join requests", () => {
     const registeredParticipantId = "44444444-4444-4444-8444-444444444444";
     const { db, calls } = database([
       [pending],
+      [pending],
       [{ userId: requesterUserId }],
       [],
       [{ id: registeredParticipantId }],
@@ -285,6 +290,7 @@ describe("Group join requests", () => {
     const accepted = request({ status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });
     const { db, calls } = database([
       [pending],
+      [pending],
       [{ userId: requesterUserId }],
       [],
       [{ id: participantId }],
@@ -298,6 +304,7 @@ describe("Group join requests", () => {
     const pending = request({ kind: "participant_link", participantId });
     const accepted = request({ kind: "participant_link", participantId, status: "accepted", acceptedAt: new Date(), updatedAt: new Date() });
     const { db, calls, updateCalls } = database([
+      [pending],
       [pending],
       [{ userId: requesterUserId }],
       [{ id: participantId, groupId, userId: null, displayName: "Alice", label: "Fasilkom" }],
@@ -313,17 +320,17 @@ describe("Group join requests", () => {
     const wrongTarget = database([[]]);
     await expect(acceptGroupJoinRequest(wrongTarget.db, "other-user", requestId)).rejects.toMatchObject({ code: "not_found" });
 
-    const stale = database([[request()], []], [], [[request({ status: "revoked", revokedAt: new Date(), updatedAt: new Date() })], []]);
+    const stale = database([[request()], [request()], []], [], [[request({ status: "revoked", revokedAt: new Date(), updatedAt: new Date() })], []]);
     await expect(acceptGroupJoinRequest(stale.db, targetUserId, requestId)).rejects.toMatchObject({ code: "stale_authority" });
     expect(stale.db.insert).not.toHaveBeenCalled();
 
-    const expired = database([[request({ expiresAt: new Date("2020-01-01T00:00:00.000Z") })]], [], [[request({ status: "expired", expiredAt: new Date(), updatedAt: new Date() })], []]);
+    const expired = database([[request({ expiresAt: new Date("2020-01-01T00:00:00.000Z") })], [request({ expiresAt: new Date("2020-01-01T00:00:00.000Z") })]], [], [[request({ status: "expired", expiredAt: new Date(), updatedAt: new Date() })], []]);
     await expect(acceptGroupJoinRequest(expired.db, targetUserId, requestId)).rejects.toMatchObject({ code: "expired" });
 
-    const removed = database([[request({ kind: "participant_link", participantId })], [{ userId: requesterUserId }], []], [], [[request({ kind: "participant_link", participantId, status: "revoked", revokedAt: new Date(), updatedAt: new Date() })], []]);
+    const removed = database([[request({ kind: "participant_link", participantId })], [request({ kind: "participant_link", participantId })], [{ userId: requesterUserId }], []], [], [[request({ kind: "participant_link", participantId, status: "revoked", revokedAt: new Date(), updatedAt: new Date() })], []]);
     await expect(acceptGroupJoinRequest(removed.db, targetUserId, requestId)).rejects.toMatchObject({ code: "participant_not_found" });
 
-    const alreadyMember = database([[request()], [{ userId: requesterUserId }], [{ userId: targetUserId }]], [], [[request({ status: "revoked", revokedAt: new Date(), updatedAt: new Date() })], []]);
+    const alreadyMember = database([[request()], [request()], [{ userId: requesterUserId }], [{ userId: targetUserId }]], [], [[request({ status: "revoked", revokedAt: new Date(), updatedAt: new Date() })], []]);
     await expect(acceptGroupJoinRequest(alreadyMember.db, targetUserId, requestId)).rejects.toMatchObject({ code: "already_member" });
   });
 

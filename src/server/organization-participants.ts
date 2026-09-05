@@ -87,8 +87,8 @@ export async function addPersonalFriendAsOrganizationParticipant(
   if (!normalizeUuid(personalFriendId)) throw new OrganizationParticipantError("not_found");
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    await requireMemberManagement(transactionalDatabase, organizationId, actorUserId);
     await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
+    await requireMemberManagement(transactionalDatabase, organizationId, actorUserId);
     const personalScopeId = await getPersonalLedgerScopeId(transactionalDatabase, actorUserId);
     const [source] = await transaction
       .select({ id: friends.id, name: friends.name, linkedUserId: friends.linkedUserId, archivedAt: friends.archivedAt })
@@ -145,8 +145,8 @@ export async function createLocalOrganizationParticipant(
   const values = cleanInput(input);
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    await requireMemberManagement(transactionalDatabase, organizationId, actorUserId);
     await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
+    await requireMemberManagement(transactionalDatabase, organizationId, actorUserId);
     const [participant] = await transaction
       .insert(organizationParticipants)
       .values({ organizationId, ...values, createdByUserId: actorUserId })
