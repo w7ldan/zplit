@@ -30,7 +30,9 @@ async function chooseExpense(name: RegExp | string) {
   await screen.findByRole("searchbox", { name: "Search outstanding expenses" });
   const listbox = screen.getByRole("listbox");
   await waitFor(() => expect(within(listbox).getByRole("option", { name })).toBeInTheDocument());
+  const panel = listbox.parentElement!;
   fireEvent.click(within(listbox).getByRole("option", { name }));
+  fireEvent.transitionEnd(panel, { propertyName: "transform" });
 }
 
 async function chooseFriend(name: RegExp | string) {
@@ -39,7 +41,9 @@ async function chooseFriend(name: RegExp | string) {
   fireEvent.change(searchInput, { target: { value: typeof name === "string" ? name : "" } });
   const listbox = screen.getByRole("listbox");
   await waitFor(() => expect(within(listbox).getByRole("option", { name })).toBeInTheDocument());
+  const panel = listbox.parentElement!;
   fireEvent.click(within(listbox).getByRole("option", { name }));
+  fireEvent.transitionEnd(panel, { propertyName: "transform" });
 }
 
 describe("RepaymentForm", () => {

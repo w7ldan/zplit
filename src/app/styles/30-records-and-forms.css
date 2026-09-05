@@ -1632,15 +1632,30 @@
   border: 1px solid var(--ink);
   background: var(--surface);
   box-shadow: 0 0.4rem 1rem var(--shadow-panel);
-  opacity: 0;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transform-origin: top center;
+  transition: opacity var(--motion-fast) var(--ease-product), transform var(--motion-fast) var(--ease-product);
 }
 
 .searchable-combobox__panel[data-placement="down"] {
-  animation: searchable-combobox-reveal-down var(--motion-fast) var(--ease-product) both;
+  --searchable-combobox-offset: -3px;
+  transform-origin: top center;
 }
 
 .searchable-combobox__panel[data-placement="up"] {
-  animation: searchable-combobox-reveal-up var(--motion-fast) var(--ease-product) both;
+  --searchable-combobox-offset: 3px;
+  transform-origin: bottom center;
+}
+
+.searchable-combobox__panel--entering,
+.searchable-combobox__panel--closing {
+  opacity: 0;
+  transform: translateY(var(--searchable-combobox-offset, 0)) scale(0.99);
+}
+
+.searchable-combobox__panel--closing {
+  pointer-events: none;
 }
 
 .searchable-combobox__panel[data-portal="dialog"] {
@@ -1729,21 +1744,13 @@
   color: var(--error);
 }
 
-@keyframes searchable-combobox-reveal-down {
-  from { opacity: 0; transform: translateY(-3px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes searchable-combobox-reveal-up {
-  from { opacity: 0; transform: translateY(3px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .searchable-combobox__panel {
+  .searchable-combobox__panel,
+  .searchable-combobox__panel--entering,
+  .searchable-combobox__panel--closing {
     opacity: 1;
     transform: none;
-    animation: none;
+    transition: none !important;
   }
 }
 
@@ -4238,10 +4245,46 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--ink);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--motion-state) var(--ease-product), transform var(--motion-state) var(--ease-product);
+}
+
+.delete-confirmation-dialog--entering {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.delete-confirmation-dialog--closing {
+  opacity: 0;
+  transform: translateY(2px);
 }
 
 .delete-confirmation-dialog::backdrop {
   background: var(--overlay-soft);
+  opacity: 1;
+  transition: opacity var(--motion-state) var(--ease-product);
+}
+
+.delete-confirmation-dialog--entering::backdrop,
+.delete-confirmation-dialog--closing::backdrop {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .delete-confirmation-dialog,
+  .delete-confirmation-dialog--entering,
+  .delete-confirmation-dialog--closing {
+    opacity: 1;
+    transform: none;
+    transition: none !important;
+  }
+
+  .delete-confirmation-dialog--entering::backdrop,
+  .delete-confirmation-dialog--closing::backdrop {
+    opacity: 1;
+    transition: none !important;
+  }
 }
 
 .delete-confirmation-dialog h2 {

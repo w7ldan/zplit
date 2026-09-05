@@ -55,6 +55,9 @@ describe.each([
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
     expect(action).not.toHaveBeenCalled();
+    expect(dialog).toHaveClass("delete-confirmation-dialog--closing");
+    expect(dialog).toBeInTheDocument();
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
@@ -67,12 +70,14 @@ describe.each([
     const dialog = screen.getByRole("dialog");
     fireEvent(dialog, new Event("cancel", { bubbles: true, cancelable: true }));
     expect(action).not.toHaveBeenCalled();
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: props.confirmLabel }));
     const reopened = screen.getByRole("dialog");
     fireEvent.click(reopened);
     expect(action).not.toHaveBeenCalled();
+    fireEvent.transitionEnd(reopened, { propertyName: "transform" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 

@@ -63,6 +63,7 @@ describe("Group settings", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(vi.mocked(deleteGroupAction)).not.toHaveBeenCalled();
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -84,6 +85,7 @@ describe("Group settings", () => {
     expect(within(dialog).getByText(/archived instead of permanently deleted/)).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(vi.mocked(archiveGroupAction)).not.toHaveBeenCalled();
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 

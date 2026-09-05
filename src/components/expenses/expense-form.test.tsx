@@ -42,7 +42,9 @@ describe("ExpenseForm", () => {
     fireEvent.change(searchInput, { target: { value: query } });
     const listbox = screen.getByRole("listbox");
     await waitFor(() => expect(within(listbox).getByRole("option", { name: label })).toBeInTheDocument());
+    const panel = listbox.parentElement!;
     fireEvent.click(within(listbox).getByRole("option", { name: label }));
+    fireEvent.transitionEnd(panel, { propertyName: "transform" });
   }
 
   it("renders accessible owner-owned outing fields without independent date controls", () => {
@@ -267,8 +269,10 @@ describe("ExpenseForm", () => {
     fireEvent.click(screen.getByRole("combobox", { name: "Outing" }));
     const returnSearch = await screen.findByRole("searchbox", { name: "Search outings" });
     await waitFor(() => expect(within(screen.getByRole("listbox")).getByRole("option", { name: outing.title })).toBeInTheDocument());
+    const returnPanel = screen.getByRole("listbox").parentElement!;
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: outing.title }));
     expect(unload()).toBe(false);
+    fireEvent.transitionEnd(returnPanel, { propertyName: "transform" });
     expect(returnSearch).not.toBeInTheDocument();
   });
 

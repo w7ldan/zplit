@@ -169,6 +169,8 @@ type SearchableComboboxPanelProps = {
   rootRef: React.RefObject<HTMLDivElement | null>;
   portalTarget: HTMLElement | null;
   placement: SearchableComboboxPlacement | null;
+  entering: boolean;
+  closing: boolean;
   options: SearchableOption[];
   query: string;
   activeOption: SearchableOption | undefined;
@@ -182,6 +184,7 @@ type SearchableComboboxPanelProps = {
   onSearchChange: (query: string) => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   onClose: () => void;
+  onFinishClose: () => void;
   onChoose: (option: SearchableOption) => void;
   onApplySelections: () => void;
 };
@@ -195,6 +198,8 @@ function SearchableComboboxPanel({
   rootRef,
   portalTarget,
   placement,
+  entering,
+  closing,
   options,
   query,
   activeOption,
@@ -208,12 +213,13 @@ function SearchableComboboxPanel({
   onSearchChange,
   onKeyDown,
   onClose,
+  onFinishClose,
   onChoose,
   onApplySelections,
 }: SearchableComboboxPanelProps) {
   return <div
     ref={panelRef}
-    className="searchable-combobox__panel"
+    className={`searchable-combobox__panel${entering ? " searchable-combobox__panel--entering" : ""}${closing ? " searchable-combobox__panel--closing" : ""}`}
     data-portal={portalTarget instanceof HTMLDialogElement ? "dialog" : "body"}
     data-placement={placement?.direction}
     style={placement ? {
@@ -222,6 +228,7 @@ function SearchableComboboxPanel({
       width: placement.width + "px",
       maxHeight: placement.maxHeight + "px",
     } : { visibility: "hidden" }}
+    onTransitionEnd={(event) => { if (closing && event.target === event.currentTarget && event.propertyName === "transform") onFinishClose(); }}
   >
     <div className="searchable-combobox__search">
       <label className="sr-only" htmlFor={id + "-search"}>{searchLabel}</label>
@@ -287,6 +294,8 @@ export function SearchableCombobox({
 }: SearchableComboboxProps) {
   const [enhanced, setEnhanced] = useState(false);
   const [open, setOpen] = useState(false);
+  const [entering, setEntering] = useState(false);
+  const [closing, setClosing] = useState(false);
   const defaultSelectedId = initialSelectedId(value, placeholder, initialOptions);
   const [selectedId, setSelectedId] = useState(defaultSelectedId);
   const [selectedOptionState, setSelectedOptionState] = useState<SearchableOption | undefined>(() => initialOptions.find((option) => option.id === defaultSelectedId));
@@ -298,6 +307,7 @@ export function SearchableCombobox({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const closingRef = useRef(false);
   const selectedIdsRef = useRef(selectedIds);
   const listboxId = `${id}-listbox`;
   const currentSelectedId = value ?? selectedId;
@@ -320,17 +330,27 @@ export function SearchableCombobox({
   } = useSearchableOptions({ initialOptions, search, currentSelectedId, selectedOption: selectedOptionState, pendingOptions, multiSelect, onOptionsLoaded });
   const nativeOptions = useMemo(() => mergeSearchableOptions(selectedOption ? [selectedOption] : [], options).slice(0, 20), [options, selectedOption]);
   const { placement, clearPlacement } = useSearchableComboboxPlacement({ open, portalTarget, rootRef, triggerRef, panelRef, options, error, loading });
+  const finishClose = useCallback(() => {
+    if (!closingRef.current) return;
+    closingRef.current = false;
+    setClosing(false);
+    setEntering(false);
+    clearPlacement();
+  }, [clearPlacement]);
   const closeMenu = useCallback((focusTrigger = false) => {
+    if (!open || closingRef.current) return;
     resetSearch();
     setOpen(false);
-    clearPlacement();
     setActiveIndex(-1);
     if (multiSelect) {
       setPendingIds(new Set(selectedIdsRef.current));
       setPendingOptions([]);
     }
     if (focusTrigger) triggerRef.current?.focus();
-  }, [clearPlacement, multiSelect, resetSearch]);
+    closingRef.current = true;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || !placement) finishClose();
+    else setClosing(true);
+  }, [finishClose, multiSelect, open, placement, resetSearch]);
 
   useEffect(() => {
     selectedIdsRef.current = selectedIds;
@@ -358,10 +378,20 @@ export function SearchableCombobox({
     if (open) searchInputRef.current?.focus();
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !placement || closingRef.current) return;
+    const frame = window.requestAnimationFrame(() => setEntering(false));
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, placement]);
+
   function openMenu(direction: "down" | "up" = "down") {
     if (disabled) return;
+    const reopening = closingRef.current;
+    closingRef.current = false;
+    setClosing(false);
+    setEntering(!reopening);
     setOpen(true);
-    clearPlacement();
+    if (!reopening) clearPlacement();
     resetSearch();
     resetOptions();
     if (multiSelect) {
@@ -391,12 +421,8 @@ export function SearchableCombobox({
     setSelectedId(option.id);
     setSelectedOptionState(option);
     rememberOption(option);
-    resetSearch();
-    setOpen(false);
-    clearPlacement();
-    setActiveIndex(-1);
+    closeMenu(true);
     onValueChange?.(option);
-    triggerRef.current?.focus();
   }
 
   function applySelections() {
@@ -459,7 +485,7 @@ export function SearchableCombobox({
 
   const activeOption = activeIndex >= 0 ? options[activeIndex] : undefined;
   const pendingLabel = pendingIds.size > 0 ? `Add ${pendingIds.size} friend${pendingIds.size === 1 ? "" : "s"}` : "Add friends";
-  const panel = open ? <SearchableComboboxPanel
+  const panel = open || closing ? <SearchableComboboxPanel
     id={id}
     listboxId={listboxId}
     searchLabel={searchLabel}
@@ -468,6 +494,8 @@ export function SearchableCombobox({
     rootRef={rootRef}
     portalTarget={portalTarget}
     placement={placement}
+    entering={entering}
+    closing={closing}
     options={options}
     query={query}
     activeOption={activeOption}
@@ -481,6 +509,7 @@ export function SearchableCombobox({
     onSearchChange={onSearchChange}
     onKeyDown={onKeyDown}
     onClose={() => closeMenu()}
+    onFinishClose={finishClose}
     onChoose={choose}
     onApplySelections={applySelections}
   /> : null;

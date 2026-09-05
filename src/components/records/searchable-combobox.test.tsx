@@ -63,8 +63,11 @@ describe("SearchableCombobox", () => {
     const searchInput = await screen.findByRole("searchbox", { name: "Search friends" });
     await waitFor(() => expect(search).toHaveBeenCalledWith("", active.id));
     expect(document.activeElement).toBe(searchInput);
+    const panel = screen.getByRole("listbox").parentElement!;
     fireEvent.keyDown(searchInput, { key: "Escape" });
     expect(trigger).toHaveFocus();
+    expect(panel).toHaveClass("searchable-combobox__panel--closing");
+    fireEvent.transitionEnd(panel, { propertyName: "transform" });
     expect(screen.queryByRole("searchbox", { name: "Search friends" })).not.toBeInTheDocument();
   });
 
@@ -83,12 +86,15 @@ describe("SearchableCombobox", () => {
     const onValueChange = vi.fn();
     renderSelector([active, archived], { onValueChange });
     const { searchInput, listbox } = await openSelector();
+    const panel = listbox.parentElement!;
     fireEvent.click(within(listbox).getByRole("option", { name: "Bima (ARCHIVED)" }));
     const trigger = screen.getByRole("combobox", { name: "Friend" });
     expect(trigger).toHaveTextContent("Bima (ARCHIVED)");
     expect(document.querySelector('select[name="friendId"]')).toHaveValue(archived.id);
     expect(onValueChange).toHaveBeenCalledWith(archived);
     expect(trigger).toHaveFocus();
+    expect(panel).toHaveClass("searchable-combobox__panel--closing");
+    fireEvent.transitionEnd(panel, { propertyName: "transform" });
     expect(searchInput).not.toBeInTheDocument();
   });
 
@@ -121,8 +127,20 @@ describe("SearchableCombobox", () => {
   it("closes on outside pointer interaction", async () => {
     renderSelector();
     await openSelector();
+    const panel = screen.getByRole("listbox").parentElement!;
     fireEvent.pointerDown(document.body);
+    expect(panel).toHaveClass("searchable-combobox__panel--closing");
+    fireEvent.transitionEnd(panel, { propertyName: "transform" });
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("closes immediately without spatial motion when reduced motion is requested", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === "(prefers-reduced-motion: reduce)" }));
+    renderSelector();
+    const { searchInput } = await openSelector();
+    fireEvent.keyDown(searchInput, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 
   it("ignores stale responses and keeps an empty result state", async () => {

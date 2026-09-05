@@ -27,34 +27,35 @@ function downloadHref(href: string) {
 export function ReceiptPreview({ href, filename, mediaType, previewLabel = "receipt", triggerLabel = "Preview" }: { href: string; filename: string; mediaType: string; previewLabel?: string; triggerLabel?: string }) {
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [entering, setEntering] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closingRef = useRef(false);
-  const closeTimerRef = useRef<number | null>(null);
+  const enterFrameRef = useRef<number | null>(null);
   const wasOpenRef = useRef(false);
   const titleId = useId();
   const previewable = previewableMediaTypes.has(mediaType);
 
   const finishClose = useCallback(() => {
     if (!closingRef.current) return;
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
+    if (enterFrameRef.current !== null) {
+      window.cancelAnimationFrame(enterFrameRef.current);
+      enterFrameRef.current = null;
     }
     closingRef.current = false;
     setClosing(false);
+    setEntering(false);
     setOpen(false);
   }, []);
 
   const closePreview = useCallback(() => {
     if (!open || closingRef.current) return;
+    closingRef.current = true;
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      setOpen(false);
+      finishClose();
       return;
     }
-    closingRef.current = true;
     setClosing(true);
-    closeTimerRef.current = window.setTimeout(finishClose, 160);
   }, [finishClose, open]);
 
   useEffect(() => {
@@ -65,6 +66,11 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
     }
 
     wasOpenRef.current = true;
+
+    enterFrameRef.current = window.requestAnimationFrame(() => {
+      enterFrameRef.current = null;
+      if (!closingRef.current) setEntering(false);
+    });
 
     const dialog = dialogRef.current;
     if (!dialog) return;
@@ -114,10 +120,8 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      if (closeTimerRef.current !== null) {
-        window.clearTimeout(closeTimerRef.current);
-        closeTimerRef.current = null;
-      }
+      if (enterFrameRef.current !== null) window.cancelAnimationFrame(enterFrameRef.current);
+      enterFrameRef.current = null;
       for (const { element, inert, ariaHidden } of background) {
         (element as InertElement).inert = inert;
         if (ariaHidden === null) element.removeAttribute("aria-hidden");
@@ -132,10 +136,10 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
   if (!previewable) return <a className="text-link" href={href} target="_blank" rel="noreferrer">Open original</a>;
 
   return <>
-    <button className="text-link expense-receipts__preview-trigger" type="button" onClick={(event) => { triggerRef.current = event.currentTarget; closingRef.current = false; setClosing(false); setOpen(true); }} aria-label={triggerLabel === "Preview" ? `Preview ${filename}` : triggerLabel}>{triggerLabel}</button>
+    <button className="text-link expense-receipts__preview-trigger" type="button" onClick={(event) => { triggerRef.current = event.currentTarget; closingRef.current = false; setEntering(true); setClosing(false); setOpen(true); }} aria-label={triggerLabel === "Preview" ? `Preview ${filename}` : triggerLabel}>{triggerLabel}</button>
     {open ? createPortal(
-      <div ref={dialogRef} className={`receipt-preview${closing ? " receipt-preview--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onAnimationEnd={finishClose} onClick={(event) => { if (event.target === event.currentTarget) closePreview(); }}>
-        <section className="receipt-preview__surface">
+      <div ref={dialogRef} className={`receipt-preview${entering ? " receipt-preview--entering" : ""}${closing ? " receipt-preview--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onClick={(event) => { if (event.target === event.currentTarget) closePreview(); }}>
+        <section className="receipt-preview__surface" onTransitionEnd={(event) => { if (closingRef.current && event.target === event.currentTarget && event.propertyName === "transform") finishClose(); }}>
           <header className="receipt-preview__header">
             <h2 id={titleId} title={filename}>{filename}</h2>
             <button className="receipt-preview__close" type="button" onClick={closePreview} aria-label={`Close ${previewLabel} preview`}>Close</button>

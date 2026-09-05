@@ -1,10 +1,9 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ReceiptPreview } from "./receipt-preview";
 
 describe("ReceiptPreview", () => {
   it("keeps the preview mounted during exit, then restores focus", () => {
-    vi.useFakeTimers();
     render(<><button type="button">Other</button><ReceiptPreview href="/receipt/one" filename="one.png" mediaType="image/png" /></>);
     const trigger = screen.getByRole("button", { name: "Preview one.png" });
     trigger.focus();
@@ -14,10 +13,32 @@ describe("ReceiptPreview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close receipt preview" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(trigger).not.toHaveFocus();
-    act(() => vi.advanceTimersByTime(160));
+    fireEvent.transitionEnd(screen.getByRole("dialog").querySelector(".receipt-preview__surface")!, { propertyName: "transform" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
-    vi.useRealTimers();
+  });
+
+  it("retargets a close that interrupts entry and can reopen cleanly", () => {
+    let enterFrame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      enterFrame = callback;
+      return 1;
+    });
+    render(<ReceiptPreview href="/receipt/interruptible" filename="interruptible.png" mediaType="image/png" />);
+    const trigger = screen.getByRole("button", { name: "Preview interruptible.png" });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveClass("receipt-preview--entering");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close receipt preview" }));
+    expect(dialog).toHaveClass("receipt-preview--closing");
+    expect(dialog).toBeInTheDocument();
+    fireEvent.transitionEnd(dialog.querySelector(".receipt-preview__surface")!, { propertyName: "transform" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(screen.getByRole("dialog")).toHaveClass("receipt-preview--entering");
+    enterFrame?.(1);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 
   it("uses a normal authorized link for unsupported media", () => {
@@ -64,7 +85,6 @@ describe("ReceiptPreview", () => {
   });
 
   it("restores background state, scroll state, and focus on Escape or backdrop close", () => {
-    vi.useFakeTimers();
     const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
     Object.defineProperty(window, "scrollY", { configurable: true, value: 240 });
     document.body.style.overflow = "auto";
@@ -79,7 +99,7 @@ describe("ReceiptPreview", () => {
     expect(document.documentElement.style.overflow).toBe("hidden");
     fireEvent.click(screen.getByRole("dialog"));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(160));
+    fireEvent.transitionEnd(screen.getByRole("dialog").querySelector(".receipt-preview__surface")!, { propertyName: "transform" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(container).toHaveAttribute("aria-hidden", "false");
     expect((container as HTMLElement & { inert: boolean }).inert).toBe(true);
@@ -91,7 +111,7 @@ describe("ReceiptPreview", () => {
     fireEvent.click(trigger);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(160));
+    fireEvent.transitionEnd(screen.getByRole("dialog").querySelector(".receipt-preview__surface")!, { propertyName: "transform" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
     scrollTo.mockRestore();

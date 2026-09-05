@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RepaymentPaymentProof } from "./repayment-payment-proof";
 
@@ -37,10 +37,9 @@ describe("RepaymentPaymentProof", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close payment proof preview" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open original" })).toHaveAttribute("href", "/app/repayments/repayment-a/payment-proof/proof-a");
-    vi.useFakeTimers();
+    const previewSurface = screen.getByRole("dialog").querySelector(".receipt-preview__surface")!;
     fireEvent.click(screen.getByRole("button", { name: "Close payment proof preview" }));
-    act(() => vi.advanceTimersByTime(160));
-    vi.useRealTimers();
+    fireEvent.transitionEnd(previewSurface, { propertyName: "transform" });
 
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));

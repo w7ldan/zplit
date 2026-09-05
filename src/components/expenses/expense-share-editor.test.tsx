@@ -149,7 +149,9 @@ describe("expense share editor", () => {
     fireEvent.click(screen.getByRole("combobox", { name: "Add friend" }));
     const reopenedListbox = await screen.findByRole("listbox");
     expect(within(reopenedListbox).queryByRole("option", { name: "Siti" })).not.toBeInTheDocument();
+    const finalPanel = reopenedListbox.parentElement!;
     fireEvent.keyDown(screen.getByRole("searchbox", { name: "Search active friends" }), { key: "Escape" });
+    fireEvent.transitionEnd(finalPanel, { propertyName: "transform" });
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(new FormData(screen.getByRole("button", { name: "Save split" }).closest("form")!).getAll("friendId")).toEqual([activeFriend.id, suggestedFriend.id, secondSuggestedFriend.id]);
   });

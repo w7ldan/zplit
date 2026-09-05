@@ -1315,6 +1315,10 @@ body.global-search-open {
   border: 1px solid var(--rule);
   border-radius: var(--radius-panel);
   background: var(--surface);
+  opacity: 1;
+  transform: translateY(0);
+  transform-origin: top right;
+  animation: account-menu-panel-in var(--motion-fast) var(--ease-product) both;
 }
 
 .account-menu__panel > span:not(.technical-label) {

@@ -103,12 +103,33 @@
   padding: var(--receipt-preview-gutter);
   overflow: auto;
   overscroll-behavior: contain;
-  background: var(--overlay-heavy);
-  animation: receipt-preview-in var(--motion-state) var(--ease-product) both;
+  background-color: var(--overlay-heavy);
+  transition: background-color var(--motion-state) var(--ease-product);
+}
+
+.receipt-preview--entering,
+.receipt-preview--closing {
+  background-color: transparent;
 }
 
 .receipt-preview--closing {
-  animation: receipt-preview-out var(--motion-fast) var(--ease-product) both;
+  pointer-events: none;
+}
+
+.receipt-preview__surface {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--motion-state) var(--ease-product), transform var(--motion-state) var(--ease-product);
+}
+
+.receipt-preview--entering .receipt-preview__surface {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.receipt-preview--closing .receipt-preview__surface {
+  opacity: 0;
+  transform: translateY(2px);
 }
 
 .receipt-preview__surface {
@@ -187,16 +208,6 @@
   justify-content: flex-end;
   flex-wrap: wrap;
   border-top: 1px solid var(--rule);
-}
-
-@keyframes receipt-preview-in {
-  from { opacity: 0; transform: translateY(0.35rem); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes receipt-preview-out {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(2px); }
 }
 
 .toast-viewport {
@@ -302,6 +313,11 @@
 @keyframes panel-in {
   from { opacity: 0; transform: translateX(1.5rem); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes account-menu-panel-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes result-in {
@@ -432,6 +448,7 @@
   .task-panel,
   .task-panel--closing,
   .receipt-preview,
+  .receipt-preview--entering,
   .receipt-preview--closing,
   .action-link--primary:not(:disabled):active,
   .toast,
@@ -439,6 +456,20 @@
   .friend-share__result {
     animation: none !important;
     transform: none !important;
+    transition: none !important;
+  }
+
+  .receipt-preview,
+  .receipt-preview--entering,
+  .receipt-preview--closing {
+    background-color: var(--overlay-heavy);
+  }
+
+  .receipt-preview__surface,
+  .receipt-preview--entering .receipt-preview__surface,
+  .receipt-preview--closing .receipt-preview__surface {
+    opacity: 1;
+    transform: none;
     transition: none !important;
   }
 

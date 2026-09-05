@@ -217,8 +217,10 @@ describe("LiveRecordFilters", () => {
     });
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(within(screen.getByRole("listbox")).getByRole("option", { name: "Dinner" })).toBeInTheDocument();
+    const panel = screen.getByRole("listbox").parentElement!;
     fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Dinner" }));
     expect(mocks.replace).toHaveBeenCalledWith(`/app/outings?task=open&${timezoneQuery}&outing=outing-a#record-list`, { scroll: false });
+    fireEvent.transitionEnd(panel, { propertyName: "transform" });
     expect(document.getElementById("record-filter-outing-search")).not.toBeInTheDocument();
   });
 

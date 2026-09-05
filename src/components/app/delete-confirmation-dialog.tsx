@@ -41,9 +41,12 @@ export function DeleteConfirmationDialog({
   action,
 }: DeleteConfirmationDialogProps) {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [entering, setEntering] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const closingRef = useRef(false);
   const titleId = useId();
   const descriptionId = useId();
 
@@ -57,9 +60,18 @@ export function DeleteConfirmationDialog({
     if (typeof dialog.showModal === "function") dialog.showModal();
     else dialog.open = true;
     cancelRef.current?.focus();
-  }, [open ]);
 
-  function close() {
+    const frame = window.requestAnimationFrame(() => {
+      if (!closingRef.current) setEntering(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open]);
+
+  function finishClose() {
+    if (!closingRef.current) return;
+    closingRef.current = false;
+    setClosing(false);
+    setEntering(false);
     setOpen(false);
     const dialog = dialogRef.current;
     if (dialog?.open) {
@@ -69,20 +81,37 @@ export function DeleteConfirmationDialog({
     triggerRef.current?.focus();
   }
 
+  function openDialog() {
+    closingRef.current = false;
+    setEntering(true);
+    setClosing(false);
+    setOpen(true);
+  }
+
+  function close() {
+    if (!open || closingRef.current) return;
+    closingRef.current = true;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      finishClose();
+      return;
+    }
+    setClosing(true);
+  }
+
   return (
     <>
       <button
         ref={triggerRef}
         className="action-link action-link--quiet"
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openDialog}
       >
         {confirmLabel}
       </button>
       {open ? (
         <dialog
           ref={dialogRef}
-          className="delete-confirmation-dialog"
+          className={`delete-confirmation-dialog${entering ? " delete-confirmation-dialog--entering" : ""}${closing ? " delete-confirmation-dialog--closing" : ""}`}
           aria-labelledby={titleId}
           aria-describedby={descriptionId}
           onCancel={(event) => {
@@ -91,6 +120,9 @@ export function DeleteConfirmationDialog({
           }}
           onClick={(event) => {
             if (event.target === event.currentTarget) close();
+          }}
+          onTransitionEnd={(event) => {
+            if (closingRef.current && event.target === event.currentTarget && event.propertyName === "transform") finishClose();
           }}
         >
           <h2 id={titleId}>{title}</h2>

@@ -81,6 +81,7 @@ describe("Organization Settings capability composition", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(vi.mocked(deleteOrganizationAction)).not.toHaveBeenCalled();
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -97,6 +98,7 @@ describe("Organization Settings capability composition", () => {
     expect(within(dialog).getByText(/archived instead of permanently deleted/)).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(vi.mocked(archiveOrganizationAction)).not.toHaveBeenCalled();
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
