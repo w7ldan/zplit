@@ -3,6 +3,7 @@ import { JourneyShowcase } from "@/components/editorial/journey-showcase";
 import { LandingReveal, LandingStoryMotion } from "@/components/editorial/landing-reveal";
 import { bandungStory } from "@/components/editorial/public-scenario";
 import { SiteHeader } from "@/components/editorial/site-header";
+import { UserAvatar } from "@/components/identity/user-avatar";
 import { formatRupiah } from "@/domain/rupiah";
 
 const dinner = bandungStory.expenses[0];
@@ -13,8 +14,8 @@ const dinnerAmount = formatRupiah(dinner.amount);
 const taxiAmount = formatRupiah(taxi.amount);
 const assignedAmount = bandungStory.shares.reduce((total, share) => total + share.amount, 0);
 
-function Avatar({ label, tone }: { label: string; tone: "blue" | "peach" | "mint" }) {
-  return <span className={`record-avatar record-avatar--${tone}`} aria-hidden="true">{label}</span>;
+function IllustrativeAvatar({ id }: { id: string }) {
+  return <UserAvatar userId={`landing-${id}`} decorative size="sm" />;
 }
 
 export default function HomePage() {
@@ -53,17 +54,17 @@ export default function HomePage() {
               </div>
               <div className="hero-record__people" aria-label="Expense shares">
                 <div className="record-person">
-                  <Avatar label="R" tone="blue" />
+                  <IllustrativeAvatar id="rani" />
                   <span><strong>Rani</strong><small>{formatRupiah(84000)} share</small></span>
                   <span className="record-status record-status--settled">Settled</span>
                 </div>
                 <div className="record-person">
-                  <Avatar label="D" tone="peach" />
+                  <IllustrativeAvatar id="dimas" />
                   <span><strong>Dimas</strong><small>{formatRupiah(42500)} share</small></span>
                   <span className="record-status record-status--open">Open</span>
                 </div>
               </div>
-              <footer className="hero-record__footer"><span>Rani repayment allocated</span><strong>{raniPayment}</strong><span>Remaining</span><strong className="record-amount">{openBalance}</strong></footer>
+              <footer className="hero-record__footer"><span>Received from Rani</span><strong>{raniPayment}</strong><span>Remaining</span><strong className="record-amount">{openBalance}</strong></footer>
             </article>
             <p className="hero-record-wrap__caption"><span className="technical-label">01 / A record, not a chat thread</span><span>Names, shares, and state stay attached to the amount.</span></p>
           </LandingReveal>
@@ -81,7 +82,7 @@ export default function HomePage() {
             <span className="record-chain__arrow" aria-hidden="true">↓</span>
             <article className="record-chain__item"><span className="technical-label">Shares</span><strong>3 Friend shares</strong><span>Assigned explicitly</span><b>{formatRupiah(assignedAmount)}</b></article>
             <span className="record-chain__arrow" aria-hidden="true">↓</span>
-            <article className="record-chain__item"><span className="technical-label">Repayment</span><strong>Rani received</strong><span>Allocated to shares</span><b>{raniPayment}</b></article>
+            <article className="record-chain__item"><span className="technical-label">Repayment</span><strong>Received from Rani</strong><span>Allocated to shares</span><b>{raniPayment}</b></article>
             <span className="record-chain__arrow" aria-hidden="true">↓</span>
             <article className="record-chain__item record-chain__item--balance"><span className="technical-label">Balance</span><strong>Dimas remains</strong><span>One open share</span><b>{openBalance}</b></article>
           </div>
@@ -117,13 +118,13 @@ export default function HomePage() {
             <article className="group-ledger">
               <header><span className="technical-label">Group / Bandung crew</span><strong>Ledger</strong></header>
               <div className="group-ledger__row"><span><strong>Dinner</strong><small>Paid by Rani · 3 participants</small></span><b>{dinnerAmount}</b></div>
-              <div className="group-ledger__row"><span><strong>Settlement</strong><small>Rani → Dimas</small></span><b>{openBalance}</b></div>
+              <div className="group-ledger__row"><span><strong>Settlement</strong><small>Dimas → Rani</small></span><b>{openBalance}</b></div>
               <footer><span>2 records shown</span><span className="record-status record-status--open">Open balance</span></footer>
             </article>
             <article className="group-chat">
               <header><span className="technical-label">Group Chat</span><strong>General</strong></header>
-              <div className="chat-message chat-message--other"><Avatar label="R" tone="blue" /><p><strong>Rani</strong><span>Did we settle dinner?</span></p></div>
-              <div className="chat-message chat-message--own"><p><strong>You</strong><span>Repayment recorded — check the settlement record.</span></p><Avatar label="Y" tone="mint" /></div>
+              <div className="landing-chat-message landing-chat-message--other"><span className="landing-chat-message__avatar"><IllustrativeAvatar id="rani" /></span><p className="landing-chat-message__body"><strong>Rani</strong><span className="landing-chat-message__meta">Did we settle dinner?</span></p></div>
+              <div className="landing-chat-message landing-chat-message--own"><p className="landing-chat-message__body"><strong>You</strong><span className="landing-chat-message__meta">Repayment recorded — check the settlement record.</span></p><span className="landing-chat-message__avatar"><IllustrativeAvatar id="you" /></span></div>
               <footer><span>Conversation is context.</span><span>Accounting stays explicit.</span></footer>
             </article>
           </div>
@@ -161,16 +162,16 @@ export default function HomePage() {
 
       <section className="landing-section history-section" id="records" aria-labelledby="history-title" data-story-motion="history">
         <div className="editorial-shell history-section__layout">
-          <div className="history-section__copy"><p className="section-label technical-label">07 / History + findability</p><h2 id="history-title">Every record stays findable.</h2><p>Search for the expense you remember. Use Inbox for attention. Return to history when the outing is no longer recent.</p></div>
+          <div className="history-section__copy"><p className="section-label technical-label">07 / History + findability</p><h2 id="history-title">The records you remember stay within reach.</h2><p>Search for the expense you remember. Use Inbox for attention. Return to history when the outing is no longer recent.</p></div>
           <div className="history-spread" aria-label="Illustrative search, inbox, and history">
             <div className="history-search">
               <label htmlFor="public-search">Search records</label>
-              <div><span aria-hidden="true">Search /</span><input id="public-search" value="Dinner" readOnly /></div>
+              <div><span aria-hidden="true">Search /</span><input id="public-search" value="Bandung" readOnly /></div>
               <article><span><strong>{dinner.description}</strong><small>{bandungStory.outing} · 12 Apr 2026</small></span><b>{dinnerAmount}</b></article>
               <article><span><strong>{taxi.description}</strong><small>{bandungStory.outing} · 12 Apr 2026</small></span><b>{taxiAmount}</b></article>
             </div>
             <div className="history-side">
-              <div className="inbox-slip"><span className="technical-label">Inbox</span><strong>Rani repayment recorded</strong><small>Attention stays close to the record.</small></div>
+              <div className="inbox-slip"><span className="technical-label">Inbox</span><strong>Dimas recorded a payment to you in Bandung crew.</strong><small>Confirmation is required.</small></div>
               <div className="history-slip"><span className="technical-label">History</span><strong>Expense → repayment → balance</strong><small>Past records remain a readable chain.</small></div>
             </div>
           </div>

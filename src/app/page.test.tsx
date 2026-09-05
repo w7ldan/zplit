@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import HomePage from "./page";
 
@@ -37,6 +39,8 @@ describe("public Zplit page", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /REPAY Record repayment/ }));
     expect(screen.getByText("Show money received.", { exact: true })).toBeInTheDocument();
+    expect(screen.getAllByText("Received from Rani", { exact: true })).toHaveLength(3);
+    expect(screen.queryByText("Rani received", { exact: true })).not.toBeInTheDocument();
     expect(screen.getAllByText("Rp 126.500", { exact: true }).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("tab", { name: /SETTLE Read the balance/ }));
@@ -56,8 +60,23 @@ describe("public Zplit page", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Talk beside the record. Keep the record authoritative." })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "The explanation stays with the number." })).toBeInTheDocument();
     expect(screen.getByText("Private · Read only", { exact: true })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Every record stays findable." })).toBeInTheDocument();
-    expect(screen.getByLabelText("Search records")).toHaveValue("Dinner");
+    expect(screen.getByRole("heading", { level: 2, name: "The records you remember stay within reach." })).toBeInTheDocument();
+    expect(screen.getByLabelText("Search records")).toHaveValue("Bandung");
+    expect(screen.getByText("Dimas → Rani", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Dimas recorded a payment to you in Bandung crew.", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Confirmation is required.", { exact: true })).toBeInTheDocument();
     expect(screen.queryByText(/2,000 records/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps public illustrations isolated from authenticated Chat and uses current identity motifs", () => {
+    render(<HomePage />);
+
+    const publicStyles = readFileSync(path.resolve(process.cwd(), "src/app/styles/10-public.css"), "utf8");
+    expect(publicStyles).toMatch(/\.landing-chat-message\b/);
+    expect(publicStyles).not.toMatch(/\.chat-message\b/);
+    expect(document.querySelectorAll(".landing-chat-message")).toHaveLength(2);
+    expect(document.querySelectorAll(".chat-message")).toHaveLength(0);
+    expect(document.querySelectorAll(".record-avatar")).toHaveLength(0);
+    expect(document.querySelectorAll(".user-avatar__default")).toHaveLength(4);
   });
 });

@@ -23,7 +23,7 @@ describe("JourneyShowcase", () => {
     expect(screen.getByText("Shares are entered explicitly.", { exact: true })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /REPAY Record repayment/ }));
-    expect(screen.getByText("Rani received", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Received from Rani", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Allocation complete", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Rp 126.500", { exact: true })).toBeInTheDocument();
 

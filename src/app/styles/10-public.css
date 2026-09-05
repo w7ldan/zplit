@@ -810,22 +810,6 @@
   min-width: 0;
 }
 
-.record-avatar {
-  display: inline-grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border: 1px solid var(--ink);
-  border-radius: 50%;
-  color: var(--ink);
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.record-avatar--blue { background: var(--pastel-blue); }
-.record-avatar--peach { background: var(--peach); }
-.record-avatar--mint { background: var(--mint); }
-
 .hero-record__footer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
@@ -1439,7 +1423,7 @@
 .group-ledger__row small,
 .group-chat footer,
 .group-ledger footer,
-.chat-message small {
+.landing-chat-message__meta {
   color: var(--muted-ink);
   font-size: 0.75rem;
 }
@@ -1457,19 +1441,19 @@
   padding-top: 1rem;
 }
 
-.chat-message {
+.landing-chat-message {
   display: flex;
   gap: 0.7rem;
   align-items: end;
   margin-top: 1.5rem;
 }
 
-.chat-message--own {
+.landing-chat-message--own {
   justify-content: end;
   text-align: right;
 }
 
-.chat-message p {
+.landing-chat-message__body {
   display: grid;
   gap: 0.3rem;
   max-width: 20rem;
@@ -1480,14 +1464,15 @@
   line-height: 1.35;
 }
 
-.chat-message p strong {
+.landing-chat-message__body strong {
   color: var(--muted-ink);
   font-size: 0.7rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.chat-message .record-avatar {
+.landing-chat-message__avatar {
+  display: inline-flex;
   flex: 0 0 auto;
 }
 

@@ -70,7 +70,7 @@ function JourneyScene({ activeStep }: { activeStep: number }) {
           </div>
           <div className="journey-summary-block journey-summary-block--state" data-visible={repaymentVisible} aria-hidden={!repaymentVisible}>
             <span className="technical-label">Repayment</span>
-            <ProductRow label="Rani received" value={formatRupiah(scenario.repayment.amount)} detail="Allocated to Dinner + Taxi" />
+            <ProductRow label="Received from Rani" value={formatRupiah(scenario.repayment.amount)} detail="Allocated to Dinner + Taxi" />
             <div className="journey-allocation"><span>Allocation complete</span><strong>100%</strong></div>
           </div>
           <div className="journey-summary-block journey-summary-block--balances" data-visible={balancesVisible} aria-hidden={!balancesVisible}>
