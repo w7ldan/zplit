@@ -74,12 +74,40 @@ function ChatEditForm({
   );
 }
 
-function ChatMessage({ scope, message, latestVisible, onEdit }: { scope: ChatScope; message: ChatMessageDto; latestVisible: boolean; onEdit: (id: string) => void }) {
+function ChatMessageFooter({ scope, message, latestVisible, onEdit }: { scope: ChatScope; message: ChatMessageDto; latestVisible: boolean; onEdit: (id: string) => void }) {
   const hasActions = message.canEdit || message.canDelete || !latestVisible;
+  const hasSeenReceipt = latestVisible && (message.seenByCount ?? 0) > 0;
   const seenBy = message.seenBy ?? [];
+  if (!message.edited && !hasActions && !hasSeenReceipt) return null;
+
+  return (
+    <footer className="chat-message__footer">
+      {message.edited ? <span className="chat-message__edited">Edited</span> : null}
+      {hasActions ? (
+        <div className="chat-message__actions">
+          {message.canEdit ? <button className="text-link" type="button" onClick={() => onEdit(message.id)}>Edit</button> : null}
+          {message.canDelete ? (
+            <form action={deleteChatMessageAction.bind(null, scope, message.id)}>
+              <button className="text-link" type="submit">{message.own ? "Delete" : "Delete message"}</button>
+            </form>
+          ) : null}
+          {!latestVisible ? (
+            <details className="chat-message__details">
+              <summary className="text-link">Seen by...</summary>
+              {seenBy.length > 0 ? <ul>{seenBy.map((name, index) => <li key={`${name}-${index}`}>{name}</li>)}</ul> : <span>No other readers yet.</span>}
+            </details>
+          ) : null}
+        </div>
+      ) : null}
+      {hasSeenReceipt ? <span className="chat-message__seen">Seen by {message.seenByCount}</span> : null}
+    </footer>
+  );
+}
+
+function ChatMessage({ scope, message, latestVisible, onEdit }: { scope: ChatScope; message: ChatMessageDto; latestVisible: boolean; onEdit: (id: string) => void }) {
   return (
     <li className={`chat-message ${message.own ? "chat-message--own" : "chat-message--other"} ${message.grouped ? "chat-message--grouped" : ""}`}>
-      {!message.grouped ? (
+      {!message.grouped && !message.own ? (
         <UserAvatar
           userId={message.sender.userId}
           customAvatar={message.sender.customAvatar}
@@ -94,31 +122,17 @@ function ChatMessage({ scope, message, latestVisible, onEdit }: { scope: ChatSco
             <LocalDateTime iso={message.createdAt} />
           </header>
         ) : (
-          <LocalDateTime iso={message.createdAt} />
+          <div className="chat-message__metadata">
+            <span className="visually-hidden">{message.sender.displayName} · </span>
+            <LocalDateTime iso={message.createdAt} />
+          </div>
         )}
         {message.body === null ? (
           <p className="chat-message__body chat-message__body--deleted">Message deleted</p>
         ) : (
           <p className="chat-message__body">{message.body}</p>
         )}
-        {message.edited ? <span className="chat-message__edited">Edited</span> : null}
-        {hasActions ? (
-          <div className="chat-message__actions">
-            {message.canEdit ? <button className="text-link" type="button" onClick={() => onEdit(message.id)}>Edit</button> : null}
-            {message.canDelete ? (
-              <form action={deleteChatMessageAction.bind(null, scope, message.id)}>
-                <button className="text-link" type="submit">{message.own ? "Delete" : "Delete message"}</button>
-              </form>
-            ) : null}
-            {!latestVisible ? (
-              <details className="chat-message__details">
-                <summary className="text-link">Seen by...</summary>
-                {seenBy.length > 0 ? <ul>{seenBy.map((name, index) => <li key={`${name}-${index}`}>{name}</li>)}</ul> : <span>No other readers yet.</span>}
-              </details>
-            ) : null}
-          </div>
-        ) : null}
-        {latestVisible && (message.seenByCount ?? 0) > 0 ? <span className="chat-message__seen">Seen by {message.seenByCount}</span> : null}
+        <ChatMessageFooter scope={scope} message={message} latestVisible={latestVisible} onEdit={onEdit} />
       </article>
     </li>
   );
@@ -178,11 +192,7 @@ export function ChatPanel({ chat, title, olderHref }: { chat: ChatViewDto; title
     <section className="app-page chat-page" id="chat">
       <div className="editorial-shell app-page__layout">
         <header className="app-page__header">
-          <div>
-            <p className="technical-label">{title}</p>
-            <h1>{title}</h1>
-            <p className="app-page__lede">A shared plain-text conversation for this workspace.</p>
-          </div>
+          <h1>{title}</h1>
         </header>
         <section className="chat" aria-labelledby={chatId}>
           <h2 className="visually-hidden" id={chatId}>{title} messages</h2>

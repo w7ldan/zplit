@@ -76,28 +76,39 @@ describe("ChatPanel", () => {
     expect(container.querySelectorAll(".chat-message--other")).toHaveLength(2);
     expect(container.querySelectorAll(".chat-message--grouped")).toHaveLength(1);
     expect(container.querySelectorAll(".chat-message--grouped .user-avatar")).toHaveLength(0);
-    expect(container.querySelectorAll(".user-avatar__default")).toHaveLength(3);
+    expect(container.querySelectorAll(".chat-message--own .user-avatar")).toHaveLength(0);
+    expect(container.querySelectorAll(".user-avatar__default")).toHaveLength(2);
     expect(screen.getAllByText("Seen by...")).toHaveLength(3);
     expect(screen.getByText("Seen by 1")).toBeInTheDocument();
     expect(screen.queryByText("Seen by 0")).not.toBeInTheDocument();
+    expect(screen.queryByText("A shared plain-text conversation for this workspace.")).not.toBeInTheDocument();
   });
 
-  it("pins the own avatar and bubble to the same CSS grid row", () => {
-    expect(chatStyles).toMatch(/\.chat-message--own \.chat-message__content \{[^}]*grid-row: 1;/);
-    expect(chatStyles).toMatch(/\.chat-message--own > \.user-avatar \{[^}]*grid-row: 1;/);
+  it("keeps the workspace wide while bounding message reading width", () => {
+    expect(chatStyles).toMatch(/\.chat \{[^}]*width: min\(100%, 72rem\);/);
+    expect(chatStyles).toMatch(/\.chat-message \{[^}]*max-width: min\(44rem, 100%\);/);
+    expect(chatStyles).not.toContain("width: min(100%, 48rem)");
+    expect(chatStyles).not.toContain("max-width: 90%");
+  });
+
+  it("keeps participant direction and own-message distinction in the shared grammar", () => {
+    expect(chatStyles).toMatch(/\.chat-message--other \{[^}]*justify-self: start;/);
+    expect(chatStyles).toMatch(/\.chat-message--own \{[^}]*justify-self: end;/);
+    expect(chatStyles).toMatch(/\.chat-message--own \.chat-message__content \{[^}]*background: var\(--pastel-blue\);/);
   });
 
   it("keeps the composer outside a bounded, scrollable history region", () => {
     const { container } = render(<ChatPanel chat={organizationChat} title="General" olderHref="/older" />);
-    const history = container.querySelector(".chat__history");
-    const composer = container.querySelector(".chat__composer");
+    const history = container.querySelector<HTMLOListElement>(".chat__history");
+    const composer = container.querySelector<HTMLFormElement>(".chat__composer");
 
     expect(history).toBeInTheDocument();
     expect(history).not.toContainElement(composer);
-    expect(container.querySelector(".chat__history-shell")).toContainElement(history);
-    expect(chatStyles).toMatch(/\.chat \{[^}]*grid-template-rows: minmax\(0, 1fr\) auto;/s);
-    expect(chatStyles).toMatch(/\.chat__history \{[^}]*min-height: 0;[^}]*overflow-y: auto;/s);
-    expect(chatStyles).toMatch(/\.chat \{[^}]*max-height:[^}]*100dvh/s);
+    expect(container.querySelector<HTMLDivElement>(".chat__history-shell")).toContainElement(history);
+    expect(chatStyles).toMatch(/\.chat \{[^}]*grid-template-rows: minmax\(0, 1fr\) auto;/);
+    expect(chatStyles).toMatch(/\.chat__history \{[^}]*min-height: 0;[^}]*overflow-y: auto;/);
+    expect(chatStyles).toMatch(/\.chat \{[^}]*height: min\(60rem, max\(24rem, calc\(100dvh/);
+    expect(chatStyles).toMatch(/\.chat__composer \{[^}]*border: 1px solid var\(--rule\);[^}]*background: var\(--surface\);/);
   });
 
   it("starts the latest view at the bottom and keeps near-bottom updates there", () => {

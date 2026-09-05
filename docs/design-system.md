@@ -298,6 +298,23 @@ indefinitely. Prose, forms, settings editors, repayment editors, receipt and
 payment previews, dialogs, destructive explanations, and Chat conversation
 content keep intentional local reading or interaction bounds.
 
+### Chat workspace
+
+Group Chat and Organization General use the shared `ChatPanel` surface. Its
+conversation workspace is centered and bounded at `72rem` while individual
+messages remain independently readable at `44rem` or less. The history owns
+scrolling and uses the available viewport height; the composer remains a
+full-workspace continuation of that surface with a thin rule between reading
+and composing.
+
+Messages keep other participants left-aligned and the current user
+right-aligned without relying on color alone. Sender identity and timestamps
+anchor each message group, grouped messages tighten their internal rhythm, and
+edited, deleted, action, and Seen-by states remain available as quiet metadata
+below the message content. Grouped messages do not repeat visible avatars, and
+the current user does not need a redundant avatar when alignment already
+establishes authorship.
+
 ---
 
 ## 9. Grid and alignment
