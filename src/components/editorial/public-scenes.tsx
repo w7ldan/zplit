@@ -82,7 +82,7 @@ export function RecordFlowScene() {
           </div>
           <div className="flow-interface" aria-label="Illustrative expense, shares, repayment, and balance sequence">
             <div className="flow-interface__topline"><span className="technical-label">Personal ledger / {ledgerStory.outing}</span><span className="flow-interface__state" data-flow-state-label>CAPTURED</span></div>
-            <div className="flow-interface__track" aria-hidden="true"><span data-flow-progress /></div>
+            <div className="flow-interface__track" aria-hidden="true"><span data-flow-progress /><i data-flow-ambient-rule /></div>
             <article className="flow-card flow-card--expense" data-flow-expense>
               <div><span className="technical-label">Expense</span><strong>{expense.title}</strong><small>Paid by you · {ledgerStory.date}</small></div>
               <b data-public-number="flow-expense" data-public-value={expense.amount}>{formatRupiah(expense.amount)}</b>
@@ -130,7 +130,7 @@ export function ContextsScene() {
             <h2 id="contexts-title">Same clarity. Different money worlds.</h2>
             <p>Personal, Groups, and Organizations stay distinct because who owns the ledger, who can participate, and who can act all matter.</p>
             <div className="scope-progress" aria-hidden="true"><span data-scope-track /></div>
-            <p className="scope-progress__caption"><span>NEXT / widen the room</span><span data-scope-index>01 / 03</span></p>
+            <p className="scope-progress__caption"><span>NEXT / widen the room</span><span><b data-scope-active-label>PERSONAL</b> · <span data-scope-index>01 / 03</span></span></p>
           </div>
           <div className="scope-viewport" aria-label="Illustrative Zplit contexts">
             <div className="scope-state scope-state--personal" data-scope-personal>
@@ -209,9 +209,10 @@ export function ProofScene() {
         </div>
         <article className="proof-record" aria-label="Illustrative expense with receipt attached">
           <header><span className="technical-label">Expense detail / {ledgerStory.outing}</span><span className="record-status record-status--settled">Recorded</span></header>
-          <div className="proof-record__headline"><div><h3>{ledgerStory.expenses[0].title}</h3><span>Paid by you · {ledgerStory.date}</span></div><strong data-public-number="proof-expense" data-public-value={ledgerStory.expenses[0].amount}>{formatRupiah(ledgerStory.expenses[0].amount)}</strong></div>
+          <div className="proof-record__headline" data-related="proof"><div><h3>{ledgerStory.expenses[0].title}</h3><span>Paid by you · {ledgerStory.date}</span></div><strong data-public-number="proof-expense" data-public-value={ledgerStory.expenses[0].amount}>{formatRupiah(ledgerStory.expenses[0].amount)}</strong></div>
           <dl><div><dt>Payer</dt><dd>You</dd></div><div><dt>Shares</dt><dd>Raka · Sari</dd></div><div><dt>Outing</dt><dd>{ledgerStory.outing}</dd></div></dl>
-          <div className="proof-receipt" data-proof-receipt><span className="proof-receipt__stamp">RECEIPT<br />ATTACHED</span><span><strong>market-picnic.jpg</strong><small>Supporting proof for this expense</small></span><span aria-hidden="true">↗</span></div>
+          <div className="proof-receipt__link" data-proof-receipt-link aria-hidden="true"><span /> source expense <span /></div>
+          <div className="proof-receipt" data-proof-receipt data-related="proof"><span className="proof-receipt__stamp">RECEIPT<br />ATTACHED</span><span><strong>market-picnic.jpg</strong><small>Supporting proof for this expense</small></span><span aria-hidden="true">↗</span></div>
         </article>
       </div>
       </div>
@@ -228,7 +229,7 @@ export function PrivateAndHistoryScene() {
             <SceneMarker number="05" label="After / share less, find more" />
             <h2 id="records-title">The record can travel without losing its shape.</h2>
             <p>Expose one relevant balance through a private, read-only share. Search the history when the details matter again.</p>
-            <div className="after-handoff" aria-hidden="true"><span data-after-handoff-line /><span>OWNER</span><b>→</b><span>SHARED</span></div>
+            <div className="after-handoff" aria-hidden="true"><span data-after-handoff-line /><span>OWNER</span><b>→</b><span data-after-handoff-state>SHARED</span></div>
             <PrivateShareDemo />
           </div>
           <div className="history-panel">
@@ -245,7 +246,7 @@ export function PrivateAndHistoryScene() {
               </div>
               <div className="history-panel__search">
                 <RecordSearchDemo />
-                <div className="history-panel__inbox"><span className="technical-label">Inbox / one action</span><strong>Attention has a place.</strong><small>Review an incoming request or payment record.</small><span className="record-status record-status--open">1 to review</span></div>
+                <div className="history-panel__inbox"><span className="technical-label">Inbox / one action</span><strong>Attention has a place.</strong><small>Review an incoming request or payment record.</small><span className="record-status record-status--open" data-history-inbox-status>1 to review</span></div>
               </div>
             </div>
             <div className="history-panel__slips">
@@ -261,7 +262,7 @@ export function PrivateAndHistoryScene() {
 
 export function LandingFinale() {
   return (
-    <footer className="public-scene public-finale" data-public-scene="finale" aria-labelledby="finale-title">
+    <footer className="public-scene public-finale" id="finale" data-public-scene="finale" aria-labelledby="finale-title">
       <div className="public-finale__rule" aria-hidden="true"><span /><span /><span /></div>
       <div className="public-finale__layout editorial-shell">
         <div><SceneMarker number="06" label="End state / quiet enough to trust" /><h2 id="finale-title">No loose ends.<br />Just the record.</h2><p>Shared money is easier to talk about when the facts stay attached.</p></div>

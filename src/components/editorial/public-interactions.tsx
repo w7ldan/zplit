@@ -35,12 +35,14 @@ export function CollaborationDemo() {
           <header><span className="technical-label">Group / Saturday crew</span><strong>Ledger</strong></header>
           <div className="collab-ledger-row" data-related="raka"><span><strong>Market + picnic</strong><small>Paid by Raka · 3 participants</small></span><b>{formatRupiah(ledgerStory.groupExpense.amount)}</b></div>
           <div className="collab-ledger-row" data-related="sari"><span><strong>Sari owes Raka</strong><small>Original share · still open</small></span><b>{formatRupiah(ledgerStory.groupBalance.amount)}</b></div>
+          <div className="collab-ledger-row" data-related="you"><span><strong>Your share</strong><small>Read-only participant view</small></span><b>{formatRupiah(ledgerStory.groupBalance.amount)}</b></div>
           <footer><span>Explicit records</span><span data-collab-badge className="record-status record-status--open">Open share</span></footer>
         </article>
-        <span className="collaboration-demo__connector" data-collab-connector aria-hidden="true">↔</span>
+        <span className="collaboration-demo__connector" data-collab-connector aria-hidden="true"><i data-collab-scan />↔</span>
         <article className="collaboration-chat" data-collab-chat>
           <header><span className="technical-label">Group Chat</span><strong>Saturday crew</strong></header>
           <div className="collab-message" data-related="raka"><Avatar id="raka" name="Raka" /><p><strong>Raka</strong><span>Receipt is attached to the market expense.</span></p></div>
+          <div className="collab-message" data-related="sari"><Avatar id="sari" name="Sari" /><p><strong>Sari</strong><span>I’ll settle the open share from here.</span></p></div>
           <div className="collab-message collab-message--own" data-related="you"><p><strong>You</strong><span>Good — the share stays in the ledger.</span></p><Avatar id="you" name="You" /></div>
           <footer><span>Chat coordinates.</span><span>Records account.</span></footer>
         </article>
@@ -66,14 +68,14 @@ export function PrivateShareDemo() {
           <span className="technical-label">Personal / private</span>
           <strong>Saturday market</strong>
           <p>Your ledger · Sari’s open share</p>
-          <b>{formatRupiah(ledgerStory.personalBalance.amount)}</b>
+          <b data-public-number="private-owner-balance" data-public-value={ledgerStory.personalBalance.amount}>{formatRupiah(ledgerStory.personalBalance.amount)}</b>
           <footer>Owner remains the source of the record.</footer>
         </article>
         <article className="private-shared-view" data-private-panel="shared">
           <header><span>Zplit / Balance statement</span><span>Private · Read only</span></header>
           <p>Sari</p>
-          <strong>{formatRupiah(ledgerStory.personalBalance.amount)}</strong>
-          <div><span>Market + picnic<small>Saturday market · 18 May 2026</small></span><b>{formatRupiah(ledgerStory.personalBalance.amount)}</b></div>
+          <strong data-public-number="private-shared-balance" data-public-value={ledgerStory.personalBalance.amount}>{formatRupiah(ledgerStory.personalBalance.amount)}</strong>
+          <div><span>Market + picnic<small>Saturday market · 18 May 2026</small></span><b data-public-number="private-shared-line" data-public-value={ledgerStory.personalBalance.amount}>{formatRupiah(ledgerStory.personalBalance.amount)}</b></div>
           <footer>Shared view · no ledger editing</footer>
         </article>
       </div>
