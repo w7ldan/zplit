@@ -6,7 +6,6 @@ import { Observer } from "gsap/Observer";
 import { ScrollToPlugin } from "gsap/ScrollToPlugin";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { gsap } from "gsap";
-import { formatRupiah } from "@/domain/rupiah";
 import {
   clampPublicLandingIndex,
   firstPublicLandingIndexForSection,
@@ -23,28 +22,7 @@ type PublicMotionProps = { children: ReactNode };
 type SceneElement = HTMLElement & { _publicTrigger?: ScrollTrigger };
 type AmbientController = (scene: PublicLandingState["scene"]) => void;
 
-const FLOW_VALUES = [
-  { label: "CAPTURED", expense: 360_000, assigned: 0, repayment: 0, balance: 360_000 },
-  { label: "SHARES ASSIGNED", expense: 360_000, assigned: 210_000, repayment: 0, balance: 210_000 },
-  { label: "REPAYMENT LOGGED", expense: 360_000, assigned: 210_000, repayment: 120_000, balance: 90_000 },
-  { label: "BALANCE OPEN", expense: 360_000, assigned: 210_000, repayment: 120_000, balance: 90_000 },
-] as const;
-
-const ODOMETER_NAMES = new Set([
-  "hero-expense",
-  "hero-repayment",
-  "hero-balance",
-  "flow-expense",
-  "flow-assigned",
-  "flow-repayment",
-  "flow-balance",
-  "proof-expense",
-  "private-owner-balance",
-  "private-shared-balance",
-  "private-shared-line",
-  "history-market",
-  "history-train",
-]);
+const FLOW_LABELS = ["EXPENSE", "SHARES", "REPAYMENT", "BALANCE"] as const;
 
 function setupMagneticLinks(root: HTMLElement) {
   const cleanups: Array<() => void> = [];
@@ -134,105 +112,6 @@ function setupLinkedHover(root: HTMLElement) {
   };
 }
 
-function publicNumber(root: HTMLElement, name: string) {
-  return root.querySelector<HTMLElement>(`[data-public-number="${name}"]`);
-}
-
-function odometerDigits(element: HTMLElement) {
-  return Array.from(element.querySelectorAll<HTMLElement>(".public-odometer__reel"));
-}
-
-function buildOdometer(element: HTMLElement, formatted: string) {
-  const visual = document.createElement("span");
-  visual.className = "public-odometer";
-  visual.setAttribute("aria-hidden", "true");
-  for (const character of formatted) {
-    if (/\d/.test(character)) {
-      const slot = document.createElement("span");
-      slot.className = "public-odometer__slot";
-      const reel = document.createElement("span");
-      reel.className = "public-odometer__reel";
-      for (let digit = 0; digit < 10; digit += 1) {
-        const face = document.createElement("span");
-        face.textContent = String(digit);
-        reel.append(face);
-      }
-      slot.append(reel);
-      visual.append(slot);
-    } else {
-      const staticCharacter = document.createElement("span");
-      staticCharacter.className = "public-odometer__static";
-      staticCharacter.textContent = character;
-      visual.append(staticCharacter);
-    }
-  }
-  const accessible = document.createElement("span");
-  accessible.className = "public-odometer__accessible";
-  accessible.textContent = formatted;
-  element.replaceChildren(visual, accessible);
-  element.dataset.publicFormatted = formatted;
-}
-
-function setOdometerDigits(element: HTMLElement, formatted: string, immediate: boolean) {
-  if (!element.querySelector(".public-odometer") || element.dataset.publicFormatted?.length !== formatted.length) {
-    buildOdometer(element, formatted);
-    immediate = true;
-  }
-  element.dataset.publicFormatted = formatted;
-  const accessible = element.querySelector<HTMLElement>(".public-odometer__accessible");
-  if (accessible) accessible.textContent = formatted;
-  const reels = odometerDigits(element);
-  let digitIndex = 0;
-  for (const character of formatted) {
-    if (!/\d/.test(character)) continue;
-    const reel = reels[digitIndex];
-    const destination = -Number(character) * 10;
-    if (reel) {
-      if (immediate) gsap.set(reel, { yPercent: destination });
-      else gsap.to(reel, { yPercent: destination, duration: 0.48, ease: "power2.out", overwrite: true });
-    }
-    digitIndex += 1;
-  }
-}
-
-function setPublicNumber(element: HTMLElement | null, amount: number) {
-  if (!element) return;
-  const name = element.dataset.publicNumber;
-  const formatted = formatRupiah(amount);
-  element.dataset.publicValue = String(amount);
-  element.setAttribute("aria-label", formatted);
-  if (name && ODOMETER_NAMES.has(name)) {
-    setOdometerDigits(element, formatted, true);
-    return;
-  }
-  element.textContent = formatted;
-}
-
-function rollPublicNumber(element: HTMLElement | null, amount: number, duration: number, immediate: boolean) {
-  if (!element) return;
-  const current = Number(element.dataset.publicValue ?? 0);
-  if (immediate || current === amount) {
-    setPublicNumber(element, amount);
-    return;
-  }
-  if (element.dataset.publicNumber && ODOMETER_NAMES.has(element.dataset.publicNumber)) {
-    const currentFormatted = formatRupiah(current);
-    if (!element.querySelector(".public-odometer")) buildOdometer(element, currentFormatted);
-    setOdometerDigits(element, formatRupiah(amount), false);
-    element.dataset.publicValue = String(amount);
-    element.setAttribute("aria-label", formatRupiah(amount));
-    return;
-  }
-  const proxy = { value: current };
-  gsap.to(proxy, {
-    value: amount,
-    duration,
-    ease: "power2.out",
-    onUpdate: () => setPublicNumber(element, Math.round(proxy.value)),
-    onComplete: () => setPublicNumber(element, amount),
-  });
-}
-
 function swapLabel(element: HTMLElement | null, label: string, immediate: boolean) {
   if (!element || element.textContent === label) return;
   if (immediate) {
@@ -246,18 +125,6 @@ function swapLabel(element: HTMLElement | null, label: string, immediate: boolea
     .fromTo(element, { yPercent: 80 }, { yPercent: 0, opacity: 1, duration: 0.22, ease: "power3.out" });
 }
 
-function animateFlowNumbers(root: HTMLElement, values: typeof FLOW_VALUES[number], step: number, immediate: boolean) {
-  const numbers = [
-    ["flow-expense", values.expense],
-    ["flow-assigned", values.assigned],
-    ["flow-repayment", values.repayment],
-    ["flow-balance", values.balance],
-    ["flow-share-raka", step >= 1 ? 120_000 : 0],
-    ["flow-share-sari", step >= 1 ? 90_000 : 0],
-  ] as const;
-  numbers.forEach(([name, amount]) => rollPublicNumber(publicNumber(root, name), amount, 0.54, immediate));
-}
-
 function flowCards(root: HTMLElement) {
   return [
     root.querySelector<HTMLElement>("[data-flow-expense]"),
@@ -267,54 +134,23 @@ function flowCards(root: HTMLElement) {
   ].filter((card): card is HTMLElement => Boolean(card));
 }
 
-function animateFlowCards(timeline: gsap.core.Timeline, cards: HTMLElement[], step: number, previousStep: number, direction: -1 | 0 | 1, immediate: boolean) {
-  cards.forEach((card, index) => {
-    const active = index === step;
-    timeline.to(card, {
-      y: active ? 0 : index < step ? -5 : 7,
-      scale: active ? 1 : 0.985,
-      autoAlpha: active ? 1 : index < step ? 0.58 : 0.28,
-      duration: immediate ? 0 : 0.46,
-    }, 0);
+function animateRecordFlow(root: HTMLElement, step: number, immediate: boolean) {
+  const cards = flowCards(root);
+  Flip.killFlipsOf(cards);
+  const layout = Flip.getState(cards);
+  root.querySelector<HTMLElement>(".flow-interface")?.setAttribute("data-flow-active-step", String(step));
+  cards.forEach((card, index) => card.setAttribute("data-expanded", String(index === step)));
+  root.querySelectorAll(".flow-steps li").forEach((item, index) => {
+    if (index === step) item.setAttribute("aria-current", "step");
+    else item.removeAttribute("aria-current");
   });
-  if (!immediate && step !== previousStep) {
-    const incoming = cards[step];
-    if (incoming) {
-      timeline.fromTo(incoming, {
-        x: direction > 0 ? 30 : -30,
-        clipPath: direction > 0 ? "inset(0 0 0 100%)" : "inset(0 100% 0 0)",
-      }, { x: 0, clipPath: "inset(0 0% 0 0%)", duration: 0.42 }, 0);
-    }
-  }
-}
-
-function animateFlowRows(timeline: gsap.core.Timeline, rows: HTMLElement[], step: number, previousStep: number, immediate: boolean) {
-  if (step >= 1 && previousStep < 1 && rows.length > 0) {
-    timeline.fromTo(rows, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.3, stagger: 0.055 }, 0.13);
-  } else if (step < 1 && rows.length > 0) {
-    timeline.to(rows, { autoAlpha: 0, y: -7, duration: immediate ? 0 : 0.2, stagger: 0.025 }, 0.04);
-  } else {
-    timeline.to(rows, { autoAlpha: step >= 1 ? 1 : 0, y: 0, duration: immediate ? 0 : 0.2 }, 0.08);
-  }
-}
-
-function animateFlowIndicators(root: HTMLElement, timeline: gsap.core.Timeline, step: number, immediate: boolean) {
-  timeline.to(root.querySelector("[data-flow-progress]"), { scaleX: Math.max(0.06, step / 3), duration: immediate ? 0 : 0.48 }, 0);
-  timeline.to(root.querySelector("[data-flow-resolved]"), { autoAlpha: step >= 2 ? 1 : 0, y: step >= 2 ? 0 : 4, duration: immediate ? 0 : 0.24 }, 0.2);
-  timeline.to(root.querySelector("[data-flow-ambient-rule]"), { scaleX: step >= 2 ? 1 : 0.35, duration: immediate ? 0 : 0.34 }, 0.08);
-}
-
-function animateRecordFlow(root: HTMLElement, step: number, immediate: boolean, direction: -1 | 0 | 1) {
-  const values = FLOW_VALUES[step] ?? FLOW_VALUES[0];
-  const flow = root.querySelector<HTMLElement>(".flow-interface");
-  const previousStep = Number(flow?.dataset.flowActiveStep ?? step);
-  flow?.setAttribute("data-flow-active-step", String(step));
-  swapLabel(root.querySelector<HTMLElement>("[data-flow-state-label]"), values.label, immediate);
-  animateFlowNumbers(root, values, step, immediate);
-  const timeline = gsap.timeline({ defaults: { ease: "power3.out", overwrite: true } });
-  animateFlowCards(timeline, flowCards(root), step, previousStep, direction, immediate);
-  animateFlowRows(timeline, Array.from(root.querySelectorAll<HTMLElement>("[data-flow-share-row]")), step, previousStep, immediate);
-  animateFlowIndicators(root, timeline, step, immediate);
+  swapLabel(root.querySelector<HTMLElement>("[data-flow-state-label]"), FLOW_LABELS[step] ?? "EXPENSE", immediate);
+  gsap.fromTo(cards[step]?.querySelectorAll("[data-public-number]") ?? [],
+    { clipPath: "inset(0 0 100% 0)" },
+    { clipPath: "inset(0 0 0% 0)", duration: immediate ? 0 : 0.35, delay: immediate ? 0 : 0.15, overwrite: true });
+  if (!immediate) Flip.from(layout, { duration: 0.48, ease: "power3.inOut", absolute: false, scale: false });
+  gsap.to(root.querySelector("[data-flow-progress]"), { scaleX: (step + 1) / 4, duration: immediate ? 0 : 0.45, overwrite: true });
+  gsap.fromTo(cards[step]?.querySelectorAll(".flow-share-row i") ?? [], { scaleX: 0 }, { scaleX: 1, duration: immediate ? 0 : 0.4, stagger: 0.07, overwrite: true });
 }
 
 function animateContexts(root: HTMLElement, step: number, immediate: boolean, direction: -1 | 0 | 1) {
@@ -323,6 +159,7 @@ function animateContexts(root: HTMLElement, step: number, immediate: boolean, di
     root.querySelector<HTMLElement>("[data-scope-group]"),
     root.querySelector<HTMLElement>("[data-scope-organization]"),
   ].filter((state): state is HTMLElement => Boolean(state));
+  gsap.killTweensOf(states.flatMap((state) => [state, ...state.querySelectorAll("*")]));
   const previousStep = Number(root.dataset.scopeStep ?? step);
   const incoming = states[step];
   const outgoing = states[previousStep];
@@ -339,10 +176,12 @@ function animateContexts(root: HTMLElement, step: number, immediate: boolean, di
       setAccessibility(state, active);
     });
   } else {
-    setAccessibility(outgoing, false);
-    setAccessibility(incoming, true);
+    states.forEach((state, index) => {
+      setAccessibility(state, index === step);
+      if (state !== incoming && state !== outgoing) gsap.set(state, { autoAlpha: 0 });
+    });
     gsap.set(incoming, { zIndex: 2 });
-    const enteringParts = incoming.querySelectorAll<HTMLElement>("header, .scope-state__title, .scope-state__body > :last-child, footer");
+    const enteringParts = incoming.querySelectorAll<HTMLElement>(".scope-anchor, .scope-relations, .scope-access, .scope-peer-rule");
     const timeline = gsap.timeline({ defaults: { ease: "power3.out", overwrite: true } });
     timeline
       .to(outgoing, {
@@ -361,14 +200,7 @@ function animateContexts(root: HTMLElement, step: number, immediate: boolean, di
         autoAlpha: 1,
         duration: 0.5,
       }, 0)
-      .fromTo(enteringParts, { y: 13, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.28, stagger: 0.045 }, 0.18)
-      .add(() => {
-        states.forEach((state, index) => {
-          const active = index === step;
-          if (!active) gsap.set(state, { autoAlpha: 0, x: 0, scale: 1, clipPath: "inset(0 0% 0 0%)", zIndex: 0 });
-          setAccessibility(state, active);
-        });
-      });
+      .fromTo(enteringParts, { scaleX: 0.82, transformOrigin: "left", clipPath: "inset(0 100% 0 0)" }, { scaleX: 1, clipPath: "inset(0 0% 0 0)", duration: 0.32, stagger: 0.045 }, 0.18);
   }
   root.dataset.scopeStep = String(step);
   gsap.to(root.querySelector("[data-scope-track]"), {
@@ -394,12 +226,12 @@ function animateCollaboration(root: HTMLElement, immediate: boolean) {
   const timeline = gsap.timeline({ defaults: { ease: "power3.out", overwrite: true } });
   timeline
     .set([ledger, chat], { autoAlpha: 0 })
-    .fromTo(ledger, { xPercent: -10 }, { xPercent: 0, autoAlpha: 1, duration: 0.42 }, 0)
-    .fromTo(chat, { xPercent: 10 }, { xPercent: 0, autoAlpha: 1, duration: 0.46 }, 0.06)
-    .fromTo(rows, { x: -18, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.28, stagger: 0.07 }, 0.2)
-    .fromTo(messages, { x: 18, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.28, stagger: 0.09 }, 0.25)
+    .fromTo(ledger, { xPercent: 6 }, { xPercent: 0, autoAlpha: 1, duration: 0.42 }, 0.42)
+    .fromTo(chat, { xPercent: -6 }, { xPercent: 0, autoAlpha: 1, duration: 0.36 }, 0)
+    .fromTo(rows, { x: -18, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.28, stagger: 0.07 }, 0.5)
+    .fromTo(messages, { x: 18, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.28, stagger: 0.09 }, 0.08)
     .fromTo(root.querySelector("[data-collab-connector]"), { scale: 0, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.26 }, 0.35)
-    .fromTo(root.querySelector("[data-collab-badge]"), { y: 7, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.24 }, 0.47);
+    .fromTo(root.querySelector("[data-collab-badge]"), { y: 7, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.24 }, 0.75);
 }
 
 function animateProof(root: HTMLElement, immediate: boolean) {
@@ -413,57 +245,19 @@ function animateProof(root: HTMLElement, immediate: boolean) {
     return;
   }
   gsap.timeline({ defaults: { ease: "power3.out", overwrite: true } })
-    .set(receipt, { autoAlpha: 0, clipPath: "inset(0 100% 0 0)" })
+    .set(receipt, { autoAlpha: 0, y: -45, clipPath: "inset(0 0 100% 0)" })
     .fromTo(link, { scaleX: 0 }, { scaleX: 1, duration: 0.22 }, 0.08)
-    .to(receipt, { autoAlpha: 1, clipPath: "inset(0 0% 0 0%)", duration: 0.5 }, 0.16)
+    .to(receipt, { y: 0, autoAlpha: 1, clipPath: "inset(0 0% 0 0%)", duration: 0.5 }, 0.16)
+    .fromTo(root.querySelectorAll(".proof-receipt__items > div"), { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.2, stagger: 0.04 }, 0.35)
     .fromTo(stamp, { y: -10, rotation: -18, scale: 0.8 }, { y: 0, rotation: -7, scale: 1, duration: 0.3 }, 0.38);
 }
 
-function animatePrivatePanels(root: HTMLElement, sharedView: boolean, immediate: boolean) {
-  const owner = root.querySelector<HTMLElement>("[data-private-panel=owner]");
-  const shared = root.querySelector<HTMLElement>("[data-private-panel=shared]");
-  const duration = immediate ? 0 : 0.48;
-  gsap.timeline({ defaults: { ease: "power3.out", overwrite: true } })
-    .to(owner, { x: sharedView ? -12 : 0, y: sharedView ? 3 : 0, autoAlpha: sharedView ? 0.42 : 1, duration }, 0)
-    .to(shared, { x: sharedView ? 12 : 0, y: sharedView ? 0 : 3, autoAlpha: sharedView ? 1 : 0.42, duration }, 0)
-    .to(root.querySelector("[data-after-handoff-line]"), { scaleX: sharedView ? 1 : 0.25, duration: immediate ? 0 : 0.42 }, 0.05)
-    .to(root.querySelector("[data-history-rule]"), { scaleX: sharedView ? 1 : 0.35, duration: immediate ? 0 : 0.42 }, 0.12)
-    .to(root.querySelector("[data-history-inbox-status]"), { rotationX: sharedView ? 360 : 0, duration: immediate ? 0 : 0.42 }, 0.08);
-}
-
-function reorderHistory(root: HTMLElement, sharedView: boolean, immediate: boolean) {
-  const rail = root.querySelector<HTMLElement>("[data-history-rail]");
-  const market = root.querySelector<HTMLElement>("[data-history-slip=market]");
-  const train = root.querySelector<HTMLElement>("[data-history-slip=train]");
-  if (!rail || !market || !train) return;
-  if (immediate) {
-    if (sharedView) rail.insertBefore(train, market);
-    else rail.insertBefore(market, train);
-    return;
-  }
-  const flipState = Flip.getState([market, train]);
-  if (sharedView) rail.insertBefore(train, market);
-  else rail.insertBefore(market, train);
-  Flip.from(flipState, { duration: 0.52, ease: "power3.inOut", absolute: false, overwrite: true });
-}
-
-function updateHistoryState(root: HTMLElement, sharedView: boolean, immediate: boolean) {
-  root.querySelectorAll<HTMLElement>("[data-history-slip]").forEach((record, index) => {
-    record.classList.toggle("history-rail__record--active", index === 0);
-  });
-  const counter = root.querySelector<HTMLElement>("[data-history-counter]");
-  if (counter) counter.textContent = sharedView ? "01 / 02" : "02 / 02";
-  swapLabel(root.querySelector<HTMLElement>("[data-after-handoff-state]"), sharedView ? "SHARED" : "OWNER", immediate);
-  rollPublicNumber(publicNumber(root, "history-market"), sharedView ? 90_000 : 360_000, 0.5, immediate);
-  rollPublicNumber(publicNumber(root, "history-train"), sharedView ? 360_000 : 90_000, 0.5, immediate);
-}
-
 function animateRecords(root: HTMLElement, step: number, immediate: boolean) {
-  const sharedView = step === 1;
-  root.querySelector<HTMLElement>(".private-demo")?.setAttribute("data-private-view", sharedView ? "shared" : "owner");
-  animatePrivatePanels(root, sharedView, immediate);
-  reorderHistory(root, sharedView, immediate);
-  updateHistoryState(root, sharedView, immediate);
+  const panels = Array.from(root.querySelectorAll<HTMLElement>("[data-private-panel]"));
+  Flip.killFlipsOf(panels);
+  const layout = Flip.getState(panels);
+  root.querySelector<HTMLElement>(".private-demo")?.setAttribute("data-private-view", step === 1 ? "shared" : "owner");
+  if (!immediate) Flip.from(layout, { duration: 0.48, ease: "power3.inOut", scale: false });
 }
 
 function animateTimeline(root: HTMLElement, index: number, immediate: boolean) {
@@ -493,7 +287,7 @@ function animateLandingState(root: HTMLElement, state: PublicLandingState, immed
     section.dataset.sceneActive = section.dataset.publicScene === state.scene ? "true" : "false";
   });
   animateTimeline(root, stateIndex, immediate);
-  if (state.scene === "record-flow") animateRecordFlow(root, state.step, immediate, direction);
+  if (state.scene === "record-flow") animateRecordFlow(root, state.step, immediate);
   if (state.scene === "contexts") animateContexts(root, state.step, immediate, direction);
   if (state.scene === "collaboration") animateCollaboration(root, immediate);
   if (state.scene === "proof") animateProof(root, immediate);
@@ -521,18 +315,6 @@ function setupAmbientMotion(root: HTMLElement) {
     if (scene === "hero") {
       const orbit = root.querySelector<HTMLElement>("[data-hero-orbit]");
       if (orbit) tweens.push(gsap.to(orbit, { rotation: 5, duration: 12, repeat: -1, yoyo: true, ease: "sine.inOut" }));
-    }
-    if (scene === "record-flow") {
-      const rule = root.querySelector<HTMLElement>("[data-flow-ambient-rule]");
-      if (rule) tweens.push(gsap.fromTo(rule, { xPercent: -100 }, { xPercent: 100, duration: 4.8, repeat: -1, ease: "none" }));
-    }
-    if (scene === "collaboration") {
-      const scan = root.querySelector<HTMLElement>("[data-collab-scan]");
-      if (scan) tweens.push(gsap.fromTo(scan, { xPercent: -100 }, { xPercent: 100, duration: 4.2, repeat: -1, ease: "none" }));
-    }
-    if (scene === "records") {
-      const rule = root.querySelector<HTMLElement>("[data-history-rule]");
-      if (rule) tweens.push(gsap.fromTo(rule, { xPercent: -100 }, { xPercent: 100, duration: 5.6, repeat: -1, ease: "none" }));
     }
   };
   const onVisibilityChange = () => {
@@ -795,19 +577,33 @@ function createDesktopLanding(root: HTMLElement) {
 function setupMobileLanding(root: HTMLElement) {
   const triggers: ScrollTrigger[] = [];
   root.querySelectorAll<HTMLElement>("[data-public-scene]").forEach((section) => {
-    const revealTargets = section.querySelectorAll<HTMLElement>(".public-scene__marker, .flow-card, .scope-state, .proof-record, .history-panel");
+    const states = PUBLIC_LANDING_STATES.filter((state) => state.scene === section.dataset.publicScene);
+    let previousStep = -1;
+    const illustration = section.querySelector<HTMLElement>(".flow-interface, .scope-viewport, .collaboration-demo, .proof-record, .record-lifecycle") ?? section;
     triggers.push(ScrollTrigger.create({
-      trigger: section,
-      start: "top 82%",
-      end: "bottom 18%",
-      onEnter: () => gsap.fromTo(revealTargets, { y: 14, opacity: 0.45 }, { y: 0, opacity: 1, duration: 0.46, stagger: 0.035, ease: "power3.out", overwrite: true }),
-      onEnterBack: () => gsap.to(revealTargets, { y: 0, opacity: 1, duration: 0.32, stagger: 0.02, ease: "power3.out", overwrite: true }),
+      trigger: illustration,
+      start: "top 85%",
+      end: "top 15%",
+      onUpdate: (trigger) => {
+        if (!trigger.isActive) return;
+        const step = Math.min(states.length - 1, Math.floor(trigger.progress * states.length));
+        const state = states[step];
+        if (!state || step === previousStep) return;
+        const direction = step > previousStep ? 1 : -1;
+        previousStep = step;
+        animateLandingState(root, state, false, direction);
+      },
     }));
   });
   return () => triggers.forEach((trigger) => trigger.kill());
 }
 
 function setupReducedLanding(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>(".scope-state").forEach((state) => {
+    state.removeAttribute("aria-hidden");
+    state.inert = false;
+    state.style.pointerEvents = "auto";
+  });
   const update = () => {
     const section = Array.from(root.querySelectorAll<HTMLElement>("[data-public-scene]")).reverse().find((candidate) => candidate.getBoundingClientRect().top <= window.innerHeight * 0.42);
     const index = section ? Math.max(0, firstPublicLandingIndexForSection(section.id || section.dataset.publicScene || "")) : 0;
@@ -859,6 +655,7 @@ export function PublicMotion({ children }: PublicMotionProps) {
     return () => {
       window.removeEventListener("pageshow", onRefresh);
       reducedPreference.removeEventListener("change", onPreferenceChange);
+      Flip.killFlipsOf(target.querySelectorAll(".flow-card, .flow-balance, [data-private-panel]"));
       media?.revert();
       context.revert();
       gsap.killTweensOf(window, "scrollTo");
