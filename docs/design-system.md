@@ -225,11 +225,20 @@ rather than decorative effects.
 
 ## 6. Public landing and Journey
 
-The public homepage is an editorial financial world built from faithful Zplit
-record UI. Its physical-record metaphor uses paper surfaces, attached proof,
-thin relationship rules, and stacked depth to make hierarchy, provenance, and
-state visible. This dimensional storytelling is scoped to expressive public
-surfaces; Zplit does not use 3D everywhere.
+The public homepage may be an editorial financial world built from faithful
+Zplit record UI and real dimensional/WebGL storytelling. Financial records are
+the material metaphor: paper slabs, receipts, balance planes, participant
+markers, ink rules, and ordered archives make hierarchy, provenance, and state
+visible. Scroll controls deliberate, reversible spatial progression through a
+real camera; fine-pointer response may enhance depth and object emphasis.
+
+This language is public-only. Authenticated product UI remains restrained and
+mostly flat. Essential copy, explanations, controls, and calls to action remain
+semantic DOM content, so WebGL is always an enhancement rather than the page's
+source of truth. Public spatial work must provide a meaningful static fallback,
+avoid cinematic motion under `prefers-reduced-motion`, fail coherently when
+WebGL is unavailable or lost, and keep heavy renderer code isolated from
+authenticated route bundles. Zplit does not use Three.js everywhere.
 
 The current public narrative moves through:
 
@@ -243,12 +252,14 @@ The current public narrative moves through:
 8. Search, Inbox, and history as one findability story; and
 9. a settled/open balance payoff.
 
-One shared public input owner batches passive scroll, resize, visibility, and
-fine-pointer input in a requestAnimationFrame loop. Scenes consume normalized
-CSS custom properties for reversible depth and parallax; they do not update
-React state on every input event. IntersectionObserver may be used for scene
-activity, but the narrative remains understandable through normal page
-progression.
+One persistent public renderer owns its scene, perspective camera, lights,
+pointer/scroll damping, visibility lifecycle, and requestAnimationFrame loop.
+Camera cues derive from actual narrative sections and are sampled from current
+normalized scroll state so fast scrolling and reverse travel never depend on a
+timeline finishing. React owns the DOM narrative and native controls; Three.js
+owns spatial rendering and reflects relevant control state without causing
+per-frame React renders. Mobile may reduce depth and object count. The complete
+narrative remains understandable through normal native scrolling.
 
 The Journey demonstrates:
 

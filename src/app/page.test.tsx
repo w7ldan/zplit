@@ -85,4 +85,16 @@ describe("public Zplit page", () => {
     expect(document.querySelectorAll(".record-avatar")).toHaveLength(0);
     expect(document.querySelectorAll(".user-avatar__default")).toHaveLength(4);
   });
+
+  it("isolates Three.js behind the landing enhancement boundary", () => {
+    const pageSource = readFileSync(path.resolve(process.cwd(), "src/app/page.tsx"), "utf8");
+    const boundarySource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/landing-reveal.tsx"), "utf8");
+    const rendererSource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/three-landing-canvas.tsx"), "utf8");
+
+    expect(pageSource).not.toContain('from "three"');
+    expect(boundarySource).toContain('import("./three-landing-canvas")');
+    expect(rendererSource).toContain('from "three"');
+    expect(rendererSource).toContain("webglcontextlost");
+    expect(rendererSource).toContain("requestAnimationFrame(renderFrame)");
+  });
 });

@@ -154,6 +154,10 @@ const scopeContent: Record<ScopeId, { number: string; label: string; eyebrow: st
 export function ScopeScene() {
   const [scope, setScope] = useState<ScopeId>("personal");
   const current = scopeContent[scope];
+  const selectScope = (id: ScopeId) => {
+    setScope(id);
+    window.dispatchEvent(new CustomEvent("zplit:scope", { detail: id }));
+  };
 
   return (
     <section
@@ -173,7 +177,7 @@ export function ScopeScene() {
             <button
               type="button"
               key={id}
-              onClick={() => setScope(id)}
+              onClick={() => selectScope(id)}
               className={scope === id ? "scope-switcher__button scope-switcher__button--active" : "scope-switcher__button"}
               aria-pressed={scope === id}
             >
@@ -253,6 +257,13 @@ export function CollaborationScene() {
 
 export function ProofScene() {
   const [receiptFocused, setReceiptFocused] = useState(false);
+  const toggleReceipt = () => {
+    setReceiptFocused((focused) => {
+      const next = !focused;
+      window.dispatchEvent(new CustomEvent("zplit:receipt", { detail: next }));
+      return next;
+    });
+  };
 
   return (
     <section
@@ -269,7 +280,7 @@ export function ProofScene() {
           <button
             type="button"
             className="proof-focus"
-            onClick={() => setReceiptFocused((focused) => !focused)}
+            onClick={toggleReceipt}
             aria-pressed={receiptFocused}
           >
             {receiptFocused ? "Return to expense" : "Focus receipt"}
@@ -289,7 +300,7 @@ export function ProofScene() {
           <button
             type="button"
             className="proof-receipt"
-            onClick={() => setReceiptFocused((focused) => !focused)}
+            onClick={toggleReceipt}
             aria-pressed={receiptFocused}
           >
             <span className="receipt-mark" aria-hidden="true">RECEIPT<br />ATTACHED</span>
