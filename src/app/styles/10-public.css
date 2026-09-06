@@ -2715,13 +2715,14 @@
 }
 
 .public-scene-index__nodes {
-  display: grid;
-  grid-template-columns: repeat(13, minmax(0, 1fr));
-  align-items: start;
+  position: relative;
+  height: 1.25rem;
 }
 
 .public-scene-index__nodes a {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
   display: grid;
   min-width: 1.6rem;
   min-height: 1.25rem;
@@ -2730,6 +2731,7 @@
   font-size: 0.58rem;
   font-variant-numeric: tabular-nums;
   text-decoration: none;
+  transform: translateX(-50%);
   transition: color var(--motion-fast) var(--ease-product), transform var(--motion-fast) var(--ease-product);
 }
 
@@ -2751,7 +2753,7 @@
 .public-scene-index__nodes a:focus-visible,
 .public-scene-index__nodes a[aria-current="step"] {
   color: var(--ink);
-  transform: translateY(-0.12rem);
+  transform: translate(-50%, -0.12rem);
 }
 
 .public-scene-index__nodes a:hover::before,
@@ -3285,7 +3287,7 @@
   .public-scene-index__nodes a:hover,
   .public-scene-index__nodes a:focus-visible,
   .public-scene-index__nodes a[aria-current="step"] {
-    transform: translateY(-0.08rem);
+    transform: translate(-50%, -0.08rem);
   }
 
   .public-home .header-shell {
@@ -3835,10 +3837,6 @@
   overflow: hidden;
 }
 
-.public-home .public-scene-index__track > i {
-  translate: calc(var(--public-pointer-x) * 0.12rem) 0;
-}
-
 .public-home .public-scene-index__label [data-public-timeline-label],
 .public-home .public-scene-index__label [data-public-timeline-number],
 .public-home [data-flow-state-label],
@@ -4182,12 +4180,8 @@
     background: rgb(244 241 234 / 92%);
   }
 
-  .public-home .public-scene-index__nodes {
-    grid-template-columns: repeat(13, minmax(0, 1fr));
-  }
-
   .public-home .public-scene-index__track {
-    margin-inline: 0.25rem;
+    margin-inline: 0;
   }
 
   .public-home .public-scene-index__label {
@@ -4214,12 +4208,7 @@
     transition: none !important;
   }
 
-  .public-home .public-scene-index__track > span {
-    transform: none !important;
-  }
-
   .public-home .public-scene-index__track > i {
-    left: 0 !important;
     translate: none;
   }
 

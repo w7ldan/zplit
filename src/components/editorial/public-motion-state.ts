@@ -29,6 +29,39 @@ export function nextPublicLandingIndex(currentIndex: number, direction: -1 | 1) 
   return clampPublicLandingIndex(currentIndex + direction);
 }
 
+export function publicLandingStep(currentIndex: number, direction: -1 | 1) {
+  const settledIndex = clampPublicLandingIndex(currentIndex);
+  const nextIndex = nextPublicLandingIndex(settledIndex, direction);
+  return {
+    settledIndex,
+    nextIndex,
+    changed: nextIndex !== settledIndex,
+  };
+}
+
+export function publicLandingTimelineRatio(index: number, stateCount = PUBLIC_LANDING_STATES.length) {
+  const count = Math.max(stateCount, 1);
+  return Math.min(Math.max(index, 0), count - 1) / Math.max(count - 1, 1);
+}
+
+export function nearestPublicLandingIndex(scrollY: number, snapPoints: readonly number[]) {
+  if (snapPoints.length === 0) return 0;
+  let nearest = 0;
+  let distance = Math.abs(snapPoints[0]! - scrollY);
+  snapPoints.forEach((point, index) => {
+    const nextDistance = Math.abs(point - scrollY);
+    if (nextDistance < distance) {
+      distance = nextDistance;
+      nearest = index;
+    }
+  });
+  return nearest;
+}
+
+export function publicLandingAriaCurrent(active: boolean) {
+  return active ? "step" : undefined;
+}
+
 export function firstPublicLandingIndexForSection(sectionId: string) {
   return PUBLIC_LANDING_STATES.findIndex((state) => state.sectionId === sectionId);
 }

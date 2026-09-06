@@ -10,8 +10,12 @@ import { formatRupiah } from "@/domain/rupiah";
 import {
   clampPublicLandingIndex,
   firstPublicLandingIndexForSection,
+  nearestPublicLandingIndex,
   nextPublicLandingIndex,
   PUBLIC_LANDING_STATES,
+  publicLandingAriaCurrent,
+  publicLandingStep,
+  publicLandingTimelineRatio,
   type PublicLandingState,
 } from "./public-motion-state";
 
@@ -463,7 +467,7 @@ function animateRecords(root: HTMLElement, step: number, immediate: boolean) {
 }
 
 function animateTimeline(root: HTMLElement, index: number, immediate: boolean) {
-  const ratio = index / Math.max(PUBLIC_LANDING_STATES.length - 1, 1);
+  const ratio = publicLandingTimelineRatio(index);
   const progress = root.querySelector<HTMLElement>("[data-public-timeline-progress]");
   const marker = root.querySelector<HTMLElement>("[data-public-timeline-marker]");
   gsap.to(progress, { scaleX: ratio, duration: immediate ? 0 : 0.42, ease: "power2.out", overwrite: true });
@@ -475,7 +479,8 @@ function animateTimeline(root: HTMLElement, index: number, immediate: boolean) {
   root.querySelectorAll<HTMLElement>("[data-public-jump]").forEach((link) => {
     const nodeIndex = Number(link.dataset.publicJump);
     const active = nodeIndex === index;
-    link.toggleAttribute("aria-current", active);
+    if (publicLandingAriaCurrent(active)) link.setAttribute("aria-current", "step");
+    else link.removeAttribute("aria-current");
     link.classList.toggle("public-scene-index__node--complete", nodeIndex < index);
   });
 }
@@ -539,17 +544,19 @@ function setupAmbientMotion(root: HTMLElement) {
 }
 
 function createDesktopLanding(root: HTMLElement) {
-  let currentIndex = 0;
+  let settledIndex = 0;
+  let targetIndex = 0;
   let transitionLocked = false;
   let activeScrollTween: gsap.core.Tween | null = null;
   let settleTimer: number | null = null;
   let resizeTimer: number | null = null;
-  let focusEscapeUntil = 0;
+  let wheelRearmTimer: number | null = null;
   let snapPoints: number[] = [];
   let observer: Observer | null = null;
   let wheelLatched = false;
   let lastWheelAt = 0;
-  const wheelQuietMs = 140;
+  const wheelQuietMilliseconds = 140;
+  const scrollReconcileMilliseconds = 70;
   const ambient = setupAmbientMotion(root);
 
   const rebuildSnapPoints = () => {
@@ -559,62 +566,111 @@ function createDesktopLanding(root: HTMLElement) {
       return section ? section.offsetTop + state.step * window.innerHeight : 0;
     });
   };
-  const nearestIndex = (scrollY: number) => {
-    let nearest = 0;
-    let distance = Number.POSITIVE_INFINITY;
-    snapPoints.forEach((point, index) => {
-      const nextDistance = Math.abs(point - scrollY);
-      if (nextDistance < distance) {
-        distance = nextDistance;
-        nearest = index;
-      }
-    });
-    return nearest;
+  const nearestIndex = () => nearestPublicLandingIndex(window.scrollY, snapPoints);
+  const clearWheelRearmTimer = () => {
+    if (wheelRearmTimer !== null) window.clearTimeout(wheelRearmTimer);
+    wheelRearmTimer = null;
   };
-  const releaseTransition = () => {
-    transitionLocked = false;
+  const rearmWheelIfQuiet = () => {
+    wheelRearmTimer = null;
+    if (!wheelLatched || transitionLocked) return;
+    if (performance.now() - lastWheelAt >= wheelQuietMilliseconds) {
+      wheelLatched = false;
+      return;
+    }
+    wheelRearmTimer = window.setTimeout(rearmWheelIfQuiet, wheelQuietMilliseconds);
+  };
+  const noteWheelActivity = () => {
+    lastWheelAt = performance.now();
+    if (!wheelLatched) return;
+    clearWheelRearmTimer();
+    wheelRearmTimer = window.setTimeout(rearmWheelIfQuiet, wheelQuietMilliseconds);
+  };
+  const resetWheelLatch = () => {
+    clearWheelRearmTimer();
+    wheelLatched = false;
+    lastWheelAt = 0;
+  };
+  const clearTransitionState = () => {
     activeScrollTween = null;
-    if (performance.now() - lastWheelAt >= wheelQuietMs) wheelLatched = false;
+    transitionLocked = false;
   };
-  const goTo = (requestedIndex: number, reason: "gesture" | "keyboard" | "anchor" | "native", immediate = false) => {
+  const cancelTransition = () => {
+    const tween = activeScrollTween;
+    clearTransitionState();
+    tween?.kill();
+  };
+  const settleTransition = (index: number, targetY: number, tween?: gsap.core.Tween) => {
+    if (tween && activeScrollTween !== tween) return;
+    clearTransitionState();
+    settledIndex = index;
+    targetIndex = index;
+    window.scrollTo(0, targetY);
+    rearmWheelIfQuiet();
+  };
+  const requestState = (requestedIndex: number, reason: "gesture" | "keyboard" | "anchor" | "native", immediate = false) => {
     const index = clampPublicLandingIndex(requestedIndex);
-    if (!immediate && transitionLocked) {
-      if (reason === "gesture") return;
-      activeScrollTween?.kill();
-      transitionLocked = false;
+    if (transitionLocked) {
+      if (reason === "gesture" || reason === "native" || (!immediate && index === targetIndex)) return false;
+      cancelTransition();
     }
     rebuildSnapPoints();
     const targetY = snapPoints[index] ?? 0;
-    const previousIndex = currentIndex;
+    if (!immediate && index === targetIndex && Math.abs(window.scrollY - targetY) < 2) {
+      settledIndex = index;
+      return false;
+    }
+    const previousIndex = targetIndex;
     const changed = index !== previousIndex;
     const direction = changed ? (index > previousIndex ? 1 : -1) as -1 | 1 : 0;
-    currentIndex = index;
-    if (reason !== "gesture") wheelLatched = false;
+    targetIndex = index;
+    if (reason !== "gesture") resetWheelLatch();
     animateLandingState(root, PUBLIC_LANDING_STATES[index]!, immediate || !changed, direction, ambient.activate);
     if (immediate || Math.abs(window.scrollY - targetY) < 2) {
-      window.scrollTo(0, targetY);
-      releaseTransition();
-      return;
+      settleTransition(index, targetY);
+      return true;
     }
     transitionLocked = true;
-    activeScrollTween?.kill();
-    activeScrollTween = gsap.to(window, {
+    const tweenRef: { current: gsap.core.Tween | null } = { current: null };
+    const tween = gsap.to(window, {
       scrollTo: { y: targetY, autoKill: false },
       duration: reason === "gesture" ? 0.54 : 0.58,
       ease: "power2.out",
       overwrite: "auto",
-      onComplete: releaseTransition,
-      onInterrupt: releaseTransition,
+      onComplete: () => settleTransition(index, targetY, tweenRef.current ?? undefined),
+      onInterrupt: () => {
+        if (activeScrollTween !== tweenRef.current) return;
+        clearTransitionState();
+        targetIndex = settledIndex;
+        animateLandingState(root, PUBLIC_LANDING_STATES[settledIndex]!, true, 0, ambient.activate);
+        scheduleNativeReconciliation();
+        rearmWheelIfQuiet();
+      },
     });
+    tweenRef.current = tween;
+    activeScrollTween = tween;
+    return true;
   };
-  const step = (direction: -1 | 1) => {
-    const next = nextPublicLandingIndex(currentIndex, direction);
-    if (next !== currentIndex) goTo(next, "gesture");
+  const scheduleNativeReconciliation = () => {
+    if (transitionLocked) return;
+    if (settleTimer !== null) window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(() => {
+      settleTimer = null;
+      if (transitionLocked) return;
+      rebuildSnapPoints();
+      requestState(nearestIndex(), "native");
+    }, scrollReconcileMilliseconds);
   };
   const handleWheelStep = (direction: -1 | 1) => {
-    if (wheelLatched) return;
+    const step = publicLandingStep(settledIndex, direction);
+    if (!step.changed) return;
+    if (transitionLocked || wheelLatched) {
+      noteWheelActivity();
+      return;
+    }
     wheelLatched = true;
-    step(direction);
+    noteWheelActivity();
+    requestState(step.nextIndex, "gesture");
   };
   const isNativeControl = (target: EventTarget | null) => target instanceof Element && Boolean(target.closest("a,button,input,textarea,select,[contenteditable=true]"));
   const onKeyDown = (event: KeyboardEvent) => {
@@ -626,34 +682,25 @@ function createDesktopLanding(root: HTMLElement) {
         : 0;
     if (event.key === "Home") {
       event.preventDefault();
-      goTo(0, "keyboard");
+      requestState(0, "keyboard");
       return;
     }
     if (event.key === "End") {
       event.preventDefault();
-      goTo(PUBLIC_LANDING_STATES.length - 1, "keyboard");
+      requestState(PUBLIC_LANDING_STATES.length - 1, "keyboard");
       return;
     }
     if (direction !== 0) {
       event.preventDefault();
-      goTo(nextPublicLandingIndex(currentIndex, direction as -1 | 1), "keyboard");
+      requestState(nextPublicLandingIndex(settledIndex, direction as -1 | 1), "keyboard");
     }
   };
   const onScroll = () => {
-    if (transitionLocked || performance.now() < focusEscapeUntil) return;
-    if (settleTimer !== null) window.clearTimeout(settleTimer);
-    settleTimer = window.setTimeout(() => {
-      settleTimer = null;
-      const next = nearestIndex(window.scrollY);
-      if (next !== currentIndex) goTo(next, "native");
-    }, 70);
+    scheduleNativeReconciliation();
   };
   const onFocusIn = (event: FocusEvent) => {
     if (event.target instanceof Element && root.contains(event.target)) {
-      focusEscapeUntil = performance.now() + 240;
-      const next = nearestIndex(window.scrollY);
-      currentIndex = next;
-      animateLandingState(root, PUBLIC_LANDING_STATES[next]!, true, 0, ambient.activate);
+      scheduleNativeReconciliation();
     }
   };
   const onJump = (event: MouseEvent) => {
@@ -662,7 +709,7 @@ function createDesktopLanding(root: HTMLElement) {
     const index = Number(link.dataset.publicJump);
     if (!Number.isInteger(index)) return;
     event.preventDefault();
-    goTo(index, "anchor");
+    requestState(index, "anchor");
   };
   const onAnchor = (event: MouseEvent) => {
     const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href^='#']") : null;
@@ -672,15 +719,16 @@ function createDesktopLanding(root: HTMLElement) {
     const index = firstPublicLandingIndexForSection(id);
     if (index < 0) return;
     event.preventDefault();
-    goTo(index, "anchor");
+    requestState(index, "anchor");
   };
   const onResize = () => {
     if (resizeTimer !== null) window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => {
       resizeTimer = null;
+      cancelTransition();
       ScrollTrigger.refresh();
       rebuildSnapPoints();
-      goTo(nearestIndex(window.scrollY), "native", true);
+      requestState(nearestIndex(), "native", true);
     }, 100);
   };
 
@@ -707,8 +755,9 @@ function createDesktopLanding(root: HTMLElement) {
   });
   ScrollTrigger.refresh();
   rebuildSnapPoints();
-  const initialIndex = nearestIndex(window.scrollY);
-  currentIndex = initialIndex;
+  const initialIndex = nearestIndex();
+  settledIndex = initialIndex;
+  targetIndex = initialIndex;
   animateLandingState(root, PUBLIC_LANDING_STATES[initialIndex]!, true, 0, ambient.activate);
 
   observer = Observer.create({
@@ -719,24 +768,19 @@ function createDesktopLanding(root: HTMLElement) {
     debounce: false,
     wheelSpeed: 1,
     preventDefault: true,
-    ignore: "a,button,input,textarea,select,[contenteditable=true]",
-    onWheel: () => { lastWheelAt = performance.now(); },
-    onStopDelay: wheelQuietMs,
-    onStop: () => {
-      if (!transitionLocked && performance.now() - lastWheelAt >= wheelQuietMs) wheelLatched = false;
-    },
+    onWheel: noteWheelActivity,
     onDown: () => handleWheelStep(1),
     onUp: () => handleWheelStep(-1),
-    onDisable: () => { wheelLatched = false; },
+    onDisable: resetWheelLatch,
   });
 
   return () => {
     observer?.kill();
     observer = null;
-    activeScrollTween?.kill();
-    activeScrollTween = null;
+    cancelTransition();
     if (settleTimer !== null) window.clearTimeout(settleTimer);
     if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    resetWheelLatch();
     root.removeEventListener("click", onJump);
     root.removeEventListener("click", onAnchor);
     root.removeEventListener("focusin", onFocusIn);
@@ -745,7 +789,6 @@ function createDesktopLanding(root: HTMLElement) {
     window.removeEventListener("resize", onResize);
     root.querySelectorAll<SceneElement>("[data-public-scene]").forEach((section) => section._publicTrigger?.kill());
     ambient.cleanup();
-    releaseTransition();
   };
 }
 
@@ -831,12 +874,13 @@ export function PublicMotion({ children }: PublicMotionProps) {
         <div className="public-scene-index__nodes">
           {PUBLIC_LANDING_STATES.map((state, index) => (
             <a
-              aria-current={index === 0 ? "step" : undefined}
+              aria-current={publicLandingAriaCurrent(index === 0)}
               aria-label={`${String(index).padStart(2, "0")} ${state.label}`}
               data-public-jump={index}
               data-public-timeline-node
               href={`#${state.sectionId}`}
               key={`${state.scene}-${state.step}`}
+              style={{ left: `${publicLandingTimelineRatio(index) * 100}%` }}
             >
               <span>{String(index).padStart(2, "0")}</span>
             </a>
