@@ -17,6 +17,10 @@ import {
   publicLandingStep,
   publicLandingTimelineRatio,
   publicRecordLifecycleState,
+  mobileLandingSnapPoints,
+  mobileLandingStateMap,
+  mobileLandingStateY,
+  type MobileLandingStatePoint,
   type PublicLandingState,
 } from "./public-motion-state";
 
@@ -756,51 +760,192 @@ function createDesktopLanding(root: HTMLElement) {
 }
 
 function setupMobileLanding(root: HTMLElement) {
-  const entries: Array<{ states: PublicLandingState[]; trigger: ScrollTrigger | null; previousStep: number }> = [];
+  type MobileLandingPosition = MobileLandingStatePoint & { y: number };
+  type MobileSceneEntry = {
+    section: HTMLElement;
+    stage: HTMLElement;
+    states: readonly MobileLandingStatePoint[];
+    trigger: ScrollTrigger | null;
+  };
+  const logicalStateMap = mobileLandingStateMap();
+  const sections = Array.from(root.querySelectorAll<HTMLElement>("[data-public-scene]"));
+  const entries = new Map<PublicLandingState["scene"], MobileSceneEntry>();
+  const sceneStates = new Map<PublicLandingState["scene"], readonly MobileLandingStatePoint[]>();
+  logicalStateMap.forEach((point) => {
+    const states = sceneStates.get(point.scene) ?? [];
+    sceneStates.set(point.scene, [...states, point]);
+  });
+  let stateMap: MobileLandingPosition[] = [];
   let resizeTimer: number | null = null;
   let activeIndex = 0;
-  const moveTo = (state: PublicLandingState, immediate: boolean) => {
-    const nextIndex = PUBLIC_LANDING_STATES.indexOf(state);
-    if (nextIndex < 0 || (!immediate && nextIndex === activeIndex)) return;
+  let headerHeight = 0;
+
+  sections.forEach((section) => {
+    const scene = section.dataset.publicScene as PublicLandingState["scene"] | undefined;
+    const states = scene ? sceneStates.get(scene) : undefined;
+    if (!scene || !states) return;
+    section.dataset.mobileScene = states.length > 1 ? "multi" : "single";
+    section.dataset.mobileStateCount = String(states.length);
+  });
+
+  const sizeMobileScenes = () => {
+    const header = root.querySelector<HTMLElement>(".header-shell");
+    const timeline = root.querySelector<HTMLElement>(".public-scene-index");
+    headerHeight = header?.getBoundingClientRect().height ?? 0;
+    const timelineHeight = timeline?.getBoundingClientRect().height ?? 0;
+    const breathingRoom = Math.max(8, timelineHeight * 0.35);
+    const stageHeight = Math.max(window.innerHeight - headerHeight - timelineHeight - breathingRoom, 1);
+    const stateDistance = stageHeight * 0.56;
+    root.style.setProperty("--public-mobile-header-height", `${headerHeight}px`);
+    root.style.setProperty("--public-mobile-stage-height", `${stageHeight}px`);
+    sections.forEach((section) => {
+      const scene = section.dataset.publicScene as PublicLandingState["scene"] | undefined;
+      const states = scene ? sceneStates.get(scene) : undefined;
+      if (states && states.length > 1) {
+        const sceneHeight = stageHeight + stateDistance * (states.length - 1);
+        section.style.setProperty("--public-mobile-scene-height", `${sceneHeight}px`);
+        section.style.height = `${sceneHeight}px`;
+      }
+    });
+  };
+
+  const rebuildStateMap = () => {
+    stateMap = logicalStateMap.map((point) => {
+      const entry = entries.get(point.scene);
+      const section = entry?.section ?? sections.find((candidate) => candidate.dataset.publicScene === point.scene);
+      const startY = entry?.trigger
+        ? entry.trigger.start
+        : (section?.getBoundingClientRect().top ?? 0) + window.scrollY - headerHeight;
+      const travel = entry?.trigger ? Math.max(entry.trigger.end - entry.trigger.start, 0) : 0;
+      return { ...point, y: Math.max(0, mobileLandingStateY(startY, travel, point.localProgress)) };
+    });
+  };
+
+  const syncToState = (requestedIndex: number, immediate: boolean) => {
+    const nextIndex = clampPublicLandingIndex(requestedIndex);
+    if (!immediate && nextIndex === activeIndex) return;
     const direction = nextIndex === activeIndex ? 0 : nextIndex > activeIndex ? 1 : -1;
     activeIndex = nextIndex;
-    animateLandingState(root, state, immediate, direction);
+    animateLandingState(root, PUBLIC_LANDING_STATES[nextIndex]!, immediate, direction);
   };
-  root.querySelectorAll<HTMLElement>("[data-public-scene]").forEach((section) => {
-    const states = PUBLIC_LANDING_STATES.filter((state) => state.scene === section.dataset.publicScene);
-    const illustration = section.querySelector<HTMLElement>(".flow-interface, .scope-viewport, .collaboration-demo, .proof-record, .record-lifecycle") ?? section;
-    const entry = { states, trigger: null as ScrollTrigger | null, previousStep: -1 };
-    entry.trigger = ScrollTrigger.create({
-      trigger: illustration,
-      start: "top 82%",
-      end: "bottom 18%",
-      onUpdate: (trigger) => {
-        if (!trigger.isActive) return;
-        const step = Math.min(states.length - 1, Math.floor(trigger.progress * states.length));
-        const state = states[step];
-        if (!state || step === entry.previousStep) return;
-        entry.previousStep = step;
-        moveTo(state, false);
-      },
-    });
-    entries.push(entry);
-  });
-  animateLandingState(root, PUBLIC_LANDING_STATES[0]!, true, 0);
+
+  const syncFromScroll = (immediate = false) => {
+    if (stateMap.length !== PUBLIC_LANDING_STATES.length) return;
+    const index = nearestPublicLandingIndex(window.scrollY, stateMap.map((point) => point.y));
+    syncToState(index, immediate);
+  };
+
+  const scrollToState = (requestedIndex: number) => {
+    const index = clampPublicLandingIndex(requestedIndex);
+    const target = stateMap[index];
+    if (!target) return;
+    if (Math.abs(window.scrollY - target.y) < 2) {
+      syncToState(index, true);
+      return;
+    }
+    window.scrollTo({ top: target.y, behavior: "smooth" });
+  };
+
+  const onJump = (event: MouseEvent) => {
+    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("[data-public-jump]") : null;
+    if (!link) return;
+    const index = Number(link.dataset.publicJump);
+    if (!Number.isInteger(index)) return;
+    event.preventDefault();
+    scrollToState(index);
+  };
+
+  const onAnchor = (event: MouseEvent) => {
+    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href^='#']") : null;
+    if (!link || link.dataset.publicJump) return;
+    const id = link.getAttribute("href")?.slice(1);
+    if (!id) return;
+    const index = firstPublicLandingIndexForSection(id);
+    if (index < 0) return;
+    event.preventDefault();
+    scrollToState(index);
+  };
+
+  const onScroll = () => syncFromScroll();
   const refresh = () => {
     if (resizeTimer !== null) window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => {
       resizeTimer = null;
+      const preservedIndex = activeIndex;
+      sizeMobileScenes();
       ScrollTrigger.refresh();
-      entries.forEach((entry) => entry.trigger?.update());
-    }, 80);
+      rebuildStateMap();
+      const target = stateMap[preservedIndex];
+      if (target && Math.abs(window.scrollY - target.y) >= 2) window.scrollTo({ top: target.y, behavior: "auto" });
+      syncToState(preservedIndex, true);
+    }, 100);
   };
+
+  root.dataset.mobileLanding = "true";
+  sizeMobileScenes();
+  sections.forEach((section) => {
+    const scene = section.dataset.publicScene as PublicLandingState["scene"] | undefined;
+    const states = scene ? sceneStates.get(scene) : undefined;
+    const stage = section.querySelector<HTMLElement>("[data-scene-stage]");
+    if (!scene || !states || states.length < 2 || !stage) return;
+    const entry: MobileSceneEntry = {
+      section,
+      stage,
+      states,
+      trigger: null,
+    };
+    entry.trigger = ScrollTrigger.create({
+      trigger: section,
+      start: () => `top ${headerHeight}px`,
+      end: () => `+=${Math.max(section.offsetHeight - stage.offsetHeight, 1)}`,
+      pin: stage,
+      pinSpacing: false,
+      anticipatePin: 1,
+      invalidateOnRefresh: true,
+      snap: {
+        snapTo: mobileLandingSnapPoints(states.length),
+        delay: 0.08,
+        duration: { min: 0.18, max: 0.38 },
+        ease: "power2.out",
+        directional: false,
+      },
+      onUpdate: () => syncFromScroll(),
+      onSnapComplete: () => syncFromScroll(true),
+    });
+    entries.set(scene, entry);
+  });
+  ScrollTrigger.refresh();
+  rebuildStateMap();
+  const hashId = window.location.hash.slice(1);
+  const hashIndex = hashId ? firstPublicLandingIndexForSection(hashId) : -1;
+  const initialIndex = hashIndex >= 0 ? hashIndex : nearestPublicLandingIndex(window.scrollY, stateMap.map((point) => point.y));
+  if (hashIndex >= 0 && stateMap[hashIndex] && Math.abs(window.scrollY - stateMap[hashIndex].y) >= 2) {
+    window.scrollTo({ top: stateMap[hashIndex].y, behavior: "auto" });
+  }
+  activeIndex = initialIndex;
+  animateLandingState(root, PUBLIC_LANDING_STATES[initialIndex]!, true, 0);
+  root.addEventListener("click", onJump);
+  root.addEventListener("click", onAnchor);
+  window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", refresh, { passive: true });
   window.addEventListener("orientationchange", refresh, { passive: true });
   return () => {
     if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    root.removeEventListener("click", onJump);
+    root.removeEventListener("click", onAnchor);
+    window.removeEventListener("scroll", onScroll);
     window.removeEventListener("resize", refresh);
     window.removeEventListener("orientationchange", refresh);
     entries.forEach((entry) => entry.trigger?.kill());
+    sections.forEach((section) => {
+      delete section.dataset.mobileScene;
+      delete section.dataset.mobileStateCount;
+      section.style.removeProperty("--public-mobile-scene-height");
+      section.style.removeProperty("height");
+    });
+    root.style.removeProperty("--public-mobile-header-height");
+    root.style.removeProperty("--public-mobile-stage-height");
+    delete root.dataset.mobileLanding;
   };
 }
 
@@ -810,18 +955,42 @@ function setupReducedLanding(root: HTMLElement) {
     state.inert = false;
     state.style.pointerEvents = "auto";
   });
+  const targetForState = (index: number) => {
+    const state = PUBLIC_LANDING_STATES[index] ?? PUBLIC_LANDING_STATES[0]!;
+    if (state.sectionId === "top") return root;
+    const section = root.querySelector<HTMLElement>(`[data-public-scene="${state.scene}"]`);
+    if (!section) return null;
+    if (state.scene === "record-flow") {
+      return [
+        section.querySelector<HTMLElement>("[data-flow-expense]"),
+        section.querySelector<HTMLElement>("[data-flow-shares]"),
+        section.querySelector<HTMLElement>("[data-flow-repayment]"),
+        section.querySelector<HTMLElement>("[data-flow-balance]"),
+      ][state.step] ?? section;
+    }
+    if (state.scene === "contexts") {
+      return [
+        section.querySelector<HTMLElement>("[data-scope-personal]"),
+        section.querySelector<HTMLElement>("[data-scope-group]"),
+        section.querySelector<HTMLElement>("[data-scope-organization]"),
+      ][state.step] ?? section;
+    }
+    if (state.scene === "records") {
+      const lifecycleState = publicRecordLifecycleState(state.step);
+      return section.querySelector<HTMLElement>(`[data-lifecycle-panel="${lifecycleState}"]`) ?? section;
+    }
+    return section;
+  };
+  const statePositions = () => {
+    const headerHeight = root.querySelector<HTMLElement>(".header-shell")?.getBoundingClientRect().height ?? 0;
+    return PUBLIC_LANDING_STATES.map((_, index) => {
+      const target = targetForState(index);
+      return Math.max(0, (target?.getBoundingClientRect().top ?? 0) + window.scrollY - headerHeight);
+    });
+  };
   let activeIndex = 0;
   const update = () => {
-    const section = Array.from(root.querySelectorAll<HTMLElement>("[data-public-scene]")).reverse().find((candidate) => candidate.getBoundingClientRect().top <= window.innerHeight * 0.42);
-    const sectionId = section?.id || section?.dataset.publicScene || "";
-    const firstIndex = section ? Math.max(0, firstPublicLandingIndexForSection(sectionId)) : 0;
-    const states = section ? PUBLIC_LANDING_STATES.filter((state) => state.scene === section.dataset.publicScene) : [PUBLIC_LANDING_STATES[0]!];
-    const illustration = section?.querySelector<HTMLElement>(".flow-interface, .scope-viewport, .collaboration-demo, .proof-record, .record-lifecycle") ?? section;
-    const bounds = illustration?.getBoundingClientRect();
-    const travel = Math.max((bounds?.height ?? 0) - window.innerHeight * 0.64, 1);
-    const progress = bounds ? Math.min(Math.max((window.innerHeight * 0.82 - bounds.top) / travel, 0), 1) : 0;
-    const step = states.length > 1 ? Math.min(states.length - 1, Math.floor(progress * states.length)) : 0;
-    const index = Math.min(firstIndex + step, PUBLIC_LANDING_STATES.length - 1);
+    const index = nearestPublicLandingIndex(window.scrollY, statePositions());
     const state = PUBLIC_LANDING_STATES[index] ?? PUBLIC_LANDING_STATES[0]!;
     if (index !== activeIndex) {
       activeIndex = index;
@@ -834,9 +1003,34 @@ function setupReducedLanding(root: HTMLElement) {
       animateTimeline(root, index, true);
     }
   };
+  const onJump = (event: MouseEvent) => {
+    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("[data-public-jump]") : null;
+    if (!link) return;
+    const index = Number(link.dataset.publicJump);
+    if (!Number.isInteger(index)) return;
+    event.preventDefault();
+    const target = statePositions()[index];
+    if (target !== undefined) window.scrollTo({ top: target, behavior: "auto" });
+  };
+  const onAnchor = (event: MouseEvent) => {
+    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href^='#']") : null;
+    if (!link || link.dataset.publicJump) return;
+    const id = link.getAttribute("href")?.slice(1);
+    const index = id ? firstPublicLandingIndexForSection(id) : -1;
+    if (index < 0) return;
+    event.preventDefault();
+    const target = statePositions()[index];
+    if (target !== undefined) window.scrollTo({ top: target, behavior: "auto" });
+  };
+  root.addEventListener("click", onJump);
+  root.addEventListener("click", onAnchor);
   window.addEventListener("scroll", update, { passive: true });
   update();
-  return () => window.removeEventListener("scroll", update);
+  return () => {
+    root.removeEventListener("click", onJump);
+    root.removeEventListener("click", onAnchor);
+    window.removeEventListener("scroll", update);
+  };
 }
 
 export function PublicMotion({ children }: PublicMotionProps) {

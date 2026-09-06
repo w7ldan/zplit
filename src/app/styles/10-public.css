@@ -501,7 +501,7 @@
 }
 
 @media (max-width: 767px) {
-  body:has(.public-home) { scroll-snap-type: y proximity; }
+  body:has(.public-home) { scroll-snap-type: none; }
   .public-home { --public-header-height: 4.15rem; --public-timeline-height: 2.65rem; --public-scene-top: 0.8rem; --public-scene-bottom: calc(var(--public-timeline-height) + 0.7rem); }
   .public-home .header-shell { min-height: var(--public-header-height); padding-block: 0.45rem; }
   .public-home .header-shell__panel,
@@ -523,12 +523,17 @@
   .public-scene-index__nodes a:focus-visible,
   .public-scene-index__nodes a[aria-current="step"] { transform: translate(-50%, -0.06rem); }
   .public-scene,
-  .public-finale { scroll-snap-align: start; scroll-margin-top: var(--public-header-height); }
+  .public-finale { scroll-snap-align: none; scroll-margin-top: 0; }
   .public-home[data-motion-ready="true"] .public-scene,
   .public-home[data-motion-ready="true"] .public-finale { height: auto; min-height: 0; }
   .public-home[data-motion-ready="true"] .public-scene__stage,
   .public-home[data-motion-ready="true"] .public-finale__layout { display: block; height: auto; min-height: calc(100svh - var(--public-header-height)); padding-block: var(--public-scene-top) var(--public-scene-bottom); }
   .public-home[data-motion-ready="true"] .public-finale__layout { min-height: 34rem; }
+  .public-home[data-motion-ready="true"][data-mobile-landing="true"] [data-mobile-scene="multi"] { height: var(--public-mobile-scene-height); min-height: 0; }
+  .public-home[data-motion-ready="true"][data-mobile-landing="true"] [data-mobile-scene="multi"] > .public-scene__stage { display: grid; height: var(--public-mobile-stage-height); min-height: 0; box-sizing: border-box; align-items: center; padding-block: var(--public-scene-top) 0.5rem; }
+  .public-home[data-motion-ready="true"][data-mobile-landing="true"] [data-mobile-scene="multi"] .record-flow__layout,
+  .public-home[data-motion-ready="true"][data-mobile-landing="true"] [data-mobile-scene="multi"] .contexts-scene__layout,
+  .public-home[data-motion-ready="true"][data-mobile-landing="true"] [data-mobile-scene="multi"] .private-history-scene__layout { align-content: center; }
   .public-hero__wash { top: 11rem; right: -48%; width: 122%; height: 55%; opacity: 0.5; transform: none; }
   .public-hero__layout,
   .record-flow__layout,

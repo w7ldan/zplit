@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   clampPublicLandingIndex,
   firstPublicLandingIndexForSection,
+  mobileLandingSnapPoints,
+  mobileLandingStateMap,
+  mobileLandingStateY,
   nearestPublicLandingIndex,
   nextPublicLandingIndex,
   PUBLIC_LANDING_STATES,
@@ -72,6 +75,20 @@ describe("public landing motion states", () => {
     expect(publicLandingTimelineRatio(0, 13)).toBe(0);
     expect(publicLandingTimelineRatio(6, 13)).toBe(0.5);
     expect(publicLandingTimelineRatio(12, 13)).toBe(1);
+  });
+
+  it("maps every global state to its normalized mobile scene position", () => {
+    const points = mobileLandingStateMap();
+    expect(points.filter((point) => point.scene === "record-flow").map((point) => point.localProgress)).toEqual([0, 1 / 3, 2 / 3, 1]);
+    expect(points.filter((point) => point.scene === "contexts").map((point) => point.localProgress)).toEqual([0, 0.5, 1]);
+    expect(points.filter((point) => point.scene === "records").map((point) => point.localProgress)).toEqual([0, 0.5, 1]);
+    expect(points[0]).toMatchObject({ stateIndex: 0, scene: "hero", step: 0, localProgress: 0 });
+  });
+
+  it("builds exact local snap points and derives state positions from scene geometry", () => {
+    expect(mobileLandingSnapPoints(4)).toEqual([0, 1 / 3, 2 / 3, 1]);
+    expect(mobileLandingSnapPoints(1)).toEqual([0]);
+    expect(mobileLandingStateY(240, 480, 1 / 3)).toBe(400);
   });
 
   it("maps native scroll positions to the nearest landing state", () => {
