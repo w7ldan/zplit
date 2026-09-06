@@ -26,6 +26,13 @@ describe("public Zplit page", () => {
     expect(screen.getByText("Group / Saturday crew", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Organization / illustrative market team", { exact: true })).toBeInTheDocument();
 
+    expect(document.querySelectorAll("[data-public-timeline-desktop] [data-public-jump]")).toHaveLength(14);
+    const mobileTimeline = document.querySelector("[data-public-timeline-mobile]")!;
+    expect(mobileTimeline.querySelectorAll("[data-mobile-public-jump]")).toHaveLength(7);
+    expect(mobileTimeline).not.toHaveTextContent("SHARES");
+    expect(mobileTimeline).not.toHaveTextContent("REPAYMENT");
+    expect(mobileTimeline).not.toHaveTextContent("BALANCE");
+
     const lifecycle = document.querySelector(".record-lifecycle")!;
     expect(lifecycle.querySelectorAll("[data-lifecycle-panel]")).toHaveLength(3);
     expect(lifecycle.querySelector('[data-lifecycle-panel="owner"]')).toHaveAttribute("data-lifecycle-active", "true");
@@ -35,6 +42,12 @@ describe("public Zplit page", () => {
 
   it("keeps illustrative controls native and responsive", () => {
     render(<HomePage />);
+
+    const recordControls = within(document.querySelector('[data-mobile-local-controls="record"]')!);
+    expect(recordControls.getByRole("button", { name: "SHARES" })).toHaveAttribute("aria-pressed", "false");
+    expect(recordControls.getByRole("button", { name: "EXPENSE" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(document.querySelector('[data-mobile-local-controls="scope"]')!).getByRole("button", { name: "GROUPS" })).toBeInTheDocument();
+    expect(within(document.querySelector('[data-mobile-local-controls="records"]')!).getByRole("button", { name: "HISTORY" })).toBeInTheDocument();
 
     const participant = screen.getByRole("button", { name: /Sari/ });
     fireEvent.click(participant);

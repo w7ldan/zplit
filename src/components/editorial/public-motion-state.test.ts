@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   clampPublicLandingIndex,
+  firstPublicMobileSectionIndexForSection,
   firstPublicLandingIndexForSection,
-  mobileLandingSnapPoints,
-  mobileLandingStateMap,
-  mobileLandingStateY,
   nearestPublicLandingIndex,
   nextPublicLandingIndex,
+  PUBLIC_MOBILE_SECTIONS,
   PUBLIC_LANDING_STATES,
+  PUBLIC_RECORD_FLOW_STATES,
+  PUBLIC_RECORD_LIFECYCLE_STATES,
+  PUBLIC_SCOPE_STATES,
   publicLandingAriaCurrent,
   publicLandingStep,
   publicLandingTimelineRatio,
@@ -77,21 +79,22 @@ describe("public landing motion states", () => {
     expect(publicLandingTimelineRatio(12, 13)).toBe(1);
   });
 
-  it("maps every global state to its normalized mobile scene position", () => {
-    const points = mobileLandingStateMap();
-    expect(points.filter((point) => point.scene === "record-flow").map((point) => point.localProgress)).toEqual([0, 1 / 3, 2 / 3, 1]);
-    expect(points.filter((point) => point.scene === "contexts").map((point) => point.localProgress)).toEqual([0, 0.5, 1]);
-    expect(points.filter((point) => point.scene === "records").map((point) => point.localProgress)).toEqual([0, 0.5, 1]);
-    expect(points[0]).toMatchObject({ stateIndex: 0, scene: "hero", step: 0, localProgress: 0 });
+  it("keeps mobile navigation at seven real page sections", () => {
+    expect(PUBLIC_MOBILE_SECTIONS.map((section) => section.label)).toEqual(["Intro", "Record", "Contexts", "Together", "Proof", "After", "Finish"]);
+    expect(PUBLIC_MOBILE_SECTIONS.map((section) => section.sectionId)).toEqual(["top", "record-flow", "contexts", "collaboration", "proof", "records", "finale"]);
+    expect(firstPublicMobileSectionIndexForSection("contexts")).toBe(2);
+    expect(firstPublicMobileSectionIndexForSection("records")).toBe(5);
+    expect(firstPublicMobileSectionIndexForSection("missing")).toBe(-1);
   });
 
-  it("builds exact local snap points and derives state positions from scene geometry", () => {
-    expect(mobileLandingSnapPoints(4)).toEqual([0, 1 / 3, 2 / 3, 1]);
-    expect(mobileLandingSnapPoints(1)).toEqual([0]);
-    expect(mobileLandingStateY(240, 480, 1 / 3)).toBe(400);
+  it("keeps internal states local to their mobile sections", () => {
+    expect(PUBLIC_RECORD_FLOW_STATES).toEqual(["expense", "shares", "repayment", "balance"]);
+    expect(PUBLIC_SCOPE_STATES).toEqual(["personal", "groups", "organizations"]);
+    expect(PUBLIC_RECORD_LIFECYCLE_STATES).toEqual(["owner", "share", "history"]);
+    expect(PUBLIC_MOBILE_SECTIONS.some((section) => ["Shares", "Repayment", "Balance", "Personal", "Groups", "Organizations", "Owner", "History"].includes(section.label))).toBe(false);
   });
 
-  it("maps native scroll positions to the nearest landing state", () => {
+  it("maps native desktop scroll positions to the nearest landing state", () => {
     expect(nearestPublicLandingIndex(0, [0, 100, 200])).toBe(0);
     expect(nearestPublicLandingIndex(149, [0, 100, 200])).toBe(1);
     expect(nearestPublicLandingIndex(151, [0, 100, 200])).toBe(2);

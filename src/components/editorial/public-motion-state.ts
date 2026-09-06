@@ -5,14 +5,24 @@ export type PublicLandingState = {
   label: string;
 };
 
-export type MobileLandingStatePoint = {
-  stateIndex: number;
-  scene: PublicLandingState["scene"];
-  step: number;
-  localProgress: number;
-};
-
 export type PublicRecordLifecycleState = "owner" | "share" | "history";
+export type PublicMobileSection = Pick<PublicLandingState, "scene" | "sectionId" | "label">;
+export type PublicRecordFlowState = "expense" | "shares" | "repayment" | "balance";
+export type PublicScopeState = "personal" | "groups" | "organizations";
+
+export const PUBLIC_MOBILE_SECTIONS: readonly PublicMobileSection[] = [
+  { scene: "hero", sectionId: "top", label: "Intro" },
+  { scene: "record-flow", sectionId: "record-flow", label: "Record" },
+  { scene: "contexts", sectionId: "contexts", label: "Contexts" },
+  { scene: "collaboration", sectionId: "collaboration", label: "Together" },
+  { scene: "proof", sectionId: "proof", label: "Proof" },
+  { scene: "records", sectionId: "records", label: "After" },
+  { scene: "finale", sectionId: "finale", label: "Finish" },
+];
+
+export const PUBLIC_RECORD_FLOW_STATES: readonly PublicRecordFlowState[] = ["expense", "shares", "repayment", "balance"];
+export const PUBLIC_SCOPE_STATES: readonly PublicScopeState[] = ["personal", "groups", "organizations"];
+export const PUBLIC_RECORD_LIFECYCLE_STATES: readonly PublicRecordLifecycleState[] = ["owner", "share", "history"];
 
 export function publicRecordLifecycleState(step: number): PublicRecordLifecycleState {
   return step === 1 ? "share" : step === 2 ? "history" : "owner";
@@ -58,32 +68,6 @@ export function publicLandingTimelineRatio(index: number, stateCount = PUBLIC_LA
   return Math.min(Math.max(index, 0), count - 1) / Math.max(count - 1, 1);
 }
 
-export function mobileLandingStateMap(states: readonly PublicLandingState[] = PUBLIC_LANDING_STATES): readonly MobileLandingStatePoint[] {
-  const sceneCounts = new Map<PublicLandingState["scene"], number>();
-  states.forEach((state) => sceneCounts.set(state.scene, (sceneCounts.get(state.scene) ?? 0) + 1));
-  const sceneSteps = new Map<PublicLandingState["scene"], number>();
-  return states.map((state, stateIndex) => {
-    const sceneStep = sceneSteps.get(state.scene) ?? 0;
-    sceneSteps.set(state.scene, sceneStep + 1);
-    const sceneCount = sceneCounts.get(state.scene) ?? 1;
-    return {
-      stateIndex,
-      scene: state.scene,
-      step: state.step,
-      localProgress: sceneCount > 1 ? sceneStep / (sceneCount - 1) : 0,
-    };
-  });
-}
-
-export function mobileLandingSnapPoints(stateCount: number) {
-  const count = Math.max(Math.floor(stateCount), 1);
-  return Array.from({ length: count }, (_, index) => index / Math.max(count - 1, 1));
-}
-
-export function mobileLandingStateY(startY: number, travel: number, localProgress: number) {
-  return startY + Math.min(Math.max(localProgress, 0), 1) * Math.max(travel, 0);
-}
-
 export function nearestPublicLandingIndex(scrollY: number, snapPoints: readonly number[]) {
   if (snapPoints.length === 0) return 0;
   let nearest = 0;
@@ -104,4 +88,8 @@ export function publicLandingAriaCurrent(active: boolean) {
 
 export function firstPublicLandingIndexForSection(sectionId: string) {
   return PUBLIC_LANDING_STATES.findIndex((state) => state.sectionId === sectionId);
+}
+
+export function firstPublicMobileSectionIndexForSection(sectionId: string) {
+  return PUBLIC_MOBILE_SECTIONS.findIndex((section) => section.sectionId === sectionId);
 }

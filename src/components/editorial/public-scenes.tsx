@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { ActionLink } from "@/components/editorial/action-link";
 import { UserAvatar } from "@/components/identity/user-avatar";
 import { formatRupiah } from "@/domain/rupiah";
+import { PUBLIC_RECORD_FLOW_STATES, PUBLIC_RECORD_LIFECYCLE_STATES, PUBLIC_SCOPE_STATES } from "./public-motion-state";
 import { CollaborationDemo, PrivateShareDemo, RecordSearchDemo } from "./public-interactions";
 import { ledgerStory } from "./public-scenario";
 
@@ -11,6 +12,28 @@ function Avatar({ id, name }: { id: string; name: string }) {
 
 function SceneMarker({ number, label }: { number: string; label: string }) {
   return <p className="public-scene__marker"><span>{number}</span><span className="technical-label">{label}</span></p>;
+}
+
+function MobileLocalControls({ group, label, states }: { group: string; label: string; states: readonly string[] }) {
+  return (
+    <div className="public-mobile-controls" data-mobile-local-controls={group} role="group" aria-label={label}>
+      <span className="technical-label">{label}</span>
+      <div className="public-mobile-controls__buttons">
+        {states.map((state, index) => (
+          <button
+            aria-pressed={index === 0}
+            className={`public-mobile-control${index === 0 ? " is-active" : ""}`}
+            data-mobile-local={group}
+            data-mobile-local-state={state}
+            key={state}
+            type="button"
+          >
+            {state.toUpperCase()}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function HeroScene() {
@@ -73,6 +96,7 @@ export function RecordFlowScene() {
             <SceneMarker number="01" label="The record / four readable states" />
             <h2 id="record-flow-title">Follow the amount.</h2>
             <p>One expense becomes a chain you can inspect: source amount, explicit shares, a recorded repayment, and what remains open.</p>
+            <MobileLocalControls group="record" label="Record state" states={PUBLIC_RECORD_FLOW_STATES} />
             <ol className="flow-steps" aria-label="Expense record states">
               <li aria-current="step"><span>01</span><strong>Capture the expense</strong><small>What was paid, and where.</small></li>
               <li><span>02</span><strong>Assign the shares</strong><small>Who owes which amount.</small></li>
@@ -136,6 +160,7 @@ export function ContextsScene() {
             <SceneMarker number="02" label="Scope / the context changes the record" />
             <h2 id="contexts-title">Same situation. Different structure.</h2>
             <p>Personal, Groups, and Organizations stay distinct because who owns the ledger, who can participate, and who can act all matter.</p>
+            <MobileLocalControls group="scope" label="Scope" states={PUBLIC_SCOPE_STATES} />
             <div className="scope-progress" aria-hidden="true"><span data-scope-track /></div>
             <p className="scope-progress__caption"><span>NEXT / widen the room</span><span><b data-scope-active-label>PERSONAL</b> · <span data-scope-index>01 / 03</span></span></p>
           </div>
@@ -264,6 +289,7 @@ export function PrivateAndHistoryScene() {
             <SceneMarker number="05" label="After / share less, find more" />
             <h2 id="records-title">The record can travel without losing its shape.</h2>
             <p>Expose one relevant balance through a private, read-only share. Search the history when the details matter again.</p>
+            <MobileLocalControls group="records" label="Record view" states={PUBLIC_RECORD_LIFECYCLE_STATES} />
           </div>
           <div className="record-lifecycle" data-lifecycle-state="owner" aria-label="One record shown as owner ledger, private share, and history result">
             <div className="record-lifecycle__rail">

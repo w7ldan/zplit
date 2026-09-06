@@ -9,24 +9,37 @@ import { gsap } from "gsap";
 import { formatRupiah } from "@/domain/rupiah";
 import {
   clampPublicLandingIndex,
+  firstPublicMobileSectionIndexForSection,
   firstPublicLandingIndexForSection,
   nearestPublicLandingIndex,
   nextPublicLandingIndex,
+  PUBLIC_MOBILE_SECTIONS,
   PUBLIC_LANDING_STATES,
+  PUBLIC_RECORD_FLOW_STATES,
+  PUBLIC_RECORD_LIFECYCLE_STATES,
+  PUBLIC_SCOPE_STATES,
   publicLandingAriaCurrent,
   publicLandingStep,
   publicLandingTimelineRatio,
   publicRecordLifecycleState,
-  mobileLandingSnapPoints,
-  mobileLandingStateMap,
-  mobileLandingStateY,
-  type MobileLandingStatePoint,
   type PublicLandingState,
 } from "./public-motion-state";
 
 type PublicMotionProps = { children: ReactNode };
 type SceneElement = HTMLElement & { _publicTrigger?: ScrollTrigger };
 type AmbientController = (scene: PublicLandingState["scene"]) => void;
+
+const MOBILE_LANDING_MEDIA_QUERY = "(max-width: 767px), (orientation: landscape) and (max-width: 900px) and (max-height: 500px)";
+const DESKTOP_LANDING_MEDIA_QUERY = [
+  "(min-width: 768px) and (orientation: portrait)",
+  "(min-width: 901px)",
+  "(min-width: 768px) and (orientation: landscape) and (min-height: 501px)",
+].join(", ");
+const NO_PREFERENCE = "(prefers-reduced-motion: no-preference)";
+
+function isMobileLandingViewport() {
+  return window.matchMedia(MOBILE_LANDING_MEDIA_QUERY).matches;
+}
 
 const FLOW_VALUES = [
   { label: "CAPTURED", expense: 360_000, assigned: 0, repayment: 0, balance: 0 },
@@ -50,6 +63,7 @@ const ODOMETER_NAMES = new Set([
 ]);
 
 function setupMagneticLinks(root: HTMLElement) {
+  if (isMobileLandingViewport() || !(window.matchMedia?.("(pointer: fine)").matches ?? false)) return () => {};
   const cleanups: Array<() => void> = [];
   root.querySelectorAll<HTMLElement>("[data-magnetic]").forEach((element) => {
     const moveX = gsap.quickTo(element, "x", { duration: 0.3, ease: "power3.out" });
@@ -75,7 +89,7 @@ function setupMagneticLinks(root: HTMLElement) {
 }
 
 function setupPointerField(root: HTMLElement) {
-  if (!(window.matchMedia?.("(pointer: fine)").matches ?? false)) return () => {};
+  if (isMobileLandingViewport() || !(window.matchMedia?.("(pointer: fine)").matches ?? false)) return () => {};
   let frame: number | null = null;
   let x = 0;
   let y = 0;
@@ -385,7 +399,7 @@ function animateContexts(root: HTMLElement, step: number, immediate: boolean, di
     ease: "power3.out",
     overwrite: true,
   });
-  swapLabel(root.querySelector<HTMLElement>("[data-scope-active-label]"), ["PERSONAL", "GROUPS", "ORGANIZATIONS"][step] ?? "PERSONAL", immediate);
+  swapLabel(root.querySelector<HTMLElement>("[data-scope-active-label]"), PUBLIC_SCOPE_STATES[step]?.toUpperCase() ?? "PERSONAL", immediate);
   const index = root.querySelector<HTMLElement>("[data-scope-index]");
   if (index) index.textContent = `${String(step + 1).padStart(2, "0")} / 03`;
 }
@@ -457,6 +471,24 @@ function animateTimeline(root: HTMLElement, index: number, immediate: boolean) {
   swapLabel(number, String(index).padStart(2, "0"), immediate);
   root.querySelectorAll<HTMLElement>("[data-public-jump]").forEach((link) => {
     const nodeIndex = Number(link.dataset.publicJump);
+    const active = nodeIndex === index;
+    if (publicLandingAriaCurrent(active)) link.setAttribute("aria-current", "step");
+    else link.removeAttribute("aria-current");
+    link.classList.toggle("public-scene-index__node--complete", nodeIndex < index);
+  });
+}
+
+function animateMobileTimeline(root: HTMLElement, index: number, immediate: boolean) {
+  const ratio = publicLandingTimelineRatio(index, PUBLIC_MOBILE_SECTIONS.length);
+  const progress = root.querySelector<HTMLElement>("[data-public-timeline-progress]");
+  const marker = root.querySelector<HTMLElement>("[data-public-timeline-marker]");
+  gsap.to(progress, { scaleX: ratio, duration: immediate ? 0 : 0.42, ease: "power2.out", overwrite: true });
+  gsap.to(marker, { left: `${ratio * 100}%`, duration: immediate ? 0 : 0.46, ease: "power3.out", overwrite: true });
+  const section = PUBLIC_MOBILE_SECTIONS[index] ?? PUBLIC_MOBILE_SECTIONS[0]!;
+  swapLabel(root.querySelector<HTMLElement>("[data-public-timeline-label]"), section.label, immediate);
+  swapLabel(root.querySelector<HTMLElement>("[data-public-timeline-number]"), String(index).padStart(2, "0"), immediate);
+  root.querySelectorAll<HTMLElement>("[data-mobile-public-jump]").forEach((link) => {
+    const nodeIndex = Number(link.dataset.mobilePublicJump);
     const active = nodeIndex === index;
     if (publicLandingAriaCurrent(active)) link.setAttribute("aria-current", "step");
     else link.removeAttribute("aria-current");
@@ -759,197 +791,156 @@ function createDesktopLanding(root: HTMLElement) {
   };
 }
 
-function setupMobileLanding(root: HTMLElement) {
-  type MobileLandingPosition = MobileLandingStatePoint & { y: number };
-  type MobileSceneEntry = {
-    section: HTMLElement;
-    stage: HTMLElement;
-    states: readonly MobileLandingStatePoint[];
-    trigger: ScrollTrigger | null;
+function setupMobileLanding(root: HTMLElement, immediate = false) {
+  const sections = PUBLIC_MOBILE_SECTIONS.map((section) => root.querySelector<HTMLElement>(`[data-public-scene="${section.scene}"]`)).filter((section): section is HTMLElement => Boolean(section));
+  let activeIndex = -1;
+  let frame: number | null = null;
+  const recordStep = Number(root.querySelector<HTMLElement>(".flow-interface")?.dataset.flowActiveStep);
+  const scopeStep = Number(root.dataset.scopeStep);
+  const lifecycleState = root.querySelector<HTMLElement>(".record-lifecycle")?.dataset.lifecycleState;
+  let recordMobileState = PUBLIC_RECORD_FLOW_STATES[recordStep] ?? PUBLIC_RECORD_FLOW_STATES[0]!;
+  let scopeMobileState = PUBLIC_SCOPE_STATES[scopeStep] ?? PUBLIC_SCOPE_STATES[0]!;
+  let recordsMobileState = PUBLIC_RECORD_LIFECYCLE_STATES.find((state) => state === lifecycleState) ?? PUBLIC_RECORD_LIFECYCLE_STATES[0]!;
+  const ambient = setupAmbientMotion(root);
+
+  const setLocalControlState = (group: string, state: string) => {
+    root.querySelectorAll<HTMLButtonElement>(`[data-mobile-local="${group}"]`).forEach((button) => {
+      const active = button.dataset.mobileLocalState === state;
+      button.setAttribute("aria-pressed", String(active));
+      button.classList.toggle("is-active", active);
+    });
   };
-  const logicalStateMap = mobileLandingStateMap();
-  const sections = Array.from(root.querySelectorAll<HTMLElement>("[data-public-scene]"));
-  const entries = new Map<PublicLandingState["scene"], MobileSceneEntry>();
-  const sceneStates = new Map<PublicLandingState["scene"], readonly MobileLandingStatePoint[]>();
-  logicalStateMap.forEach((point) => {
-    const states = sceneStates.get(point.scene) ?? [];
-    sceneStates.set(point.scene, [...states, point]);
-  });
-  let stateMap: MobileLandingPosition[] = [];
-  let resizeTimer: number | null = null;
-  let activeIndex = 0;
-  let headerHeight = 0;
 
-  sections.forEach((section) => {
-    const scene = section.dataset.publicScene as PublicLandingState["scene"] | undefined;
-    const states = scene ? sceneStates.get(scene) : undefined;
-    if (!scene || !states) return;
-    section.dataset.mobileScene = states.length > 1 ? "multi" : "single";
-    section.dataset.mobileStateCount = String(states.length);
-  });
-
-  const sizeMobileScenes = () => {
-    const header = root.querySelector<HTMLElement>(".header-shell");
-    const timeline = root.querySelector<HTMLElement>(".public-scene-index");
-    headerHeight = header?.getBoundingClientRect().height ?? 0;
-    const timelineHeight = timeline?.getBoundingClientRect().height ?? 0;
-    const breathingRoom = Math.max(8, timelineHeight * 0.35);
-    const stageHeight = Math.max(window.innerHeight - headerHeight - timelineHeight - breathingRoom, 1);
-    const stateDistance = stageHeight * 0.56;
-    root.style.setProperty("--public-mobile-header-height", `${headerHeight}px`);
-    root.style.setProperty("--public-mobile-stage-height", `${stageHeight}px`);
-    sections.forEach((section) => {
-      const scene = section.dataset.publicScene as PublicLandingState["scene"] | undefined;
-      const states = scene ? sceneStates.get(scene) : undefined;
-      if (states && states.length > 1) {
-        const sceneHeight = stageHeight + stateDistance * (states.length - 1);
-        section.style.setProperty("--public-mobile-scene-height", `${sceneHeight}px`);
-        section.style.height = `${sceneHeight}px`;
+  const sectionAtViewportAnchor = () => {
+    const anchor = window.innerHeight * 0.42;
+    let nearest = 0;
+    let distance = Number.POSITIVE_INFINITY;
+    sections.forEach((section, index) => {
+      const bounds = section.getBoundingClientRect();
+      const nextDistance = bounds.top <= anchor && bounds.bottom >= anchor
+        ? 0
+        : Math.min(Math.abs(bounds.top - anchor), Math.abs(bounds.bottom - anchor));
+      if (nextDistance < distance) {
+        distance = nextDistance;
+        nearest = index;
       }
     });
+    return nearest;
   };
 
-  const rebuildStateMap = () => {
-    stateMap = logicalStateMap.map((point) => {
-      const entry = entries.get(point.scene);
-      const section = entry?.section ?? sections.find((candidate) => candidate.dataset.publicScene === point.scene);
-      const startY = entry?.trigger
-        ? entry.trigger.start
-        : (section?.getBoundingClientRect().top ?? 0) + window.scrollY - headerHeight;
-      const travel = entry?.trigger ? Math.max(entry.trigger.end - entry.trigger.start, 0) : 0;
-      return { ...point, y: Math.max(0, mobileLandingStateY(startY, travel, point.localProgress)) };
-    });
-  };
-
-  const syncToState = (requestedIndex: number, immediate: boolean) => {
-    const nextIndex = clampPublicLandingIndex(requestedIndex);
-    if (!immediate && nextIndex === activeIndex) return;
-    const direction = nextIndex === activeIndex ? 0 : nextIndex > activeIndex ? 1 : -1;
+  const syncSection = (requestedIndex: number, syncImmediately: boolean) => {
+    const nextIndex = Math.min(Math.max(requestedIndex, 0), PUBLIC_MOBILE_SECTIONS.length - 1);
+    if (!sections[nextIndex]) return;
+    if (!syncImmediately && nextIndex === activeIndex) return;
     activeIndex = nextIndex;
-    animateLandingState(root, PUBLIC_LANDING_STATES[nextIndex]!, immediate, direction);
+    const section = PUBLIC_MOBILE_SECTIONS[nextIndex]!;
+    root.dataset.landingScene = section.scene;
+    root.dataset.landingStep = "0";
+    sections.forEach((candidate, index) => { candidate.dataset.sceneActive = index === nextIndex ? "true" : "false"; });
+    animateMobileTimeline(root, nextIndex, syncImmediately);
+    if (section.scene === "hero") ambient.activate("hero");
+    if (section.scene === "collaboration") animateCollaboration(root, syncImmediately);
+    if (section.scene === "proof") animateProof(root, syncImmediately);
   };
 
-  const syncFromScroll = (immediate = false) => {
-    if (stateMap.length !== PUBLIC_LANDING_STATES.length) return;
-    const index = nearestPublicLandingIndex(window.scrollY, stateMap.map((point) => point.y));
-    syncToState(index, immediate);
-  };
-
-  const scrollToState = (requestedIndex: number) => {
-    const index = clampPublicLandingIndex(requestedIndex);
-    const target = stateMap[index];
-    if (!target) return;
-    if (Math.abs(window.scrollY - target.y) < 2) {
-      syncToState(index, true);
+  const syncFromScroll = (syncImmediately = false) => syncSection(sectionAtViewportAnchor(), syncImmediately);
+  const scheduleSync = (syncImmediately = false) => {
+    if (syncImmediately) {
+      syncFromScroll(true);
       return;
     }
-    window.scrollTo({ top: target.y, behavior: "smooth" });
+    if (frame !== null) return;
+    frame = window.requestAnimationFrame(() => {
+      frame = null;
+      syncFromScroll();
+    });
+  };
+  const scrollToSection = (sectionId: string) => {
+    const target = sectionId === "top" ? root : root.querySelector<HTMLElement>(`[data-public-scene="${sectionId}"]`);
+    if (!target) return;
+    window.scrollTo({ top: Math.max(0, target.getBoundingClientRect().top + window.scrollY), behavior: "smooth" });
   };
 
-  const onJump = (event: MouseEvent) => {
-    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("[data-public-jump]") : null;
-    if (!link) return;
-    const index = Number(link.dataset.publicJump);
-    if (!Number.isInteger(index)) return;
-    event.preventDefault();
-    scrollToState(index);
-  };
-
-  const onAnchor = (event: MouseEvent) => {
-    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href^='#']") : null;
-    if (!link || link.dataset.publicJump) return;
-    const id = link.getAttribute("href")?.slice(1);
-    if (!id) return;
-    const index = firstPublicLandingIndexForSection(id);
+  const setRecordState = (state: string) => {
+    const index = PUBLIC_RECORD_FLOW_STATES.findIndex((candidate) => candidate === state);
     if (index < 0) return;
+    const previousIndex = PUBLIC_RECORD_FLOW_STATES.indexOf(recordMobileState);
+    recordMobileState = PUBLIC_RECORD_FLOW_STATES[index]!;
+    setLocalControlState("record", recordMobileState);
+    animateRecordFlow(root, index, immediate);
+    if (previousIndex !== index) root.dataset.landingStep = String(index);
+  };
+  const setScopeState = (state: string) => {
+    const index = PUBLIC_SCOPE_STATES.findIndex((candidate) => candidate === state);
+    if (index < 0) return;
+    const previousIndex = PUBLIC_SCOPE_STATES.indexOf(scopeMobileState);
+    scopeMobileState = PUBLIC_SCOPE_STATES[index]!;
+    setLocalControlState("scope", scopeMobileState);
+    animateContexts(root, index, immediate, index === previousIndex ? 0 : index > previousIndex ? 1 : -1);
+  };
+  const setRecordsState = (state: string) => {
+    const index = PUBLIC_RECORD_LIFECYCLE_STATES.findIndex((candidate) => candidate === state);
+    if (index < 0) return;
+    recordsMobileState = PUBLIC_RECORD_LIFECYCLE_STATES[index]!;
+    setLocalControlState("records", recordsMobileState);
+    animateRecords(root, index, immediate);
+  };
+
+  const onClick = (event: MouseEvent) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const localControl = target?.closest<HTMLButtonElement>("[data-mobile-local]");
+    if (localControl) {
+      event.preventDefault();
+      const group = localControl.dataset.mobileLocal;
+      const state = localControl.dataset.mobileLocalState;
+      if (group === "record" && state) setRecordState(state);
+      if (group === "scope" && state) setScopeState(state);
+      if (group === "records" && state) setRecordsState(state);
+      return;
+    }
+    const jump = target?.closest<HTMLAnchorElement>("[data-mobile-public-jump]");
+    if (jump) {
+      const index = Number(jump.dataset.mobilePublicJump);
+      const section = PUBLIC_MOBILE_SECTIONS[index];
+      if (!section) return;
+      event.preventDefault();
+      scrollToSection(section.sectionId);
+      return;
+    }
+    const anchor = target?.closest<HTMLAnchorElement>("a[href^='#']");
+    if (!anchor || anchor.dataset.mobilePublicJump) return;
+    const sectionId = anchor.getAttribute("href")?.slice(1);
+    if (!sectionId || firstPublicMobileSectionIndexForSection(sectionId) < 0) return;
     event.preventDefault();
-    scrollToState(index);
+    scrollToSection(sectionId);
   };
+  const onScroll = () => scheduleSync();
+  const onResize = () => scheduleSync(true);
 
-  const onScroll = () => syncFromScroll();
-  const refresh = () => {
-    if (resizeTimer !== null) window.clearTimeout(resizeTimer);
-    resizeTimer = window.setTimeout(() => {
-      resizeTimer = null;
-      const preservedIndex = activeIndex;
-      sizeMobileScenes();
-      ScrollTrigger.refresh();
-      rebuildStateMap();
-      const target = stateMap[preservedIndex];
-      if (target && Math.abs(window.scrollY - target.y) >= 2) window.scrollTo({ top: target.y, behavior: "auto" });
-      syncToState(preservedIndex, true);
-    }, 100);
-  };
-
-  root.dataset.mobileLanding = "true";
-  sizeMobileScenes();
-  sections.forEach((section) => {
-    const scene = section.dataset.publicScene as PublicLandingState["scene"] | undefined;
-    const states = scene ? sceneStates.get(scene) : undefined;
-    const stage = section.querySelector<HTMLElement>("[data-scene-stage]");
-    if (!scene || !states || states.length < 2 || !stage) return;
-    const entry: MobileSceneEntry = {
-      section,
-      stage,
-      states,
-      trigger: null,
-    };
-    entry.trigger = ScrollTrigger.create({
-      trigger: section,
-      start: () => `top ${headerHeight}px`,
-      end: () => `+=${Math.max(section.offsetHeight - stage.offsetHeight, 1)}`,
-      pin: stage,
-      pinSpacing: false,
-      anticipatePin: 1,
-      invalidateOnRefresh: true,
-      snap: {
-        snapTo: mobileLandingSnapPoints(states.length),
-        delay: 0.08,
-        duration: { min: 0.18, max: 0.38 },
-        ease: "power2.out",
-        directional: false,
-      },
-      onUpdate: () => syncFromScroll(),
-      onSnapComplete: () => syncFromScroll(true),
-    });
-    entries.set(scene, entry);
-  });
-  ScrollTrigger.refresh();
-  rebuildStateMap();
-  const hashId = window.location.hash.slice(1);
-  const hashIndex = hashId ? firstPublicLandingIndexForSection(hashId) : -1;
-  const initialIndex = hashIndex >= 0 ? hashIndex : nearestPublicLandingIndex(window.scrollY, stateMap.map((point) => point.y));
-  if (hashIndex >= 0 && stateMap[hashIndex] && Math.abs(window.scrollY - stateMap[hashIndex].y) >= 2) {
-    window.scrollTo({ top: stateMap[hashIndex].y, behavior: "auto" });
-  }
-  activeIndex = initialIndex;
-  animateLandingState(root, PUBLIC_LANDING_STATES[initialIndex]!, true, 0);
-  root.addEventListener("click", onJump);
-  root.addEventListener("click", onAnchor);
+  animateRecordFlow(root, PUBLIC_RECORD_FLOW_STATES.indexOf(recordMobileState), true);
+  animateContexts(root, PUBLIC_SCOPE_STATES.indexOf(scopeMobileState), true, 0);
+  animateRecords(root, PUBLIC_RECORD_LIFECYCLE_STATES.indexOf(recordsMobileState), true);
+  setLocalControlState("record", recordMobileState);
+  setLocalControlState("scope", scopeMobileState);
+  setLocalControlState("records", recordsMobileState);
+  root.addEventListener("click", onClick);
   window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("resize", refresh, { passive: true });
-  window.addEventListener("orientationchange", refresh, { passive: true });
+  window.addEventListener("resize", onResize, { passive: true });
+  window.addEventListener("orientationchange", onResize, { passive: true });
+  syncFromScroll(true);
   return () => {
-    if (resizeTimer !== null) window.clearTimeout(resizeTimer);
-    root.removeEventListener("click", onJump);
-    root.removeEventListener("click", onAnchor);
+    if (frame !== null) window.cancelAnimationFrame(frame);
+    root.removeEventListener("click", onClick);
     window.removeEventListener("scroll", onScroll);
-    window.removeEventListener("resize", refresh);
-    window.removeEventListener("orientationchange", refresh);
-    entries.forEach((entry) => entry.trigger?.kill());
-    sections.forEach((section) => {
-      delete section.dataset.mobileScene;
-      delete section.dataset.mobileStateCount;
-      section.style.removeProperty("--public-mobile-scene-height");
-      section.style.removeProperty("height");
-    });
-    root.style.removeProperty("--public-mobile-header-height");
-    root.style.removeProperty("--public-mobile-stage-height");
-    delete root.dataset.mobileLanding;
+    window.removeEventListener("resize", onResize);
+    window.removeEventListener("orientationchange", onResize);
+    root.querySelectorAll<HTMLElement>("*").forEach((element) => gsap.killTweensOf(element));
+    ambient.cleanup();
   };
 }
 
 function setupReducedLanding(root: HTMLElement) {
+  if (isMobileLandingViewport()) return setupMobileLanding(root, true);
   root.querySelectorAll<HTMLElement>(".scope-state").forEach((state) => {
     state.removeAttribute("aria-hidden");
     state.inert = false;
@@ -1050,8 +1041,8 @@ export function PublicMotion({ children }: PublicMotionProps) {
     let media: gsap.MatchMedia | undefined;
     const context = gsap.context(() => {
       media = gsap.matchMedia();
-      media.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => createDesktopLanding(target));
-      media.add("(max-width: 767px) and (prefers-reduced-motion: no-preference)", () => setupMobileLanding(target));
+      media.add(DESKTOP_LANDING_MEDIA_QUERY.split(", ").map((query) => `${query} and ${NO_PREFERENCE}`).join(", "), () => createDesktopLanding(target));
+      media.add(MOBILE_LANDING_MEDIA_QUERY.split(", ").map((query) => `${query} and ${NO_PREFERENCE}`).join(", "), () => setupMobileLanding(target));
       media.add("(prefers-reduced-motion: reduce)", () => setupReducedLanding(target));
       media.add("(prefers-reduced-motion: no-preference)", () => {
         const cleanupPointer = setupPointerField(target);
@@ -1087,7 +1078,7 @@ export function PublicMotion({ children }: PublicMotionProps) {
       <nav className="public-scene-index" aria-label="Landing sequence">
         <div className="public-scene-index__label" aria-live="polite"><span data-public-timeline-number>00</span><span aria-hidden="true"> / </span><span data-public-timeline-label>Intro</span></div>
         <div className="public-scene-index__track" aria-hidden="true"><span data-public-timeline-progress /><i data-public-timeline-marker /></div>
-        <div className="public-scene-index__nodes">
+        <div className="public-scene-index__nodes" data-public-timeline-desktop>
           {PUBLIC_LANDING_STATES.map((state, index) => (
             <a
               aria-current={publicLandingAriaCurrent(index === 0)}
@@ -1097,6 +1088,21 @@ export function PublicMotion({ children }: PublicMotionProps) {
               href={`#${state.sectionId}`}
               key={`${state.scene}-${state.step}`}
               style={{ left: `${publicLandingTimelineRatio(index) * 100}%` }}
+            >
+              <span>{String(index).padStart(2, "0")}</span>
+            </a>
+          ))}
+        </div>
+        <div className="public-scene-index__nodes" data-public-timeline-mobile>
+          {PUBLIC_MOBILE_SECTIONS.map((section, index) => (
+            <a
+              aria-current={publicLandingAriaCurrent(index === 0)}
+              aria-label={`${String(index).padStart(2, "0")} ${section.label}`}
+              data-mobile-public-jump={index}
+              data-mobile-timeline-node
+              href={`#${section.sectionId}`}
+              key={section.scene}
+              style={{ left: `${publicLandingTimelineRatio(index, PUBLIC_MOBILE_SECTIONS.length) * 100}%` }}
             >
               <span>{String(index).padStart(2, "0")}</span>
             </a>
