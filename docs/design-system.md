@@ -1359,3 +1359,21 @@ A redesigned screen should be reviewed against the following.
 When both domains are relevant, implementation must follow both.
 
 If a new product requirement introduces a genuinely new UI family, extend this document intentionally instead of introducing an isolated visual language in source.
+
+### Public landing stepped motion contract
+
+The public landing may use a landing-specific ordered state list rather than
+free analog scroll. On desktop, wheel and keyboard input advance one meaningful
+state at a time; GSAP animates to an exact viewport anchor and releases the
+input lock after the transition. Scene composition, product-state animation,
+and small pointer responses remain separate macro, meso, and micro layers.
+
+Mobile uses a purpose-built vertical composition with native touch scrolling
+and section snapping. It must not inherit desktop pinning, fixed-width grids,
+or oversized transformed stages. Reduced motion removes the stepped controller
+and long choreography while keeping every illustrative state readable in normal
+document flow.
+
+Illustrative balances may count between documented scenario states through
+direct DOM animation, without React renders on every frame. Numeric motion must
+use tabular figures and retain a truthful, internally coherent financial story.

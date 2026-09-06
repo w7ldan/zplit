@@ -37,8 +37,9 @@ describe("public Zplit page", () => {
 
     const search = screen.getByRole("searchbox");
     fireEvent.change(search, { target: { value: "train" } });
-    expect(screen.getByRole("button", { name: /Train home/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Market \+ picnic/ })).not.toBeInTheDocument();
+    const searchResults = within(document.querySelector(".search-demo__results")!);
+    expect(searchResults.getByRole("button", { name: /Train home/ })).toBeInTheDocument();
+    expect(searchResults.queryByRole("button", { name: /Market \+ picnic/ })).not.toBeInTheDocument();
 
     const sharedView = screen.getByRole("button", { name: "Shared view" });
     fireEvent.click(sharedView);
