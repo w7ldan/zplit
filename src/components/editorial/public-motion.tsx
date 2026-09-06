@@ -138,6 +138,8 @@ function animateRecordFlow(root: HTMLElement, step: number, immediate: boolean) 
   const cards = flowCards(root);
   Flip.killFlipsOf(cards);
   const layout = Flip.getState(cards);
+  const previousStep = Number(root.querySelector<HTMLElement>(".flow-interface")?.dataset.flowActiveStep ?? step);
+  const direction = step === previousStep ? 0 : step > previousStep ? 1 : -1;
   root.querySelector<HTMLElement>(".flow-interface")?.setAttribute("data-flow-active-step", String(step));
   cards.forEach((card, index) => card.setAttribute("data-expanded", String(index === step)));
   root.querySelectorAll(".flow-steps li").forEach((item, index) => {
@@ -145,10 +147,11 @@ function animateRecordFlow(root: HTMLElement, step: number, immediate: boolean) 
     else item.removeAttribute("aria-current");
   });
   swapLabel(root.querySelector<HTMLElement>("[data-flow-state-label]"), FLOW_LABELS[step] ?? "EXPENSE", immediate);
+  const revealFrom = direction < 0 ? "inset(100% 0 0 0)" : "inset(0 0 100% 0)";
   gsap.fromTo(cards[step]?.querySelectorAll("[data-public-number]") ?? [],
-    { clipPath: "inset(0 0 100% 0)" },
-    { clipPath: "inset(0 0 0% 0)", duration: immediate ? 0 : 0.35, delay: immediate ? 0 : 0.15, overwrite: true });
-  if (!immediate) Flip.from(layout, { duration: 0.48, ease: "power3.inOut", absolute: false, scale: false });
+    { y: direction < 0 ? -10 : 10, clipPath: revealFrom },
+    { y: 0, clipPath: "inset(0 0 0% 0)", duration: immediate ? 0 : 0.4, delay: immediate ? 0 : 0.12, ease: "power3.out", stagger: immediate ? 0 : 0.04, overwrite: true });
+  if (!immediate) Flip.from(layout, { duration: 0.56, ease: "power3.inOut", absolute: false, nested: true, scale: false });
   gsap.to(root.querySelector("[data-flow-progress]"), { scaleX: (step + 1) / 4, duration: immediate ? 0 : 0.45, overwrite: true });
   gsap.fromTo(cards[step]?.querySelectorAll(".flow-share-row i") ?? [], { scaleX: 0 }, { scaleX: 1, duration: immediate ? 0 : 0.4, stagger: 0.07, overwrite: true });
 }

@@ -493,6 +493,11 @@
   padding-block: 1.1rem;
   border-bottom-color: var(--rule);
   background: var(--paper);
+  transition: border-bottom-color var(--motion-state) var(--ease-standard);
+}
+
+.public-home .header-shell.header-shell--detached {
+  border-bottom-color: transparent;
 }
 
 .public-home .header-shell__panel,
@@ -1765,7 +1770,10 @@
   .hero-composition,
   .hero-composition__orbit,
   .hero-product-record,
-  .collaboration-demo {
+  .collaboration-demo,
+  .public-home .header-shell,
+  .public-home .flow-card,
+  .public-home .flow-balance {
     transform: none !important;
     transition: none !important;
   }
@@ -2677,16 +2685,22 @@
 .public-home .flow-composition {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: .7rem;
+  column-gap: .7rem;
+  row-gap: .5rem;
 }
 .public-home .flow-card, .public-home .flow-balance {
   min-width: 0;
   padding: .85rem;
-  border-top: 1px solid var(--rule);
+  border: 1px solid var(--rule);
+  border-top-width: 2px;
   align-content: start;
   display: grid;
   gap: .6rem;
-  background: var(--paper);
+  background: var(--surface);
+  transition:
+    background-color var(--motion-layout) var(--ease-product),
+    border-color var(--motion-layout) var(--ease-product),
+    box-shadow var(--motion-layout) var(--ease-product);
 }
 .public-home .flow-card > div {
   display: grid;
@@ -2710,8 +2724,10 @@
   grid-row: 1;
   min-height: 15rem;
   padding: clamp(1rem, 2vw, 2rem);
+  border-color: var(--ink);
   border-top: 3px solid var(--pastel-blue);
-  background: var(--surface);
+  background: var(--paper);
+  box-shadow: 0 .45rem 0 var(--shadow);
 }
 .public-home .flow-card[data-expanded="true"] > div > strong {
   font-size: clamp(1.8rem, 3vw, 3.5rem);
@@ -2839,7 +2855,8 @@
   display: grid;
   gap: .6rem;
   padding: .8rem;
-  border-top: 2px solid var(--rule);
+  border: 1px solid var(--rule);
+  border-top-width: 2px;
 }
 .public-home .scope-relations b {
   font-size: .85rem;

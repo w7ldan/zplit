@@ -17,6 +17,14 @@ describe("Public UI contract", () => {
     expect(motion).toContain("Flip.killFlipsOf(cards)");
     expect(motion).toContain("animateRecordFlow(root, state.step, immediate)");
     expect(publicSource).toContain('.flow-card[data-expanded="true"]');
+
+    const activeFlow = cssRuleBody(publicSource, '.public-home .flow-card[data-expanded="true"], .public-home .flow-balance[data-expanded="true"]');
+    const relation = cssRuleBody(publicSource, ".public-home .scope-relations > span");
+    const detachedHeader = cssRuleBody(publicSource, ".public-home .header-shell.header-shell--detached");
+    expect(activeFlow).toContain("background: var(--paper);");
+    expect(activeFlow).toContain("box-shadow: 0 .45rem 0 var(--shadow);");
+    expect(relation).toContain("border: 1px solid var(--rule);");
+    expect(detachedHeader).toContain("border-bottom-color: transparent;");
   });
 
   it("distinguishes context, coordination, evidence, and retrieval", () => {
