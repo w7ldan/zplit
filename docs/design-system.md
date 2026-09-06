@@ -223,44 +223,50 @@ rather than decorative effects.
 
 ---
 
-## 6. Public landing and Journey
+## 6. Public landing and motion storytelling
 
-The public homepage is an editorial financial record transformed into a
-product website. It uses real or faithful Zplit-like record UI as illustration,
-with bounded reading measures and wider compositions for product surfaces.
+The public homepage is an editorial financial interface choreographed as an
+interactive motion piece. Public scenes may be more expressive than the
+authenticated product, but the product UI remains the illustration and every
+example must stay faithful to Zplit's actual accounting and collaboration
+semantics.
 
-The current public narrative moves through:
+Durable public storytelling contracts are:
 
-1. a product-scale hero record;
-2. expense → shares → repayment → balance relationships;
-3. distinct Personal, Group, and Organization contexts;
-4. a compact four-state Journey;
-5. Group ledger beside Group Chat;
-6. record detail with attached proof;
-7. private, read-only balance sharing;
-8. Search, Inbox, and history as one findability story; and
-9. a settled/open balance payoff.
+- Use a macro / meso / micro motion hierarchy. Macro motion directs the
+  narrative through pinned scenes and handoffs; meso motion exposes product
+  relationships and state; micro motion acknowledges pointer, focus, and
+  selection.
+- Treat scroll as scene progress when the composition has a meaningful state
+  sequence. A pinned scene must derive its state from current scroll progress,
+  remain reversible, and release naturally when the story resolves.
+- Prefer visual handoffs: an expense, participant, rule, or product surface
+  should layout-wise become part of the next idea where the relationship is
+  meaningful. Avoid a page rhythm of unrelated fade-ins.
+- Animate product state rather than screenshots. Expense amounts, explicit
+  shares, repayments, balances, scope, Chat context, receipts, search, and
+  read-only sharing may move when the motion makes their relationship clearer.
+- Pointer response is local and restrained. Use bounded parallax, proximity,
+  selection, magnetic actions, or related-record emphasis only where it gives
+  identity, causality, affordance, or delight. It must never be required to
+  understand the page.
+- Keep public motion client-side and scene-owned. Shared motion concerns such
+  as media queries, reduced motion, pointer input, refresh, and cleanup have a
+  clear owner. Authenticated routes must not import landing-only motion code.
+- Native scrolling, keyboard navigation, touch interaction, and anchor links
+  remain intact. Scroll smoothing is not a default requirement.
 
-The Journey demonstrates:
+On narrow screens, mobile may use shorter pinned distances, fewer simultaneous
+objects, and vertical compositions. Under `prefers-reduced-motion: reduce`,
+long scrub choreography, parallax, magnetic movement, and large spatial
+translations collapse into stable vertical scenes with the same content and
+usable controls.
 
-1. adding an illustrative outing record;
-2. assigning Friend shares explicitly;
-3. recording and allocating a repayment; and
-4. reading resulting balances.
-
-The Journey uses one stable product composition with direct step controls. It
-does not require a long scroll runway or scroll-linked geometry to explain one
-scenario.
-
-On narrow screens, reduced-motion environments, or constrained viewports, the same content must remain understandable in a native stacked composition.
-
-Do not imply capabilities the demonstrated flow does not actually support.
-
-Public motion may be more expressive than authenticated motion but must remain:
-
-- keyboard-operable;
-- reduced-motion-safe;
-- understandable without animation.
+Public examples are illustrative, but financial direction, record ownership,
+share semantics, settlement behavior, permissions, Chat, receipts, Search,
+Inbox, history, and private sharing must not imply unsupported automation or
+capabilities. Public motion must remain keyboard-operable, reduced-motion-safe,
+and understandable without animation.
 
 ---
 
@@ -335,7 +341,7 @@ establishes authorship.
 Public/editorial desktop layouts use a 12-column grid, reducing to four
 columns on mobile. The public canvas may extend to an ultrawide ceiling for
 product compositions while readable copy keeps an intentional local measure.
-The current Landing V2 canvas ceiling is `118rem`; this is a public
+The current public canvas ceiling is `118rem`; this is a public
 implementation contract and not a requirement that every child stretch to the
 viewport edge.
 
@@ -946,9 +952,10 @@ Retargetable overlay and surface transition with transition-aware exit cleanup.
 
 Opacity plus up to roughly `4px` vertical travel.
 
-### Public Journey
+### Public motion scenes
 
-May use more expressive editorial motion within its accepted interaction contract.
+May use expressive editorial motion within the public motion-scene contract:
+scene-owned scrubbed timelines, local pointer response, and stable handoffs.
 
 ---
 
@@ -980,7 +987,7 @@ Reduced-motion mode must retain:
 - keyboard operation;
 - focus behavior;
 - full content access;
-- Journey comprehension.
+- scene comprehension.
 
 ---
 
