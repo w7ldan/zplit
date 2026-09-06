@@ -18,6 +18,7 @@ export const PUBLIC_LANDING_STATES: readonly PublicLandingState[] = [
   { scene: "proof", step: 0, sectionId: "proof", label: "Proof" },
   { scene: "records", step: 0, sectionId: "records", label: "Owner" },
   { scene: "records", step: 1, sectionId: "records", label: "Share" },
+  { scene: "records", step: 2, sectionId: "records", label: "History" },
   { scene: "finale", step: 0, sectionId: "finale", label: "Finish" },
 ];
 

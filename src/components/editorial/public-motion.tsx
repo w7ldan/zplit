@@ -6,6 +6,7 @@ import { Observer } from "gsap/Observer";
 import { ScrollToPlugin } from "gsap/ScrollToPlugin";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { gsap } from "gsap";
+import { formatRupiah } from "@/domain/rupiah";
 import {
   clampPublicLandingIndex,
   firstPublicLandingIndexForSection,
@@ -22,7 +23,26 @@ type PublicMotionProps = { children: ReactNode };
 type SceneElement = HTMLElement & { _publicTrigger?: ScrollTrigger };
 type AmbientController = (scene: PublicLandingState["scene"]) => void;
 
-const FLOW_LABELS = ["EXPENSE", "SHARES", "REPAYMENT", "BALANCE"] as const;
+const FLOW_VALUES = [
+  { label: "CAPTURED", expense: 360_000, assigned: 0, repayment: 0, balance: 0 },
+  { label: "SHARES ASSIGNED", expense: 360_000, assigned: 210_000, repayment: 0, balance: 0 },
+  { label: "REPAYMENT LOGGED", expense: 360_000, assigned: 210_000, repayment: 120_000, balance: 0 },
+  { label: "BALANCE OPEN", expense: 360_000, assigned: 210_000, repayment: 120_000, balance: 90_000 },
+] as const;
+
+const ODOMETER_NAMES = new Set([
+  "hero-expense",
+  "hero-repayment",
+  "hero-balance",
+  "flow-expense",
+  "flow-assigned",
+  "flow-repayment",
+  "flow-balance",
+  "proof-expense",
+  "private-owner-balance",
+  "private-shared-balance",
+  "private-shared-line",
+]);
 
 function setupMagneticLinks(root: HTMLElement) {
   const cleanups: Array<() => void> = [];
@@ -112,6 +132,112 @@ function setupLinkedHover(root: HTMLElement) {
   };
 }
 
+function publicNumber(root: HTMLElement, name: string) {
+  return root.querySelector<HTMLElement>(`[data-public-number="${name}"]`);
+}
+
+function odometerDigits(element: HTMLElement) {
+  return Array.from(element.querySelectorAll<HTMLElement>(".public-odometer__reel"));
+}
+
+function buildOdometer(element: HTMLElement, formatted: string) {
+  const visual = document.createElement("span");
+  visual.className = "public-odometer";
+  visual.setAttribute("aria-hidden", "true");
+  for (const character of formatted) {
+    if (/\d/.test(character)) {
+      const slot = document.createElement("span");
+      slot.className = "public-odometer__slot";
+      const reel = document.createElement("span");
+      reel.className = "public-odometer__reel";
+      for (let digit = 0; digit < 10; digit += 1) {
+        const face = document.createElement("span");
+        face.textContent = String(digit);
+        reel.append(face);
+      }
+      slot.append(reel);
+      visual.append(slot);
+    } else {
+      const staticCharacter = document.createElement("span");
+      staticCharacter.className = "public-odometer__static";
+      staticCharacter.textContent = character;
+      visual.append(staticCharacter);
+    }
+  }
+  const accessible = document.createElement("span");
+  accessible.className = "public-odometer__accessible";
+  accessible.textContent = formatted;
+  element.replaceChildren(visual, accessible);
+  element.dataset.publicFormatted = formatted;
+}
+
+function setOdometerDigits(element: HTMLElement, formatted: string, immediate: boolean) {
+  if (!element.querySelector(".public-odometer") || element.dataset.publicFormatted?.length !== formatted.length) {
+    buildOdometer(element, formatted);
+  }
+  element.dataset.publicFormatted = formatted;
+  const accessible = element.querySelector<HTMLElement>(".public-odometer__accessible");
+  if (accessible) accessible.textContent = formatted;
+  const reels = odometerDigits(element);
+  let digitIndex = 0;
+  for (const character of formatted) {
+    if (!/\d/.test(character)) continue;
+    const reel = reels[digitIndex];
+    const destination = -Number(character) * 10;
+    if (reel) {
+      if (immediate) gsap.set(reel, { yPercent: destination });
+      else gsap.to(reel, { yPercent: destination, duration: 0.48, ease: "power2.out", overwrite: true });
+    }
+    digitIndex += 1;
+  }
+}
+
+function setPublicNumber(element: HTMLElement | null, amount: number, immediate = true) {
+  if (!element) return;
+  const name = element.dataset.publicNumber;
+  const formatted = formatRupiah(amount);
+  element.dataset.publicValue = String(amount);
+  element.setAttribute("aria-label", formatted);
+  if (name && ODOMETER_NAMES.has(name)) {
+    setOdometerDigits(element, formatted, immediate);
+    return;
+  }
+  element.textContent = formatted;
+}
+
+function clearPublicNumber(element: HTMLElement | null, amount: number) {
+  if (!element) return;
+  gsap.killTweensOf(element);
+  element.replaceChildren();
+  element.dataset.publicValue = String(amount);
+  delete element.dataset.publicFormatted;
+  element.removeAttribute("aria-label");
+}
+
+function rollPublicNumber(element: HTMLElement | null, amount: number, duration: number, immediate: boolean) {
+  if (!element) return;
+  const current = Number(element.dataset.publicValue ?? 0);
+  if (immediate || current === amount) {
+    setPublicNumber(element, amount, true);
+    return;
+  }
+  if (element.dataset.publicNumber && ODOMETER_NAMES.has(element.dataset.publicNumber)) {
+    if (!element.querySelector(".public-odometer")) buildOdometer(element, formatRupiah(current));
+    setOdometerDigits(element, formatRupiah(amount), false);
+    element.dataset.publicValue = String(amount);
+    element.setAttribute("aria-label", formatRupiah(amount));
+    return;
+  }
+  const proxy = { value: current };
+  gsap.to(proxy, {
+    value: amount,
+    duration,
+    ease: "power2.out",
+    onUpdate: () => setPublicNumber(element, Math.round(proxy.value)),
+    onComplete: () => setPublicNumber(element, amount),
+  });
+}
+
 function swapLabel(element: HTMLElement | null, label: string, immediate: boolean) {
   if (!element || element.textContent === label) return;
   if (immediate) {
@@ -138,20 +264,50 @@ function animateRecordFlow(root: HTMLElement, step: number, immediate: boolean) 
   const cards = flowCards(root);
   Flip.killFlipsOf(cards);
   const layout = Flip.getState(cards);
-  const previousStep = Number(root.querySelector<HTMLElement>(".flow-interface")?.dataset.flowActiveStep ?? step);
+  const flow = root.querySelector<HTMLElement>(".flow-interface");
+  const previousStep = Number(flow?.dataset.flowActiveStep ?? step);
   const direction = step === previousStep ? 0 : step > previousStep ? 1 : -1;
-  root.querySelector<HTMLElement>(".flow-interface")?.setAttribute("data-flow-active-step", String(step));
-  cards.forEach((card, index) => card.setAttribute("data-expanded", String(index === step)));
+  const values = FLOW_VALUES[step] ?? FLOW_VALUES[0];
+  flow?.setAttribute("data-flow-active-step", String(step));
+  cards.forEach((card, index) => {
+    card.setAttribute("data-expanded", String(index === step));
+    card.dataset.flowRole = index < step ? "past" : index === step ? "present" : "future";
+  });
   root.querySelectorAll(".flow-steps li").forEach((item, index) => {
     if (index === step) item.setAttribute("aria-current", "step");
     else item.removeAttribute("aria-current");
   });
-  swapLabel(root.querySelector<HTMLElement>("[data-flow-state-label]"), FLOW_LABELS[step] ?? "EXPENSE", immediate);
+  swapLabel(root.querySelector<HTMLElement>("[data-flow-state-label]"), values.label, immediate);
+  const numbers = [
+    ["flow-expense", values.expense, true],
+    ["flow-assigned", values.assigned, step >= 1],
+    ["flow-repayment", values.repayment, step >= 2],
+    ["flow-balance", values.balance, step >= 3],
+    ["flow-share-raka", step >= 1 ? 120_000 : 0, step >= 1],
+    ["flow-share-sari", step >= 1 ? 90_000 : 0, step >= 1],
+  ] as const;
+  numbers.forEach(([name, amount, visible]) => {
+    if (visible) rollPublicNumber(publicNumber(root, name), amount, 0.54, immediate);
+    else clearPublicNumber(publicNumber(root, name), amount);
+  });
+  const summaries = [
+    "Source amount recorded",
+    step < 1 ? "2 people · waiting" : "Rp210.000 assigned",
+    step < 2 ? "Not recorded" : "Rp120.000 recorded",
+    step < 1 ? "Pending shares" : step < 2 ? "Pending repayment" : step < 3 ? "Open share" : "Rp90.000 remains open",
+  ];
+  cards.forEach((card, index) => {
+    const summary = card.querySelector<HTMLElement>("[data-flow-summary]");
+    if (summary) summary.textContent = summaries[index] ?? "";
+  });
+  const resolved = root.querySelector<HTMLElement>("[data-flow-resolved]");
+  if (resolved) resolved.textContent = step >= 2 ? "Raka settled; Sari remains open." : "";
+  root.querySelectorAll<HTMLElement>("[data-flow-share-row]").forEach((row) => row.setAttribute("aria-hidden", String(step !== 1)));
   const revealFrom = direction < 0 ? "inset(100% 0 0 0)" : "inset(0 0 100% 0)";
   gsap.fromTo(cards[step]?.querySelectorAll("[data-public-number]") ?? [],
     { y: direction < 0 ? -10 : 10, clipPath: revealFrom },
     { y: 0, clipPath: "inset(0 0 0% 0)", duration: immediate ? 0 : 0.4, delay: immediate ? 0 : 0.12, ease: "power3.out", stagger: immediate ? 0 : 0.04, overwrite: true });
-  if (!immediate) Flip.from(layout, { duration: 0.56, ease: "power3.inOut", absolute: false, nested: true, scale: false });
+  if (!immediate) Flip.from(layout, { duration: 0.56, ease: "power3.inOut", absolute: false, nested: true, scale: false, overwrite: true });
   gsap.to(root.querySelector("[data-flow-progress]"), { scaleX: (step + 1) / 4, duration: immediate ? 0 : 0.45, overwrite: true });
   gsap.fromTo(cards[step]?.querySelectorAll(".flow-share-row i") ?? [], { scaleX: 0 }, { scaleX: 1, duration: immediate ? 0 : 0.4, stagger: 0.07, overwrite: true });
 }
@@ -258,9 +414,14 @@ function animateProof(root: HTMLElement, immediate: boolean) {
 function animateRecords(root: HTMLElement, step: number, immediate: boolean) {
   const panels = Array.from(root.querySelectorAll<HTMLElement>("[data-private-panel]"));
   Flip.killFlipsOf(panels);
-  const layout = Flip.getState(panels);
-  root.querySelector<HTMLElement>(".private-demo")?.setAttribute("data-private-view", step === 1 ? "shared" : "owner");
-  if (!immediate) Flip.from(layout, { duration: 0.48, ease: "power3.inOut", scale: false });
+  const lifecycle = root.querySelector<HTMLElement>(".record-lifecycle");
+  const history = root.querySelector<HTMLElement>(".history-panel");
+  const layout = Flip.getState([...panels, ...(history ? [history] : [])]);
+  const state = step === 1 ? "share" : step === 2 ? "history" : "owner";
+  lifecycle?.setAttribute("data-lifecycle-state", state);
+  root.querySelector<HTMLElement>(".private-demo")?.setAttribute("data-private-view", state === "share" ? "shared" : "owner");
+  root.querySelectorAll<HTMLElement>("[data-lifecycle-node]").forEach((node) => node.classList.toggle("is-active", node.dataset.lifecycleNode === state));
+  if (!immediate) Flip.from(layout, { duration: 0.54, ease: "power3.inOut", scale: false, nested: true, overwrite: true });
 }
 
 function animateTimeline(root: HTMLElement, index: number, immediate: boolean) {
@@ -578,27 +739,52 @@ function createDesktopLanding(root: HTMLElement) {
 }
 
 function setupMobileLanding(root: HTMLElement) {
-  const triggers: ScrollTrigger[] = [];
+  const entries: Array<{ states: PublicLandingState[]; trigger: ScrollTrigger | null; previousStep: number }> = [];
+  let resizeTimer: number | null = null;
+  let activeIndex = 0;
+  const moveTo = (state: PublicLandingState, immediate: boolean) => {
+    const nextIndex = PUBLIC_LANDING_STATES.indexOf(state);
+    if (nextIndex < 0 || (!immediate && nextIndex === activeIndex)) return;
+    const direction = nextIndex === activeIndex ? 0 : nextIndex > activeIndex ? 1 : -1;
+    activeIndex = nextIndex;
+    animateLandingState(root, state, immediate, direction);
+  };
   root.querySelectorAll<HTMLElement>("[data-public-scene]").forEach((section) => {
     const states = PUBLIC_LANDING_STATES.filter((state) => state.scene === section.dataset.publicScene);
-    let previousStep = -1;
     const illustration = section.querySelector<HTMLElement>(".flow-interface, .scope-viewport, .collaboration-demo, .proof-record, .record-lifecycle") ?? section;
-    triggers.push(ScrollTrigger.create({
+    const entry = { states, trigger: null as ScrollTrigger | null, previousStep: -1 };
+    entry.trigger = ScrollTrigger.create({
       trigger: illustration,
-      start: "top 85%",
-      end: "top 15%",
+      start: "top 82%",
+      end: "bottom 18%",
       onUpdate: (trigger) => {
         if (!trigger.isActive) return;
         const step = Math.min(states.length - 1, Math.floor(trigger.progress * states.length));
         const state = states[step];
-        if (!state || step === previousStep) return;
-        const direction = step > previousStep ? 1 : -1;
-        previousStep = step;
-        animateLandingState(root, state, false, direction);
+        if (!state || step === entry.previousStep) return;
+        entry.previousStep = step;
+        moveTo(state, false);
       },
-    }));
+    });
+    entries.push(entry);
   });
-  return () => triggers.forEach((trigger) => trigger.kill());
+  animateLandingState(root, PUBLIC_LANDING_STATES[0]!, true, 0);
+  const refresh = () => {
+    if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(() => {
+      resizeTimer = null;
+      ScrollTrigger.refresh();
+      entries.forEach((entry) => entry.trigger?.update());
+    }, 80);
+  };
+  window.addEventListener("resize", refresh, { passive: true });
+  window.addEventListener("orientationchange", refresh, { passive: true });
+  return () => {
+    if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    window.removeEventListener("resize", refresh);
+    window.removeEventListener("orientationchange", refresh);
+    entries.forEach((entry) => entry.trigger?.kill());
+  };
 }
 
 function setupReducedLanding(root: HTMLElement) {

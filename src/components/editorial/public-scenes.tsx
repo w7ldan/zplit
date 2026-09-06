@@ -87,34 +87,36 @@ export function RecordFlowScene() {
             </div>
             <div className="flow-interface__track" aria-hidden="true"><span data-flow-progress /></div>
             <div className="flow-composition">
-              <article className="flow-card flow-card--expense" data-flow-expense data-expanded="true">
+              <article className="flow-card flow-card--expense" data-flow-expense data-expanded="true" data-flow-role="present">
                 <div><span className="technical-label">Expense</span><strong>{expense.title}</strong><small>Paid by you · {ledgerStory.date}</small></div>
                 <b data-public-number="flow-expense" data-public-value={expense.amount}>{formatRupiah(expense.amount)}</b>
               </article>
-              <article className="flow-card flow-card--shares" data-flow-shares>
+              <article className="flow-card flow-card--shares" data-flow-shares data-flow-role="future">
                 <header><span className="technical-label">Shares / explicit</span><strong>Friends in the record</strong></header>
+                <p className="flow-card__summary" data-flow-summary>2 people · waiting</p>
                 {ledgerStory.personalShares.map((person) => (
                   <div className="flow-share-row" data-flow-share-row data-related={person.id} key={person.id}>
                     <span>
                       <Avatar id={person.id} name={person.name} />
                       <strong>{person.name}</strong>
                     </span>
-                    <b data-public-number={`flow-share-${person.id}`} data-public-value={person.amount}>{formatRupiah(person.amount)}</b>
+                    <b data-public-number={`flow-share-${person.id}`} data-public-value={0} />
                     <i style={{ "--share-width": person.id === "raka" ? "58%" : "44%" } as CSSProperties} />
                   </div>
                 ))}
-                <footer><span>Assigned shares</span><b data-public-number="flow-assigned" data-public-value={210_000}>{formatRupiah(210_000)}</b></footer>
+                <footer><span>Assigned shares</span><b data-public-number="flow-assigned" data-public-value={0} /></footer>
               </article>
-              <article className="flow-card flow-card--repayment" data-flow-repayment>
-                <div><span className="technical-label">Repayment / recorded</span><strong>Received from Raka</strong><small>Allocated to Raka’s share</small></div>
-                <b data-public-number="flow-repayment" data-public-value={ledgerStory.repayment.amount}>{formatRupiah(ledgerStory.repayment.amount)}</b>
+              <article className="flow-card flow-card--repayment" data-flow-repayment data-flow-role="future">
+                <div><span className="technical-label">Repayment / recorded</span><strong data-flow-detail>Received from Raka</strong><small data-flow-detail>Allocated to Raka’s share</small></div>
+                <p className="flow-card__summary" data-flow-summary>Not recorded</p>
+                <b data-public-number="flow-repayment" data-public-value={0} />
               </article>
-              <aside className="flow-balance" data-flow-balance>
+              <aside className="flow-balance" data-flow-balance data-flow-role="future">
                 <span className="technical-label">Balance / current state</span>
-                <strong data-public-number="flow-balance" data-public-value={ledgerStory.personalBalance.amount}>{formatRupiah(ledgerStory.personalBalance.amount)}</strong>
-                <p><b>{ledgerStory.personalBalance.friend}</b> remains open.</p>
+                <strong data-public-number="flow-balance" data-public-value={0} />
+                <p className="flow-card__summary" data-flow-summary>Pending shares</p>
                 <span className="record-status record-status--open">Open share</span>
-                <span className="flow-balance__resolved" data-flow-resolved>One relationship resolved; one remains visible.</span>
+                <span className="flow-balance__resolved" data-flow-resolved />
               </aside>
             </div>
             <p className="flow-interface__footnote"><span>Nothing here is automatic.</span> The illustration shows how explicit records relate.</p>
@@ -263,7 +265,15 @@ export function PrivateAndHistoryScene() {
             <h2 id="records-title">The record can travel without losing its shape.</h2>
             <p>Expose one relevant balance through a private, read-only share. Search the history when the details matter again.</p>
           </div>
-          <div className="record-lifecycle">
+          <div className="record-lifecycle" data-lifecycle-state="owner" aria-label="One record shown as owner ledger, private share, and history result">
+            <div className="record-lifecycle__rail">
+              <span data-lifecycle-node="owner">01 / OWNER</span><i>→</i><span data-lifecycle-node="share">02 / SHARE</span><i>→</i><span data-lifecycle-node="history">03 / HISTORY</span>
+            </div>
+            <div className="record-lifecycle__identity" data-related="record-identity">
+              <span className="technical-label">Same record / different representation</span>
+              <strong>{ledgerStory.expenses[0].title}</strong>
+              <small>{ledgerStory.outing} · {ledgerStory.date} · source amount {formatRupiah(ledgerStory.expenses[0].amount)}</small>
+            </div>
             <PrivateShareDemo />
             <div className="history-panel" data-related="history">
               <div className="history-panel__intro"><span className="technical-label">03 / Find the context again</span><strong>The same record. Later.</strong></div>

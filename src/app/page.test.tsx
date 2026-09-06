@@ -17,14 +17,14 @@ describe("public Zplit page", () => {
     for (const link of navigation.getAllByRole("link")) expect(document.querySelector(link.getAttribute("href")!)).toBeInTheDocument();
 
     expect(screen.getByRole("heading", { level: 2, name: "Follow the amount." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Same clarity. Different money worlds." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Same situation. Different structure." })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Talk around it. Keep it accounted for." })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "A number can carry its proof." })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: /The record can travel/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: /No loose ends/ })).toBeInTheDocument();
-    expect(screen.getByText("Personal / private ledger", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Group / peer-to-peer accounting", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Organization / operated ledger", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Personal", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Group / Saturday crew", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Organization / illustrative market team", { exact: true })).toBeInTheDocument();
   });
 
   it("keeps illustrative controls native and responsive", () => {
@@ -41,10 +41,7 @@ describe("public Zplit page", () => {
     expect(searchResults.getByRole("button", { name: /Train home/ })).toBeInTheDocument();
     expect(searchResults.queryByRole("button", { name: /Market \+ picnic/ })).not.toBeInTheDocument();
 
-    const sharedView = screen.getByRole("button", { name: "Shared view" });
-    fireEvent.click(sharedView);
-    expect(sharedView).toHaveAttribute("aria-pressed", "true");
-    expect(document.querySelector(".private-demo")).toHaveAttribute("data-private-view", "shared");
+    expect(document.querySelector(".private-demo")).toHaveAttribute("data-private-view", "owner");
   });
 
   it("keeps motion public-only and explicitly supports reduced motion", () => {

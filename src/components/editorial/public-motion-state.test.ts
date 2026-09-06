@@ -25,6 +25,7 @@ describe("public landing motion states", () => {
       "proof:0",
       "records:0",
       "records:1",
+      "records:2",
       "finale:0",
     ]);
     expect(firstPublicLandingIndexForSection("record-flow")).toBe(1);

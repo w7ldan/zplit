@@ -110,7 +110,7 @@ export function RecordSearchDemo() {
       <div className="search-demo__input"><span aria-hidden="true">⌕</span><input id="public-record-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
       <div className="search-demo__results" aria-live="polite">
         {results.length > 0 ? results.map((record) => (
-          <button className={`search-result${selected === record.id ? " search-result--selected" : ""}`} key={record.id} onClick={() => setSelected(record.id)} type="button" aria-pressed={selected === record.id}>
+          <button aria-label={`${record.title} record`} className={`search-result${selected === record.id ? " search-result--selected" : ""}`} key={record.id} onClick={() => setSelected(record.id)} type="button" aria-pressed={selected === record.id}>
             <span>
               <strong>{record.title}</strong>
               <small>{record.context} · {record.date}</small>
