@@ -8,6 +8,7 @@ import {
   publicLandingAriaCurrent,
   publicLandingStep,
   publicLandingTimelineRatio,
+  publicRecordLifecycleState,
 } from "./public-motion-state";
 
 describe("public landing motion states", () => {
@@ -30,6 +31,11 @@ describe("public landing motion states", () => {
     ]);
     expect(firstPublicLandingIndexForSection("record-flow")).toBe(1);
     expect(firstPublicLandingIndexForSection("records")).toBe(10);
+  });
+
+  it("maps the records scene to one dominant representation", () => {
+    expect([0, 1, 2].map(publicRecordLifecycleState)).toEqual(["owner", "share", "history"]);
+    expect(publicRecordLifecycleState(3)).toBe("owner");
   });
 
   it("advances exactly one state and clamps at the sequence edges", () => {

@@ -267,18 +267,27 @@ export function PrivateAndHistoryScene() {
           </div>
           <div className="record-lifecycle" data-lifecycle-state="owner" aria-label="One record shown as owner ledger, private share, and history result">
             <div className="record-lifecycle__rail">
-              <span data-lifecycle-node="owner">01 / OWNER</span><i>→</i><span data-lifecycle-node="share">02 / SHARE</span><i>→</i><span data-lifecycle-node="history">03 / HISTORY</span>
+              <span className="is-active" data-lifecycle-node="owner">01 / OWNER</span><i>→</i><span data-lifecycle-node="share">02 / SHARE</span><i>→</i><span data-lifecycle-node="history">03 / HISTORY</span>
             </div>
             <div className="record-lifecycle__identity" data-related="record-identity">
               <span className="technical-label">Same record / different representation</span>
               <strong>{ledgerStory.expenses[0].title}</strong>
               <small>{ledgerStory.outing} · {ledgerStory.date} · source amount {formatRupiah(ledgerStory.expenses[0].amount)}</small>
             </div>
-            <PrivateShareDemo />
-            <div className="history-panel" data-related="history">
-              <div className="history-panel__intro"><span className="technical-label">03 / Find the context again</span><strong>The same record. Later.</strong></div>
-              <RecordSearchDemo />
-              <p className="lifecycle-inbox">Inbox keeps requests and review actions separate from record history.</p>
+            <div className="record-lifecycle__stage">
+              <PrivateShareDemo />
+              <div className="history-panel" data-lifecycle-panel="history" data-lifecycle-active="false" aria-hidden="true" data-related="history">
+                <div className="lifecycle-representation__preview" aria-hidden="true">
+                  <span className="technical-label">03 / HISTORY</span>
+                  <strong>Search the record later</strong>
+                  <small>Context and proof stay attached.</small>
+                </div>
+                <div className="lifecycle-representation__full">
+                  <div className="history-panel__intro"><span className="technical-label">03 / Find the context again</span><strong>The same record. Later.</strong></div>
+                  <RecordSearchDemo />
+                  <p className="lifecycle-inbox">Inbox keeps requests and review actions separate from record history.</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

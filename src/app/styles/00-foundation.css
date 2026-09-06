@@ -214,6 +214,13 @@ input[type="search"]::-webkit-search-decoration {
   column-gap: clamp(1rem, 2.2vw, 2.25rem);
 }
 
+@media (max-width: 767px) {
+  .editorial-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: 1rem;
+  }
+}
+
 .header-shell {
   position: sticky;
   z-index: 20;

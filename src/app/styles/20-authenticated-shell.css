@@ -572,11 +572,6 @@
     width: min(calc(100% - 1.5rem), 90rem);
   }
 
-  .editorial-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    column-gap: 1rem;
-  }
-
   .hero {
     min-height: auto;
     padding-block: 3rem 4.5rem;

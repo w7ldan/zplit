@@ -16,6 +16,7 @@ import {
   publicLandingAriaCurrent,
   publicLandingStep,
   publicLandingTimelineRatio,
+  publicRecordLifecycleState,
   type PublicLandingState,
 } from "./public-motion-state";
 
@@ -260,14 +261,7 @@ function flowCards(root: HTMLElement) {
   ].filter((card): card is HTMLElement => Boolean(card));
 }
 
-function animateRecordFlow(root: HTMLElement, step: number, immediate: boolean) {
-  const cards = flowCards(root);
-  Flip.killFlipsOf(cards);
-  const layout = Flip.getState(cards);
-  const flow = root.querySelector<HTMLElement>(".flow-interface");
-  const previousStep = Number(flow?.dataset.flowActiveStep ?? step);
-  const direction = step === previousStep ? 0 : step > previousStep ? 1 : -1;
-  const values = FLOW_VALUES[step] ?? FLOW_VALUES[0];
+function updateFlowCards(root: HTMLElement, cards: HTMLElement[], flow: HTMLElement | null, step: number) {
   flow?.setAttribute("data-flow-active-step", String(step));
   cards.forEach((card, index) => {
     card.setAttribute("data-expanded", String(index === step));
@@ -277,7 +271,9 @@ function animateRecordFlow(root: HTMLElement, step: number, immediate: boolean) 
     if (index === step) item.setAttribute("aria-current", "step");
     else item.removeAttribute("aria-current");
   });
-  swapLabel(root.querySelector<HTMLElement>("[data-flow-state-label]"), values.label, immediate);
+}
+
+function updateFlowNumbers(root: HTMLElement, step: number, immediate: boolean, values: typeof FLOW_VALUES[number]) {
   const numbers = [
     ["flow-expense", values.expense, true],
     ["flow-assigned", values.assigned, step >= 1],
@@ -290,6 +286,9 @@ function animateRecordFlow(root: HTMLElement, step: number, immediate: boolean) 
     if (visible) rollPublicNumber(publicNumber(root, name), amount, 0.54, immediate);
     else clearPublicNumber(publicNumber(root, name), amount);
   });
+}
+
+function updateFlowSummaries(root: HTMLElement, cards: HTMLElement[], step: number) {
   const summaries = [
     "Source amount recorded",
     step < 1 ? "2 people · waiting" : "Rp210.000 assigned",
@@ -302,6 +301,20 @@ function animateRecordFlow(root: HTMLElement, step: number, immediate: boolean) 
   });
   const resolved = root.querySelector<HTMLElement>("[data-flow-resolved]");
   if (resolved) resolved.textContent = step >= 2 ? "Raka settled; Sari remains open." : "";
+}
+
+function animateRecordFlow(root: HTMLElement, step: number, immediate: boolean) {
+  const cards = flowCards(root);
+  Flip.killFlipsOf(cards);
+  const layout = Flip.getState(cards);
+  const flow = root.querySelector<HTMLElement>(".flow-interface");
+  const previousStep = Number(flow?.dataset.flowActiveStep ?? step);
+  const direction = step === previousStep ? 0 : step > previousStep ? 1 : -1;
+  const values = FLOW_VALUES[step] ?? FLOW_VALUES[0];
+  updateFlowCards(root, cards, flow, step);
+  swapLabel(root.querySelector<HTMLElement>("[data-flow-state-label]"), values.label, immediate);
+  updateFlowNumbers(root, step, immediate, values);
+  updateFlowSummaries(root, cards, step);
   root.querySelectorAll<HTMLElement>("[data-flow-share-row]").forEach((row) => row.setAttribute("aria-hidden", String(step !== 1)));
   const revealFrom = direction < 0 ? "inset(100% 0 0 0)" : "inset(0 0 100% 0)";
   gsap.fromTo(cards[step]?.querySelectorAll("[data-public-number]") ?? [],
@@ -412,14 +425,18 @@ function animateProof(root: HTMLElement, immediate: boolean) {
 }
 
 function animateRecords(root: HTMLElement, step: number, immediate: boolean) {
-  const panels = Array.from(root.querySelectorAll<HTMLElement>("[data-private-panel]"));
+  const panels = Array.from(root.querySelectorAll<HTMLElement>("[data-lifecycle-panel]"));
   Flip.killFlipsOf(panels);
-  const lifecycle = root.querySelector<HTMLElement>(".record-lifecycle");
-  const history = root.querySelector<HTMLElement>(".history-panel");
-  const layout = Flip.getState([...panels, ...(history ? [history] : [])]);
-  const state = step === 1 ? "share" : step === 2 ? "history" : "owner";
-  lifecycle?.setAttribute("data-lifecycle-state", state);
-  root.querySelector<HTMLElement>(".private-demo")?.setAttribute("data-private-view", state === "share" ? "shared" : "owner");
+  const layout = Flip.getState(panels);
+  const state = publicRecordLifecycleState(step);
+  root.querySelector<HTMLElement>(".record-lifecycle")?.setAttribute("data-lifecycle-state", state);
+  root.querySelector<HTMLElement>(".private-demo")?.setAttribute("data-private-view", state);
+  panels.forEach((panel) => {
+    const active = panel.dataset.lifecyclePanel === state;
+    panel.dataset.lifecycleActive = String(active);
+    panel.setAttribute("aria-hidden", String(!active));
+    panel.inert = !active;
+  });
   root.querySelectorAll<HTMLElement>("[data-lifecycle-node]").forEach((node) => node.classList.toggle("is-active", node.dataset.lifecycleNode === state));
   if (!immediate) Flip.from(layout, { duration: 0.54, ease: "power3.inOut", scale: false, nested: true, overwrite: true });
 }
@@ -793,10 +810,29 @@ function setupReducedLanding(root: HTMLElement) {
     state.inert = false;
     state.style.pointerEvents = "auto";
   });
+  let activeIndex = 0;
   const update = () => {
     const section = Array.from(root.querySelectorAll<HTMLElement>("[data-public-scene]")).reverse().find((candidate) => candidate.getBoundingClientRect().top <= window.innerHeight * 0.42);
-    const index = section ? Math.max(0, firstPublicLandingIndexForSection(section.id || section.dataset.publicScene || "")) : 0;
-    animateTimeline(root, index, true);
+    const sectionId = section?.id || section?.dataset.publicScene || "";
+    const firstIndex = section ? Math.max(0, firstPublicLandingIndexForSection(sectionId)) : 0;
+    const states = section ? PUBLIC_LANDING_STATES.filter((state) => state.scene === section.dataset.publicScene) : [PUBLIC_LANDING_STATES[0]!];
+    const illustration = section?.querySelector<HTMLElement>(".flow-interface, .scope-viewport, .collaboration-demo, .proof-record, .record-lifecycle") ?? section;
+    const bounds = illustration?.getBoundingClientRect();
+    const travel = Math.max((bounds?.height ?? 0) - window.innerHeight * 0.64, 1);
+    const progress = bounds ? Math.min(Math.max((window.innerHeight * 0.82 - bounds.top) / travel, 0), 1) : 0;
+    const step = states.length > 1 ? Math.min(states.length - 1, Math.floor(progress * states.length)) : 0;
+    const index = Math.min(firstIndex + step, PUBLIC_LANDING_STATES.length - 1);
+    const state = PUBLIC_LANDING_STATES[index] ?? PUBLIC_LANDING_STATES[0]!;
+    if (index !== activeIndex) {
+      activeIndex = index;
+      root.dataset.landingScene = state.scene;
+      root.dataset.landingStep = String(state.step);
+      animateTimeline(root, index, true);
+      if (state.scene === "record-flow") animateRecordFlow(root, state.step, true);
+      if (state.scene === "records") animateRecords(root, state.step, true);
+    } else {
+      animateTimeline(root, index, true);
+    }
   };
   window.addEventListener("scroll", update, { passive: true });
   update();
@@ -844,7 +880,7 @@ export function PublicMotion({ children }: PublicMotionProps) {
     return () => {
       window.removeEventListener("pageshow", onRefresh);
       reducedPreference.removeEventListener("change", onPreferenceChange);
-      Flip.killFlipsOf(target.querySelectorAll(".flow-card, .flow-balance, [data-private-panel]"));
+      Flip.killFlipsOf(target.querySelectorAll(".flow-card, .flow-balance, [data-lifecycle-panel]"));
       media?.revert();
       context.revert();
       gsap.killTweensOf(window, "scrollTo");

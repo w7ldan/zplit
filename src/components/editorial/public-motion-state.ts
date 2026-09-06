@@ -5,6 +5,12 @@ export type PublicLandingState = {
   label: string;
 };
 
+export type PublicRecordLifecycleState = "owner" | "share" | "history";
+
+export function publicRecordLifecycleState(step: number): PublicRecordLifecycleState {
+  return step === 1 ? "share" : step === 2 ? "history" : "owner";
+}
+
 export const PUBLIC_LANDING_STATES: readonly PublicLandingState[] = [
   { scene: "hero", step: 0, sectionId: "top", label: "Intro" },
   { scene: "record-flow", step: 0, sectionId: "record-flow", label: "Expense" },

@@ -3,13 +3,21 @@ import { readCssBundle } from "@/test/read-css-bundle";
 import { cssRuleBody, readSource, root } from "./helpers";
 
 const css = readCssBundle(root).css;
+const foundationSource = readSource("src/app/styles/00-foundation.css");
 const publicSource = readSource("src/app/styles/10-public.css");
+const authenticatedShellSource = readSource("src/app/styles/20-authenticated-shell.css");
 const scenes = readSource("src/components/editorial/public-scenes.tsx");
 const motion = readSource("src/components/editorial/public-motion.tsx");
 const interactions = readSource("src/components/editorial/public-interactions.tsx");
 const siteHeaderSource = readSource("src/components/editorial/site-header.tsx");
 
 describe("Public UI contract", () => {
+  it("keeps the shared mobile editorial grid below public specialization", () => {
+    expect(foundationSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.editorial-grid\s*\{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
+    expect(publicSource).toContain(".public-hero__layout { grid-template-columns: minmax(0, 1fr); }");
+    expect(authenticatedShellSource).not.toContain(".editorial-grid");
+  });
+
   it("recomposes financial surfaces from the canonical state", () => {
     expect(scenes).toContain('className="flow-composition"');
     expect(motion).toContain('card.setAttribute("data-expanded", String(index === step))');
@@ -45,7 +53,9 @@ describe("Public UI contract", () => {
     expect(motion).toContain('state.removeAttribute("aria-hidden")');
     expect(motion).toContain('media.add("(prefers-reduced-motion: reduce)"');
     expect(publicSource).toMatch(/\.scope-state\s*\{\s*grid-area: auto;\s*visibility: visible !important;/);
-    expect(publicSource).toMatch(/\.private-demo__views\s*\{\s*grid-template-columns: 1fr;/);
+    expect(publicSource).toContain('[data-lifecycle-panel][data-lifecycle-active="false"]');
+    expect(publicSource).toContain(".record-lifecycle__stage");
+    expect(motion).toContain("publicRecordLifecycleState(step)");
   });
 
   it("keeps the landing access link on the shared primary action treatment", () => {

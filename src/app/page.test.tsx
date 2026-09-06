@@ -25,6 +25,12 @@ describe("public Zplit page", () => {
     expect(screen.getByText("Personal", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Group / Saturday crew", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Organization / illustrative market team", { exact: true })).toBeInTheDocument();
+
+    const lifecycle = document.querySelector(".record-lifecycle")!;
+    expect(lifecycle.querySelectorAll("[data-lifecycle-panel]")).toHaveLength(3);
+    expect(lifecycle.querySelector('[data-lifecycle-panel="owner"]')).toHaveAttribute("data-lifecycle-active", "true");
+    expect(lifecycle.querySelector('[data-lifecycle-panel="share"]')).toHaveAttribute("data-lifecycle-active", "false");
+    expect(lifecycle.querySelector('[data-lifecycle-panel="history"]')).toHaveAttribute("data-lifecycle-active", "false");
   });
 
   it("keeps illustrative controls native and responsive", () => {
@@ -35,11 +41,11 @@ describe("public Zplit page", () => {
     expect(participant).toHaveAttribute("aria-pressed", "true");
     expect(document.querySelector(".collaboration-demo")).toHaveAttribute("data-selected-person", "sari");
 
-    const search = screen.getByRole("searchbox");
+    const search = screen.getByRole("searchbox", { hidden: true });
     fireEvent.change(search, { target: { value: "train" } });
     const searchResults = within(document.querySelector(".search-demo__results")!);
-    expect(searchResults.getByRole("button", { name: /Train home/ })).toBeInTheDocument();
-    expect(searchResults.queryByRole("button", { name: /Market \+ picnic/ })).not.toBeInTheDocument();
+    expect(searchResults.getByRole("button", { name: /Train home/, hidden: true })).toBeInTheDocument();
+    expect(searchResults.queryByRole("button", { name: /Market \+ picnic/, hidden: true })).not.toBeInTheDocument();
 
     expect(document.querySelector(".private-demo")).toHaveAttribute("data-private-view", "owner");
   });

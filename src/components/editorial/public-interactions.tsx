@@ -77,23 +77,37 @@ export function PrivateShareDemo() {
   return (
     <div className="private-demo" data-private-view="owner">
       <div className="private-demo__views">
-        <article className="private-owner-view" data-private-panel="owner" data-related="owner">
-          <span className="technical-label">01 / Owner record · Personal</span>
-          <strong>Market + picnic</strong><small>Saturday market · {ledgerStory.date} · Expense {formatRupiah(ledgerStory.expenses[0].amount)}</small>
-          <p>Your ledger · Sari’s open share</p>
-          <b data-public-number="private-owner-balance" data-public-value={ledgerStory.personalBalance.amount}>{formatRupiah(ledgerStory.personalBalance.amount)}</b>
-          <footer>Owner remains the source of the record.</footer>
-        </article>
-        <article className="private-shared-view" data-private-panel="shared" data-related="shared">
-          <header><span>02 / Private balance statement</span><span>Private · Read only</span></header>
-          <p>Sari</p>
-          <strong data-public-number="private-shared-balance" data-public-value={ledgerStory.personalBalance.amount}>{formatRupiah(ledgerStory.personalBalance.amount)}</strong>
-          <div>
-            <span>Market + picnic<small>Saturday market · 16 May 2026</small>
-            </span>
-            <b data-public-number="private-shared-line" data-public-value={ledgerStory.personalBalance.amount}>{formatRupiah(ledgerStory.personalBalance.amount)}</b>
+        <article className="private-owner-view" data-private-panel="owner" data-lifecycle-panel="owner" data-lifecycle-active="true" aria-hidden="false" data-related="owner">
+          <div className="lifecycle-representation__preview" aria-hidden="true">
+            <span className="technical-label">01 / OWNER</span>
+            <strong>Market + picnic</strong>
+            <small>Source record · Sari’s open share</small>
           </div>
-          <footer>Shared view · no ledger editing</footer>
+          <div className="lifecycle-representation__full">
+            <span className="technical-label">01 / Owner record · Personal</span>
+            <strong>Market + picnic</strong><small>Saturday market · {ledgerStory.date} · Expense {formatRupiah(ledgerStory.expenses[0].amount)}</small>
+            <p>Your ledger · Sari’s open share</p>
+            <b data-public-number="private-owner-balance" data-public-value={ledgerStory.personalBalance.amount}>{formatRupiah(ledgerStory.personalBalance.amount)}</b>
+            <footer>Owner remains the source of the record.</footer>
+          </div>
+        </article>
+        <article className="private-shared-view" data-private-panel="shared" data-lifecycle-panel="share" data-lifecycle-active="false" aria-hidden="true" data-related="shared">
+          <div className="lifecycle-representation__preview" aria-hidden="true">
+            <span className="technical-label">02 / SHARE</span>
+            <strong>Private balance</strong>
+            <small>Read-only statement · Sari</small>
+          </div>
+          <div className="lifecycle-representation__full">
+            <header><span>02 / Private balance statement</span><span>Private · Read only</span></header>
+            <p>Sari</p>
+            <strong data-public-number="private-shared-balance" data-public-value={ledgerStory.personalBalance.amount}>{formatRupiah(ledgerStory.personalBalance.amount)}</strong>
+            <div>
+              <span>Market + picnic<small>Saturday market · 16 May 2026</small>
+              </span>
+              <b data-public-number="private-shared-line" data-public-value={ledgerStory.personalBalance.amount}>{formatRupiah(ledgerStory.personalBalance.amount)}</b>
+            </div>
+            <footer>Shared view · no ledger editing</footer>
+          </div>
         </article>
       </div>
     </div>
