@@ -1,10 +1,13 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   REPOSITORY_SHOWCASE_ACCOUNTS,
   REPOSITORY_SHOWCASE_EXPECTATIONS,
   REPOSITORY_SHOWCASE_IDS,
+  REPOSITORY_SHOWCASE_RECEIPT_PATH,
   generateRepositoryShowcaseFixture,
 } from "./repository-showcase-fixture-data";
+import { SHOWCASE_FIXED_TIMESTAMP, SHOWCASE_LINK_TTL_MS } from "./showcase-fixture-data";
 
 const users = { ari: "user-ari", nadia: "user-nadia", reno: "user-reno", mika: "user-mika" } as const;
 
@@ -37,5 +40,17 @@ describe("repository showcase fixture data", () => {
     expect(fixture.personal.shareLink.expenseId).toBe(REPOSITORY_SHOWCASE_IDS.personal.expenses.lunch);
     expect(fixture.personal.shareLink.receiptId).toBe(REPOSITORY_SHOWCASE_IDS.personal.shareReceipt);
     expect(fixture.personal.receipt.expenseId).toBe(REPOSITORY_SHOWCASE_IDS.personal.expenses.lunch);
+    expect(fixture.personal.receipt.originalFilename).toBe("repository-showcase-lunch-receipt.png");
+    expect(fixture.personal.receipt.byteSize).toBeGreaterThan(0);
+    expect(readFileSync(REPOSITORY_SHOWCASE_RECEIPT_PATH).subarray(0, 8)).toEqual(Buffer.from("89504e470d0a1a0a", "hex"));
+    expect(fixture.personal.expenses.find(({ id }) => id === fixture.personal.receipt.expenseId)).toMatchObject({ description: "Lunch at Braga", amount: 270_000 });
+  });
+
+  it("keeps financial chronology fixed while making bearer expiry setup-relative", () => {
+    const setupTime = new Date("2026-09-07T08:00:00.000Z");
+    const fixture = generateRepositoryShowcaseFixture(users, setupTime);
+    expect(fixture.personal.expenses[0]!.createdAt.toISOString()).toBe(SHOWCASE_FIXED_TIMESTAMP);
+    expect(fixture.personal.shareLink.createdAt.toISOString()).toBe(setupTime.toISOString());
+    expect(fixture.personal.shareLink.expiresAt.getTime() - setupTime.getTime()).toBe(SHOWCASE_LINK_TTL_MS);
   });
 });

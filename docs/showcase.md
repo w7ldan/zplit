@@ -37,14 +37,27 @@ The legacy `showcase:setup`, `showcase:state`, `showcase:verify`, and `showcase:
 
 ## Activate and verify
 
-Start the app against the isolated database, ensure the database has been created and migrated with the normal disposable migration workflow, then run:
+Keep the application stopped while setup runs: setup terminates connections to the target database, drops and recreates `zplit_repository_showcase`, and reapplies migrations. From the repository root, use this sequence:
+
+1. Configure the local environment and secret files above.
+2. Run the repository setup and, if useful, the read-only verification:
 
 ```sh
 npm run showcase:repository -- setup
 npm run showcase:repository -- verify
 ```
 
-Setup resets only the explicitly named repository-showcase database, applies migrations, recreates the four synthetic accounts, and runs the read-only semantic verification before returning. Re-running setup is deterministic except for generated account IDs and the production-style bearer token, neither of which is visible in the capture routes; the bearer token is never stored in plaintext. To print the disposable share URL for the manual share capture, explicitly request it:
+3. Start the Zplit application against the isolated database on the documented capture port:
+
+```sh
+npm run dev -- --port 3100
+```
+
+4. Log in and capture the routes below.
+5. Optionally run `verify` while the app is running if the verification remains read-only and connection-safe.
+6. Clear the fixture when finished.
+
+Setup resets only the explicitly named repository-showcase database, applies migrations, recreates exactly the four repository synthetic accounts, and runs the read-only semantic verification before returning. Re-running setup is deterministic except for generated account IDs and the production-style bearer token, neither of which is visible in the capture routes; the bearer token is never stored in plaintext. To print the disposable share URL for the manual share capture, explicitly request it during setup:
 
 ```sh
 npm run showcase:repository -- setup --print-share-link
@@ -80,7 +93,7 @@ After the manual capture pass:
 npm run showcase:repository -- clear
 ```
 
-Clear validates the repository database contains only known fixture-owned identities, then resets that explicitly named disposable database and reapplies its schema. It does not touch `zplit_showcase` or any production database. Drop the repository database separately when it is no longer needed.
+Clear validates the repository database contains exactly the four repository fixture-owned identities, then resets that explicitly named disposable database and reapplies its schema. It does not touch `zplit_showcase` or any production database. Drop the repository database separately when it is no longer needed.
 
 ## Privacy rules
 

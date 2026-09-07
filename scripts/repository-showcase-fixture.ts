@@ -25,7 +25,7 @@ import {
   type RepositoryShowcaseFixture,
   type RepositoryShowcaseUserIds,
 } from "./repository-showcase-fixture-data";
-import { SHOWCASE_FIXED_TIMESTAMP } from "./showcase-fixture-data";
+import { SHOWCASE_LINK_TTL_MS } from "./showcase-fixture-data";
 import { readSecretFile } from "../src/server/secret-file";
 
 const require = createRequire(import.meta.url);
@@ -37,7 +37,8 @@ const {
   hashDebtorShareToken,
   resolveDebtorShareLink,
 } = await import("../src/server/debtor-share-links");
-const { getGroupChat, getOrganizationChat } = await import("../src/server/chat");
+const { getGroupChat, getGroupChatUnreadCount, getOrganizationChat, getOrganizationChatUnreadCount } = await import("../src/server/chat");
+const { getGroupSettlement } = await import("../src/server/group-settlements");
 const { readGroupBalances } = await import("../src/server/group-accounting");
 const { getOrganizationForMember, requireOrganizationAccess } = await import("../src/server/organizations");
 
@@ -205,7 +206,7 @@ async function replaceRepositoryShowcase(pool: ReturnType<typeof createDatabaseP
     transactionStarted = true;
     await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [SHOWCASE_FIXTURE_LOCK_KEY]);
     const users = userIds(accounts);
-    const fixture = generateRepositoryShowcaseFixture(users);
+    const fixture = generateRepositoryShowcaseFixture(users, new Date());
     const [ari] = accounts.filter((account) => account.email === REPOSITORY_SHOWCASE_ACCOUNTS.ari.email);
     assert(ari !== undefined, "Ari showcase account is missing");
     const personalScope = await client.query<{ id: string }>("SELECT id FROM ledger_scopes WHERE kind = 'personal' AND user_id = $1", [ari.id]);
@@ -262,10 +263,49 @@ async function verifyGroup(context: RepositoryVerifyContext) {
     { debtorParticipantId: REPOSITORY_SHOWCASE_IDS.group.participants.mika, creditorParticipantId: REPOSITORY_SHOWCASE_IDS.group.participants.ari, amount: 150_000 },
   ];
   assert(JSON.stringify(sortBalances(groupBalances)) === JSON.stringify(sortBalances(expectedGroupBalances)), "repository Group canonical balances are incorrect");
-  const settlement = await client.query<{ state: string; amount: number; sender_participant_id: string; recipient_participant_id: string; applied: number }>("SELECT s.state, s.amount, s.sender_participant_id, s.recipient_participant_id, coalesce(sum(a.applied_amount), 0)::int AS applied FROM group_settlements s LEFT JOIN group_settlement_applications a ON a.group_id = s.group_id AND a.settlement_id = s.id WHERE s.group_id = $1 AND s.id = $2 GROUP BY s.id", [group.group.id, group.settlement.id]);
-  assert(settlement.rows.length === 1 && settlement.rows[0]!.state === "confirmed" && Number(settlement.rows[0]!.amount) === REPOSITORY_SHOWCASE_EXPECTATIONS.group.settled && settlement.rows[0]!.sender_participant_id === REPOSITORY_SHOWCASE_IDS.group.participants.nadia && settlement.rows[0]!.recipient_participant_id === REPOSITORY_SHOWCASE_IDS.group.participants.ari && Number(settlement.rows[0]!.applied) === REPOSITORY_SHOWCASE_EXPECTATIONS.group.settled, "repository Group settlement is incorrect");
-  const groupChat = await getGroupChat(db, group.group.id, users.ari);
-  assert(groupChat.threadId === group.chat.thread.id && groupChat.messages.length === 3 && groupChat.messages.some((message) => message.body === "I’ll send my share tonight."), "repository Group chat is inconsistent");
+  const settlement = await getGroupSettlement(db, group.group.id, group.settlement.id, users.ari);
+  assert(settlement.id === group.settlement.id, "repository Group settlement ID is incorrect");
+  assert(settlement.state === "confirmed", "repository Group settlement is not confirmed");
+  assert(settlement.amount === REPOSITORY_SHOWCASE_EXPECTATIONS.group.settled, "repository Group settlement amount is incorrect");
+  assert(settlement.senderParticipantId === REPOSITORY_SHOWCASE_IDS.group.participants.nadia, "repository Group settlement sender is incorrect");
+  assert(settlement.recipientParticipantId === REPOSITORY_SHOWCASE_IDS.group.participants.ari, "repository Group settlement recipient is incorrect");
+  assert(settlement.applications.length === 1, "repository Group settlement application count is incorrect");
+  const application = settlement.applications[0];
+  assert(application !== undefined, "repository Group settlement application is missing");
+  assert(application.id === group.settlementApplication.id, "repository Group settlement application ID is incorrect");
+  assert(application.settlementId === group.settlement.id, "repository Group settlement application parent is incorrect");
+  assert(application.obligationId === REPOSITORY_SHOWCASE_IDS.group.obligations.trainNadia, "repository Group settlement application obligation is incorrect");
+  assert(application.appliedAmount === REPOSITORY_SHOWCASE_EXPECTATIONS.group.settled, "repository Group applied amount is incorrect");
+  assert(application.sourceExpenseId === REPOSITORY_SHOWCASE_IDS.group.expenses.train, "repository Group application source expense is incorrect");
+  assert(application.debtor.id === REPOSITORY_SHOWCASE_IDS.group.participants.nadia, "repository Group application debtor is incorrect");
+  assert(application.creditor.id === REPOSITORY_SHOWCASE_IDS.group.participants.ari, "repository Group application creditor is incorrect");
+  assert(application.obligationOriginalAmount === 120_000, "repository Group obligation amount is incorrect");
+  assert(application.obligationVoidedAt === null, "repository Group application targeted a voided obligation");
+  assert(settlement.applications.reduce((total, row) => total + row.appliedAmount, 0) === settlement.amount, "repository Group application total differs from settlement");
+  assert(application.appliedAmount <= application.obligationOriginalAmount, "repository Group settlement over-applied an obligation");
+  await verifyGroupChat(context);
+}
+
+async function verifyGroupChat(context: RepositoryVerifyContext) {
+  const { client, db, fixture, users } = context;
+  const group = fixture.group;
+  const groupMessages = group.chat.messages.map((message) => ({ id: message.id, senderUserId: message.senderUserId, body: message.body }));
+  const expectedUnread = new Map([[users.ari, 0], [users.nadia, 1], [users.reno, 1], [users.mika, 2]]);
+  for (const userId of Object.values(users)) {
+    const groupChat = await getGroupChat(db, group.group.id, userId);
+    const expectedUserUnread = expectedUnread.get(userId);
+    assert(groupChat.threadId === group.chat.thread.id, "repository Group chat thread is incorrect");
+    assert(JSON.stringify(groupChat.messages.map(({ id, sender, body }) => ({ id, senderUserId: sender.userId, body }))) === JSON.stringify(groupMessages), "repository Group chat messages are incorrect");
+    assert(groupChat.unreadCount === expectedUserUnread, "repository Group unread count is incorrect");
+    assert(await getGroupChatUnreadCount(db, group.group.id, userId) === expectedUserUnread, "repository Group unread projection is inconsistent");
+    assert(groupChat.messages[0]?.own === (userId === users.ari), "repository Group own-message state is incorrect");
+    assert(groupChat.messages[0]?.seenByCount === 3, "repository Group first-message read receipt is incorrect");
+    assert(groupChat.messages[1]?.seenByCount === 1, "repository Group second-message read receipt is incorrect");
+    assert(groupChat.messages[2]?.seenByCount === 1, "repository Group latest-message read receipt is incorrect");
+  }
+  const groupReadRows = await client.query<{ user_id: string; last_read_message_id: string; thread_id: string }>("SELECT r.user_id, r.last_read_message_id, m.thread_id FROM chat_thread_reads r JOIN chat_messages m ON m.id = r.last_read_message_id WHERE r.thread_id = $1 ORDER BY r.user_id", [group.chat.thread.id]);
+  const expectedReads = group.chat.reads.map(({ userId, lastReadMessageId, threadId }) => ({ user_id: userId, last_read_message_id: lastReadMessageId, thread_id: threadId })).sort((left, right) => left.user_id.localeCompare(right.user_id));
+  assert(JSON.stringify(groupReadRows.rows) === JSON.stringify(expectedReads), "repository Group read cursors are inconsistent");
 }
 
 async function verifyOrganization(context: RepositoryVerifyContext) {
@@ -282,23 +322,46 @@ async function verifyOrganization(context: RepositoryVerifyContext) {
   assert(organizationDetail.role === "owner" && organizationDetail.canViewLedger && treasurerAccess.role === "treasurer" && treasurerAccess.can("ledger.view"), "Organization authorization relationship is incorrect");
   const organizationSummary = await createLedgerRepository(db, organization.ledgerScope.id).getLedgerOverviewSummary();
   assert(organizationSummary.totalExpenseAmount === REPOSITORY_SHOWCASE_EXPECTATIONS.organization.spending && organizationSummary.totalAssignedAmount === REPOSITORY_SHOWCASE_EXPECTATIONS.organization.assigned && organizationSummary.totalRepaidAmount === REPOSITORY_SHOWCASE_EXPECTATIONS.organization.repaid && organizationSummary.totalOutstandingAmount === REPOSITORY_SHOWCASE_EXPECTATIONS.organization.outstanding, "Organization ledger totals are incorrect");
-  const organizationChat = await getOrganizationChat(db, organization.organization.id, users.ari);
-  assert(organizationChat.threadId === organization.chat.thread.id && organizationChat.messages.length === 3 && organizationChat.messages.some((message) => message.body === "Workshop lunch is in the latest records."), "Organization General Chat is inconsistent");
+  await verifyOrganizationChat(context);
+}
+
+async function verifyOrganizationChat(context: RepositoryVerifyContext) {
+  const { client, db, fixture, users } = context;
+  const organization = fixture.organization;
+  const organizationMessages = organization.chat.messages.map((message) => ({ id: message.id, senderUserId: message.senderUserId, body: message.body }));
+  const expectedUnread = new Map([[users.ari, 0], [users.nadia, 1], [users.reno, 1], [users.mika, 2]]);
+  for (const userId of Object.values(users)) {
+    const organizationChat = await getOrganizationChat(db, organization.organization.id, userId);
+    const expectedUserUnread = expectedUnread.get(userId);
+    assert(organizationChat.threadId === organization.chat.thread.id, "Organization General Chat thread is incorrect");
+    assert(JSON.stringify(organizationChat.messages.map(({ id, sender, body }) => ({ id, senderUserId: sender.userId, body }))) === JSON.stringify(organizationMessages), "Organization General Chat messages are incorrect");
+    assert(organizationChat.unreadCount === expectedUserUnread, "Organization unread count is incorrect");
+    assert(await getOrganizationChatUnreadCount(db, organization.organization.id, userId) === expectedUserUnread, "Organization unread projection is inconsistent");
+    assert(organizationChat.messages[0]?.own === (userId === users.ari), "Organization own-message state is incorrect");
+    assert(organizationChat.messages[0]?.seenByCount === 3, "Organization first-message read receipt is incorrect");
+    assert(organizationChat.messages[1]?.seenByCount === 1, "Organization second-message read receipt is incorrect");
+    assert(organizationChat.messages[2]?.seenByCount === 1, "Organization latest-message read receipt is incorrect");
+  }
+  const organizationReadRows = await client.query<{ user_id: string; last_read_message_id: string; thread_id: string }>("SELECT r.user_id, r.last_read_message_id, m.thread_id FROM chat_thread_reads r JOIN chat_messages m ON m.id = r.last_read_message_id WHERE r.thread_id = $1 ORDER BY r.user_id", [organization.chat.thread.id]);
+  const expectedReads = organization.chat.reads.map(({ userId, lastReadMessageId, threadId }) => ({ user_id: userId, last_read_message_id: lastReadMessageId, thread_id: threadId })).sort((left, right) => left.user_id.localeCompare(right.user_id));
+  assert(JSON.stringify(organizationReadRows.rows) === JSON.stringify(expectedReads), "Organization General Chat read cursors are inconsistent");
 }
 
 async function verifyPrivateShare(context: RepositoryVerifyContext, token?: string) {
   const { client, db, fixture, personalScopeId } = context;
   const personal = fixture.personal;
-  const links = await client.query<{ token_hash: string; revoked_at: Date | null; expires_at: Date; friend_id: string }>("SELECT token_hash, revoked_at, expires_at, friend_id FROM debtor_share_links WHERE ledger_scope_id = $1 AND id = $2", [personalScopeId, personal.shareLink.id]);
-  assert(links.rows.length === 1 && links.rows[0]!.token_hash.length === 64 && links.rows[0]!.revoked_at === null && links.rows[0]!.friend_id === personal.shareLink.friendId && links.rows[0]!.expires_at > new Date(SHOWCASE_FIXED_TIMESTAMP), "repository private share link is not active");
+  const links = await client.query<{ token_hash: string; revoked_at: Date | null; created_at: Date; expires_at: Date; friend_id: string }>("SELECT token_hash, revoked_at, created_at, expires_at, friend_id FROM debtor_share_links WHERE ledger_scope_id = $1 AND id = $2", [personalScopeId, personal.shareLink.id]);
+  const now = new Date();
+  const link = links.rows[0];
+  assert(links.rows.length === 1 && link?.token_hash.length === 64 && link.revoked_at === null && link.friend_id === personal.shareLink.friendId && link.created_at <= now && link.expires_at > now && link.expires_at.getTime() - link.created_at.getTime() === SHOWCASE_LINK_TTL_MS, "repository private share link is not active");
   const paymentProofs = await client.query<{ count: string }>("SELECT count(*)::text AS count FROM repayment_proofs WHERE ledger_scope_id = $1", [personalScopeId]);
   assert(Number(paymentProofs.rows[0]?.count) === 0, "repository private share exposes payment proof data");
   if (!token) return;
-  const resolved = await resolveDebtorShareLink(db, token, new Date(SHOWCASE_FIXED_TIMESTAMP));
+  const resolved = await resolveDebtorShareLink(db, token, now);
   assert(resolved?.statement.friendName === "Nadia Putri" && resolved.statement.assignedAmount === 270_000 && resolved.statement.repaidAmount === 120_000 && resolved.statement.outstandingAmount === 150_000, "repository private share does not resolve through the public contract");
   const sharedReceipts = resolved.statement.items.flatMap((item) => item.sharedReceipts ?? []);
   assert(sharedReceipts.length === 1 && sharedReceipts[0]!.publicId, "repository private share receipt selection is incorrect");
-  const publicReceipt = await getSharedDebtorReceipt(db, token, sharedReceipts[0]!.publicId, new Date(SHOWCASE_FIXED_TIMESTAMP));
+  const publicReceipt = await getSharedDebtorReceipt(db, token, sharedReceipts[0]!.publicId, now);
   assert(publicReceipt?.mediaType === "image/png" && publicReceipt.byteSize === personal.receipt.byteSize, "repository public receipt contract is incorrect");
 }
 

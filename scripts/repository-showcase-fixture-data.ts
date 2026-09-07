@@ -1,9 +1,16 @@
+import path from "node:path";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { sha256Hex } from "../src/domain/receipt-file";
-import { SHOWCASE_FIXED_TIMESTAMP, SHOWCASE_LINK_TTL_MS, SHOWCASE_RECEIPT_PATH } from "./showcase-fixture-data";
+import { SHOWCASE_FIXED_TIMESTAMP, SHOWCASE_LINK_TTL_MS } from "./showcase-fixture-data";
 import { REPOSITORY_SHOWCASE_ACCOUNTS } from "./showcase-fixture-identities";
 
 export { REPOSITORY_SHOWCASE_ACCOUNTS } from "./showcase-fixture-identities";
+
+const repositoryReceiptUrl = new URL("./fixtures/repository-showcase-lunch-receipt.png", import.meta.url);
+export const REPOSITORY_SHOWCASE_RECEIPT_PATH = repositoryReceiptUrl.protocol === "file:"
+  ? fileURLToPath(repositoryReceiptUrl)
+  : path.resolve(process.cwd(), "scripts/fixtures/repository-showcase-lunch-receipt.png");
 
 export type RepositoryShowcaseAccountKey = keyof typeof REPOSITORY_SHOWCASE_ACCOUNTS;
 export type RepositoryShowcaseUserIds = Record<RepositoryShowcaseAccountKey, string>;
@@ -127,11 +134,11 @@ function fixedDate(offsetMinutes = 0) {
 }
 
 function readReceipt() {
-  const content = readFileSync(SHOWCASE_RECEIPT_PATH);
+  const content = readFileSync(REPOSITORY_SHOWCASE_RECEIPT_PATH);
   return {
     id: REPOSITORY_SHOWCASE_IDS.personal.receipt,
     expenseId: REPOSITORY_SHOWCASE_IDS.personal.expenses.lunch,
-    originalFilename: "showcase-dinner-receipt.png",
+    originalFilename: "repository-showcase-lunch-receipt.png",
     mediaType: "image/png",
     byteSize: content.byteLength,
     sha256: sha256Hex(content),
@@ -140,9 +147,10 @@ function readReceipt() {
   } as const;
 }
 
-export function generateRepositoryShowcaseFixture(users: RepositoryShowcaseUserIds) {
+export function generateRepositoryShowcaseFixture(users: RepositoryShowcaseUserIds, shareLinkCreatedAt = fixedDate(2)) {
   const createdAt = fixedDate();
   const later = fixedDate(2);
+  const bearerCreatedAt = new Date(shareLinkCreatedAt);
   const personal = REPOSITORY_SHOWCASE_IDS.personal;
   const group = REPOSITORY_SHOWCASE_IDS.group;
   const organization = REPOSITORY_SHOWCASE_IDS.organization;
@@ -184,8 +192,8 @@ export function generateRepositoryShowcaseFixture(users: RepositoryShowcaseUserI
         friendId: personal.friends.nadia,
         receiptId: personal.shareReceipt,
         expenseId: personal.expenses.lunch,
-        createdAt: later,
-        expiresAt: new Date(later.getTime() + SHOWCASE_LINK_TTL_MS),
+        createdAt: bearerCreatedAt,
+        expiresAt: new Date(bearerCreatedAt.getTime() + SHOWCASE_LINK_TTL_MS),
       },
     },
     group: {
@@ -230,7 +238,7 @@ export function generateRepositoryShowcaseFixture(users: RepositoryShowcaseUserI
         thread: { id: group.chatThread, groupId: group.group, organizationId: null, createdAt, updatedAt: later },
         messages: [
           { id: group.messages.ari, senderUserId: users.ari, senderParticipantId: group.participants.ari, body: "Train leaves at 08:10 — I’ll bring the tickets.", createdAt },
-          { id: group.messages.nadia, senderUserId: users.nadia, senderParticipantId: group.participants.nadia, body: "Perfect. I added the lunch receipt to the shared records.", createdAt: fixedDate(1) },
+          { id: group.messages.nadia, senderUserId: users.nadia, senderParticipantId: group.participants.nadia, body: "The train expense is in the shared records; we can settle after the trip.", createdAt: fixedDate(1) },
           { id: group.messages.reno, senderUserId: users.reno, senderParticipantId: group.participants.reno, body: "I’ll send my share tonight.", createdAt: later },
         ],
         reads: [

@@ -8,7 +8,6 @@ import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client"
 import * as schema from "../src/db/schema";
 import { readSecretFile } from "../src/server/secret-file";
 import {
-  SHOWCASE_FIXED_TIMESTAMP,
   SHOWCASE_FIXTURE_CONFIRMATION,
   SHOWCASE_FIXTURE_DATABASE,
   SHOWCASE_LINK_TTL_MS,
@@ -22,7 +21,6 @@ import {
   type ShowcaseFixtureData,
   type ShowcaseState,
 } from "./showcase-fixture-data";
-import { REPOSITORY_SHOWCASE_ACCOUNTS } from "./showcase-fixture-identities";
 import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 
 const require = createRequire(import.meta.url);
@@ -107,15 +105,27 @@ export type ShowcaseAccount = { id: string; name: string; email: string };
 
 export type ShowcaseAccountDefinition = { name: string; email: string };
 
-export const SHOWCASE_ACCOUNT_DEFINITIONS: readonly ShowcaseAccountDefinition[] = [
+export const LEGACY_SHOWCASE_ACCOUNT_DEFINITIONS: readonly ShowcaseAccountDefinition[] = [
   { name: SHOWCASE_OWNER_NAME, email: SHOWCASE_OWNER_EMAIL },
-  ...Object.values(REPOSITORY_SHOWCASE_ACCOUNTS),
 ];
+
+export function validateShowcaseAccountSet(users: readonly ShowcaseAccount[], definitions: readonly ShowcaseAccountDefinition[]) {
+  assert(users.length === definitions.length, "showcase database does not contain the exact expected account set");
+  const expected = new Map(definitions.map((definition) => [definition.email, definition.name]));
+  assert(new Set(users.map((user) => user.email)).size === users.length, "showcase database contains duplicate accounts");
+  assert(users.every((user) => expected.get(user.email) === user.name), "showcase database contains an unknown or inconsistent account");
+  assert(definitions.every((definition) => users.some((user) => user.email === definition.email)), "showcase database is missing an expected account");
+}
+
+function validateShowcaseAccountCandidates(users: readonly ShowcaseAccount[], definitions: readonly ShowcaseAccountDefinition[]) {
+  const expected = new Map(definitions.map((definition) => [definition.email, definition.name]));
+  assert(new Set(users.map((user) => user.email)).size === users.length, "showcase database contains duplicate accounts");
+  assert(users.every((user) => expected.get(user.email) === user.name), "showcase database contains an account outside the active fixture profile");
+}
 
 export async function resolveShowcaseAccounts(client: PoolClient, definitions: readonly ShowcaseAccountDefinition[]): Promise<ShowcaseAccount[]> {
   const users = await client.query<ShowcaseAccount>("SELECT id, name, email FROM users ORDER BY id");
-  const known = new Map(SHOWCASE_ACCOUNT_DEFINITIONS.map((definition) => [definition.email, definition.name]));
-  assert(users.rows.every((user) => known.get(user.email) === user.name), "showcase database contains an unknown or inconsistent account");
+  validateShowcaseAccountSet(users.rows, definitions);
   const resolved = definitions.map((definition) => {
     const user = users.rows.find((candidate) => candidate.email === definition.email);
     assert(user?.name === definition.name, `showcase account ${definition.email} is missing or inconsistent`);
@@ -132,7 +142,7 @@ export async function resolveShowcaseAccounts(client: PoolClient, definitions: r
 }
 
 export async function resolveShowcaseAccount(client: PoolClient, email: string): Promise<ShowcaseAccount> {
-  const [user] = await resolveShowcaseAccounts(client, [{ name: SHOWCASE_OWNER_NAME, email }]);
+  const [user] = await resolveShowcaseAccounts(client, [{ ...LEGACY_SHOWCASE_ACCOUNT_DEFINITIONS[0]!, email }]);
   assert(user !== undefined, "showcase account is missing");
   return user;
 }
@@ -150,8 +160,7 @@ export async function ensureShowcaseAccounts(
     locked = true;
     const auth = createAuth({ db, secret: runtime.authSecret, baseURL: runtime.authBaseURL, enableBootstrapSignUp: true });
     const current = await client.query<ShowcaseAccount>("SELECT id, name, email FROM users ORDER BY id");
-    const known = new Map(SHOWCASE_ACCOUNT_DEFINITIONS.map((definition) => [definition.email, definition.name]));
-    assert(current.rows.every((user) => known.get(user.email) === user.name), "showcase database contains an unknown or inconsistent account");
+    validateShowcaseAccountCandidates(current.rows, definitions);
     for (const definition of definitions) {
       if (current.rows.some((user) => user.email === definition.email)) continue;
       await auth.api.signUpEmail({ body: { name: definition.name, email: definition.email, password: runtime.ownerPassword } });
@@ -166,7 +175,7 @@ export async function ensureShowcaseAccounts(
 }
 
 async function ensureShowcaseAccount(pool: ReturnType<typeof createDatabasePool>, runtime: ShowcaseRuntime) {
-  return ensureShowcaseAccounts(pool, runtime, [{ name: SHOWCASE_OWNER_NAME, email: runtime.ownerEmail }]);
+  return ensureShowcaseAccounts(pool, runtime, [{ ...LEGACY_SHOWCASE_ACCOUNT_DEFINITIONS[0]!, email: runtime.ownerEmail }]);
 }
 
 function ids(fixture: ShowcaseFixtureData) {
@@ -208,7 +217,7 @@ async function insertShowcaseState(client: PoolClient, fixture: ShowcaseFixtureD
   await insertRows(client, "expense_receipts", ["id", "ledger_scope_id", "expense_id", "original_filename", "media_type", "byte_size", "sha256", "content", "created_at"], fixture.receipts.map((row) => [row.id, ledgerScopeId, row.expenseId, row.originalFilename, row.mediaType, row.byteSize, row.sha256, row.content, row.createdAt]));
   if (fixture.state === 6) {
     const token = generateToken();
-    const createdAt = new Date(SHOWCASE_FIXED_TIMESTAMP);
+    const createdAt = new Date();
     await client.query(
       "INSERT INTO debtor_share_links (id, token_hash, ledger_scope_id, friend_id, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6)",
       [SHOWCASE_IDS.shareLink, hashDebtorShareToken(token), ledgerScopeId, SHOWCASE_IDS.friends.dimas, createdAt, new Date(createdAt.getTime() + SHOWCASE_LINK_TTL_MS)],
@@ -349,14 +358,15 @@ async function verifyScenario(client: PoolClient, fixture: ShowcaseFixtureData, 
 }
 
 async function verifyLinks(client: PoolClient, fixture: ShowcaseFixtureData, ledgerScopeId: string) {
-  const links = await client.query<{ id: string; friend_id: string; revoked_at: Date | null; expires_at: Date; token_hash: string }>("SELECT id, friend_id, revoked_at, expires_at, token_hash FROM debtor_share_links WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
+  const links = await client.query<{ id: string; friend_id: string; revoked_at: Date | null; created_at: Date; expires_at: Date; token_hash: string }>("SELECT id, friend_id, revoked_at, created_at, expires_at, token_hash FROM debtor_share_links WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
   const mappings = await client.query<{ debtor_share_link_id: string; expense_id: string; expense_receipt_id: string }>("SELECT debtor_share_link_id, expense_id, expense_receipt_id FROM debtor_share_receipts WHERE ledger_scope_id = $1 ORDER BY id", [ledgerScopeId]);
   if (fixture.state < 6) {
     assert(links.rows.length === 0 && mappings.rows.length === 0, "showcase share link exists before state 6");
     return;
   }
   const link = links.rows[0];
-  assert(links.rows.length === 1 && link?.id === SHOWCASE_IDS.shareLink && link.friend_id === SHOWCASE_IDS.friends.dimas && link.revoked_at === null && link.token_hash.length === 64 && dateValue(link.expires_at) > new Date().toISOString(), "state 6 share link is not active and read-only");
+  const now = new Date();
+  assert(links.rows.length === 1 && link?.id === SHOWCASE_IDS.shareLink && link.friend_id === SHOWCASE_IDS.friends.dimas && link.revoked_at === null && link.token_hash.length === 64 && link.created_at <= now && link.expires_at > now && link.expires_at.getTime() - link.created_at.getTime() === SHOWCASE_LINK_TTL_MS, "state 6 share link is not active and read-only");
   assert(mappings.rows.length === 1 && mappings.rows[0]!.debtor_share_link_id === SHOWCASE_IDS.shareLink && mappings.rows[0]!.expense_id === SHOWCASE_IDS.expenses.dinner && mappings.rows[0]!.expense_receipt_id === SHOWCASE_IDS.receipt, "state 6 exposes a receipt other than Dinner");
 }
 

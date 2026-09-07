@@ -6,10 +6,13 @@ import {
   parseShowcaseCommand,
   redactShowcaseError,
   runShowcaseCommand,
+  validateShowcaseAccountSet,
   validateShowcaseCommandEnvironment,
+  LEGACY_SHOWCASE_ACCOUNT_DEFINITIONS,
   type ShowcaseEnvironment,
   type ShowcaseFixtureDependencies,
 } from "./showcase-fixture";
+import { REPOSITORY_SHOWCASE_ACCOUNTS } from "./showcase-fixture-identities";
 
 const temporaryDirectories: string[] = [];
 const noConnection: ShowcaseFixtureDependencies = {
@@ -74,5 +77,14 @@ describe("showcase fixture command safety", () => {
 
   it("redacts database, auth, and password secrets from errors", () => {
     expect(redactShowcaseError(new Error("db-secret auth-secret showcase-password-123"), ["db-secret", "auth-secret", "showcase-password-123"])).toBe("[redacted] [redacted] [redacted]");
+  });
+
+  it("enforces exact profile-specific account sets", () => {
+    const legacy = { id: "legacy", name: "Zplit Showcase", email: "showcase@zplit.local" };
+    const repository = Object.values(REPOSITORY_SHOWCASE_ACCOUNTS).map((account, index) => ({ id: `repository-${index}`, ...account }));
+    expect(() => validateShowcaseAccountSet([legacy, repository[0]!], LEGACY_SHOWCASE_ACCOUNT_DEFINITIONS)).toThrow(/exact expected account set/);
+    expect(() => validateShowcaseAccountSet([legacy, ...repository], Object.values(REPOSITORY_SHOWCASE_ACCOUNTS))).toThrow(/exact expected account set/);
+    expect(() => validateShowcaseAccountSet([legacy], LEGACY_SHOWCASE_ACCOUNT_DEFINITIONS)).not.toThrow();
+    expect(() => validateShowcaseAccountSet(repository, Object.values(REPOSITORY_SHOWCASE_ACCOUNTS))).not.toThrow();
   });
 });
