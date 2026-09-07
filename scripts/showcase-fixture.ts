@@ -22,6 +22,7 @@ import {
   type ShowcaseFixtureData,
   type ShowcaseState,
 } from "./showcase-fixture-data";
+import { REPOSITORY_SHOWCASE_ACCOUNTS } from "./showcase-fixture-identities";
 import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 
 const require = createRequire(import.meta.url);
@@ -29,7 +30,7 @@ const serverOnlyPath = require.resolve("server-only");
 if (!require.cache[serverOnlyPath]) require.cache[serverOnlyPath] = { exports: {} } as never;
 const { generateDebtorShareToken, hashDebtorShareToken } = await import("../src/server/debtor-share-links");
 
-const showcaseFixtureLockKey = 20603021;
+export const SHOWCASE_FIXTURE_LOCK_KEY = 20603021;
 
 export type ShowcaseCommand = "setup" | "state" | "verify" | "clear";
 
@@ -82,8 +83,9 @@ export function validateShowcaseCommandEnvironment(
   command: ShowcaseCommand,
   stateValue: string | number | undefined,
   environment: ShowcaseEnvironment = process.env,
+  databaseName = SHOWCASE_FIXTURE_DATABASE,
 ): ShowcaseRuntime & { state?: ShowcaseState } {
-  if (environment.DB_NAME?.trim() !== SHOWCASE_FIXTURE_DATABASE) throw new Error(`DB_NAME must be ${SHOWCASE_FIXTURE_DATABASE}`);
+  if (environment.DB_NAME?.trim() !== databaseName) throw new Error(`DB_NAME must be ${databaseName}`);
   if (command !== "verify" && environment.ZPLIT_SHOWCASE_CONFIRM?.trim() !== SHOWCASE_FIXTURE_CONFIRMATION) {
     throw new Error(`ZPLIT_SHOWCASE_CONFIRM must be ${SHOWCASE_FIXTURE_CONFIRMATION}`);
   }
@@ -101,38 +103,70 @@ export function validateShowcaseCommandEnvironment(
   return { ownerName, ownerEmail, ownerPassword, authSecret, authBaseURL, secrets: [databasePassword, authSecret, ownerPassword], state };
 }
 
-type ShowcaseAccount = { id: string; name: string; email: string };
+export type ShowcaseAccount = { id: string; name: string; email: string };
 
-async function resolveShowcaseAccount(client: PoolClient, email: string): Promise<ShowcaseAccount> {
+export type ShowcaseAccountDefinition = { name: string; email: string };
+
+export const SHOWCASE_ACCOUNT_DEFINITIONS: readonly ShowcaseAccountDefinition[] = [
+  { name: SHOWCASE_OWNER_NAME, email: SHOWCASE_OWNER_EMAIL },
+  ...Object.values(REPOSITORY_SHOWCASE_ACCOUNTS),
+];
+
+export async function resolveShowcaseAccounts(client: PoolClient, definitions: readonly ShowcaseAccountDefinition[]): Promise<ShowcaseAccount[]> {
   const users = await client.query<ShowcaseAccount>("SELECT id, name, email FROM users ORDER BY id");
-  assert(users.rows.length === 1, "showcase account must be the only user in zplit_showcase");
-  const user = users.rows[0]!;
-  assert(user.email === email && user.name === SHOWCASE_OWNER_NAME, "showcase account identity is inconsistent");
-  const accounts = await client.query<{ provider_id: string; has_password: boolean }>(
-    "SELECT provider_id, password IS NOT NULL AND btrim(password) <> '' AS has_password FROM accounts WHERE user_id = $1 ORDER BY id",
-    [user.id],
-  );
-  assert(accounts.rows.length === 1 && accounts.rows[0]!.provider_id === "credential" && accounts.rows[0]!.has_password, "showcase credential account is inconsistent");
+  const known = new Map(SHOWCASE_ACCOUNT_DEFINITIONS.map((definition) => [definition.email, definition.name]));
+  assert(users.rows.every((user) => known.get(user.email) === user.name), "showcase database contains an unknown or inconsistent account");
+  const resolved = definitions.map((definition) => {
+    const user = users.rows.find((candidate) => candidate.email === definition.email);
+    assert(user?.name === definition.name, `showcase account ${definition.email} is missing or inconsistent`);
+    return user;
+  });
+  for (const user of resolved) {
+    const accounts = await client.query<{ provider_id: string; has_password: boolean }>(
+      "SELECT provider_id, password IS NOT NULL AND btrim(password) <> '' AS has_password FROM accounts WHERE user_id = $1 ORDER BY id",
+      [user.id],
+    );
+    assert(accounts.rows.length === 1 && accounts.rows[0]!.provider_id === "credential" && accounts.rows[0]!.has_password, "showcase credential account is inconsistent");
+  }
+  return resolved;
+}
+
+export async function resolveShowcaseAccount(client: PoolClient, email: string): Promise<ShowcaseAccount> {
+  const [user] = await resolveShowcaseAccounts(client, [{ name: SHOWCASE_OWNER_NAME, email }]);
+  assert(user !== undefined, "showcase account is missing");
   return user;
 }
 
-async function ensureShowcaseAccount(pool: ReturnType<typeof createDatabasePool>, runtime: ShowcaseRuntime) {
+export async function ensureShowcaseAccounts(
+  pool: ReturnType<typeof createDatabasePool>,
+  runtime: ShowcaseRuntime,
+  definitions: readonly ShowcaseAccountDefinition[],
+) {
   const db = drizzle(pool, { schema });
   const client = await pool.connect();
   let locked = false;
   try {
-    await client.query("SELECT pg_advisory_lock($1::bigint)", [showcaseFixtureLockKey]);
+    await client.query("SELECT pg_advisory_lock($1::bigint)", [SHOWCASE_FIXTURE_LOCK_KEY]);
     locked = true;
-    const users = await client.query<{ id: string }>("SELECT id FROM users ORDER BY id");
-    if (users.rows.length === 0) {
-      const auth = createAuth({ db, secret: runtime.authSecret, baseURL: runtime.authBaseURL, enableBootstrapSignUp: true });
-      await auth.api.signUpEmail({ body: { name: runtime.ownerName, email: runtime.ownerEmail, password: runtime.ownerPassword } });
+    const auth = createAuth({ db, secret: runtime.authSecret, baseURL: runtime.authBaseURL, enableBootstrapSignUp: true });
+    const current = await client.query<ShowcaseAccount>("SELECT id, name, email FROM users ORDER BY id");
+    const known = new Map(SHOWCASE_ACCOUNT_DEFINITIONS.map((definition) => [definition.email, definition.name]));
+    assert(current.rows.every((user) => known.get(user.email) === user.name), "showcase database contains an unknown or inconsistent account");
+    for (const definition of definitions) {
+      if (current.rows.some((user) => user.email === definition.email)) continue;
+      await auth.api.signUpEmail({ body: { name: definition.name, email: definition.email, password: runtime.ownerPassword } });
     }
-    return await resolveShowcaseAccount(client, runtime.ownerEmail);
+    const [account] = await resolveShowcaseAccounts(client, definitions);
+    assert(account !== undefined, "showcase account is missing");
+    return account;
   } finally {
-    if (locked) await client.query("SELECT pg_advisory_unlock($1::bigint)", [showcaseFixtureLockKey]).catch(() => undefined);
+    if (locked) await client.query("SELECT pg_advisory_unlock($1::bigint)", [SHOWCASE_FIXTURE_LOCK_KEY]).catch(() => undefined);
     client.release();
   }
+}
+
+async function ensureShowcaseAccount(pool: ReturnType<typeof createDatabasePool>, runtime: ShowcaseRuntime) {
+  return ensureShowcaseAccounts(pool, runtime, [{ name: SHOWCASE_OWNER_NAME, email: runtime.ownerEmail }]);
 }
 
 function ids(fixture: ShowcaseFixtureData) {
@@ -199,7 +233,7 @@ async function replaceShowcaseState(
   try {
     await client.query("BEGIN");
     transactionStarted = true;
-    await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [showcaseFixtureLockKey]);
+    await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [SHOWCASE_FIXTURE_LOCK_KEY]);
     const owner = await resolveShowcaseAccount(client, email);
     const ledgerScopeId = await getPersonalLedgerScopeId(drizzle(client, { schema }), owner.id);
     await deleteShowcaseLedger(client, ledgerScopeId);
@@ -353,7 +387,7 @@ async function verifyState(pool: ReturnType<typeof createDatabasePool>, email: s
     await client.query("BEGIN");
     transactionStarted = true;
     await client.query("SET TRANSACTION READ ONLY");
-    await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [showcaseFixtureLockKey]);
+    await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [SHOWCASE_FIXTURE_LOCK_KEY]);
     const owner = await resolveShowcaseAccount(client, email);
     await verifyShowcaseState(client, owner, state);
     await client.query("COMMIT");

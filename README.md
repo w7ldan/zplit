@@ -6,7 +6,7 @@ I kept paying for friends and then forgetting who still owed what, so I built Zp
 
 [Live app](https://idr.wildan.lol) · [GitHub repository](https://github.com/w7ldan/zplit) · [Architecture](docs/architecture.md) · [Local setup](#running-locally)
 
-> **Showcase visual placeholder** — a future privacy-safe composition can sit here, covering the product journey from Personal records to Groups, Organizations, and a private share link. No production screenshots or personal data are included yet.
+> **Showcase visual placeholder** — a privacy-safe composition will cover the product journey from Personal records to Groups, Organizations, and a private share link. No production screenshots or personal data are included yet. Maintainers can prepare the local dataset with the [showcase capture guide](docs/showcase.md).
 
 The live application is invite-only in normal operation; this repository does not provide a public demo account or promise open signup.
 
@@ -18,7 +18,7 @@ It started as a way to remember personal debts. It has grown into a coherent pro
 
 ## Product tour
 
-The intended future visual sequence is: **Hero → Personal → Group → Organization → private share link**. The sections below describe the real product surfaces without exposing production data.
+The product surfaces below describe the repository showcase sequence—Hero, Personal, Group, Organization, and private share link—without exposing production data.
 
 ### Personal
 

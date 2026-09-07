@@ -45,6 +45,7 @@
     "showcase:state": "tsx scripts/showcase-fixture.ts state",
     "showcase:verify": "tsx scripts/showcase-fixture.ts verify",
     "showcase:clear": "tsx scripts/showcase-fixture.ts clear",
+    "showcase:repository": "tsx scripts/repository-showcase-fixture.ts",
     "test:deployment": "node deploy/test-deployment.mjs",
     "test:release": "tsx scripts/release-smoke.ts",
     "test:watch": "vitest"

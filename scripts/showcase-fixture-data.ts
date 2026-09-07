@@ -7,7 +7,7 @@ export const SHOWCASE_FIXTURE_DATABASE = "zplit_showcase";
 export const SHOWCASE_FIXTURE_CONFIRMATION = "showcase-only";
 export const SHOWCASE_OWNER_NAME = "Zplit Showcase";
 export const SHOWCASE_OWNER_EMAIL = "showcase@zplit.local";
-export const SHOWCASE_FIXED_TIMESTAMP = "2026-08-06T09:00:00.000Z";
+export const SHOWCASE_FIXED_TIMESTAMP = "2026-09-30T09:00:00.000Z";
 export const SHOWCASE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const receiptUrl = new URL("./fixtures/showcase-dinner-receipt.png", import.meta.url);
 export const SHOWCASE_RECEIPT_PATH = receiptUrl.protocol === "file:" ? fileURLToPath(receiptUrl) : path.resolve(process.cwd(), "scripts/fixtures/showcase-dinner-receipt.png");

@@ -67,6 +67,8 @@ npm run clear:scale
 
 The fixture contract is 100 friends (80 active, 20 archived), 300 outings over 36 months, 2,000 expenses, 5,792 expense shares, 1,000 repayments, 429 repayment allocations, and eight small PNG receipts. It includes timestamp boundaries, maximum-length valid names, and paid, partial, unpaid, unallocated, and overpaid scenarios.
 
+The guarded repository showcase fixture is documented in [Showcase](showcase.md). Its `showcase:repository verify` command checks deterministic Personal totals and balances, Group obligations and settlement applications, Organization scope and capabilities, Chat/read-cursor consistency, receipt integrity, and private-share exposure. Run it only against `zplit_repository_showcase`; the legacy six-state fixture remains on `zplit_showcase`.
+
 The permanent warm-median budgets are:
 
 - overview summary: at most 500 ms
