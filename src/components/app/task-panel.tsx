@@ -63,9 +63,6 @@ export function TaskPanel({ open, title, description, eyebrow = "NEW RECORD", tr
       clearCloseWork();
       openedRef.current = false;
       closingRef.current = false;
-      // The prop is the external lifecycle signal; reset the visual state with it.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setClosing(false);
       const dialog = dialogRef.current;
       if (dialog?.open) {
         if (typeof dialog.close === "function") dialog.close();
