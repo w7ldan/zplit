@@ -9,7 +9,7 @@ import { createRepaymentAction, loadRepaymentFriendContext, searchFriendFilterOp
 import { TaskPanel } from "@/components/app/task-panel";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
-import { groupRecordsByMonth, monthDisplayLabel, normalizeRepaymentFilters, normalizeTimezoneOffset, normalizeUuid, recordHref } from "@/domain/record-retrieval";
+import { financialMonthKey, groupRecordsByMonth, monthDisplayLabel, normalizeRepaymentFilters, normalizeTimezoneOffset, normalizeUuid, recordHref } from "@/domain/record-retrieval";
 import { validateRepaymentReturnTarget } from "@/domain/repayment-return";
 import type { RepaymentAllocationStrategy } from "@/domain/repayment-allocation-strategy";
 
@@ -118,7 +118,7 @@ async function loadRepaymentsPageData(params: Awaited<NonNullable<RepaymentsPage
     ...selection,
     ...context,
     repaymentPage,
-    groups: groupRecordsByMonth(repaymentPage.items, (repayment) => repayment.paidAt, timezoneOffsetMinutes),
+    groups: groupRecordsByMonth(repaymentPage.items, (repayment) => financialMonthKey({ canonicalDate: repayment.paidOn, timestamp: repayment.paidAt, timezoneOffsetMinutes })),
     filtered: Boolean(filters.q || filters.month || selection.friendId || filters.allocation !== "all"),
     effectiveParams,
     listHref: recordHref("/app/repayments", effectiveParams),

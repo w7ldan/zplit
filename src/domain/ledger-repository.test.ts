@@ -1341,6 +1341,47 @@ describe("ledger repository", () => {
     await expect(repository.listOutingRecords({ month: "2026-07", timezoneOffsetMinutes: "841" })).resolves.toMatchObject({ totalItems: 0 });
   });
 
+  it("uses canonical financial dates before the legacy timestamp month fallback", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+    const repository = createLedgerRepository(database as unknown as Database, owner);
+
+    await repository.listOutingRecords({ month: "2026-09", timezoneOffsetMinutes: "840" });
+    await repository.listExpenseRecords({ month: "2026-09", timezoneOffsetMinutes: "840" });
+    await repository.listRepaymentRecords({ month: "2026-09", timezoneOffsetMinutes: "840" });
+
+    expect(queries).toHaveLength(6);
+    for (const query of queries) {
+      expect(query.params).toContain("2026-09-01");
+      expect(query.params).toContain("2026-10-01");
+      expect(query.params).toContain("2026-09-01T14:00:00.000Z");
+      expect(query.params).toContain("2026-10-01T14:00:00.000Z");
+    }
+    expect(queries[0]!.sql.toLowerCase()).toContain('"outings"."occurred_on" is not null');
+    expect(queries[0]!.sql.toLowerCase()).toContain('"outings"."occurred_on" is null');
+    expect(queries[2]!.sql.toLowerCase()).toContain('"outings"."occurred_on" is not null');
+    expect(queries[2]!.sql.toLowerCase()).toContain('"outings"."occurred_on" is null');
+    expect(queries[4]!.sql.toLowerCase()).toContain('"repayments"."paid_on" is not null');
+    expect(queries[4]!.sql.toLowerCase()).toContain('"repayments"."paid_on" is null');
+  });
+
+  it("keeps canonical month filtering on the shared organization-scoped repository path", async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const database = drizzle(async (sql, params) => {
+      queries.push({ sql, params });
+      return { rows: [] };
+    });
+
+    await createLedgerRepository(database as unknown as Database, "organization-scope").listRepaymentRecords({ month: "2026-09" });
+
+    expect(queries).toHaveLength(2);
+    expect(queries.every(({ params }) => params.includes("organization-scope"))).toBe(true);
+    expect(queries.every(({ sql }) => sql.toLowerCase().includes('"repayments"."paid_on" is not null'))).toBe(true);
+  });
+
   it("maps absent and foreign expenses to the same not-found error", async () => {
     const database = drizzle(async () => ({ rows: [] }));
     const repository = createLedgerRepository(database as unknown as Database, owner);

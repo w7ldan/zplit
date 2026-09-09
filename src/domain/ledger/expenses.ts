@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
 import { debtorShareReceipts, expenseCharges, expenseChargeTargets, expenseReceipts, expenseShares, expenses, friends, outings, repaymentAllocations, trips } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
@@ -6,7 +6,7 @@ import { calculateShareBreakdown } from "../expense-share-input";
 import type { RepaymentAllocationRepository } from "./allocations";
 import { ExpenseShareAllocationInvariantError, ExpenseShareInvariantError, LedgerRepositoryError } from "./errors";
 import { assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
-import { clampPage, monthStart, nextMonthStart, normalizeExpenseFilters, normalizePage, normalizeTimezoneOffset, pageResult, parseAmountSearch, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
+import { clampPage, monthDateBounds, monthStart, nextMonthStart, normalizeExpenseFilters, normalizePage, normalizeTimezoneOffset, pageResult, parseAmountSearch, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
 import { assertExpenseChargesInput, assertExpenseId, assertExpenseInput, assertExpenseSharesInput, assertFriendId, assertTripId, shareBaseAmount } from "./validation";
 import type { CreateExpenseInput, DeleteRecordOptions, ExpenseChargeInput, ExpenseChargeRecord, ExpenseDeletionImpact, ExpenseDeletionResult, ExpenseListRecord, ExpenseShareInput, ExpenseSplitDefinition, FriendExpenseShareRecord, OpenExpenseSharesByFriend, UpdateExpenseInput } from "./types";
 
@@ -131,6 +131,15 @@ async function listExpenses() {
 async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; month?: unknown; assignment?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}): Promise<RecordPage<ExpenseListRecord>> {
     const filters = normalizeExpenseFilters(options);
     const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
+    const monthCondition = filters.month
+      ? (() => {
+        const { start, end } = monthDateBounds(filters.month);
+        return or(
+          and(isNotNull(outings.occurredOn), gte(outings.occurredOn, start), lt(outings.occurredOn, end)),
+          and(isNull(outings.occurredOn), gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))),
+        );
+      })()
+      : undefined;
     const assignmentCondition = filters.assignment === "all"
       ? undefined
       : filters.assignment === "assigned"
@@ -147,7 +156,7 @@ async function listExpenseRecords(options: { q?: unknown; outingId?: unknown; mo
       eq(outings.ledgerScopeId, scope),
       ...(queryCondition ? [queryCondition] : []),
       ...(filters.outingId ? [eq(expenses.outingId, filters.outingId)] : []),
-      ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
+      ...(monthCondition ? [monthCondition] : []),
       ...(assignmentCondition ? [assignmentCondition] : []),
     ];
     try {

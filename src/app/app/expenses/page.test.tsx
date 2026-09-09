@@ -10,8 +10,8 @@ vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: async 
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
-const outing = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", ownerUserId: "owner-a", title: "Jakarta dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: null, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z") };
-const expense = { id: "expense-a", ownerUserId: "owner-a", outingId: outing.id, description: "Dinner", amount: 84_000, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z"), outingTitle: outing.title, outingOccurredAt: outing.occurredAt };
+const outing = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", ownerUserId: "owner-a", title: "Jakarta dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), occurredOn: null, notes: null, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z") };
+const expense = { id: "expense-a", ownerUserId: "owner-a", outingId: outing.id, description: "Dinner", amount: 84_000, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z"), outingTitle: outing.title, outingOccurredAt: outing.occurredAt, outingOccurredOn: outing.occurredOn };
 const expensePage = { items: [expense], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 };
 
 describe("/app/expenses", () => {
@@ -63,6 +63,17 @@ describe("/app/expenses", () => {
 
     expect(screen.getByText("JULY 2026")).toBeInTheDocument();
     expect(listExpenseRecords).toHaveBeenCalledWith({ q: undefined, outingId: undefined, month: "2026-07", assignment: undefined, page: undefined, timezoneOffsetMinutes: -420 });
+  });
+
+  it("groups an expense by its outing's canonical date independently of the browser timezone", async () => {
+    const canonicalExpense = { ...expense, outingOccurredAt: new Date("2026-09-01T00:30:00.000Z"), outingOccurredOn: "2026-09-01" };
+    const listExpenseRecords = vi.fn().mockResolvedValue({ ...expensePage, items: [canonicalExpense] });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords, searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
+
+    render(await ExpensesPage({ searchParams: Promise.resolve({ tz: "840" }) }));
+
+    expect(screen.getByText("SEPTEMBER 2026")).toBeInTheDocument();
   });
 
   it("preselects an outing inside the creation panel", async () => {

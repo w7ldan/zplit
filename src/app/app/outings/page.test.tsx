@@ -9,7 +9,7 @@ vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: async 
 vi.mock("@/domain/ledger-repository", async () => ({ ...(await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository")), createLedgerRepository: mocks.createLedgerRepository }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
-const outing = { id: "outing-a", ownerUserId: "owner-a", title: "Jakarta dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: null, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z") };
+const outing = { id: "outing-a", ownerUserId: "owner-a", title: "Jakarta dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), occurredOn: null, notes: null, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z") };
 const outingPage = { items: [{ ...outing, expenseCount: 1, expenseTotal: 84_000 }], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 };
 const trip = { id: "11111111-1111-4111-8111-111111111111", ownerUserId: "owner-a", name: "Bali 2026", startsOn: null, endsOn: null, notes: null, createdAt: new Date("2026-01-01T00:00:00.000Z"), updatedAt: new Date("2026-01-01T00:00:00.000Z") };
 
@@ -61,6 +61,16 @@ describe("/app/outings", () => {
 
     expect(screen.getByText("JULY 2026")).toBeInTheDocument();
     expect(listOutingRecords).toHaveBeenCalledWith({ q: undefined, month: "2026-07", page: undefined, timezoneOffsetMinutes: -420 });
+  });
+
+  it("groups a canonical outing date independently of the browser timezone", async () => {
+    const canonicalOuting = { ...outing, occurredAt: new Date("2026-09-01T00:30:00.000Z"), occurredOn: "2026-09-01" };
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listOutingRecords: vi.fn().mockResolvedValue({ ...outingPage, items: [{ ...canonicalOuting, expenseCount: 0, expenseTotal: 0 }] }) });
+
+    render(await OutingsPage({ searchParams: Promise.resolve({ tz: "840" }) }));
+
+    expect(screen.getByText("SEPTEMBER 2026")).toBeInTheDocument();
   });
 
   it("opens the outing form only with create=1", async () => {

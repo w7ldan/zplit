@@ -7,6 +7,7 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
 import {
+  financialMonthKey,
   groupRecordsByMonth,
   monthDisplayLabel,
   normalizeExpenseFilters,
@@ -57,7 +58,7 @@ async function loadOrganizationExpenses(
     page,
     canCreate: access.can("expenses.create") && !access.archivedAt,
     openCreate: first(query.create) === "1",
-    groups: groupRecordsByMonth(page.items, (expense) => expense.outingOccurredAt, timezoneOffsetMinutes),
+    groups: groupRecordsByMonth(page.items, (expense) => financialMonthKey({ canonicalDate: expense.outingOccurredOn, timestamp: expense.outingOccurredAt, timezoneOffsetMinutes })),
     filtered: Boolean(filters.q || filters.month || filters.outingId || filters.assignment !== "all"),
   };
 }

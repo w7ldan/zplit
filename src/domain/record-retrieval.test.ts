@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   clampPage,
   escapeLikePattern,
+  financialMonthKey,
   groupRecordsByMonth,
   monthDisplayLabel,
+  monthDateBounds,
   monthKey,
   monthStart,
   nextMonthStart,
@@ -55,6 +57,7 @@ describe("record retrieval", () => {
   it("uses UTC month boundaries and deterministic labels", () => {
     expect(monthStart("2026-04").toISOString()).toBe("2026-04-01T00:00:00.000Z");
     expect(nextMonthStart("2026-04").toISOString()).toBe("2026-05-01T00:00:00.000Z");
+    expect(monthDateBounds("2026-04")).toEqual({ start: "2026-04-01", end: "2026-05-01" });
     expect(monthDisplayLabel("2026-04")).toBe("April 2026");
   });
 
@@ -69,8 +72,18 @@ describe("record retrieval", () => {
     expect(boundary >= monthStart("2026-06", -420) && boundary < julyStart).toBe(false);
     expect(monthKey(new Date("2026-07-01T07:00:00.000Z"), 420)).toBe("2026-07");
     expect(monthKey(new Date("2026-06-30T23:59:59.999Z"), 420)).toBe("2026-06");
-    expect(groupRecordsByMonth([{ date: boundary }], (item) => item.date, -420)).toEqual([{ month: "2026-07", items: [{ date: boundary }] }]);
+    expect(groupRecordsByMonth([{ date: boundary }], (item) => monthKey(item.date, -420))).toEqual([{ month: "2026-07", items: [{ date: boundary }] }]);
     expect(() => monthKey(boundary, 841)).toThrow(RangeError);
+  });
+
+  it("uses canonical financial dates for month keys and falls back to viewer-local timestamps", () => {
+    const timestamp = new Date("2026-09-01T00:30:00.000Z");
+    expect(monthKey(timestamp, 840)).toBe("2026-08");
+    expect(financialMonthKey({ canonicalDate: "2026-09-01", timestamp, timezoneOffsetMinutes: 840 })).toBe("2026-09");
+    expect(financialMonthKey({ canonicalDate: null, timestamp, timezoneOffsetMinutes: 840 })).toBe("2026-08");
+
+    const item = { occurredAt: timestamp, occurredOn: "2026-09-01" };
+    expect(groupRecordsByMonth([item], (record) => financialMonthKey({ canonicalDate: record.occurredOn, timestamp: record.occurredAt, timezoneOffsetMinutes: 840 }))).toEqual([{ month: "2026-09", items: [item] }]);
   });
 
   it("clamps pages and preserves page-one metadata for empty results", () => {
@@ -81,7 +94,7 @@ describe("record retrieval", () => {
 
   it("groups only the supplied page without changing row order", () => {
     const items = [{ id: "a", date: new Date("2026-04-30T23:00:00Z") }, { id: "b", date: new Date("2026-04-01T00:00:00Z") }, { id: "c", date: new Date("2026-03-31T00:00:00Z") }];
-    expect(groupRecordsByMonth(items, (item) => item.date)).toEqual([
+    expect(groupRecordsByMonth(items, (item) => monthKey(item.date))).toEqual([
       { month: "2026-04", items: [items[0], items[1]] },
       { month: "2026-03", items: [items[2]] },
     ]);

@@ -7,6 +7,7 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
 import {
+  financialMonthKey,
   groupRecordsByMonth,
   monthDisplayLabel,
   normalizeOutingFilters,
@@ -54,7 +55,7 @@ async function loadOrganizationOutings(
     page,
     canManage: access.can("outings.manage") && !access.archivedAt,
     openCreate: first(query.create) === "1",
-    groups: groupRecordsByMonth(page.items, (outing) => outing.occurredAt, timezoneOffsetMinutes),
+    groups: groupRecordsByMonth(page.items, (outing) => financialMonthKey({ canonicalDate: outing.occurredOn, timestamp: outing.occurredAt, timezoneOffsetMinutes })),
     outingOptions: [
       { value: "", label: "All trips" },
       { value: "unassigned", label: "No trip" },

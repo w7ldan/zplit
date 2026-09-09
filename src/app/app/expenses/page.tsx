@@ -8,7 +8,7 @@ import { createExpenseAction, searchOutingFilterOptions, searchOutingOptions } f
 import { TaskPanel } from "@/components/app/task-panel";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
-import { groupRecordsByMonth, monthDisplayLabel, normalizeExpenseFilters, normalizeTimezoneOffset, recordHref } from "@/domain/record-retrieval";
+import { financialMonthKey, groupRecordsByMonth, monthDisplayLabel, normalizeExpenseFilters, normalizeTimezoneOffset, recordHref } from "@/domain/record-retrieval";
 import { validateExpenseReturnTarget } from "@/domain/expense-return";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +46,7 @@ async function loadExpensesPageData(params: Awaited<NonNullable<ExpensesPageProp
     outingId,
     outingOptions,
     expensePage,
-    groups: groupRecordsByMonth(expensePage.items, (expense) => expense.outingOccurredAt, timezoneOffsetMinutes),
+    groups: groupRecordsByMonth(expensePage.items, (expense) => financialMonthKey({ canonicalDate: expense.outingOccurredOn, timestamp: expense.outingOccurredAt, timezoneOffsetMinutes })),
     filtered: Boolean(filters.q || filters.month || outingId || filters.assignment !== "all"),
     listHref: recordHref("/app/expenses", params),
     expenseReturnTarget: validateExpenseReturnTarget(recordHref("/app/expenses", params, { create: "1" })) ?? "/app/expenses?create=1",

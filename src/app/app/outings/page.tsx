@@ -10,7 +10,7 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
-import { groupRecordsByMonth, monthDisplayLabel, normalizeOutingFilters, normalizeTimezoneOffset, normalizeUuid, recordHref } from "@/domain/record-retrieval";
+import { financialMonthKey, groupRecordsByMonth, monthDisplayLabel, normalizeOutingFilters, normalizeTimezoneOffset, normalizeUuid, recordHref } from "@/domain/record-retrieval";
 import { validateExpenseReturnTarget } from "@/domain/expense-return";
 import { OutingsTripsSwitch } from "@/components/outings/outings-trips-switch";
 
@@ -68,7 +68,7 @@ async function loadOutingsPageData(params: Awaited<NonNullable<OutingsPageProps[
     outingOptions,
     outingPage,
     returnTo,
-    groups: groupRecordsByMonth(outingPage.items, (outing) => outing.occurredAt, timezoneOffsetMinutes),
+    groups: groupRecordsByMonth(outingPage.items, (outing) => financialMonthKey({ canonicalDate: outing.occurredOn, timestamp: outing.occurredAt, timezoneOffsetMinutes })),
     filtered: Boolean(filters.q || filters.month || filters.trip),
     effectiveParams,
     listHref: recordHref("/app/outings", effectiveParams),

@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => (
 const activeFriend = { id: "11111111-1111-4111-8111-111111111111", name: "Ari", archivedAt: null };
 const archivedFriend = { id: "22222222-2222-4222-8222-222222222222", name: "Bima", archivedAt: new Date("2026-01-01T00:00:00.000Z") };
 const summary = { friendBalances: [{ friendId: activeFriend.id, name: "Ari", archived: false, assignedAmount: 84_000, repaidAmount: 20_000, outstandingAmount: 64_000 }] };
-const repayment = { id: "repayment-a", friendName: "Ari", friendArchivedAt: null, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", allocatedAmount: 40_000, unallocatedAmount: 44_000 };
+const repayment = { id: "repayment-a", friendName: "Ari", friendArchivedAt: null, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paidOn: null, paymentMethod: "Bank transfer", allocatedAmount: 40_000, unallocatedAmount: 44_000 };
 const contextShare = { id: "33333333-3333-4333-8333-333333333333", friendId: activeFriend.id, friendName: activeFriend.name, expenseDescription: "Dinner", outingTitle: "Bandung day out", outingOccurredAt: new Date("2026-01-01T00:00:00.000Z"), amountOwed: 84_000, repaidAmount: 20_000, remainingAmount: 64_000 };
 const trip = { id: "55555555-5555-4555-8555-555555555555", name: "Bandung" };
 
@@ -71,6 +71,17 @@ describe("/app/repayments", () => {
 
     expect(screen.getByText("JULY 2026")).toBeInTheDocument();
     expect(listRepaymentRecords).toHaveBeenCalledWith({ q: undefined, friendId: undefined, month: "2026-07", allocation: undefined, page: undefined, timezoneOffsetMinutes: -420 });
+  });
+
+  it("groups a repayment by its canonical date independently of the browser timezone", async () => {
+    const canonicalRepayment = { ...repayment, paidAt: new Date("2026-09-01T00:30:00.000Z"), paidOn: "2026-09-01" };
+    const listRepaymentRecords = vi.fn().mockResolvedValue({ items: [canonicalRepayment], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listRepaymentRecords, searchFriends: vi.fn().mockResolvedValue([{ id: activeFriend.id, name: activeFriend.name, archived: false }, { id: archivedFriend.id, name: archivedFriend.name, archived: true }]) });
+
+    render(await RepaymentsPage({ searchParams: Promise.resolve({ tz: "840" }) }));
+
+    expect(screen.getByText("SEPTEMBER 2026")).toBeInTheDocument();
   });
 
   it("opens the repayment form only with create=1 and retains archived friends", async () => {

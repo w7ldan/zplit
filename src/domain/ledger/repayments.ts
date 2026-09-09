@@ -1,11 +1,11 @@
-import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { Database } from "../../db/client";
 import { friends, repaymentAllocations, repayments } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
 import type { RepaymentAllocationRepository } from "./allocations";
 import { assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
-import { clampPage, monthStart, nextMonthStart, normalizeRepaymentFilters, normalizeTimezoneOffset, pageResult, parseAmountSearch, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
+import { clampPage, monthDateBounds, monthStart, nextMonthStart, normalizeRepaymentFilters, normalizeTimezoneOffset, pageResult, parseAmountSearch, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
 import { assertRepaymentAllocationReversalReceipt, assertRepaymentAllocationsInput, assertRepaymentId, assertRepaymentInput, repaymentAllocationId } from "./validation";
 import type { CreateRepaymentInput, DeleteRecordOptions, NeedsAttentionRepaymentResult, RepaymentAllocationReversalReceipt, RepaymentDeletionImpact, RepaymentListRecord, UpdateRepaymentInput } from "./types";
 import type { RepaymentAllocationInput } from "../repayment-allocation-input";
@@ -53,6 +53,15 @@ async function listRepayments() {
 async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; month?: unknown; allocation?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}): Promise<RecordPage<RepaymentListRecord>> {
     const filters = normalizeRepaymentFilters(options);
     const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
+    const monthCondition = filters.month
+      ? (() => {
+        const { start, end } = monthDateBounds(filters.month);
+        return or(
+          and(isNotNull(repayments.paidOn), gte(repayments.paidOn, start), lt(repayments.paidOn, end)),
+          and(isNull(repayments.paidOn), gte(repayments.paidAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(repayments.paidAt, nextMonthStart(filters.month, timezoneOffsetMinutes))),
+        );
+      })()
+      : undefined;
     const allocationValue = sql<number>`coalesce((select sum(${repaymentAllocations.amount}) from ${repaymentAllocations} where ${repaymentAllocations.ledgerScopeId} = ${scope} and ${repaymentAllocations.repaymentId} = ${repayments.id}), 0)`.mapWith(Number);
     const allocationCondition = filters.allocation === "all"
       ? undefined
@@ -70,7 +79,7 @@ async function listRepaymentRecords(options: { q?: unknown; friendId?: unknown; 
       eq(friends.ledgerScopeId, scope),
       ...(queryCondition ? [queryCondition] : []),
       ...(filters.friendId ? [eq(repayments.friendId, filters.friendId)] : []),
-      ...(filters.month ? [gte(repayments.paidAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(repayments.paidAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
+      ...(monthCondition ? [monthCondition] : []),
       ...(allocationCondition ? [allocationCondition] : []),
     ];
     try {

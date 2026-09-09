@@ -4,6 +4,7 @@ import { expenseReceipts, expenseShares, expenses, outings, repaymentAllocations
 import { addDeletionAmount, assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
 import {
   clampPage,
+  monthDateBounds,
   monthStart,
   nextMonthStart,
   normalizeOutingFilters,
@@ -120,10 +121,19 @@ async function listRecentPaymentMethods(): Promise<string[]> {
 async function listOutingRecords(options: { q?: unknown; month?: unknown; trip?: unknown; page?: unknown; timezoneOffsetMinutes?: unknown } = {}): Promise<RecordPage<OutingListRecord & { expenseCount: number; expenseTotal: number }>> {
     const filters = normalizeOutingFilters(options);
     const timezoneOffsetMinutes = normalizeTimezoneOffset(options.timezoneOffsetMinutes) ?? 0;
+    const monthCondition = filters.month
+      ? (() => {
+        const { start, end } = monthDateBounds(filters.month);
+        return or(
+          and(isNotNull(outings.occurredOn), gte(outings.occurredOn, start), lt(outings.occurredOn, end)),
+          and(isNull(outings.occurredOn), gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))),
+        );
+      })()
+      : undefined;
     const conditions = [
       eq(outings.ledgerScopeId, scope),
       ...(filters.q ? [literalContains(outings.title, filters.q)] : []),
-      ...(filters.month ? [gte(outings.occurredAt, monthStart(filters.month, timezoneOffsetMinutes)), lt(outings.occurredAt, nextMonthStart(filters.month, timezoneOffsetMinutes))] : []),
+      ...(monthCondition ? [monthCondition] : []),
       ...(filters.trip === "unassigned" ? [isNull(outings.tripId)] : filters.trip ? [eq(outings.tripId, filters.trip)] : []),
     ];
     try {

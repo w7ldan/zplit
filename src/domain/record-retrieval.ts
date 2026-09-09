@@ -127,6 +127,15 @@ export function nextMonthStart(month: string, timezoneOffsetMinutes: unknown = 0
   return new Date(Date.UTC(year, monthNumber, 1) + offset * 60_000);
 }
 
+export function monthDateBounds(month: string) {
+  const normalized = normalizeMonth(month);
+  if (!normalized) throw new RangeError("Month must be YYYY-MM");
+  return {
+    start: `${normalized}-01`,
+    end: nextMonthStart(normalized).toISOString().slice(0, 10),
+  };
+}
+
 export function monthKey(value: Date | string, timezoneOffsetMinutes: unknown = 0) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) throw new RangeError("Date is invalid");
@@ -134,6 +143,18 @@ export function monthKey(value: Date | string, timezoneOffsetMinutes: unknown = 
   if (offset === undefined) throw new RangeError("Timezone offset must be a whole number between -840 and 840 minutes");
   const local = new Date(date.getTime() - offset * 60_000);
   return `${local.getUTCFullYear().toString().padStart(4, "0")}-${(local.getUTCMonth() + 1).toString().padStart(2, "0")}`;
+}
+
+export function financialMonthKey({
+  canonicalDate,
+  timestamp,
+  timezoneOffsetMinutes = 0,
+}: {
+  canonicalDate?: string | null;
+  timestamp: Date | string;
+  timezoneOffsetMinutes?: unknown;
+}) {
+  return canonicalDate != null ? canonicalDate.slice(0, 7) : monthKey(timestamp, timezoneOffsetMinutes);
 }
 
 export function monthDisplayLabel(value: Date | string) {
@@ -152,10 +173,10 @@ export function pageResult<T>(items: T[], totalItems: number, requestedPage: num
   return { items, page, pageSize: pageSize as typeof RECORD_PAGE_SIZE, totalItems, totalPages };
 }
 
-export function groupRecordsByMonth<T>(items: readonly T[], getDate: (item: T) => Date, timezoneOffsetMinutes: unknown = 0) {
+export function groupRecordsByMonth<T>(items: readonly T[], getMonth: (item: T) => string) {
   const groups: Array<{ month: string; items: T[] }> = [];
   for (const item of items) {
-    const month = monthKey(getDate(item), timezoneOffsetMinutes);
+    const month = getMonth(item);
     const last = groups.at(-1);
     if (last?.month === month) last.items.push(item);
     else groups.push({ month, items: [item] });

@@ -7,6 +7,7 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
 import { RecordPagination } from "@/components/records/record-pagination";
 import {
+  financialMonthKey,
   groupRecordsByMonth,
   monthDisplayLabel,
   normalizeRepaymentFilters,
@@ -101,7 +102,7 @@ async function loadOrganizationRepayments(
     strategy,
     recentPaymentMethods,
     canCreate,
-    groups: groupRecordsByMonth(page.items, (repayment) => repayment.paidAt, timezoneOffsetMinutes),
+    groups: groupRecordsByMonth(page.items, (repayment) => financialMonthKey({ canonicalDate: repayment.paidOn, timestamp: repayment.paidAt, timezoneOffsetMinutes })),
   };
 }
 
