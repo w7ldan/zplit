@@ -19,6 +19,7 @@ const destinations = [
   ["Outings", "/app/outings", "Trips and shared occasions"],
   ["Expenses", "/app/expenses", "Your recorded spending"],
   ["Repayments", "/app/repayments", "Money received and allocated"],
+  ["Budget", "/app/personal/budget", "Plan how your spending is absorbed over time"],
 ] as const;
 
 export default async function PersonalPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ create?: string | string[] }> } = {}) {
