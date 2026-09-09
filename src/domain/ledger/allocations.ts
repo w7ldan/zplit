@@ -14,7 +14,8 @@ export type RepaymentAllocationStrategy = "manual" | "oldest" | "newest";
 export type RepaymentStrategyShare = { id: string; remainingAmount: number };
 export type GeneratedRepaymentAllocation = { expenseShareId: string; amount: number };
 
-export type LedgerTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type { LedgerTransaction } from "./mutation-hooks";
+import type { LedgerTransaction } from "./mutation-hooks";
 
 export function calculateRepaymentAllocations(
   amount: number,

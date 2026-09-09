@@ -1,6 +1,7 @@
 import type { Database } from "../db/client";
 import { LedgerRepositoryError } from "./ledger/errors";
 import type { OpenExpenseSharesByFriend, RepaymentFriendContext } from "./ledger/types";
+import type { PersonalBudgetMutationHooks } from "./ledger/mutation-hooks";
 export type * from "./ledger/types";
 export type { LedgerErrorCode } from "./ledger/errors";
 export {
@@ -38,10 +39,12 @@ import { createRepaymentDestinationRepository } from "./ledger/repayment-destina
 
 type LedgerMutationGuard = (database: Database) => Promise<void>;
 
-export function createLedgerRepository(database: Database, ledgerScopeId: string, options: { mutationGuard?: LedgerMutationGuard } = {}) {
+export type { PersonalBudgetMutationHooks } from "./ledger/mutation-hooks";
+
+export function createLedgerRepository(database: Database, ledgerScopeId: string, options: { mutationGuard?: LedgerMutationGuard; personalBudget?: PersonalBudgetMutationHooks } = {}) {
   const scope = ledgerScopeId.trim();
   if (!scope) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger scope is required");
-  const { mutationGuard } = options;
+  const { mutationGuard, personalBudget } = options;
   const allocationRepository = createRepaymentAllocationRepository(database, scope);
 
   const friendsReads = createFriendsReadRepository(database, scope);
@@ -67,12 +70,12 @@ export function createLedgerRepository(database: Database, ledgerScopeId: string
     expenseSelection,
     listExpenseChargesFor,
     listExpenseSharesFor,
-  }, allocationRepository, mutationGuard);
+  }, allocationRepository, mutationGuard, personalBudget);
   const { lockExpenseDependents, ...expenseMutationMethods } = expenseMutations;
-  const outingsMutations = createOutingsMutationRepository(database, scope, { lockExpenseDependents }, mutationGuard);
+  const outingsMutations = createOutingsMutationRepository(database, scope, { lockExpenseDependents }, mutationGuard, personalBudget);
   const friendsMutationMethods = createFriendsMutationRepository(database, scope, mutationGuard);
   const tripsMutationMethods = createTripsMutationRepository(database, scope, mutationGuard);
-  const repaymentMutationMethods = createRepaymentMutationRepository(database, scope, allocationRepository);
+  const repaymentMutationMethods = createRepaymentMutationRepository(database, scope, allocationRepository, personalBudget);
   const repaymentDestinationMethods = createRepaymentDestinationRepository(database, scope, mutationGuard);
 
   async function getRepaymentFriendContext(friendId: string, includeOpenExpenseShares = false, tripId?: string): Promise<RepaymentFriendContext> {

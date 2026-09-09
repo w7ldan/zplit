@@ -4,6 +4,7 @@ import { debtorShareReceipts, expenseCharges, expenseChargeTargets, expenseRecei
 import { LedgerIntegrityError } from "../ledger-summary";
 import { calculateShareBreakdown } from "../expense-share-input";
 import type { RepaymentAllocationRepository } from "./allocations";
+import type { PersonalBudgetMutationHooks } from "./mutation-hooks";
 import { ExpenseShareAllocationInvariantError, ExpenseShareInvariantError, LedgerRepositoryError } from "./errors";
 import { assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
 import { clampPage, monthDateBounds, monthStart, nextMonthStart, normalizeExpenseFilters, normalizePage, normalizeTimezoneOffset, pageResult, parseAmountSearch, RECORD_PAGE_SIZE, type RecordPage } from "../record-retrieval";
@@ -415,6 +416,7 @@ export function createExpenseMutationRepository(
   read: Pick<ReturnType<typeof createExpenseReadRepository>, "expenseSelection" | "listExpenseChargesFor" | "listExpenseSharesFor">,
   allocations: Pick<RepaymentAllocationRepository, "lockRepaymentAllocationsForShares" | "reconcileDeletedExpenseAllocations">,
   mutationGuard?: (database: Database) => Promise<void>,
+  personalBudget?: PersonalBudgetMutationHooks,
 ) {
   const { expenseSelection, listExpenseChargesFor, listExpenseSharesFor } = read;
   const { lockRepaymentAllocationsForShares, reconcileDeletedExpenseAllocations } = allocations;
@@ -463,6 +465,7 @@ async function createExpense(input: CreateExpenseInput) {
         await assertOwnedOuting(transaction, input.outingId);
         const [expense] = await transaction.insert(expenses).values({ ...input, ledgerScopeId: scope }).returning();
         if (!expense) return persistenceError(new Error("expense insert returned no row"));
+        await personalBudget?.reconcileExpense(transaction, expense.id);
         const [created] = await transaction
           .select(expenseSelection())
           .from(expenses)
@@ -505,6 +508,7 @@ async function updateExpense(expenseId: string, input: UpdateExpenseInput) {
           .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
           .returning();
         if (!expense) return notFound();
+        await personalBudget?.reconcileExpense(transaction, expense.id);
         const [updated] = await transaction
           .select(expenseSelection())
           .from(expenses)
@@ -577,11 +581,13 @@ async function deleteExpense(expenseId: string, options: DeleteRecordOptions = {
         };
         assertDeletionConfirmation(impact, options);
         const reconciliation = await reconcileDeletedExpenseAllocations(transaction, expenseId, dependents.shares, dependents.allocations);
+        await personalBudget?.voidExpense(transaction, expenseId);
         const deleted = await transaction
           .delete(expenses)
           .where(and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, expenseId)))
           .returning({ id: expenses.id });
         if (deleted.length === 0) return notFound();
+        await personalBudget?.reconcileRepayments(transaction, affectedRepaymentIds);
         return {
           friendIds: impact.affectedFriendIds,
           repaymentIds: impact.affectedRepaymentIds,
@@ -752,8 +758,16 @@ async function prepareExpenseShareReplacement(
       return await database.transaction(async (transaction) => {
         await mutationGuard?.(transaction as Database);
         const replacement = await prepareExpenseShareReplacement(transaction, expenseId, shares, charges);
+        const dependents = await lockExpenseDependents(transaction, [expenseId]);
+        const requestedFriendIds = new Set(replacement.requested.map((share) => share.friendId));
+        const omittedShares = dependents.shares.filter((share) => !requestedFriendIds.has(share.friendId));
+        const omittedShareIds = new Set(omittedShares.map((share) => share.id));
+        const omittedAllocations = dependents.allocations.filter((allocation) => omittedShareIds.has(allocation.expenseShareId));
+        const affectedRepaymentIds = safeDeletionIds(omittedAllocations.map((allocation) => allocation.repaymentId), "Affected repayment ID");
+        if (omittedAllocations.length > 0) await reconcileDeletedExpenseAllocations(transaction, expenseId, omittedShares, omittedAllocations);
         await persistExpenseShareRows(transaction, expenseId, replacement);
         await persistExpenseCharges(transaction, expenseId, replacement, charges);
+        await personalBudget?.reconcileRepayments(transaction, affectedRepaymentIds);
         return await listExpenseSharesFor(transaction, expenseId);
       });
     } catch (error) {

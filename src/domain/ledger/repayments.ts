@@ -9,6 +9,7 @@ import { clampPage, monthDateBounds, monthStart, nextMonthStart, normalizeRepaym
 import { assertRepaymentAllocationReversalReceipt, assertRepaymentAllocationsInput, assertRepaymentId, assertRepaymentInput, repaymentAllocationId } from "./validation";
 import type { CreateRepaymentInput, DeleteRecordOptions, NeedsAttentionRepaymentResult, RepaymentAllocationReversalReceipt, RepaymentDeletionImpact, RepaymentListRecord, UpdateRepaymentInput } from "./types";
 import type { RepaymentAllocationInput } from "../repayment-allocation-input";
+import type { PersonalBudgetMutationHooks } from "./mutation-hooks";
 import {
   LedgerRepositoryError,
   RepaymentAmountInvariantError,
@@ -166,6 +167,7 @@ export function createRepaymentMutationRepository(
   database: Database,
   scope: string,
   allocations: RepaymentAllocationRepository,
+  personalBudget?: PersonalBudgetMutationHooks,
 ) {
   const { getRepaymentAllocatedAmount, repaymentSelection, validateNewRepaymentAllocations, withRepaymentTotals, removeRepaymentAllocation: removeAllocation, restoreRepaymentAllocation, replaceAllocationRows } = allocations;
 async function assertOwnedFriend(transaction: Pick<Database, "select">, friendId: string) {
@@ -185,6 +187,7 @@ async function createRepayment(input: CreateRepaymentInput) {
         await assertOwnedFriend(transaction, requested.friendId);
         const [repayment] = await transaction.insert(repayments).values({ ...requested, ledgerScopeId: scope }).returning();
         if (!repayment) return persistenceError(new Error("repayment insert returned no row"));
+        await personalBudget?.reconcileRepayment(transaction, repayment.id);
         return repayment;
       });
     } catch (error) {
@@ -216,6 +219,7 @@ async function createRepaymentWithAllocations(input: CreateRepaymentInput, alloc
         if (normalizedAllocations.length > 0) {
           await transaction.insert(repaymentAllocations).values(normalizedAllocations.map((allocation) => ({ ledgerScopeId: scope, repaymentId: repayment.id, ...allocation })));
         }
+        await personalBudget?.reconcileRepayment(transaction, repayment.id);
         return repayment;
       });
     } catch (error) {
@@ -253,6 +257,7 @@ async function updateRepayment(repaymentId: string, input: UpdateRepaymentInput)
           .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
           .returning();
         if (!repayment) return notFound();
+        await personalBudget?.reconcileRepayment(transaction, repayment.id);
 
         const [updated] = await transaction
           .select(repaymentSelection())
@@ -317,6 +322,7 @@ async function deleteRepayment(repaymentId: string, options: DeleteRecordOptions
           friendId,
         };
         assertDeletionConfirmation(impact, options);
+        await personalBudget?.voidRepayment(transaction, repaymentId);
         const deleted = await transaction
           .delete(repayments)
           .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
@@ -347,6 +353,7 @@ async function removeRepaymentAllocation(repaymentId: string, expenseShareId: st
           friendId: removed.friendId,
           amount: removed.allocation.amount,
         };
+        await personalBudget?.reconcileRepayment(transaction, removed.repaymentId);
         return { expenseId: removed.expenseId, friendId: removed.friendId, repaymentId: removed.repaymentId, reversalReceipt };
       });
     } catch (error) {
@@ -358,7 +365,9 @@ async function undoRepaymentAllocation(receipt: RepaymentAllocationReversalRecei
     assertRepaymentAllocationReversalReceipt(receipt);
     try {
       return await database.transaction(async (transaction) => {
-        return await restoreRepaymentAllocation(transaction, receipt);
+        const restored = await restoreRepaymentAllocation(transaction, receipt);
+        await personalBudget?.reconcileRepayment(transaction, restored.repaymentId);
+        return restored;
       });
     } catch (error) {
       return persistenceError(error);
@@ -374,7 +383,9 @@ async function replaceRepaymentAllocations(repaymentId: string, allocations: Rep
     }));
     try {
       return await database.transaction(async (transaction) => {
-        return await replaceAllocationRows(transaction, repaymentId, requested, options);
+        const result = await replaceAllocationRows(transaction, repaymentId, requested, options);
+        await personalBudget?.reconcileRepayment(transaction, repaymentId);
+        return result;
       });
     } catch (error) {
       return persistenceError(error);

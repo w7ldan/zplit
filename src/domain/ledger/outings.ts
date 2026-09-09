@@ -16,6 +16,7 @@ import {
   type RecordPage,
 } from "../record-retrieval";
 import { assertOutingId, assertOutingInput } from "./validation";
+import type { LedgerTransaction, PersonalBudgetMutationHooks } from "./mutation-hooks";
 import type { CreateOutingInput, DeleteRecordOptions, OutingDeletionImpact, OutingListRecord, OutingSelectorOption, UpdateOutingInput } from "./types";
 
 export function createOutingsReadRepository(database: Database, scope: string) {
@@ -192,9 +193,10 @@ export function createOutingsMutationRepository(
   scope: string,
   { lockExpenseDependents }: Pick<ReturnType<typeof createExpenseMutationRepository>, "lockExpenseDependents">,
   mutationGuard?: (database: Database) => Promise<void>,
+  personalBudget?: PersonalBudgetMutationHooks,
 ) {
 async function mutate<T>(operation: (database: Database) => Promise<T>) {
-    if (!mutationGuard) return operation(database);
+    if (!mutationGuard && !personalBudget) return operation(database);
     return database.transaction(async (transaction) => {
       if (mutationGuard) await mutationGuard(transaction as Database);
       return operation(transaction as Database);
@@ -239,6 +241,7 @@ async function updateOuting(outingId: string, input: UpdateOutingInput) {
           .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
           .returning();
         if (!outing) return notFound();
+        await personalBudget?.reconcileOuting(transaction as unknown as LedgerTransaction, outingId);
         return outing;
       });
     } catch (error) {
@@ -325,11 +328,13 @@ async function deleteOuting(outingId: string, options: DeleteRecordOptions = { c
           affectedFriendIds: safeDeletionIds(dependents.shares.map((share) => share.friendId), "Affected friend ID"),
         };
         assertDeletionConfirmation(impact, options);
+        await personalBudget?.voidExpenses(transaction, expenseIds);
         const deleted = await transaction
           .delete(outings)
           .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
           .returning({ id: outings.id });
         if (deleted.length === 0) return notFound();
+        await personalBudget?.reconcileRepayments(transaction, affectedRepaymentIds);
         return { friendIds: impact.affectedFriendIds, repaymentIds: impact.affectedRepaymentIds };
       });
     } catch (error) {

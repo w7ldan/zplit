@@ -1611,6 +1611,54 @@ export const budgetImpacts = pgTable(
   ],
 );
 
+export const budgetPersonalExpenseSources = pgTable(
+  "budget_personal_expense_sources",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    budgetTransactionId: uuid("budget_transaction_id").notNull(),
+    expenseId: uuid("expense_id")
+      .notNull()
+      .references(() => expenses.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetTransactionId],
+      foreignColumns: [budgetTransactions.ownerUserId, budgetTransactions.id],
+      name: "budget_personal_expense_sources_owner_transaction_fk",
+    }).onDelete("restrict"),
+    unique("budget_personal_expense_sources_owner_expense_unique").on(table.ownerUserId, table.expenseId),
+    unique("budget_personal_expense_sources_owner_transaction_unique").on(table.ownerUserId, table.budgetTransactionId),
+    index("budget_personal_expense_sources_expense_idx").on(table.expenseId),
+  ],
+);
+
+export const budgetPersonalRepaymentSources = pgTable(
+  "budget_personal_repayment_sources",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    budgetTransactionId: uuid("budget_transaction_id").notNull(),
+    repaymentId: uuid("repayment_id")
+      .notNull()
+      .references(() => repayments.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetTransactionId],
+      foreignColumns: [budgetTransactions.ownerUserId, budgetTransactions.id],
+      name: "budget_personal_repayment_sources_owner_transaction_fk",
+    }).onDelete("restrict"),
+    unique("budget_personal_repayment_sources_owner_repayment_unique").on(table.ownerUserId, table.repaymentId),
+    unique("budget_personal_repayment_sources_owner_transaction_unique").on(table.ownerUserId, table.budgetTransactionId),
+    index("budget_personal_repayment_sources_repayment_idx").on(table.repaymentId),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   accounts: many(accounts),

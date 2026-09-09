@@ -3,15 +3,17 @@ import { getDatabase } from "@/db/client";
 import { createLedgerRepository } from "@/domain/ledger-repository";
 import type { OrganizationCapability } from "@/domain/organization-permissions";
 import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
+import { createPersonalBudgetIntegration } from "@/server/budgeting/sources-personal";
 
 type Session = Awaited<ReturnType<typeof requireSession>>;
 
 export async function getAuthenticatedLedger(session?: Session) {
   const authenticatedSession = session ?? await requireSession();
   const database = getDatabase();
+  const personalScopeId = await getPersonalLedgerScopeId(database, authenticatedSession.user.id);
   return {
     user: authenticatedSession.user,
-    ledger: createLedgerRepository(database, await getPersonalLedgerScopeId(database, authenticatedSession.user.id)),
+    ledger: createLedgerRepository(database, personalScopeId, { personalBudget: createPersonalBudgetIntegration(authenticatedSession.user.id, personalScopeId) }),
   };
 }
 
