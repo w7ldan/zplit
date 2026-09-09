@@ -527,7 +527,11 @@
 }
 
 .group-expense-row__state--pending {
-  color: var(--amber);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--amber);
+  text-decoration-thickness: 0.2rem;
+  text-underline-offset: 0.2em;
 }
 
 .group-expense-row__state--confirmed {

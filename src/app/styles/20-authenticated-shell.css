@@ -1593,11 +1593,11 @@ body.global-search-open {
 }
 
 .organization-form__field-error {
-  color: var(--danger, #a33);
+  color: var(--error);
 }
 
 .group-form__field-error {
-  color: var(--danger, #a33);
+  color: var(--error);
 }
 
 .organization-form__actions {
@@ -2583,6 +2583,19 @@ body.global-search-open {
   text-decoration: underline;
   text-underline-offset: 0.2em;
   transition: transform var(--motion-press) var(--ease-product);
+}
+
+button.text-link,
+summary.text-link {
+  min-height: 2.5rem;
+  align-items: center;
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  button.text-link,
+  summary.text-link {
+    min-height: 2.75rem;
+  }
 }
 
 .app-shell .text-link:not(:disabled):active {

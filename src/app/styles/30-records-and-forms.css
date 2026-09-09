@@ -4081,7 +4081,12 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .expense-receipts__actions button {
-  padding: 0;
+  display: inline-flex;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.25rem;
   border: 0;
   background: transparent;
   cursor: pointer;
@@ -5143,8 +5148,13 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .settings-page__destination-drag-handle {
+  display: inline-flex;
   flex: 0 0 auto;
-  padding-top: 0.1rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
   color: var(--muted-ink);
   cursor: grab;
   font-size: 1rem;
@@ -5205,6 +5215,11 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .settings-page__destination-actions .text-link {
   margin-top: 0;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.35rem;
   cursor: pointer;
 }
 
@@ -5519,7 +5534,11 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .group-settlement-row__state--pending {
-  color: var(--amber);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--amber);
+  text-decoration-thickness: 0.2rem;
+  text-underline-offset: 0.2em;
 }
 
 .group-settlement-row__state--confirmed {
@@ -5835,5 +5854,18 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   .record-pagination__summary {
     order: -1;
     width: 100%;
+  }
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  .expense-receipts__actions button,
+  .settings-page__destination-actions .text-link {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .settings-page__destination-drag-handle {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
   }
 }
