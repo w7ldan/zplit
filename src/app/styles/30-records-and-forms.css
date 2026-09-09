@@ -578,16 +578,6 @@
   opacity: 0.65;
 }
 
-.expense-row {
-  display: grid;
-  grid-template-columns: 1.05fr 1.95fr;
-  gap: 2rem;
-  align-items: center;
-  min-height: 6.5rem;
-  padding-block: 1rem;
-  border-top: 1px solid var(--rule);
-}
-
 .expense-row__primary {
   display: grid;
   grid-template-columns: 5rem minmax(0, 1fr);
@@ -2601,6 +2591,10 @@
     display: contents;
   }
 
+  .expense-row__context {
+    display: contents;
+  }
+
   .friend-row__state,
   .friend-row__created,
   .friend-row__outstanding,
@@ -4499,18 +4493,81 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
   .friend-row,
   .outing-row,
-  .expense-row,
   .repayment-row {
     display: block;
     padding-block: 1rem;
   }
 
+  .expense-row {
+    display: grid;
+    gap: 0.55rem;
+    padding-block: 0.75rem;
+  }
+
   .friend-row__meta,
   .outing-row__meta,
-  .expense-row__meta,
   .repayment-row__meta {
     justify-content: start;
     margin-top: 0.9rem;
+  }
+
+  .expense-row__meta { grid-template-columns: minmax(0, 1fr) auto; gap: 0.35rem 0.75rem; margin-top: 0.4rem; align-items: center; }
+
+  .expense-row__amount {
+    grid-column: 1;
+    display: grid;
+    gap: 0.05rem;
+  }
+
+  .expense-row__amount > .technical-label,
+  .expense-row__context .technical-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .expense-row__amount strong { font-size: 1.15rem; }
+
+  .expense-row__context {
+    display: flex;
+    grid-column: 1;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.4rem;
+    align-items: baseline;
+    min-width: 0;
+    color: var(--muted-ink);
+    font-size: 0.72rem;
+  }
+
+  .expense-row__context > span,
+  .expense-row__outing {
+    min-width: 0;
+  }
+
+  .expense-row__outing {
+    overflow-wrap: anywhere;
+  }
+
+  .expense-row__outing::before {
+    margin-right: 0.4rem;
+    content: "·";
+  }
+
+  .expense-row__outing > span:last-child {
+    overflow-wrap: anywhere;
+  }
+
+  .expense-row__edit {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    justify-self: end;
   }
 
   .expense-row__meta strong {

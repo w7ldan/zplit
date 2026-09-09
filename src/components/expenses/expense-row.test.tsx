@@ -7,6 +7,8 @@ describe("ExpenseRow", () => {
     render(<ExpenseRow expense={{ id: "expense-a", description: "Dinner", amount: 84_000, outingTitle: "Friday night", outingOccurredAt: new Date("2026-01-01T00:00:00Z") }} />);
 
     for (const label of ["Amount", "Date", "Outing"]) expect(screen.getByText(label, { exact: true })).toBeInTheDocument();
+    expect(document.querySelector(".expense-row__context")).toHaveTextContent("Date");
+    expect(document.querySelector(".expense-row__context")).toHaveTextContent("Outing");
     expect(screen.getByText("Rp 84.000")).toHaveAttribute("aria-label", "Expense amount Rp 84.000");
     expect(screen.getByRole("link", { name: /Edit/ })).toBeInTheDocument();
   });
