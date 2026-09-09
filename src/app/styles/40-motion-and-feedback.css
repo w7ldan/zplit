@@ -343,7 +343,7 @@
 }
 
 .allocation-bar__message--complete {
-  animation: allocation-resolved 180ms var(--ease-product) var(--motion-state) both;
+  color: var(--ink);
 }
 
 @keyframes panel-in {
@@ -358,11 +358,6 @@
 
 @keyframes result-in {
   from { opacity: 0; transform: translateY(0.5rem); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes allocation-resolved {
-  from { opacity: 0.55; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -517,8 +512,7 @@
     opacity: 1 !important;
   }
 
-  .toast--exiting,
-  .allocation-bar__message--complete {
+  .toast--exiting {
     animation: none !important;
   }
 

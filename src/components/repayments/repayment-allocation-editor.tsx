@@ -189,18 +189,7 @@ export function RepaymentAllocationEditor({
   const overAllocated = allocatedAmount > plan.amount;
   const unallocatedAmount = Math.max(plan.amount - allocatedAmount, 0);
   const allocationProgress = plan.amount > 0 ? Math.min(Math.max(allocatedAmount / plan.amount, 0), 1) : 0;
-  const [completionTransition, setCompletionTransition] = useState(false);
-  const previousIncomplete = useRef(unallocatedAmount > 0 || overAllocated);
-
-  useEffect(() => {
-    const incomplete = unallocatedAmount > 0 || overAllocated;
-    const completed = !incomplete && previousIncomplete.current;
-    setCompletionTransition(completed);
-    previousIncomplete.current = incomplete;
-    if (!completed) return;
-    const timer = window.setTimeout(() => setCompletionTransition(false), 400);
-    return () => window.clearTimeout(timer);
-  }, [overAllocated, unallocatedAmount]);
+  const allocationComplete = !overAllocated && unallocatedAmount === 0;
 
   const search = (
     <form className="repayment-allocation-editor__search" method="get">
@@ -261,13 +250,7 @@ export function RepaymentAllocationEditor({
             style={{ transform: `scaleX(${allocationProgress})` }}
           />
         </span>
-        <span
-          className={
-            completionTransition
-              ? "allocation-bar__message allocation-bar__message--complete"
-              : "allocation-bar__message"
-          }
-        >
+        <span className={`allocation-bar__message${allocationComplete ? " allocation-bar__message--complete" : ""}`}>
           {overAllocated
             ? `Over-allocated by ${formatRupiah(allocatedAmount - plan.amount)}.`
             : unallocatedAmount > 0

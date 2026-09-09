@@ -123,9 +123,11 @@ describe("RepaymentAllocationEditor", () => {
 
     fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "84000" } });
     expect(screen.getByText("This repayment is fully applied. Applied money reduces outstanding balances.")).toBeInTheDocument();
+    expect(document.querySelector(".allocation-bar__message")).toHaveClass("allocation-bar__message--complete");
 
     fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "83000" } });
     expect(screen.getByText("Rp 1.000", { exact: true })).toBeInTheDocument();
+    expect(document.querySelector(".allocation-bar__message")).not.toHaveClass("allocation-bar__message--complete");
     fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "82000" } });
     expect(screen.getByText("Rp 2.000", { exact: true })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Amount to allocate to Dinner"), { target: { value: "82000" } });
