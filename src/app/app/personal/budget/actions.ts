@@ -12,6 +12,8 @@ import { getDatabase } from "@/db/client";
 import { createBudgetSetup } from "@/server/budgeting/profiles";
 import { createBudgetCategory, updateBudgetPlan } from "@/server/budgeting/categories";
 import { createManualBudgetTransaction, voidManualBudgetTransaction } from "@/server/budgeting/transactions";
+import { changePersonalExpenseBudgetCategory, importPersonalActivity } from "@/server/budgeting/sources-personal";
+import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
 
 export type BudgetFormState<T> = { fieldErrors: Record<string, string>; formError: string; values: T };
 
@@ -230,4 +232,25 @@ export async function voidBudgetTransactionAction(transactionId: string) {
   }
   revalidateBudget();
   redirect("/app/personal/budget/transactions");
+}
+
+export async function changePersonalExpenseBudgetCategoryAction(formData: FormData) {
+  const transactionId = textValue(formData, "transactionId");
+  const categoryId = textValue(formData, "categoryId");
+  if (!transactionId || !categoryId) throw new BudgetError("INVALID_INPUT", "A budget transaction and category are required.");
+  const session = await requireSession();
+  const database = getDatabase();
+  const scope = await getPersonalLedgerScopeId(database, session.user.id);
+  await changePersonalExpenseBudgetCategory(database, session.user.id, scope, transactionId, categoryId);
+  revalidateBudget();
+  redirect("/app/personal/budget");
+}
+
+export async function importPersonalActivityAction() {
+  const session = await requireSession();
+  const database = getDatabase();
+  const scope = await getPersonalLedgerScopeId(database, session.user.id);
+  await importPersonalActivity(database, session.user.id, scope);
+  revalidateBudget();
+  redirect("/app/personal/budget?imported=1");
 }

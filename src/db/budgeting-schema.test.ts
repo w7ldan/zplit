@@ -35,4 +35,17 @@ describe("budgeting schema", () => {
       "budget_impacts_status_allowed",
     ]));
   });
+
+  it("defines typed Personal source links without polymorphic source columns", () => {
+    expect(tableNames(schema.budgetPersonalExpenseSources)).toEqual(["owner_user_id", "budget_transaction_id", "expense_id", "created_at"]);
+    expect(tableNames(schema.budgetPersonalRepaymentSources)).toEqual(["owner_user_id", "budget_transaction_id", "repayment_id", "created_at"]);
+    for (const table of [schema.budgetPersonalExpenseSources, schema.budgetPersonalRepaymentSources]) {
+      const config = getTableConfig(table);
+      expect(config.uniqueConstraints.map((constraint) => constraint.name)).toEqual(expect.arrayContaining([
+        table === schema.budgetPersonalExpenseSources ? "budget_personal_expense_sources_owner_expense_unique" : "budget_personal_repayment_sources_owner_repayment_unique",
+        table === schema.budgetPersonalExpenseSources ? "budget_personal_expense_sources_owner_transaction_unique" : "budget_personal_repayment_sources_owner_transaction_unique",
+      ]));
+      expect(config.foreignKeys.length).toBe(3);
+    }
+  });
 });

@@ -5888,6 +5888,28 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   justify-content: start;
 }
 
+.budget-page__actions form,
+.budget-transaction-row form,
+.budget-history-row form {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.budget-transaction-row select,
+.budget-history-row select {
+  max-width: 10rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.35rem;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.75rem;
+}
+
 .budget-copy {
   max-width: 42rem;
   margin: 0;

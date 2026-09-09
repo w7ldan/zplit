@@ -6,13 +6,21 @@ const mocks = vi.hoisted(() => ({
   getDatabase: vi.fn(() => "database"),
   getBudgetDashboard: vi.fn(),
   replace: vi.fn(),
+  changePersonalExpenseBudgetCategoryAction: vi.fn(),
+  importPersonalActivityAction: vi.fn(),
 }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/budgeting/reporting", () => ({ getBudgetDashboard: mocks.getBudgetDashboard }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
-vi.mock("./actions", () => ({ createBudgetSetupAction: vi.fn(), createBudgetTransactionAction: vi.fn(), updateBudgetPlanAction: vi.fn() }));
+vi.mock("./actions", () => ({
+  changePersonalExpenseBudgetCategoryAction: mocks.changePersonalExpenseBudgetCategoryAction,
+  createBudgetSetupAction: vi.fn(),
+  createBudgetTransactionAction: vi.fn(),
+  importPersonalActivityAction: mocks.importPersonalActivityAction,
+  updateBudgetPlanAction: vi.fn(),
+}));
 
 import BudgetPage from "./page";
 
@@ -58,5 +66,33 @@ describe("/app/personal/budget task-panel modes", () => {
     render(await BudgetPage());
     expect(screen.getByRole("link", { name: "Add transaction" })).toHaveAttribute("href", "/app/personal/budget?create=transaction");
     expect(screen.getByRole("link", { name: "Manage plan" })).toHaveAttribute("href", "/app/personal/budget?create=plan");
+  });
+
+  it("labels linked Personal activity and keeps Expected Back outside Remaining", async () => {
+    mocks.getBudgetDashboard.mockResolvedValue({
+      configured: true,
+      period,
+      expectedBack: 40_000,
+      importAvailable: true,
+      recentTransactions: [{
+        id: "transaction-expense",
+        direction: "outflow",
+        amount: 600,
+        description: "Dinner",
+        occurredOn: "2026-09-05",
+        status: "posted",
+        origin: "linked",
+        sourceType: "personal_expense",
+        sourceId: "expense-a",
+        categoryName: "Uncategorized",
+        categoryNames: ["Uncategorized"],
+        categoryId: "category-system",
+      }],
+    });
+    render(await BudgetPage());
+    expect(screen.getByText("Personal expense")).toBeInTheDocument();
+    expect(screen.getByText("Expected back")).toBeInTheDocument();
+    expect(screen.getByText("Rp 40.000")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import activity" })).toBeInTheDocument();
   });
 });

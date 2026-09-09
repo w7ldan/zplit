@@ -1,6 +1,6 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { budgetCategories, budgetImpacts, budgetPeriodCategories, budgetPeriods, budgetTransactions } from "@/db/schema";
+import { budgetCategories, budgetImpacts, budgetPeriodCategories, budgetPeriods, budgetPersonalExpenseSources, budgetPersonalRepaymentSources, budgetTransactions } from "@/db/schema";
 import type { BudgetTransactionView } from "@/domain/budgeting/types";
 import { BudgetError } from "@/domain/budgeting/errors";
 import { isValidBudgetDate } from "@/domain/budgeting/dates";
@@ -58,7 +58,7 @@ export async function voidManualBudgetTransaction(database: Database, ownerUserI
 
 export async function listBudgetTransactions(database: Database, ownerUserId: string, limit = 100): Promise<BudgetTransactionView[]> {
   const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
-  const rows = await database.select({
+  const transactionRows = await database.select({
     id: budgetTransactions.id,
     direction: budgetTransactions.direction,
     amount: budgetTransactions.amount,
@@ -66,13 +66,44 @@ export async function listBudgetTransactions(database: Database, ownerUserId: st
     occurredOn: budgetTransactions.occurredOn,
     status: budgetTransactions.status,
     origin: budgetTransactions.origin,
-    categoryName: budgetCategories.name,
-    categoryId: budgetCategories.id,
+    expenseId: budgetPersonalExpenseSources.expenseId,
+    repaymentId: budgetPersonalRepaymentSources.repaymentId,
   }).from(budgetTransactions)
-    .innerJoin(budgetImpacts, and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, budgetTransactions.id)))
-    .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetImpacts.budgetCategoryId)))
+    .leftJoin(budgetPersonalExpenseSources, and(eq(budgetPersonalExpenseSources.ownerUserId, ownerUserId), eq(budgetPersonalExpenseSources.budgetTransactionId, budgetTransactions.id)))
+    .leftJoin(budgetPersonalRepaymentSources, and(eq(budgetPersonalRepaymentSources.ownerUserId, ownerUserId), eq(budgetPersonalRepaymentSources.budgetTransactionId, budgetTransactions.id)))
     .where(eq(budgetTransactions.ownerUserId, ownerUserId))
     .orderBy(desc(budgetTransactions.occurredOn), desc(budgetTransactions.id))
     .limit(boundedLimit);
-  return rows as BudgetTransactionView[];
+  if (transactionRows.length === 0) return [];
+  const impactRows = await database.select({
+    transactionId: budgetImpacts.budgetTransactionId,
+    categoryId: budgetCategories.id,
+    categoryName: budgetCategories.name,
+  }).from(budgetImpacts)
+    .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetImpacts.budgetCategoryId)))
+    .where(and(eq(budgetImpacts.ownerUserId, ownerUserId), inArray(budgetImpacts.budgetTransactionId, transactionRows.map((row) => row.id))));
+  const categoriesByTransaction = new Map<string, Array<{ id: string; name: string }>>();
+  for (const row of impactRows) {
+    const categories = categoriesByTransaction.get(row.transactionId) ?? [];
+    if (!categories.some((category) => category.id === row.categoryId)) categories.push({ id: row.categoryId, name: row.categoryName });
+    categoriesByTransaction.set(row.transactionId, categories);
+  }
+  return transactionRows.map((row) => {
+    const categories = categoriesByTransaction.get(row.id) ?? [];
+    const sourceType = row.expenseId ? "personal_expense" : row.repaymentId ? "personal_repayment" : "manual";
+    return {
+      id: row.id,
+      direction: row.direction,
+      amount: row.amount,
+      description: row.description,
+      occurredOn: row.occurredOn,
+      status: row.status,
+      origin: row.origin,
+      sourceType,
+      sourceId: row.expenseId ?? row.repaymentId ?? null,
+      categoryName: categories.length ? categories.map((category) => category.name).join(" + ") : "Not absorbed",
+      categoryNames: categories.map((category) => category.name),
+      categoryId: categories.length === 1 ? categories[0]!.id : null,
+    } satisfies BudgetTransactionView;
+  });
 }

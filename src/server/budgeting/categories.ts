@@ -1,4 +1,4 @@
-import { and, eq, gt, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, lt, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { budgetCategories, budgetImpacts, budgetPeriodCategories, budgetPeriods, budgetTransactions } from "@/db/schema";
 import { canonicalBudgetCategoryName, normalizeBudgetCategoryName } from "@/domain/budgeting/categories";
@@ -102,6 +102,14 @@ export async function createBudgetCategory(database: Database, ownerUserId: stri
     await insertNewCategory(transaction as Database, ownerUserId, period.id, Number(order?.value ?? -1) + 1, { name, allocatedAmount });
     return period;
   });
+}
+
+export async function listBudgetCategoryOptions(database: Database, ownerUserId: string) {
+  return database
+    .select({ id: budgetCategories.id, name: budgetCategories.name })
+    .from(budgetCategories)
+    .where(and(eq(budgetCategories.ownerUserId, ownerUserId), sql`${budgetCategories.archivedAt} IS NULL`))
+    .orderBy(asc(budgetCategories.name), asc(budgetCategories.id));
 }
 
 export async function updateBudgetPlan(database: Database, ownerUserId: string, input: BudgetPlanUpdate) {

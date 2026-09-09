@@ -6,15 +6,28 @@ import type { BudgetCategoryPlan, BudgetPeriodSummary, BudgetTransactionView } f
 import { getBudgetProfile } from "./profiles";
 import { getActiveBudgetPeriod } from "./periods";
 import { listBudgetTransactions } from "./transactions";
+import { createLedgerSummaryRepository } from "@/domain/ledger/summary";
+import { getPersonalLedgerScopeId, LedgerScopeError } from "@/server/ledger-scopes";
+import { hasImportablePersonalActivity } from "./sources-personal";
 
 function amount(value: string | number | null | undefined) {
   return Number(value ?? 0);
 }
 
-export async function getBudgetDashboard(database: Database, ownerUserId: string): Promise<{ configured: false } | { configured: true; period: BudgetPeriodSummary; recentTransactions: BudgetTransactionView[] } | { configured: true; period: null }> {
+export async function getBudgetDashboard(database: Database, ownerUserId: string): Promise<{ configured: false } | { configured: true; period: BudgetPeriodSummary; recentTransactions: BudgetTransactionView[]; expectedBack: number; importAvailable: boolean } | { configured: true; period: null }> {
   if (!(await getBudgetProfile(database, ownerUserId))) return { configured: false };
   const period = await getActiveBudgetPeriod(database, ownerUserId);
   if (!period) return { configured: true, period: null };
+  const personalScopeId = await getPersonalLedgerScopeId(database, ownerUserId).catch((error: unknown) => {
+    if (error instanceof LedgerScopeError && error.code === "personal_scope_missing") return null;
+    throw error;
+  });
+  const [personalSummary, importAvailable] = personalScopeId
+    ? await Promise.all([
+      createLedgerSummaryRepository(database, personalScopeId).getLedgerSummary(),
+      hasImportablePersonalActivity(database, ownerUserId, personalScopeId, period),
+    ])
+    : [{ totalOutstandingAmount: 0 }, false] as const;
   const [plans, impactRows, recentTransactions] = await Promise.all([
     database.select({
       id: budgetCategories.id,
@@ -73,5 +86,7 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
       categories,
     },
     recentTransactions,
+    expectedBack: personalSummary.totalOutstandingAmount,
+    importAvailable,
   };
 }

@@ -37,6 +37,9 @@ export type BudgetTransactionView = {
   occurredOn: string;
   status: BudgetTransactionStatus;
   origin: BudgetTransactionOrigin;
+  sourceType: "manual" | "personal_expense" | "personal_repayment";
+  sourceId: string | null;
   categoryName: string;
-  categoryId: string;
+  categoryNames: string[];
+  categoryId: string | null;
 };
