@@ -5889,16 +5889,41 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .budget-page__actions form,
-.budget-transaction-row form,
-.budget-history-row form {
+.budget-category-change form,
+.budget-history-row > form {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.35rem;
   align-items: center;
 }
 
-.budget-transaction-row select,
-.budget-history-row select {
+.budget-category-change {
+  margin-top: 0.2rem;
+}
+
+.budget-category-change summary {
+  width: fit-content;
+  cursor: pointer;
+  list-style: none;
+}
+
+.budget-category-change summary::-webkit-details-marker {
+  display: none;
+}
+
+.budget-category-change summary::after {
+  content: " +";
+}
+
+.budget-category-change[open] summary::after {
+  content: " −";
+}
+
+.budget-category-change form {
+  margin-top: 0.35rem;
+}
+
+.budget-category-change select {
   max-width: 10rem;
   min-height: 2rem;
   padding: 0.25rem 0.45rem;
@@ -5985,6 +6010,31 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .budget-plan-summary dd {
   margin: 0;
+}
+
+.budget-shared-money {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+  align-items: end;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--budget-rule);
+}
+
+.budget-shared-money > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.budget-shared-money span {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.budget-shared-money strong {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .budget-category-list,
@@ -6157,7 +6207,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
     font-size: 0.82rem;
   }
 
-  .budget-history-row form {
+  .budget-history-row > form {
     grid-column: 2 / -1;
     justify-self: end;
   }

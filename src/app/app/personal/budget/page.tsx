@@ -7,7 +7,7 @@ import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { TaskPanel } from "@/components/app/task-panel";
 import { BudgetSetupForm, BudgetPlanForm, BudgetTransactionForm } from "@/components/budgeting/budget-forms";
 import { SafeDaily } from "@/components/budgeting/safe-daily";
-import type { BudgetPeriodSummary, BudgetTransactionView } from "@/domain/budgeting/types";
+import { summarizeBudgetCategories, type BudgetPeriodSummary, type BudgetTransactionView } from "@/domain/budgeting/types";
 import { getBudgetDashboard } from "@/server/budgeting/reporting";
 import { changePersonalExpenseBudgetCategoryAction, createBudgetSetupAction, createBudgetTransactionAction, importPersonalActivityAction, updateBudgetPlanAction } from "./actions";
 
@@ -61,13 +61,19 @@ function BudgetSummary({ period, expectedBack }: { period: BudgetPeriodSummary; 
         <div><span>Total budget</span><strong>{formatRupiah(period.totalBudget)}</strong></div>
         <div><span>Net spent</span><strong>{formatSignedRupiah(period.netSpent)}</strong></div>
         <div><span>Remaining</span><strong>{formatSignedRupiah(period.remaining)}</strong></div>
-        <div><span>Expected back</span><strong>{formatRupiah(expectedBack)}</strong></div>
         <div><span>Safe daily</span><SafeDaily startsOn={period.startsOn} endsOn={period.endsOn} remaining={period.remaining} /></div>
       </div>
       <dl className="budget-plan-summary">
         <div><dt>Allocated</dt><dd>{formatRupiah(period.totalAllocated)}</dd></div>
         <div><dt>Unallocated</dt><dd>{formatRupiah(period.unallocatedBudget)}</dd></div>
       </dl>
+      <section className="budget-shared-money" aria-labelledby="budget-shared-money-heading">
+        <div>
+          <p className="technical-label" id="budget-shared-money-heading">SHARED MONEY</p>
+          <span>Outstanding Personal reimbursements</span>
+        </div>
+        <div><span>Expected back</span><strong>{formatRupiah(expectedBack)}</strong></div>
+      </section>
     </section>
   );
 }
@@ -98,20 +104,23 @@ type BudgetCategoryOption = { id: string; name: string };
 function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[] }) {
   if (transaction.sourceType !== "personal_expense" || transaction.status !== "posted") return null;
   return (
-    <form action={changePersonalExpenseBudgetCategoryAction}>
-      <input type="hidden" name="transactionId" value={transaction.id} />
-      <label className="sr-only" htmlFor={`budget-category-${transaction.id}`}>Budget category</label>
-      <select id={`budget-category-${transaction.id}`} name="categoryId" defaultValue={transaction.categoryId ?? categories[0]?.id}>
-        {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-      </select>
-      <button className="action-link action-link--quiet" type="submit">Change category</button>
-    </form>
+    <details className="budget-category-change">
+      <summary className="action-link action-link--quiet">Change budget category</summary>
+      <form action={changePersonalExpenseBudgetCategoryAction}>
+        <input type="hidden" name="transactionId" value={transaction.id} />
+        <label className="sr-only" htmlFor={`budget-category-${transaction.id}`}>Budget category</label>
+        <select id={`budget-category-${transaction.id}`} name="categoryId" defaultValue={transaction.categoryId ?? categories[0]?.id}>
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+        <button className="action-link action-link--quiet" type="submit">Save category</button>
+      </form>
+    </details>
   );
 }
 
 function TransactionRow({ transaction, categories }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[] }) {
   const sourceLabel = transaction.sourceType === "personal_expense" ? "Personal expense" : transaction.sourceType === "personal_repayment" ? "Personal repayment" : transaction.direction === "outflow" ? "Expense" : "Credit / refund";
-  const categoryLabel = transaction.categoryNames.length ? transaction.categoryNames.join(" + ") : "Not absorbed";
+  const categoryLabel = summarizeBudgetCategories(transaction.categoryNames);
   return (
     <div className={`budget-transaction-row${transaction.status === "voided" ? " budget-transaction-row--voided" : ""}`}>
       <span className="technical-label">{sourceLabel}</span>

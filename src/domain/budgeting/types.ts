@@ -43,3 +43,9 @@ export type BudgetTransactionView = {
   categoryNames: string[];
   categoryId: string | null;
 };
+
+export function summarizeBudgetCategories(categoryNames: readonly string[]) {
+  if (categoryNames.length === 0) return "Not absorbed";
+  if (categoryNames.length <= 2) return categoryNames.join(" + ");
+  return "Multiple categories";
+}

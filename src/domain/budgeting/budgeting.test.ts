@@ -3,6 +3,7 @@ import { formatSignedRupiah, parseNonNegativeRupiah } from "./amounts";
 import { canonicalBudgetCategoryName, normalizeBudgetCategoryName, validateBudgetCategoryNames } from "./categories";
 import { calculateSafeDaily, inclusiveBudgetDays, isValidBudgetDate } from "./dates";
 import { categoryNetSpent, netBudgetSpent, remainingBudget } from "./reporting";
+import { summarizeBudgetCategories } from "./types";
 
 describe("budgeting amounts", () => {
   it("accepts zero and supported Rupiah allocation formats", () => {
@@ -39,6 +40,13 @@ describe("budgeting categories", () => {
 });
 
 describe("budgeting dates and reporting", () => {
+  it("bounds compact repayment category summaries deterministically", () => {
+    expect(summarizeBudgetCategories([])).toBe("Not absorbed");
+    expect(summarizeBudgetCategories(["Food"])).toBe("Food");
+    expect(summarizeBudgetCategories(["Food", "Transport"])).toBe("Food + Transport");
+    expect(summarizeBudgetCategories(["Food", "Transport", "Dining"])).toBe("Multiple categories");
+  });
+
   it("validates real Gregorian date-only values", () => {
     expect(isValidBudgetDate("2026-02-28")).toBe(true);
     expect(isValidBudgetDate("2026-02-29")).toBe(false);

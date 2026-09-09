@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { budgetCategories, budgetImpacts, budgetPeriodCategories, budgetPeriods, budgetPersonalExpenseSources, budgetPersonalRepaymentSources, budgetTransactions } from "@/db/schema";
-import type { BudgetTransactionView } from "@/domain/budgeting/types";
+import { summarizeBudgetCategories, type BudgetTransactionView } from "@/domain/budgeting/types";
 import { BudgetError } from "@/domain/budgeting/errors";
 import { isValidBudgetDate } from "@/domain/budgeting/dates";
 import { MAX_RUPIAH } from "@/domain/budgeting/amounts";
@@ -90,7 +90,13 @@ export async function listBudgetTransactions(database: Database, ownerUserId: st
   }
   return transactionRows.map((row) => {
     const categories = categoriesByTransaction.get(row.id) ?? [];
-    const sourceType = row.expenseId ? "personal_expense" : row.repaymentId ? "personal_repayment" : "manual";
+    const sourceType = row.expenseId
+      ? "personal_expense"
+      : row.repaymentId
+        ? "personal_repayment"
+        : row.origin === "linked"
+          ? row.direction === "outflow" ? "personal_expense" : "personal_repayment"
+          : "manual";
     return {
       id: row.id,
       direction: row.direction,
@@ -101,7 +107,7 @@ export async function listBudgetTransactions(database: Database, ownerUserId: st
       origin: row.origin,
       sourceType,
       sourceId: row.expenseId ?? row.repaymentId ?? null,
-      categoryName: categories.length ? categories.map((category) => category.name).join(" + ") : "Not absorbed",
+      categoryName: summarizeBudgetCategories(categories.map((category) => category.name)),
       categoryNames: categories.map((category) => category.name),
       categoryId: categories.length === 1 ? categories[0]!.id : null,
     } satisfies BudgetTransactionView;

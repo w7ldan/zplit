@@ -7,6 +7,7 @@ import * as schema from "../src/db/schema";
 import type { Database } from "../src/db/client";
 import { createLedgerRepository } from "../src/domain/ledger-repository";
 import { createPersonalBudgetIntegration, changePersonalExpenseBudgetCategory, importPersonalActivity } from "../src/server/budgeting/sources-personal";
+import { listBudgetTransactions } from "../src/server/budgeting/transactions";
 import { createBudgetSetup } from "../src/server/budgeting/profiles";
 import { ensurePersonalLedgerScope } from "../src/server/ledger-scopes";
 import { deletionImpactRevision } from "../src/domain/ledger-repository";
@@ -82,12 +83,16 @@ async function run() {
     await repository.replaceExpenseShares(expenseA.id, [{ friendId: ids.friendA, baseAmount: 200 }]);
     const expenseB = await repository.createExpense({ outingId: ids.outingA, description: "Taxi", amount: 400 });
     await repository.replaceExpenseShares(expenseB.id, [{ friendId: ids.friendA, baseAmount: 100 }]);
+    const expenseTarget = await repository.createExpense({ outingId: ids.outingA, description: "Open target", amount: 400 });
+    await repository.replaceExpenseShares(expenseTarget.id, [{ friendId: ids.friendA, baseAmount: 300 }]);
     const expenseTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, expenseA.id]);
     const initialExpenseImpact = await row<{ direction: string; amount: number; category_id: string; status: string; origin: string }>(pool, "SELECT t.direction, t.amount, i.budget_category_id AS category_id, i.status, t.origin FROM budget_transactions t JOIN budget_impacts i ON i.owner_user_id = t.owner_user_id AND i.budget_transaction_id = t.id WHERE t.owner_user_id = $1 AND t.id = $2", [ownerA, expenseTransaction.id]);
     assert.deepEqual(initialExpenseImpact, { direction: "outflow", amount: 600, category_id: initialExpenseImpact.category_id, status: "applied", origin: "linked" });
     await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseTransaction.id, foodId);
     const expenseBTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, expenseB.id]);
     await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseBTransaction.id, transportId);
+    const expenseTargetTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, expenseTarget.id]);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseTargetTransaction.id, foodId);
     const shares = await pool.query<{ id: string; expense_id: string }>("SELECT id, expense_id FROM expense_shares WHERE ledger_scope_id = $1 ORDER BY expense_id", [scopeA]);
     const repayment = await repository.createRepaymentWithAllocations({ friendId: ids.friendA, amount: 350, paidAt: new Date("2026-09-07T10:00:00Z"), paidOn: "2026-09-07", paymentMethod: "Cash", notes: null }, [{ expenseShareId: shares.rows.find((share) => share.expense_id === expenseA.id)!.id, amount: 200 }, { expenseShareId: shares.rows.find((share) => share.expense_id === expenseB.id)!.id, amount: 100 }]);
     const repaymentImpacts = await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_personal_repayment_sources s JOIN budget_impacts i ON i.owner_user_id = s.owner_user_id AND i.budget_transaction_id = s.budget_transaction_id JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE s.owner_user_id = $1 AND s.repayment_id = $2 ORDER BY c.name", [ownerA, repayment.id]);
@@ -99,10 +104,12 @@ async function run() {
     await repository.updateRepayment(repayment.id, { friendId: ids.friendA, amount: 400, paidAt: new Date("2026-09-07T10:00:00Z"), paidOn: "2026-09-07", paymentMethod: "Cash", notes: null });
     const updatedRepaymentImpacts = await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_personal_repayment_sources s JOIN budget_impacts i ON i.owner_user_id = s.owner_user_id AND i.budget_transaction_id = s.budget_transaction_id JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE s.owner_user_id = $1 AND s.repayment_id = $2 ORDER BY c.name", [ownerA, repayment.id]);
     assert.deepEqual(updatedRepaymentImpacts.rows, [{ name: "Dining", amount: 200 }, { name: "Transport", amount: 100 }, { name: "Uncategorized", amount: 100 }]);
-    await repository.replaceRepaymentAllocations(repayment.id, [{ expenseShareId: shares.rows.find((share) => share.expense_id === expenseA.id)!.id, amount: 200 }]);
+    await repository.replaceRepaymentAllocations(repayment.id, [{ expenseShareId: shares.rows.find((share) => share.expense_id === expenseA.id)!.id, amount: 200 }, { expenseShareId: shares.rows.find((share) => share.expense_id === expenseB.id)!.id, amount: 100 }]);
     const replacedRepaymentImpacts = await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_personal_repayment_sources s JOIN budget_impacts i ON i.owner_user_id = s.owner_user_id AND i.budget_transaction_id = s.budget_transaction_id JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE s.owner_user_id = $1 AND s.repayment_id = $2 ORDER BY c.name", [ownerA, repayment.id]);
-    assert.deepEqual(replacedRepaymentImpacts.rows, [{ name: "Dining", amount: 200 }, { name: "Uncategorized", amount: 200 }]);
+    assert.deepEqual(replacedRepaymentImpacts.rows, [{ name: "Dining", amount: 200 }, { name: "Transport", amount: 100 }, { name: "Uncategorized", amount: 100 }]);
     await repository.replaceExpenseShares(expenseA.id, []);
+    const canonicalAllocationsAfterShareRemoval = await pool.query<{ expense_id: string; amount: number }>("SELECT s.expense_id, a.amount FROM repayment_allocations a JOIN expense_shares s ON s.ledger_scope_id = a.ledger_scope_id AND s.id = a.expense_share_id WHERE a.ledger_scope_id = $1 AND a.repayment_id = $2 ORDER BY s.expense_id", [scopeA, repayment.id]);
+    assert.deepEqual(canonicalAllocationsAfterShareRemoval.rows, [{ expense_id: expenseB.id, amount: 100 }], "share replacement must preserve canonical FK-cascade allocation semantics");
     const allocationSideEffectImpacts = await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_personal_repayment_sources s JOIN budget_impacts i ON i.owner_user_id = s.owner_user_id AND i.budget_transaction_id = s.budget_transaction_id JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE s.owner_user_id = $1 AND s.repayment_id = $2 ORDER BY c.name", [ownerA, repayment.id]);
     assert.deepEqual(allocationSideEffectImpacts.rows, [{ name: "Transport", amount: 100 }, { name: "Uncategorized", amount: 300 }]);
     const repaymentTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_repayment_sources WHERE owner_user_id = $1 AND repayment_id = $2", [ownerA, repayment.id]);
@@ -110,6 +117,11 @@ async function run() {
     await repository.deleteRepayment(repayment.id, { cascadeDependents: true, expectedImpactRevision: deletionImpactRevision(repaymentDeleteImpact) });
     const repaymentVoided = await row<{ status: string }>(pool, "SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [ownerA, repaymentTransaction.id]);
     assert.equal(repaymentVoided.status, "voided", "repayment deletion must void the linked inflow");
+    const repaymentHistory = (await listBudgetTransactions(database, ownerA)).find((transaction) => transaction.id === repaymentTransaction.id);
+    assert.equal(repaymentHistory?.status, "voided");
+    assert.equal(repaymentHistory?.origin, "linked");
+    assert.equal(repaymentHistory?.sourceType, "personal_repayment", "deleted linked inflows must retain Personal repayment history identity");
+    assert.notEqual(repaymentHistory?.sourceType, "manual");
 
     await repository.updateExpense(expenseA.id, { outingId: ids.outingA, description: "Dinner updated", amount: 650 });
     const updatedExpense = await row<{ amount: number; description: string }>(pool, "SELECT t.amount, t.description FROM budget_personal_expense_sources s JOIN budget_transactions t ON t.owner_user_id = s.owner_user_id AND t.id = s.budget_transaction_id WHERE s.owner_user_id = $1 AND s.expense_id = $2", [ownerA, expenseA.id]);
@@ -128,6 +140,11 @@ async function run() {
     assert.equal(deletedSource.rowCount, 0, "source deletion must cascade only the link");
     const voided = await row<{ status: string; impact_count: string }>(pool, "SELECT t.status, (SELECT count(*)::text FROM budget_impacts i WHERE i.owner_user_id = t.owner_user_id AND i.budget_transaction_id = t.id) AS impact_count FROM budget_transactions t WHERE t.owner_user_id = $1 AND t.id = $2", [ownerA, deleteTransaction.id]);
     assert.deepEqual(voided, { status: "voided", impact_count: "1" });
+    const expenseHistory = (await listBudgetTransactions(database, ownerA)).find((transaction) => transaction.id === deleteTransaction.id);
+    assert.equal(expenseHistory?.status, "voided");
+    assert.equal(expenseHistory?.origin, "linked");
+    assert.equal(expenseHistory?.sourceType, "personal_expense", "deleted linked outflows must retain Personal expense history identity");
+    assert.notEqual(expenseHistory?.sourceType, "manual");
 
     const outingDeleteExpense = await repository.createExpense({ outingId: ids.outingDelete, description: "Delete outing expense", amount: 45 });
     const outingDeleteTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, outingDeleteExpense.id]);
@@ -162,8 +179,20 @@ async function run() {
     await expectConstraint(pool, "23505", "INSERT INTO budget_personal_expense_sources (owner_user_id, budget_transaction_id, expense_id) SELECT $1, budget_transaction_id, expense_id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, expenseA.id]);
     await assert.rejects(changePersonalExpenseBudgetCategory(database, ownerA, scopeB, expenseTransaction.id, foodId), (error: unknown) => error instanceof BudgetError && error.code === "NOT_FOUND");
     const ownerBExpense = await ownerBRepository.createExpense({ outingId: ids.outingB, description: "No profile expense", amount: 25 });
+    await ownerBRepository.replaceExpenseShares(ownerBExpense.id, [{ friendId: ids.friendB, baseAmount: 25 }]);
+    const ownerBTargetExpense = await ownerBRepository.createExpense({ outingId: ids.outingB, description: "No profile target", amount: 25 });
+    await ownerBRepository.replaceExpenseShares(ownerBTargetExpense.id, [{ friendId: ids.friendB, baseAmount: 25 }]);
+    const ownerBShares = await pool.query<{ id: string; expense_id: string }>("SELECT id, expense_id FROM expense_shares WHERE ledger_scope_id = $1 AND expense_id IN ($2, $3) ORDER BY expense_id", [scopeB, ownerBExpense.id, ownerBTargetExpense.id]);
+    const noProfileAllocatedRepayment = await ownerBRepository.createRepaymentWithAllocations({ friendId: ids.friendB, amount: 25, paidAt: new Date("2026-09-08T10:00:00Z"), paidOn: "2026-09-08", paymentMethod: "Cash", notes: null }, [{ expenseShareId: ownerBShares.rows.find((share) => share.expense_id === ownerBExpense.id)!.id, amount: 25 }]);
+    await ownerBRepository.replaceExpenseShares(ownerBExpense.id, []);
+    assert.equal((await pool.query("SELECT count(*)::int AS count FROM repayment_allocations WHERE ledger_scope_id = $1 AND repayment_id = $2", [scopeB, noProfileAllocatedRepayment.id])).rows[0].count, 0, "no-profile share removal must retain canonical allocation deletion semantics");
+    assert.equal((await pool.query("SELECT count(*)::int AS count FROM repayment_allocations a JOIN expense_shares s ON s.ledger_scope_id = a.ledger_scope_id AND s.id = a.expense_share_id WHERE a.ledger_scope_id = $1 AND s.expense_id = $2", [scopeB, ownerBTargetExpense.id])).rows[0].count, 0, "no-profile share removal must not reallocate to an unrelated share");
+    const noProfileRepayment = await ownerBRepository.createRepayment({ friendId: ids.friendB, amount: 15, paidAt: new Date("2026-09-08T11:00:00Z"), paidOn: "2026-09-08", paymentMethod: "Cash", notes: null });
+    assert.equal((await pool.query("SELECT count(*)::int AS count FROM repayments WHERE ledger_scope_id = $1 AND id = $2", [scopeB, noProfileRepayment.id])).rows[0].count, 1, "no-profile repayment must remain canonical");
     await expectConstraint(pool, "23503", "INSERT INTO budget_personal_expense_sources (owner_user_id, budget_transaction_id, expense_id) VALUES ($1, $2, $3)", [ownerB, expenseTransaction.id, ownerBExpense.id]);
     assert.equal((await pool.query("SELECT count(*)::int AS count FROM budget_transactions WHERE owner_user_id = $1", [ownerB])).rows[0].count, 0, "no-profile Personal mutations must not create Budget rows");
+    assert.equal((await pool.query("SELECT count(*)::int AS count FROM budget_impacts WHERE owner_user_id = $1", [ownerB])).rows[0].count, 0, "no-profile Personal repayments must not create Budget impacts");
+    assert.equal((await pool.query("SELECT count(*)::int AS count FROM budget_personal_repayment_sources WHERE owner_user_id = $1", [ownerB])).rows[0].count, 0, "no-profile Personal repayments must not create Budget source links");
     assert(ownerBExpense.id, "owner B source mutation should still succeed");
     console.log("personal budgeting smoke passed: typed links, atomic lifecycle, full cash semantics, date/null rules, allocation mapping, recategorization, void history, import idempotency/concurrency, FK/owner isolation, and no-profile behavior verified");
   } catch (error) {

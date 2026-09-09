@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -91,8 +91,13 @@ describe("/app/personal/budget task-panel modes", () => {
     });
     render(await BudgetPage());
     expect(screen.getByText("Personal expense")).toBeInTheDocument();
-    expect(screen.getByText("Expected back")).toBeInTheDocument();
-    expect(screen.getByText("Rp 40.000")).toBeInTheDocument();
+    const sharedMoney = screen.getByRole("region", { name: "SHARED MONEY" });
+    expect(within(sharedMoney).getByText("Expected back")).toBeInTheDocument();
+    expect(within(sharedMoney).getByText("Rp 40.000")).toBeInTheDocument();
+    expect(document.querySelector(".budget-summary__grid")).not.toHaveTextContent("Expected back");
+    const categoryDisclosure = screen.getByText("Change budget category").closest("details");
+    expect(categoryDisclosure).toBeInTheDocument();
+    expect(categoryDisclosure).not.toHaveAttribute("open");
     expect(screen.getByRole("button", { name: "Import activity" })).toBeInTheDocument();
   });
 });

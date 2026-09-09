@@ -764,7 +764,7 @@ async function prepareExpenseShareReplacement(
         const omittedShareIds = new Set(omittedShares.map((share) => share.id));
         const omittedAllocations = dependents.allocations.filter((allocation) => omittedShareIds.has(allocation.expenseShareId));
         const affectedRepaymentIds = safeDeletionIds(omittedAllocations.map((allocation) => allocation.repaymentId), "Affected repayment ID");
-        if (omittedAllocations.length > 0) await reconcileDeletedExpenseAllocations(transaction, expenseId, omittedShares, omittedAllocations);
+        // Share replacement preserves the canonical FK cascade; Budget observes the final allocation state below.
         await persistExpenseShareRows(transaction, expenseId, replacement);
         await persistExpenseCharges(transaction, expenseId, replacement, charges);
         await personalBudget?.reconcileRepayments(transaction, affectedRepaymentIds);
