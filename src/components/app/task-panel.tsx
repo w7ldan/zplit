@@ -12,7 +12,16 @@ type TaskPanelProps = {
   eyebrow?: string;
   triggerId: string;
   children: ReactNode;
+  footer?: ReactNode;
 };
+
+export function TaskPanelFooter({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <footer className={["task-panel__footer", className].filter(Boolean).join(" ")} data-task-panel-footer="true">
+      {children}
+    </footer>
+  );
+}
 
 function withoutCreateFlag() {
   const url = new URL(window.location.href);
@@ -30,7 +39,7 @@ function useOptionalRouter() {
 
 const panelExitFallbackMs = 260;
 
-export function TaskPanel({ open, title, description, eyebrow = "NEW RECORD", triggerId, children }: TaskPanelProps) {
+export function TaskPanel({ open, title, description, eyebrow = "NEW RECORD", triggerId, children, footer }: TaskPanelProps) {
   const router = useOptionalRouter();
   const unsavedChanges = useUnsavedChangesNavigation();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -151,6 +160,7 @@ export function TaskPanel({ open, title, description, eyebrow = "NEW RECORD", tr
           <button className="task-panel__close" type="button" onClick={close} aria-label="Close panel" disabled={closing}>Close</button>
         </div>
         <div className="task-panel__body">{children}</div>
+        {footer ? <TaskPanelFooter>{footer}</TaskPanelFooter> : null}
       </div>
     </dialog>
   );

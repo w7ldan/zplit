@@ -41,6 +41,27 @@ describe("TaskPanel", () => {
     expect(document.documentElement).not.toHaveClass("zplit-product-mode");
   });
 
+  it("renders an optional footer after the scrollable body", () => {
+    render(
+      <TaskPanel
+        open
+        eyebrow="NEW FRIEND"
+        title="Add a friend"
+        description="Details"
+        triggerId="friend-create"
+        footer={<button type="button">Save</button>}
+      >
+        <p>Form content</p>
+      </TaskPanel>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    const body = dialog.querySelector(".task-panel__body")!;
+    const footer = dialog.querySelector("[data-task-panel-footer]")!;
+    expect(footer).toHaveTextContent("Save");
+    expect(body.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("focuses the first field, closes through the button, and restores the fallback trigger", async () => {
     render(
       <>

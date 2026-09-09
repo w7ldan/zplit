@@ -12,6 +12,7 @@ import { SearchableCombobox, type SearchableOption, type SearchableOptionAction 
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { PaymentMethodFields } from "@/components/records/payment-method-fields";
 import { useRepaymentAllocationDraft } from "./use-repayment-allocation-draft";
+import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type RepaymentAction = (previousState: RepaymentActionState, formData: FormData) => Promise<RepaymentActionState>;
 
@@ -620,7 +621,9 @@ export function RepaymentForm({
       >
         {state.formError || "\u00a0"}
       </p>
-      <SubmitButton mode={mode} />
+      <TaskPanelFooter className="repayment-form__actions">
+        <SubmitButton mode={mode} />
+      </TaskPanelFooter>
     </form>
   );
 }

@@ -8,6 +8,7 @@ import type { FriendArchiveReversalReceipt } from "@/domain/ledger-repository";
 import { friendPhoneFormValues, type FriendInputValues } from "@/domain/friend-input";
 import { COUNTRY_CALLING_CODES, OTHER_COUNTRY_CODE } from "@/domain/country-calling-codes";
 import { useToast } from "@/components/feedback/toast";
+import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type FriendAction = (previousState: FriendActionState, formData: FormData) => Promise<FriendActionState>;
 
@@ -98,7 +99,9 @@ export function FriendForm({ action, initialValues = emptyValues, mode = "create
       <p className="friend-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">
         {state.formError || "\u00a0"}
       </p>
-      <SubmitButton mode={mode} />
+      <TaskPanelFooter className="friend-form__actions">
+        <SubmitButton mode={mode} />
+      </TaskPanelFooter>
     </form>
   );
 }

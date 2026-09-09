@@ -13,6 +13,7 @@ import {
 import { useToast } from "@/components/feedback/toast";
 import { useUnsavedChangesGuard } from "@/components/navigation/unsaved-changes";
 import { formatRupiah, sameRupiah } from "@/domain/rupiah";
+import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type ExpenseAction = (previousState: ExpenseActionState, formData: FormData) => Promise<ExpenseActionState>;
 
@@ -214,7 +215,7 @@ export function ExpenseForm({
       >
         {state.formError || "\u00a0"}
       </p>
-      <div className="expense-form__actions">
+      <TaskPanelFooter className="expense-form__actions">
         <SubmitButton
           mode={mode}
           intent={mode === "create" ? "add" : undefined}
@@ -222,7 +223,7 @@ export function ExpenseForm({
         {mode === "create" ? (
           <SubmitButton mode={mode} intent="continue" />
         ) : null}
-      </div>
+      </TaskPanelFooter>
     </form>
   );
 }

@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import type { OutingActionState } from "@/app/app/outings/actions";
 import type { OutingInputValues } from "@/domain/outing-input";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
+import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type OutingAction = (previousState: OutingActionState, formData: FormData) => Promise<OutingActionState>;
 
@@ -144,7 +145,9 @@ export function OutingForm({ action, initialValues = emptyValues, initialOccurre
         onTripChange={(trip) => { setSelectedTripId(trip.id); setSelectedTrip(trip); }}
       />
       <p className="outing-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
-      <SubmitButton mode={mode} />
+      <TaskPanelFooter className="outing-form__actions">
+        <SubmitButton mode={mode} />
+      </TaskPanelFooter>
     </form>
   );
 }

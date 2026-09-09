@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import type { TripActionState } from "@/app/app/trips/actions";
 import type { TripInputValues } from "@/domain/trip-input";
+import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type TripAction = (previousState: TripActionState, formData: FormData) => Promise<TripActionState>;
 
@@ -46,7 +47,9 @@ export function TripForm({ action, initialValues = emptyValues, mode = "create" 
         <FieldError id="trip-notes-error" message={state.fieldErrors.notes} />
       </div>
       <p className="trip-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
-      <SubmitButton mode={mode} />
+      <TaskPanelFooter className="trip-form__actions">
+        <SubmitButton mode={mode} />
+      </TaskPanelFooter>
     </form>
   );
 }

@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import type { GroupActionState, GroupFormValues } from "@/domain/group-contracts";
+import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type GroupAction = (previousState: GroupActionState, formData: FormData) => Promise<GroupActionState>;
 
@@ -100,14 +101,14 @@ export function GroupForm({
       >
         {state.formError || "\u00a0"}
       </p>
-      <div className="group-form__actions">
+      <TaskPanelFooter className="group-form__actions">
         {!edit ? (
           <Link className="action-link action-link--quiet" href="/app/personal/groups">
             Cancel
           </Link>
         ) : null}
         <SubmitButton edit={edit} />
-      </div>
+      </TaskPanelFooter>
     </form>
   );
 }

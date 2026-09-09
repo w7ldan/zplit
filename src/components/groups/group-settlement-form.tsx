@@ -8,6 +8,7 @@ import type {
 } from "@/domain/group-contracts";
 import { formatRupiah, parseRupiah } from "@/domain/rupiah";
 import { PaymentMethodFields } from "@/components/records/payment-method-fields";
+import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type SettlementAction = (
   previousState: GroupSettlementActionState,
@@ -267,7 +268,9 @@ export function GroupSettlementForm({
       >
         {localError || state.formError || "\u00a0"}
       </p>
-      <SubmitButton />
+      <TaskPanelFooter className="group-settlement-form__actions">
+        <SubmitButton />
+      </TaskPanelFooter>
     </form>
   );
 }

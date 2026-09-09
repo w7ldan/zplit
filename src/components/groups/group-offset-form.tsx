@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { GroupOffsetActionState, GroupOffsetCounterpartyOption } from "@/domain/group-contracts";
 import { formatRupiah } from "@/domain/rupiah";
+import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type OffsetAction = (
   previousState: GroupOffsetActionState,
@@ -76,7 +77,9 @@ export function GroupOffsetForm({
         <strong>{formatRupiah(selected?.offsetAmount ?? 0)}</strong>
         <p>No money moves. This remains pending with no effect until the counterparty confirms.</p>
       </div>
-      <SubmitButton />
+      <TaskPanelFooter className="group-settlement-form__actions">
+        <SubmitButton />
+      </TaskPanelFooter>
       <p
         className="group-settlement-form__message"
         id="group-offset-error"

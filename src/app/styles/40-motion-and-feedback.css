@@ -1,7 +1,8 @@
 
 .task-panel {
   position: fixed;
-  inset: 0 0 0 auto;
+  inset-block: 0;
+  inset-inline-end: 0;
   width: min(34rem, 100vw);
   max-width: 100%;
   height: 100%;
@@ -9,7 +10,8 @@
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-panel) 0 0 var(--radius-panel);
+  border-start-start-radius: var(--radius-panel);
+  border-end-start-radius: var(--radius-panel);
   background: transparent;
   color: var(--ink);
   overflow: visible;
@@ -48,12 +50,18 @@
   border-bottom: 1px solid var(--ink);
 }
 
+.task-panel__header > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .task-panel__header h2 {
   margin: 0.45rem 0 0;
   font-family: var(--font-display);
   font-size: 2rem;
   letter-spacing: -0.06em;
   line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .task-panel__header p:last-child {
@@ -75,9 +83,35 @@
 }
 
 .task-panel__body {
+  flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   overflow: auto;
-  padding-top: 0.25rem;
+  padding-block: 0.25rem 0.5rem;
+  overscroll-behavior: contain;
+  scroll-padding-block-end: 5rem;
+}
+
+.task-panel__body > form {
+  min-width: 0;
+}
+
+.task-panel__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: flex-end;
+  margin-block-start: 1rem;
+  padding-block: 0.75rem;
+  border-block-start: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.task-panel__body .task-panel__footer {
+  position: sticky;
+  z-index: 1;
+  inset-block-end: 0;
 }
 
 .inline-disclosure {
@@ -349,9 +383,8 @@
   .app-shell__mobile-nav {
     position: fixed;
     z-index: 30;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    inset-inline: 0;
+    inset-block-end: 0;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
@@ -411,11 +444,14 @@
   }
 
   .task-panel {
-    inset: auto 0 0;
+    inset-block-start: auto;
+    inset-block-end: 0;
+    inset-inline: 0;
     width: 100%;
     height: min(90dvh, 48rem);
     max-height: 90dvh;
-    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    border-start-start-radius: var(--radius-panel);
+    border-start-end-radius: var(--radius-panel);
     animation-name: sheet-in;
   }
 

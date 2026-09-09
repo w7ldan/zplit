@@ -8,6 +8,7 @@ import type {
   GroupParticipantEligibility,
 } from "@/domain/group-contracts";
 import { formatRupiah, parseRupiah } from "@/domain/rupiah";
+import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type GroupExpenseAction = (
   previousState: GroupExpenseActionState,
@@ -377,9 +378,9 @@ export function GroupExpenseForm({
       >
         {state.formError || "\u00a0"}
       </p>
-      <div className="group-expense-form__actions">
+      <TaskPanelFooter className="group-expense-form__actions">
         <SubmitButton />
-      </div>
+      </TaskPanelFooter>
     </form>
   );
 }

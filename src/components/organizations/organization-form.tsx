@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import type { OrganizationActionState, OrganizationFormValues } from "@/domain/organization-contracts";
+import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type OrganizationAction = (previousState: OrganizationActionState, formData: FormData) => Promise<OrganizationActionState>;
 
@@ -50,7 +51,7 @@ export function OrganizationForm({ action, initialValues, edit = false }: { acti
         </div>
       ) : null}
       <p className="organization-form__message" role={state.formError && state.formError !== "Profile saved." ? "alert" : "status"} aria-live="polite">{state.formError || "\u00a0"}</p>
-      <div className="organization-form__actions">{!edit ? <Link className="action-link action-link--quiet" href="/app/organizations">Cancel</Link> : null}<SubmitButton edit={edit} /></div>
+      <TaskPanelFooter className="organization-form__actions">{!edit ? <Link className="action-link action-link--quiet" href="/app/organizations">Cancel</Link> : null}<SubmitButton edit={edit} /></TaskPanelFooter>
     </form>
   );
 }
