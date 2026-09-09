@@ -2445,6 +2445,7 @@ body.global-search-open {
   display: flex;
   gap: 1rem;
   min-width: 0;
+  position: relative;
   overflow-x: auto;
   border-bottom: 1px solid var(--rule);
   padding-bottom: 0.75rem;
@@ -2455,6 +2456,23 @@ body.global-search-open {
 
 .group-context__nav::-webkit-scrollbar {
   display: none;
+}
+
+.group-context__nav::after,
+.organization-context__nav::after {
+  position: absolute;
+  z-index: 1;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 1.25rem;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--paper));
+  content: "";
+}
+
+:dir(rtl) .group-context__nav::after,
+:dir(rtl) .organization-context__nav::after {
+  background: linear-gradient(to left, transparent, var(--paper));
 }
 
 .group-context__nav a {
@@ -2781,6 +2799,7 @@ body.global-search-open {
   display: flex;
   gap: 1rem;
   min-width: 0;
+  position: relative;
   overflow-x: auto;
   border-bottom: 1px solid var(--rule);
   padding-bottom: 0.75rem;
