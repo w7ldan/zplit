@@ -28,6 +28,7 @@ import {
 type PublicMotionProps = { children: ReactNode };
 type SceneElement = HTMLElement & { _publicTrigger?: ScrollTrigger };
 type AmbientController = (scene: PublicLandingState["scene"]) => void;
+type PublicNumberElement = HTMLElement & { _publicNumberTween?: gsap.core.Tween };
 
 const MOBILE_LANDING_MEDIA_QUERY = "(max-width: 767px), (orientation: landscape) and (max-width: 900px) and (max-height: 500px)";
 const DESKTOP_LANDING_MEDIA_QUERY = [
@@ -39,6 +40,10 @@ const NO_PREFERENCE = "(prefers-reduced-motion: no-preference)";
 
 function isMobileLandingViewport() {
   return window.matchMedia(MOBILE_LANDING_MEDIA_QUERY).matches;
+}
+
+export function publicLandingScrollBehavior(reducedMotion: boolean): ScrollBehavior {
+  return reducedMotion ? "auto" : "smooth";
 }
 
 const FLOW_VALUES = [
@@ -90,35 +95,40 @@ function setupMagneticLinks(root: HTMLElement) {
 
 function setupPointerField(root: HTMLElement) {
   if (isMobileLandingViewport() || !(window.matchMedia?.("(pointer: fine)").matches ?? false)) return () => {};
-  let frame: number | null = null;
-  let x = 0;
-  let y = 0;
-  const flush = () => {
-    frame = null;
-    root.style.setProperty("--public-pointer-x", x.toFixed(3));
-    root.style.setProperty("--public-pointer-y", y.toFixed(3));
-  };
-  const schedule = () => {
-    if (frame === null) frame = window.requestAnimationFrame(flush);
-  };
+  const fields: Array<[HTMLElement | null, number, number]> = [
+    [root.querySelector<HTMLElement>(".public-hero__wash"), 0.5, 0.35],
+    [root.querySelector<HTMLElement>(".hero-product-record"), 0.35, 0.25],
+    [root.querySelector<HTMLElement>(".collaboration-demo"), 0.38, 0.3],
+  ];
+  const setters = fields
+    .filter((field): field is [HTMLElement, number, number] => Boolean(field[0]))
+    .map(([element, xFactor, yFactor]) => ({
+      element,
+      x: gsap.quickTo(element, "x", { duration: 0.5, ease: "power3.out" }),
+      y: gsap.quickTo(element, "y", { duration: 0.5, ease: "power3.out" }),
+      xFactor,
+      yFactor,
+    }));
   const onMove = (event: PointerEvent) => {
-    x = (event.clientX / Math.max(window.innerWidth, 1) - 0.5) * 2;
-    y = (event.clientY / Math.max(window.innerHeight, 1) - 0.5) * 2;
-    root.dataset.pointerActive = "true";
-    schedule();
+    const x = (event.clientX / Math.max(window.innerWidth, 1) - 0.5) * 2;
+    const y = (event.clientY / Math.max(window.innerHeight, 1) - 0.5) * 2;
+    setters.forEach(({ x: moveX, y: moveY, xFactor, yFactor }) => {
+      moveX(x * xFactor * 16);
+      moveY(y * yFactor * 16);
+    });
   };
   const onLeave = () => {
-    x = 0;
-    y = 0;
-    delete root.dataset.pointerActive;
-    schedule();
+    setters.forEach(({ x: moveX, y: moveY }) => {
+      moveX(0);
+      moveY(0);
+    });
   };
   root.addEventListener("pointermove", onMove, { passive: true });
   root.addEventListener("pointerleave", onLeave, { passive: true });
   return () => {
     root.removeEventListener("pointermove", onMove);
     root.removeEventListener("pointerleave", onLeave);
-    if (frame !== null) window.cancelAnimationFrame(frame);
+    setters.forEach(({ element }) => gsap.killTweensOf(element, "x,y"));
   };
 }
 
@@ -152,7 +162,7 @@ function setupLinkedHover(root: HTMLElement) {
 }
 
 function publicNumber(root: HTMLElement, name: string) {
-  return root.querySelector<HTMLElement>(`[data-public-number="${name}"]`);
+  return root.querySelector<PublicNumberElement>(`[data-public-number="${name}"]`);
 }
 
 function odometerDigits(element: HTMLElement) {
@@ -224,17 +234,29 @@ function setPublicNumber(element: HTMLElement | null, amount: number, immediate 
   element.textContent = formatted;
 }
 
-function clearPublicNumber(element: HTMLElement | null, amount: number) {
+function stopPublicNumberTween(element: PublicNumberElement) {
+  element._publicNumberTween?.kill();
+  delete element._publicNumberTween;
+}
+
+function cleanupPublicNumbers(root: HTMLElement) {
+  root.querySelectorAll<PublicNumberElement>("[data-public-number]").forEach(stopPublicNumberTween);
+  gsap.killTweensOf(root.querySelectorAll(".public-odometer__reel"));
+}
+
+function clearPublicNumber(element: PublicNumberElement | null, amount: number) {
   if (!element) return;
-  gsap.killTweensOf(element);
+  stopPublicNumberTween(element);
+  gsap.killTweensOf(element.querySelectorAll(".public-odometer__reel"));
   element.replaceChildren();
   element.dataset.publicValue = String(amount);
   delete element.dataset.publicFormatted;
   element.removeAttribute("aria-label");
 }
 
-function rollPublicNumber(element: HTMLElement | null, amount: number, duration: number, immediate: boolean) {
+function rollPublicNumber(element: PublicNumberElement | null, amount: number, duration: number, immediate: boolean) {
   if (!element) return;
+  stopPublicNumberTween(element);
   const current = Number(element.dataset.publicValue ?? 0);
   if (immediate || current === amount) {
     setPublicNumber(element, amount, true);
@@ -248,13 +270,21 @@ function rollPublicNumber(element: HTMLElement | null, amount: number, duration:
     return;
   }
   const proxy = { value: current };
-  gsap.to(proxy, {
+  let tween: gsap.core.Tween | null = null;
+  tween = gsap.to(proxy, {
     value: amount,
     duration,
     ease: "power2.out",
-    onUpdate: () => setPublicNumber(element, Math.round(proxy.value)),
-    onComplete: () => setPublicNumber(element, amount),
+    onUpdate: () => {
+      if (element._publicNumberTween === tween) setPublicNumber(element, Math.round(proxy.value));
+    },
+    onComplete: () => {
+      if (element._publicNumberTween !== tween) return;
+      setPublicNumber(element, amount);
+      delete element._publicNumberTween;
+    },
   });
+  element._publicNumberTween = tween;
 }
 
 function swapLabel(element: HTMLElement | null, label: string, immediate: boolean) {
@@ -265,7 +295,7 @@ function swapLabel(element: HTMLElement | null, label: string, immediate: boolea
   }
   gsap.killTweensOf(element);
   gsap.timeline()
-    .to(element, { yPercent: -80, opacity: 0, duration: 0.12, ease: "power2.in" })
+    .to(element, { yPercent: -80, opacity: 0, duration: 0.12, ease: "power3.out" })
     .add(() => { element.textContent = label; })
     .fromTo(element, { yPercent: 80 }, { yPercent: 0, opacity: 1, duration: 0.22, ease: "power3.out" });
 }
@@ -420,7 +450,7 @@ function animateCollaboration(root: HTMLElement, immediate: boolean) {
     .fromTo(chat, { xPercent: -6 }, { xPercent: 0, autoAlpha: 1, duration: 0.36 }, 0)
     .fromTo(rows, { x: -18, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.28, stagger: 0.07 }, 0.5)
     .fromTo(messages, { x: 18, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.28, stagger: 0.09 }, 0.08)
-    .fromTo(root.querySelector("[data-collab-connector]"), { scale: 0, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.26 }, 0.35)
+    .fromTo(root.querySelector("[data-collab-connector]"), { y: 4, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.26 }, 0.35)
     .fromTo(root.querySelector("[data-collab-badge]"), { y: 7, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.24 }, 0.75);
 }
 
@@ -459,12 +489,25 @@ function animateRecords(root: HTMLElement, step: number, immediate: boolean) {
   if (!immediate) Flip.from(layout, { duration: 0.54, ease: "power3.inOut", scale: false, nested: true, overwrite: true });
 }
 
+function animateHero(root: HTMLElement, immediate: boolean) {
+  const bridge = root.querySelector<HTMLElement>("[data-hero-bridge]");
+  if (!bridge) return;
+  if (immediate) {
+    gsap.set(bridge, { x: 0, autoAlpha: 1 });
+    return;
+  }
+  gsap.fromTo(bridge, { x: -4, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.22, ease: "power3.out", overwrite: true });
+}
+
 function animateTimeline(root: HTMLElement, index: number, immediate: boolean) {
   const ratio = publicLandingTimelineRatio(index);
   const progress = root.querySelector<HTMLElement>("[data-public-timeline-progress]");
   const marker = root.querySelector<HTMLElement>("[data-public-timeline-marker]");
-  gsap.to(progress, { scaleX: ratio, duration: immediate ? 0 : 0.42, ease: "power2.out", overwrite: true });
-  gsap.to(marker, { left: `${ratio * 100}%`, duration: immediate ? 0 : 0.46, ease: "power3.out", overwrite: true });
+  if (progress) gsap.to(progress, { scaleX: ratio, duration: immediate ? 0 : 0.42, ease: "power2.out", overwrite: true });
+  if (marker) {
+    const trackWidth = progress?.parentElement?.getBoundingClientRect().width ?? 0;
+    gsap.to(marker, { x: trackWidth * ratio, duration: immediate ? 0 : 0.46, ease: "power3.out", overwrite: true });
+  }
   const label = root.querySelector<HTMLElement>("[data-public-timeline-label]");
   const number = root.querySelector<HTMLElement>("[data-public-timeline-number]");
   swapLabel(label, PUBLIC_LANDING_STATES[index]?.label ?? "Intro", immediate);
@@ -482,8 +525,11 @@ function animateMobileTimeline(root: HTMLElement, index: number, immediate: bool
   const ratio = publicLandingTimelineRatio(index, PUBLIC_MOBILE_SECTIONS.length);
   const progress = root.querySelector<HTMLElement>("[data-public-timeline-progress]");
   const marker = root.querySelector<HTMLElement>("[data-public-timeline-marker]");
-  gsap.to(progress, { scaleX: ratio, duration: immediate ? 0 : 0.42, ease: "power2.out", overwrite: true });
-  gsap.to(marker, { left: `${ratio * 100}%`, duration: immediate ? 0 : 0.46, ease: "power3.out", overwrite: true });
+  if (progress) gsap.to(progress, { scaleX: ratio, duration: immediate ? 0 : 0.42, ease: "power2.out", overwrite: true });
+  if (marker) {
+    const trackWidth = progress?.parentElement?.getBoundingClientRect().width ?? 0;
+    gsap.to(marker, { x: trackWidth * ratio, duration: immediate ? 0 : 0.46, ease: "power3.out", overwrite: true });
+  }
   const section = PUBLIC_MOBILE_SECTIONS[index] ?? PUBLIC_MOBILE_SECTIONS[0]!;
   swapLabel(root.querySelector<HTMLElement>("[data-public-timeline-label]"), section.label, immediate);
   swapLabel(root.querySelector<HTMLElement>("[data-public-timeline-number]"), String(index).padStart(2, "0"), immediate);
@@ -504,6 +550,7 @@ function animateLandingState(root: HTMLElement, state: PublicLandingState, immed
     section.dataset.sceneActive = section.dataset.publicScene === state.scene ? "true" : "false";
   });
   animateTimeline(root, stateIndex, immediate);
+  if (state.scene === "hero") animateHero(root, immediate);
   if (state.scene === "record-flow") animateRecordFlow(root, state.step, immediate);
   if (state.scene === "contexts") animateContexts(root, state.step, immediate, direction);
   if (state.scene === "collaboration") animateCollaboration(root, immediate);
@@ -518,7 +565,8 @@ function sceneForState(root: HTMLElement, state: PublicLandingState) {
     : root.querySelector<HTMLElement>(`[data-public-scene="${state.scene}"]`);
 }
 
-function setupAmbientMotion(root: HTMLElement) {
+function setupAmbientMotion(root: HTMLElement, enabled = true) {
+  if (!enabled) return { activate: () => {}, cleanup: () => {} };
   let activeScene: PublicLandingState["scene"] | null = null;
   let tweens: gsap.core.Tween[] = [];
   const kill = () => {
@@ -610,7 +658,7 @@ function createDesktopLanding(root: HTMLElement) {
   const requestState = (requestedIndex: number, reason: "gesture" | "keyboard" | "anchor" | "native", immediate = false) => {
     const index = clampPublicLandingIndex(requestedIndex);
     if (transitionLocked) {
-      if (reason === "gesture" || reason === "native" || (!immediate && index === targetIndex)) return false;
+      if ((reason === "gesture" && index === targetIndex) || reason === "native" || (!immediate && index === targetIndex)) return false;
       cancelTransition();
     }
     rebuildSnapPoints();
@@ -661,9 +709,17 @@ function createDesktopLanding(root: HTMLElement) {
     }, scrollReconcileMilliseconds);
   };
   const handleWheelStep = (direction: -1 | 1) => {
+    if (transitionLocked) {
+      const movingDirection = Math.sign(targetIndex - settledIndex);
+      if (movingDirection !== direction) {
+        noteWheelActivity();
+        requestState(settledIndex, "gesture");
+      } else noteWheelActivity();
+      return;
+    }
     const step = publicLandingStep(settledIndex, direction);
     if (!step.changed) return;
-    if (transitionLocked || wheelLatched) {
+    if (wheelLatched) {
       noteWheelActivity();
       return;
     }
@@ -681,17 +737,17 @@ function createDesktopLanding(root: HTMLElement) {
         : 0;
     if (event.key === "Home") {
       event.preventDefault();
-      requestState(0, "keyboard");
+      requestState(0, "keyboard", true);
       return;
     }
     if (event.key === "End") {
       event.preventDefault();
-      requestState(PUBLIC_LANDING_STATES.length - 1, "keyboard");
+      requestState(PUBLIC_LANDING_STATES.length - 1, "keyboard", true);
       return;
     }
     if (direction !== 0) {
       event.preventDefault();
-      requestState(nextPublicLandingIndex(settledIndex, direction as -1 | 1), "keyboard");
+      requestState(nextPublicLandingIndex(settledIndex, direction as -1 | 1), "keyboard", true);
     }
   };
   const onScroll = () => {
@@ -787,11 +843,12 @@ function createDesktopLanding(root: HTMLElement) {
     window.removeEventListener("scroll", onScroll);
     window.removeEventListener("resize", onResize);
     root.querySelectorAll<SceneElement>("[data-public-scene]").forEach((section) => section._publicTrigger?.kill());
+    cleanupPublicNumbers(root);
     ambient.cleanup();
   };
 }
 
-function setupMobileLanding(root: HTMLElement, immediate = false) {
+function setupMobileLanding(root: HTMLElement, immediate = false, enableAmbient = true) {
   const sections = PUBLIC_MOBILE_SECTIONS.map((section) => root.querySelector<HTMLElement>(`[data-public-scene="${section.scene}"]`)).filter((section): section is HTMLElement => Boolean(section));
   let activeIndex = -1;
   let frame: number | null = null;
@@ -801,7 +858,7 @@ function setupMobileLanding(root: HTMLElement, immediate = false) {
   let recordMobileState = PUBLIC_RECORD_FLOW_STATES[recordStep] ?? PUBLIC_RECORD_FLOW_STATES[0]!;
   let scopeMobileState = PUBLIC_SCOPE_STATES[scopeStep] ?? PUBLIC_SCOPE_STATES[0]!;
   let recordsMobileState = PUBLIC_RECORD_LIFECYCLE_STATES.find((state) => state === lifecycleState) ?? PUBLIC_RECORD_LIFECYCLE_STATES[0]!;
-  const ambient = setupAmbientMotion(root);
+  const ambient = setupAmbientMotion(root, enableAmbient);
 
   const setLocalControlState = (group: string, state: string) => {
     root.querySelectorAll<HTMLButtonElement>(`[data-mobile-local="${group}"]`).forEach((button) => {
@@ -838,7 +895,10 @@ function setupMobileLanding(root: HTMLElement, immediate = false) {
     root.dataset.landingStep = "0";
     sections.forEach((candidate, index) => { candidate.dataset.sceneActive = index === nextIndex ? "true" : "false"; });
     animateMobileTimeline(root, nextIndex, syncImmediately);
-    if (section.scene === "hero") ambient.activate("hero");
+    if (section.scene === "hero") {
+      ambient.activate("hero");
+      animateHero(root, syncImmediately);
+    }
     if (section.scene === "collaboration") animateCollaboration(root, syncImmediately);
     if (section.scene === "proof") animateProof(root, syncImmediately);
   };
@@ -858,7 +918,7 @@ function setupMobileLanding(root: HTMLElement, immediate = false) {
   const scrollToSection = (sectionId: string) => {
     const target = sectionId === "top" ? root : root.querySelector<HTMLElement>(`[data-public-scene="${sectionId}"]`);
     if (!target) return;
-    window.scrollTo({ top: Math.max(0, target.getBoundingClientRect().top + window.scrollY), behavior: "smooth" });
+    window.scrollTo({ top: Math.max(0, target.getBoundingClientRect().top + window.scrollY), behavior: publicLandingScrollBehavior(immediate) });
   };
 
   const setRecordState = (state: string) => {
@@ -935,12 +995,14 @@ function setupMobileLanding(root: HTMLElement, immediate = false) {
     window.removeEventListener("resize", onResize);
     window.removeEventListener("orientationchange", onResize);
     root.querySelectorAll<HTMLElement>("*").forEach((element) => gsap.killTweensOf(element));
+    cleanupPublicNumbers(root);
     ambient.cleanup();
   };
 }
 
 function setupReducedLanding(root: HTMLElement) {
-  if (isMobileLandingViewport()) return setupMobileLanding(root, true);
+  if (isMobileLandingViewport()) return setupMobileLanding(root, true, false);
+  animateHero(root, true);
   root.querySelectorAll<HTMLElement>(".scope-state").forEach((state) => {
     state.removeAttribute("aria-hidden");
     state.inert = false;
@@ -988,10 +1050,12 @@ function setupReducedLanding(root: HTMLElement) {
       root.dataset.landingScene = state.scene;
       root.dataset.landingStep = String(state.step);
       animateTimeline(root, index, true);
+      if (state.scene === "hero") animateHero(root, true);
       if (state.scene === "record-flow") animateRecordFlow(root, state.step, true);
       if (state.scene === "records") animateRecords(root, state.step, true);
     } else {
       animateTimeline(root, index, true);
+      if (state.scene === "hero") animateHero(root, true);
     }
   };
   const onJump = (event: MouseEvent) => {

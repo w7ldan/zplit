@@ -1,8 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CollaborationDemo, PrivateShareDemo, RecordSearchDemo } from "./public-interactions";
+import { publicLandingScrollBehavior } from "./public-motion";
 
 describe("public story interactions", () => {
+  it("uses immediate scrolling when reduced motion is requested", () => {
+    expect(publicLandingScrollBehavior(true)).toBe("auto");
+    expect(publicLandingScrollBehavior(false)).toBe("smooth");
+  });
+
   it("traces a participant through conversation and the independent ledger", () => {
     const { container } = render(<CollaborationDemo />);
     const sari = screen.getByRole("button", { name: "Sari" });
