@@ -96,7 +96,7 @@
   min-width: 0;
 }
 
-.task-panel__footer {
+.task-panel .task-panel__footer {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;

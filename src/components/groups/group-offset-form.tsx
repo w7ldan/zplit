@@ -77,9 +77,6 @@ export function GroupOffsetForm({
         <strong>{formatRupiah(selected?.offsetAmount ?? 0)}</strong>
         <p>No money moves. This remains pending with no effect until the counterparty confirms.</p>
       </div>
-      <TaskPanelFooter className="group-settlement-form__actions">
-        <SubmitButton />
-      </TaskPanelFooter>
       <p
         className="group-settlement-form__message"
         id="group-offset-error"
@@ -88,6 +85,9 @@ export function GroupOffsetForm({
       >
         {state.error || "\u00a0"}
       </p>
+      <TaskPanelFooter className="group-settlement-form__actions">
+        <SubmitButton />
+      </TaskPanelFooter>
     </form>
   );
 }
