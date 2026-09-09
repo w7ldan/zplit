@@ -27,6 +27,12 @@ import {
 
 export type { GroupExpenseState };
 
+export type BudgetPeriodStatus = "active" | "closed";
+export type BudgetTransactionDirection = "outflow" | "inflow";
+export type BudgetTransactionStatus = "posted" | "voided";
+export type BudgetTransactionOrigin = "manual" | "linked" | "recurring";
+export type BudgetImpactStatus = "applied" | "pending";
+
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
 });
@@ -1437,6 +1443,169 @@ export const debtorShareReceipts = pgTable(
     uniqueIndex("debtor_share_receipts_link_receipt_uidx").on(table.ledgerScopeId, table.debtorShareLinkId, table.expenseReceiptId),
     index("debtor_share_receipts_link_idx").on(table.ledgerScopeId, table.debtorShareLinkId),
     index("debtor_share_receipts_public_id_idx").on(table.id),
+  ],
+);
+
+export const budgetProfiles = pgTable("budget_profiles", {
+  ownerUserId: text("owner_user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const budgetPeriods = pgTable(
+  "budget_periods",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    ordinal: integer("ordinal").notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    startsOn: date("starts_on", { mode: "string" }).notNull(),
+    endsOn: date("ends_on", { mode: "string" }).notNull(),
+    totalBudget: integer("total_budget").notNull(),
+    status: varchar("status", { length: 16 }).$type<BudgetPeriodStatus>().default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("budget_periods_ordinal_positive", sql`${table.ordinal} >= 1`),
+    check("budget_periods_name_not_blank", sql`btrim(${table.name}) <> ''`),
+    check("budget_periods_date_range_valid", sql`${table.startsOn} <= ${table.endsOn}`),
+    check("budget_periods_total_budget_positive", sql`${table.totalBudget} > 0`),
+    check("budget_periods_status_allowed", sql`${table.status} IN ('active', 'closed')`),
+    unique("budget_periods_owner_id_unique").on(table.ownerUserId, table.id),
+    uniqueIndex("budget_periods_owner_ordinal_uidx").on(table.ownerUserId, table.ordinal),
+    uniqueIndex("budget_periods_active_owner_uidx").on(table.ownerUserId).where(sql`${table.status} = 'active'`),
+    index("budget_periods_owner_status_idx").on(table.ownerUserId, table.status),
+  ],
+);
+
+export const budgetCategories = pgTable(
+  "budget_categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    normalizedName: varchar("normalized_name", { length: 80 }).notNull(),
+    systemKey: varchar("system_key", { length: 64 }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("budget_categories_name_not_blank", sql`btrim(${table.name}) <> ''`),
+    check("budget_categories_normalized_name_not_blank", sql`btrim(${table.normalizedName}) <> ''`),
+    unique("budget_categories_owner_id_unique").on(table.ownerUserId, table.id),
+    uniqueIndex("budget_categories_owner_normalized_name_uidx").on(table.ownerUserId, table.normalizedName),
+    uniqueIndex("budget_categories_owner_system_key_uidx").on(table.ownerUserId, table.systemKey).where(sql`${table.systemKey} IS NOT NULL`),
+    index("budget_categories_owner_archived_idx").on(table.ownerUserId, table.archivedAt),
+  ],
+);
+
+export const budgetPeriodCategories = pgTable(
+  "budget_period_categories",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    budgetPeriodId: uuid("budget_period_id").notNull(),
+    budgetCategoryId: uuid("budget_category_id").notNull(),
+    allocatedAmount: integer("allocated_amount").notNull(),
+    displayOrder: integer("display_order").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.ownerUserId, table.budgetPeriodId, table.budgetCategoryId] }),
+    check("budget_period_categories_allocated_amount_nonnegative", sql`${table.allocatedAmount} >= 0`),
+    check("budget_period_categories_display_order_nonnegative", sql`${table.displayOrder} >= 0`),
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetPeriodId],
+      foreignColumns: [budgetPeriods.ownerUserId, budgetPeriods.id],
+      name: "budget_period_categories_owner_period_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetCategoryId],
+      foreignColumns: [budgetCategories.ownerUserId, budgetCategories.id],
+      name: "budget_period_categories_owner_category_fk",
+    }).onDelete("restrict"),
+    index("budget_period_categories_owner_period_order_idx").on(table.ownerUserId, table.budgetPeriodId, table.displayOrder),
+  ],
+);
+
+export const budgetTransactions = pgTable(
+  "budget_transactions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    direction: varchar("direction", { length: 16 }).$type<BudgetTransactionDirection>().notNull(),
+    amount: integer("amount").notNull(),
+    description: varchar("description", { length: 240 }).notNull(),
+    occurredOn: date("occurred_on", { mode: "string" }).notNull(),
+    status: varchar("status", { length: 16 }).$type<BudgetTransactionStatus>().default("posted").notNull(),
+    origin: varchar("origin", { length: 16 }).$type<BudgetTransactionOrigin>().default("manual").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("budget_transactions_direction_allowed", sql`${table.direction} IN ('outflow', 'inflow')`),
+    check("budget_transactions_amount_positive", sql`${table.amount} > 0`),
+    check("budget_transactions_description_not_blank", sql`btrim(${table.description}) <> ''`),
+    check("budget_transactions_status_allowed", sql`${table.status} IN ('posted', 'voided')`),
+    check("budget_transactions_origin_allowed", sql`${table.origin} IN ('manual', 'linked', 'recurring')`),
+    check("budget_transactions_void_timestamp_shape", sql`(${table.status} = 'posted' AND ${table.voidedAt} IS NULL) OR (${table.status} = 'voided' AND ${table.voidedAt} IS NOT NULL)`),
+    unique("budget_transactions_owner_id_unique").on(table.ownerUserId, table.id),
+    index("budget_transactions_owner_occurred_idx").on(table.ownerUserId, table.occurredOn, table.id),
+  ],
+);
+
+export const budgetImpacts = pgTable(
+  "budget_impacts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    budgetTransactionId: uuid("budget_transaction_id").notNull(),
+    budgetCategoryId: uuid("budget_category_id").notNull(),
+    budgetPeriodId: uuid("budget_period_id"),
+    amount: integer("amount").notNull(),
+    status: varchar("status", { length: 16 }).$type<BudgetImpactStatus>().default("applied").notNull(),
+    targetPeriodOrdinal: integer("target_period_ordinal").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("budget_impacts_amount_positive", sql`${table.amount} > 0`),
+    check("budget_impacts_target_period_ordinal_positive", sql`${table.targetPeriodOrdinal} >= 1`),
+    check("budget_impacts_status_allowed", sql`${table.status} IN ('applied', 'pending')`),
+    check("budget_impacts_period_shape", sql`(${table.status} = 'applied' AND ${table.budgetPeriodId} IS NOT NULL) OR (${table.status} = 'pending' AND ${table.budgetPeriodId} IS NULL)`),
+    unique("budget_impacts_owner_id_unique").on(table.ownerUserId, table.id),
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetTransactionId],
+      foreignColumns: [budgetTransactions.ownerUserId, budgetTransactions.id],
+      name: "budget_impacts_owner_transaction_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetCategoryId],
+      foreignColumns: [budgetCategories.ownerUserId, budgetCategories.id],
+      name: "budget_impacts_owner_category_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetPeriodId],
+      foreignColumns: [budgetPeriods.ownerUserId, budgetPeriods.id],
+      name: "budget_impacts_owner_period_fk",
+    }).onDelete("restrict"),
+    index("budget_impacts_owner_period_status_idx").on(table.ownerUserId, table.budgetPeriodId, table.status),
+    index("budget_impacts_owner_transaction_idx").on(table.ownerUserId, table.budgetTransactionId),
   ],
 );
 

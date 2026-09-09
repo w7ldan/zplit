@@ -46,6 +46,11 @@ Only allocated repayment money reduces an outstanding balance. An allocation can
 
 ## Financial semantics
 
+Personal budgeting is an intentionally separate absorption domain. Its
+authority split, owner boundary, and transaction/impact model are documented
+in [budgeting-architecture.md](./budgeting-architecture.md); it does not alter
+the Personal ledger's financial semantics.
+
 Ledger amounts are non-negative, safe integers representing whole Rupiah; formatting adds the `Rp` presentation but the database stores the integer. Percentage charges are stored as integer basis points with `100` basis points equal to `1%` and a maximum of `1,000,000` basis points. Charge calculation uses integer arithmetic and rounds the resulting Rupiah amount before adding it to the base share.
 
 The domain validates totals and allocation capacity at the application boundary, while PostgreSQL keys, checks, and the repository’s integrity statements detect invalid persisted relationships. CSV exports are built from a validated owner-scoped snapshot rather than from untrusted request fields.

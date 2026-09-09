@@ -260,6 +260,13 @@
       "when": 1788592769540,
       "tag": "0036_archive-workspaces",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788958253726,
+      "tag": "0037_closed_the_order",
+      "breakpoints": true
     }
   ]
 }
