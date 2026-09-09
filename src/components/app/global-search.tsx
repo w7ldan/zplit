@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { searchGlobalRecords as defaultSearch } from "@/app/app/search/actions";
 import type { GlobalSearchRecord } from "@/domain/ledger-repository";
@@ -52,7 +53,9 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const inertRootRef = useRef<HTMLElement | null>(null);
   const requestRef = useRef(0);
   const searchTimerRef = useRef<number | null>(null);
 
@@ -66,13 +69,12 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
     setActiveIndex(-1);
     setLoading(false);
     setError("");
-    const opener = openerRef.current;
-    openerRef.current = null;
-    if (opener?.isConnected) opener.focus();
   }, []);
 
   const openSearch = useCallback((opener?: HTMLElement | null) => {
-    openerRef.current = opener ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    const activeElement = opener ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    openerRef.current = activeElement;
+    inertRootRef.current = activeElement?.closest<HTMLElement>(".app-shell") ?? document.querySelector<HTMLElement>(".app-shell");
     setOpen(true);
   }, []);
 
@@ -87,11 +89,57 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
   }, [open, openSearch]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      const opener = openerRef.current;
+      openerRef.current = null;
+      inertRootRef.current = null;
+      if (opener?.isConnected) opener.focus();
+      return;
+    }
     document.body.classList.add("global-search-open");
+    const inertRoot = inertRootRef.current;
+    const wasInert = inertRoot?.inert ?? false;
+    if (inertRoot) inertRoot.inert = true;
     inputRef.current?.focus();
-    return () => document.body.classList.remove("global-search-open");
+    return () => {
+      document.body.classList.remove("global-search-open");
+      if (inertRoot && !wasInert) inertRoot.inert = false;
+    };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function trapFocus(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSearch();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), [href], select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])"));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      const active = document.activeElement;
+      if (!dialog.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", trapFocus);
+    return () => document.removeEventListener("keydown", trapFocus);
+  }, [closeSearch, open]);
 
   function scheduleSearch(value: string) {
     setQuery(value);
@@ -149,8 +197,8 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
       <svg className="global-search-trigger__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
       <span>Search</span><kbd>/</kbd>
     </button>
-    {open ? <div className="global-search__backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeSearch(); }}>
-      <section className="global-search__dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title" aria-describedby="global-search-help" onMouseDown={(event) => event.stopPropagation()}>
+    {open ? createPortal(<div className="global-search__backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeSearch(); }}>
+      <section ref={dialogRef} className="global-search__dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title" aria-describedby="global-search-help" onMouseDown={(event) => event.stopPropagation()}>
         <div className="global-search__header">
           <div>
             <p className="technical-label">QUICK SEARCH</p>
@@ -161,9 +209,12 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
         </div>
         <div className="global-search__input-wrap" role="search">
           <label className="sr-only" htmlFor="global-search-input">Search records</label>
-          <input ref={inputRef} id="global-search-input" type="search" value={query} onChange={(event) => scheduleSearch(event.target.value)} onKeyDown={handleInputKeyDown} placeholder="Search records" autoComplete="off" aria-controls="global-search-results" aria-activedescendant={activeIndex >= 0 ? `global-search-result-${activeIndex}` : undefined} aria-busy={loading} />
+          <input ref={inputRef} id="global-search-input" type="search" role="combobox" value={query} onChange={(event) => scheduleSearch(event.target.value)} onKeyDown={handleInputKeyDown} placeholder="Search records" autoComplete="off" aria-expanded="true" aria-haspopup="listbox" aria-controls="global-search-results" aria-autocomplete="list" aria-activedescendant={activeIndex >= 0 ? `global-search-result-${activeIndex}` : undefined} aria-describedby="global-search-help global-search-status" aria-busy={loading} />
+          <p className="sr-only" id="global-search-status" role="status" aria-live="polite" aria-atomic="true">
+            {loading ? "Searching" : query.trim() === "" ? "" : error ? error : results.length > 0 ? `${results.length} results` : "No results"}
+          </p>
         </div>
-        <div id="global-search-results" className="global-search__results" role="listbox" aria-label="Search results" aria-live="polite">
+        <div id="global-search-results" className="global-search__results" role="listbox" aria-label="Search results" aria-busy={loading}>
           {query.trim() === "" ? <p className="global-search__prompt">Type to search your ledger.</p> : null}
           {loading ? <p className="global-search__prompt">Searching…</p> : null}
           {!loading && query.trim() !== "" && results.length === 0 && !error ? <p className="global-search__prompt">No matching records.</p> : null}
@@ -185,6 +236,6 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
           })}
         </div>
       </section>
-    </div> : null}
+    </div>, document.body) : null}
   </>;
 }

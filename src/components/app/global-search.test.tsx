@@ -23,7 +23,7 @@ function renderSearch(search: GlobalSearchAction = vi.fn().mockResolvedValue(rec
 
 function openSearch() {
   fireEvent.keyDown(document.body, { key: "/" });
-  return screen.getByRole("searchbox", { name: "Search records" });
+  return screen.getByRole("combobox", { name: "Search records" });
 }
 
 function DirtyGuard() {
@@ -68,7 +68,7 @@ describe("GlobalSearch", () => {
     renderSearch();
     const trigger = screen.getByRole("button", { name: "Search records" });
     fireEvent.click(trigger);
-    const input = screen.getByRole("searchbox", { name: "Search records" });
+    const input = screen.getByRole("combobox", { name: "Search records" });
     fireEvent.keyDown(input, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
@@ -85,6 +85,33 @@ describe("GlobalSearch", () => {
     fireEvent.wheel(screen.getByRole("listbox", { name: "Search results" }), { deltaY: 240 });
 
     expect(screen.getByRole("dialog", { name: "Find a record" })).toBeInTheDocument();
+  });
+
+  it("traps Tab, isolates the app shell, and exposes a separate result status", () => {
+    render(<div className="app-shell"><GlobalSearch /><main><button type="button">Background action</button></main></div>);
+    const trigger = screen.getByRole("button", { name: "Search records" });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Find a record" });
+    const input = screen.getByRole("combobox", { name: "Search records" });
+    const close = screen.getByRole("button", { name: "Close search" });
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(input).toHaveAttribute("aria-autocomplete", "list");
+    expect(input).toHaveAttribute("aria-controls", "global-search-results");
+    expect(screen.getByRole("listbox", { name: "Search results" })).not.toHaveAttribute("aria-live");
+    expect(screen.getByRole("status")).toHaveAttribute("id", "global-search-status");
+    expect((document.querySelector(".app-shell") as HTMLElement).inert).toBe(true);
+
+    input.focus();
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+    expect(input).toHaveFocus();
+    expect(dialog).toBeInTheDocument();
+
+    fireEvent.keyDown(close, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect((document.querySelector(".app-shell") as HTMLElement).inert).toBe(false);
   });
 
   it("renders grouped owner-search results with concise amount context", async () => {
