@@ -132,6 +132,7 @@ function OrganizationExpenseCreatePanel({
   return (
     <TaskPanel
       open
+      eyebrow="NEW EXPENSE"
       title="Add an expense"
       description="Choose the outing, record the amount, and assign shares next."
       triggerId="expense-create"

@@ -9,6 +9,7 @@ type TaskPanelProps = {
   open: boolean;
   title: string;
   description: string;
+  eyebrow?: string;
   triggerId: string;
   children: ReactNode;
 };
@@ -29,7 +30,7 @@ function useOptionalRouter() {
 
 const panelExitFallbackMs = 260;
 
-export function TaskPanel({ open, title, description, triggerId, children }: TaskPanelProps) {
+export function TaskPanel({ open, title, description, eyebrow = "NEW RECORD", triggerId, children }: TaskPanelProps) {
   const router = useOptionalRouter();
   const unsavedChanges = useUnsavedChangesNavigation();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -143,7 +144,7 @@ export function TaskPanel({ open, title, description, triggerId, children }: Tas
       <div className="task-panel__surface">
         <div className="task-panel__header">
           <div>
-            <p className="technical-label">NEW RECORD</p>
+            <p className="technical-label">{eyebrow}</p>
             <h2 id="task-panel-title">{title}</h2>
             <p id="task-panel-description">{description}</p>
           </div>

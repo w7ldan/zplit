@@ -7,6 +7,7 @@ import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { buildFriendReminder, buildWhatsAppUrl } from "@/domain/friend-reminder";
 import { BalanceLinkQr } from "./balance-link-qr";
 import { copyLabel, copyText, type CopyStatus } from "@/components/feedback/copy-text";
+import { InlineDisclosure } from "@/components/app/inline-disclosure";
 
 type ShareAction = (
   previousState: DebtorShareActionState,
@@ -206,9 +207,9 @@ function FriendShareResult({
           Show QR
         </button>
       </div>
-      {qrVisible ? (
+      <InlineDisclosure open={qrVisible} className="friend-share__qr-disclosure">
         <BalanceLinkQr url={usableShareUrl} onClose={onCloseQr} />
-      ) : null}
+      </InlineDisclosure>
       <p className="friend-share__warning">
         Save or send this link now. Zplit cannot recover it later.
       </p>

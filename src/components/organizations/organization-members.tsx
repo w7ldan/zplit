@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { SearchableCombobox, type SearchableOption } from "@/components/records/searchable-combobox";
 import { UserAvatar } from "@/components/identity/user-avatar";
@@ -15,6 +15,7 @@ import {
   searchOrganizationInvitationOptions,
   searchOrganizationInvitationUserOptions,
 } from "@/app/app/organizations/actions";
+import { InlineDisclosure } from "@/components/app/inline-disclosure";
 
 function roleLabel(role: string | null) {
   return role ? role[0]?.toUpperCase() + role.slice(1) : "";
@@ -37,6 +38,8 @@ function ParticipantAccessControl({
   invitationRoles: OrganizationInvitationRole[];
 }) {
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const disclosureId = `organization-link-${participant.id}-disclosure`;
   const [state, formAction] = useActionState(
     createOrganizationInvitationAction.bind(null, organizationId),
     initialState,
@@ -68,37 +71,38 @@ function ParticipantAccessControl({
     );
   }
 
-  if (!open) {
-    return (
-      <button className="text-link" type="button" onClick={() => setOpen(true)}>
-        Link Zplit account
-      </button>
-    );
-  }
-
   return (
-    <form className="organization-people__link-form" action={formAction}>
-      <label className="sr-only" id={`organization-link-${participant.id}-label`} htmlFor={`organization-link-${participant.id}`}>
-        Search account for {participant.displayName}
-      </label>
-      <SearchableCombobox
-        id={`organization-link-${participant.id}`}
-        name="targetUserId"
-        options={[]}
-        search={search}
-        required
-        placeholder="Search by @username"
-        searchLabel="Search by @username"
-        labelId={`organization-link-${participant.id}-label`}
-      />
-      <input type="hidden" name="participantId" value={participant.id} />
-      <select name="role" defaultValue="member" aria-label={`Role for ${participant.displayName}`}>
-        {invitationRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
-      </select>
-      <button className="text-link" type="submit">Invite account</button>
-      <button className="text-link" type="button" onClick={() => setOpen(false)}>Cancel</button>
-      {state.error ? <span role="alert">{state.error}</span> : null}
-    </form>
+    <>
+      {!open ? (
+        <button className="text-link" type="button" ref={trigger} aria-expanded={open} aria-controls={disclosureId} onClick={() => setOpen(true)}>
+          Link Zplit account
+        </button>
+      ) : null}
+      <InlineDisclosure open={open} id={disclosureId} className="organization-people__link-disclosure">
+        <form className="organization-people__link-form" action={formAction}>
+          <label className="sr-only" id={`organization-link-${participant.id}-label`} htmlFor={`organization-link-${participant.id}`}>
+            Search account for {participant.displayName}
+          </label>
+          <SearchableCombobox
+            id={`organization-link-${participant.id}`}
+            name="targetUserId"
+            options={[]}
+            search={search}
+            required
+            placeholder="Search by @username"
+            searchLabel="Search by @username"
+            labelId={`organization-link-${participant.id}-label`}
+          />
+          <input type="hidden" name="participantId" value={participant.id} />
+          <select name="role" defaultValue="member" aria-label={`Role for ${participant.displayName}`}>
+            {invitationRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
+          </select>
+          <button className="text-link" type="submit">Invite account</button>
+          <button className="text-link" type="button" onClick={() => { setOpen(false); trigger.current?.focus(); }}>Cancel</button>
+          {state.error ? <span role="alert">{state.error}</span> : null}
+        </form>
+      </InlineDisclosure>
+    </>
   );
 }
 

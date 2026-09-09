@@ -180,7 +180,7 @@ function RepaymentCreatePanel({ data }: { data: RepaymentsPageData }) {
   if (!data.openCreate) return null;
   const { friendOptions, initialFriendId, initialAmountRupiah, initialPaidAtUtc, initialAllocationStrategy, formContext, tripContext, repaymentReturnTarget } = data;
   return (
-    <TaskPanel open title="Add a repayment" description="Record the money received and keep its eligible shares visible for allocation." triggerId="repayment-create">
+    <TaskPanel open eyebrow="NEW REPAYMENT" title="Add a repayment" description="Record the money received and keep its eligible shares visible for allocation." triggerId="repayment-create">
       {friendOptions.length > 0 ? (
         <RepaymentForm
           action={createRepaymentAction}

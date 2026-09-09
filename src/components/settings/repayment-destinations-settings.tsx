@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition, type DragEvent } from "react";
 import type { RepaymentDestinationFormAction, RepaymentDestinationOrderAction } from "@/app/app/settings/actions";
 import { destinationTypeLabel, type RepaymentDestinationType } from "@/domain/repayment-destination";
+import { InlineDisclosure } from "@/components/app/inline-disclosure";
 import { RepaymentDestinationForm } from "./repayment-destination-form";
 
 export type SettingsRepaymentDestination = {
@@ -193,8 +194,7 @@ function RepaymentDestinationsSettingsStateful({ destinations, createAction, set
                     <form action={destination.deleteAction}><button className="text-link" type="submit">Delete</button></form>
                   </div>
                 </div>
-                {visibleOpenForm === destination.id ? (
-                  <div className="settings-page__disclosure" id={editFormId} aria-labelledby={`${editFormId}-heading`}>
+                <InlineDisclosure open={visibleOpenForm === destination.id} className="settings-page__disclosure" id={editFormId} aria-labelledby={`${editFormId}-heading`}>
                     <p className="technical-label" id={`${editFormId}-heading`}>EDIT DESTINATION</p>
                     <RepaymentDestinationForm
                       action={destination.updateAction}
@@ -203,8 +203,7 @@ function RepaymentDestinationsSettingsStateful({ destinations, createAction, set
                       initialValues={{ type: destination.type, name: destination.name, identifier: destination.identifier, accountName: destination.accountName ?? "", note: destination.note ?? "", shareOnBalanceLinks: destination.shareOnBalanceLinks }}
                       onCancel={() => closeForm(editTriggers.current[destination.id])}
                     />
-                  </div>
-                ) : null}
+                </InlineDisclosure>
               </article>
             );
           })}
@@ -213,12 +212,10 @@ function RepaymentDestinationsSettingsStateful({ destinations, createAction, set
       {visibleOrderError ? <p className="settings-page__error" role="alert">{visibleOrderError}</p> : null}
       <div className="settings-page__add">
         <button ref={createTrigger} className="text-link" type="button" aria-expanded={visibleOpenForm === "create"} aria-controls={createFormId} onClick={() => openFormFor("create")}>New destination</button>
-        {visibleOpenForm === "create" ? (
-          <div className="settings-page__disclosure" id={createFormId} aria-labelledby="repayment-destination-create-heading">
+        <InlineDisclosure open={visibleOpenForm === "create"} className="settings-page__disclosure" id={createFormId} aria-labelledby="repayment-destination-create-heading">
             <p className="technical-label" id="repayment-destination-create-heading">ADD DESTINATION</p>
             <RepaymentDestinationForm action={createAction} onCancel={() => closeForm(createTrigger.current)} />
-          </div>
-        ) : null}
+        </InlineDisclosure>
       </div>
     </>
   );

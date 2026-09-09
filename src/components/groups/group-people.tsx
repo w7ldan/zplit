@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import type { GroupJoinRequestActionState, GroupJoinRequestSummary, GroupParticipant } from "@/domain/group-contracts";
 import { SearchableCombobox, type SearchableOptionAction } from "@/components/records/searchable-combobox";
+import { InlineDisclosure } from "@/components/app/inline-disclosure";
 import {
   createGroupInvitationAction,
   createGroupParticipantLinkRequestAction,
@@ -106,6 +107,12 @@ function GroupParticipantLinkControl({
   search: SearchableOptionAction;
 }) {
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const disclosureId = `group-link-${participant.id}-disclosure`;
+  function close() {
+    setOpen(false);
+    trigger.current?.focus();
+  }
   if (pending) return (
     <div className="group-people__link-state">
       <span>Pending link → @{pending.targetUsername}</span>
@@ -118,30 +125,37 @@ function GroupParticipantLinkControl({
       </form>
     </div>
   );
-  if (!open) return (
-    <button
-      className="text-link"
-      type="button"
-      onClick={() => setOpen(true)}
-    >
-      Link Zplit account
-    </button>
-  );
   return (
-    <GroupJoinForm
-      id={`group-link-${participant.id}`}
-      search={search}
-      action={createGroupParticipantLinkRequestAction.bind(
-        null,
-        groupId,
-        participant.id,
-      )}
-      buttonLabel="Send link request"
-      description={
-        `Link this existing participant${participant.label ? ` · ${participant.label}` : ""} to a Zplit account.`
-      }
-      onCancel={() => setOpen(false)}
-    />
+    <>
+      {!open ? (
+        <button
+          ref={trigger}
+          className="text-link"
+          type="button"
+          aria-expanded={open}
+          aria-controls={disclosureId}
+          onClick={() => setOpen(true)}
+        >
+          Link Zplit account
+        </button>
+      ) : null}
+      <InlineDisclosure open={open} id={disclosureId} className="group-people__link-disclosure">
+        <GroupJoinForm
+          id={`group-link-${participant.id}`}
+          search={search}
+          action={createGroupParticipantLinkRequestAction.bind(
+            null,
+            groupId,
+            participant.id,
+          )}
+          buttonLabel="Send link request"
+          description={
+            `Link this existing participant${participant.label ? ` · ${participant.label}` : ""} to a Zplit account.`
+          }
+          onCancel={close}
+        />
+      </InlineDisclosure>
+    </>
   );
 }
 

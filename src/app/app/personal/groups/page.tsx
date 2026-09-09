@@ -84,6 +84,7 @@ export default async function GroupsPage({
       {openCreate ? (
         <TaskPanel
           open
+          eyebrow="NEW GROUP"
           title="New group"
           description="Create a peer-to-peer shared-expense space. You become its Owner."
           triggerId="group-create"

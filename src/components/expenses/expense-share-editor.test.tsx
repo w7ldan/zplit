@@ -56,32 +56,22 @@ describe("expense share editor", () => {
     expect(document.body).not.toHaveTextContent(/-Rp|-\d/);
   });
 
-  it("emphasizes only changed live totals after the initial render", () => {
+  it("updates live totals immediately without replayed feedback", () => {
     render(<ExpenseShareEditor action={vi.fn()} expenseAmount={84000} friends={[activeFriend, archivedFriend]} />);
     expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(0);
 
     fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "50000" } });
-    expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
-    const assigned = screen.getByText("Rp 70.000", { exact: true }).closest(".changed-value") as HTMLElement;
-    const firstVisual = assigned.querySelector(".changed-value__visual");
-    expect(assigned).toHaveAttribute("data-changed-revision", "1");
-    expect(firstVisual).toHaveClass("changed-value--changed");
-    expect(screen.getByText("Rp 14.000", { exact: true }).closest(".changed-value")).toHaveAttribute("data-changed-revision", "1");
+    expect(screen.getByText("Rp 70.000", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Rp 14.000", { exact: true })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "51000" } });
-    const secondVisual = assigned.querySelector(".changed-value__visual");
-    expect(assigned).toHaveAttribute("data-changed-revision", "2");
-    expect(secondVisual).not.toBe(firstVisual);
+    expect(screen.getByText("Rp 13.000", { exact: true })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "52000" } });
-    const thirdVisual = assigned.querySelector(".changed-value__visual");
-    expect(assigned).toHaveAttribute("data-changed-revision", "3");
-    expect(thirdVisual).not.toBe(secondVisual);
+    expect(screen.getByText("Rp 12.000", { exact: true })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Rani"), { target: { value: "52000" } });
-    expect(assigned).toHaveAttribute("data-changed-revision", "3");
-    expect(assigned.querySelector(".changed-value__visual")).toBe(thirdVisual);
-    expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(2);
+    expect(document.querySelectorAll(".changed-value--changed")).toHaveLength(0);
   });
 
   it("disables repeated submission and shows pending copy", async () => {

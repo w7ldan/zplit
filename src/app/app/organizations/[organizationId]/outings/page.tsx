@@ -132,6 +132,7 @@ function OrganizationOutingCreatePanel({
   return (
     <TaskPanel
       open
+      eyebrow="NEW OUTING"
       title="Add an outing"
       description="Give the shared moment a name and date."
       triggerId="outing-create"

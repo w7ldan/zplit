@@ -118,6 +118,7 @@ export default async function TripsPage({ searchParams = Promise.resolve({}) }: 
       {openCreate ? (
         <TaskPanel
           open
+          eyebrow="NEW TRIP"
           title="Add a Trip"
           description="Group related outings without changing their financial records."
           triggerId="trip-create"

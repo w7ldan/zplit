@@ -266,6 +266,7 @@ export default async function GroupSettlementsPage({
       {openCreate && sender ? (
         <TaskPanel
           open
+          eyebrow="NEW GROUP PAYMENT"
           title="Record a Group payment"
           description="You are the sender. The recipient must confirm before the canonical balance changes."
           triggerId="group-settlement-create"
@@ -280,6 +281,7 @@ export default async function GroupSettlementsPage({
       {openOffsetCreate && sender ? (
         <TaskPanel
           open
+          eyebrow="NEW GROUP OFFSET"
           title="Propose a Group offset"
           description="The counterparty must confirm before either reciprocal obligation is cancelled. No money moves."
           triggerId="group-offset-create"

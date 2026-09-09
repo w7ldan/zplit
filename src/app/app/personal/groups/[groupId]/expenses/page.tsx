@@ -146,6 +146,7 @@ function GroupExpenseCreatePanel({
   return first(query.create) === "1" ? (
     <TaskPanel
       open
+      eyebrow="NEW EXPENSE"
       title="Add a Group expense"
       description="Record who paid, then allocate the complete amount across Group participants."
       triggerId="group-expense-create"

@@ -244,8 +244,8 @@ export function RepaymentAllocationEditor({
       {search}
       <div className="repayment-allocation-editor__totals" aria-live="polite">
         <div><span className="technical-label">Repayment amount</span><strong>{formatRupiah(plan.amount)}</strong></div>
-        <div><span className="technical-label">Applied to shares</span><strong><ChangedValue value={allocatedAmount}>{formatRupiah(allocatedAmount)}</ChangedValue></strong></div>
-        <div><span className="technical-label">Needs allocation</span><strong><ChangedValue value={unallocatedAmount}>{formatRupiah(unallocatedAmount)}</ChangedValue></strong></div>
+        <div><span className="technical-label">Applied to shares</span><strong><ChangedValue>{formatRupiah(allocatedAmount)}</ChangedValue></strong></div>
+        <div><span className="technical-label">Needs allocation</span><strong><ChangedValue>{formatRupiah(unallocatedAmount)}</ChangedValue></strong></div>
       </div>
       <div
         className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`}

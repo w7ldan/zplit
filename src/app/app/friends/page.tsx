@@ -162,7 +162,7 @@ function FriendsPageContent({ data, params, returnTo }: { data: FriendsPageData;
         </div>
         <FriendRecordList data={data} params={params} />
       </div>
-      {openCreate ? <TaskPanel open title="Add a friend" description="Keep the person’s details beside the records they support." triggerId="friend-create"><FriendForm action={createFriendAction.bind(null, returnTo)} /></TaskPanel> : null}
+      {openCreate ? <TaskPanel open eyebrow="NEW FRIEND" title="Add a friend" description="Keep the person’s details beside the records they support." triggerId="friend-create"><FriendForm action={createFriendAction.bind(null, returnTo)} /></TaskPanel> : null}
     </section>
   );
 }

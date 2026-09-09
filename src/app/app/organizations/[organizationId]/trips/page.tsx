@@ -99,6 +99,7 @@ export default async function OrganizationTripsPage({
       {canManage && first(query.create) === "1" ? (
         <TaskPanel
           open
+          eyebrow="NEW TRIP"
           title="Add a Trip"
           description="Group related outings without changing financial records."
           triggerId="trip-create"

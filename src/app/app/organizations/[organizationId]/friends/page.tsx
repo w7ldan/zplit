@@ -143,6 +143,7 @@ export default async function OrganizationFriendsPage({
       {openCreate ? (
         <TaskPanel
           open
+          eyebrow="NEW FRIEND"
           title="Add an expense contact"
           description="Keep the person’s details beside this Organization’s records."
           triggerId="friend-create"

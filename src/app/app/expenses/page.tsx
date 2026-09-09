@@ -107,7 +107,7 @@ function ExpenseCreatePanel({ data, outingId }: { data: ExpensesPageData; outing
   if (!data.openCreate) return null;
   const { outingOptions, expenseReturnTarget } = data;
   return (
-    <TaskPanel open title="Add an expense" description="Choose the outing, record the whole-rupiah amount, and assign shares next." triggerId="expense-create">
+    <TaskPanel open eyebrow="NEW EXPENSE" title="Add an expense" description="Choose the outing, record the whole-rupiah amount, and assign shares next." triggerId="expense-create">
       {outingOptions.length > 0 ? (
         <ExpenseForm
           action={createExpenseAction}

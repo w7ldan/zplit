@@ -80,6 +80,25 @@
   padding-top: 0.25rem;
 }
 
+.inline-disclosure {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--motion-state) var(--ease-product), transform var(--motion-state) var(--ease-product);
+}
+
+@starting-style {
+  .inline-disclosure {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.inline-disclosure--closing {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+}
+
 .task-panel__empty {
   padding-block: 1rem;
 }
@@ -289,25 +308,8 @@
   transform: translateY(4px);
 }
 
-.changed-value {
-  display: inline-block;
-}
-
-.changed-value__visual {
-  display: inline-block;
-}
-
-.changed-value--changed {
-  animation: changed-value 200ms var(--ease-product) both;
-}
-
 .allocation-bar__message--complete {
   animation: allocation-resolved 180ms var(--ease-product) var(--motion-state) both;
-}
-
-@keyframes row-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes panel-in {
@@ -323,11 +325,6 @@
 @keyframes result-in {
   from { opacity: 0; transform: translateY(0.5rem); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes changed-value {
-  from { background: var(--pastel-blue); opacity: 0.72; transform: translateY(-1px); }
-  to { background: transparent; opacity: 1; transform: translateY(0); }
 }
 
 @keyframes allocation-resolved {
@@ -450,7 +447,9 @@
   .receipt-preview,
   .receipt-preview--entering,
   .receipt-preview--closing,
-  .action-link--primary:not(:disabled):active,
+  .action-link:not(:disabled):active,
+  .app-shell .text-link:not(:disabled):active,
+  .account-menu__panel > a:active,
   .toast,
   .invite-form__result,
   .friend-share__result {
@@ -483,7 +482,6 @@
   }
 
   .toast--exiting,
-  .changed-value--changed,
   .allocation-bar__message--complete {
     animation: none !important;
   }
@@ -503,6 +501,16 @@
 
   .record-confirmation--entering,
   .record-confirmation--exiting {
+    opacity: 0;
+  }
+
+  .inline-disclosure,
+  .inline-disclosure--closing {
+    transform: none;
+    transition: opacity 1ms linear !important;
+  }
+
+  .inline-disclosure--closing {
     opacity: 0;
   }
 }

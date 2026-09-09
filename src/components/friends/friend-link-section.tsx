@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import {
   SearchableCombobox,
   type SearchableOption,
   type SearchableOptionAction,
 } from "@/components/records/searchable-combobox";
 import type { FriendLinkActionState } from "@/app/app/friends/actions";
+import { InlineDisclosure } from "@/components/app/inline-disclosure";
 
 type FriendLinkStatus =
   | { status: "unlinked" }
@@ -54,6 +55,13 @@ export function FriendLinkSection({
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<SearchableOption | undefined>();
   const [state, formAction] = useActionState(action, { error: "" });
+  const trigger = useRef<HTMLButtonElement>(null);
+
+  function close() {
+    setOpen(false);
+    setSelected(undefined);
+    trigger.current?.focus();
+  }
 
   if (status.status === "linked") {
     return (
@@ -125,15 +133,17 @@ export function FriendLinkSection({
       </div>
       {!open ? (
         <button
+          ref={trigger}
           className="text-link"
           type="button"
-          aria-expanded="false"
+          aria-expanded={open}
           onClick={() => setOpen(true)}
         >
           Link Zplit account
         </button>
-      ) : (
-        <form className="friend-link__disclosure" action={formAction}>
+      ) : null}
+      <InlineDisclosure open={open} className="friend-link__disclosure">
+        <form action={formAction}>
           <label id="friend-link-target-label" htmlFor="friend-link-target">
             Find by @username
           </label>
@@ -165,17 +175,14 @@ export function FriendLinkSection({
             <button
               className="action-link action-link--quiet"
               type="button"
-              onClick={() => {
-                setOpen(false);
-                setSelected(undefined);
-              }}
+              onClick={close}
             >
               Cancel
             </button>
             <SubmitButton />
           </div>
         </form>
-      )}
+      </InlineDisclosure>
     </section>
   );
 }

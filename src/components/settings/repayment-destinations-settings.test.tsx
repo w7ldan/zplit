@@ -25,15 +25,18 @@ describe("RepaymentDestinationsSettings", () => {
     expect(screen.getByText("ADD DESTINATION")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit BCA" }));
+    fireEvent.transitionEnd(document.querySelector<HTMLElement>("[data-inline-disclosure-state='closing']")!, { propertyName: "opacity" });
     expect(screen.queryByText("ADD DESTINATION")).not.toBeInTheDocument();
     expect(screen.getByText("EDIT DESTINATION")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit BCA" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("button", { name: "Edit GoPay" })).toHaveAttribute("aria-expanded", "false");
 
     fireEvent.click(screen.getByRole("button", { name: "Edit GoPay" }));
+    fireEvent.transitionEnd(document.querySelector<HTMLElement>("[data-inline-disclosure-state='closing']")!, { propertyName: "opacity" });
     expect(screen.getAllByText("EDIT DESTINATION")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Edit BCA" })).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.transitionEnd(document.querySelector<HTMLElement>("[data-inline-disclosure-state='closing']")!, { propertyName: "opacity" });
     expect(screen.queryByText("EDIT DESTINATION")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit GoPay" })).toHaveFocus();
   });

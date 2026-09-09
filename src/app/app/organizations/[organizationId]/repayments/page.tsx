@@ -188,6 +188,7 @@ function OrganizationRepaymentCreatePanel({
   return (
     <TaskPanel
       open
+      eyebrow="NEW REPAYMENT"
       title="Add a repayment"
       description="Record money received and keep eligible shares visible for allocation."
       triggerId="repayment-create"

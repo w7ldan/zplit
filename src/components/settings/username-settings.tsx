@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { UsernameActionState, UsernameFormAction } from "@/app/app/settings/actions";
 import { formatUsername } from "@/domain/username";
+import { InlineDisclosure } from "@/components/app/inline-disclosure";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -27,8 +28,7 @@ export function UsernameSettings({ username, action }: { username?: string | nul
         <span>{formatUsername(username)}</span>
         <button ref={trigger} className="text-link" type="button" aria-expanded={open} aria-controls={formId} onClick={() => setOpen(true)}>{username ? "Edit" : "Set username"}</button>
       </div>
-      {open ? (
-        <div className="settings-page__disclosure" id={formId}>
+      <InlineDisclosure open={open} className="settings-page__disclosure" id={formId}>
           <p className="technical-label">EDIT USERNAME</p>
           <form key={state.value} className="username-form" action={formAction} noValidate>
             <div className="username-form__field">
@@ -42,8 +42,7 @@ export function UsernameSettings({ username, action }: { username?: string | nul
               <SubmitButton />
             </div>
           </form>
-        </div>
-      ) : null}
+      </InlineDisclosure>
     </div>
   );
 }

@@ -32,17 +32,8 @@ type ExpenseShareEditorProps = {
 const emptyActionState: ExpenseShareActionState = { fieldErrors: {}, formError: "", values: [], charges: [] };
 const emptySearch: SearchableOptionAction = async () => [];
 
-export function ChangedValue({ value, children }: { value: number; children: ReactNode }) {
-  const previousValue = useRef(value);
-  const [revision, setRevision] = useState(0);
-
-  useEffect(() => {
-    if (previousValue.current === value) return;
-    previousValue.current = value;
-    setRevision((current) => current + 1);
-  }, [value]);
-
-  return <span className="changed-value" data-changed-revision={revision}><span key={revision} className={revision > 0 ? "changed-value__visual changed-value--changed" : "changed-value__visual"}>{children}</span></span>;
+export function ChangedValue({ children }: { children: ReactNode }) {
+  return <span className="changed-value">{children}</span>;
 }
 
 function SubmitButton() {
@@ -163,8 +154,8 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
       <div className="expense-share-editor__summary">
         <div className="expense-share-editor__totals" aria-live="polite">
           <div><span className="technical-label">Expense total</span><strong>{formatRupiah(expenseAmount)}</strong></div>
-          <div><span className="technical-label">Assigned to friends</span><strong><ChangedValue value={totalOwed}>{formatRupiah(totalOwed)}</ChangedValue></strong></div>
-          <div><span className="technical-label">Your portion</span><strong><ChangedValue value={ownerPortion}>{formatRupiah(ownerPortion)}</ChangedValue></strong></div>
+          <div><span className="technical-label">Assigned to friends</span><strong><ChangedValue>{formatRupiah(totalOwed)}</ChangedValue></strong></div>
+          <div><span className="technical-label">Your portion</span><strong><ChangedValue>{formatRupiah(ownerPortion)}</ChangedValue></strong></div>
         </div>
         <div className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`} aria-label="Expense allocation" role="progressbar" aria-valuemin={0} aria-valuemax={expenseAmount} aria-valuenow={Math.min(totalOwed, expenseAmount)}>
           <span className="allocation-bar__track"><span className="allocation-bar__fill" style={{ transform: `scaleX(${allocationProgress})` }} /></span>

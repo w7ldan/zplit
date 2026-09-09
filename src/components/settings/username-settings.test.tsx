@@ -12,8 +12,12 @@ describe("UsernameSettings", () => {
     expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
     fireEvent.click(trigger);
     expect(screen.getByLabelText("Username")).toHaveValue("wildan");
+    const disclosure = document.querySelector<HTMLElement>("[data-inline-disclosure]")!;
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(document.activeElement).toBe(trigger);
+    expect(disclosure).toHaveAttribute("data-inline-disclosure-state", "closing");
+    expect(screen.getByLabelText("Username")).toBeInTheDocument();
+    fireEvent.transitionEnd(disclosure, { propertyName: "opacity" });
     expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
   });
 

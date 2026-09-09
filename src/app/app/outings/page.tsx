@@ -115,7 +115,7 @@ function OutingCreatePanel({ data }: { data: OutingsPageData }) {
   if (!data.openCreate) return null;
   const { selectedTrip, initialOccurredAtUtc } = data;
   return (
-    <TaskPanel open title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create">
+    <TaskPanel open eyebrow="NEW OUTING" title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create">
       <OutingForm
         action={createOutingAction.bind(null, data.returnTo)}
         initialOccurredAtUtc={initialOccurredAtUtc}

@@ -23,7 +23,7 @@ afterEach(() => {
 
 function panel(open = true) {
   return (
-    <TaskPanel open={open} title="Add a friend" description="Details" triggerId="friend-create">
+    <TaskPanel open={open} eyebrow="NEW FRIEND" title="Add a friend" description="Details" triggerId="friend-create">
       <form data-testid="panel-form">
         <label htmlFor="name">Name</label>
         <input id="name" />
@@ -50,6 +50,7 @@ describe("TaskPanel", () => {
     );
 
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+    expect(screen.getByText("NEW FRIEND")).toBeInTheDocument();
     const dialog = screen.getByRole("dialog");
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
 

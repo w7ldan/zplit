@@ -918,7 +918,6 @@
 .outing-row--created,
 .expense-row--created {
   background: color-mix(in srgb, var(--pastel-blue) 48%, var(--surface));
-  animation: row-in var(--motion-layout) var(--ease-product) both;
 }
 
 .friend-row {
@@ -2156,7 +2155,6 @@
   transform-origin: left center;
   border-radius: 0;
   background: var(--ink);
-  transition: transform var(--motion-state) var(--ease-product), background-color var(--motion-state) var(--ease-product);
 }
 
 .allocation-bar--error {
@@ -3169,7 +3167,6 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .trip-row--created {
   background: color-mix(in srgb, var(--pastel-blue) 48%, var(--surface));
-  animation: row-in var(--motion-layout) var(--ease-product) both;
 }
 
 .trip-row__primary,

@@ -99,6 +99,7 @@ export default async function OrganizationsPage({
       {openCreate ? (
         <TaskPanel
           open
+          eyebrow="NEW ORGANIZATION"
           title="New organization"
           description="Create a compact managed space. Its creator becomes the Owner."
           triggerId="organization-create"
