@@ -99,4 +99,14 @@ Expense deletion first locks the affected Shares and repayment Allocations. Allo
 
 Stored timestamps use PostgreSQL `timestamptz` and cross the server/UI boundary as ISO timestamps. Direct UI timestamp formatting belongs in `LocalDateTime`: the server-rendered fallback is UTC, then the browser renders local time after hydration. Calendar-only Trip dates remain `YYYY-MM-DD` values formatted in UTC. Month filters use a validated client timezone offset so local calendar boundaries are selected consistently.
 
+Personal Outings and Repayments may carry both an exact instant and an
+owner-confirmed financial calendar date: `Outing.occurredAt` is the instant
+and `Outing.occurredOn` is the date; `Repayment.paidAt` is the instant and
+`Repayment.paidOn` is the date. The source form derives both values from the
+same submitted local date/time and offset, without reconstructing the date
+from the converted timestamp. A nullable date on a legacy row remains `NULL`
+until the owner explicitly confirms the source date by saving it. Viewer
+timezone affects timestamp presentation only and never changes canonical date
+authority.
+
 Theme preference is a client-side Light/Dark/System value persisted under `zplit-theme`. The provider resolves System through `prefers-color-scheme`, sets `data-theme` and `color-scheme` on the document root, and updates the theme-color metadata. CSS owns the semantic token mapping; no server-side financial or ledger behavior depends on the selected theme.

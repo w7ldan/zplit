@@ -112,7 +112,12 @@ edit or restore action.
 
 The following are intentionally deferred:
 
-- **B2:** Personal Expense and Repayment integration.
+- **B2:** Personal Expense and Repayment integration. The prerequisite source
+  date authority is explicit: a Personal Expense uses its parent
+  `Outing.occurred_on`, and a Personal Repayment uses `Repayment.paid_on`.
+  These are owner-confirmed PostgreSQL `DATE` values, exposed as nullable
+  `YYYY-MM-DD` strings. `NULL` means the legacy source has no canonical
+  financial date yet.
 - **B3:** Group integration.
 - **B4:** spread/split-period impacts and period transitions.
 - **B5:** recurrence and subscriptions.
@@ -122,3 +127,15 @@ The following are intentionally deferred:
 absorbed by multiple periods; repeat describes when additional real payments
 occur. Recurring templates, subscriptions, income planning, wallets,
 multi-currency, and source-link tables are not B1 behavior.
+
+### Canonical Personal source dates
+
+`TIMESTAMPTZ` answers when an event occurred as an exact instant. The separate
+`DATE` answers which financial calendar date the owner meant. Future Budgeting
+source ingestion MUST use the `DATE` and MUST NOT reconstruct it from the
+timestamp, UTC, server-local time, a viewer timezone, or a stored offset.
+
+Historical Outings and Repayments are intentionally not backfilled. Their
+canonical date columns remain `NULL` until an explicit source edit confirms a
+date. This section defines the B2 prerequisite; it does not implement B2,
+source links, or BudgetTransaction ingestion.
