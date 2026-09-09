@@ -27,6 +27,7 @@ export type BudgetPlanValues = {
   periodName: string;
   startsOn: string;
   endsOn: string;
+  periodUpdatedAt: string;
   totalBudget: string;
   categories: Array<{ id: string; name: string; allocation: string; systemKey: string | null }>;
   newCategoryName: string;
@@ -120,6 +121,7 @@ function planValues(formData: FormData): BudgetPlanValues {
     periodName: textValue(formData, "periodName"),
     startsOn: textValue(formData, "startsOn"),
     endsOn: textValue(formData, "endsOn"),
+    periodUpdatedAt: textValue(formData, "periodUpdatedAt"),
     totalBudget: textValue(formData, "totalBudget"),
     categories: ids.map((id, index) => ({
       id: String(id),
@@ -152,7 +154,7 @@ function parsePlanSubmission(values: BudgetPlanValues) {
   if (!values.newCategoryName && values.newCategoryAllocation) fieldErrors.newCategoryName = "Category name is required.";
   const names = categories.map((category) => normalizeBudgetCategoryName(category.name));
   if (values.newCategoryName) names.push(normalizeBudgetCategoryName(values.newCategoryName));
-  if (names.some((name) => !name) || new Set(names).size !== names.length || names.includes("uncategorized")) fieldErrors.categories = "Category names must be unique, and Uncategorized is reserved.";
+  if (names.some((name) => !name) || new Set(names).size !== names.length) fieldErrors.categories = "Category names must be unique, and Uncategorized is reserved.";
   if (Object.keys(fieldErrors).length) return { ok: false as const, state: { fieldErrors, formError: "Please correct the marked fields.", values } };
   return {
     ok: true as const,
@@ -170,6 +172,7 @@ export async function updateBudgetPlanAction(_previousState: BudgetFormState<Bud
     const session = await requireSession();
     await updateBudgetPlan(getDatabase(), session.user.id, {
       period: { name: values.periodName, startsOn: values.startsOn, endsOn: values.endsOn, totalBudget: parsed.totalBudget },
+      expectedPeriodUpdatedAt: values.periodUpdatedAt,
       categories: parsed.categories,
       ...(parsed.newCategory ? { newCategory: parsed.newCategory } : {}),
     });
@@ -191,7 +194,7 @@ export async function createBudgetCategoryAction(_previousState: { error: string
     return { error: budgetErrorMessage(error, "Unable to create the category.") };
   }
   revalidateBudget();
-  redirect("/app/personal/budget?manage=1");
+  redirect("/app/personal/budget?create=plan");
 }
 
 function transactionValues(formData: FormData): BudgetTransactionValues {
@@ -222,8 +225,8 @@ export async function voidBudgetTransactionAction(transactionId: string) {
   const session = await requireSession();
   try {
     await voidManualBudgetTransaction(getDatabase(), session.user.id, transactionId);
-  } catch {
-    // The history page will show the canonical state after a competing void.
+  } catch (error) {
+    if (!(error instanceof BudgetError) || error.code !== "NOT_FOUND") throw error;
   }
   revalidateBudget();
   redirect("/app/personal/budget/transactions");

@@ -73,11 +73,21 @@ export function BudgetSetupForm({ action, initialValues = emptySetup }: { action
 
 export type BudgetPlanCategory = { id: string; name: string; allocatedAmount: number; systemKey: string | null };
 
-export function BudgetPlanForm({ action, period, categories }: { action: PlanAction; period: { name: string; startsOn: string; endsOn: string; totalBudget: number }; categories: BudgetPlanCategory[] }) {
-  const initialValues: BudgetPlanValues = { periodName: period.name, startsOn: period.startsOn, endsOn: period.endsOn, totalBudget: String(period.totalBudget), categories: categories.map((category) => ({ id: category.id, name: category.name, allocation: String(category.allocatedAmount), systemKey: category.systemKey })), newCategoryName: "", newCategoryAllocation: "" };
+export function BudgetPlanForm({ action, period, categories }: { action: PlanAction; period: { name: string; startsOn: string; endsOn: string; updatedAt: string; totalBudget: number }; categories: BudgetPlanCategory[] }) {
+  const initialValues: BudgetPlanValues = {
+    periodName: period.name,
+    startsOn: period.startsOn,
+    endsOn: period.endsOn,
+    periodUpdatedAt: period.updatedAt,
+    totalBudget: String(period.totalBudget),
+    categories: categories.map((category) => ({ id: category.id, name: category.name, allocation: String(category.allocatedAmount), systemKey: category.systemKey })),
+    newCategoryName: "",
+    newCategoryAllocation: "",
+  };
   const [state, formAction] = useActionState(action, { fieldErrors: {}, formError: "", values: initialValues });
   return <form className="budget-form" action={formAction} noValidate>
     <div className="budget-form__grid">
+      <input type="hidden" name="periodUpdatedAt" value={state.values.periodUpdatedAt} />
       <Field label="Period name" id="budget-plan-period-name" error={state.fieldErrors.periodName}><input id="budget-plan-period-name" name="periodName" defaultValue={state.values.periodName} /></Field>
       <Field label="Total budget" id="budget-plan-total-budget" error={state.fieldErrors.totalBudget}><input id="budget-plan-total-budget" name="totalBudget" inputMode="numeric" defaultValue={state.values.totalBudget} /></Field>
       <Field label="Starts on" id="budget-plan-starts-on" error={state.fieldErrors.startsOn}><input id="budget-plan-starts-on" name="startsOn" type="date" defaultValue={state.values.startsOn} /></Field>

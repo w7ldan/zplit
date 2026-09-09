@@ -41,8 +41,8 @@ function PageHeader({ period }: { period?: BudgetPeriodSummary }) {
       </div>
       {period ? (
         <div className="budget-page__actions">
-          <Link className="action-link action-link--primary" href="/app/personal/budget?create=1" data-task-trigger="budget-transaction">Add transaction</Link>
-          <Link className="action-link action-link--quiet" href="/app/personal/budget?manage=1" data-task-trigger="budget-plan">Manage plan</Link>
+          <Link className="action-link action-link--primary" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
+          <Link className="action-link action-link--quiet" href="/app/personal/budget?create=plan" data-task-trigger="budget-plan">Manage plan</Link>
         </div>
       ) : null}
     </header>
@@ -109,7 +109,7 @@ function RecentSection({ transactions }: { transactions: BudgetTransactionView[]
   ) : (
     <div className="ledger-empty">
       <p>No budget transactions yet.</p>
-      <Link className="text-link" href="/app/personal/budget?create=1" data-task-trigger="budget-transaction">
+      <Link className="text-link" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">
         Add your first transaction <span aria-hidden="true">→</span>
       </Link>
     </div>
@@ -125,15 +125,16 @@ function RecentSection({ transactions }: { transactions: BudgetTransactionView[]
   );
 }
 
-export default async function BudgetPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ create?: string | string[]; manage?: string | string[] }> } = {}) {
+export default async function BudgetPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ create?: string | string[] }> } = {}) {
   const session = await requireSession();
   const dashboard = await getBudgetDashboard(getDatabase(), session.user.id);
   if (!dashboard.configured) return <section className="app-page budget-page" id="top"><div className="editorial-shell app-page__layout"><PageHeader /><SetupState /></div></section>;
   if (!dashboard.period) return <section className="app-page budget-page" id="top"><div className="editorial-shell app-page__layout"><PageHeader /><section className="ledger-empty budget-invariant"><h2>No active budget period is available.</h2><p>Budgeting is configured, but its active period needs recovery.</p></section></div></section>;
   const period = dashboard.period;
   const query = await searchParams;
-  const openCreate = (Array.isArray(query.create) ? query.create[0] : query.create) === "1";
-  const openManage = (Array.isArray(query.manage) ? query.manage[0] : query.manage) === "1";
+  const createMode = Array.isArray(query.create) ? query.create[0] : query.create;
+  const openCreate = createMode === "transaction";
+  const openManage = createMode === "plan";
   return (
     <section className="app-page budget-page" id="top">
       <div className="editorial-shell app-page__layout">

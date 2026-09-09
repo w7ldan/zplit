@@ -10,6 +10,7 @@ import { lockBudgetProfile } from "./locks";
 export type BudgetPlanCategoryUpdate = { id: string; name: string; allocatedAmount: number };
 export type BudgetPlanUpdate = {
   period: { name: string; startsOn: string; endsOn: string; totalBudget: number };
+  expectedPeriodUpdatedAt: string;
   categories: BudgetPlanCategoryUpdate[];
   newCategory?: { name: string; allocatedAmount: number };
 };
@@ -30,12 +31,19 @@ function isValidCategoryDraft(category: { name: string; allocatedAmount: number 
 
 function validatePlanCategories(input: BudgetPlanUpdate, rows: PlanRow[]) {
   const currentIds = new Set(rows.map((row) => row.category.id));
-  if (input.categories.length !== rows.length || input.categories.some((category) => !currentIds.has(category.id))) throw new BudgetError("NOT_FOUND", "One or more budget categories are no longer available.");
+  if (input.categories.length !== rows.length || new Set(input.categories.map((category) => category.id)).size !== rows.length || input.categories.some((category) => !currentIds.has(category.id))) throw new BudgetError("NOT_FOUND", "One or more budget categories are no longer available.");
   if (!input.categories.every(isValidCategoryDraft) || (input.newCategory !== undefined && !isValidCategoryDraft(input.newCategory))) throw new BudgetError("INVALID_INPUT", "Category names and allocations must be valid.");
+  const systemRows = rows.filter((row) => row.category.systemKey === "uncategorized");
+  if (systemRows.length !== 1) throw new BudgetError("CONFLICT", "The budget system category is unavailable.");
+  const systemCategory = systemRows[0].category;
+  if (systemCategory.name !== "Uncategorized" || systemCategory.normalizedName !== "uncategorized") throw new BudgetError("SYSTEM_CATEGORY_IMMUTABLE", "Uncategorized cannot be changed.");
+  const submittedSystem = input.categories.find((category) => category.id === systemCategory.id);
+  if (!submittedSystem || canonicalBudgetCategoryName(submittedSystem.name) !== "Uncategorized") throw new BudgetError("SYSTEM_CATEGORY_IMMUTABLE", "Uncategorized cannot be changed.");
   const names = input.categories.map((category) => normalizeBudgetCategoryName(category.name));
   if (input.newCategory) names.push(normalizeBudgetCategoryName(input.newCategory.name));
-  const hasSystemCategory = rows.some((row) => row.category.systemKey === "uncategorized");
-  if (names.some((name) => !name) || new Set(names).size !== names.length || names.includes("uncategorized") !== hasSystemCategory) throw new BudgetError("INVALID_INPUT", "Category names must be unique, and Uncategorized is reserved.");
+  const hasReservedCustomName = input.categories.some((category) => category.id !== systemCategory.id && normalizeBudgetCategoryName(category.name) === "uncategorized")
+    || input.newCategory !== undefined && normalizeBudgetCategoryName(input.newCategory.name) === "uncategorized";
+  if (names.some((name) => !name) || new Set(names).size !== names.length || hasReservedCustomName) throw new BudgetError("INVALID_INPUT", "Category names must be unique, and Uncategorized is reserved.");
 }
 
 function validatePlanPeriod(input: BudgetPlanUpdate) {
@@ -46,6 +54,15 @@ function validatePlanPeriod(input: BudgetPlanUpdate) {
 function validatePlanAllocationTotal(input: BudgetPlanUpdate) {
   const total = input.categories.reduce((sum, category) => sum + category.allocatedAmount, 0) + (input.newCategory?.allocatedAmount ?? 0);
   if (total > input.period.totalBudget) throw new BudgetError("ALLOCATION_EXCEEDS_BUDGET", "Category allocations cannot exceed the total budget.");
+}
+
+function validateStalePlanAllocation(input: BudgetPlanUpdate, rows: PlanRow[], currentUpdatedAt: string) {
+  if (input.expectedPeriodUpdatedAt === currentUpdatedAt) return;
+  const currentTotal = rows.reduce((sum, row) => sum + row.plan.allocatedAmount, 0);
+  const currentById = new Map(rows.map((row) => [row.category.id, row.plan.allocatedAmount]));
+  const requestedIncrease = input.categories.reduce((sum, category) => sum + Math.max(0, category.allocatedAmount - (currentById.get(category.id) ?? 0)), 0) + (input.newCategory?.allocatedAmount ?? 0);
+  if (currentTotal + requestedIncrease > input.period.totalBudget) throw new BudgetError("ALLOCATION_EXCEEDS_BUDGET", "Category allocations cannot exceed the total budget.");
+  throw new BudgetError("CONFLICT", "This budget changed in another request. Reload and try again.");
 }
 
 function validatePlanShape(input: BudgetPlanUpdate, rows: PlanRow[]) {
@@ -99,6 +116,7 @@ export async function updateBudgetPlan(database: Database, ownerUserId: string, 
       .where(and(eq(budgetPeriodCategories.ownerUserId, ownerUserId), eq(budgetPeriodCategories.budgetPeriodId, period.id)))
       .for("update") as PlanRow[];
     validatePlanShape(input, rows);
+    validateStalePlanAllocation(input, rows, period.updatedAt.toISOString());
     if (input.period.startsOn !== period.startsOn || input.period.endsOn !== period.endsOn) await rejectExcludedPostedTransaction(transaction as Database, ownerUserId, period.id, input.period.startsOn, input.period.endsOn);
     await transaction.update(budgetPeriods).set({ name: input.period.name.trim(), startsOn: input.period.startsOn, endsOn: input.period.endsOn, totalBudget: input.period.totalBudget, updatedAt: new Date() }).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.id, period.id)));
     await updatePlanCategories(transaction as Database, ownerUserId, period.id, input.categories, rows);
@@ -112,8 +130,10 @@ async function updatePlanCategories(transaction: Database, ownerUserId: string, 
   for (const update of updates) {
     const existing = currentById.get(update.id);
     if (!existing) continue;
-    const name = existing.category.systemKey === "uncategorized" ? existing.category.name : canonicalBudgetCategoryName(update.name);
-    await transaction.update(budgetCategories).set({ name, normalizedName: normalizeBudgetCategoryName(name), updatedAt: new Date() }).where(and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, update.id)));
+    if (existing.category.systemKey !== "uncategorized") {
+      const name = canonicalBudgetCategoryName(update.name);
+      await transaction.update(budgetCategories).set({ name, normalizedName: normalizeBudgetCategoryName(name), updatedAt: new Date() }).where(and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, update.id)));
+    }
     await transaction.update(budgetPeriodCategories).set({ allocatedAmount: update.allocatedAmount, updatedAt: new Date() }).where(and(eq(budgetPeriodCategories.ownerUserId, ownerUserId), eq(budgetPeriodCategories.budgetPeriodId, periodId), eq(budgetPeriodCategories.budgetCategoryId, update.id)));
   }
 }

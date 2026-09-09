@@ -37,7 +37,7 @@ export default async function BudgetTransactionsPage() {
       <div className="editorial-shell app-page__layout">
         <header className="app-page__header">
           <div><p className="technical-label">Personal · budget</p><h1>Transaction history</h1><p className="app-page__lede">Manual budget records, including voided history.</p></div>
-          <Link className="action-link action-link--primary" href="/app/personal/budget?create=1" data-task-trigger="budget-transaction">Add transaction</Link>
+          <Link className="action-link action-link--primary" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
         </header>
         <section className="ledger-section" aria-labelledby="budget-history-heading">
           <div className="ledger-section__heading"><h2 id="budget-history-heading">All transactions</h2><Link className="text-link" href="/app/personal/budget">Back to Budget <span aria-hidden="true">→</span></Link></div>

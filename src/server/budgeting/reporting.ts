@@ -62,6 +62,7 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
       name: period.name,
       startsOn: period.startsOn,
       endsOn: period.endsOn,
+      updatedAt: period.updatedAt.toISOString(),
       totalBudget: period.totalBudget,
       totalAllocated: categories.reduce((sum, category) => sum + category.allocatedAmount, 0),
       unallocatedBudget: period.totalBudget - categories.reduce((sum, category) => sum + category.allocatedAmount, 0),

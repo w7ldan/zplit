@@ -18,6 +18,7 @@ export type BudgetPeriodSummary = {
   name: string;
   startsOn: string;
   endsOn: string;
+  updatedAt: string;
   totalBudget: number;
   totalAllocated: number;
   unallocatedBudget: number;

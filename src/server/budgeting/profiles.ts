@@ -66,8 +66,9 @@ export async function createBudgetSetup(database: Database, ownerUserId: string,
         ownerUserId,
         name: category.name,
         normalizedName: normalizeBudgetCategoryName(category.name),
-      }))).returning({ id: budgetCategories.id })
+      }))).returning({ id: budgetCategories.id, normalizedName: budgetCategories.normalizedName })
       : [];
+    const customCategoryIds = new Map(customCategories.map((category) => [category.normalizedName, category.id]));
     const periodRows = await transaction.insert(budgetPeriods).values({
       ownerUserId,
       ordinal: 1,
@@ -81,13 +82,17 @@ export async function createBudgetSetup(database: Database, ownerUserId: string,
     if (!period) throw new BudgetError("CONFLICT", "Budget setup could not create its first period.");
     await transaction.insert(budgetPeriodCategories).values([
       { ownerUserId, budgetPeriodId: period.id, budgetCategoryId: uncategorizedId, allocatedAmount: 0, displayOrder: 0 },
-      ...customCategories.map((category, index) => ({
+      ...valid.categories.map((category, index) => {
+        const categoryId = customCategoryIds.get(normalizeBudgetCategoryName(category.name));
+        if (!categoryId) throw new BudgetError("CONFLICT", "Budget setup could not create its custom categories.");
+        return {
         ownerUserId,
         budgetPeriodId: period.id,
-        budgetCategoryId: category.id,
-        allocatedAmount: valid.categories[index]?.allocatedAmount ?? 0,
+        budgetCategoryId: categoryId,
+        allocatedAmount: category.allocatedAmount,
         displayOrder: index + 1,
-      })),
+        };
+      }),
     ]);
     return { profile: { ownerUserId }, period };
   });

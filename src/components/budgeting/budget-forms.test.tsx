@@ -16,7 +16,7 @@ describe("budget forms", () => {
   });
 
   it("preserves plan category identity while keeping the system name immutable", () => {
-    render(<BudgetPlanForm action={planAction} period={{ name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 100000 }} categories={[{ id: "system", name: "Uncategorized", allocatedAmount: 0, systemKey: "uncategorized" }, { id: "food", name: "Food", allocatedAmount: 50000, systemKey: null }]} />);
+    render(<BudgetPlanForm action={planAction} period={{ name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", updatedAt: "2026-09-09T00:00:00.000Z", totalBudget: 100000 }} categories={[{ id: "system", name: "Uncategorized", allocatedAmount: 0, systemKey: "uncategorized" }, { id: "food", name: "Food", allocatedAmount: 50000, systemKey: null }]} />);
     expect(screen.getByDisplayValue("Uncategorized")).toHaveAttribute("readonly");
     expect(screen.getByDisplayValue("Food")).toBeInTheDocument();
     expect(screen.getAllByDisplayValue("system")).toHaveLength(1);
