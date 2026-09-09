@@ -17,8 +17,14 @@ describe("repayment input", () => {
     expect(result).toEqual({
       ok: true,
       values: { friendId, amountRupiah: "84.000", paidAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "-480", paymentMethod: "Bank transfer", notes: "Received in full" },
-      value: { friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", notes: "Received in full" },
+      value: { friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paidOn: "2026-01-02", paymentMethod: "Bank transfer", notes: "Received in full" },
     });
+  });
+
+  it("keeps the submitted calendar date when UTC crosses a date boundary", () => {
+    const result = validateRepaymentInput({ friendId, amountRupiah: "1", paidAtLocal: "2026-09-10T23:30", timezoneOffsetMinutes: "600", paymentMethod: "", notes: "" });
+
+    expect(result).toMatchObject({ ok: true, value: { paidOn: "2026-09-10", paidAt: new Date("2026-09-11T09:30:00.000Z") } });
   });
 
   it("turns blank optional fields into null", () => {

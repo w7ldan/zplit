@@ -1,6 +1,6 @@
 import { formatRupiah } from "@/domain/rupiah";
 import { DEBTOR_STATEMENT_PAGE_SIZE, type DebtorStatement, type DebtorStatementPage } from "@/domain/debtor-statement";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { ReceiptPreview } from "@/components/records/receipt-preview";
 import { destinationTypeLabel } from "@/domain/repayment-destination";
 import { CopyRepaymentDestination } from "./copy-repayment-destination";
@@ -137,7 +137,7 @@ export function DebtorStatementView({ statement, expiresAt, token = "" }: { stat
                 <div>
                   <h3>{item.expenseDescription}</h3>
                   <p>
-                    {item.outingTitle} · <LocalDateTime iso={item.outingOccurredAt.toISOString()} mode="date" />
+                    {item.outingTitle} · <SourceCalendarDate canonicalDate={item.outingOccurredOn} timestamp={item.outingOccurredAt.toISOString()} />
                   </p>
                 </div>
                 <strong
@@ -202,7 +202,7 @@ export function DebtorStatementView({ statement, expiresAt, token = "" }: { stat
               className="debtor-statement__repayment"
               key={`${repayment.paidAt.toISOString()}-${index}`}
             >
-              <h3>Paid <LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" /></h3>
+              <h3>Paid <SourceCalendarDate canonicalDate={repayment.paidOn} timestamp={repayment.paidAt.toISOString()} /></h3>
               <dl className="debtor-statement__item-values debtor-statement__repayment-values">
                 <div>
                   <dt>Repayment amount</dt>

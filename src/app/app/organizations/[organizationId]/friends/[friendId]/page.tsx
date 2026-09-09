@@ -6,7 +6,7 @@ import {
   FriendArchiveForm,
   FriendForm,
 } from "@/components/friends/friend-form";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { formatRupiah } from "@/domain/rupiah";
 import {
@@ -171,10 +171,7 @@ export default async function OrganizationFriendPage({
                     </h3>
                     <p>
                       {share.outingTitle} ·{" "}
-                      <LocalDateTime
-                        iso={share.outingOccurredAt.toISOString()}
-                        mode="date"
-                      />
+                      <SourceCalendarDate canonicalDate={share.outingOccurredOn} timestamp={share.outingOccurredAt.toISOString()} />
                     </p>
                   </div>
                   <div className="record-history__values">
@@ -226,10 +223,7 @@ export default async function OrganizationFriendPage({
                     <span className="technical-label">REPAYMENT</span>
                     <h3>
                       <Link href={`${base}/repayments/${repayment.id}`}>
-                        <LocalDateTime
-                          iso={repayment.paidAt.toISOString()}
-                          mode="date"
-                        />
+                        <SourceCalendarDate canonicalDate={repayment.paidOn} timestamp={repayment.paidAt.toISOString()} />
                       </Link>
                     </h3>
                   </div>

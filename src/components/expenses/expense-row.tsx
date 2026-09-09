@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatRupiah } from "@/domain/rupiah";
 import type { ExpenseListRecord } from "@/domain/ledger/types";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 
 export function ExpenseRow({ expense, emphasized = false, basePath = "/app/expenses" }: { expense: ExpenseListRecord; emphasized?: boolean; basePath?: string }) {
   return (
@@ -13,7 +13,7 @@ export function ExpenseRow({ expense, emphasized = false, basePath = "/app/expen
       <div className="expense-row__meta">
         <span className="expense-row__amount"><span className="technical-label">Amount</span><strong aria-label={`Expense amount ${formatRupiah(expense.amount)}`}>{formatRupiah(expense.amount)}</strong></span>
         <div className="expense-row__context">
-          <span className="expense-row__date"><span className="technical-label">Date</span><LocalDateTime iso={expense.outingOccurredAt.toISOString()} /></span>
+          <span className="expense-row__date"><span className="technical-label">Date</span><SourceCalendarDate canonicalDate={expense.outingOccurredOn} timestamp={expense.outingOccurredAt.toISOString()} /></span>
           <span className="expense-row__outing"><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></span>
         </div>
         <Link className="expense-row__edit" href={`${basePath}/${expense.id}`}>Edit <span aria-hidden="true">→</span></Link>

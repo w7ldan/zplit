@@ -60,8 +60,8 @@ async function run() {
     const repositoryB = createLedgerRepository(db, scopeB);
     const friendA = await repositoryA.createFriend({ name: "Friend A", phoneNumber: null, notes: null });
     const friendB = await repositoryB.createFriend({ name: "Friend B", phoneNumber: null, notes: null });
-    const outingA = await repositoryA.createOuting({ title: "Owner A outing", occurredAt: now, notes: null });
-    const outingB = await repositoryB.createOuting({ title: "Owner B outing", occurredAt: now, notes: null });
+    const outingA = await repositoryA.createOuting({ title: "Owner A outing", occurredAt: now, occurredOn: "2026-08-05", notes: null });
+    const outingB = await repositoryB.createOuting({ title: "Owner B outing", occurredAt: now, occurredOn: "2026-08-05", notes: null });
     const expenseA1 = await repositoryA.createExpense({ outingId: outingA.id, description: "Owner A dinner", amount: 10_000 });
     const expenseA2 = await repositoryA.createExpense({ outingId: outingA.id, description: "Owner A taxi", amount: 8_000 });
     const expenseA3 = await repositoryA.createExpense({ outingId: outingA.id, description: "Owner A private", amount: 4_000 });

@@ -64,7 +64,7 @@ describe("outing actions", () => {
     }))).rejects.toThrow("redirect:/app/outings?created=outing-a&tz=-480");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
-    expect(createOuting).toHaveBeenCalledWith({ title: "Dinner", occurredAt: new Date("2026-01-02T02:30:00.000Z"), notes: "Notes", tripId: null });
+    expect(createOuting).toHaveBeenCalledWith({ title: "Dinner", occurredAt: new Date("2026-01-02T02:30:00.000Z"), occurredOn: "2026-01-02", notes: "Notes", tripId: null });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/outings");
   });
@@ -96,7 +96,7 @@ describe("outing actions", () => {
       notes: "Notes",
       tripId: tripB,
     }))).rejects.toThrow("redirect:/app/outings?created=outing-a&tz=0");
-    expect(createOuting).toHaveBeenCalledWith({ title: "Dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: "Notes", tripId: tripB });
+    expect(createOuting).toHaveBeenCalledWith({ title: "Dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), occurredOn: "2026-01-02", notes: "Notes", tripId: tripB });
   });
 
   it("returns a Trip field error and submitted values when create loses its Trip", async () => {
@@ -147,10 +147,10 @@ describe("outing actions", () => {
     mocks.createLedgerRepository.mockReturnValue({ updateOuting });
 
     await expect(updateOutingAction("outing-a", initialState, form({ title: "Dinner", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "Notes", tripId: tripB }))).rejects.toThrow("redirect:/app/outings/outing-a?saved=1");
-    expect(updateOuting).toHaveBeenLastCalledWith("outing-a", { title: "Dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: "Notes", tripId: tripB });
+    expect(updateOuting).toHaveBeenLastCalledWith("outing-a", { title: "Dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), occurredOn: "2026-01-02", notes: "Notes", tripId: tripB });
 
     await expect(updateOutingAction("outing-a", initialState, form({ title: "Dinner", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "0", notes: "Notes", tripId: "" }))).rejects.toThrow("redirect:/app/outings/outing-a?saved=1");
-    expect(updateOuting).toHaveBeenLastCalledWith("outing-a", { title: "Dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), notes: "Notes", tripId: null });
+    expect(updateOuting).toHaveBeenLastCalledWith("outing-a", { title: "Dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), occurredOn: "2026-01-02", notes: "Notes", tripId: null });
   });
 
   it("distinguishes a missing selected Trip from a missing outing on update", async () => {

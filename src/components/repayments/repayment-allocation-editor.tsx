@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import type { RepaymentAllocationPlan, RepaymentAllocationReversalReceipt } from "@/domain/ledger-repository";
 import { formatRupiah, parseRupiah } from "@/domain/rupiah";
 import type {
@@ -270,7 +270,7 @@ export function RepaymentAllocationEditor({
               <div className="repayment-allocation-editor__details">
                 <p className="repayment-allocation-editor__description">{share.expenseDescription}</p>
                 <p className="repayment-allocation-editor__outing">
-                  {share.outingTitle} · <LocalDateTime iso={share.outingOccurredAt.toISOString()} mode="date" />
+                  {share.outingTitle} · <SourceCalendarDate canonicalDate={share.outingOccurredOn} timestamp={share.outingOccurredAt.toISOString()} />
                 </p>
                 <div className="repayment-allocation-editor__available">
                   <span>Available</span>

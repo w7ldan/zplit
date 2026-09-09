@@ -15,6 +15,7 @@ export type RepaymentInput = {
   friendId: string;
   amount: number;
   paidAt: Date;
+  paidOn: string;
   paymentMethod: string | null;
   notes: string | null;
 };
@@ -110,6 +111,7 @@ export function validateRepaymentInput(input: unknown): RepaymentValidationResul
       friendId: values.friendId,
       amount,
       paidAt,
+      paidOn: values.paidAtLocal.slice(0, 10),
       paymentMethod: values.paymentMethod || null,
       notes: values.notes || null,
     },

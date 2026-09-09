@@ -13,6 +13,7 @@ type GlobalSearchRow = {
   context_source: unknown;
   amount: unknown;
   occurred_at: unknown;
+  calendar_date?: unknown;
 };
 
 export function createLedgerSearchRepository(database: Database, scope: string) {
@@ -27,7 +28,7 @@ async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]
       const result = await database.execute<GlobalSearchRow>(sql`
         WITH friend_results AS (
           SELECT 'friend'::text AS record_kind, f.id::text AS record_id, f.name::text AS title_source,
-            NULL::text AS detail_source, NULL::text AS context_source, NULL::integer AS amount, NULL::timestamptz AS occurred_at
+            NULL::text AS detail_source, NULL::text AS context_source, NULL::integer AS amount, NULL::timestamptz AS occurred_at, NULL::date AS calendar_date
           FROM friends f
           WHERE f.ledger_scope_id = ${scope} AND f.name ILIKE ${pattern} ESCAPE ${"\\"}
           ORDER BY f.name ASC, f.id ASC
@@ -35,14 +36,14 @@ async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]
         ), trip_results AS (
           SELECT 'trip'::text AS record_kind, t.id::text AS record_id, t.name::text AS title_source,
             NULLIF(concat_ws(' — ', t.starts_on::text, t.ends_on::text), '') AS detail_source,
-            NULL::text AS context_source, NULL::integer AS amount, NULL::timestamptz AS occurred_at
+            NULL::text AS context_source, NULL::integer AS amount, NULL::timestamptz AS occurred_at, NULL::date AS calendar_date
           FROM trips t
           WHERE t.ledger_scope_id = ${scope} AND t.name ILIKE ${pattern} ESCAPE ${"\\"}
           ORDER BY t.starts_on DESC NULLS LAST, t.name ASC, t.id ASC
           LIMIT 5
         ), outing_results AS (
           SELECT 'outing'::text AS record_kind, o.id::text AS record_id, o.title::text AS title_source,
-            NULL::text AS detail_source, t.name::text AS context_source, NULL::integer AS amount, o.occurred_at
+            NULL::text AS detail_source, t.name::text AS context_source, NULL::integer AS amount, o.occurred_at, o.occurred_on AS calendar_date
           FROM outings o
           LEFT JOIN trips t ON t.ledger_scope_id = o.ledger_scope_id AND t.id = o.trip_id
           WHERE o.ledger_scope_id = ${scope} AND o.title ILIKE ${pattern} ESCAPE ${"\\"}
@@ -50,7 +51,7 @@ async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]
           LIMIT 5
         ), expense_results AS (
           SELECT 'expense'::text AS record_kind, e.id::text AS record_id, e.description::text AS title_source,
-            o.title::text AS detail_source, NULL::text AS context_source, e.amount, NULL::timestamptz AS occurred_at
+            o.title::text AS detail_source, NULL::text AS context_source, e.amount, NULL::timestamptz AS occurred_at, NULL::date AS calendar_date
           FROM expenses e
           INNER JOIN outings o ON o.ledger_scope_id = e.ledger_scope_id AND o.id = e.outing_id
           WHERE e.ledger_scope_id = ${scope}
@@ -59,7 +60,7 @@ async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]
           LIMIT 5
         ), repayment_results AS (
           SELECT 'repayment'::text AS record_kind, r.id::text AS record_id, f.name::text AS title_source,
-            NULL::text AS detail_source, NULL::text AS context_source, r.amount, r.paid_at AS occurred_at
+            NULL::text AS detail_source, NULL::text AS context_source, r.amount, r.paid_at AS occurred_at, r.paid_on AS calendar_date
           FROM repayments r
           INNER JOIN friends f ON f.ledger_scope_id = r.ledger_scope_id AND f.id = r.friend_id
           WHERE r.ledger_scope_id = ${scope}
@@ -67,7 +68,7 @@ async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]
           ORDER BY r.paid_at DESC, r.created_at DESC, r.id ASC
           LIMIT 5
         )
-        SELECT record_kind, record_id, title_source, detail_source, context_source, amount, occurred_at
+        SELECT record_kind, record_id, title_source, detail_source, context_source, amount, occurred_at, calendar_date
         FROM (
           SELECT * FROM friend_results
           UNION ALL SELECT * FROM trip_results
@@ -86,9 +87,10 @@ async function searchGlobalRecords(input: unknown): Promise<GlobalSearchRecord[]
         if (typeof row.record_id !== "string" || !row.record_id.trim() || typeof row.title_source !== "string" || !row.title_source.trim()) throw new LedgerIntegrityError("Global search record is invalid.");
         const amountValue = row.amount === null || row.amount === undefined ? undefined : safeRetrievalInteger(row.amount, "Global search amount");
         const date = row.occurred_at === null || row.occurred_at === undefined ? undefined : recentActivityDate(row.occurred_at, "Global search date").toISOString();
+        const calendarDate = typeof row.calendar_date === "string" ? row.calendar_date : undefined;
         const detail = typeof row.detail_source === "string" && row.detail_source ? row.detail_source : undefined;
         const context = typeof row.context_source === "string" && row.context_source ? row.context_source : undefined;
-        return { kind: row.record_kind as GlobalSearchRecord["kind"], id: row.record_id, title: row.title_source, ...(detail ? { detail } : {}), ...(context ? { context } : {}), ...(amountValue === undefined ? {} : { amount: amountValue }), ...(date ? { date } : {}) };
+        return { kind: row.record_kind as GlobalSearchRecord["kind"], id: row.record_id, title: row.title_source, ...(detail ? { detail } : {}), ...(context ? { context } : {}), ...(amountValue === undefined ? {} : { amount: amountValue }), ...(date ? { date } : {}), ...(calendarDate ? { calendarDate } : {}) };
       });
     } catch (error) {
       return persistenceError(error);

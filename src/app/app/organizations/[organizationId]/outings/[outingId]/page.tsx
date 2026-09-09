@@ -6,7 +6,7 @@ import {
   deletionImpactRevision,
 } from "@/domain/ledger-repository";
 import { OutingForm } from "@/components/outings/outing-form";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { formatRupiah } from "@/domain/rupiah";
@@ -83,7 +83,11 @@ export default async function OrganizationOutingPage({
         <section className="outing-record__summary">
           <div className="outing-record__meta">
             <div>
-              <span className="technical-label">Occurred</span>
+              <span className="technical-label">Financial date</span>
+              <SourceCalendarDate canonicalDate={outing.occurredOn} timestamp={outing.occurredAt.toISOString()} />
+            </div>
+            <div>
+              <span className="technical-label">Exact time</span>
               <LocalDateTime iso={outing.occurredAt.toISOString()} />
             </div>
             <div>

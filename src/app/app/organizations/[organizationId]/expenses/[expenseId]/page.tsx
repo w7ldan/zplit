@@ -10,7 +10,7 @@ import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ExpenseShareEditor } from "@/components/expenses/expense-share-editor";
 import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { formatRupiah } from "@/domain/rupiah";
 import { listExpenseReceipts } from "@/server/expense-receipts";
 import {
@@ -172,7 +172,7 @@ export default async function OrganizationExpensePage({
                 </div>
                 <div>
                   <span className="technical-label">Date</span>
-                  <LocalDateTime iso={expense.outingOccurredAt.toISOString()} />
+                  <SourceCalendarDate canonicalDate={expense.outingOccurredOn} timestamp={expense.outingOccurredAt.toISOString()} />
                 </div>
               </div>
               {canEdit ? (

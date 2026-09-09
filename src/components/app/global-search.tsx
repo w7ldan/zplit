@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { searchGlobalRecords as defaultSearch } from "@/app/app/search/actions";
 import type { GlobalSearchRecord } from "@/domain/ledger-repository";
 import { formatRupiah } from "@/domain/rupiah";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { useUnsavedChangesNavigation } from "@/components/navigation/unsaved-changes";
 
 export type GlobalSearchAction = (query: string) => Promise<GlobalSearchRecord[]>;
@@ -27,15 +27,15 @@ function hrefFor(record: GlobalSearchRecord) {
   return `/app/${record.kind === "friend" ? "friends" : `${record.kind}s`}/${encodeURIComponent(record.id)}`;
 }
 
-function dateLabel(value?: string) {
+function dateLabel(value?: string, calendarDate?: string) {
   if (!value) return "";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : <LocalDateTime iso={value} mode="date" />;
+  return Number.isNaN(date.getTime()) ? null : <SourceCalendarDate canonicalDate={calendarDate} timestamp={value} />;
 }
 
 function recordDetail(record: GlobalSearchRecord) {
   const amount = record.amount === undefined ? "" : formatRupiah(record.amount);
-  const date = dateLabel(record.date);
+  const date = dateLabel(record.date, record.calendarDate);
   if (record.kind === "friend") return record.detail || record.context || "";
   if (record.kind === "trip") return [record.detail, record.context].filter(Boolean).join(" · ");
   if (record.kind === "outing") return <>{date}{date && record.context ? " · " : ""}{record.context}</>;

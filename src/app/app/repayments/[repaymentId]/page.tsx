@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { RepaymentForm } from "@/components/repayments/repayment-form";
 import { RepaymentAllocationEditor } from "@/components/repayments/repayment-allocation-editor";
 import { RepaymentPaymentProof } from "@/components/repayments/repayment-payment-proof";
@@ -111,7 +111,7 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
                 <div><span className="technical-label">Received</span><strong>{formatRupiah(plan.amount)}</strong></div>
                 <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(plan.allocatedAmount)}</strong></div>
                 <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(plan.unallocatedAmount)}</strong></div>
-                <div><span className="technical-label">Payment date</span><LocalDateTime iso={plan.paidAt.toISOString()} mode="date" /></div>
+                <div><span className="technical-label">Payment date</span><SourceCalendarDate canonicalDate={plan.paidOn} timestamp={plan.paidAt.toISOString()} /></div>
                 <div><span className="technical-label">Payment method</span><span>{plan.paymentMethod ?? "—"}</span></div>
                 <div><span className="technical-label">Notes</span><span className="repayment-record__notes-value">{plan.notes ?? "—"}</span></div>
               </div>

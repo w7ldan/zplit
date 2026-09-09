@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CalendarDate, CalendarDateRange, LocalDateTime } from "./local-date-time";
+import { CalendarDate, CalendarDateRange, LocalDateTime, SourceCalendarDate } from "./local-date-time";
 import { formatCalendarDate } from "./calendar-date";
 
 describe("LocalDateTime", () => {
@@ -20,6 +20,16 @@ describe("LocalDateTime", () => {
     expect(serverMarkup).toContain("02 Jan 2026 UTC");
     render(<LocalDateTime iso="not-a-date" mode="date" />);
     expect(screen.getByRole("time")).toHaveTextContent("Invalid date");
+  });
+
+  it("uses the canonical source date and keeps the legacy fallback presentation-only", () => {
+    const canonical = renderToString(<SourceCalendarDate canonicalDate="2026-09-10" timestamp="2026-09-09T17:30:00.000Z" />);
+    expect(canonical).toContain('dateTime="2026-09-10"');
+    expect(canonical).toContain("10 Sept 2026");
+
+    const legacy = renderToString(<SourceCalendarDate canonicalDate={null} timestamp="2026-09-09T17:30:00.000Z" />);
+    expect(legacy).toContain('dateTime="2026-09-09T17:30:00.000Z"');
+    expect(legacy).toContain("09 Sept 2026 UTC");
   });
 
   it("uses the browser timezone across a UTC date boundary", async () => {

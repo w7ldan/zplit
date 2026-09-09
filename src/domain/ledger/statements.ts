@@ -125,6 +125,7 @@ async function getFriendDebtorStatement(friendId: string, asOf = new Date(), deb
           expenseDescription: expenses.description,
           outingTitle: outings.title,
           outingOccurredAt: outings.occurredAt,
+          outingOccurredOn: outings.occurredOn,
           amountOwed: expenseShares.amountOwed,
         })
         .from(expenseShares)
@@ -272,6 +273,7 @@ async function getPublicFriendDebtorStatement(
           expenseDescription: expenses.description,
           outingTitle: outings.title,
           outingOccurredAt: outings.occurredAt,
+          outingOccurredOn: outings.occurredOn,
           amountOwed: expenseShares.amountOwed,
           repaidAmount: expenseRepaidAmount,
         })
@@ -295,6 +297,7 @@ async function getPublicFriendDebtorStatement(
           friendId: repayments.friendId,
           amount: repayments.amount,
           paidAt: repayments.paidAt,
+          paidOn: repayments.paidOn,
           paymentMethod: repayments.paymentMethod,
           allocatedAmount: repaymentAllocatedAmount,
         })

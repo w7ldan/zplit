@@ -9,7 +9,7 @@ import type { RepaymentAllocationStrategy } from "@/domain/repayment-allocation-
 import { paymentMethodFormState, type PaymentMethodChoice } from "@/domain/payment-method";
 import { formatRupiah } from "@/domain/rupiah";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { PaymentMethodFields } from "@/components/records/payment-method-fields";
 import { useRepaymentAllocationDraft } from "./use-repayment-allocation-draft";
 import { TaskPanelFooter } from "@/components/app/task-panel";
@@ -205,7 +205,7 @@ function RepaymentAllocationSection({
             <div className="repayment-form__allocation-details">
               <strong>{share.expenseDescription}</strong>
               <span>
-                {share.outingTitle} · <LocalDateTime iso={share.outingOccurredAt.toISOString()} mode="date" />
+                {share.outingTitle} · <SourceCalendarDate canonicalDate={share.outingOccurredOn} timestamp={share.outingOccurredAt.toISOString()} />
               </span>
               <span>
                 Original share {formatRupiah(share.amountOwed)} · Previously repaid {formatRupiah(share.repaidAmount)} · Remaining {formatRupiah(share.remainingAmount)}

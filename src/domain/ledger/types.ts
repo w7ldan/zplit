@@ -12,6 +12,7 @@ export type UpdateFriendInput = FriendMutationInput;
 export type OutingMutationInput = {
   title: string;
   occurredAt: Date;
+  occurredOn: string;
   notes: string | null;
   tripId?: string | null;
 };
@@ -77,6 +78,7 @@ export type OutingListRecord = {
   id: string;
   title: string;
   occurredAt: Date;
+  occurredOn: string | null;
   tripId?: string | null;
   tripName?: string | null;
 };
@@ -86,6 +88,7 @@ export type ExpenseListRecord = {
   amount: number;
   outingTitle: string;
   outingOccurredAt: Date;
+  outingOccurredOn: string | null;
 };
 export type ExpenseMutationInput = {
   description: string;
@@ -114,6 +117,7 @@ export type RepaymentMutationInput = {
   friendId: string;
   amount: number;
   paidAt: Date;
+  paidOn: string;
   paymentMethod: string | null;
   notes: string | null;
 };
@@ -141,6 +145,7 @@ export type RepaymentRecord = {
   friendId: string;
   amount: number;
   paidAt: Date;
+  paidOn: string | null;
   paymentMethod: string | null;
   notes: string | null;
   createdAt: Date;
@@ -164,6 +169,7 @@ export type FriendExpenseShareRecord = {
   expenseDescription: string;
   outingTitle: string;
   outingOccurredAt: Date;
+  outingOccurredOn?: string | null;
   amountOwed: number;
   appliedAmount: number;
   remainingAmount: number;
@@ -192,6 +198,7 @@ export type GlobalSearchRecord = {
   context?: string;
   amount?: number;
   date?: string;
+  calendarDate?: string;
 };
 
 export type RepaymentAllocationShare = {
@@ -200,6 +207,7 @@ export type RepaymentAllocationShare = {
   expenseDescription: string;
   outingTitle: string;
   outingOccurredAt: Date;
+  outingOccurredOn?: string | null;
   amountOwed: number;
   allocatedByOtherRepayments: number;
   currentAllocation: number;
@@ -275,6 +283,7 @@ export type OpenExpenseShare = {
   expenseDescription: string;
   outingTitle: string;
   outingOccurredAt: Date;
+  outingOccurredOn?: string | null;
   amountOwed: number;
   repaidAmount: number;
   remainingAmount: number;

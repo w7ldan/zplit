@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import type { OutingListRecord } from "@/domain/ledger/types";
 import { formatRupiah } from "@/domain/rupiah";
 
@@ -11,7 +11,7 @@ export function OutingRow({ outing, expenseCount, expenseTotal, emphasized = fal
         <h2><Link href={`${basePath}/outings/${outing.id}`}>{outing.title}</Link></h2>
       </div>
       <div className="outing-row__meta">
-        <span className="outing-row__date"><span className="technical-label">Date</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></span>
+        <span className="outing-row__date"><span className="technical-label">Date</span><SourceCalendarDate canonicalDate={outing.occurredOn} timestamp={outing.occurredAt.toISOString()} /></span>
         {showTripContext ? <span className="outing-row__trip"><span className="technical-label">Trip</span>{outing.tripId && outing.tripName ? <Link href={`${basePath}/trips/${outing.tripId}`}>{outing.tripName}</Link> : "—"}</span> : null}
         <span className="outing-row__expenses"><span className="technical-label">Expenses</span>{expenseCount} {expenseCount === 1 ? "expense" : "expenses"} · {formatRupiah(expenseTotal)}</span>
         <span className="outing-row__actions">

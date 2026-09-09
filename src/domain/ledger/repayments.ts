@@ -221,7 +221,7 @@ async function updateRepayment(repaymentId: string, input: UpdateRepaymentInput)
     try {
       return await database.transaction(async (transaction) => {
         const [current] = await transaction
-          .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount })
+          .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount, paidAt: repayments.paidAt, paidOn: repayments.paidOn })
           .from(repayments)
           .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
           .limit(1)
@@ -235,9 +235,12 @@ async function updateRepayment(repaymentId: string, input: UpdateRepaymentInput)
         if (allocationCount > 0 && requested.friendId !== current.friendId) throw new RepaymentFriendInvariantError();
 
         await assertOwnedFriend(transaction, requested.friendId);
+        const paidOn = current.paidAt.getTime() === requested.paidAt.getTime() && current.paidOn
+          ? current.paidOn
+          : requested.paidOn;
         const [repayment] = await transaction
           .update(repayments)
-          .set(requested)
+          .set({ ...requested, paidOn })
           .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
           .returning();
         if (!repayment) return notFound();

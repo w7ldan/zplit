@@ -22,6 +22,7 @@ function expenseSelection() {
       updatedAt: expenses.updatedAt,
       outingTitle: outings.title,
       outingOccurredAt: outings.occurredAt,
+      outingOccurredOn: outings.occurredOn,
     };
   }
 
@@ -217,6 +218,7 @@ async function listFriendExpenseShareRecords(friendId: string, options: { page?:
           expenseDescription: expenses.description,
           outingTitle: outings.title,
           outingOccurredAt: outings.occurredAt,
+          outingOccurredOn: outings.occurredOn,
           amountOwed: expenseShares.amountOwed,
           appliedAmount,
         })
@@ -346,6 +348,7 @@ async function listOpenExpenseSharesByFriend(friendId?: string, tripId?: string)
           expenseDescription: expenses.description,
           outingTitle: outings.title,
           outingOccurredAt: outings.occurredAt,
+          outingOccurredOn: outings.occurredOn,
           amountOwed: expenseShares.amountOwed,
         })
         .from(expenseShares)

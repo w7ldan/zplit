@@ -2,6 +2,7 @@ import type { RepaymentAllocationInput } from "../repayment-allocation-input";
 import { MAX_RUPIAH } from "../rupiah";
 import { MAX_PERCENTAGE_BASIS_POINTS } from "../expense-share-input";
 import { normalizeUuid } from "../record-retrieval";
+import { isValidDateOnly } from "../date-only";
 import { LedgerRepositoryError } from "./errors";
 import type {
   ExpenseChargeInput,
@@ -92,13 +93,15 @@ export function assertRepaymentAllocationReversalReceipt(value: unknown): assert
 export function assertOutingInput(input: unknown): asserts input is OutingMutationInput {
   assertInput(input);
   const keys = Object.keys(input);
-  if (keys.some((key) => !["title", "occurredAt", "notes", "tripId"].includes(key))) {
+  if (keys.some((key) => !["title", "occurredAt", "occurredOn", "notes", "tripId"].includes(key))) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Outing fields are invalid");
   }
   if (
     typeof input.title !== "string" ||
     !(input.occurredAt instanceof Date) ||
     Number.isNaN(input.occurredAt.getTime()) ||
+    typeof input.occurredOn !== "string" ||
+    !isValidDateOnly(input.occurredOn) ||
     (input.notes !== null && typeof input.notes !== "string") ||
     (input.tripId !== undefined && input.tripId !== null && (typeof input.tripId !== "string" || !normalizeUuid(input.tripId)))
   ) {
@@ -170,7 +173,7 @@ export function assertRepaymentId(repaymentId: string) {
 export function assertRepaymentInput(input: unknown): asserts input is RepaymentMutationInput {
   assertInput(input);
   const keys = Object.keys(input);
-  if (keys.length !== 5 || keys.some((key) => !["friendId", "amount", "paidAt", "paymentMethod", "notes"].includes(key))) {
+  if (keys.length !== 6 || keys.some((key) => !["friendId", "amount", "paidAt", "paidOn", "paymentMethod", "notes"].includes(key))) {
     throw new LedgerRepositoryError("INVALID_INPUT", "Repayment fields are invalid");
   }
   if (
@@ -181,6 +184,8 @@ export function assertRepaymentInput(input: unknown): asserts input is Repayment
     input.amount <= 0 ||
     !(input.paidAt instanceof Date) ||
     Number.isNaN(input.paidAt.getTime()) ||
+    typeof input.paidOn !== "string" ||
+    !isValidDateOnly(input.paidOn) ||
     (input.paymentMethod !== null && typeof input.paymentMethod !== "string") ||
     (input.notes !== null && typeof input.notes !== "string")
   ) {

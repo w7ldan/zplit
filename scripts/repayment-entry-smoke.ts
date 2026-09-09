@@ -37,7 +37,7 @@ async function run() {
   const shareC = randomUUID();
   const shareB = randomUUID();
   const paidAt = new Date("2026-08-05T00:00:00.000Z");
-  const repaymentInput = (friendId: string, amount: number) => ({ friendId, amount, paidAt, paymentMethod: "Cash", notes: null });
+  const repaymentInput = (friendId: string, amount: number) => ({ friendId, amount, paidAt, paidOn: "2026-08-05", paymentMethod: "Cash", notes: null });
   let scopeA = "";
   let scopeB = "";
 

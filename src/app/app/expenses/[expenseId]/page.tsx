@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ExpenseShareEditor } from "@/components/expenses/expense-share-editor";
 import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
@@ -151,7 +151,7 @@ export default async function ExpenseRecordPage({
                 </div>
                 <div>
                   <span className="technical-label">Outing date</span>
-                  <LocalDateTime iso={expense.outingOccurredAt.toISOString()} />
+                  <SourceCalendarDate canonicalDate={expense.outingOccurredOn} timestamp={expense.outingOccurredAt.toISOString()} />
                 </div>
                 <div>
                   <span className="technical-label">Created</span>

@@ -4,7 +4,7 @@ import { requireSession } from "@/auth/require-session";
 import { deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { OutingForm } from "@/components/outings/outing-form";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { searchTripOptions, updateOutingAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
@@ -64,7 +64,8 @@ export default async function OutingRecordPage({ params, searchParams }: { param
         {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Outing changes saved." /> : null}
         <section className="outing-record__summary" aria-label="Outing summary">
           <div className="outing-record__meta" aria-label="Outing metadata">
-            <div><span className="technical-label">Occurred</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></div>
+            <div><span className="technical-label">Financial date</span><SourceCalendarDate canonicalDate={outing.occurredOn} timestamp={outing.occurredAt.toISOString()} /></div>
+            <div><span className="technical-label">Exact time</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></div>
             <div><span className="technical-label">Trip</span>{trip ? <Link href={`/app/trips/${trip.id}`}>{trip.name} →</Link> : <span>No trip</span>}</div>
             <div><span className="technical-label">Created</span><LocalDateTime iso={outing.createdAt.toISOString()} mode="date" /></div>
           </div>

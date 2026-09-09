@@ -186,7 +186,7 @@ export function createOutingsMutationRepository(
 async function mutate<T>(operation: (database: Database) => Promise<T>) {
     if (!mutationGuard) return operation(database);
     return database.transaction(async (transaction) => {
-      await mutationGuard(transaction as Database);
+      if (mutationGuard) await mutationGuard(transaction as Database);
       return operation(transaction as Database);
     });
   }
@@ -222,9 +222,10 @@ async function updateOuting(outingId: string, input: UpdateOutingInput) {
     try {
       return await mutate(async (transaction) => {
         if (requested.tripId) await assertOwnedTrip(transaction, requested.tripId);
+        const occurredOn = sql<string>`case when ${outings.occurredAt} = ${requested.occurredAt} and ${outings.occurredOn} is not null then ${outings.occurredOn} else ${requested.occurredOn} end`;
         const [outing] = await transaction
           .update(outings)
-          .set({ ...requested, updatedAt: new Date() })
+          .set({ ...requested, occurredOn, updatedAt: new Date() })
           .where(and(eq(outings.ledgerScopeId, scope), eq(outings.id, outingId)))
           .returning();
         if (!outing) return notFound();

@@ -353,10 +353,10 @@ describe("ledger repository", () => {
       repository.updateFriend("friend-a", { name: "Friend", phoneNumber: null, notes: null, ledgerScopeId: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
-      repository.createOuting({ title: "Outing", occurredAt: new Date(), notes: null, ledgerScopeId: "user-b" } as never),
+      repository.createOuting({ title: "Outing", occurredAt: new Date(), occurredOn: "2026-01-01", notes: null, ledgerScopeId: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
-      repository.updateOuting("outing-a", { title: "Outing", occurredAt: new Date(), notes: null, ledger_scope_id: "user-b" } as never),
+      repository.updateOuting("outing-a", { title: "Outing", occurredAt: new Date(), occurredOn: "2026-01-01", notes: null, ledger_scope_id: "user-b" } as never),
     ).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(
       repository.createExpense({ description: "Expense", amount: 100, outingId: "outing-a", ledgerScopeId: "user-b" } as never),
@@ -793,7 +793,7 @@ describe("ledger repository", () => {
     const actions = [
       () => repository.createExpense({ description: "Expense", amount: 100, outingId: "other-outing" }),
       () => repository.replaceExpenseShares("other-expense", []),
-      () => repository.createRepayment({ friendId: "other-friend", amount: 50, paidAt: new Date(), paymentMethod: null, notes: null }),
+      () => repository.createRepayment({ friendId: "other-friend", amount: 50, paidAt: new Date(), paidOn: "2026-01-01", paymentMethod: null, notes: null }),
       () => repository.replaceRepaymentAllocations("other-repayment", []),
     ];
 
@@ -814,7 +814,7 @@ describe("ledger repository", () => {
       return { rows: [] };
     });
     const repository = createLedgerRepository(database as unknown as Database, owner);
-    const input = { title: "Outing", occurredAt: new Date("2026-01-02T00:00:00.000Z"), notes: null };
+    const input = { title: "Outing", occurredAt: new Date("2026-01-02T00:00:00.000Z"), occurredOn: "2026-01-02", notes: null };
 
     await expect(repository.getOuting("outing-a")).rejects.toBeInstanceOf(LedgerNotFoundError);
     await expect(repository.listOutings()).resolves.toEqual([]);
@@ -1275,8 +1275,8 @@ describe("ledger repository", () => {
       queries.push({ sql, params });
       if (sql.toLowerCase().includes("select count(*)")) return { rows: [[41]] };
       return { rows: [
-        ["share-open", "expense-open", "Open dinner", "Later outing", new Date("2026-04-02T00:00:00.000Z"), 5000, 2000],
-        ["share-settled", "expense-settled", "Settled lunch", "Earlier outing", new Date("2026-04-01T00:00:00.000Z"), 7000, 7000],
+        ["share-open", "expense-open", "Open dinner", "Later outing", new Date("2026-04-02T00:00:00.000Z"), null, 5000, 2000],
+        ["share-settled", "expense-settled", "Settled lunch", "Earlier outing", new Date("2026-04-01T00:00:00.000Z"), null, 7000, 7000],
       ] };
     });
 
@@ -1617,7 +1617,7 @@ describe("ledger repository", () => {
   it("returns only the repayment remainder for Needs Attention", async () => {
     const paidAt = new Date("2026-01-01T00:00:00Z");
     const database = drizzle(async () => ({ rows: [[
-      "repayment-a", owner, "friend-a", 100, paidAt, null, null, paidAt, "Ari", null, "40", "1",
+      "repayment-a", owner, "friend-a", 100, paidAt, null, null, null, paidAt, "Ari", null, "40", "1",
     ]] }));
 
     await expect(createLedgerRepository(database as unknown as Database, owner).listNeedsAttentionRepayments()).resolves.toMatchObject({
@@ -1731,7 +1731,7 @@ describe("ledger repository", () => {
       return { transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction) } as unknown as Database;
     }
     const repository = createLedgerRepository(lockingDatabase(), owner);
-    const base = { friendId: "friend-a", amount: 100, paidAt: new Date(), paymentMethod: null, notes: null };
+    const base = { friendId: "friend-a", amount: 100, paidAt: new Date(), paidOn: "2026-01-01", paymentMethod: null, notes: null };
 
     await expect(repository.updateRepayment("repayment-a", { ...base, amount: 59 })).rejects.toMatchObject({
       code: "REPAYMENT_AMOUNT_TOO_LOW",

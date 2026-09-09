@@ -1,15 +1,7 @@
-const BUDGET_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+import { isValidDateOnly } from "../date-only";
 
 export function isValidBudgetDate(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  const match = BUDGET_DATE.exec(value);
-  if (!match || Number(match[1]) < 1) return false;
-  const date = new Date(0);
-  date.setUTCFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  date.setUTCHours(0, 0, 0, 0);
-  return date.getUTCFullYear() === Number(match[1])
-    && date.getUTCMonth() === Number(match[2]) - 1
-    && date.getUTCDate() === Number(match[3]);
+  return isValidDateOnly(value);
 }
 
 export function compareBudgetDates(left: string, right: string) {

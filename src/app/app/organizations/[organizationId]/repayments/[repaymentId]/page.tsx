@@ -10,7 +10,7 @@ import { RepaymentForm } from "@/components/repayments/repayment-form";
 import { RepaymentAllocationEditor } from "@/components/repayments/repayment-allocation-editor";
 import { RepaymentPaymentProof } from "@/components/repayments/repayment-payment-proof";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { formatRupiah } from "@/domain/rupiah";
 import { getRepaymentPaymentProofMetadata } from "@/server/repayment-payment-proofs";
 import {
@@ -144,7 +144,7 @@ export default async function OrganizationRepaymentPage({
                 </div>
                 <div>
                   <span className="technical-label">Payment date</span>
-                  <LocalDateTime iso={plan.paidAt.toISOString()} mode="date" />
+                  <SourceCalendarDate canonicalDate={plan.paidOn} timestamp={plan.paidAt.toISOString()} />
                 </div>
               </div>
               {canEdit ? (

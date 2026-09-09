@@ -67,15 +67,15 @@ async function main() {
     const personalFriend = await personal.createFriend({ name: "Personal friend", phoneNumber: null, notes: null });
     const organizationFriend = await organizationLedger.createFriend({ name: "Organization friend", phoneNumber: null, notes: null });
     const otherOrganizationFriend = await otherOrganizationLedger.createFriend({ name: "Other organization friend", phoneNumber: null, notes: null });
-    const organizationOuting = await organizationLedger.createOuting({ title: "Organization outing", occurredAt: new Date("2026-08-26T00:00:00Z"), notes: null });
-    const otherOrganizationOuting = await otherOrganizationLedger.createOuting({ title: "Other organization outing", occurredAt: new Date("2026-08-26T00:00:00Z"), notes: null });
+    const organizationOuting = await organizationLedger.createOuting({ title: "Organization outing", occurredAt: new Date("2026-08-26T00:00:00Z"), occurredOn: "2026-08-26", notes: null });
+    const otherOrganizationOuting = await otherOrganizationLedger.createOuting({ title: "Other organization outing", occurredAt: new Date("2026-08-26T00:00:00Z"), occurredOn: "2026-08-26", notes: null });
     const organizationExpense = await organizationLedger.createExpense({ description: "Organization expense", amount: 100, outingId: organizationOuting.id });
     const otherOrganizationExpense = await otherOrganizationLedger.createExpense({ description: "Other organization expense", amount: 100, outingId: otherOrganizationOuting.id });
     await organizationLedger.replaceExpenseShares(organizationExpense.id, [{ friendId: organizationFriend.id, amountOwed: 100 }]);
     await otherOrganizationLedger.replaceExpenseShares(otherOrganizationExpense.id, [{ friendId: otherOrganizationFriend.id, amountOwed: 100 }]);
     const otherOrganizationShare = (await otherOrganizationLedger.listExpenseShares(otherOrganizationExpense.id))[0]!;
-    const organizationRepayment = await organizationLedger.createRepayment({ friendId: organizationFriend.id, amount: 1, paidAt: new Date("2026-08-26T00:00:00Z"), paymentMethod: null, notes: null });
-    const otherOrganizationRepayment = await otherOrganizationLedger.createRepayment({ friendId: otherOrganizationFriend.id, amount: 1, paidAt: new Date("2026-08-26T00:00:00Z"), paymentMethod: null, notes: null });
+    const organizationRepayment = await organizationLedger.createRepayment({ friendId: organizationFriend.id, amount: 1, paidAt: new Date("2026-08-26T00:00:00Z"), paidOn: "2026-08-26", paymentMethod: null, notes: null });
+    const otherOrganizationRepayment = await otherOrganizationLedger.createRepayment({ friendId: otherOrganizationFriend.id, amount: 1, paidAt: new Date("2026-08-26T00:00:00Z"), paidOn: "2026-08-26", paymentMethod: null, notes: null });
 
     assert.deepEqual((await organizationLedger.listFriends()).map((friend) => friend.id), [organizationFriend.id]);
     assert.deepEqual((await otherOrganizationLedger.listFriends()).map((friend) => friend.id), [otherOrganizationFriend.id]);

@@ -18,6 +18,7 @@ const plan: RepaymentAllocationPlan = {
   friendArchivedAt: null,
   amount: 84000,
   paidAt: new Date("2026-01-02T02:30:00.000Z"),
+  paidOn: "2026-01-02",
   paymentMethod: "Cash",
   notes: null,
   createdAt: new Date("2026-01-02T02:30:00.000Z"),

@@ -30,6 +30,8 @@ type HistoryRow = {
   event_type: string;
   record_id: string;
   effective_at: Date | string;
+  occurred_on?: string | null;
+  paid_on?: string | null;
   description: string | null;
   outing_title: string | null;
   friend_id: string | null;
@@ -75,6 +77,7 @@ function historyRecords(rows: HistoryRow[]) {
         description: row.description,
         outingTitle: row.outing_title,
         outingOccurredAt: row.effective_at,
+        outingOccurredOn: row.occurred_on,
         amount: historyAmount(row.total_amount, `Expense ${row.record_id} amount`),
         shares: historyArray(row.shares, `Expense ${row.record_id} shares`) as LedgerHistoryExpenseRecord["shares"],
       });
@@ -85,6 +88,7 @@ function historyRecords(rows: HistoryRow[]) {
         friendId: row.friend_id,
         friendName: row.friend_name,
         paidAt: row.effective_at,
+        paidOn: row.paid_on,
         amount: historyAmount(row.total_amount, `Repayment ${row.record_id} amount`),
         allocations: historyArray(row.allocations, `Repayment ${row.record_id} allocations`) as LedgerHistoryRepaymentRecord["allocations"],
       });
@@ -252,6 +256,8 @@ async function listLedgerHistory({ cursor, type = "all", limit = 30 }: { cursor?
             'expense'::text AS event_type,
             e.id AS record_id,
             o.occurred_at AS effective_at,
+            o.occurred_on,
+            NULL::date AS paid_on,
             e.description,
             o.title AS outing_title,
             NULL::uuid AS friend_id,
@@ -272,12 +278,14 @@ async function listLedgerHistory({ cursor, type = "all", limit = 30 }: { cursor?
             ON sd.ledger_scope_id = e.ledger_scope_id
             AND sd.expense_id = e.id
           WHERE e.ledger_scope_id = ${scope}
-          GROUP BY e.id, o.occurred_at, e.description, o.title, e.amount
+          GROUP BY e.id, o.occurred_at, o.occurred_on, e.description, o.title, e.amount
         ), repayment_events AS (
           SELECT
             'repayment'::text AS event_type,
             r.id AS record_id,
             r.paid_at AS effective_at,
+            NULL::date AS occurred_on,
+            r.paid_on,
             NULL::text AS description,
             NULL::text AS outing_title,
             f.id AS friend_id,
@@ -302,13 +310,13 @@ async function listLedgerHistory({ cursor, type = "all", limit = 30 }: { cursor?
             ON sd.ledger_scope_id = r.ledger_scope_id
             AND sd.id = ra.expense_share_id
           WHERE r.ledger_scope_id = ${scope}
-          GROUP BY r.id, r.paid_at, f.id, f.name, r.amount
+          GROUP BY r.id, r.paid_at, r.paid_on, f.id, f.name, r.amount
         ), events AS (
           SELECT * FROM expense_events
           UNION ALL
           SELECT * FROM repayment_events
         )
-        SELECT event_type, record_id, effective_at, description, outing_title, friend_id, friend_name, total_amount, shares, allocations
+        SELECT event_type, record_id, effective_at, occurred_on, paid_on, description, outing_title, friend_id, friend_name, total_amount, shares, allocations
         FROM events
         WHERE ${typeClause} AND ${cursorClause}
         ORDER BY effective_at DESC, event_type ASC, record_id ASC

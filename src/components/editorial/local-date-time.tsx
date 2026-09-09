@@ -42,6 +42,10 @@ export function CalendarDate({ value }: { value: string }) {
   return <time dateTime={value}>{formatCalendarDate(value)}</time>;
 }
 
+export function SourceCalendarDate({ canonicalDate, timestamp }: { canonicalDate: string | null | undefined; timestamp: string }) {
+  return canonicalDate ? <CalendarDate value={canonicalDate} /> : <LocalDateTime iso={timestamp} mode="date" />;
+}
+
 export function CalendarDateRange({ startsOn, endsOn }: { startsOn: string | null; endsOn: string | null }) {
   const content = startsOn && endsOn
     ? `${formatCalendarDate(startsOn)} – ${formatCalendarDate(endsOn)}`

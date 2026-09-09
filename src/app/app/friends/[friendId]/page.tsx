@@ -6,7 +6,7 @@ import { LedgerNotFoundError } from "@/domain/ledger-repository";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { FriendArchiveForm, FriendForm } from "@/components/friends/friend-form";
 import { FriendShareLink } from "@/components/friends/friend-share-link";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { formatRupiah } from "@/domain/rupiah";
 import { recordHref } from "@/domain/record-retrieval";
@@ -132,7 +132,7 @@ function FriendRecordHistory({
                     </Link>
                   </h3>
                   <p>
-                    {share.outingTitle} · <LocalDateTime iso={share.outingOccurredAt.toISOString()} mode="date" />
+                    {share.outingTitle} · <SourceCalendarDate canonicalDate={share.outingOccurredOn} timestamp={share.outingOccurredAt.toISOString()} />
                   </p>
                 </div>
                 <div className="record-history__values">
@@ -219,7 +219,7 @@ function FriendRecordHistory({
                   <span className="technical-label">REPAYMENT</span>
                   <h3>
                     <Link href={"/app/repayments/" + repayment.id}>
-                      <LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" />
+                      <SourceCalendarDate canonicalDate={repayment.paidOn} timestamp={repayment.paidAt.toISOString()} />
                     </Link>
                   </h3>
                 </div>

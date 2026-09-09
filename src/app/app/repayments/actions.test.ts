@@ -73,8 +73,8 @@ describe("repayment actions", () => {
     await expect(updateRepaymentAction("repayment-a", initialState, form(values))).rejects.toThrow("redirect:/app/repayments/repayment-a?saved=1");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
-    expect(createRepaymentWithAllocations).toHaveBeenCalledWith({ friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", notes: "Received" }, []);
-    expect(updateRepayment).toHaveBeenCalledWith("repayment-a", { friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paymentMethod: "Bank transfer", notes: "Received" });
+    expect(createRepaymentWithAllocations).toHaveBeenCalledWith({ friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paidOn: "2026-01-02", paymentMethod: "Bank transfer", notes: "Received" }, []);
+    expect(updateRepayment).toHaveBeenCalledWith("repayment-a", { friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paidOn: "2026-01-02", paymentMethod: "Bank transfer", notes: "Received" });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments/repayment-a");

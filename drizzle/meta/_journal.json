@@ -267,6 +267,13 @@
       "when": 1788958253726,
       "tag": "0037_closed_the_order",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1788969149358,
+      "tag": "0038_loud_hulk",
+      "breakpoints": true
     }
   ]
 }

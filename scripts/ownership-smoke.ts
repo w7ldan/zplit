@@ -246,8 +246,8 @@ type OwnershipBase = {
 async function runExpenseOwnershipChecks(base: OwnershipBase) {
   const { repositoryA, repositoryB, now } = base;
     const friendA = await repositoryA.createFriend({ name: "Friend A", phoneNumber: null, notes: null });
-    const outingA = await repositoryA.createOuting({ title: "Outing A", occurredAt: now, notes: null });
-    const outingA2 = await repositoryA.createOuting({ title: "Outing A 2", occurredAt: new Date("2026-01-04T10:30:00.000Z"), notes: null });
+    const outingA = await repositoryA.createOuting({ title: "Outing A", occurredAt: now, occurredOn: "2026-01-02", notes: null });
+    const outingA2 = await repositoryA.createOuting({ title: "Outing A 2", occurredAt: new Date("2026-01-04T10:30:00.000Z"), occurredOn: "2026-01-04", notes: null });
     const expenseA = await repositoryA.createExpense({
       outingId: outingA.id,
       description: "Expense A",
@@ -267,8 +267,8 @@ async function runExpenseOwnershipChecks(base: OwnershipBase) {
     assert(ownerASummaryBeforeOwnerB.ownerPortionAmount === 5000, "owner A initial owner portion is wrong");
     assert(ownerASummaryBeforeOwnerB.friendBalances[0]?.outstandingAmount === 7500, "owner A partial friend balance is wrong");
     const friendB = await repositoryB.createFriend({ name: "Friend B", phoneNumber: null, notes: null });
-    const outingB = await repositoryB.createOuting({ title: "Outing B", occurredAt: now, notes: null });
-    const outingB2 = await repositoryB.createOuting({ title: "Outing B 2", occurredAt: new Date("2026-01-05T10:30:00.000Z"), notes: null });
+    const outingB = await repositoryB.createOuting({ title: "Outing B", occurredAt: now, occurredOn: "2026-01-02", notes: null });
+    const outingB2 = await repositoryB.createOuting({ title: "Outing B 2", occurredAt: new Date("2026-01-05T10:30:00.000Z"), occurredOn: "2026-01-05", notes: null });
     const expenseB = await repositoryB.createExpense({
       outingId: outingB.id,
       description: "Expense B",
@@ -280,10 +280,10 @@ async function runExpenseOwnershipChecks(base: OwnershipBase) {
     const ownerASummaryAfterOwnerB = await repositoryA.getLedgerSummary();
     assert(JSON.stringify(ownerASummaryAfterOwnerB) === JSON.stringify(ownerASummaryBeforeOwnerB), "owner B data changed owner A summary");
 
-    await repositoryA.updateOuting(outingA.id, { title: "Outing A Updated", occurredAt: now, notes: "Owner A" });
+    await repositoryA.updateOuting(outingA.id, { title: "Outing A Updated", occurredAt: now, occurredOn: "2026-01-02", notes: "Owner A" });
     assert((await repositoryA.getOuting(outingA.id)).title === "Outing A Updated", "owner A outing update failed");
     assert((await repositoryA.listOutings()).map((outing) => outing.id).sort().join() === [outingA.id, outingA2.id].sort().join(), "owner A outing list is wrong");
-    await repositoryB.updateOuting(outingB.id, { title: "Outing B Updated", occurredAt: now, notes: "Owner B" });
+    await repositoryB.updateOuting(outingB.id, { title: "Outing B Updated", occurredAt: now, occurredOn: "2026-01-02", notes: "Owner B" });
     assert((await repositoryB.getOuting(outingB.id)).title === "Outing B Updated", "owner B outing update failed");
     assert((await repositoryB.listOutings()).map((outing) => outing.id).sort().join() === [outingB.id, outingB2.id].sort().join(), "owner B outing list is wrong");
 
@@ -340,7 +340,7 @@ async function runExpenseOwnershipChecks(base: OwnershipBase) {
 
 async function runRepaymentOwnershipChecks(state: Awaited<ReturnType<typeof runExpenseOwnershipChecks>>) {
   const { repositoryA, repositoryB, friendA, friendB, shareA, shareB, now } = state;
-    const repaymentA = await repositoryA.createRepayment({ friendId: friendA.id, amount: 7500, paidAt: now, paymentMethod: "bank transfer", notes: "Allocated repayment" });
+    const repaymentA = await repositoryA.createRepayment({ friendId: friendA.id, amount: 7500, paidAt: now, paidOn: "2026-01-02", paymentMethod: "bank transfer", notes: "Allocated repayment" });
     assert((await repositoryA.getRepayment(repaymentA.id)).friendArchivedAt !== null, "archived friend could not receive a repayment");
     await repositoryA.setFriendArchived(friendA.id, false);
     const partialPlan = await repositoryA.replaceRepaymentAllocations(repaymentA.id, [{ expenseShareId: shareA.id, amount: 3500 }]);
@@ -349,8 +349,8 @@ async function runRepaymentOwnershipChecks(state: Awaited<ReturnType<typeof runE
       () => repositoryA.replaceRepaymentAllocations(repaymentA.id, [{ expenseShareId: shareA.id, amount: 7501 }]),
       "amount",
     );
-    const concurrentRepaymentA = await repositoryA.createRepayment({ friendId: friendA.id, amount: 3000, paidAt: now, paymentMethod: "cash", notes: "Concurrent A" });
-    const concurrentRepaymentB = await repositoryA.createRepayment({ friendId: friendA.id, amount: 3000, paidAt: now, paymentMethod: "cash", notes: "Concurrent B" });
+    const concurrentRepaymentA = await repositoryA.createRepayment({ friendId: friendA.id, amount: 3000, paidAt: now, paidOn: "2026-01-02", paymentMethod: "cash", notes: "Concurrent A" });
+    const concurrentRepaymentB = await repositoryA.createRepayment({ friendId: friendA.id, amount: 3000, paidAt: now, paidOn: "2026-01-02", paymentMethod: "cash", notes: "Concurrent B" });
     const concurrentResults = await Promise.allSettled([
       repositoryA.replaceRepaymentAllocations(concurrentRepaymentA.id, [{ expenseShareId: shareA.id, amount: 3000 }]),
       repositoryA.replaceRepaymentAllocations(concurrentRepaymentB.id, [{ expenseShareId: shareA.id, amount: 3000 }]),
@@ -367,11 +367,12 @@ async function runRepaymentOwnershipChecks(state: Awaited<ReturnType<typeof runE
     assert(summaryAfterAllocationRemoval.totalOutstandingAmount === 4000, "removing an allocation did not restore outstanding debt");
     const allocationA = await repositoryA.replaceRepaymentAllocations(repaymentA.id, [{ expenseShareId: shareA.id, amount: 7500 }]);
     assert(allocationA.allocatedAmount === 7500 && allocationA.shares[0]?.currentAllocation === 7500, "full repayment allocation failed");
-    const repaymentAUnallocated = await repositoryA.createRepayment({ friendId: friendA.id, amount: 2500, paidAt: now, paymentMethod: "cash", notes: "Unallocated repayment" });
+    const repaymentAUnallocated = await repositoryA.createRepayment({ friendId: friendA.id, amount: 2500, paidAt: now, paidOn: "2026-01-02", paymentMethod: "cash", notes: "Unallocated repayment" });
     const updatedRepaymentAUnallocated = await repositoryA.updateRepayment(repaymentAUnallocated.id, {
       friendId: friendA.id,
       amount: 3000,
       paidAt: new Date("2026-01-03T10:30:00.000Z"),
+      paidOn: "2026-01-03",
       paymentMethod: "mobile transfer",
       notes: "Updated unallocated repayment",
     });
@@ -381,11 +382,11 @@ async function runRepaymentOwnershipChecks(state: Awaited<ReturnType<typeof runE
     assert(updatedRepaymentAUnallocated.unallocatedAmount === 3000, "owner A unallocated repayment total is wrong");
     assert((await repositoryA.getRepayment(repaymentAUnallocated.id)).paidAt.getTime() === new Date("2026-01-03T10:30:00.000Z").getTime(), "owner A repayment date update failed");
     await expectNotFound(() => repositoryB.getRepayment(repaymentAUnallocated.id));
-    const repaymentB = await repositoryB.createRepayment({ friendId: friendB.id, amount: 5000, paidAt: now, paymentMethod: null, notes: null });
+    const repaymentB = await repositoryB.createRepayment({ friendId: friendB.id, amount: 5000, paidAt: now, paidOn: "2026-01-02", paymentMethod: null, notes: null });
     await repositoryB.replaceRepaymentAllocations(repaymentB.id, [{ expenseShareId: shareB!.id, amount: 5000 }]);
     let repaymentAmountRejected = false;
     try {
-      await repositoryA.updateRepayment(repaymentA.id, { friendId: friendA.id, amount: 7499, paidAt: now, paymentMethod: "bank transfer", notes: "Allocated repayment" });
+      await repositoryA.updateRepayment(repaymentA.id, { friendId: friendA.id, amount: 7499, paidAt: now, paidOn: "2026-01-02", paymentMethod: "bank transfer", notes: "Allocated repayment" });
     } catch (error) {
       assert(error instanceof RepaymentAmountInvariantError && error.message === "Repayment amount cannot be lower than its allocated amount.", "repayment amount invariant message is wrong");
       repaymentAmountRejected = true;
@@ -393,7 +394,7 @@ async function runRepaymentOwnershipChecks(state: Awaited<ReturnType<typeof runE
     assert(repaymentAmountRejected, "repayment amount below allocation was accepted");
     let repaymentFriendRejected = false;
     try {
-      await repositoryA.updateRepayment(repaymentA.id, { friendId: friendB.id, amount: 7500, paidAt: now, paymentMethod: "bank transfer", notes: "Allocated repayment" });
+      await repositoryA.updateRepayment(repaymentA.id, { friendId: friendB.id, amount: 7500, paidAt: now, paidOn: "2026-01-02", paymentMethod: "bank transfer", notes: "Allocated repayment" });
     } catch (error) {
       assert(error instanceof RepaymentFriendInvariantError && error.message === "The friend cannot be changed after this repayment has allocations.", "repayment friend invariant message is wrong");
       repaymentFriendRejected = true;
@@ -461,8 +462,8 @@ async function runFinalOwnershipChecks(state: Awaited<ReturnType<typeof runRepay
     assert(absentOuting instanceof LedgerNotFoundError, "absent outing did not map to not-found");
     assert(foreignOuting instanceof LedgerNotFoundError, "foreign outing did not map to not-found");
     assert(absentOuting.message === foreignOuting.message, "outing not-found errors differ");
-    await expectNotFound(() => repositoryA.updateOuting(outingB.id, { title: "Foreign", occurredAt: now, notes: null }));
-    await expectNotFound(() => repositoryA.createRepayment({ friendId: friendB.id, amount: 1, paidAt: now, paymentMethod: null, notes: null }));
+    await expectNotFound(() => repositoryA.updateOuting(outingB.id, { title: "Foreign", occurredAt: now, occurredOn: "2026-01-02", notes: null }));
+    await expectNotFound(() => repositoryA.createRepayment({ friendId: friendB.id, amount: 1, paidAt: now, paidOn: "2026-01-02", paymentMethod: null, notes: null }));
     await expectNotFound(() => repositoryA.replaceRepaymentAllocations(repaymentA.id, [{ expenseShareId: shareB.id, amount: 1 }]));
     await expectNotFound(() => repositoryA.replaceRepaymentAllocations(repaymentB.id, [{ expenseShareId: shareA.id, amount: 1 }]));
     await expectNotFound(() => repositoryA.replaceRepaymentAllocations("00000000-0000-0000-0000-000000000000", []));

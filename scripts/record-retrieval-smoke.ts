@@ -41,6 +41,7 @@ async function main() {
       outingRows.push(await ownerRepository.createOuting({
         title: index === 0 ? "Dinner %_ Test" : `Outing ${index}`,
         occurredAt: new Date(Date.UTC(2026, 3, 1 + index)),
+        occurredOn: `2026-04-${String(1 + index).padStart(2, "0")}`,
         notes: null,
       }));
     }
@@ -50,10 +51,10 @@ async function main() {
     await ownerRepository.replaceExpenseShares(assignedExpense.id, [{ friendId: friend.id, amountOwed: 1000 }]);
 
     const completeRepayment = await ownerRepository.createRepaymentWithAllocations(
-      { friendId: friend.id, amount: 1000, paidAt: new Date("2026-04-20T00:00:00.000Z"), paymentMethod: "Bank%_transfer", notes: null },
+      { friendId: friend.id, amount: 1000, paidAt: new Date("2026-04-20T00:00:00.000Z"), paidOn: "2026-04-20", paymentMethod: "Bank%_transfer", notes: null },
       [{ expenseShareId: (await ownerRepository.listExpenseShares(assignedExpense.id))[0]!.id, amount: 1000 }],
     );
-    await ownerRepository.createRepayment({ friendId: friend.id, amount: 700, paidAt: new Date("2026-04-21T00:00:00.000Z"), paymentMethod: "Cash", notes: null });
+    await ownerRepository.createRepayment({ friendId: friend.id, amount: 700, paidAt: new Date("2026-04-21T00:00:00.000Z"), paidOn: "2026-04-21", paymentMethod: "Cash", notes: null });
 
     const friendSearch = await ownerRepository.listFriendRecords({ q: "Ada %_ Test" });
     assert.equal(friendSearch.totalItems, 1);

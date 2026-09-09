@@ -9,7 +9,7 @@ import { OrganizationCard } from "@/components/organizations/organization-card";
 import { PersonalLedgerSnapshot } from "@/components/ledger/personal-ledger-snapshot";
 
 export const metadata = { title: "Overview" };
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +106,7 @@ export default async function AppPage() {
               {displayedNeedsAttention.map((repayment) => (
                 <div className="overview-attention__row" key={repayment.id}>
                   <span className="overview-attention__friend"><strong>{repayment.friendName}</strong><small>{formatRupiah(repayment.unallocatedAmount)} needs allocation</small></span>
-                  <span className="overview-attention__date"><LocalDateTime iso={repayment.paidAt.toISOString()} mode="date" /></span>
+                  <span className="overview-attention__date"><SourceCalendarDate canonicalDate={repayment.paidOn} timestamp={repayment.paidAt.toISOString()} /></span>
                   <Link className="text-link overview-attention__review" href={`/app/repayments/${repayment.id}#repayment-allocations`}>Review <span aria-hidden="true">→</span></Link>
                 </div>
               ))}

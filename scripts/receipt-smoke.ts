@@ -99,8 +99,8 @@ export async function runReceiptSmoke() {
     const repositoryA = createLedgerRepository(db, scopeA);
     const repositoryB = createLedgerRepository(db, scopeB);
     const now = new Date("2026-08-05T00:00:00.000Z");
-    const outingA = await repositoryA.createOuting({ title: "Dinner", occurredAt: now, notes: null });
-    const outingB = await repositoryB.createOuting({ title: "Lunch", occurredAt: now, notes: null });
+    const outingA = await repositoryA.createOuting({ title: "Dinner", occurredAt: now, occurredOn: "2026-08-05", notes: null });
+    const outingB = await repositoryB.createOuting({ title: "Lunch", occurredAt: now, occurredOn: "2026-08-05", notes: null });
     const expenseA = await repositoryA.createExpense({ outingId: outingA.id, description: "Dinner", amount: 10000 });
     const expenseB = await repositoryB.createExpense({ outingId: outingB.id, description: "Lunch", amount: 10000 });
 
@@ -150,7 +150,7 @@ export async function runReceiptSmoke() {
     const friend = await repositoryA.createFriend({ name: "Friend", phoneNumber: null, notes: null });
     const allocatedExpense = await repositoryA.createExpense({ outingId: outingA.id, description: "Allocated", amount: 5000 });
     const [share] = await repositoryA.replaceExpenseShares(allocatedExpense.id, [{ friendId: friend.id, amountOwed: 3000 }]);
-    const repayment = await repositoryA.createRepayment({ friendId: friend.id, amount: 3000, paidAt: now, paymentMethod: null, notes: null });
+    const repayment = await repositoryA.createRepayment({ friendId: friend.id, amount: 3000, paidAt: now, paidOn: "2026-08-05", paymentMethod: null, notes: null });
     await repositoryA.replaceRepaymentAllocations(repayment.id, [{ expenseShareId: share!.id, amount: 3000 }]);
     const allocatedReceipt = await createExpenseReceipt(db, userA, allocatedExpense.id, webp);
     let deletionFailed = false;

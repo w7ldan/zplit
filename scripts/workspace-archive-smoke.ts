@@ -489,7 +489,7 @@ async function runOrganizationArchiveSmoke({ pool, database, owner, invitee, org
     writableForm.set("organizationId", org.id);
     await expectCode(() => assertOrganizationLedgerWritableFromForm(writableForm), "archived", "archived Organization accepted new ledger activity");
     const repaymentAccess = await requireOrganizationLedgerAccess(database, org.id, owner.id, "repayments.create");
-    const repayment = await repaymentAccess.ledger.createRepayment({ friendId, amount: 10000, paidAt: new Date("2026-08-05T00:00:00.000Z"), paymentMethod: "Cash", notes: null });
+    const repayment = await repaymentAccess.ledger.createRepayment({ friendId, amount: 10000, paidAt: new Date("2026-08-05T00:00:00.000Z"), paidOn: "2026-08-05", paymentMethod: "Cash", notes: null });
     assert(repayment.friendId === friendId, "archived Organization could not record a historical repayment");
 
     // ORGANIZATION C: restore resumes the active lifecycle with identical identities.

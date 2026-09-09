@@ -1,3 +1,5 @@
+import { isValidDateOnly } from "./date-only";
+
 export type OutingInputValues = {
   title: string;
   occurredAtLocal: string;
@@ -9,6 +11,7 @@ export type OutingInputValues = {
 export type OutingInput = {
   title: string;
   occurredAt: Date;
+  occurredOn: string;
   notes: string | null;
   tripId: string | null;
 };
@@ -30,15 +33,12 @@ export function parseLocalDateTime(value: string, timezoneOffsetMinutes: number)
   const day = Number(dayText);
   const hour = Number(hourText);
   const minute = Number(minuteText);
-  if (year < 1 || month < 1 || month > 12 || hour > 23 || minute > 59) return null;
+  if (!isValidDateOnly(`${yearText}-${monthText}-${dayText}`) || hour > 23 || minute > 59) return null;
 
   const local = new Date(0);
   local.setUTCFullYear(year, month - 1, day);
   local.setUTCHours(hour, minute, 0, 0);
   if (
-    local.getUTCFullYear() !== year ||
-    local.getUTCMonth() !== month - 1 ||
-    local.getUTCDate() !== day ||
     local.getUTCHours() !== hour ||
     local.getUTCMinutes() !== minute
   ) return null;
@@ -93,6 +93,7 @@ export function validateOutingInput(input: unknown): OutingValidationResult {
     value: {
       title: values.title,
       occurredAt,
+      occurredOn: values.occurredAtLocal.slice(0, 10),
       notes: values.notes || null,
       tripId: values.tripId || null,
     },

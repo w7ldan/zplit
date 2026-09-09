@@ -728,6 +728,14 @@ describe("database schema", () => {
     ]);
   });
 
+  it("keeps canonical source dates nullable and date-only", () => {
+    for (const [table, column] of [[schema.outings, "occurred_on"], [schema.repayments, "paid_on"]] as const) {
+      const dateColumn = getTableConfig(table).columns.find((candidate) => candidate.name === column);
+      expect(dateColumn?.columnType).toBe("PgDateString");
+      expect(dateColumn?.notNull).toBe(false);
+    }
+  });
+
   it("defines the expected lookup indexes", () => {
     const indexes = [
       [schema.friends, "friends_name_idx", ["ledger_scope_id", "name"]],

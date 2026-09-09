@@ -11,10 +11,16 @@ describe("outing input", () => {
     });
 
     expect(result).toMatchObject({ ok: true, values: { title: "Jakarta dinner", notes: "Shared notes" } });
-    if (result.ok) expect(result.value.occurredAt.toISOString()).toBe("2026-01-02T02:30:00.000Z");
+    if (result.ok) expect(result.value).toMatchObject({ occurredOn: "2026-01-02", occurredAt: new Date("2026-01-02T02:30:00.000Z") });
 
     const blankNotes = validateOutingInput({ title: "Dinner", occurredAtLocal: "2026-01-02T10:30", timezoneOffsetMinutes: "330", notes: " " });
-    if (blankNotes.ok) expect(blankNotes.value).toMatchObject({ notes: null, occurredAt: new Date("2026-01-02T16:00:00.000Z") });
+    if (blankNotes.ok) expect(blankNotes.value).toMatchObject({ notes: null, occurredOn: "2026-01-02", occurredAt: new Date("2026-01-02T16:00:00.000Z") });
+  });
+
+  it("keeps the submitted calendar date when UTC crosses a date boundary", () => {
+    const result = validateOutingInput({ title: "Midnight outing", occurredAtLocal: "2026-09-10T00:30", timezoneOffsetMinutes: "-420", notes: "" });
+
+    expect(result).toMatchObject({ ok: true, value: { occurredOn: "2026-09-10", occurredAt: new Date("2026-09-09T17:30:00.000Z") } });
   });
 
   it("rejects invalid local dates and impossible timezone offsets", () => {

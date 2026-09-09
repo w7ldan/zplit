@@ -13,6 +13,7 @@ export type LedgerHistoryExpenseRecord = {
   description: string;
   outingTitle: string;
   outingOccurredAt: Date | string;
+  outingOccurredOn?: string | null;
   amount: number;
   shares: readonly LedgerHistoryExpenseShare[];
 };
@@ -30,6 +31,7 @@ export type LedgerHistoryRepaymentRecord = {
   friendId: string;
   friendName: string;
   paidAt: Date | string;
+  paidOn?: string | null;
   amount: number;
   allocations: readonly LedgerHistoryRepaymentAllocation[];
 };
@@ -40,6 +42,7 @@ export type LedgerHistoryExpense = {
   description: string;
   outingTitle: string;
   outingOccurredAt: Date;
+  outingOccurredOn?: string | null;
   totalAmount: number;
   assignedAmount: number;
   ownerPortionAmount: number;
@@ -51,6 +54,7 @@ export type LedgerHistoryRepayment = {
   friendId: string;
   friendName: string;
   paidAt: Date;
+  paidOn?: string | null;
   totalAmount: number;
   allocatedAmount: number;
   unallocatedAmount: number;
@@ -217,6 +221,7 @@ function validateAndBuildExpenses(records: readonly LedgerHistoryExpenseRecord[]
       description: text(record.description, `Expense ${recordId} description`),
       outingTitle: text(record.outingTitle, `Expense ${recordId} outing title`),
       outingOccurredAt,
+      outingOccurredOn: record.outingOccurredOn,
       totalAmount,
       assignedAmount,
       ownerPortionAmount: subtract(totalAmount, assignedAmount, `Owner portion for expense ${recordId}`),
@@ -266,6 +271,7 @@ function validateAndBuildRepayments(records: readonly LedgerHistoryRepaymentReco
       friendId,
       friendName: text(record.friendName, `Repayment ${recordId} friend name`),
       paidAt,
+      paidOn: record.paidOn,
       totalAmount,
       allocatedAmount,
       unallocatedAmount: subtract(totalAmount, allocatedAmount, `Unallocated amount for repayment ${recordId}`),

@@ -7,6 +7,7 @@ export type DebtorStatementShare = {
   expenseDescription: string;
   outingTitle: string;
   outingOccurredAt: Date;
+  outingOccurredOn?: string | null;
   amountOwed: number;
 };
 
@@ -20,6 +21,7 @@ export type DebtorStatementRepayment = {
   id: string;
   friendId: string;
   amount: number;
+  paidOn?: string | null;
 };
 
 export type DebtorStatementAllocation = {
@@ -52,6 +54,7 @@ export type DebtorStatementItem = {
   expenseDescription: string;
   outingTitle: string;
   outingOccurredAt: Date;
+  outingOccurredOn?: string | null;
   assignedAmount: number;
   repaidAmount: number;
   remainingAmount: number;
@@ -67,6 +70,7 @@ export type DebtorStatementRepaymentAllocation = {
 
 export type DebtorStatementRepaymentItem = {
   paidAt: Date;
+  paidOn?: string | null;
   amount: number;
   paymentMethod: string | null;
   allocatedAmount: number;
@@ -90,6 +94,7 @@ export type DebtorStatement = {
 type PagedShare = DebtorStatementShare & { repaidAmount: number };
 type PagedRepayment = DebtorStatementRepayment & {
   paidAt: Date;
+  paidOn?: string | null;
   paymentMethod: string | null;
   allocatedAmount: number;
   allocations: Array<DebtorStatementAllocation & DebtorStatementRepaymentAllocation>;
@@ -164,6 +169,7 @@ export function buildPagedDebtorStatement(input: {
     repayments.add(repayment.id);
     return {
       paidAt: new Date(repayment.paidAt),
+      paidOn: repayment.paidOn,
       amount: repayment.amount,
       paymentMethod: repayment.paymentMethod,
       allocatedAmount: repayment.allocatedAmount,
@@ -178,6 +184,7 @@ export function buildPagedDebtorStatement(input: {
       expenseDescription: share.expenseDescription,
       outingTitle: share.outingTitle,
       outingOccurredAt: new Date(share.outingOccurredAt),
+      outingOccurredOn: share.outingOccurredOn,
       assignedAmount: share.amountOwed,
       repaidAmount: share.repaidAmount,
       remainingAmount: share.amountOwed - share.repaidAmount,
@@ -294,6 +301,7 @@ function statementItem(share: DebtorStatementShare, repaid: number, receiptsByEx
     expenseDescription: share.expenseDescription,
     outingTitle: share.outingTitle,
     outingOccurredAt: new Date(share.outingOccurredAt),
+    outingOccurredOn: share.outingOccurredOn,
     assignedAmount: share.amountOwed,
     repaidAmount: repaid,
     remainingAmount: share.amountOwed - repaid,
