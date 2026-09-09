@@ -9,6 +9,8 @@ describe("FriendLinkSection", () => {
     render(<FriendLinkSection status={{ status: "unlinked" }} search={search} action={vi.fn()} />);
     expect(screen.getByText("Not linked")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Link Zplit account" }));
+    expect(document.querySelector(".friend-link__disclosure")).toBeInstanceOf(HTMLFormElement);
+    expect(document.querySelector(".friend-link__presence > form")).toHaveClass("friend-link__disclosure");
     fireEvent.click(document.querySelector<HTMLButtonElement>(".searchable-combobox__custom button")!);
     expect(screen.getByLabelText("Search @username")).toBeInTheDocument();
     expect(screen.queryByText(/email/i)).not.toBeInTheDocument();

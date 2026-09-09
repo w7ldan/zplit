@@ -142,8 +142,8 @@ export function FriendLinkSection({
           Link Zplit account
         </button>
       ) : null}
-      <InlineDisclosure open={open} className="friend-link__disclosure">
-        <form action={formAction}>
+      <InlineDisclosure open={open} className="friend-link__presence">
+        <form className="friend-link__disclosure" action={formAction}>
           <label id="friend-link-target-label" htmlFor="friend-link-target">
             Find by @username
           </label>

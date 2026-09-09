@@ -1486,6 +1486,10 @@
   overflow-wrap: anywhere;
 }
 
+.friend-link__presence {
+  min-width: 0;
+}
+
 .friend-link__disclosure {
   display: grid;
   gap: 0.65rem;
