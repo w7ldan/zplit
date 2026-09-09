@@ -209,31 +209,50 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
         </div>
         <div className="global-search__input-wrap" role="search">
           <label className="sr-only" htmlFor="global-search-input">Search records</label>
-          <input ref={inputRef} id="global-search-input" type="search" role="combobox" value={query} onChange={(event) => scheduleSearch(event.target.value)} onKeyDown={handleInputKeyDown} placeholder="Search records" autoComplete="off" aria-expanded="true" aria-haspopup="listbox" aria-controls="global-search-results" aria-autocomplete="list" aria-activedescendant={activeIndex >= 0 ? `global-search-result-${activeIndex}` : undefined} aria-describedby="global-search-help global-search-status" aria-busy={loading} />
+          <input
+            ref={inputRef}
+            id="global-search-input"
+            type="search"
+            role="combobox"
+            value={query}
+            onChange={(event) => scheduleSearch(event.target.value)}
+            onKeyDown={handleInputKeyDown}
+            placeholder="Search records"
+            autoComplete="off"
+            aria-expanded="true"
+            aria-haspopup="listbox"
+            aria-controls="global-search-results"
+            aria-autocomplete="list"
+            aria-activedescendant={activeIndex >= 0 ? `global-search-result-${activeIndex}` : undefined}
+            aria-describedby="global-search-help global-search-status"
+            aria-busy={loading}
+          />
           <p className="sr-only" id="global-search-status" role="status" aria-live="polite" aria-atomic="true">
             {loading ? "Searching" : query.trim() === "" ? "" : error ? error : results.length > 0 ? `${results.length} results` : "No results"}
           </p>
         </div>
-        <div id="global-search-results" className="global-search__results" role="listbox" aria-label="Search results" aria-busy={loading}>
+        <div className="global-search__results">
           {query.trim() === "" ? <p className="global-search__prompt">Type to search your ledger.</p> : null}
           {loading ? <p className="global-search__prompt">Searching…</p> : null}
           {!loading && query.trim() !== "" && results.length === 0 && !error ? <p className="global-search__prompt">No matching records.</p> : null}
           {error ? <p className="global-search__error" role="alert">{error}</p> : null}
-          {(["friend", "trip", "outing", "expense", "repayment"] as const).map((kind) => {
-            const group = results.filter((record) => record.kind === kind);
-            if (group.length === 0) return null;
-            return <div className="global-search__group" key={kind} role="group" aria-label={kindLabels[kind]}>
-              <p className="global-search__group-label">{kindLabels[kind]}</p>
-              {group.map((record) => {
-                const index = results.indexOf(record);
-                const detail = recordDetail(record);
-                return <button className={`global-search__result${index === activeIndex ? " global-search__result--active" : ""}`} type="button" role="option" aria-selected={index === activeIndex} id={`global-search-result-${index}`} key={`${record.kind}-${record.id}`} onMouseEnter={() => setActiveIndex(index)} onClick={() => selectResult(record)}>
-                  <span className="global-search__result-title">{record.title}</span>
-                  {detail ? <span className="global-search__result-detail">{detail}</span> : null}
-                </button>;
-              })}
-            </div>;
-          })}
+          <div id="global-search-results" className="global-search__options" role="listbox" aria-label="Search results" aria-busy={loading}>
+            {(["friend", "trip", "outing", "expense", "repayment"] as const).map((kind) => {
+              const group = results.filter((record) => record.kind === kind);
+              if (group.length === 0) return null;
+              return <div className="global-search__group" key={kind} role="group" aria-label={kindLabels[kind]}>
+                <p className="global-search__group-label">{kindLabels[kind]}</p>
+                {group.map((record) => {
+                  const index = results.indexOf(record);
+                  const detail = recordDetail(record);
+                  return <button className={`global-search__result${index === activeIndex ? " global-search__result--active" : ""}`} type="button" role="option" tabIndex={-1} aria-selected={index === activeIndex} id={`global-search-result-${index}`} key={`${record.kind}-${record.id}`} onMouseEnter={() => setActiveIndex(index)} onClick={() => selectResult(record)}>
+                    <span className="global-search__result-title">{record.title}</span>
+                    {detail ? <span className="global-search__result-detail">{detail}</span> : null}
+                  </button>;
+                })}
+              </div>;
+            })}
+          </div>
         </div>
       </section>
     </div>, document.body) : null}

@@ -125,8 +125,8 @@
   .public-scene-index__label { grid-column: 1; grid-row: 1; justify-content: flex-start; min-width: 5rem; min-height: 0; white-space: nowrap; font-size: 0.5rem; }
   .public-scene-index__track { grid-column: 2; grid-row: 1; align-self: center; }
   .public-scene-index__track > i { width: 0.48rem; height: 0.48rem; background: var(--pastel-blue); box-shadow: 0 0 0 0.1rem var(--surface); }
-  .public-scene-index__nodes { grid-column: 2; grid-row: 1; z-index: 1; height: 2rem; }
-  .public-scene-index__nodes a { min-width: 2rem; min-height: 2rem; font-size: 0; }
+  .public-scene-index__nodes { grid-column: 2; grid-row: 1; z-index: 1; height: 2.5rem; }
+  .public-scene-index__nodes a { min-width: 2.5rem; min-height: 2.5rem; font-size: 0; }
   .public-scene-index__nodes a::before { top: 50%; width: 0.32rem; height: 0.32rem; border-color: var(--muted-ink); background: var(--surface); box-shadow: 0 0 0 0.1rem var(--surface); transform: translate(-50%, -50%); }
   .public-scene-index__nodes a:focus-visible,
   .public-scene-index__nodes a[aria-current="step"] { transform: translate(-50%, -0.02rem); }
@@ -220,6 +220,11 @@
 .record-status--settled { background: var(--mint); }
 .public-scroll-cue { position: absolute; right: clamp(1rem, 5vw, 6rem); bottom: var(--public-scene-bottom); display: inline-flex; gap: 0.6rem; align-items: center; color: var(--muted-ink); font-size: 0.63rem; letter-spacing: 0.06em; text-transform: uppercase; }
 .public-scroll-cue i { display: grid; width: 1.9rem; height: 1.9rem; place-items: center; border: 1px solid var(--ink); border-radius: 50%; color: var(--ink); font-style: normal; animation: public-scroll-cue 220ms var(--ease-product) 350ms both; }
+
+@keyframes public-scroll-cue {
+  from { transform: translateY(-3px); }
+  to { transform: translateY(0); }
+}
 
 .record-flow,
 .collaboration-scene,
@@ -708,6 +713,8 @@
   .public-home .site-header__access { padding-inline: 0.45rem; }
   .public-scene-index { bottom: max(0.35rem, env(safe-area-inset-bottom)); width: min(26rem, calc(100% - 1rem)); gap: 0.45rem; padding: 0.1rem 0.35rem; }
   .public-scene-index__label { font-size: 0.42rem; }
+  .public-scene-index__nodes { height: 2.35rem; }
+  .public-scene-index__nodes a { min-width: 2.35rem; min-height: 2.35rem; }
   [data-public-timeline-desktop] { display: none; }
   [data-public-timeline-mobile] { display: block; }
   .public-home[data-motion-ready="true"] .public-scene,

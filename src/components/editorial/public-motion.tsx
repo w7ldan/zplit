@@ -257,6 +257,7 @@ function clearPublicNumber(element: PublicNumberElement | null, amount: number) 
 function rollPublicNumber(element: PublicNumberElement | null, amount: number, duration: number, immediate: boolean) {
   if (!element) return;
   stopPublicNumberTween(element);
+  gsap.killTweensOf(element.querySelectorAll(".public-odometer__reel"));
   const current = Number(element.dataset.publicValue ?? 0);
   if (immediate || current === amount) {
     setPublicNumber(element, amount, true);
