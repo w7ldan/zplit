@@ -152,7 +152,7 @@ export function OrganizationMembers({
           <h2 id="organization-members-heading">Members</h2>
           <ul className="organization-members__list">
             {members.map((member) => (
-              <li className="organization-members__row" key={member.id}>
+              <li className={`organization-members__row organization-members__row--${member.role ? "member" : "access"}`} key={member.id}>
                 {member.userId && member.role ? <UserAvatar userId={member.userId} size="sm" alt={`${member.displayName} avatar`} /> : <span aria-hidden="true" />}
                 <span className="organization-members__identity">
                   <strong>{member.displayName}</strong>
@@ -212,7 +212,7 @@ export function OrganizationMembers({
               <h3>Pending invitations</h3>
               <ul className="organization-members__list">
                 {pendingInvitations.map((invitation) => (
-                  <li className="organization-members__row" key={invitation.id}>
+                  <li className="organization-members__row organization-members__row--invitation" key={invitation.id}>
                     <span className="organization-members__identity">
                       <strong>{invitation.displayName}</strong>
                       <span>@{invitation.username}</span>

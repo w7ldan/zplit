@@ -886,6 +886,7 @@
 .app-shell .header-shell__panel {
   width: min(calc(100% - var(--authenticated-canvas-gutter)), var(--authenticated-canvas-max-width));
   max-width: var(--authenticated-canvas-max-width);
+  min-width: 0;
 }
 
 .app-shell .header-shell__panel--detached {
@@ -904,6 +905,7 @@
 
 .app-shell__header-layout {
   min-height: var(--authenticated-header-height);
+  min-width: 0;
   align-items: center;
   gap: 1.25rem;
   padding: 0.75rem 1rem;
@@ -920,9 +922,12 @@
 
 .app-shell__actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 body.global-search-open {
@@ -1638,6 +1643,7 @@ body.global-search-open {
 }
 
 .organization-detail__header {
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 2rem;
   padding-block: 1rem;
@@ -1645,12 +1651,18 @@ body.global-search-open {
 }
 
 .organization-detail__identity {
+  flex: 1 1 20rem;
   min-width: 0;
   gap: 1rem;
 }
 
+.organization-detail__identity > div {
+  min-width: 0;
+}
+
 .organization-detail__identity h1 {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .organization-detail__facts {
@@ -1747,6 +1759,10 @@ body.global-search-open {
   border-top: 1px solid var(--rule);
 }
 
+.organization-members__row > * {
+  min-width: 0;
+}
+
 .organization-members__row:first-child {
   border-top: 0;
 }
@@ -1766,7 +1782,7 @@ body.global-search-open {
 }
 
 .organization-members__role {
-  text-align: right;
+  text-align: end;
 }
 
 .organization-members__personal-friends .organization-members__row {
@@ -1807,6 +1823,47 @@ body.global-search-open {
 .organization-people__link-form .searchable-combobox {
   flex: 1 1 16rem;
   min-width: 12rem;
+}
+
+@media (max-width: 767px) {
+  .organization-members__row--member,
+  .organization-members__row--access {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .organization-members__row--member > .organization-members__identity,
+  .organization-members__row--access > .organization-members__identity,
+  .organization-members__row--member > .organization-members__role,
+  .organization-members__row--access > .organization-members__role,
+  .organization-members__row--member > form,
+  .organization-members__row--access > form,
+  .organization-members__row--access > .organization-people__link-disclosure {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .organization-members__row--invitation {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 0.55rem;
+  }
+
+  .organization-members__row--invitation > * {
+    grid-column: 1;
+    justify-self: start;
+    text-align: start;
+  }
+
+  .organization-members__personal-friends .organization-members__row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .organization-members__personal-friends .organization-members__row > form {
+    grid-column: 1;
+    justify-self: start;
+  }
 }
 
 .organization-people__link-form select {
@@ -1890,11 +1947,17 @@ body.global-search-open {
 
 .app-page__header {
   display: flex;
+  flex-wrap: wrap;
   align-items: end;
   justify-content: space-between;
   gap: 2rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--ink);
+}
+
+.app-page__header > :first-child {
+  min-width: 0;
+  flex: 1 1 20rem;
 }
 
 .app-page__header h1 {
@@ -1907,6 +1970,7 @@ body.global-search-open {
   line-height: 0.94;
   text-wrap: balance;
   animation: none;
+  overflow-wrap: anywhere;
 }
 
 .app-page__lede {
@@ -1914,6 +1978,7 @@ body.global-search-open {
   margin: 0.75rem 0 0;
   color: var(--muted-ink);
   font-size: 0.95rem;
+  overflow-wrap: anywhere;
 }
 
 .app-page__actions {
@@ -1921,6 +1986,15 @@ body.global-search-open {
   flex-wrap: wrap;
   gap: 0.5rem;
   flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  justify-content: flex-end;
+}
+
+.app-page__header > .action-link,
+.app-page__actions .action-link {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .record-confirmation {
@@ -2176,7 +2250,7 @@ body.global-search-open {
 }
 
 .group-detail__facts strong {
-  margin-right: 0.25rem;
+  margin-inline-end: 0.25rem;
 }
 
 .group-section-heading {
@@ -2326,6 +2400,7 @@ body.global-search-open {
 
 .group-context__identity {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
@@ -2334,14 +2409,20 @@ body.global-search-open {
 
 .group-detail__identity {
   display: flex;
+  flex: 1 1 20rem;
   min-width: 0;
   gap: 1rem;
   align-items: center;
 }
 
+.group-detail__identity > div {
+  min-width: 0;
+}
+
 .group-detail__identity h1 {
   margin: 0;
   font-size: clamp(1.6rem, 3vw, 2.35rem);
+  overflow-wrap: anywhere;
 }
 
 .group-context__facts {
@@ -2367,6 +2448,8 @@ body.global-search-open {
   overflow-x: auto;
   border-bottom: 1px solid var(--rule);
   padding-bottom: 0.75rem;
+  padding-inline-end: 2rem;
+  scroll-padding-inline: 0.75rem;
   scrollbar-width: none;
 }
 
@@ -2377,6 +2460,7 @@ body.global-search-open {
 .group-context__nav a {
   flex: 0 0 auto;
   padding: 0.35rem 0;
+  scroll-margin-inline: 0.75rem;
   color: var(--muted-ink);
   font-size: 0.82rem;
   font-weight: 700;
@@ -2396,7 +2480,7 @@ body.global-search-open {
 .chat-unread-badge {
   display: inline-block;
   min-width: 1.1rem;
-  margin-left: 0.35rem;
+  margin-inline-start: 0.35rem;
   padding: 0.1rem 0.25rem;
   border: 1px solid var(--rule);
   border-radius: 0.3rem;
@@ -2658,6 +2742,7 @@ body.global-search-open {
 
 .organization-context__identity {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
@@ -2666,6 +2751,10 @@ body.global-search-open {
 
 .organization-context__identity .organization-detail__identity h1 {
   font-size: clamp(1.6rem, 3vw, 2.35rem);
+}
+
+.organization-context__identity .organization-detail__identity {
+  flex: 1 1 20rem;
 }
 
 .organization-context > .organization-detail__back {
@@ -2695,6 +2784,8 @@ body.global-search-open {
   overflow-x: auto;
   border-bottom: 1px solid var(--rule);
   padding-bottom: 0.75rem;
+  padding-inline-end: 2rem;
+  scroll-padding-inline: 0.75rem;
   scrollbar-width: none;
 }
 
@@ -2705,6 +2796,7 @@ body.global-search-open {
 .organization-context__nav a {
   flex: 0 0 auto;
   padding: 0.35rem 0;
+  scroll-margin-inline: 0.75rem;
   color: var(--muted-ink);
   font-size: 0.82rem;
   font-weight: 700;
@@ -2725,7 +2817,7 @@ body.global-search-open {
   display: flex;
   gap: 0.9rem;
   margin-top: -0.45rem;
-  padding-left: 0.25rem;
+  padding-inline-start: 0.25rem;
 }
 
 .organization-context__subnav a {
