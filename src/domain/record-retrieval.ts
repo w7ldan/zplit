@@ -174,14 +174,16 @@ export function pageResult<T>(items: T[], totalItems: number, requestedPage: num
 }
 
 export function groupRecordsByMonth<T>(items: readonly T[], getMonth: (item: T) => string) {
-  const groups: Array<{ month: string; items: T[] }> = [];
+  const groups = new Map<string, T[]>();
   for (const item of items) {
     const month = getMonth(item);
-    const last = groups.at(-1);
-    if (last?.month === month) last.items.push(item);
-    else groups.push({ month, items: [item] });
+    const monthItems = groups.get(month);
+    if (monthItems) monthItems.push(item);
+    else groups.set(month, [item]);
   }
-  return groups;
+  return [...groups.entries()]
+    .sort(([left], [right]) => right.localeCompare(left))
+    .map(([month, monthItems]) => ({ month, items: monthItems }));
 }
 
 export type RecordQueryParams = Record<string, string | string[] | undefined>;

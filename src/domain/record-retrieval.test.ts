@@ -99,4 +99,16 @@ describe("record retrieval", () => {
       { month: "2026-03", items: [items[2]] },
     ]);
   });
+
+  it("merges non-contiguous month groups while preserving item order", () => {
+    const items = [
+      { id: "a", month: "2026-09" },
+      { id: "b", month: "2026-08" },
+      { id: "c", month: "2026-09" },
+    ];
+    expect(groupRecordsByMonth(items, (item) => item.month)).toEqual([
+      { month: "2026-09", items: [items[0], items[2]] },
+      { month: "2026-08", items: [items[1]] },
+    ]);
+  });
 });
