@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
+import { startTransition, useEffect, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
 
 type InlineDisclosureProps = Omit<HTMLAttributes<HTMLDivElement>, "children"> & {
   open: boolean;
@@ -10,11 +10,9 @@ type InlineDisclosureProps = Omit<HTMLAttributes<HTMLDivElement>, "children"> & 
 const disclosureExitMs = 240;
 
 export function InlineDisclosure({ open, children, className, onTransitionEnd, ...props }: InlineDisclosureProps) {
-  const [, forceRender] = useState(0);
-  const hasBeenOpen = useRef(open);
+  const [present, setPresent] = useState(open);
   const exitTimer = useRef<number | null>(null);
-  if (open) hasBeenOpen.current = true;
-  const visible = open || hasBeenOpen.current;
+  const visible = open || present;
   const closing = !open && visible;
 
   useEffect(() => () => {
@@ -22,22 +20,22 @@ export function InlineDisclosure({ open, children, className, onTransitionEnd, .
   }, []);
 
   useEffect(() => {
-    if (open || !visible) {
+    if (open || !present) {
       if (exitTimer.current !== null) window.clearTimeout(exitTimer.current);
       exitTimer.current = null;
+      if (open && !present) startTransition(() => setPresent(true));
       return;
     }
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     exitTimer.current = window.setTimeout(() => {
       exitTimer.current = null;
-      hasBeenOpen.current = false;
-      forceRender((version) => version + 1);
+      setPresent(false);
     }, reduced ? 0 : disclosureExitMs);
     return () => {
       if (exitTimer.current !== null) window.clearTimeout(exitTimer.current);
       exitTimer.current = null;
     };
-  }, [open, visible]);
+  }, [open, present]);
 
   if (!visible) return null;
 
@@ -54,8 +52,7 @@ export function InlineDisclosure({ open, children, className, onTransitionEnd, .
         if (closing && event.target === event.currentTarget && event.propertyName === "opacity") {
           if (exitTimer.current !== null) window.clearTimeout(exitTimer.current);
           exitTimer.current = null;
-          hasBeenOpen.current = false;
-          forceRender((version) => version + 1);
+          setPresent(false);
         }
       }}
     >
