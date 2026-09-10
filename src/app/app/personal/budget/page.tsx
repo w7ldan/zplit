@@ -8,8 +8,9 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { BudgetSetupForm, BudgetPlanForm, BudgetTransactionForm } from "@/components/budgeting/budget-forms";
 import { SafeDaily } from "@/components/budgeting/safe-daily";
 import { summarizeBudgetCategories, type BudgetPeriodSummary, type BudgetTransactionView } from "@/domain/budgeting/types";
+import type { GroupBudgetObligation } from "@/server/budgeting/sources-group";
 import { getBudgetDashboard } from "@/server/budgeting/reporting";
-import { changePersonalExpenseBudgetCategoryAction, createBudgetSetupAction, createBudgetTransactionAction, importPersonalActivityAction, updateBudgetPlanAction } from "./actions";
+import { changeGroupObligationBudgetCategoryAction, changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, createBudgetSetupAction, createBudgetTransactionAction, importPersonalActivityAction, updateBudgetPlanAction } from "./actions";
 
 export const metadata = { title: "Budget" };
 export const dynamic = "force-dynamic";
@@ -50,7 +51,35 @@ function PageHeader({ period, importAvailable = false }: { period?: BudgetPeriod
   );
 }
 
-function BudgetSummary({ period, expectedBack }: { period: BudgetPeriodSummary; expectedBack: number }) {
+function GroupObligationRows({ obligations, categories }: { obligations: GroupBudgetObligation[]; categories: BudgetCategoryOption[] }) {
+  if (obligations.length === 0) return null;
+  return (
+    <details className="budget-group-obligations">
+      <summary className="action-link action-link--quiet">View Group obligations</summary>
+      <div className="budget-group-obligations__list">
+        {obligations.map((obligation) => (
+          <div className="budget-group-obligation" key={obligation.id}>
+            <span><strong>{obligation.groupName}</strong><small>{obligation.description} · {obligation.categoryName}</small></span>
+            <span><strong>{formatRupiah(obligation.amount)}</strong><small>You still owe</small></span>
+            <details className="budget-category-change">
+              <summary className="action-link action-link--quiet">Categorize</summary>
+              <form action={changeGroupObligationBudgetCategoryAction}>
+                <input type="hidden" name="obligationId" value={obligation.id} />
+                <label className="sr-only" htmlFor={`group-obligation-category-${obligation.id}`}>Budget category</label>
+                <select id={`group-obligation-category-${obligation.id}`} name="categoryId" defaultValue={obligation.categoryId ?? categories[0]?.id}>
+                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+                <button className="action-link action-link--quiet" type="submit">Save category</button>
+              </form>
+            </details>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function BudgetSummary({ period, expectedBack, stillOwe, groupObligations }: { period: BudgetPeriodSummary; expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[] }) {
   return (
     <section className="budget-summary" aria-labelledby="budget-summary-heading">
       <div className="ledger-section__heading">
@@ -70,9 +99,11 @@ function BudgetSummary({ period, expectedBack }: { period: BudgetPeriodSummary; 
       <section className="budget-shared-money" aria-labelledby="budget-shared-money-heading">
         <div>
           <p className="technical-label" id="budget-shared-money-heading">SHARED MONEY</p>
-          <span>Outstanding Personal reimbursements</span>
+          <span>Personal reimbursements and Group balances</span>
         </div>
         <div><span>Expected back</span><strong>{formatRupiah(expectedBack)}</strong></div>
+        <div><span>You still owe</span><strong>{formatRupiah(stillOwe)}</strong></div>
+        <GroupObligationRows obligations={groupObligations} categories={period.categories.map(({ id, name }) => ({ id, name }))} />
       </section>
     </section>
   );
@@ -102,11 +133,12 @@ function CategorySection({ period }: { period: BudgetPeriodSummary }) {
 type BudgetCategoryOption = { id: string; name: string };
 
 function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[] }) {
-  if (transaction.sourceType !== "personal_expense" || transaction.status !== "posted") return null;
+  if ((transaction.sourceType !== "personal_expense" && transaction.sourceType !== "group_expense") || transaction.status !== "posted") return null;
+  const action = transaction.sourceType === "group_expense" ? changeGroupExpenseBudgetCategoryAction : changePersonalExpenseBudgetCategoryAction;
   return (
     <details className="budget-category-change">
       <summary className="action-link action-link--quiet">Change budget category</summary>
-      <form action={changePersonalExpenseBudgetCategoryAction}>
+      <form action={action}>
         <input type="hidden" name="transactionId" value={transaction.id} />
         <label className="sr-only" htmlFor={`budget-category-${transaction.id}`}>Budget category</label>
         <select id={`budget-category-${transaction.id}`} name="categoryId" defaultValue={transaction.categoryId ?? categories[0]?.id}>
@@ -119,7 +151,17 @@ function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTr
 }
 
 function TransactionRow({ transaction, categories }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[] }) {
-  const sourceLabel = transaction.sourceType === "personal_expense" ? "Personal expense" : transaction.sourceType === "personal_repayment" ? "Personal repayment" : transaction.direction === "outflow" ? "Expense" : "Credit / refund";
+  const sourceLabel = transaction.sourceType === "personal_expense"
+    ? "Personal expense"
+    : transaction.sourceType === "personal_repayment"
+      ? "Personal repayment"
+      : transaction.sourceType === "group_expense"
+        ? "Group expense"
+        : transaction.sourceType === "group_payment_sent"
+          ? "Group payment sent"
+          : transaction.sourceType === "group_payment_received"
+            ? "Group payment received"
+            : transaction.direction === "outflow" ? "Expense" : "Credit / refund";
   const categoryLabel = summarizeBudgetCategories(transaction.categoryNames);
   return (
     <div className={`budget-transaction-row${transaction.status === "voided" ? " budget-transaction-row--voided" : ""}`}>
@@ -172,7 +214,7 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
     <section className="app-page budget-page" id="top">
       <div className="editorial-shell app-page__layout">
         <PageHeader period={period} importAvailable={dashboard.importAvailable} />
-        <BudgetSummary period={period} expectedBack={dashboard.expectedBack ?? 0} />
+        <BudgetSummary period={period} expectedBack={dashboard.expectedBack ?? 0} stillOwe={dashboard.stillOwe ?? 0} groupObligations={dashboard.groupObligations ?? []} />
         <CategorySection period={period} />
         <RecentSection transactions={dashboard.recentTransactions} categories={period.categories.map(({ id, name }) => ({ id, name }))} />
       </div>

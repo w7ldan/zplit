@@ -15,7 +15,7 @@ BudgetTransaction (actual money event)
 ```
 
 In B1, manual BudgetTransactions are their own real source events. Future
-Personal and Group integrations use typed link tables with real foreign keys;
+integrations use typed link tables with real foreign keys;
 budgeting does not add generic `source_type` or `source_id` columns. Group
 offsets will never become BudgetTransactions because no money moved.
 
@@ -111,7 +111,6 @@ edit or restore action.
 
 The following are intentionally deferred:
 
-- **B3:** Group integration.
 - **B4:** spread/split-period impacts and period transitions.
 - **B5:** recurrence and subscriptions.
 - **B6:** Overview integration and advanced polish.
@@ -186,5 +185,98 @@ changed. Expected Back is a quiet derived Personal-ledger context from the
 existing outstanding-share authority. It is not a BudgetTransaction or impact,
 and does not affect Remaining or Safe Daily; actual Repayment inflows do.
 
-B2 does not integrate Group or Organization activity and does not add spread,
-recurrence, next-period transitions, or subscriptions.
+B2 alone did not integrate Group or Organization activity and did not add
+spread, recurrence, next-period transitions, or subscriptions; B3 adds only
+the Group cash integration described below.
+
+## B3 Group cash integration
+
+B3 keeps the authority split explicit. Group accounting remains canonical for
+participants, payer, Expense amount/description/state, `occurred_on`,
+obligations, settlement sender/recipient/state, amount, `paid_on`, settlement
+applications, and offset applications. Budgeting only decides how one
+registered owner's private Budget absorbs an authoritative cash event. No
+Budget category, impact, or classification crosses a Group participant
+boundary.
+
+The typed provenance tables are `budget_group_expense_sources` and
+`budget_group_settlement_sources`. Each has an owner-scoped BudgetTransaction
+foreign key, a real Group source foreign key, and a unique owner/source
+identity. A confirmed settlement may therefore have one sender link and one
+recipient link. Group source rows are lifecycle-stable and deletion-protected;
+no generic polymorphic source ID or source-type column is used. Debtor-only
+private classification is stored in
+`budget_group_obligation_classifications`, keyed by owner and Group
+obligation with an owner-safe category foreign key.
+
+An Expense becomes authoritative when it is immediately confirmed for its
+creator/payer or when the registered third-party payer confirms the pending
+claim. Only then does the registered payer receive a linked posted outflow
+for the full canonical Expense amount. The payer's economic share never
+reduces that outflow. Pending claims, rejected claims, non-payers, missing
+BudgetProfiles, and `occurred_on IS NULL` sources create no Budget state.
+The Budget date is exactly the Group Expense `occurred_on` date; it is never
+derived from `occurred_at`, `created_at`, `confirmed_at`, UTC, a server
+timezone, or a viewer timezone. A confirmed Expense in the active period
+gets one applied Uncategorized impact; an outside-period source remains
+linked with zero impacts. Existing impact periods and private categories are
+preserved when source-owned fields are reconciled. A confirmed Expense void
+voids its linked BudgetTransaction while retaining impacts/history.
+
+Only recipient confirmation makes a Group settlement cash-authoritative.
+Pending settlements have zero Budget cash. For each registered party with a
+BudgetProfile and non-NULL `paid_on`, the sender receives a full-amount
+outflow and the recipient receives a full-amount inflow. The Budget date is
+exactly `paid_on`; no timestamp or timezone conversion is involved. An
+outside-period settlement is linked with zero impacts. Sender impacts map
+each canonical SettlementApplication through the sender's own private debtor
+obligation classification. Recipient impacts map the same applications
+through the recipient's own private Group Expense category. Missing,
+archived, foreign, or otherwise unusable classifications and any unmapped
+remainder go to Uncategorized. Same-category allocations aggregate and
+absorbed impact totals equal the settlement amount for both owners. A sender
+never inherits the recipient's Expense category and a recipient never reads
+the sender's obligation category.
+
+The payer may change the private category of their linked Group Expense. The
+debtor may classify an obligation privately from the Budget Shared Money
+context. Each change rebuilds only that owner's affected confirmed settlement
+impacts: payer Expense recategorization propagates to related received
+inflows, and debtor obligation recategorization propagates to related sent
+outflows. Canonical obligations and SettlementApplications are never edited
+by Budget code. Group offsets remain zero-cash: they can change outstanding
+Group context and offset applications, but create no BudgetTransaction,
+BudgetImpact, or Budget source link.
+
+Shared Money combines the existing Personal expected reimbursements with
+outstanding Group creditor capacity under **Expected back**, and shows
+outstanding Group debtor capacity under **You still owe**. It reuses the
+canonical Group balance and obligation/application/offset state, so pending
+settlements do not count as completed cash and confirmed payments or offsets
+reduce the appropriate outstanding amount. These context values do not affect
+Net spent, Remaining, Safe daily, or category Remaining. The bounded private
+obligation disclosure is the Budget-only place to classify a debtor
+obligation; Group pages and Group DTOs never expose Budget categories.
+
+`Import activity` remains the single explicit import flow. It processes
+Personal Expense, Personal Repayment, eligible current-period Group Expense,
+then eligible current-period Group settlements. Group import requires an
+authoritative state, a registered payer or sender/recipient, the canonical
+non-NULL date inside the active period, and no existing owner link. It skips
+pending, rejected, non-authoritative, NULL-date, and offset activity. Typed
+unique keys make repeated and concurrent imports idempotent, and the same
+keys make import concurrent with live confirmation converge to one source per
+owner. There is no write-on-read import.
+
+Group mutation locking remains Group-first. After the canonical Group locks
+are acquired and the final source/application state is known, relevant
+BudgetProfile rows are locked in ascending `owner_user_id` order, followed
+by each owner's active period, Budget transaction, and impact rows in the
+existing Budget order. Budget-only classification follows
+`BudgetProfile → Budget rows → read Group source/application data` and takes
+no Group source `FOR UPDATE` locks. This prevents an Alice/Bob versus
+Bob/Alice cross-owner cycle without changing Group accounting locks.
+
+B3 deliberately does not implement period spreading/transitions, pending
+BudgetImpacts, recurrence/subscriptions, Organization budgeting, shared Group
+Budget plans, or any other B4 behavior.

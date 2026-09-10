@@ -8,13 +8,20 @@ import { getActiveBudgetPeriod } from "./periods";
 import { listBudgetTransactions } from "./transactions";
 import { createLedgerSummaryRepository } from "@/domain/ledger/summary";
 import { getPersonalLedgerScopeId, LedgerScopeError } from "@/server/ledger-scopes";
-import { hasImportablePersonalActivity } from "./sources-personal";
+import { hasImportableBudgetActivity } from "./sources-personal";
+import { readGroupBudgetSharedMoney, type GroupBudgetObligation } from "./sources-group";
 
 function amount(value: string | number | null | undefined) {
   return Number(value ?? 0);
 }
 
-export async function getBudgetDashboard(database: Database, ownerUserId: string): Promise<{ configured: false } | { configured: true; period: BudgetPeriodSummary; recentTransactions: BudgetTransactionView[]; expectedBack: number; importAvailable: boolean } | { configured: true; period: null }> {
+type GroupSharedMoney = { expectedBack: number; stillOwe: number; obligations: GroupBudgetObligation[] };
+
+async function groupSharedMoney(database: Database, ownerUserId: string): Promise<GroupSharedMoney> {
+  return readGroupBudgetSharedMoney(database, ownerUserId);
+}
+
+export async function getBudgetDashboard(database: Database, ownerUserId: string): Promise<{ configured: false } | { configured: true; period: BudgetPeriodSummary; recentTransactions: BudgetTransactionView[]; expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[]; importAvailable: boolean } | { configured: true; period: null }> {
   if (!(await getBudgetProfile(database, ownerUserId))) return { configured: false };
   const period = await getActiveBudgetPeriod(database, ownerUserId);
   if (!period) return { configured: true, period: null };
@@ -22,12 +29,17 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
     if (error instanceof LedgerScopeError && error.code === "personal_scope_missing") return null;
     throw error;
   });
-  const [personalSummary, importAvailable] = personalScopeId
+  const [personalSummary, importAvailable, groupMoney] = personalScopeId
     ? await Promise.all([
       createLedgerSummaryRepository(database, personalScopeId).getLedgerSummary(),
-      hasImportablePersonalActivity(database, ownerUserId, personalScopeId, period),
+      hasImportableBudgetActivity(database, ownerUserId, personalScopeId, period),
+      groupSharedMoney(database, ownerUserId),
     ])
-    : [{ totalOutstandingAmount: 0 }, false] as const;
+    : await Promise.all([
+      Promise.resolve({ totalOutstandingAmount: 0 }),
+      hasImportableBudgetActivity(database, ownerUserId, null, period),
+      groupSharedMoney(database, ownerUserId),
+    ]);
   const [plans, impactRows, recentTransactions] = await Promise.all([
     database.select({
       id: budgetCategories.id,
@@ -86,7 +98,9 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
       categories,
     },
     recentTransactions,
-    expectedBack: personalSummary.totalOutstandingAmount,
+    expectedBack: personalSummary.totalOutstandingAmount + groupMoney.expectedBack,
+    stillOwe: groupMoney.stillOwe,
+    groupObligations: groupMoney.obligations,
     importAvailable,
   };
 }

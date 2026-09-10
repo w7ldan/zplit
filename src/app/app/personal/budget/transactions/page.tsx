@@ -6,7 +6,7 @@ import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { summarizeBudgetCategories, type BudgetTransactionView } from "@/domain/budgeting/types";
 import { listBudgetTransactions } from "@/server/budgeting/transactions";
 import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
-import { changePersonalExpenseBudgetCategoryAction, voidBudgetTransactionAction } from "../actions";
+import { changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, voidBudgetTransactionAction } from "../actions";
 
 export const metadata = { title: "Budget transactions" };
 export const dynamic = "force-dynamic";
@@ -14,11 +14,12 @@ export const dynamic = "force-dynamic";
 type BudgetCategoryOption = { id: string; name: string };
 
 function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[] }) {
-  if (transaction.sourceType !== "personal_expense" || transaction.status !== "posted") return null;
+  if ((transaction.sourceType !== "personal_expense" && transaction.sourceType !== "group_expense") || transaction.status !== "posted") return null;
+  const action = transaction.sourceType === "group_expense" ? changeGroupExpenseBudgetCategoryAction : changePersonalExpenseBudgetCategoryAction;
   return (
     <details className="budget-category-change">
       <summary className="action-link action-link--quiet">Change budget category</summary>
-      <form action={changePersonalExpenseBudgetCategoryAction}>
+      <form action={action}>
         <input type="hidden" name="transactionId" value={transaction.id} />
         <label className="sr-only" htmlFor={`budget-history-category-${transaction.id}`}>Budget category</label>
         <select id={`budget-history-category-${transaction.id}`} name="categoryId" defaultValue={transaction.categoryId ?? categories[0]?.id}>
@@ -32,7 +33,17 @@ function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTr
 
 function TransactionHistoryRow({ transaction, categories }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[] }) {
   const amount = `${transaction.direction === "outflow" ? "−" : "+"}${formatRupiah(transaction.amount)}`;
-  const sourceLabel = transaction.sourceType === "personal_expense" ? "Personal expense" : transaction.sourceType === "personal_repayment" ? "Personal repayment" : transaction.direction === "outflow" ? "Expense" : "Credit / refund";
+  const sourceLabel = transaction.sourceType === "personal_expense"
+    ? "Personal expense"
+    : transaction.sourceType === "personal_repayment"
+      ? "Personal repayment"
+      : transaction.sourceType === "group_expense"
+        ? "Group expense"
+        : transaction.sourceType === "group_payment_sent"
+          ? "Group payment sent"
+          : transaction.sourceType === "group_payment_received"
+            ? "Group payment received"
+            : transaction.direction === "outflow" ? "Expense" : "Credit / refund";
   const categoryLabel = summarizeBudgetCategories(transaction.categoryNames);
   return (
     <div className={`budget-history-row${transaction.status === "voided" ? " budget-history-row--voided" : ""}`}>

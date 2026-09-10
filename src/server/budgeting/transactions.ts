@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { budgetCategories, budgetImpacts, budgetPeriodCategories, budgetPeriods, budgetPersonalExpenseSources, budgetPersonalRepaymentSources, budgetTransactions } from "@/db/schema";
+import { budgetCategories, budgetGroupExpenseSources, budgetGroupSettlementSources, budgetImpacts, budgetPeriodCategories, budgetPeriods, budgetPersonalExpenseSources, budgetPersonalRepaymentSources, budgetTransactions } from "@/db/schema";
 import { summarizeBudgetCategories, type BudgetTransactionView } from "@/domain/budgeting/types";
 import { BudgetError } from "@/domain/budgeting/errors";
 import { isValidBudgetDate } from "@/domain/budgeting/dates";
@@ -68,9 +68,13 @@ export async function listBudgetTransactions(database: Database, ownerUserId: st
     origin: budgetTransactions.origin,
     expenseId: budgetPersonalExpenseSources.expenseId,
     repaymentId: budgetPersonalRepaymentSources.repaymentId,
+    groupExpenseId: budgetGroupExpenseSources.groupExpenseId,
+    groupSettlementId: budgetGroupSettlementSources.groupSettlementId,
   }).from(budgetTransactions)
     .leftJoin(budgetPersonalExpenseSources, and(eq(budgetPersonalExpenseSources.ownerUserId, ownerUserId), eq(budgetPersonalExpenseSources.budgetTransactionId, budgetTransactions.id)))
     .leftJoin(budgetPersonalRepaymentSources, and(eq(budgetPersonalRepaymentSources.ownerUserId, ownerUserId), eq(budgetPersonalRepaymentSources.budgetTransactionId, budgetTransactions.id)))
+    .leftJoin(budgetGroupExpenseSources, and(eq(budgetGroupExpenseSources.ownerUserId, ownerUserId), eq(budgetGroupExpenseSources.budgetTransactionId, budgetTransactions.id)))
+    .leftJoin(budgetGroupSettlementSources, and(eq(budgetGroupSettlementSources.ownerUserId, ownerUserId), eq(budgetGroupSettlementSources.budgetTransactionId, budgetTransactions.id)))
     .where(eq(budgetTransactions.ownerUserId, ownerUserId))
     .orderBy(desc(budgetTransactions.occurredOn), desc(budgetTransactions.id))
     .limit(boundedLimit);
@@ -94,6 +98,10 @@ export async function listBudgetTransactions(database: Database, ownerUserId: st
       ? "personal_expense"
       : row.repaymentId
         ? "personal_repayment"
+        : row.groupExpenseId
+          ? "group_expense"
+          : row.groupSettlementId
+            ? row.direction === "outflow" ? "group_payment_sent" : "group_payment_received"
         : row.origin === "linked"
           ? row.direction === "outflow" ? "personal_expense" : "personal_repayment"
           : "manual";
@@ -106,7 +114,7 @@ export async function listBudgetTransactions(database: Database, ownerUserId: st
       status: row.status,
       origin: row.origin,
       sourceType,
-      sourceId: row.expenseId ?? row.repaymentId ?? null,
+      sourceId: row.expenseId ?? row.repaymentId ?? row.groupExpenseId ?? row.groupSettlementId ?? null,
       categoryName: summarizeBudgetCategories(categories.map((category) => category.name)),
       categoryNames: categories.map((category) => category.name),
       categoryId: categories.length === 1 ? categories[0]!.id : null,
