@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { BudgetPlanForm, BudgetSetupForm, BudgetSpreadForm, BudgetTransactionForm, BudgetTransitionForm } from "./budget-forms";
 import type { BudgetFormState, BudgetPlanValues, BudgetSetupValues, BudgetTransactionValues } from "@/app/app/personal/budget/actions";
@@ -41,5 +41,24 @@ describe("budget forms", () => {
     expect(document.body.textContent).toContain("closes September immediately");
     expect(screen.getByText("COMING INTO THIS PERIOD")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Uncategorized")).toHaveAttribute("readonly");
+  });
+
+  it("previews recurring candidates for proposed dates and defaults them selected", () => {
+    render(<BudgetTransitionForm
+      action={transitionAction}
+      period={{ id: "period-a", name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 100000 }}
+      categories={[{ id: "uncategorized", name: "Uncategorized", allocation: "0" }, { id: "food", name: "Food", allocation: "50000" }]}
+      pending={[]}
+      uncategorizedCategoryId="uncategorized"
+      recurringTemplates={[{ id: "gym", name: "Gym", amount: 300000, categoryId: "food", frequency: "monthly", startsOn: "2026-01-31", spreadCount: 3 }]}
+    />);
+    expect(screen.queryByText("Gym")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Starts on"), { target: { value: "2026-10-01" } });
+    fireEvent.change(screen.getByLabelText("Ends on"), { target: { value: "2026-11-30" } });
+    expect(screen.getAllByText("Gym")).toHaveLength(2);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    for (const checkbox of screen.getAllByRole("checkbox")) expect(checkbox).toBeChecked();
+    expect(screen.getAllByText("Spread over 3 periods")).toHaveLength(2);
+    expect(screen.getAllByLabelText(/Category for Gym/)[0]).toHaveValue("food");
   });
 });

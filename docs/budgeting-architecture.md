@@ -111,7 +111,6 @@ edit or restore action.
 
 The following are intentionally deferred:
 
-- **B5:** recurrence and subscriptions.
 - **B6:** Overview integration and advanced polish.
 
 `SPREAD` and `REPEAT` are orthogonal. Spread describes how one real payment is
@@ -231,7 +230,83 @@ spread rows disagree.
 Closed periods have a bounded, read-only history using the same applied-impact
 reporting authority as the active dashboard. The transition form previews
 pending totals targeted at the next ordinal without changing allocations.
-B5 recurrence and subscriptions remain deferred.
+
+## B5 recurring expenses
+
+Recurrence and spread are orthogonal. Spread describes how one real payment is
+absorbed by several periods; recurrence describes when additional real payments
+are expected. A recurring template is a future rule, an occurrence is one
+expected payment, and a `BudgetTransaction` is still the only actual money
+event. Scheduling an occurrence creates no transaction and no impact, so due
+and skipped occurrences never change Net spent, Remaining, Safe daily, or
+category reporting. Only an applied impact of a posted transaction does.
+
+`BudgetRecurringTemplate` is private, owner-scoped, outflow-only, and
+archive-instead-of-delete. It stores a name, positive integer Rupiah amount, a
+currently usable owner category, a frequency, a canonical `starts_on` DATE, and
+a `spread_count` of 1–24 that cannot exceed the amount. Frequencies are
+`every_budget_period` and `monthly`. A template is a preferred default, not a
+ledger source: B5 performs no automatic Personal or Group matching and does not
+create recurring templates from imported activity.
+
+`BudgetRecurringOccurrence` snapshots the amount, category, and spread count for
+one scheduled payment, plus the scheduled period and scheduled date. Its
+lifecycle is exactly `due → recorded | skipped`. A due or skipped occurrence
+has no transaction; a recorded occurrence has exactly one owner-safe
+`BudgetTransaction` link. `UNIQUE(owner, template, scheduled_on)` makes
+materialization retry-safe while still allowing several monthly occurrences in
+a long BudgetPeriod. Later template edits affect only future materialization;
+they never rewrite an occurrence snapshot, a recorded transaction, or impacts.
+
+Scheduling is pure date-only math; it never uses timestamps or timezones.
+`every_budget_period` produces at most one occurrence per eligible period, at
+`max(starts_on, period.starts_on)` when the period contains `starts_on`, and at
+the later period start afterwards. `monthly` uses the original anchor day for
+each calendar month inside the period, clamping to the month's final valid day
+without carrying the clamp forward: a 31st anchor becomes February 28 (or 29
+in a leap year) and returns to the 31st in March. A long period may contain
+several monthly occurrences; a short period may contain none, and calendar gaps
+between periods are not manufactured.
+
+Creating a template locks the BudgetProfile and active period, validates the
+usable owner category, inserts the template, and materializes eligible
+occurrences for the current active period as `due`. Creating a template
+therefore changes no financial total. Editing a template changes future
+defaults only. Archiving stops future generation while retaining existing
+occurrences and history.
+
+Starting the next period remains one transaction. It recomputes canonical
+candidates from active templates and the proposed dates; the client preview
+cannot supply amounts, dates, or frequencies. Each candidate is selected by
+default and materialized `due`, or materialized `skipped` when the user
+deselects it. A deselect is deliberately persisted as a skipped row so a
+reopened or retried transition cannot resurrect it. Candidate category mapping
+defaults to the template's category when that category is in the submitted
+next-period plan and falls back to Uncategorized otherwise; the mapped category
+must come from that plan. The mapping changes only the occurrence snapshot, not
+the template. Materialization follows the existing profile/active-period
+locks and the occurrence identity constraint protects retries.
+
+`Record payment` is explicit. The user submits a canonical `YYYY-MM-DD` payment
+date, which becomes `BudgetTransaction.occurred_on`; `scheduled_on` is only when
+the payment was expected. Recording creates exactly one posted outflow with
+`origin = recurring` and the occurrence's amount, then reuses the B4
+`splitBudgetAmount` authority. When the payment date is inside the active
+period, the first slice is applied there and later slices become pending
+impacts targeting the following ordinals. When it is outside the active period,
+the transaction is recorded with zero impacts rather than guessing an
+absorption period; a later transition absorbs it once when its date reaches
+that period. Double or concurrent recording serializes on the profile and
+occurrence lock, so at most one transaction is created. A recorded transaction
+can be voided: the transaction becomes voided, its impacts stay as history, and
+the occurrence remains recorded and linked. A due occurrence can instead be
+skipped, which creates no cash and cannot be undone by automatic reactivation.
+
+The private `/app/personal/budget/subscriptions` surface lists active templates
+and unresolved due occurrences with dense rows, including edit, archive,
+record, and skip actions. The dashboard may show a quiet upcoming-recurring
+count and expected amount, but that planning context is excluded from every
+financial total. B6 Overview integration and advanced polish remain deferred.
 
 ## B3 Group cash integration
 
@@ -323,7 +398,6 @@ Bob/Alice cross-owner cycle without changing Group accounting locks.
 
 The earlier Group cash integration deliberately kept period spreading/transitions,
 pending BudgetImpacts, recurrence/subscriptions, Organization budgeting, and
-shared Group Budget plans outside its scope. Period spreading and transitions
-are now handled by the Budget-only flow described above; recurrence,
-subscriptions, Organization budgeting, and shared Group Budget plans remain
-deferred.
+shared Group Budget plans outside its scope. Period spreading, transitions, and
+private recurring expenses are now handled by the Budget-only flows described
+above; Organization budgeting and shared Group Budget plans remain deferred.

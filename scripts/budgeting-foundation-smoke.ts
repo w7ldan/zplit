@@ -10,7 +10,7 @@ import { createBudgetSetup } from "../src/server/budgeting/profiles";
 import { createBudgetCategory, updateBudgetPlan } from "../src/server/budgeting/categories";
 import { updateActiveBudgetPeriod } from "../src/server/budgeting/periods";
 import { getBudgetDashboard } from "../src/server/budgeting/reporting";
-import { createManualBudgetTransaction, voidManualBudgetTransaction } from "../src/server/budgeting/transactions";
+import { createManualBudgetTransaction, voidBudgetTransaction } from "../src/server/budgeting/transactions";
 import { formatSafeError, readDatabaseConfig } from "./migrate.js";
 
 const tables = ["budget_profiles", "budget_periods", "budget_categories", "budget_period_categories", "budget_transactions", "budget_impacts"];
@@ -154,14 +154,14 @@ export async function runBudgetingFoundationSmoke() {
     assert.equal(dashboardBeforeVoid.period.netSpent, 60, "inflow must reduce net spent through applied impacts");
 
     const ownerBTransaction = await createManualBudgetTransaction(database, ownerB, { direction: "outflow", amount: 10, description: "Owner B expense", occurredOn: "2026-09-03", categoryId: foreignCategoryId });
-    await expectBudgetError("NOT_FOUND", voidManualBudgetTransaction(database, ownerA, ownerBTransaction.id));
-    await voidManualBudgetTransaction(database, ownerA, outflow.id);
+    await expectBudgetError("NOT_FOUND", voidBudgetTransaction(database, ownerA, ownerBTransaction.id));
+    await voidBudgetTransaction(database, ownerA, outflow.id);
     const afterVoid = await client.query<{ status: string; impact_count: string }>("SELECT t.status, (SELECT count(*)::text FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2) AS impact_count FROM budget_transactions t WHERE t.owner_user_id = $1 AND t.id = $2", [ownerA, outflow.id]);
     assert.deepEqual(afterVoid.rows[0], { status: "voided", impact_count: "1" });
     const dashboardAfterVoid = await getBudgetDashboard(database, ownerA);
     assert(dashboardAfterVoid.configured && dashboardAfterVoid.period);
     assert.equal(dashboardAfterVoid.period.netSpent, -40, "voided outflow must leave only the inflow effect");
-    await expectBudgetError("NOT_FOUND", voidManualBudgetTransaction(database, ownerA, outflow.id));
+    await expectBudgetError("NOT_FOUND", voidBudgetTransaction(database, ownerA, outflow.id));
     assert.equal(inflow.direction, "inflow");
 
     console.log(["budgeting foundation smoke passed", "SETUP RACE: one complete setup, no partial setup", "ALLOCATION RACE: production updateBudgetPlan calls concurrently, one succeeds and one rejects, final aggregate <= total", "OWNER ISOLATION: foreign category and transaction mutations rejected", "TRANSACTION LIFECYCLE: manual transaction/impact, inflow, void, and reporting effect verified"].join("\n"));

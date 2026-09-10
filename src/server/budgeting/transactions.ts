@@ -48,11 +48,11 @@ export async function createManualBudgetTransaction(database: Database, ownerUse
   });
 }
 
-export async function voidManualBudgetTransaction(database: Database, ownerUserId: string, transactionId: string) {
+export async function voidBudgetTransaction(database: Database, ownerUserId: string, transactionId: string) {
   return database.transaction(async (transaction) => {
     await lockBudgetProfile(transaction as Database, ownerUserId);
     const [record] = await transaction.select().from(budgetTransactions).where(and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, transactionId))).limit(1).for("update");
-    if (!record || record.origin !== "manual" || record.status !== "posted") throw new BudgetError("NOT_FOUND", "That budget transaction is no longer available.");
+    if (!record || (record.origin !== "manual" && record.origin !== "recurring") || record.status !== "posted") throw new BudgetError("NOT_FOUND", "That budget transaction is no longer available.");
     const [updated] = await transaction.update(budgetTransactions).set({ status: "voided", voidedAt: new Date(), updatedAt: new Date() }).where(and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, transactionId))).returning();
     return updated ?? record;
   });
@@ -77,6 +77,7 @@ function sourceTypeFor(row: SpreadTransactionRow): BudgetTransactionView["source
   if (row.repaymentId) return "personal_repayment";
   if (row.groupExpenseId) return "group_expense";
   if (row.groupSettlementId) return row.direction === "outflow" ? "group_payment_sent" : "group_payment_received";
+  if (row.origin === "recurring") return "recurring";
   if (row.origin === "linked") return row.direction === "outflow" ? "personal_expense" : "personal_repayment";
   return "manual";
 }
@@ -111,17 +112,19 @@ function restructurableImpact(period: typeof budgetPeriods.$inferSelect, impacts
 
 function spreadPresentation(row: SpreadTransactionRow, sourceType: BudgetTransactionView["sourceType"], impacts: Array<{ categoryId: string; status: string; periodId: string | null; targetPeriodOrdinal: number }>, activePeriod: { id: string; ordinal: number } | undefined) {
   const sameCategory = impacts.length > 0 && new Set(impacts.map((impact) => impact.categoryId)).size === 1;
-  const eligible = isSpreadSource(row.origin, sourceType) && row.direction === "outflow" && row.status === "posted";
+  const restructurable = isSpreadSource(row.origin, sourceType);
+  const eligible = (restructurable || row.origin === "recurring") && row.direction === "outflow" && row.status === "posted";
   const applied = impacts.filter((impact) => impact.status === "applied");
   const pending = impacts.filter((impact) => impact.status === "pending");
   const spread = eligible && sameCategory && impacts.length > 1;
   const canChange = eligible
+    && restructurable
     && sameCategory
     && applied.length === 1
     && Boolean(activePeriod)
     && applied[0]?.periodId === activePeriod?.id
     && pending.every((impact) => impact.targetPeriodOrdinal > activePeriod!.ordinal);
-  return { spreadCount: spread ? impacts.length : null, pendingImpactCount: spread ? pending.length : 0, spreadCanChange: canChange, spreadLocked: spread && applied.length > 1 };
+  return { spreadCount: spread ? impacts.length : null, pendingImpactCount: spread ? pending.length : 0, spreadCanChange: canChange, spreadLocked: spread && (applied.length > 1 || !restructurable) };
 }
 
 export async function spreadBudgetTransaction(database: Database, ownerUserId: string, transactionId: string, count: number) {

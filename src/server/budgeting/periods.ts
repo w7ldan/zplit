@@ -14,8 +14,10 @@ import {
 import { BudgetError } from "@/domain/budgeting/errors";
 import { isValidBudgetDate } from "@/domain/budgeting/dates";
 import { MAX_RUPIAH } from "@/domain/budgeting/amounts";
+import type { BudgetRecurringTransitionSelection } from "@/domain/budgeting/recurrence";
 import type { LedgerTransaction } from "@/domain/ledger/mutation-hooks";
 import { lockBudgetProfile } from "./locks";
+import { absorbZeroImpactRecurringActivity, materializeRecurringOccurrencesForPeriod } from "./recurring";
 
 export type BudgetPeriodUpdate = { name: string; startsOn: string; endsOn: string; totalBudget: number };
 
@@ -26,6 +28,7 @@ export type StartNextBudgetPeriodInput = {
   endsOn: string;
   totalBudget: number;
   allocations: Array<{ categoryId: string; allocatedAmount: number }>;
+  recurrence?: BudgetRecurringTransitionSelection[];
 };
 
 export type PendingBudgetImpactPreview = { categoryId: string; categoryName: string; amount: number };
@@ -205,7 +208,17 @@ export async function startNextBudgetPeriod(database: Database, ownerUserId: str
       await transaction.update(budgetImpacts).set({ status: "applied", budgetPeriodId: next.id, updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, row.impact.id), eq(budgetImpacts.status, "pending")));
     }
     const absorbedCount = await absorbZeroImpactActivity(transaction as LedgerTransaction, ownerUserId, next);
-    return { previousPeriod: current, period: next, appliedPendingCount: pending.filter((row) => row.parentStatus === "posted").length, absorbedCount };
+    const uncategorizedId = rows.find((row) => row.category.systemKey === "uncategorized")!.category.id;
+    const absorbedRecurringCount = await absorbZeroImpactRecurringActivity(transaction as Database, ownerUserId, next, categoryIds, uncategorizedId);
+    const recurrence = await materializeRecurringOccurrencesForPeriod(transaction as Database, ownerUserId, next, categoryIds, uncategorizedId, input.recurrence ?? []);
+    return {
+      previousPeriod: current,
+      period: next,
+      appliedPendingCount: pending.filter((row) => row.parentStatus === "posted").length,
+      absorbedCount,
+      absorbedRecurringCount,
+      recurrence,
+    };
   });
 }
 

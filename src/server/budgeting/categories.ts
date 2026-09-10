@@ -6,7 +6,7 @@ import { BudgetError } from "@/domain/budgeting/errors";
 import { MAX_RUPIAH } from "@/domain/budgeting/amounts";
 import { isValidBudgetDate } from "@/domain/budgeting/dates";
 import { lockBudgetProfile } from "./locks";
-import { rejectPeriodOverlap } from "./periods";
+import { getActiveBudgetPeriod, rejectPeriodOverlap } from "./periods";
 
 export type BudgetPlanCategoryUpdate = { id: string; name: string; allocatedAmount: number };
 export type BudgetPlanUpdate = {
@@ -111,6 +111,17 @@ export async function listBudgetCategoryOptions(database: Database, ownerUserId:
     .from(budgetCategories)
     .where(and(eq(budgetCategories.ownerUserId, ownerUserId), sql`${budgetCategories.archivedAt} IS NULL`))
     .orderBy(asc(budgetCategories.name), asc(budgetCategories.id));
+}
+
+export async function listActiveBudgetPlanCategoryOptions(database: Database, ownerUserId: string) {
+  const period = await getActiveBudgetPeriod(database, ownerUserId);
+  if (!period) return [];
+  return database
+    .select({ id: budgetCategories.id, name: budgetCategories.name })
+    .from(budgetPeriodCategories)
+    .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetPeriodCategories.budgetCategoryId)))
+    .where(and(eq(budgetPeriodCategories.ownerUserId, ownerUserId), eq(budgetPeriodCategories.budgetPeriodId, period.id)))
+    .orderBy(asc(budgetPeriodCategories.displayOrder), asc(budgetCategories.name));
 }
 
 export async function updateBudgetPlan(database: Database, ownerUserId: string, input: BudgetPlanUpdate) {

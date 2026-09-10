@@ -9,6 +9,7 @@ import { BudgetSetupForm, BudgetPlanForm, BudgetTransactionForm, BudgetTransitio
 import { SafeDaily } from "@/components/budgeting/safe-daily";
 import { SpreadControl } from "@/components/budgeting/spread-control";
 import { summarizeBudgetCategories, type BudgetPeriodSummary, type BudgetTransactionView } from "@/domain/budgeting/types";
+import type { BudgetRecurringDashboardSummary } from "@/server/budgeting/recurring";
 import type { GroupBudgetObligation } from "@/server/budgeting/sources-group";
 import { getBudgetDashboard } from "@/server/budgeting/reporting";
 import { changeGroupObligationBudgetCategoryAction, changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, createBudgetSetupAction, createBudgetTransactionAction, importPersonalActivityAction, startNextBudgetPeriodAction, updateBudgetPlanAction } from "./actions";
@@ -47,6 +48,7 @@ function PageHeader({ period, importAvailable = false }: { period?: BudgetPeriod
           <Link className="action-link action-link--primary" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
           <Link className="action-link action-link--quiet" href="/app/personal/budget?create=plan" data-task-trigger="budget-plan">Manage plan</Link>
           <Link className="action-link action-link--quiet" href="/app/personal/budget?create=period" data-task-trigger="budget-period">Start next period</Link>
+          <Link className="action-link action-link--quiet" href="/app/personal/budget/subscriptions">Subscriptions</Link>
           <Link className="text-link" href="/app/personal/budget/periods">Budget periods <span aria-hidden="true">→</span></Link>
         </div>
       ) : null}
@@ -82,7 +84,7 @@ function GroupObligationRows({ obligations, categories }: { obligations: GroupBu
   );
 }
 
-function BudgetSummary({ period, expectedBack, stillOwe, groupObligations }: { period: BudgetPeriodSummary; expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[] }) {
+function BudgetSummary({ period, expectedBack, stillOwe, groupObligations, recurring }: { period: BudgetPeriodSummary; expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[]; recurring: BudgetRecurringDashboardSummary }) {
   return (
     <section className="budget-summary" aria-labelledby="budget-summary-heading">
       <div className="ledger-section__heading">
@@ -108,6 +110,11 @@ function BudgetSummary({ period, expectedBack, stillOwe, groupObligations }: { p
         <div><span>You still owe</span><strong>{formatRupiah(stillOwe)}</strong></div>
         <GroupObligationRows obligations={groupObligations} categories={period.categories.map(({ id, name }) => ({ id, name }))} />
       </section>
+      {recurring.dueCount > 0 ? (
+        <Link className="text-link budget-recurring-summary" href="/app/personal/budget/subscriptions">
+          Upcoming recurring · {recurring.dueCount} due · {formatRupiah(recurring.expectedAmount)} expected
+        </Link>
+      ) : null}
     </section>
   );
 }
@@ -156,6 +163,8 @@ function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTr
 function TransactionRow({ transaction, categories }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[] }) {
   const sourceLabel = transaction.sourceType === "personal_expense"
     ? "Personal expense"
+    : transaction.sourceType === "recurring"
+      ? "Recurring expense"
     : transaction.sourceType === "personal_repayment"
       ? "Personal repayment"
       : transaction.sourceType === "group_expense"
@@ -219,7 +228,7 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
     <section className="app-page budget-page" id="top">
       <div className="editorial-shell app-page__layout">
         <PageHeader period={period} importAvailable={dashboard.importAvailable} />
-        <BudgetSummary period={period} expectedBack={dashboard.expectedBack ?? 0} stillOwe={dashboard.stillOwe ?? 0} groupObligations={dashboard.groupObligations ?? []} />
+        <BudgetSummary period={period} expectedBack={dashboard.expectedBack ?? 0} stillOwe={dashboard.stillOwe ?? 0} groupObligations={dashboard.groupObligations ?? []} recurring={dashboard.recurringSummary ?? { dueCount: 0, expectedAmount: 0, nextDueOn: null }} />
         <CategorySection period={period} />
         <RecentSection transactions={dashboard.recentTransactions} categories={period.categories.map(({ id, name }) => ({ id, name }))} />
       </div>
@@ -238,6 +247,8 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
             period={period}
             categories={period.categories.map(({ id, name, allocatedAmount }) => ({ id, name, allocation: String(allocatedAmount) }))}
             pending={dashboard.pendingNextPeriod ?? []}
+            recurringTemplates={dashboard.recurringTemplates ?? []}
+            uncategorizedCategoryId={period.categories.find((category) => category.systemKey === "uncategorized")?.id ?? ""}
           />
         </TaskPanel>
       ) : null}

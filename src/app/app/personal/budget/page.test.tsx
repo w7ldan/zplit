@@ -80,6 +80,8 @@ describe("/app/personal/budget task-panel modes", () => {
       stillOwe: 20_000,
       groupObligations: [{ id: "obligation-a", groupId: "group-a", groupName: "Trip", description: "Hotel", amount: 20_000, categoryId: null, categoryName: "Uncategorized" }],
       importAvailable: true,
+      recurringSummary: { dueCount: 2, expectedAmount: 50_000, nextDueOn: "2026-10-01" },
+      recurringTemplates: [],
       recentTransactions: [{
         id: "transaction-expense",
         direction: "outflow",
@@ -107,5 +109,7 @@ describe("/app/personal/budget task-panel modes", () => {
     expect(categoryDisclosure).toBeInTheDocument();
     expect(categoryDisclosure).not.toHaveAttribute("open");
     expect(screen.getByRole("button", { name: "Import activity" })).toBeInTheDocument();
+    expect(screen.getByText(/Upcoming recurring/)).toBeInTheDocument();
+    expect(document.querySelector(".budget-summary__grid")).not.toHaveTextContent("Upcoming recurring");
   });
 });

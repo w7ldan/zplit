@@ -60,7 +60,7 @@ export type BudgetTransactionView = {
   occurredOn: string;
   status: BudgetTransactionStatus;
   origin: BudgetTransactionOrigin;
-  sourceType: "manual" | "personal_expense" | "personal_repayment" | "group_expense" | "group_payment_sent" | "group_payment_received";
+  sourceType: "manual" | "recurring" | "personal_expense" | "personal_repayment" | "group_expense" | "group_payment_sent" | "group_payment_received";
   sourceId: string | null;
   categoryName: string;
   categoryNames: string[];

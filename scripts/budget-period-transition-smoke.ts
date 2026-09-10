@@ -12,7 +12,7 @@ import { createBudgetCategory, updateBudgetPlan } from "../src/server/budgeting/
 import { listBudgetPeriodHistory } from "../src/server/budgeting/reporting";
 import { startNextBudgetPeriod } from "../src/server/budgeting/periods";
 import { changePersonalExpenseBudgetCategory, createPersonalBudgetIntegration } from "../src/server/budgeting/sources-personal";
-import { createManualBudgetTransaction, spreadBudgetTransaction, voidManualBudgetTransaction } from "../src/server/budgeting/transactions";
+import { createManualBudgetTransaction, spreadBudgetTransaction, voidBudgetTransaction } from "../src/server/budgeting/transactions";
 import { ensurePersonalLedgerScope } from "../src/server/ledger-scopes";
 import { formatSafeError, readDatabaseConfig } from "./migrate.js";
 
@@ -65,7 +65,7 @@ async function run() {
     await spreadBudgetTransaction(database, ownerA, pending.id, 3);
     const voided = await createManualBudgetTransaction(database, ownerA, { direction: "outflow", amount: 300, description: "Voided payment", occurredOn: "2026-09-07", categoryId: foodId });
     await spreadBudgetTransaction(database, ownerA, voided.id, 3);
-    await voidManualBudgetTransaction(database, ownerA, voided.id);
+    await voidBudgetTransaction(database, ownerA, voided.id);
 
     const friendId = randomUUID();
     const currentOutingId = randomUUID();

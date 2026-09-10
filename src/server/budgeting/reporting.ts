@@ -7,6 +7,9 @@ import type { PendingBudgetImpactPreview } from "./periods";
 import { getBudgetProfile } from "./profiles";
 import { getActiveBudgetPeriod, listPendingBudgetImpactPreview } from "./periods";
 import { listBudgetTransactions } from "./transactions";
+import { getBudgetRecurringDashboardSummary, listActiveBudgetRecurringRules } from "./recurring";
+import type { BudgetRecurringTemplateRule } from "@/domain/budgeting/recurrence";
+import type { BudgetRecurringDashboardSummary } from "./recurring";
 import { createLedgerSummaryRepository } from "@/domain/ledger/summary";
 import { getPersonalLedgerScopeId, LedgerScopeError } from "@/server/ledger-scopes";
 import { hasImportableBudgetActivity } from "./sources-personal";
@@ -20,7 +23,7 @@ type GroupSharedMoney = { expectedBack: number; stillOwe: number; obligations: G
 
 type BudgetDashboard =
   | { configured: false }
-  | { configured: true; period: BudgetPeriodSummary; recentTransactions: BudgetTransactionView[]; expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[]; importAvailable: boolean; pendingNextPeriod: PendingBudgetImpactPreview[] }
+  | { configured: true; period: BudgetPeriodSummary; recentTransactions: BudgetTransactionView[]; expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[]; importAvailable: boolean; pendingNextPeriod: PendingBudgetImpactPreview[]; recurringSummary: BudgetRecurringDashboardSummary; recurringTemplates: BudgetRecurringTemplateRule[] }
   | { configured: true; period: null };
 
 async function groupSharedMoney(database: Database, ownerUserId: string): Promise<GroupSharedMoney> {
@@ -47,7 +50,7 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
       hasImportableBudgetActivity(database, ownerUserId, null, period),
       groupSharedMoney(database, ownerUserId),
     ]);
-  const [plans, impactRows, recentTransactions, pendingNextPeriod] = await Promise.all([
+  const [plans, impactRows, recentTransactions, pendingNextPeriod, recurringSummary, recurringTemplates] = await Promise.all([
     database.select({
       id: budgetCategories.id,
       name: budgetCategories.name,
@@ -73,6 +76,8 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
       .groupBy(budgetImpacts.budgetCategoryId, budgetTransactions.direction),
     listBudgetTransactions(database, ownerUserId, 5),
     listPendingBudgetImpactPreview(database, ownerUserId, period.ordinal + 1),
+    getBudgetRecurringDashboardSummary(database, ownerUserId),
+    listActiveBudgetRecurringRules(database, ownerUserId),
   ]);
   const byCategory = new Map<string, { outflow: number; inflow: number }>();
   for (const row of impactRows) {
@@ -111,6 +116,8 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
     groupObligations: groupMoney.obligations,
     importAvailable,
     pendingNextPeriod,
+    recurringSummary,
+    recurringTemplates,
   };
 }
 

@@ -6210,6 +6210,128 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   font-variant-numeric: tabular-nums;
 }
 
+.budget-recurring-list,
+.budget-recurring-due-list {
+  display: grid;
+  border-top: 1px solid var(--rule);
+}
+
+.budget-recurring-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.6fr) minmax(12rem, 2fr) minmax(7rem, 0.7fr) 4rem;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.budget-recurring-row > span:nth-child(2),
+.budget-recurring-due-row > span:nth-child(2) {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.budget-recurring-row small,
+.budget-recurring-due-row small {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.budget-recurring-row > span:nth-child(3),
+.budget-recurring-due-row > span:nth-child(3) {
+  display: grid;
+  gap: 0.25rem;
+  text-align: right;
+}
+
+.budget-recurring-row > span:nth-child(3) strong,
+.budget-recurring-due-row > span:nth-child(3) strong {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.budget-recurring-due-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.6fr) minmax(12rem, 2fr) minmax(6rem, 0.6fr) minmax(0, 1fr) 3rem;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.budget-recurring-row > form {
+  justify-self: end;
+}
+
+.budget-recurring-record {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.budget-recurring-record input {
+  width: 9.5rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.35rem;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.budget-recurring-record .budget-form__error {
+  flex-basis: 100%;
+}
+
+.budget-recurring-preview .budget-recurring-candidate {
+  display: grid;
+  grid-template-columns: minmax(12rem, 2fr) minmax(5rem, 0.5fr) minmax(8rem, 0.8fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.78rem;
+}
+
+.budget-recurring-candidate__toggle {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.budget-recurring-candidate__toggle > span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.budget-recurring-candidate__toggle small,
+.budget-recurring-candidate > small {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.budget-recurring-candidate__amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.budget-recurring-candidate__category select {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.35rem;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.budget-recurring-summary {
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+}
+
 .budget-period-history-list {
   display: grid;
   border-top: 1px solid var(--rule);
@@ -6351,5 +6473,22 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
   .budget-period-history summary > span:last-child {
     text-align: left;
+  }
+
+  .budget-recurring-row,
+  .budget-recurring-due-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .budget-recurring-row > span:nth-child(3),
+  .budget-recurring-due-row > span:nth-child(3),
+  .budget-recurring-row > form {
+    text-align: left;
+    justify-self: start;
+  }
+
+  .budget-recurring-preview .budget-recurring-candidate {
+    grid-template-columns: 1fr;
   }
 }

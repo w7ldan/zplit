@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ReactNode } from "react";
 import { TaskPanelFooter } from "@/components/app/task-panel";
+import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { formatRupiah } from "@/domain/rupiah";
+import { budgetRecurringFrequencyLabel, buildRecurringCandidates, recurringCandidateKey, type BudgetRecurringTemplateRule } from "@/domain/budgeting/recurrence";
 import type { BudgetFormState, BudgetPlanValues, BudgetSetupValues, BudgetSpreadValues, BudgetTransactionValues, BudgetTransitionValues } from "@/app/app/personal/budget/actions";
 
 type SetupAction = (state: BudgetFormState<BudgetSetupValues>, formData: FormData) => Promise<BudgetFormState<BudgetSetupValues>>;
@@ -213,7 +215,56 @@ function PendingPreview({ pending }: { pending: Array<{ categoryId: string; cate
   );
 }
 
-export function BudgetTransitionForm({ action, period, categories, pending }: { action: TransitionAction; period: { id: string; name: string; startsOn: string; endsOn: string; totalBudget: number }; categories: BudgetTransitionCategory[]; pending: Array<{ categoryId: string; categoryName: string; amount: number }> }) {
+function RecurringCandidatePreview({ candidates, categories, uncategorizedCategoryId, skipped, toggle }: {
+  candidates: ReturnType<typeof buildRecurringCandidates>;
+  categories: BudgetTransitionCategory[];
+  uncategorizedCategoryId: string;
+  skipped: ReadonlySet<string>;
+  toggle: (key: string, selected: boolean) => void;
+}) {
+  if (candidates.length === 0) return null;
+  const planCategoryIds = new Set(categories.map((category) => category.id));
+  return (
+    <fieldset className="budget-form__categories budget-recurring-preview">
+      <legend>Recurring occurrences</legend>
+      <p className="budget-form__hint">Expected payments for the proposed dates. Uncheck any occurrence you want to skip.</p>
+      {candidates.map((candidate) => {
+        const key = recurringCandidateKey(candidate.templateId, candidate.scheduledOn);
+        const selected = !skipped.has(key);
+        const defaultCategoryId = planCategoryIds.has(candidate.categoryId) ? candidate.categoryId : uncategorizedCategoryId;
+        return (
+          <div className="budget-recurring-candidate" key={key}>
+            <label className="budget-recurring-candidate__toggle">
+              <input type="checkbox" name="recurrenceSelected" value={key} checked={selected} onChange={(event) => toggle(key, event.target.checked)} />
+              <span><strong>{candidate.name}</strong><small>{formatCalendarDate(candidate.scheduledOn)} · {budgetRecurringFrequencyLabel(candidate.frequency)}</small></span>
+            </label>
+            <input type="hidden" name="recurrenceTemplateId" value={candidate.templateId} />
+            <input type="hidden" name="recurrenceScheduledOn" value={candidate.scheduledOn} />
+            <span className="budget-recurring-candidate__amount">{formatRupiah(candidate.amount)}</span>
+            <label className="budget-recurring-candidate__category">
+              <span className="sr-only">Category for {candidate.name} on {candidate.scheduledOn}</span>
+              <select name="recurrenceCategoryId" defaultValue={defaultCategoryId}>
+                {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+            </label>
+            <small>{candidate.spreadCount === 1 ? "One period" : `Spread over ${candidate.spreadCount} periods`}</small>
+          </div>
+        );
+      })}
+    </fieldset>
+  );
+}
+
+type BudgetTransitionFormProps = {
+  action: TransitionAction;
+  period: { id: string; name: string; startsOn: string; endsOn: string; totalBudget: number };
+  categories: BudgetTransitionCategory[];
+  pending: Array<{ categoryId: string; categoryName: string; amount: number }>;
+  recurringTemplates?: BudgetRecurringTemplateRule[];
+  uncategorizedCategoryId?: string;
+};
+
+export function BudgetTransitionForm({ action, period, categories, pending, recurringTemplates = [], uncategorizedCategoryId = "" }: BudgetTransitionFormProps) {
   const initialValues: BudgetTransitionValues = {
     expectedActivePeriodId: period.id,
     name: "",
@@ -221,16 +272,29 @@ export function BudgetTransitionForm({ action, period, categories, pending }: { 
     endsOn: "",
     totalBudget: String(period.totalBudget),
     categories,
+    recurrence: [],
   };
   const [state, formAction] = useActionState(action, { fieldErrors: {}, formError: "", values: initialValues });
+  const [startsOn, setStartsOn] = useState(state.values.startsOn);
+  const [endsOn, setEndsOn] = useState(state.values.endsOn);
+  const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
+  const candidates = useMemo(() => buildRecurringCandidates(recurringTemplates, { startsOn, endsOn }), [recurringTemplates, startsOn, endsOn]);
+  function toggleCandidate(key: string, selected: boolean) {
+    setSkipped((current) => {
+      const next = new Set(current);
+      if (selected) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
   return <form className="budget-form" action={formAction} noValidate>
     <input type="hidden" name="expectedActivePeriodId" value={state.values.expectedActivePeriodId} />
     <p className="budget-form__warning">Starting the next period closes <strong>{period.name}</strong> immediately. This cannot be undone.</p>
     <div className="budget-form__grid">
       <Field label="Period name" id="budget-next-period-name" error={state.fieldErrors.periodName}><input id="budget-next-period-name" name="periodName" defaultValue={state.values.name} aria-invalid={Boolean(state.fieldErrors.periodName)} /></Field>
       <Field label="Total budget" id="budget-next-period-total" error={state.fieldErrors.totalBudget}><input id="budget-next-period-total" name="totalBudget" inputMode="numeric" defaultValue={state.values.totalBudget} aria-invalid={Boolean(state.fieldErrors.totalBudget)} /></Field>
-      <Field label="Starts on" id="budget-next-period-starts" error={state.fieldErrors.startsOn}><input id="budget-next-period-starts" name="startsOn" type="date" defaultValue={state.values.startsOn} aria-invalid={Boolean(state.fieldErrors.startsOn)} /></Field>
-      <Field label="Ends on" id="budget-next-period-ends" error={state.fieldErrors.endsOn}><input id="budget-next-period-ends" name="endsOn" type="date" defaultValue={state.values.endsOn} aria-invalid={Boolean(state.fieldErrors.endsOn)} /></Field>
+      <Field label="Starts on" id="budget-next-period-starts" error={state.fieldErrors.startsOn}><input id="budget-next-period-starts" name="startsOn" type="date" value={startsOn} onChange={(event) => setStartsOn(event.target.value)} aria-invalid={Boolean(state.fieldErrors.startsOn)} /></Field>
+      <Field label="Ends on" id="budget-next-period-ends" error={state.fieldErrors.endsOn}><input id="budget-next-period-ends" name="endsOn" type="date" value={endsOn} onChange={(event) => setEndsOn(event.target.value)} aria-invalid={Boolean(state.fieldErrors.endsOn)} /></Field>
     </div>
     <fieldset className="budget-form__categories"><legend>Next category plan</legend>
       <p className="budget-form__hint">Categories and their order stay the same. Allocations are copied for convenience; submitted values are explicit.</p>
@@ -238,6 +302,7 @@ export function BudgetTransitionForm({ action, period, categories, pending }: { 
       <ErrorText id="budget-next-categories-error" message={state.fieldErrors.categories} />
     </fieldset>
     <PendingPreview pending={pending} />
+    <RecurringCandidatePreview candidates={candidates} categories={categories} uncategorizedCategoryId={uncategorizedCategoryId} skipped={skipped} toggle={toggleCandidate} />
     <p className="budget-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
     <TaskPanelFooter className="budget-form__actions"><SubmitButton label="Start next period" /></TaskPanelFooter>
   </form>;

@@ -11,11 +11,19 @@ import { parseRupiah } from "@/domain/rupiah";
 import { getDatabase } from "@/db/client";
 import { createBudgetSetup } from "@/server/budgeting/profiles";
 import { createBudgetCategory, updateBudgetPlan } from "@/server/budgeting/categories";
-import { createManualBudgetTransaction, spreadBudgetTransaction, voidManualBudgetTransaction } from "@/server/budgeting/transactions";
+import { createManualBudgetTransaction, spreadBudgetTransaction, voidBudgetTransaction } from "@/server/budgeting/transactions";
 import { startNextBudgetPeriod } from "@/server/budgeting/periods";
+import {
+  archiveBudgetRecurringTemplate,
+  createBudgetRecurringTemplate,
+  recordBudgetRecurringOccurrence,
+  skipBudgetRecurringOccurrence,
+  updateBudgetRecurringTemplate,
+} from "@/server/budgeting/recurring";
 import { changePersonalExpenseBudgetCategory, importBudgetActivity } from "@/server/budgeting/sources-personal";
 import { changeGroupExpenseBudgetCategory, changeGroupObligationBudgetCategory } from "@/server/budgeting/sources-group";
 import { getPersonalLedgerScopeId, LedgerScopeError } from "@/server/ledger-scopes";
+import type { BudgetRecurringFrequency, BudgetRecurringTransitionSelection } from "@/domain/budgeting/recurrence";
 
 export type BudgetFormState<T> = { fieldErrors: Record<string, string>; formError: string; values: T };
 
@@ -53,9 +61,22 @@ export type BudgetTransitionValues = {
   endsOn: string;
   totalBudget: string;
   categories: Array<{ id: string; name: string; allocation: string }>;
+  recurrence: BudgetRecurringTransitionSelection[];
 };
 
 export type BudgetSpreadValues = { transactionId: string; count: string };
+
+export type BudgetRecurringTemplateValues = {
+  templateId: string;
+  name: string;
+  amount: string;
+  categoryId: string;
+  frequency: string;
+  startsOn: string;
+  spreadCount: string;
+};
+
+export type BudgetRecurringRecordValues = { occurrenceId: string; occurredOn: string };
 
 function textValue(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -81,6 +102,7 @@ function revalidateBudget() {
   revalidatePath("/app/personal/budget");
   revalidatePath("/app/personal/budget/transactions");
   revalidatePath("/app/personal/budget/periods");
+  revalidatePath("/app/personal/budget/subscriptions");
 }
 
 function setupValues(formData: FormData): BudgetSetupValues {
@@ -241,6 +263,10 @@ function transitionValues(formData: FormData): BudgetTransitionValues {
   const ids = formData.getAll("categoryId");
   const names = formData.getAll("categoryName");
   const allocations = formData.getAll("categoryAllocation");
+  const recurrenceTemplateIds = formData.getAll("recurrenceTemplateId").map(String);
+  const recurrenceScheduledOn = formData.getAll("recurrenceScheduledOn").map(String);
+  const recurrenceCategoryIds = formData.getAll("recurrenceCategoryId").map(String);
+  const selectedKeys = new Set(formData.getAll("recurrenceSelected").map(String));
   return {
     expectedActivePeriodId: textValue(formData, "expectedActivePeriodId"),
     name: textValue(formData, "periodName"),
@@ -248,6 +274,15 @@ function transitionValues(formData: FormData): BudgetTransitionValues {
     endsOn: textValue(formData, "endsOn"),
     totalBudget: textValue(formData, "totalBudget"),
     categories: ids.map((id, index) => ({ id: String(id), name: typeof names[index] === "string" ? names[index].trim() : "", allocation: typeof allocations[index] === "string" ? allocations[index].trim() : "" })),
+    recurrence: recurrenceTemplateIds.map((templateId, index) => {
+      const scheduledOn = recurrenceScheduledOn[index] ?? "";
+      return {
+        templateId,
+        scheduledOn,
+        selected: selectedKeys.has(`${templateId}|${scheduledOn}`),
+        categoryId: recurrenceCategoryIds[index] ? recurrenceCategoryIds[index] : null,
+      };
+    }),
   };
 }
 
@@ -271,7 +306,7 @@ export async function startNextBudgetPeriodAction(_previousState: BudgetFormStat
   if (!parsed.ok) return parsed.state;
   try {
     const session = await requireSession();
-    await startNextBudgetPeriod(getDatabase(), session.user.id, { expectedActivePeriodId: values.expectedActivePeriodId, name: values.name, startsOn: values.startsOn, endsOn: values.endsOn, totalBudget: parsed.totalBudget, allocations: parsed.allocations });
+    await startNextBudgetPeriod(getDatabase(), session.user.id, { expectedActivePeriodId: values.expectedActivePeriodId, name: values.name, startsOn: values.startsOn, endsOn: values.endsOn, totalBudget: parsed.totalBudget, allocations: parsed.allocations, recurrence: values.recurrence });
   } catch (error) {
     return { fieldErrors: {}, formError: budgetErrorMessage(error, "Unable to start the next budget period."), values };
   }
@@ -296,12 +331,115 @@ export async function spreadBudgetTransactionAction(_previousState: BudgetFormSt
 export async function voidBudgetTransactionAction(transactionId: string) {
   const session = await requireSession();
   try {
-    await voidManualBudgetTransaction(getDatabase(), session.user.id, transactionId);
+    await voidBudgetTransaction(getDatabase(), session.user.id, transactionId);
   } catch (error) {
     if (!(error instanceof BudgetError) || error.code !== "NOT_FOUND") throw error;
   }
   revalidateBudget();
   redirect("/app/personal/budget/transactions");
+}
+
+function recurringTemplateValues(formData: FormData): BudgetRecurringTemplateValues {
+  return {
+    templateId: textValue(formData, "templateId"),
+    name: textValue(formData, "name"),
+    amount: textValue(formData, "amount"),
+    categoryId: textValue(formData, "categoryId"),
+    frequency: textValue(formData, "frequency"),
+    startsOn: textValue(formData, "startsOn"),
+    spreadCount: textValue(formData, "spreadCount"),
+  };
+}
+
+function parseRecurringTemplateSubmission(values: BudgetRecurringTemplateValues) {
+  const fieldErrors: Record<string, string> = {};
+  const amount = parseRupiah(values.amount);
+  const spreadCount = parseNonNegativeRupiah(values.spreadCount || "1");
+  if (!values.name) fieldErrors.name = "Name is required.";
+  if (amount === null) fieldErrors.amount = "Enter a whole Rupiah amount greater than zero.";
+  if (!values.categoryId) fieldErrors.categoryId = "Choose a category.";
+  if (values.frequency !== "every_budget_period" && values.frequency !== "monthly") fieldErrors.frequency = "Choose a frequency.";
+  if (!isValidBudgetDate(values.startsOn)) fieldErrors.startsOn = "Enter a valid date.";
+  if (spreadCount === null || spreadCount < 1 || spreadCount > 24 || amount !== null && spreadCount > amount) {
+    fieldErrors.spreadCount = "Spread must be between 1 and 24 periods and cannot exceed the amount.";
+  }
+  if (Object.keys(fieldErrors).length) return { ok: false as const, state: { fieldErrors, formError: "Please correct the marked fields.", values } };
+  return {
+    ok: true as const,
+    input: {
+      name: values.name,
+      amount: amount!,
+      categoryId: values.categoryId,
+      frequency: values.frequency as BudgetRecurringFrequency,
+      startsOn: values.startsOn,
+      spreadCount: spreadCount!,
+    },
+  };
+}
+
+export async function createBudgetRecurringTemplateAction(_previousState: BudgetFormState<BudgetRecurringTemplateValues>, formData: FormData): Promise<BudgetFormState<BudgetRecurringTemplateValues>> {
+  const values = recurringTemplateValues(formData);
+  const parsed = parseRecurringTemplateSubmission(values);
+  if (!parsed.ok) return parsed.state;
+  try {
+    const session = await requireSession();
+    await createBudgetRecurringTemplate(getDatabase(), session.user.id, parsed.input);
+  } catch (error) {
+    return { fieldErrors: {}, formError: budgetErrorMessage(error, "Unable to create the recurring expense."), values };
+  }
+  revalidateBudget();
+  redirect("/app/personal/budget/subscriptions");
+}
+
+export async function updateBudgetRecurringTemplateAction(_previousState: BudgetFormState<BudgetRecurringTemplateValues>, formData: FormData): Promise<BudgetFormState<BudgetRecurringTemplateValues>> {
+  const values = recurringTemplateValues(formData);
+  const parsed = parseRecurringTemplateSubmission(values);
+  if (!parsed.ok) return parsed.state;
+  if (!values.templateId) return { fieldErrors: {}, formError: "That recurring expense is no longer available.", values };
+  try {
+    const session = await requireSession();
+    await updateBudgetRecurringTemplate(getDatabase(), session.user.id, values.templateId, parsed.input);
+  } catch (error) {
+    return { fieldErrors: {}, formError: budgetErrorMessage(error, "Unable to save the recurring expense."), values };
+  }
+  revalidateBudget();
+  redirect("/app/personal/budget/subscriptions");
+}
+
+export async function archiveBudgetRecurringTemplateAction(templateId: string) {
+  const session = await requireSession();
+  try {
+    await archiveBudgetRecurringTemplate(getDatabase(), session.user.id, templateId);
+  } catch (error) {
+    if (!(error instanceof BudgetError) || error.code !== "NOT_FOUND") throw error;
+  }
+  revalidateBudget();
+  redirect("/app/personal/budget/subscriptions");
+}
+
+export async function recordBudgetRecurringOccurrenceAction(_previousState: BudgetFormState<BudgetRecurringRecordValues>, formData: FormData): Promise<BudgetFormState<BudgetRecurringRecordValues>> {
+  const values = { occurrenceId: textValue(formData, "occurrenceId"), occurredOn: textValue(formData, "occurredOn") };
+  if (!values.occurrenceId) return { fieldErrors: {}, formError: "That recurring occurrence is no longer available.", values };
+  if (!isValidBudgetDate(values.occurredOn)) return { fieldErrors: { occurredOn: "Enter a valid payment date." }, formError: "Please correct the marked field.", values };
+  try {
+    const session = await requireSession();
+    await recordBudgetRecurringOccurrence(getDatabase(), session.user.id, values.occurrenceId, values.occurredOn);
+  } catch (error) {
+    return { fieldErrors: {}, formError: budgetErrorMessage(error, "Unable to record the recurring payment."), values };
+  }
+  revalidateBudget();
+  redirect("/app/personal/budget/subscriptions");
+}
+
+export async function skipBudgetRecurringOccurrenceAction(occurrenceId: string) {
+  const session = await requireSession();
+  try {
+    await skipBudgetRecurringOccurrence(getDatabase(), session.user.id, occurrenceId);
+  } catch (error) {
+    if (!(error instanceof BudgetError) || error.code !== "NOT_FOUND") throw error;
+  }
+  revalidateBudget();
+  redirect("/app/personal/budget/subscriptions");
 }
 
 export async function changePersonalExpenseBudgetCategoryAction(formData: FormData) {

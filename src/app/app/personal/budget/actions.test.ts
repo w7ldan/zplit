@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   getDatabase: vi.fn(() => "database"),
   updateBudgetPlan: vi.fn(),
-  voidManualBudgetTransaction: vi.fn(),
+  voidBudgetTransaction: vi.fn(),
   redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }),
   revalidatePath: vi.fn(),
 }));
@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/server/budgeting/profiles", () => ({ createBudgetSetup: vi.fn() }));
 vi.mock("@/server/budgeting/categories", () => ({ createBudgetCategory: vi.fn(), updateBudgetPlan: mocks.updateBudgetPlan }));
-vi.mock("@/server/budgeting/transactions", () => ({ createManualBudgetTransaction: vi.fn(), voidManualBudgetTransaction: mocks.voidManualBudgetTransaction }));
+vi.mock("@/server/budgeting/transactions", () => ({ createManualBudgetTransaction: vi.fn(), voidBudgetTransaction: mocks.voidBudgetTransaction }));
 
 import { updateBudgetPlanAction, voidBudgetTransactionAction } from "./actions";
 
@@ -47,7 +47,7 @@ describe("budget actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
-    mocks.voidManualBudgetTransaction.mockResolvedValue({ status: "voided" });
+    mocks.voidBudgetTransaction.mockResolvedValue({ status: "voided" });
     mocks.updateBudgetPlan.mockResolvedValue({});
   });
 
@@ -69,13 +69,13 @@ describe("budget actions", () => {
 
   it("does not swallow unexpected void failures", async () => {
     const failure = new Error("database unavailable");
-    mocks.voidManualBudgetTransaction.mockRejectedValue(failure);
+    mocks.voidBudgetTransaction.mockRejectedValue(failure);
     await expect(voidBudgetTransactionAction("transaction-a")).rejects.toBe(failure);
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it("keeps unavailable voids safe and non-distinguishing", async () => {
-    mocks.voidManualBudgetTransaction.mockRejectedValue(new BudgetError("NOT_FOUND", "unavailable"));
+    mocks.voidBudgetTransaction.mockRejectedValue(new BudgetError("NOT_FOUND", "unavailable"));
     await expect(voidBudgetTransactionAction("foreign-or-missing")).rejects.toThrow("redirect:/app/personal/budget/transactions");
   });
 });

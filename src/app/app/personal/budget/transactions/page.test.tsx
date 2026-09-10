@@ -113,4 +113,29 @@ describe("/app/personal/budget/transactions presentation", () => {
     expect(screen.getByText("Group payment sent")).toBeInTheDocument();
     expect(screen.getByText("Group payment received")).toBeInTheDocument();
   });
+
+  it("labels recurring provenance and keeps Budget-owned void available", async () => {
+    mocks.listBudgetTransactions.mockResolvedValue([{
+      id: "transaction-recurring",
+      direction: "outflow",
+      amount: 300_000,
+      description: "Gym",
+      occurredOn: "2026-10-03",
+      status: "posted",
+      origin: "recurring",
+      sourceType: "recurring",
+      sourceId: null,
+      categoryName: "Health",
+      categoryNames: ["Health"],
+      categoryId: "health",
+      spreadCount: 3,
+      pendingImpactCount: 2,
+      spreadCanChange: false,
+      spreadLocked: true,
+    }]);
+    render(await BudgetTransactionsPage());
+    expect(screen.getByText("Recurring expense")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Void" })).toBeInTheDocument();
+    expect(screen.getByText(/Spread across 3 periods/)).toBeInTheDocument();
+  });
 });

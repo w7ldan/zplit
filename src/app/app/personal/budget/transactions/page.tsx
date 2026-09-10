@@ -36,6 +36,8 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
   const amount = `${transaction.direction === "outflow" ? "−" : "+"}${formatRupiah(transaction.amount)}`;
   const sourceLabel = transaction.sourceType === "personal_expense"
     ? "Personal expense"
+    : transaction.sourceType === "recurring"
+      ? "Recurring expense"
     : transaction.sourceType === "personal_repayment"
       ? "Personal repayment"
       : transaction.sourceType === "group_expense"
@@ -56,7 +58,7 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
         <SpreadControl transaction={transaction} />
       </span>
       <span><strong>{amount}</strong><small>{transaction.status === "voided" ? "Voided" : "Posted"}</small></span>
-      {transaction.status === "posted" && transaction.origin === "manual" ? <form action={voidBudgetTransactionAction.bind(null, transaction.id)}><button className="action-link action-link--quiet" type="submit">Void</button></form> : <span />}
+      {transaction.status === "posted" && (transaction.origin === "manual" || transaction.origin === "recurring") ? <form action={voidBudgetTransactionAction.bind(null, transaction.id)}><button className="action-link action-link--quiet" type="submit">Void</button></form> : <span />}
     </div>
   );
 }
@@ -76,7 +78,7 @@ export default async function BudgetTransactionsPage() {
     <section className="app-page budget-page budget-history-page" id="top">
       <div className="editorial-shell app-page__layout">
         <header className="app-page__header">
-          <div><p className="technical-label">Personal · budget</p><h1>Transaction history</h1><p className="app-page__lede">Manual and linked budget records, including voided history.</p></div>
+          <div><p className="technical-label">Personal · budget</p><h1>Transaction history</h1><p className="app-page__lede">Manual, recurring, and linked budget records, including voided history.</p></div>
           <Link className="action-link action-link--primary" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
         </header>
         <section className="ledger-section" aria-labelledby="budget-history-heading">
