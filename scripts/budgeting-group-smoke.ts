@@ -5,10 +5,6 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "../src/db/schema";
 import type { Database } from "../src/db/client";
-import { createBudgetSetup } from "../src/server/budgeting/profiles";
-import { importBudgetActivity } from "../src/server/budgeting/sources-personal";
-import { changeGroupExpenseBudgetCategory, changeGroupObligationBudgetCategory } from "../src/server/budgeting/sources-group";
-import { listBudgetTransactions } from "../src/server/budgeting/transactions";
 import { BudgetError } from "../src/domain/budgeting/errors";
 import { formatSafeError, readDatabaseConfig } from "./migrate.js";
 
@@ -19,6 +15,10 @@ const { createGroup } = await import("../src/server/groups");
 const { createGroupExpense, confirmGroupExpenseAsPayer, rejectGroupExpenseAsPayer, voidGroupExpenseAsPayer } = await import("../src/server/group-accounting");
 const { createGroupSettlement, confirmGroupSettlement } = await import("../src/server/group-settlements");
 const { createGroupOffset, confirmGroupOffset } = await import("../src/server/group-offsets");
+const { createBudgetSetup } = await import("../src/server/budgeting/profiles");
+const { importBudgetActivity } = await import("../src/server/budgeting/sources-personal");
+const { changeGroupExpenseBudgetCategory, changeGroupObligationBudgetCategory } = await import("../src/server/budgeting/sources-group");
+const { listBudgetTransactions } = await import("../src/server/budgeting/transactions");
 
 async function addMember(pool: Pool, groupId: string, userId: string) {
   const participantId = randomUUID();
