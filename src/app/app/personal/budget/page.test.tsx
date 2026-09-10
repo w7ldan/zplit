@@ -70,6 +70,11 @@ describe("/app/personal/budget task-panel modes", () => {
     render(await BudgetPage());
     expect(screen.getByRole("link", { name: "Add transaction" })).toHaveAttribute("href", "/app/personal/budget?create=transaction");
     expect(screen.getByRole("link", { name: "Manage plan" })).toHaveAttribute("href", "/app/personal/budget?create=plan");
+    const nav = screen.getByRole("navigation", { name: "Budget sections" });
+    expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/app/personal/budget/transactions");
+    expect(within(nav).getByRole("link", { name: "Period history" })).toHaveAttribute("href", "/app/personal/budget/periods");
+    expect(within(nav).getByRole("link", { name: "Subscriptions" })).toHaveAttribute("href", "/app/personal/budget/subscriptions");
   });
 
   it("labels linked Personal activity and keeps Expected Back outside Remaining", async () => {

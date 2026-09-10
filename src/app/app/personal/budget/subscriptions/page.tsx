@@ -8,6 +8,7 @@ import { budgetRecurringFrequencyLabel } from "@/domain/budgeting/recurrence";
 import { listActiveBudgetPlanCategoryOptions } from "@/server/budgeting/categories";
 import { getBudgetRecurringDashboardSummary, listBudgetRecurringTemplates, listDueBudgetRecurringOccurrences, type BudgetRecurringTemplateView } from "@/server/budgeting/recurring";
 import { RecurringRecordForm, RecurringTemplateForm } from "@/components/budgeting/recurring-forms";
+import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
 import {
   archiveBudgetRecurringTemplateAction,
   createBudgetRecurringTemplateAction,
@@ -84,13 +85,13 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
           </div>
           <div className="budget-page__actions">
             <Link className="action-link action-link--primary" href="/app/personal/budget/subscriptions?create=template" data-task-trigger="budget-recurring">Add recurring expense</Link>
-            <Link className="text-link" href="/app/personal/budget">Back to Budget <span aria-hidden="true">→</span></Link>
           </div>
         </header>
+        <BudgetSectionNav current="subscriptions" />
         <section className="ledger-section" aria-labelledby="budget-recurring-heading">
           <div className="ledger-section__heading"><h2 id="budget-recurring-heading">Active recurring</h2><span className="technical-label">Amount · next occurrence</span></div>
           {templates.length === 0
-            ? <div className="ledger-empty"><p>No recurring expenses yet.</p></div>
+            ? <div className="ledger-empty"><p>No recurring expenses yet.</p><Link className="text-link" href="/app/personal/budget/subscriptions?create=template">Add recurring expense <span aria-hidden="true">→</span></Link></div>
             : <div className="budget-recurring-list">{templates.map((template) => <TemplateRow categories={categories} key={template.id} template={template} />)}</div>}
         </section>
         <section className="ledger-section" aria-labelledby="budget-recurring-due-heading">

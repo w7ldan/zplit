@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -79,5 +79,13 @@ describe("/app/personal/budget/subscriptions presentation", () => {
     mocks.getBudgetRecurringDashboardSummary.mockResolvedValue({ dueCount: 140, expectedAmount: 300_000, nextDueOn: "2026-10-31" });
     render(await BudgetSubscriptionsPage());
     expect(screen.getByText("140 due · showing first 1")).toBeInTheDocument();
+  });
+
+  it("links to the semantic Budget sections and marks the current one", async () => {
+    render(await BudgetSubscriptionsPage());
+    const nav = screen.getByRole("navigation", { name: "Budget sections" });
+    expect(within(nav).getByRole("link", { name: "Subscriptions" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/app/personal/budget/transactions");
+    expect(within(nav).getByRole("link", { name: "Period history" })).toHaveAttribute("href", "/app/personal/budget/periods");
   });
 });

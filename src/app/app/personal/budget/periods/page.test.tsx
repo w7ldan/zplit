@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(() => "database"), listBudgetPeriodHistory: vi.fn() }));
@@ -26,5 +26,9 @@ describe("Budget period history presentation", () => {
     expect(screen.getByText(/Closed/)).toBeInTheDocument();
     expect(screen.getByText("Food")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /edit|delete|reopen/i })).not.toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Budget sections" });
+    expect(within(nav).getByRole("link", { name: "Period history" })).toHaveAttribute("href", "/app/personal/budget/periods");
+    expect(within(nav).getByRole("link", { name: "Period history" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app/personal/budget");
   });
 });

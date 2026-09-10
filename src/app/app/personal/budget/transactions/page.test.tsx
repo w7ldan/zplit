@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -137,5 +137,13 @@ describe("/app/personal/budget/transactions presentation", () => {
     expect(screen.getByText("Recurring expense")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Void" })).toBeInTheDocument();
     expect(screen.getByText(/Spread across 3 periods/)).toBeInTheDocument();
+  });
+
+  it("keeps Budget contextual navigation on the semantic routes", async () => {
+    render(await BudgetTransactionsPage());
+    const nav = screen.getByRole("navigation", { name: "Budget sections" });
+    expect(within(nav).getByRole("link", { name: "Transactions" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app/personal/budget");
+    expect(within(nav).getByRole("link", { name: "Subscriptions" })).toHaveAttribute("href", "/app/personal/budget/subscriptions");
   });
 });

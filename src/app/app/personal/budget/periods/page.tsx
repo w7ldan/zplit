@@ -5,6 +5,7 @@ import { formatSignedRupiah } from "@/domain/budgeting/amounts";
 import { formatRupiah } from "@/domain/rupiah";
 import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { listBudgetPeriodHistory } from "@/server/budgeting/reporting";
+import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
 
 export const metadata = { title: "Budget periods" };
 export const dynamic = "force-dynamic";
@@ -47,11 +48,13 @@ export default async function BudgetPeriodsPage() {
             <h1>Budget periods</h1>
             <p className="app-page__lede">Read-only history of how each period absorbed posted cash.</p>
           </div>
-          <Link className="text-link" href="/app/personal/budget">Back to Budget <span aria-hidden="true">→</span></Link>
         </header>
+        <BudgetSectionNav current="periods" />
         <section className="ledger-section" aria-labelledby="budget-period-history-heading">
           <div className="ledger-section__heading"><h2 id="budget-period-history-heading">All periods</h2></div>
-          {periods.length === 0 ? <div className="ledger-empty"><p>No budget periods yet.</p></div> : <div className="budget-period-history-list">{periods.map((period) => <PeriodHistoryRow key={period.id} period={period} />)}</div>}
+          {periods.length === 0
+            ? <div className="ledger-empty"><p>No budget periods yet.</p><Link className="text-link" href="/app/personal/budget">Set up Budget <span aria-hidden="true">→</span></Link></div>
+            : <div className="budget-period-history-list">{periods.map((period) => <PeriodHistoryRow key={period.id} period={period} />)}</div>}
         </section>
       </div>
     </section>

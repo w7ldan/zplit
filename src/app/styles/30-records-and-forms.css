@@ -5888,6 +5888,31 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   justify-content: start;
 }
 
+.budget-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.25rem;
+  border-bottom: 1px solid var(--budget-rule);
+}
+
+.budget-section-nav a {
+  padding: 0.4rem 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.budget-section-nav a:hover {
+  color: var(--ink);
+}
+
+.budget-section-nav a[aria-current="page"] {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .budget-page__actions form,
 .budget-category-change form,
 .budget-history-row > form {

@@ -101,7 +101,7 @@ period are locked; PostgreSQL row checks cover only row-local invariants. The
 owner-aware composite foreign keys prevent a user's period, category,
 transaction, or impact from being joined to another user's record.
 
-## B1 scope and deferred stages
+## B1 scope
 
 B1 includes first-time setup, one active period, category planning, manual
 expense/credit entry, applied impacts, current-period reporting, bounded
@@ -109,9 +109,9 @@ history, and voiding. Voiding changes a posted manual transaction to voided,
 retains its impacts for history, and excludes it from reporting. There is no
 edit or restore action.
 
-The following are intentionally deferred:
-
-- **B6:** Overview integration and advanced polish.
+B6 closes the roadmap with the Overview integration and final presentation
+polish described in "B6 Overview integration and final polish"; no Budget stage
+remains deferred.
 
 `SPREAD` and `REPEAT` are orthogonal. Spread describes how one real payment is
 absorbed by multiple periods; repeat describes when additional real payments
@@ -304,9 +304,9 @@ skipped, which creates no cash and cannot be undone by automatic reactivation.
 
 The private `/app/personal/budget/subscriptions` surface lists active templates
 and unresolved due occurrences with dense rows, including edit, archive,
-record, and skip actions. The dashboard may show a quiet upcoming-recurring
-count and expected amount, but that planning context is excluded from every
-financial total. B6 Overview integration and advanced polish remain deferred.
+record, and skip actions. The dashboard and Overview may show a quiet
+upcoming-recurring count and expected amount, but that planning context is
+excluded from every financial total.
 
 ## B3 Group cash integration
 
@@ -401,3 +401,39 @@ pending BudgetImpacts, recurrence/subscriptions, Organization budgeting, and
 shared Group Budget plans outside its scope. Period spreading, transitions, and
 private recurring expenses are now handled by the Budget-only flows described
 above; Organization budgeting and shared Group Budget plans remain deferred.
+
+## B6 Overview integration and final polish
+
+B6 adds no accounting semantics. Budgeting remains private Personal budgeting,
+and its authoritative totals still come only from applied BudgetImpacts whose
+parent BudgetTransaction is posted.
+
+The authenticated Overview exposes one compact private Budget section. For a
+configured owner it shows the active period identity, Remaining, Net spent, and
+Safe daily, all read through the same applied-impact authority as the dashboard;
+neither the Overview read model nor its component recomputes those totals. It
+links into the full Budget workspace instead of duplicating the dashboard. An
+owner without a BudgetProfile sees a quiet setup affordance, opening Overview
+never creates a profile, and no zero-valued placeholder metrics are shown.
+
+Recurring expectations remain planning context. Overview may show the existing
+due count and expected amount as a separate, clearly planning-only line linking
+to Subscriptions; due or skipped occurrences never enter Remaining, Net spent,
+Safe daily, or category reporting. Safe daily stays browser-local through the
+existing client helper, so Overview and the dashboard agree at timezone
+boundaries. Shared Money stays separate: Expected back, obligations, and Group
+balances are never netted against Remaining or added to Budget spending.
+
+The Overview Budget read is a bounded composition: a profile lookup, the active
+period, one direction aggregate over applied impacts of posted transactions,
+and one due-occurrence aggregate. It performs no per-category or
+per-recurring-item query, and a profile without an active period reports only
+that recovery state.
+
+B6's presentation work adds one shared contextual navigation across the Budget
+dashboard, transaction history, period history, and subscriptions surfaces, and
+polishes their empty states and density without changing any accounting,
+transition, recurrence, or authorization behavior. Closed-period history
+remains read-only with the applied-impact category union described above. B6
+adds no schema change, no Organization budgeting, and no automatic source or
+recurrence inference.

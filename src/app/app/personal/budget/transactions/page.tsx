@@ -8,6 +8,7 @@ import { listBudgetTransactions } from "@/server/budgeting/transactions";
 import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
 import { changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, voidBudgetTransactionAction } from "../actions";
 import { SpreadControl } from "@/components/budgeting/spread-control";
+import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
 
 export const metadata = { title: "Budget transactions" };
 export const dynamic = "force-dynamic";
@@ -81,8 +82,9 @@ export default async function BudgetTransactionsPage() {
           <div><p className="technical-label">Personal · budget</p><h1>Transaction history</h1><p className="app-page__lede">Manual, recurring, and linked budget records, including voided history.</p></div>
           <Link className="action-link action-link--primary" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
         </header>
+        <BudgetSectionNav current="transactions" />
         <section className="ledger-section" aria-labelledby="budget-history-heading">
-          <div className="ledger-section__heading"><h2 id="budget-history-heading">All transactions</h2><Link className="text-link" href="/app/personal/budget">Back to Budget <span aria-hidden="true">→</span></Link></div>
+          <div className="ledger-section__heading"><h2 id="budget-history-heading">All transactions</h2><span className="technical-label">Newest first</span></div>
           <HistoryContent transactions={transactions} categories={categories} />
         </section>
       </div>

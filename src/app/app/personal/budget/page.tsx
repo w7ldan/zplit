@@ -7,6 +7,7 @@ import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { TaskPanel } from "@/components/app/task-panel";
 import { BudgetSetupForm, BudgetPlanForm, BudgetTransactionForm, BudgetTransitionForm } from "@/components/budgeting/budget-forms";
 import { SafeDaily } from "@/components/budgeting/safe-daily";
+import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
 import { SpreadControl } from "@/components/budgeting/spread-control";
 import { summarizeBudgetCategories, type BudgetPeriodSummary, type BudgetTransactionView } from "@/domain/budgeting/types";
 import type { BudgetRecurringDashboardSummary } from "@/server/budgeting/recurring";
@@ -48,8 +49,6 @@ function PageHeader({ period, importAvailable = false }: { period?: BudgetPeriod
           <Link className="action-link action-link--primary" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
           <Link className="action-link action-link--quiet" href="/app/personal/budget?create=plan" data-task-trigger="budget-plan">Manage plan</Link>
           <Link className="action-link action-link--quiet" href="/app/personal/budget?create=period" data-task-trigger="budget-period">Start next period</Link>
-          <Link className="action-link action-link--quiet" href="/app/personal/budget/subscriptions">Subscriptions</Link>
-          <Link className="text-link" href="/app/personal/budget/periods">Budget periods <span aria-hidden="true">→</span></Link>
         </div>
       ) : null}
     </header>
@@ -228,6 +227,7 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
     <section className="app-page budget-page" id="top">
       <div className="editorial-shell app-page__layout">
         <PageHeader period={period} importAvailable={dashboard.importAvailable} />
+        <BudgetSectionNav current="dashboard" />
         <BudgetSummary period={period} expectedBack={dashboard.expectedBack ?? 0} stillOwe={dashboard.stillOwe ?? 0} groupObligations={dashboard.groupObligations ?? []} recurring={dashboard.recurringSummary ?? { dueCount: 0, expectedAmount: 0, nextDueOn: null }} />
         <CategorySection period={period} />
         <RecentSection transactions={dashboard.recentTransactions} categories={period.categories.map(({ id, name }) => ({ id, name }))} />
