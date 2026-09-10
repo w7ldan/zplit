@@ -9,7 +9,7 @@ import { listBudgetTransactions } from "./transactions";
 import { createLedgerSummaryRepository } from "@/domain/ledger/summary";
 import { getPersonalLedgerScopeId, LedgerScopeError } from "@/server/ledger-scopes";
 import { hasImportableBudgetActivity } from "./sources-personal";
-import { readGroupBudgetSharedMoney, type GroupBudgetObligation } from "./sources-group";
+import type { GroupBudgetObligation } from "./sources-group";
 
 function amount(value: string | number | null | undefined) {
   return Number(value ?? 0);
@@ -18,6 +18,7 @@ function amount(value: string | number | null | undefined) {
 type GroupSharedMoney = { expectedBack: number; stillOwe: number; obligations: GroupBudgetObligation[] };
 
 async function groupSharedMoney(database: Database, ownerUserId: string): Promise<GroupSharedMoney> {
+  const { readGroupBudgetSharedMoney } = await import("./sources-group");
   return readGroupBudgetSharedMoney(database, ownerUserId);
 }
 

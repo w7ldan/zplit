@@ -19,7 +19,6 @@ import { BudgetError } from "@/domain/budgeting/errors";
 import { LedgerIntegrityError } from "@/domain/ledger-summary";
 import type { LedgerTransaction, PersonalBudgetMutationHooks } from "@/domain/ledger/mutation-hooks";
 import { lockBudgetProfile } from "./locks";
-import { hasImportableGroupActivity, importGroupActivity } from "./sources-group";
 
 type ActivePeriod = typeof budgetPeriods.$inferSelect;
 
@@ -433,10 +432,12 @@ export async function hasImportablePersonalActivity(database: Database, ownerUse
 
 export async function hasImportableBudgetActivity(database: Database, ownerUserId: string, scope: string | null, period: Pick<ActivePeriod, "startsOn" | "endsOn">) {
   const personal = scope ? await hasImportablePersonalActivity(database, ownerUserId, scope, period) : false;
+  const { hasImportableGroupActivity } = await import("./sources-group");
   return personal || await hasImportableGroupActivity(database, ownerUserId, period);
 }
 
 export async function importBudgetActivity(database: Database, ownerUserId: string, scope: string | null) {
+  const { importGroupActivity } = await import("./sources-group");
   return database.transaction(async (transaction) => {
     const [profile] = await transaction
       .select({ ownerUserId: budgetProfiles.ownerUserId })
