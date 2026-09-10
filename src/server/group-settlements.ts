@@ -46,6 +46,7 @@ import { createNotificationInDatabase, publishNotificationStateChange } from "@/
 import { isActiveGroupParticipant, lockGroupFinancialParticipants } from "@/server/group-financial-locks";
 import { GroupError, requireGroupAccess } from "@/server/groups";
 import { publishRealtimeEvent } from "@/server/realtime";
+import { reconcileGroupSettlement } from "@/server/budgeting/sources-group";
 
 export class GroupSettlementError extends Error {
   constructor(
@@ -322,6 +323,7 @@ async function confirmSettlement(database: Database, groupId: string, settlement
         allocations,
         createdAt: now,
       });
+      await reconcileGroupSettlement(transaction, settlementId);
       await transactionalDatabase
         .update(notifications)
         .set({ readAt: now })

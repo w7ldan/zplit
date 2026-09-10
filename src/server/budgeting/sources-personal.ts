@@ -19,6 +19,7 @@ import { BudgetError } from "@/domain/budgeting/errors";
 import { LedgerIntegrityError } from "@/domain/ledger-summary";
 import type { LedgerTransaction, PersonalBudgetMutationHooks } from "@/domain/ledger/mutation-hooks";
 import { lockBudgetProfile } from "./locks";
+import { hasImportableGroupActivity, importGroupActivity } from "./sources-group";
 
 type ActivePeriod = typeof budgetPeriods.$inferSelect;
 
@@ -428,6 +429,52 @@ export async function hasImportablePersonalActivity(database: Database, ownerUse
       )),
   ]);
   return Number(expensesCount[0]?.count ?? 0) + Number(repaymentsCount[0]?.count ?? 0) > 0;
+}
+
+export async function hasImportableBudgetActivity(database: Database, ownerUserId: string, scope: string | null, period: Pick<ActivePeriod, "startsOn" | "endsOn">) {
+  const personal = scope ? await hasImportablePersonalActivity(database, ownerUserId, scope, period) : false;
+  return personal || await hasImportableGroupActivity(database, ownerUserId, period);
+}
+
+export async function importBudgetActivity(database: Database, ownerUserId: string, scope: string | null) {
+  return database.transaction(async (transaction) => {
+    const [profile] = await transaction
+      .select({ ownerUserId: budgetProfiles.ownerUserId })
+      .from(budgetProfiles)
+      .where(eq(budgetProfiles.ownerUserId, ownerUserId))
+      .limit(1)
+      .for("update");
+    if (!profile) throw new BudgetError("NOT_CONFIGURED", "Budgeting is not configured.");
+    const [period] = await transaction
+      .select()
+      .from(budgetPeriods)
+      .where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.status, "active")))
+      .limit(1)
+      .for("update");
+    if (!period) throw new BudgetError("NOT_FOUND", "No active budget period is available.");
+    let expenseCount = 0;
+    let repaymentCount = 0;
+    if (scope) {
+      const expenseRows = await transaction
+        .select({ id: expenses.id })
+        .from(expenses)
+        .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
+        .where(and(eq(expenses.ledgerScopeId, scope), gte(outings.occurredOn, period.startsOn), lte(outings.occurredOn, period.endsOn), sql`not exists (select 1 from ${budgetPersonalExpenseSources} source where source.owner_user_id = ${ownerUserId} and source.expense_id = ${expenses.id})`))
+        .orderBy(asc(outings.occurredOn), asc(expenses.id));
+      const repaymentRows = await transaction
+        .select({ id: repayments.id })
+        .from(repayments)
+        .where(and(eq(repayments.ledgerScopeId, scope), gte(repayments.paidOn, period.startsOn), lte(repayments.paidOn, period.endsOn), sql`not exists (select 1 from ${budgetPersonalRepaymentSources} source where source.owner_user_id = ${ownerUserId} and source.repayment_id = ${repayments.id})`))
+        .orderBy(asc(repayments.paidOn), asc(repayments.id));
+      const integration = createPersonalBudgetIntegration(ownerUserId, scope);
+      for (const expense of expenseRows) await integration.reconcileExpense(transaction as LedgerTransaction, expense.id);
+      for (const repayment of repaymentRows) await integration.reconcileRepayment(transaction as LedgerTransaction, repayment.id);
+      expenseCount = expenseRows.length;
+      repaymentCount = repaymentRows.length;
+    }
+    const group = await importGroupActivity(transaction as LedgerTransaction, ownerUserId, period);
+    return { expenseCount, repaymentCount, groupExpenseCount: group.expenseCount, groupSettlementCount: group.settlementCount };
+  });
 }
 
 export async function importPersonalActivity(database: Database, ownerUserId: string, scope: string) {

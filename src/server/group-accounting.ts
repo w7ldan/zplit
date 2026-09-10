@@ -54,6 +54,7 @@ import {
 import { GroupError, lockActiveGroupForOperationalMutation, requireGroupAccess } from "@/server/groups";
 import { createNotificationInDatabase, publishNotificationStateChange } from "@/server/notifications";
 import { publishRealtimeEvent } from "@/server/realtime";
+import { reconcileGroupExpense } from "@/server/budgeting/sources-group";
 
 export class GroupAccountingError extends Error {
   constructor(
@@ -710,6 +711,7 @@ async function createExpense(database: Database, groupId: string, creatorUserId:
       if (shares.length !== values.shares.length) throw new Error("Group expense shares were not created");
       if (creatorParticipantId === values.payerParticipantId) {
         await confirmPendingExpense(transactionalDatabase, groupId, expense.id, values.payerParticipantId, creatorUserId, "created", now);
+        await reconcileGroupExpense(transaction, expense.id);
       } else {
         const [group] = await transactionalDatabase.select({ name: groups.name }).from(groups).where(eq(groups.id, groupId)).limit(1);
         if (!group) throw new GroupAccountingError("not_found");
@@ -863,6 +865,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
         if (!expense) throw new GroupAccountingError("not_found");
         const payer = await lockActivePayerForExpense(transactionalDatabase, groupId, expense, payerUserId);
         const result = await confirmPendingExpense(transactionalDatabase, groupId, expenseId, payer.id, payerUserId, "payer_confirmed", new Date());
+        await reconcileGroupExpense(transaction, expenseId);
         if (result.changed) await resolvePayerClaimNotification(transactionalDatabase, expenseId, payerUserId, result.expense.updatedAt);
         const loadedExpense = await loadExpense(transactionalDatabase, groupId, expenseId);
         if (result.changed && loadedExpense.creator.userId && loadedExpense.creator.userId !== payerUserId) {
@@ -940,6 +943,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
       const result = await database.transaction(async (transaction) => {
         const transactionalDatabase = transaction as Database;
         const voided = await voidConfirmedExpense(transactionalDatabase, groupId, expenseId, payerUserId, new Date());
+        await reconcileGroupExpense(transaction, expenseId);
         return { expense: await loadExpense(transactionalDatabase, groupId, expenseId), userIds: voided.userIds };
       }).catch((error) => {
         if (error instanceof GroupError) mapGroupError(error);

@@ -288,6 +288,13 @@
       "when": 1789014679269,
       "tag": "0040_glossy_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789020282205,
+      "tag": "0041_amused_earthquake",
+      "breakpoints": true
     }
   ]
 }

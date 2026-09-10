@@ -1661,6 +1661,78 @@ export const budgetPersonalRepaymentSources = pgTable(
   ],
 );
 
+export const budgetGroupExpenseSources = pgTable(
+  "budget_group_expense_sources",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    budgetTransactionId: uuid("budget_transaction_id").notNull(),
+    groupExpenseId: uuid("group_expense_id")
+      .notNull()
+      .references(() => groupExpenses.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetTransactionId],
+      foreignColumns: [budgetTransactions.ownerUserId, budgetTransactions.id],
+      name: "budget_group_expense_sources_owner_transaction_fk",
+    }).onDelete("restrict"),
+    unique("budget_group_expense_sources_owner_expense_unique").on(table.ownerUserId, table.groupExpenseId),
+    unique("budget_group_expense_sources_owner_transaction_unique").on(table.ownerUserId, table.budgetTransactionId),
+    index("budget_group_expense_sources_expense_idx").on(table.groupExpenseId),
+  ],
+);
+
+export const budgetGroupSettlementSources = pgTable(
+  "budget_group_settlement_sources",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    budgetTransactionId: uuid("budget_transaction_id").notNull(),
+    groupSettlementId: uuid("group_settlement_id")
+      .notNull()
+      .references(() => groupSettlements.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetTransactionId],
+      foreignColumns: [budgetTransactions.ownerUserId, budgetTransactions.id],
+      name: "budget_group_settlement_sources_owner_transaction_fk",
+    }).onDelete("restrict"),
+    unique("budget_group_settlement_sources_owner_settlement_unique").on(table.ownerUserId, table.groupSettlementId),
+    unique("budget_group_settlement_sources_owner_transaction_unique").on(table.ownerUserId, table.budgetTransactionId),
+    index("budget_group_settlement_sources_settlement_idx").on(table.groupSettlementId),
+  ],
+);
+
+export const budgetGroupObligationClassifications = pgTable(
+  "budget_group_obligation_classifications",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    groupObligationId: uuid("group_obligation_id")
+      .notNull()
+      .references(() => groupObligations.id, { onDelete: "restrict" }),
+    budgetCategoryId: uuid("budget_category_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetCategoryId],
+      foreignColumns: [budgetCategories.ownerUserId, budgetCategories.id],
+      name: "budget_group_obligation_classifications_owner_category_fk",
+    }).onDelete("restrict"),
+    unique("budget_group_obligation_classifications_owner_obligation_unique").on(table.ownerUserId, table.groupObligationId),
+    index("budget_group_obligation_classifications_obligation_idx").on(table.groupObligationId),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   accounts: many(accounts),
