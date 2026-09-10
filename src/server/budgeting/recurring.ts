@@ -177,7 +177,8 @@ export async function archiveBudgetRecurringTemplate(database: Database, ownerUs
   });
 }
 
-export async function listBudgetRecurringTemplates(database: Database, ownerUserId: string): Promise<BudgetRecurringTemplateView[]> {
+export async function listBudgetRecurringTemplates(database: Database, ownerUserId: string, limit = 200): Promise<BudgetRecurringTemplateView[]> {
+  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 200);
   const templates = await database.select({
     id: budgetRecurringTemplates.id,
     name: budgetRecurringTemplates.name,
@@ -190,7 +191,8 @@ export async function listBudgetRecurringTemplates(database: Database, ownerUser
   }).from(budgetRecurringTemplates)
     .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetRecurringTemplates.categoryId)))
     .where(and(eq(budgetRecurringTemplates.ownerUserId, ownerUserId), isNull(budgetRecurringTemplates.archivedAt)))
-    .orderBy(asc(budgetRecurringTemplates.name), asc(budgetRecurringTemplates.id));
+    .orderBy(asc(budgetRecurringTemplates.name), asc(budgetRecurringTemplates.id))
+    .limit(boundedLimit);
   if (templates.length === 0) return [];
   const dueRows = await database.select({
     templateId: budgetRecurringOccurrences.recurringTemplateId,
@@ -231,7 +233,8 @@ export async function listDueBudgetRecurringOccurrences(database: Database, owne
     .limit(boundedLimit);
 }
 
-export async function listActiveBudgetRecurringRules(database: Database, ownerUserId: string): Promise<BudgetRecurringTemplateRule[]> {
+export async function listActiveBudgetRecurringRules(database: Database, ownerUserId: string, limit = 200): Promise<BudgetRecurringTemplateRule[]> {
+  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 200);
   return database.select({
     id: budgetRecurringTemplates.id,
     name: budgetRecurringTemplates.name,
@@ -242,7 +245,8 @@ export async function listActiveBudgetRecurringRules(database: Database, ownerUs
     spreadCount: budgetRecurringTemplates.spreadCount,
   }).from(budgetRecurringTemplates)
     .where(and(eq(budgetRecurringTemplates.ownerUserId, ownerUserId), isNull(budgetRecurringTemplates.archivedAt)))
-    .orderBy(asc(budgetRecurringTemplates.startsOn), asc(budgetRecurringTemplates.name), asc(budgetRecurringTemplates.id));
+    .orderBy(asc(budgetRecurringTemplates.startsOn), asc(budgetRecurringTemplates.name), asc(budgetRecurringTemplates.id))
+    .limit(boundedLimit);
 }
 
 export async function getBudgetRecurringDashboardSummary(database: Database, ownerUserId: string): Promise<BudgetRecurringDashboardSummary> {
