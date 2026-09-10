@@ -77,6 +77,22 @@ The permanent warm-median budgets are:
 
 Production-scale acceptance repeats the bounded database checks and performs a no-browser `next start` check for the authenticated pages `/app`, `/app/friends`, `/app/outings`, `/app/expenses`, and `/app/repayments`. It requires at least 700 MiB available memory, at least 4 GiB free disk, no competing Next process, and no recent OOM event. It measures warm responses, HTML size, process health, and peak RSS.
 
+## Constrained VM validation
+
+On the ~2 GB development VM, run only one heavy validation process at a time (typecheck, lint, tests, build, or scale acceptance).
+
+When the default Node heap is known to OOM on typecheck, prefer:
+
+```sh
+npm run typecheck:vm
+```
+
+instead of the ordinary typecheck. CI and larger machines should keep using the ordinary `npm run typecheck` without the 1.5 GB ceiling.
+
+PostgreSQL smoke scripts stub `server-only` themselves (see `scripts/*-smoke.ts`); they need no separate `NODE_OPTIONS=--conditions=react-server` invocation. Do not reintroduce that workaround unless a script actually fails on the `server-only` import.
+
+During feature development, prefer the narrowest focused tests that exercise the changed ownership boundary. Repository-wide static checks belong after the intended source diff is complete and frozen. Do not repeatedly run full validation between mechanical edits.
+
 ## Resource safety
 
 The production-scale run builds once and starts a real production server, so it is a heavy workload for the small VM. Run it deliberately, only in the disposable environment, and only when changing query bounds, pagination, selectors, production rendering, or release performance. Do not run it for prose/CSS-only changes, during unrelated builds, or while production services share the host’s constrained memory and disk. Never run scale seed/clear or acceptance against production.
