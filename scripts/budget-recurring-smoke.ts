@@ -6,6 +6,7 @@ import { Pool, type QueryResultRow } from "pg";
 import * as schema from "../src/db/schema";
 import type { Database } from "../src/db/client";
 import { BudgetError } from "../src/domain/budgeting/errors";
+import { MAX_ACTIVE_RECURRING_TEMPLATES } from "../src/domain/budgeting/recurrence";
 import { createBudgetSetup } from "../src/server/budgeting/profiles";
 import { listBudgetPeriodHistory } from "../src/server/budgeting/reporting";
 import { startNextBudgetPeriod } from "../src/server/budgeting/periods";
@@ -13,6 +14,7 @@ import {
   archiveBudgetRecurringTemplate,
   createBudgetRecurringTemplate,
   getBudgetRecurringDashboardSummary,
+  listActiveBudgetRecurringRules,
   recordBudgetRecurringOccurrence,
   skipBudgetRecurringOccurrence,
   updateBudgetRecurringTemplate,
@@ -59,10 +61,12 @@ async function run() {
   const database = drizzle(pool, { schema }) as Database;
   const ownerA = randomUUID();
   const ownerB = randomUUID();
+  const ownerC = randomUUID();
   try {
-    await pool.query("INSERT INTO users (id, name, email, email_verified) VALUES ($1, 'Recurring Owner A', $2, true), ($3, 'Recurring Owner B', $4, true)", [ownerA, `recurring-a-${ownerA}@example.com`, ownerB, `recurring-b-${ownerB}@example.com`]);
+    await pool.query("INSERT INTO users (id, name, email, email_verified) VALUES ($1, 'Recurring Owner A', $2, true), ($3, 'Recurring Owner B', $4, true), ($5, 'Recurring Owner C', $6, true)", [ownerA, `recurring-a-${ownerA}@example.com`, ownerB, `recurring-b-${ownerB}@example.com`, ownerC, `recurring-c-${ownerC}@example.com`]);
     await createBudgetSetup(database, ownerA, { periodName: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 20_000, categories: [{ name: "Food", allocatedAmount: 5_000 }, { name: "Travel", allocatedAmount: 5_000 }] });
     await createBudgetSetup(database, ownerB, { periodName: "Long period", startsOn: "2026-01-01", endsOn: "2026-04-30", totalBudget: 20_000, categories: [{ name: "Food", allocatedAmount: 5_000 }] });
+    await createBudgetSetup(database, ownerC, { periodName: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 40_000_000, categories: [{ name: "Food", allocatedAmount: 20_000_000 }] });
     const september = await activePlan(pool, ownerA);
     const foodId = september.plans.find((plan) => plan.name === "Food")!.category_id;
     const travelId = september.plans.find((plan) => plan.name === "Travel")!.category_id;
@@ -223,20 +227,61 @@ async function run() {
     await expectDatabaseCode("23514", () => pool.query("INSERT INTO budget_recurring_occurrences (owner_user_id, recurring_template_id, scheduled_period_id, scheduled_on, amount, category_id, spread_count, status) VALUES ($1, $2, $3, '2026-07-15', 3000, $4, 1, 'recorded')", [ownerA, gym.id, september.period.id, foodId]));
     await expectDatabaseCode("23503", () => pool.query("INSERT INTO budget_recurring_occurrences (owner_user_id, recurring_template_id, scheduled_period_id, scheduled_on, amount, category_id, spread_count, status) VALUES ($1, $2, $3, '2026-07-16', 100, $4, 1, 'due')", [ownerA, monthly.id, april.period.id, ownerBFoodId]));
 
-    console.log("budget recurring smoke passed: pure schedules, no fake cash, transition select/map, record/skip lifecycle, spread composition, outside-period absorption, archive/edit snapshots, void history, concurrency, owner-safe FKs");
+    const activeTemplateCount = async (ownerUserIds: string[]) => Number((await row<{ count: string }>(pool, "SELECT count(*)::text AS count FROM budget_recurring_templates WHERE owner_user_id = ANY($1::text[]) AND archived_at IS NULL", [ownerUserIds])).count);
+    const cap = await activePlan(pool, ownerC);
+    const capFoodId = cap.plans.find((plan) => plan.name === "Food")!.category_id;
+    const templateInput = (name: string) => ({ name, amount: 100, categoryId: capFoodId, frequency: "every_budget_period" as const, startsOn: "2026-09-05", spreadCount: 1 });
+    for (let index = 0; index < MAX_ACTIVE_RECURRING_TEMPLATES; index += 1) {
+      await createBudgetRecurringTemplate(database, ownerC, templateInput(`Template ${String(index).padStart(3, "0")}`));
+    }
+    assert.equal(await activeTemplateCount([ownerC]), MAX_ACTIVE_RECURRING_TEMPLATES, "exactly the cap may be active");
+    const capRules = await listActiveBudgetRecurringRules(database, ownerC);
+    assert.equal(capRules.length, MAX_ACTIVE_RECURRING_TEMPLATES, "the bounded active-template read must be complete");
+    assert(capRules.some((rule) => rule.name === `Template ${String(MAX_ACTIVE_RECURRING_TEMPLATES - 1).padStart(3, "0")}`), "the last active template must be discoverable");
+
+    await expectBudgetError("CONFLICT", createBudgetRecurringTemplate(database, ownerC, templateInput("Template overflow")));
+    assert.equal(await activeTemplateCount([ownerC]), MAX_ACTIVE_RECURRING_TEMPLATES, "a rejected create must not commit a 201st active template");
+
+    await startNextBudgetPeriod(database, ownerC, {
+      expectedActivePeriodId: cap.period.id,
+      name: "October",
+      startsOn: "2026-10-01",
+      endsOn: "2026-10-31",
+      totalBudget: 40_000_000,
+      allocations: cap.plans.map((plan) => ({ categoryId: plan.category_id, allocatedAmount: plan.allocated_amount })),
+    });
+    const capOctober = await activePlan(pool, ownerC);
+    assert.equal(Number((await row<{ count: string }>(pool, "SELECT count(*)::text AS count FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND scheduled_period_id = $2", [ownerC, capOctober.period.id])).count), MAX_ACTIVE_RECURRING_TEMPLATES, "every valid active template participates in canonical next-period generation");
+
+    await archiveBudgetRecurringTemplate(database, ownerC, capRules[0]!.id);
+    assert.equal(await activeTemplateCount([ownerC]), MAX_ACTIVE_RECURRING_TEMPLATES - 1, "archiving frees an active slot");
+    await createBudgetRecurringTemplate(database, ownerC, templateInput("Replacement"));
+    assert.equal(await activeTemplateCount([ownerC]), MAX_ACTIVE_RECURRING_TEMPLATES, "a freed slot can be reused");
+
+    await archiveBudgetRecurringTemplate(database, ownerC, capRules[1]!.id);
+    const capRace = await Promise.allSettled([
+      createBudgetRecurringTemplate(database, ownerC, templateInput("Race A")),
+      createBudgetRecurringTemplate(database, ownerC, templateInput("Race B")),
+    ]);
+    assert.equal(capRace.filter((result) => result.status === "fulfilled").length, 1, "two concurrent creates at the cap may only admit one");
+    const capLoser = capRace.find((result) => result.status === "rejected");
+    assert(capLoser?.status === "rejected" && capLoser.reason instanceof BudgetError && capLoser.reason.code === "CONFLICT");
+    assert.equal(await activeTemplateCount([ownerC]), MAX_ACTIVE_RECURRING_TEMPLATES, "concurrent creation at the cap cannot produce a 201st active template");
+
+    console.log("budget recurring smoke passed: pure schedules, no fake cash, transition select/map, record/skip lifecycle, spread composition, outside-period absorption, archive/edit snapshots, void history, concurrency, active-template cap, owner-safe FKs");
   } catch (error) {
     console.error(`budget recurring smoke failed: ${formatSafeError(error, config.password)}`);
     process.exitCode = 1;
   } finally {
-    await pool.query("DELETE FROM budget_recurring_occurrences WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB]]).catch(() => undefined);
-    await pool.query("DELETE FROM budget_recurring_templates WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB]]).catch(() => undefined);
-    await pool.query("DELETE FROM budget_impacts WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB]]).catch(() => undefined);
-    await pool.query("DELETE FROM budget_transactions WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB]]).catch(() => undefined);
-    await pool.query("DELETE FROM budget_period_categories WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB]]).catch(() => undefined);
-    await pool.query("DELETE FROM budget_periods WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB]]).catch(() => undefined);
-    await pool.query("DELETE FROM budget_categories WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB]]).catch(() => undefined);
-    await pool.query("DELETE FROM budget_profiles WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB]]).catch(() => undefined);
-    await pool.query("DELETE FROM users WHERE id = ANY($1::text[])", [[ownerA, ownerB]]).catch(() => undefined);
+    await pool.query("DELETE FROM budget_recurring_occurrences WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB, ownerC]]).catch(() => undefined);
+    await pool.query("DELETE FROM budget_recurring_templates WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB, ownerC]]).catch(() => undefined);
+    await pool.query("DELETE FROM budget_impacts WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB, ownerC]]).catch(() => undefined);
+    await pool.query("DELETE FROM budget_transactions WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB, ownerC]]).catch(() => undefined);
+    await pool.query("DELETE FROM budget_period_categories WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB, ownerC]]).catch(() => undefined);
+    await pool.query("DELETE FROM budget_periods WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB, ownerC]]).catch(() => undefined);
+    await pool.query("DELETE FROM budget_categories WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB, ownerC]]).catch(() => undefined);
+    await pool.query("DELETE FROM budget_profiles WHERE owner_user_id = ANY($1::text[])", [[ownerA, ownerB, ownerC]]).catch(() => undefined);
+    await pool.query("DELETE FROM users WHERE id = ANY($1::text[])", [[ownerA, ownerB, ownerC]]).catch(() => undefined);
     await pool.end();
   }
 }

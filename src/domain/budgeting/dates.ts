@@ -8,6 +8,15 @@ export function compareBudgetDates(left: string, right: string) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+/**
+ * Calendar date of a `Date` in the runtime's local timezone as `YYYY-MM-DD`.
+ * Uses local getters so browser callers initialise from the user's calendar
+ * day rather than the UTC day.
+ */
+export function localCalendarDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 export function inclusiveBudgetDays(startsOn: string, endsOn: string, today: string) {
   if (!isValidBudgetDate(startsOn) || !isValidBudgetDate(endsOn) || !isValidBudgetDate(today) || startsOn > endsOn) return 0;
   const effectiveStart = today < startsOn ? startsOn : today;

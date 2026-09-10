@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import { useFormStatus } from "react-dom";
+import { localCalendarDate } from "@/domain/budgeting/dates";
 import { TaskPanelFooter } from "@/components/app/task-panel";
 import type { BudgetFormState, BudgetRecurringRecordValues, BudgetRecurringTemplateValues } from "@/app/app/personal/budget/actions";
 
@@ -84,14 +85,17 @@ export function RecurringTemplateForm({ action, categories, template = emptyTemp
   );
 }
 
-export function RecurringRecordForm({ action, occurrenceId, defaultDate, label = "Record" }: { action: RecurringRecordAction; occurrenceId: string; defaultDate: string; label?: string }) {
-  const [state, formAction] = useActionState(action, { fieldErrors: {}, formError: "", values: { occurrenceId, occurredOn: defaultDate } });
+export function RecurringRecordForm({ action, occurrenceId, label = "Record" }: { action: RecurringRecordAction; occurrenceId: string; label?: string }) {
+  const [state, formAction] = useActionState(action, { fieldErrors: {}, formError: "", values: { occurrenceId, occurredOn: "" } });
+  const browserLocalDate = useSyncExternalStore(() => () => {}, () => localCalendarDate(new Date()), () => "");
+  const [editedDate, setEditedDate] = useState<string | null>(null);
+  const occurredOn = editedDate ?? browserLocalDate;
   return (
     <form className="budget-recurring-record" action={formAction}>
       <input type="hidden" name="occurrenceId" value={state.values.occurrenceId} />
       <label>
         <span className="sr-only">Payment date</span>
-        <input name="occurredOn" type="date" defaultValue={state.values.occurredOn} aria-invalid={Boolean(state.fieldErrors.occurredOn)} aria-label="Payment date" />
+        <input name="occurredOn" type="date" value={occurredOn} onChange={(event) => setEditedDate(event.target.value)} aria-invalid={Boolean(state.fieldErrors.occurredOn)} aria-label="Payment date" />
       </label>
       <SubmitButton label={label} quiet />
       <ErrorText message={state.fieldErrors.occurredOn || state.formError} />

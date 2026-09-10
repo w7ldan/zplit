@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatSignedRupiah, parseNonNegativeRupiah } from "./amounts";
 import { canonicalBudgetCategoryName, normalizeBudgetCategoryName, validateBudgetCategoryNames } from "./categories";
-import { calculateSafeDaily, inclusiveBudgetDays, isValidBudgetDate } from "./dates";
+import { calculateSafeDaily, inclusiveBudgetDays, isValidBudgetDate, localCalendarDate } from "./dates";
 import { categoryNetSpent, netBudgetSpent, remainingBudget } from "./reporting";
 import { splitBudgetAmount } from "./spread";
 import { summarizeBudgetCategories } from "./types";
@@ -69,6 +69,19 @@ describe("budgeting dates and reporting", () => {
     expect(calculateSafeDaily("2026-09-01", "2026-09-30", "2026-09-28", 1000)).toBe(333);
     expect(calculateSafeDaily("2026-09-01", "2026-09-30", "2026-09-28", -1000)).toBe(-334);
     expect(calculateSafeDaily("2026-09-01", "2026-09-30", "2026-10-01", 1000)).toBeNull();
+  });
+
+  it("derives the browser-local calendar date across a UTC date boundary", () => {
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = "Asia/Jakarta";
+    try {
+      const instant = new Date("2026-09-10T17:30:00Z");
+      expect(instant.toISOString().slice(0, 10)).toBe("2026-09-10");
+      expect(localCalendarDate(instant)).toBe("2026-09-11");
+    } finally {
+      if (previousTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimezone;
+    }
   });
 
   it("keeps budget reporting signed and unclamped", () => {

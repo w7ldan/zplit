@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getDatabase: vi.fn(() => "database"),
   listBudgetRecurringTemplates: vi.fn(),
   listDueBudgetRecurringOccurrences: vi.fn(),
+  getBudgetRecurringDashboardSummary: vi.fn(),
   listActiveBudgetPlanCategoryOptions: vi.fn(),
   replace: vi.fn(),
 }));
@@ -15,6 +16,7 @@ vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/budgeting/recurring", () => ({
   listBudgetRecurringTemplates: mocks.listBudgetRecurringTemplates,
   listDueBudgetRecurringOccurrences: mocks.listDueBudgetRecurringOccurrences,
+  getBudgetRecurringDashboardSummary: mocks.getBudgetRecurringDashboardSummary,
 }));
 vi.mock("@/server/budgeting/categories", () => ({ listActiveBudgetPlanCategoryOptions: mocks.listActiveBudgetPlanCategoryOptions }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
@@ -57,6 +59,7 @@ describe("/app/personal/budget/subscriptions presentation", () => {
       status: "due",
       budgetTransactionId: null,
     }]);
+    mocks.getBudgetRecurringDashboardSummary.mockResolvedValue({ dueCount: 1, expectedAmount: 300_000, nextDueOn: "2026-10-31" });
   });
 
   it("keeps recurring planning dense and separate from recorded cash", async () => {
@@ -69,5 +72,12 @@ describe("/app/personal/budget/subscriptions presentation", () => {
     expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument();
     expect(screen.getByLabelText("Payment date")).toBeInTheDocument();
     expect(screen.getByText(/Nothing here affects spending until a payment is recorded/)).toBeInTheDocument();
+    expect(screen.getByText("1 due")).toBeInTheDocument();
+  });
+
+  it("reports the real due total when the bounded list is truncated", async () => {
+    mocks.getBudgetRecurringDashboardSummary.mockResolvedValue({ dueCount: 140, expectedAmount: 300_000, nextDueOn: "2026-10-31" });
+    render(await BudgetSubscriptionsPage());
+    expect(screen.getByText("140 due · showing first 1")).toBeInTheDocument();
   });
 });

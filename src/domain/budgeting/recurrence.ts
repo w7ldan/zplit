@@ -3,6 +3,13 @@ import { isValidBudgetDate } from "./dates";
 export type BudgetRecurringFrequency = "every_budget_period" | "monthly";
 export type BudgetRecurringOccurrenceStatus = "due" | "recorded" | "skipped";
 
+/**
+ * Maximum active (non-archived) recurring templates per budget owner.
+ * Authoritative creation enforces this under the owner's BudgetProfile lock,
+ * so bounded active-template reads (which use this same cap) stay complete.
+ */
+export const MAX_ACTIVE_RECURRING_TEMPLATES = 200;
+
 export type BudgetRecurringRule = {
   frequency: BudgetRecurringFrequency;
   startsOn: string;

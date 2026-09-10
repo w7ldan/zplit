@@ -15,6 +15,7 @@ import { isValidBudgetDate } from "@/domain/budgeting/dates";
 import { splitBudgetAmount } from "@/domain/budgeting/spread";
 import {
   buildRecurringCandidates,
+  MAX_ACTIVE_RECURRING_TEMPLATES,
   recurringCandidateKey,
   resolveRecurringOccurrenceCategory,
   scheduledRecurringDates,
@@ -123,6 +124,11 @@ export async function createBudgetRecurringTemplate(database: Database, ownerUse
   const valid = validateTemplateInput(input);
   return database.transaction(async (transaction) => {
     await lockBudgetProfile(transaction as Database, ownerUserId);
+    const [active] = await transaction.select({ count: sql<string>`count(*)::text` }).from(budgetRecurringTemplates)
+      .where(and(eq(budgetRecurringTemplates.ownerUserId, ownerUserId), isNull(budgetRecurringTemplates.archivedAt)));
+    if (Number(active?.count ?? 0) >= MAX_ACTIVE_RECURRING_TEMPLATES) {
+      throw new BudgetError("CONFLICT", `You can have at most ${MAX_ACTIVE_RECURRING_TEMPLATES} active recurring templates.`);
+    }
     const period = await activePeriodForUpdate(transaction as Database, ownerUserId);
     await requireUsableCategory(transaction as Database, ownerUserId, period.id, valid.categoryId);
     const [template] = await transaction.insert(budgetRecurringTemplates).values({
@@ -177,8 +183,8 @@ export async function archiveBudgetRecurringTemplate(database: Database, ownerUs
   });
 }
 
-export async function listBudgetRecurringTemplates(database: Database, ownerUserId: string, limit = 200): Promise<BudgetRecurringTemplateView[]> {
-  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 200);
+export async function listBudgetRecurringTemplates(database: Database, ownerUserId: string, limit = MAX_ACTIVE_RECURRING_TEMPLATES): Promise<BudgetRecurringTemplateView[]> {
+  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), MAX_ACTIVE_RECURRING_TEMPLATES);
   const templates = await database.select({
     id: budgetRecurringTemplates.id,
     name: budgetRecurringTemplates.name,
@@ -233,8 +239,8 @@ export async function listDueBudgetRecurringOccurrences(database: Database, owne
     .limit(boundedLimit);
 }
 
-export async function listActiveBudgetRecurringRules(database: Database, ownerUserId: string, limit = 200): Promise<BudgetRecurringTemplateRule[]> {
-  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 200);
+export async function listActiveBudgetRecurringRules(database: Database, ownerUserId: string, limit = MAX_ACTIVE_RECURRING_TEMPLATES): Promise<BudgetRecurringTemplateRule[]> {
+  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), MAX_ACTIVE_RECURRING_TEMPLATES);
   return database.select({
     id: budgetRecurringTemplates.id,
     name: budgetRecurringTemplates.name,

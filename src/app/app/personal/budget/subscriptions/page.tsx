@@ -6,7 +6,7 @@ import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { TaskPanel } from "@/components/app/task-panel";
 import { budgetRecurringFrequencyLabel } from "@/domain/budgeting/recurrence";
 import { listActiveBudgetPlanCategoryOptions } from "@/server/budgeting/categories";
-import { listBudgetRecurringTemplates, listDueBudgetRecurringOccurrences, type BudgetRecurringTemplateView } from "@/server/budgeting/recurring";
+import { getBudgetRecurringDashboardSummary, listBudgetRecurringTemplates, listDueBudgetRecurringOccurrences, type BudgetRecurringTemplateView } from "@/server/budgeting/recurring";
 import { RecurringRecordForm, RecurringTemplateForm } from "@/components/budgeting/recurring-forms";
 import {
   archiveBudgetRecurringTemplateAction,
@@ -62,14 +62,17 @@ function TemplateRow({ template, categories }: { template: BudgetRecurringTempla
 export default async function BudgetSubscriptionsPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ create?: string | string[] }> } = {}) {
   const session = await requireSession();
   const database = getDatabase();
-  const [templates, dueOccurrences, categories] = await Promise.all([
+  const [templates, dueOccurrences, categories, recurringSummary] = await Promise.all([
     listBudgetRecurringTemplates(database, session.user.id),
     listDueBudgetRecurringOccurrences(database, session.user.id),
     listActiveBudgetPlanCategoryOptions(database, session.user.id),
+    getBudgetRecurringDashboardSummary(database, session.user.id),
   ]);
   const query = await searchParams;
   const createMode = Array.isArray(query.create) ? query.create[0] : query.create;
-  const defaultPaymentDate = new Date().toISOString().slice(0, 10);
+  const dueCountLabel = dueOccurrences.length < recurringSummary.dueCount
+    ? `${recurringSummary.dueCount} due · showing first ${dueOccurrences.length}`
+    : `${recurringSummary.dueCount} due`;
   return (
     <section className="app-page budget-page" id="top">
       <div className="editorial-shell app-page__layout">
@@ -91,7 +94,7 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
             : <div className="budget-recurring-list">{templates.map((template) => <TemplateRow categories={categories} key={template.id} template={template} />)}</div>}
         </section>
         <section className="ledger-section" aria-labelledby="budget-recurring-due-heading">
-          <div className="ledger-section__heading"><h2 id="budget-recurring-due-heading">Upcoming and due</h2><span className="technical-label">{dueOccurrences.length} due</span></div>
+          <div className="ledger-section__heading"><h2 id="budget-recurring-due-heading">Upcoming and due</h2><span className="technical-label">{dueCountLabel}</span></div>
           {dueOccurrences.length === 0
             ? <div className="ledger-empty"><p>No unresolved occurrences.</p></div>
             : (
@@ -104,7 +107,7 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
                       <small>{occurrence.categoryName} · {spreadSummary(occurrence.spreadCount)}</small>
                     </span>
                     <span><strong>{formatRupiah(occurrence.amount)}</strong><small>Expected</small></span>
-                    <RecurringRecordForm action={recordBudgetRecurringOccurrenceAction} defaultDate={defaultPaymentDate} occurrenceId={occurrence.id} />
+                    <RecurringRecordForm action={recordBudgetRecurringOccurrenceAction} occurrenceId={occurrence.id} />
                     <form action={skipBudgetRecurringOccurrenceAction.bind(null, occurrence.id)}>
                       <button className="action-link action-link--quiet" type="submit">Skip</button>
                     </form>
