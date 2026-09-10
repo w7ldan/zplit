@@ -16,6 +16,7 @@ import {
   groups,
 } from "@/db/schema";
 import { BudgetError } from "@/domain/budgeting/errors";
+import { splitBudgetAmount } from "@/domain/budgeting/spread";
 import { LedgerIntegrityError } from "@/domain/ledger-summary";
 import type { LedgerTransaction } from "@/domain/ledger/mutation-hooks";
 import { loadAvailableGroupObligationsForParticipants } from "@/server/group-obligation-applications";
@@ -109,7 +110,7 @@ async function lockImpacts(transaction: LedgerTransaction, ownerUserId: string, 
     .select()
     .from(budgetImpacts)
     .where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, transactionId)))
-    .orderBy(asc(budgetImpacts.id))
+    .orderBy(asc(budgetImpacts.targetPeriodOrdinal), asc(budgetImpacts.id))
     .for("update");
 }
 
@@ -257,6 +258,18 @@ async function reconcileGroupExpenseForOwner(transaction: LedgerTransaction, own
     await transaction.insert(budgetImpacts).values({ ownerUserId, budgetTransactionId: linkedTransaction.id, budgetCategoryId: uncategorizedId, budgetPeriodId: period.id, amount: expense.totalAmount, status: "applied", targetPeriodOrdinal: period.ordinal });
   } else if (impacts.length === 1) {
     await transaction.update(budgetImpacts).set({ amount: expense.totalAmount, updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, impacts[0]!.id)));
+  } else if (impacts.length > 1) {
+    const categoryId = impacts[0]!.budgetCategoryId;
+    if (impacts.some((impact) => impact.budgetCategoryId !== categoryId)) throw new LedgerIntegrityError("A spread Group expense has inconsistent Budget categories.");
+    let amounts: number[];
+    try {
+      amounts = splitBudgetAmount(expense.totalAmount, impacts.length);
+    } catch {
+      throw new LedgerIntegrityError("A spread Group expense cannot be distributed into positive impacts.");
+    }
+    for (const [index, impact] of impacts.entries()) {
+      await transaction.update(budgetImpacts).set({ amount: amounts[index], updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, impact.id)));
+    }
   }
 }
 
@@ -290,17 +303,23 @@ async function senderCategories(transaction: LedgerTransaction, ownerUserId: str
 async function recipientCategories(transaction: LedgerTransaction, ownerUserId: string, expenseIds: string[]) {
   if (expenseIds.length === 0) return new Map<string, string>();
   const rows = await transaction
-    .select({ expenseId: budgetGroupExpenseSources.groupExpenseId, categoryId: budgetImpacts.budgetCategoryId })
+    .select({ expenseId: budgetGroupExpenseSources.groupExpenseId, categoryId: budgetImpacts.budgetCategoryId, archivedAt: budgetCategories.archivedAt })
     .from(budgetGroupExpenseSources)
     .innerJoin(groupExpenses, eq(groupExpenses.id, budgetGroupExpenseSources.groupExpenseId))
     .innerJoin(groupParticipants, and(eq(groupParticipants.groupId, groupExpenses.groupId), eq(groupParticipants.id, groupExpenses.payerParticipantId), eq(groupParticipants.userId, ownerUserId)))
     .innerJoin(budgetTransactions, and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, budgetGroupExpenseSources.budgetTransactionId), eq(budgetTransactions.status, "posted")))
-    .innerJoin(budgetImpacts, and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, budgetTransactions.id), eq(budgetImpacts.status, "applied")))
-    .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetImpacts.budgetCategoryId), isNull(budgetCategories.archivedAt)))
+    .innerJoin(budgetImpacts, and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, budgetTransactions.id)))
+    .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetImpacts.budgetCategoryId)))
     .where(and(eq(budgetGroupExpenseSources.ownerUserId, ownerUserId), inArray(budgetGroupExpenseSources.groupExpenseId, expenseIds)))
     .orderBy(asc(budgetImpacts.id));
   const categories = new Map<string, string>();
-  for (const row of rows) if (!categories.has(row.expenseId)) categories.set(row.expenseId, row.categoryId);
+  const seenCategories = new Map<string, string>();
+  for (const row of rows) {
+    const seen = seenCategories.get(row.expenseId);
+    if (seen && seen !== row.categoryId) throw new LedgerIntegrityError("A Group expense has inconsistent spread Budget categories.");
+    seenCategories.set(row.expenseId, row.categoryId);
+    if (!row.archivedAt) categories.set(row.expenseId, row.categoryId);
+  }
   return categories;
 }
 

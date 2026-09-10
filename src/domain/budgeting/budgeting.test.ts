@@ -3,6 +3,7 @@ import { formatSignedRupiah, parseNonNegativeRupiah } from "./amounts";
 import { canonicalBudgetCategoryName, normalizeBudgetCategoryName, validateBudgetCategoryNames } from "./categories";
 import { calculateSafeDaily, inclusiveBudgetDays, isValidBudgetDate } from "./dates";
 import { categoryNetSpent, netBudgetSpent, remainingBudget } from "./reporting";
+import { splitBudgetAmount } from "./spread";
 import { summarizeBudgetCategories } from "./types";
 
 describe("budgeting amounts", () => {
@@ -74,5 +75,27 @@ describe("budgeting dates and reporting", () => {
     expect(netBudgetSpent(100_000, 150_000)).toBe(-50_000);
     expect(remainingBudget(1_000_000, -50_000)).toBe(1_050_000);
     expect(categoryNetSpent(1_100_000, 0)).toBe(1_100_000);
+  });
+});
+
+describe("budget spread math", () => {
+  it("splits evenly and keeps one real amount across the requested periods", () => {
+    expect(splitBudgetAmount(1_200_000, 12)).toEqual(Array(12).fill(100_000));
+  });
+
+  it("gives the remainder to the earliest periods", () => {
+    expect(splitBudgetAmount(1_000, 3)).toEqual([334, 333, 333]);
+  });
+
+  it("supports one and twenty-four periods", () => {
+    expect(splitBudgetAmount(100, 1)).toEqual([100]);
+    expect(splitBudgetAmount(24, 24)).toEqual(Array(24).fill(1));
+  });
+
+  it("rejects invalid amounts and counts", () => {
+    expect(() => splitBudgetAmount(2, 3)).toThrow();
+    expect(() => splitBudgetAmount(100, 0)).toThrow();
+    expect(() => splitBudgetAmount(100, 25)).toThrow();
+    expect(splitBudgetAmount(997, 24).reduce((sum, part) => sum + part, 0)).toBe(997);
   });
 });

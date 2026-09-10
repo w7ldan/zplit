@@ -34,6 +34,7 @@ describe("budgeting schema", () => {
       "budget_impacts_period_shape",
       "budget_impacts_status_allowed",
     ]));
+    expect(getTableConfig(schema.budgetImpacts).indexes.map((index) => index.config.name)).toContain("budget_impacts_owner_target_status_idx");
   });
 
   it("defines typed Personal source links without polymorphic source columns", () => {

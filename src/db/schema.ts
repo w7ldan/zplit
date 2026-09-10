@@ -1609,6 +1609,7 @@ export const budgetImpacts = pgTable(
       name: "budget_impacts_owner_period_fk",
     }).onDelete("restrict"),
     index("budget_impacts_owner_period_status_idx").on(table.ownerUserId, table.budgetPeriodId, table.status),
+    index("budget_impacts_owner_target_status_idx").on(table.ownerUserId, table.targetPeriodOrdinal, table.status),
     index("budget_impacts_owner_transaction_idx").on(table.ownerUserId, table.budgetTransactionId),
   ],
 );

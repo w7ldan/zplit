@@ -16,6 +16,7 @@ import {
   friends,
 } from "@/db/schema";
 import { BudgetError } from "@/domain/budgeting/errors";
+import { splitBudgetAmount } from "@/domain/budgeting/spread";
 import { LedgerIntegrityError } from "@/domain/ledger-summary";
 import type { LedgerTransaction, PersonalBudgetMutationHooks } from "@/domain/ledger/mutation-hooks";
 import { lockBudgetProfile } from "./locks";
@@ -153,7 +154,7 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
       .select()
       .from(budgetImpacts)
       .where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, transactionId)))
-      .orderBy(asc(budgetImpacts.id))
+      .orderBy(asc(budgetImpacts.targetPeriodOrdinal), asc(budgetImpacts.id))
       .for("update");
   }
 
@@ -235,6 +236,18 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
       await transaction.insert(budgetImpacts).values({ ownerUserId, budgetTransactionId: linkedTransaction.id, budgetCategoryId: uncategorizedId, budgetPeriodId: period.id, amount: expense.amount, status: "applied", targetPeriodOrdinal: period.ordinal });
     } else if (impacts.length === 1) {
       await transaction.update(budgetImpacts).set({ amount: expense.amount, updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, impacts[0]!.id)));
+    } else if (impacts.length > 1) {
+      const categoryId = impacts[0]!.budgetCategoryId;
+      if (impacts.some((impact) => impact.budgetCategoryId !== categoryId)) throw new LedgerIntegrityError("A spread Personal expense has inconsistent Budget categories.");
+      let amounts: number[];
+      try {
+        amounts = splitBudgetAmount(expense.amount, impacts.length);
+      } catch {
+        throw new LedgerIntegrityError("A spread Personal expense cannot be distributed into positive impacts.");
+      }
+      for (const [index, impact] of impacts.entries()) {
+        await transaction.update(budgetImpacts).set({ amount: amounts[index], updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, impact.id)));
+      }
     }
   }
 
@@ -249,16 +262,22 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
     const expenseIds = uniqueIds(allocationRows.map((row) => row.expenseId));
     const categoryRows = expenseIds.length
       ? await transaction
-          .select({ expenseId: budgetPersonalExpenseSources.expenseId, categoryId: budgetImpacts.budgetCategoryId })
+          .select({ expenseId: budgetPersonalExpenseSources.expenseId, categoryId: budgetImpacts.budgetCategoryId, archivedAt: budgetCategories.archivedAt })
           .from(budgetPersonalExpenseSources)
           .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, budgetPersonalExpenseSources.expenseId)))
           .innerJoin(budgetTransactions, and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, budgetPersonalExpenseSources.budgetTransactionId), eq(budgetTransactions.status, "posted")))
-          .innerJoin(budgetImpacts, and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, budgetTransactions.id), eq(budgetImpacts.status, "applied")))
-          .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetImpacts.budgetCategoryId), isNull(budgetCategories.archivedAt)))
+          .innerJoin(budgetImpacts, and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, budgetTransactions.id)))
+          .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetImpacts.budgetCategoryId)))
           .where(and(eq(budgetPersonalExpenseSources.ownerUserId, ownerUserId), inArray(budgetPersonalExpenseSources.expenseId, expenseIds)))
       : [];
     const categoryByExpense = new Map<string, string>();
-    for (const row of categoryRows) categoryByExpense.set(row.expenseId, row.categoryId);
+    const seenCategoryByExpense = new Map<string, string>();
+    for (const row of categoryRows) {
+      const seen = seenCategoryByExpense.get(row.expenseId);
+      if (seen && seen !== row.categoryId) throw new LedgerIntegrityError("A Personal expense has inconsistent spread Budget categories.");
+      seenCategoryByExpense.set(row.expenseId, row.categoryId);
+      if (!row.archivedAt) categoryByExpense.set(row.expenseId, row.categoryId);
+    }
     const uncategorizedId = await getUncategorizedId(transaction);
     return buildRepaymentBudgetDistribution(amount, allocationRows, uncategorizedId, categoryByExpense);
   }

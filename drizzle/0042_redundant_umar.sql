@@ -1,0 +1,1 @@
+CREATE INDEX "budget_impacts_owner_target_status_idx" ON "budget_impacts" USING btree ("owner_user_id","target_period_ordinal","status");
