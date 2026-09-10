@@ -8,6 +8,7 @@ import type { Database } from "../src/db/client";
 import { BudgetError } from "../src/domain/budgeting/errors";
 import { createLedgerRepository } from "../src/domain/ledger-repository";
 import { createBudgetSetup } from "../src/server/budgeting/profiles";
+import { createBudgetCategory, updateBudgetPlan } from "../src/server/budgeting/categories";
 import { listBudgetPeriodHistory } from "../src/server/budgeting/reporting";
 import { startNextBudgetPeriod } from "../src/server/budgeting/periods";
 import { changePersonalExpenseBudgetCategory, createPersonalBudgetIntegration } from "../src/server/budgeting/sources-personal";
@@ -27,7 +28,7 @@ async function expectBudgetError(code: BudgetError["code"], operation: Promise<u
 }
 
 async function activePlan(pool: Pool, ownerUserId: string) {
-  const period = await row<{ id: string; ordinal: number; starts_on: string; ends_on: string; name: string; total_budget: number }>(pool, "SELECT id, ordinal, starts_on::text, ends_on::text, name, total_budget FROM budget_periods WHERE owner_user_id = $1 AND status = 'active'", [ownerUserId]);
+  const period = await row<{ id: string; ordinal: number; starts_on: string; ends_on: string; name: string; total_budget: number; updated_at: Date }>(pool, "SELECT id, ordinal, starts_on::text, ends_on::text, name, total_budget, updated_at FROM budget_periods WHERE owner_user_id = $1 AND status = 'active'", [ownerUserId]);
   const plans = (await pool.query<{ category_id: string; name: string; allocated_amount: number; display_order: number }>("SELECT p.budget_category_id AS category_id, c.name, p.allocated_amount, p.display_order FROM budget_period_categories p JOIN budget_categories c ON c.owner_user_id = p.owner_user_id AND c.id = p.budget_category_id WHERE p.owner_user_id = $1 AND p.budget_period_id = $2 ORDER BY p.display_order", [ownerUserId, period.id])).rows;
   return { period, plans };
 }
@@ -85,19 +86,22 @@ async function run() {
     assert.equal((await pool.query("SELECT count(*) FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2", [ownerA, futureExpenseTransaction.id])).rows[0].count, "0");
     const foodExpense = await repository.createExpense({ outingId: currentOutingId, description: "Food source", amount: 150 });
     const travelExpense = await repository.createExpense({ outingId: currentOutingId, description: "Travel source", amount: 150 });
+    const historyExpense = await repository.createExpense({ outingId: currentOutingId, description: "Historical category move", amount: 175 });
     await repository.replaceExpenseShares(foodExpense.id, [{ friendId, baseAmount: 150 }]);
     await repository.replaceExpenseShares(travelExpense.id, [{ friendId, baseAmount: 150 }]);
     const foodTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, foodExpense.id]);
     const travelTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, travelExpense.id]);
+    const historyTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, historyExpense.id]);
     await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, foodTransaction.id, foodId);
     await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, travelTransaction.id, travelId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, historyTransaction.id, foodId);
     const foodShare = (await repository.listExpenseShares(foodExpense.id))[0]!;
     const travelShare = (await repository.listExpenseShares(travelExpense.id))[0]!;
     const futureRepayment = await repository.createRepaymentWithAllocations({ friendId, amount: 300, paidAt: new Date("2026-10-06T10:00:00Z"), paidOn: "2026-10-06", paymentMethod: "Cash", notes: null }, [{ expenseShareId: foodShare.id, amount: 150 }, { expenseShareId: travelShare.id, amount: 150 }]);
     const futureRepaymentTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_repayment_sources WHERE owner_user_id = $1 AND repayment_id = $2", [ownerA, futureRepayment.id]);
     assert.equal((await pool.query("SELECT count(*) FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2", [ownerA, futureRepaymentTransaction.id])).rows[0].count, "0");
 
-    const transitionInput = (periodId: string, startsOn: string, endsOn: string, name: string) => ({ expectedActivePeriodId: periodId, name, startsOn, endsOn, totalBudget: 10_000, allocations: plans.map((plan) => ({ categoryId: plan.category_id, allocatedAmount: plan.allocated_amount })) });
+    const transitionInput = (periodId: string, startsOn: string, endsOn: string, name: string, planRows = plans) => ({ expectedActivePeriodId: periodId, name, startsOn, endsOn, totalBudget: 10_000, allocations: planRows.map((plan) => ({ categoryId: plan.category_id, allocatedAmount: plan.allocated_amount })) });
     const transition = transitionInput(initialPeriod.id, "2026-10-01", "2026-10-31", "October");
     const race = await Promise.allSettled([startNextBudgetPeriod(database, ownerA, transition), startNextBudgetPeriod(database, ownerA, transition)]);
     assert.equal(race.filter((result) => result.status === "fulfilled").length, 1, "one concurrent transition must win");
@@ -114,21 +118,39 @@ async function run() {
     const repaymentCategories = await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [ownerA, futureRepaymentTransaction.id]);
     assert.deepEqual(repaymentCategories.rows, [{ name: "Food", amount: 150 }, { name: "Travel", amount: 150 }], "multi-category repayment must not multiply spread source categories");
 
-    const third = transitionInput(october.period.id, "2026-11-01", "2026-11-30", "November");
+    const periodOneBeforeRecategorization = (await listBudgetPeriodHistory(database, ownerA)).find((period) => period.ordinal === 1);
+    assert(periodOneBeforeRecategorization);
+    const foodBeforeRecategorization = periodOneBeforeRecategorization.categories.find((category) => category.name === "Food");
+    assert(foodBeforeRecategorization);
+    await createBudgetCategory(database, ownerA, "Transit", 0);
+    const octoberWithImpactOnlyCategory = await activePlan(pool, ownerA);
+    const transitId = octoberWithImpactOnlyCategory.plans.find((plan) => plan.name === "Transit")!.category_id;
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, historyTransaction.id, transitId);
+    assert.equal((await pool.query("SELECT count(*) FROM budget_period_categories WHERE owner_user_id = $1 AND budget_period_id = $2 AND budget_category_id = $3", [ownerA, initialPeriod.id, transitId])).rows[0].count, "0", "recategorization must not add a retroactive historical plan row");
+
+    const third = transitionInput(october.period.id, "2026-11-01", "2026-11-30", "November", octoberWithImpactOnlyCategory.plans);
     await startNextBudgetPeriod(database, ownerA, third);
     const november = await activePlan(pool, ownerA);
     assert.equal((await pool.query("SELECT count(*) FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND status = 'applied' AND budget_period_id = $3", [ownerA, pending.id, november.period.id])).rows[0].count, "1");
     await expectBudgetError("CONFLICT", spreadBudgetTransaction(database, ownerA, pending.id, 1));
     const history = await listBudgetPeriodHistory(database, ownerA);
     assert.deepEqual(history.map((period) => [period.ordinal, period.status]), [[3, "active"], [2, "closed"], [1, "closed"]]);
+    const periodOne = history.find((period) => period.ordinal === 1);
+    assert(periodOne);
+    assert.equal(periodOne.netSpent, periodOneBeforeRecategorization.netSpent, "recategorization must preserve period net spent");
+    const transitCategories = periodOne.categories.filter((category) => category.name === "Transit");
+    assert.equal(transitCategories.length, 1, "impact-only historical category must appear exactly once");
+    assert.deepEqual(transitCategories[0], { id: transitId, name: "Transit", allocatedAmount: 0, outflowApplied: historyExpense.amount, inflowApplied: 0, netSpent: historyExpense.amount, remaining: -historyExpense.amount });
+    assert.equal(periodOne.categories.find((category) => category.name === "Food")?.netSpent, foodBeforeRecategorization.netSpent - historyExpense.amount, "moved spending must leave its former category");
+    assert.equal(periodOne.categories.reduce((sum, category) => sum + category.netSpent, 0), periodOne.netSpent, "category history must reconcile to period history");
     await expectBudgetError("CONFLICT", spreadBudgetTransaction(database, ownerB, pending.id, 2));
     await expectBudgetError("CONFLICT", startNextBudgetPeriod(database, ownerB, { ...transition, expectedActivePeriodId: initialPeriod.id }));
     assert.equal((await listBudgetPeriodHistory(database, ownerB)).length, 1, "period history must remain owner-private");
-    const novemberPlan = transitionInput(november.period.id, "2026-10-15", "2026-11-30", "November");
-    await expectBudgetError("CONFLICT", (async () => {
-      const { updateBudgetPlan } = await import("../src/server/budgeting/categories");
-      await updateBudgetPlan(database, ownerA, { period: { name: novemberPlan.name, startsOn: novemberPlan.startsOn, endsOn: novemberPlan.endsOn, totalBudget: novemberPlan.totalBudget }, expectedPeriodUpdatedAt: november.period.id, categories: novemberPlan.allocations.map((allocation) => ({ id: allocation.categoryId, name: plans.find((plan) => plan.category_id === allocation.categoryId)!.name, allocatedAmount: allocation.allocatedAmount })) });
-    })());
+    const novemberPlan = transitionInput(november.period.id, "2026-10-15", "2026-11-30", "November", november.plans);
+    await assert.rejects(
+      updateBudgetPlan(database, ownerA, { period: { name: novemberPlan.name, startsOn: novemberPlan.startsOn, endsOn: novemberPlan.endsOn, totalBudget: novemberPlan.totalBudget }, expectedPeriodUpdatedAt: november.period.updated_at.toISOString(), categories: novemberPlan.allocations.map((allocation) => ({ id: allocation.categoryId, name: november.plans.find((plan) => plan.category_id === allocation.categoryId)!.name, allocatedAmount: allocation.allocatedAmount })) }),
+      (error: unknown) => error instanceof BudgetError && error.code === "CONFLICT" && error.message.includes("overlaps the previous closed period"),
+    );
     console.log("budget period transition smoke passed: integer spread, source rebalancing, category preservation, atomic stale-gated transitions, pending/void handling, zero-impact absorption, multi-category repayment mapping, history, and owner isolation");
   } catch (error) {
     console.error(`budget period transition smoke failed: ${formatSafeError(error, config.password)}`);

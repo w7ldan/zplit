@@ -141,18 +141,19 @@ export async function listBudgetPeriodHistory(database: Database, ownerUserId: s
       .innerJoin(budgetTransactions, and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, budgetImpacts.budgetTransactionId), eq(budgetTransactions.status, "posted")))
       .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetImpacts.budgetCategoryId)))
       .where(and(eq(budgetImpacts.ownerUserId, ownerUserId), inArray(budgetImpacts.budgetPeriodId, periodIds), eq(budgetImpacts.status, "applied")))
-      .groupBy(budgetImpacts.budgetPeriodId, budgetCategories.id, budgetCategories.name, budgetTransactions.direction),
+      .groupBy(budgetImpacts.budgetPeriodId, budgetCategories.id, budgetCategories.name, budgetTransactions.direction)
+      .orderBy(asc(budgetImpacts.budgetPeriodId), asc(budgetCategories.name), asc(budgetCategories.id), asc(budgetTransactions.direction)),
   ]);
   const totalsByPeriod = new Map<string, { outflow: number; inflow: number }>();
-  const categoriesByPeriod = new Map<string, Map<string, { name: string; outflow: number; inflow: number }>>();
+  const categoriesByPeriod = new Map<string, Map<string, { id: string; name: string; outflow: number; inflow: number }>>();
   for (const row of impactRows) {
     if (!row.periodId) continue;
     const totals = totalsByPeriod.get(row.periodId) ?? { outflow: 0, inflow: 0 };
-    totals[row.direction] = Number(row.amount);
+    totals[row.direction] += Number(row.amount);
     totalsByPeriod.set(row.periodId, totals);
     const categories = categoriesByPeriod.get(row.periodId) ?? new Map();
-    const category = categories.get(row.categoryId) ?? { name: row.categoryName, outflow: 0, inflow: 0 };
-    category[row.direction] = Number(row.amount);
+    const category = categories.get(row.categoryId) ?? { id: row.categoryId, name: row.categoryName, outflow: 0, inflow: 0 };
+    category[row.direction] += Number(row.amount);
     categories.set(row.categoryId, category);
     categoriesByPeriod.set(row.periodId, categories);
   }
@@ -161,11 +162,19 @@ export async function listBudgetPeriodHistory(database: Database, ownerUserId: s
   return periods.map((period) => {
     const totals = totalsByPeriod.get(period.id) ?? { outflow: 0, inflow: 0 };
     const netSpent = netBudgetSpent(totals.outflow, totals.inflow);
-    const categories = (plansByPeriod.get(period.id) ?? []).map((plan) => {
+    const plannedCategoryIds = new Set((plansByPeriod.get(period.id) ?? []).map((plan) => plan.categoryId));
+    const plannedCategories = (plansByPeriod.get(period.id) ?? []).map((plan) => {
       const applied = categoriesByPeriod.get(period.id)?.get(plan.categoryId) ?? { name: plan.categoryName, outflow: 0, inflow: 0 };
-      const netSpent = categoryNetSpent(applied.outflow, applied.inflow);
-      return { id: plan.categoryId, name: plan.categoryName, allocatedAmount: plan.allocatedAmount, outflowApplied: applied.outflow, inflowApplied: applied.inflow, netSpent, remaining: plan.allocatedAmount - netSpent };
+      const categoryNet = categoryNetSpent(applied.outflow, applied.inflow);
+      return { id: plan.categoryId, name: plan.categoryName, allocatedAmount: plan.allocatedAmount, outflowApplied: applied.outflow, inflowApplied: applied.inflow, netSpent: categoryNet, remaining: plan.allocatedAmount - categoryNet };
     });
-    return { ...period, netSpent, remaining: remainingBudget(period.totalBudget, netSpent), categories };
+    const impactOnlyCategories = [...(categoriesByPeriod.get(period.id)?.values() ?? [])]
+      .filter((category) => !plannedCategoryIds.has(category.id))
+      .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id))
+      .map((category) => {
+        const categoryNet = categoryNetSpent(category.outflow, category.inflow);
+        return { id: category.id, name: category.name, allocatedAmount: 0, outflowApplied: category.outflow, inflowApplied: category.inflow, netSpent: categoryNet, remaining: 0 - categoryNet };
+      });
+    return { ...period, netSpent, remaining: remainingBudget(period.totalBudget, netSpent), categories: [...plannedCategories, ...impactOnlyCategories] };
   });
 }
