@@ -7,11 +7,13 @@ const mocks = vi.hoisted(() => ({
   createLedgerRepository: vi.fn(),
   getDatabase: vi.fn(() => "database"),
   readOverviewSpaces: vi.fn(),
+  getBudgetOverviewSnapshot: vi.fn(),
 }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/app-overview", () => ({ readOverviewSpaces: mocks.readOverviewSpaces }));
+vi.mock("@/server/budgeting/reporting", () => ({ getBudgetOverviewSnapshot: mocks.getBudgetOverviewSnapshot }));
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: async (session?: { user: { id: string } }) => { const current = session ?? await mocks.requireSession(); return { user: current.user, ledger: mocks.createLedgerRepository(mocks.getDatabase(), current.user.id) }; } }));
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
 
@@ -30,6 +32,7 @@ const summary = {
 describe("/app overview", () => {
   beforeEach(() => {
     mocks.readOverviewSpaces.mockResolvedValue({ groups: [], organizations: [] });
+    mocks.getBudgetOverviewSnapshot.mockResolvedValue({ configured: false });
   });
 
   it("answers outstanding, balances, and actionable partial allocation attention", async () => {
@@ -261,5 +264,53 @@ describe("/app overview", () => {
 
     expect(screen.getByRole("link", { name: new RegExp(name) })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: new RegExp(title) })).toBeInTheDocument();
+  });
+
+  it("integrates the canonical Budget snapshot and keeps recurring planning outside its financial metrics", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue(summary),
+      listRecentActivity: vi.fn().mockResolvedValue([]),
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
+    });
+    mocks.getBudgetOverviewSnapshot.mockResolvedValue({
+      configured: true,
+      period: { id: "period-a", name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", netSpent: 250_000, remaining: 750_000 },
+      recurring: { dueCount: 2, expectedAmount: 300_000, nextDueOn: "2026-10-01" },
+    });
+
+    render(await AppPage());
+
+    expect(mocks.getBudgetOverviewSnapshot).toHaveBeenCalledWith("database", "owner-a");
+    const budget = screen.getByRole("heading", { level: 2, name: "Budget" }).closest("section")!;
+    const metrics = budget.querySelector<HTMLElement>(".overview-budget__metrics")!;
+    expect(metrics).toHaveTextContent("September");
+    expect(within(metrics).getByText("Rp 750.000")).toBeInTheDocument();
+    expect(within(metrics).getByText("Rp 250.000")).toBeInTheDocument();
+    expect(within(metrics).getByText("Remaining")).toBeInTheDocument();
+    expect(metrics.querySelector(".budget-value")).toBeInTheDocument();
+    expect(metrics).not.toHaveTextContent(/Recurring planning/);
+    expect(within(budget).getByRole("link", { name: /Open Budget/ })).toHaveAttribute("href", "/app/personal/budget");
+    const recurring = within(budget).getByRole("link", { name: /Recurring planning/ });
+    expect(recurring).toHaveAttribute("href", "/app/personal/budget/subscriptions");
+    expect(recurring).toHaveTextContent("2 due");
+    expect(recurring).toHaveTextContent("Rp 300.000 expected");
+  });
+
+  it("offers a quiet Budget setup affordance without fabricating totals", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue(summary),
+      listRecentActivity: vi.fn().mockResolvedValue([]),
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
+    });
+
+    render(await AppPage());
+
+    const budget = screen.getByRole("heading", { level: 2, name: "Budget" }).closest("section")!;
+    expect(within(budget).getByRole("link", { name: /Set up Budget/ })).toHaveAttribute("href", "/app/personal/budget");
+    expect(budget.querySelector(".overview-budget__metrics")).not.toBeInTheDocument();
+    expect(within(budget).queryByText(/Remaining|Net spent|Safe daily/)).not.toBeInTheDocument();
+    expect(budget).not.toHaveTextContent("Rp 0");
   });
 });

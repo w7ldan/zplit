@@ -29,6 +29,26 @@ export type BudgetPeriodSummary = {
   categories: BudgetCategoryPlan[];
 };
 
+export type BudgetOverviewPeriod = {
+  id: string;
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  netSpent: number;
+  remaining: number;
+};
+
+export type BudgetOverviewRecurringSummary = {
+  dueCount: number;
+  expectedAmount: number;
+  nextDueOn: string | null;
+};
+
+export type BudgetOverviewSnapshot =
+  | { configured: false }
+  | { configured: true; period: null }
+  | { configured: true; period: BudgetOverviewPeriod; recurring: BudgetOverviewRecurringSummary };
+
 export type BudgetPeriodHistoryCategory = {
   id: string;
   name: string;

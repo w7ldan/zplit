@@ -3,10 +3,12 @@ import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { readOverviewSpaces } from "@/server/app-overview";
+import { getBudgetOverviewSnapshot } from "@/server/budgeting/reporting";
 import { formatRupiah } from "@/domain/rupiah";
 import { GroupCard } from "@/components/groups/group-card";
 import { OrganizationCard } from "@/components/organizations/organization-card";
 import { PersonalLedgerSnapshot } from "@/components/ledger/personal-ledger-snapshot";
+import { BudgetOverviewSection } from "@/components/budgeting/budget-overview";
 
 export const metadata = { title: "Overview" };
 import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
@@ -17,11 +19,12 @@ export default async function AppPage() {
   const session = await requireSession();
   const database = getDatabase();
   const { ledger: repository } = await getAuthenticatedLedger(session);
-  const [summary, activity, needsAttention, spaces] = await Promise.all([
+  const [summary, activity, needsAttention, spaces, budget] = await Promise.all([
     repository.getLedgerOverviewSummary(),
     repository.listRecentActivity({ limit: 6 }),
     repository.listNeedsAttentionRepayments(),
     readOverviewSpaces(database, session.user.id),
+    getBudgetOverviewSnapshot(database, session.user.id),
   ]);
   const displayedNeedsAttention = needsAttention.items.slice(0, 3);
 
@@ -75,6 +78,8 @@ export default async function AppPage() {
             </div>
           </details>
         </section>
+
+        <BudgetOverviewSection snapshot={budget} />
 
         <div className="app-page__columns">
           <section className="ledger-section" aria-labelledby="balances-heading">

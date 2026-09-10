@@ -2,7 +2,13 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { budgetCategories, budgetImpacts, budgetPeriodCategories, budgetPeriods, budgetTransactions } from "@/db/schema";
 import { categoryNetSpent, netBudgetSpent, remainingBudget, sumBudgetAppliedAmounts } from "@/domain/budgeting/reporting";
-import type { BudgetCategoryPlan, BudgetPeriodHistorySummary, BudgetPeriodSummary, BudgetTransactionView } from "@/domain/budgeting/types";
+import type {
+  BudgetCategoryPlan,
+  BudgetOverviewSnapshot,
+  BudgetPeriodHistorySummary,
+  BudgetPeriodSummary,
+  BudgetTransactionView,
+} from "@/domain/budgeting/types";
 import type { PendingBudgetImpactPreview } from "./periods";
 import { getBudgetProfile } from "./profiles";
 import { getActiveBudgetPeriod, listPendingBudgetImpactPreview } from "./periods";
@@ -118,6 +124,53 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
     pendingNextPeriod,
     recurringSummary,
     recurringTemplates,
+  };
+}
+
+/**
+ * Compact, owner-scoped Budget state for Overview. It reuses the same applied
+ * impact authority as the full dashboard, but reads only the active period and
+ * its direction totals. Recurring expectations stay a separate planning read.
+ */
+export async function getBudgetOverviewSnapshot(database: Database, ownerUserId: string): Promise<BudgetOverviewSnapshot> {
+  if (!(await getBudgetProfile(database, ownerUserId))) return { configured: false };
+  const period = await getActiveBudgetPeriod(database, ownerUserId);
+  if (!period) return { configured: true, period: null };
+  const [appliedRows, recurring] = await Promise.all([
+    database.select({
+      direction: budgetTransactions.direction,
+      amount: sql<string>`coalesce(sum(${budgetImpacts.amount}), 0)::text`,
+    }).from(budgetImpacts)
+      .innerJoin(budgetTransactions, and(
+        eq(budgetTransactions.ownerUserId, ownerUserId),
+        eq(budgetTransactions.id, budgetImpacts.budgetTransactionId),
+        eq(budgetTransactions.status, "posted"),
+      ))
+      .where(and(
+        eq(budgetImpacts.ownerUserId, ownerUserId),
+        eq(budgetImpacts.budgetPeriodId, period.id),
+        eq(budgetImpacts.status, "applied"),
+      ))
+      .groupBy(budgetTransactions.direction),
+    getBudgetRecurringDashboardSummary(database, ownerUserId),
+  ]);
+  const overall = sumBudgetAppliedAmounts(appliedRows.map((row) => ({ direction: row.direction, amount: amount(row.amount) })));
+  const netSpent = netBudgetSpent(overall.outflow, overall.inflow);
+  return {
+    configured: true,
+    period: {
+      id: period.id,
+      name: period.name,
+      startsOn: period.startsOn,
+      endsOn: period.endsOn,
+      netSpent,
+      remaining: remainingBudget(period.totalBudget, netSpent),
+    },
+    recurring: {
+      dueCount: recurring.dueCount,
+      expectedAmount: recurring.expectedAmount,
+      nextDueOn: recurring.nextDueOn,
+    },
   };
 }
 

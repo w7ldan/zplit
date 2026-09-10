@@ -1,12 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import type { Database } from "@/db/client";
 
 vi.mock("server-only", () => ({}));
 
-function builder(result: unknown[]) {
+function builder(result: unknown[], conditionArgs?: unknown[]) {
   const current: Record<string, ReturnType<typeof vi.fn> | ((resolve: (value: unknown) => void, reject: (reason?: unknown) => void) => void)> = {};
   const chain = current as typeof current & { then: Promise<unknown>["then"] };
-  for (const method of ["from", "innerJoin", "where", "limit", "orderBy", "groupBy"]) current[method] = vi.fn(() => chain);
+  for (const method of ["from", "limit", "orderBy", "groupBy"]) current[method] = vi.fn(() => chain);
+  current.innerJoin = vi.fn((...args: unknown[]) => {
+    conditionArgs?.push(args.at(-1));
+    return chain;
+  });
+  current.where = vi.fn((condition?: unknown) => {
+    conditionArgs?.push(condition);
+    return chain;
+  });
   chain.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
   return chain;
 }
@@ -16,6 +26,13 @@ function database(selectResults: unknown[][]) {
   return {
     select: vi.fn(() => builder(results.shift() ?? [])),
   } as unknown as Database & { select: ReturnType<typeof vi.fn> };
+}
+
+function recordingDatabase(selectResults: unknown[][]) {
+  const results = [...selectResults];
+  const conditionArgs: unknown[] = [];
+  const select = vi.fn(() => builder(results.shift() ?? [], conditionArgs));
+  return { database: { select } as unknown as Database, select, conditionArgs };
 }
 
 describe("Budget period history reporting", () => {
@@ -44,5 +61,43 @@ describe("Budget period history reporting", () => {
     expect(period?.categories.filter((category) => category.id === "travel")).toHaveLength(1);
     expect(period?.categories.reduce((sum, category) => sum + category.netSpent, 0)).toBe(period?.netSpent);
     expect(databaseInstance.select).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("Budget Overview snapshot reporting", () => {
+  it("skips Budget state entirely when no profile exists", async () => {
+    const { database: databaseInstance, select } = recordingDatabase([[]]);
+
+    await expect((await import("./reporting")).getBudgetOverviewSnapshot(databaseInstance, "owner-1")).resolves.toEqual({ configured: false });
+    expect(select).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a configured profile without an active period instead of fabricated totals", async () => {
+    const { database: databaseInstance, select } = recordingDatabase([[{ ownerUserId: "owner-1" }], []]);
+
+    await expect((await import("./reporting")).getBudgetOverviewSnapshot(databaseInstance, "owner-1")).resolves.toEqual({ configured: true, period: null });
+    expect(select).toHaveBeenCalledTimes(2);
+  });
+
+  it("derives Remaining and Net spent from applied posted impacts and keeps recurring planning separate", async () => {
+    const { database: databaseInstance, select, conditionArgs } = recordingDatabase([
+      [{ ownerUserId: "owner-1" }],
+      [{ id: "period-1", ordinal: 1, name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 1_000 }],
+      [{ direction: "outflow", amount: "250" }, { direction: "inflow", amount: "50" }],
+      [{ dueCount: "2", expectedAmount: "300", nextDueOn: "2026-10-01" }],
+    ]);
+
+    const snapshot = await (await import("./reporting")).getBudgetOverviewSnapshot(databaseInstance, "owner-1");
+
+    expect(snapshot).toMatchObject({
+      configured: true,
+      period: { id: "period-1", name: "September", netSpent: 200, remaining: 800 },
+      recurring: { dueCount: 2, expectedAmount: 300 },
+    });
+    expect(select).toHaveBeenCalledTimes(4);
+    const params = conditionArgs.flatMap((condition) => new PgDialect().sqlToQuery(condition as SQL).params);
+    expect(params).toContain("applied");
+    expect(params).toContain("posted");
+    expect(params).toContain("owner-1");
   });
 });
