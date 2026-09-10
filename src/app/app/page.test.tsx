@@ -275,7 +275,7 @@ describe("/app overview", () => {
     });
     mocks.getBudgetOverviewSnapshot.mockResolvedValue({
       configured: true,
-      period: { id: "period-a", name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", netSpent: 250_000, remaining: 750_000 },
+      period: { id: "period-a", name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 1_000_000, netSpent: 250_000, remaining: 750_000 },
       recurring: { dueCount: 2, expectedAmount: 300_000, nextDueOn: "2026-10-01" },
     });
 
@@ -283,13 +283,18 @@ describe("/app overview", () => {
 
     expect(mocks.getBudgetOverviewSnapshot).toHaveBeenCalledWith("database", "owner-a");
     const budget = screen.getByRole("heading", { level: 2, name: "Budget" }).closest("section")!;
-    const metrics = budget.querySelector<HTMLElement>(".overview-budget__metrics")!;
+    const metrics = budget.querySelector<HTMLElement>(".overview-summary")!;
     expect(metrics).toHaveTextContent("September");
     expect(within(metrics).getByText("Rp 750.000")).toBeInTheDocument();
     expect(within(metrics).getByText("Rp 250.000")).toBeInTheDocument();
-    expect(within(metrics).getByText("Remaining")).toBeInTheDocument();
+    for (const label of ["Remaining", "Safe daily", "Net spent"]) {
+      expect(within(metrics).getByText(label, { exact: true })).toBeInTheDocument();
+    }
+    expect(within(metrics).getByText(/Of Rp 1.000.000 total budget/)).toBeInTheDocument();
+    expect(metrics.querySelector(".overview-summary__primary")).toHaveTextContent("Remaining");
     expect(metrics.querySelector(".budget-value")).toBeInTheDocument();
     expect(metrics).not.toHaveTextContent(/Recurring planning/);
+    expect(budget).not.toHaveTextContent(/Shared Money|Expected back|You still owe/);
     expect(within(budget).getByRole("link", { name: /Open Budget/ })).toHaveAttribute("href", "/app/personal/budget");
     const recurring = within(budget).getByRole("link", { name: /Recurring planning/ });
     expect(recurring).toHaveAttribute("href", "/app/personal/budget/subscriptions");
@@ -309,7 +314,7 @@ describe("/app overview", () => {
 
     const budget = screen.getByRole("heading", { level: 2, name: "Budget" }).closest("section")!;
     expect(within(budget).getByRole("link", { name: /Set up Budget/ })).toHaveAttribute("href", "/app/personal/budget");
-    expect(budget.querySelector(".overview-budget__metrics")).not.toBeInTheDocument();
+    expect(budget.querySelector(".overview-summary")).not.toBeInTheDocument();
     expect(within(budget).queryByText(/Remaining|Net spent|Safe daily/)).not.toBeInTheDocument();
     expect(budget).not.toHaveTextContent("Rp 0");
   });

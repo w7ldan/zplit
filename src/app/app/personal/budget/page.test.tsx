@@ -69,13 +69,52 @@ describe("/app/personal/budget task-panel modes", () => {
 
   it("uses the same create values that TaskPanel clears", async () => {
     render(await BudgetPage());
-    expect(screen.getByRole("link", { name: "Add transaction" })).toHaveAttribute("href", "/app/personal/budget?create=transaction");
-    expect(screen.getByRole("link", { name: "Manage plan" })).toHaveAttribute("href", "/app/personal/budget?create=plan");
+    const headerActions = document.querySelector(".budget-page__actions")!;
+    expect(within(headerActions as HTMLElement).getByRole("link", { name: "Add transaction" })).toHaveAttribute("href", "/app/personal/budget?create=transaction");
+    expect(within(headerActions as HTMLElement).getByRole("link", { name: "Manage plan" })).toHaveAttribute("href", "/app/personal/budget?create=plan");
     const nav = screen.getByRole("navigation", { name: "Budget sections" });
     expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/app/personal/budget/transactions");
     expect(within(nav).getByRole("link", { name: "Period history" })).toHaveAttribute("href", "/app/personal/budget/periods");
     expect(within(nav).getByRole("link", { name: "Recurring" })).toHaveAttribute("href", "/app/personal/budget/subscriptions");
+  });
+
+  it("leads with Remaining, Net spent, and Safe daily and keeps plan figures inside Category plan", async () => {
+    render(await BudgetPage());
+    const summary = screen.getByRole("region", { name: "Current period summary" });
+    for (const label of ["Remaining", "Net spent", "Safe daily"]) {
+      expect(within(summary).getByText(label, { exact: true })).toBeInTheDocument();
+    }
+    expect(summary.querySelector(".overview-summary__primary")).toHaveTextContent("Remaining");
+    expect(within(summary).queryByText("Allocated")).not.toBeInTheDocument();
+    expect(within(summary).queryByText("Unallocated")).not.toBeInTheDocument();
+    expect(summary).not.toHaveTextContent(/Expected back|You still owe|Group obligations/);
+
+    const plan = screen.getByRole("heading", { level: 2, name: "Category plan" }).closest("section")!;
+    expect(within(plan).getByText("Allocated")).toBeInTheDocument();
+    expect(within(plan).getByText("Unallocated")).toBeInTheDocument();
+    expect(within(plan).getByRole("link", { name: /Manage plan/ })).toHaveAttribute("href", "/app/personal/budget?create=plan");
+    expect(within(plan).getByText("Food")).toBeInTheDocument();
+  });
+
+  it("keeps Shared Money in its own section and Recent transactions reachable", async () => {
+    mocks.getBudgetDashboard.mockResolvedValue({
+      configured: true,
+      period,
+      expectedBack: 40_000,
+      stillOwe: 20_000,
+      groupObligations: [{ id: "obligation-a", groupId: "group-a", groupName: "Trip", description: "Hotel", amount: 20_000, categoryId: null, categoryName: "Uncategorized" }],
+      recentTransactions: [],
+    });
+    render(await BudgetPage());
+    const shared = screen.getByRole("region", { name: "Shared Money" });
+    expect(shared).toHaveTextContent("Separate from your Budget");
+    const sharedValues = shared.querySelector<HTMLElement>(".budget-shared-money__values")!;
+    expect(within(sharedValues).getByText("Expected back")).toBeInTheDocument();
+    expect(within(sharedValues).getByText("You still owe")).toBeInTheDocument();
+    expect(within(shared).getByText("View Group obligations")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View transaction history/ })).toHaveAttribute("href", "/app/personal/budget/transactions");
+    expect(screen.queryByRole("button", { name: /void/i })).not.toBeInTheDocument();
   });
 
   it("labels linked Personal activity and keeps Expected Back outside Remaining", async () => {
@@ -106,18 +145,18 @@ describe("/app/personal/budget task-panel modes", () => {
     render(await BudgetPage());
     expect(screen.getByText("Personal expense")).toBeInTheDocument();
     expect(screen.getByText("-Rp 600")).toBeInTheDocument();
-    const sharedMoney = screen.getByRole("region", { name: "Shared money" });
+    const sharedMoney = screen.getByRole("region", { name: "Shared Money" });
     expect(within(sharedMoney).getByText("Expected back")).toBeInTheDocument();
     expect(within(sharedMoney).getByText("Rp 40.000")).toBeInTheDocument();
     expect(within(sharedMoney).getAllByText("You still owe").length).toBeGreaterThan(0);
     expect(within(sharedMoney).getByText("View Group obligations")).toBeInTheDocument();
-    expect(document.querySelector(".budget-summary__grid")).not.toHaveTextContent("Expected back");
+    expect(document.querySelector(".overview-summary")).not.toHaveTextContent("Expected back");
     const categoryDisclosure = screen.getByText("Change budget category").closest("details");
     expect(categoryDisclosure).toBeInTheDocument();
     expect(categoryDisclosure).not.toHaveAttribute("open");
     expect(screen.getByRole("button", { name: "Import activity" })).toBeInTheDocument();
-    expect(screen.getByText(/Upcoming recurring/)).toBeInTheDocument();
-    expect(document.querySelector(".budget-summary__grid")).not.toHaveTextContent("Upcoming recurring");
+    expect(screen.getByText(/Recurring planning/)).toBeInTheDocument();
+    expect(document.querySelector(".overview-summary")).not.toHaveTextContent("Recurring planning");
   });
 
   it("keeps Start next period as one deliberate submission without a second confirmation", async () => {

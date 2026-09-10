@@ -24,7 +24,7 @@ function SectionHeading() {
 
 export function BudgetOverviewSection({ snapshot }: { snapshot: BudgetOverviewSnapshot }) {
   return (
-    <section className="ledger-section overview-budget" aria-labelledby="budget-overview-heading">
+    <section className="overview-budget" aria-labelledby="budget-overview-heading">
       <SectionHeading />
       {snapshot.configured === false ? (
         <div className="ledger-empty">
@@ -38,32 +38,34 @@ export function BudgetOverviewSection({ snapshot }: { snapshot: BudgetOverviewSn
         </div>
       ) : (
         <>
-          <div className="overview-budget__metrics">
-            <div>
-              <span className="overview-budget__label">Remaining</span>
+          <section className="overview-summary" aria-label="Budget summary">
+            <div className="overview-summary__primary">
+              <span className="technical-label">Remaining</span>
               <strong>{formatSignedRupiah(snapshot.period.remaining)}</strong>
-              <small>{snapshot.period.name}</small>
+              <span>
+                {snapshot.period.name} · {formatCalendarDate(snapshot.period.startsOn)} – {formatCalendarDate(snapshot.period.endsOn)}
+              </span>
             </div>
             <div>
-              <span className="overview-budget__label">Net spent</span>
+              <span className="technical-label">Safe daily</span>
+              <strong>
+                <SafeDaily
+                  endsOn={snapshot.period.endsOn}
+                  remaining={snapshot.period.remaining}
+                  startsOn={snapshot.period.startsOn}
+                />
+              </strong>
+              <span>Through {formatCalendarDate(snapshot.period.endsOn)}</span>
+            </div>
+            <div>
+              <span className="technical-label">Net spent</span>
               <strong>{formatSignedRupiah(snapshot.period.netSpent)}</strong>
+              <span>Of {formatRupiah(snapshot.period.totalBudget)} total budget</span>
             </div>
-            <div>
-              <span className="overview-budget__label">Safe daily</span>
-              <SafeDaily
-                endsOn={snapshot.period.endsOn}
-                remaining={snapshot.period.remaining}
-                startsOn={snapshot.period.startsOn}
-              />
-            </div>
-          </div>
-          <p className="overview-budget__note">
-            <span>{formatCalendarDate(snapshot.period.startsOn)} – {formatCalendarDate(snapshot.period.endsOn)}</span>
-            <span>Private to you · separate from Shared Money</span>
-          </p>
+          </section>
           {snapshot.recurring.dueCount > 0 ? (
             <Link className="text-link overview-budget__recurring" href={`${budgetHref}/subscriptions`}>
-              Recurring planning · {snapshot.recurring.dueCount} due · {formatRupiah(snapshot.recurring.expectedAmount)} expected
+              Recurring planning · {snapshot.recurring.dueCount} due · {formatRupiah(snapshot.recurring.expectedAmount)} expected <span aria-hidden="true">→</span>
             </Link>
           ) : null}
         </>

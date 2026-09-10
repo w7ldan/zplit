@@ -9,6 +9,7 @@ import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { BudgetSetupForm, BudgetPlanForm, BudgetTransactionForm, BudgetTransitionForm } from "@/components/budgeting/budget-forms";
 import { SafeDaily } from "@/components/budgeting/safe-daily";
 import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
+import { BudgetCategoryList } from "@/components/budgeting/budget-category-list";
 import { SpreadControl } from "@/components/budgeting/spread-control";
 import { summarizeBudgetCategories, type BudgetPeriodSummary, type BudgetTransactionView } from "@/domain/budgeting/types";
 import type { BudgetRecurringDashboardSummary } from "@/server/budgeting/recurring";
@@ -84,37 +85,53 @@ function GroupObligationRows({ obligations, categories }: { obligations: GroupBu
   );
 }
 
-function BudgetSummary({ period, expectedBack, stillOwe, groupObligations, recurring }: { period: BudgetPeriodSummary; expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[]; recurring: BudgetRecurringDashboardSummary }) {
+function CurrentPeriodSummary({ period, recurring }: { period: BudgetPeriodSummary; recurring: BudgetRecurringDashboardSummary }) {
   return (
-    <section className="budget-summary" aria-labelledby="budget-summary-heading">
+    <section aria-labelledby="budget-current-period-heading">
       <div className="ledger-section__heading">
-        <div><p className="technical-label">Current period</p><h2 id="budget-summary-heading">{period.name}</h2></div>
-        <span className="technical-label">IDR</span>
+        <div><p className="technical-label">Current period</p><h2 id="budget-current-period-heading">{period.name}</h2></div>
+        <span className="technical-label">{formatCalendarDate(period.startsOn)} – {formatCalendarDate(period.endsOn)}</span>
       </div>
-      <div className="budget-summary__grid">
-        <div><span>Total budget</span><strong>{formatRupiah(period.totalBudget)}</strong></div>
-        <div><span>Net spent</span><strong>{formatSignedRupiah(period.netSpent)}</strong></div>
-        <div><span>Remaining</span><strong>{formatSignedRupiah(period.remaining)}</strong></div>
-        <div><span>Safe daily</span><SafeDaily startsOn={period.startsOn} endsOn={period.endsOn} remaining={period.remaining} /></div>
-      </div>
-      <dl className="budget-plan-summary">
-        <div><dt>Allocated</dt><dd>{formatRupiah(period.totalAllocated)}</dd></div>
-        <div><dt>Unallocated</dt><dd>{formatRupiah(period.unallocatedBudget)}</dd></div>
-      </dl>
-      <section className="budget-shared-money" aria-labelledby="budget-shared-money-heading">
-        <div>
-          <h3 className="technical-label" id="budget-shared-money-heading">Shared money</h3>
-          <span>Personal reimbursements and Group balances</span>
+      <section className="overview-summary" aria-label="Current period summary">
+        <div className="overview-summary__primary">
+          <span className="technical-label">Remaining</span>
+          <strong>{formatSignedRupiah(period.remaining)}</strong>
+          <span>Of {formatRupiah(period.totalBudget)} total budget</span>
         </div>
-        <div><span>Expected back</span><strong>{formatRupiah(expectedBack)}</strong></div>
-        <div><span>You still owe</span><strong>{formatRupiah(stillOwe)}</strong></div>
-        <GroupObligationRows obligations={groupObligations} categories={period.categories.map(({ id, name }) => ({ id, name }))} />
+        <div>
+          <span className="technical-label">Net spent</span>
+          <strong>{formatSignedRupiah(period.netSpent)}</strong>
+          <span>This period</span>
+        </div>
+        <div>
+          <span className="technical-label">Safe daily</span>
+          <strong><SafeDaily startsOn={period.startsOn} endsOn={period.endsOn} remaining={period.remaining} /></strong>
+          <span>Through {formatCalendarDate(period.endsOn)}</span>
+        </div>
       </section>
       {recurring.dueCount > 0 ? (
         <Link className="text-link budget-recurring-summary" href="/app/personal/budget/subscriptions">
-          Upcoming recurring · {recurring.dueCount} due · {formatRupiah(recurring.expectedAmount)} expected
+          Recurring planning · {recurring.dueCount} due · {formatRupiah(recurring.expectedAmount)} expected <span aria-hidden="true">→</span>
         </Link>
       ) : null}
+    </section>
+  );
+}
+
+function SharedMoneySection({ expectedBack, stillOwe, groupObligations, categories }: { expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[]; categories: BudgetCategoryOption[] }) {
+  return (
+    <section className="ledger-section budget-shared-money" aria-labelledby="budget-shared-money-heading">
+      <div className="ledger-section__heading">
+        <div>
+          <p className="technical-label">Separate from your Budget</p>
+          <h2 id="budget-shared-money-heading">Shared Money</h2>
+        </div>
+      </div>
+      <div className="budget-shared-money__values">
+        <div><span>Expected back</span><strong>{formatRupiah(expectedBack)}</strong></div>
+        <div><span>You still owe</span><strong>{formatRupiah(stillOwe)}</strong></div>
+      </div>
+      <GroupObligationRows obligations={groupObligations} categories={categories} />
     </section>
   );
 }
@@ -123,19 +140,22 @@ function CategorySection({ period }: { period: BudgetPeriodSummary }) {
   return (
     <section className="ledger-section budget-category-section" aria-labelledby="budget-category-heading">
       <div className="ledger-section__heading">
-        <h2 id="budget-category-heading">Category plan</h2>
-        <span className="technical-label">Allocated · Net spent · Remaining</span>
+        <div>
+          <p className="technical-label">Allocated · Net spent · Remaining</p>
+          <h2 id="budget-category-heading">Category plan</h2>
+        </div>
+        <Link className="text-link" href="/app/personal/budget?create=plan" data-task-trigger="budget-plan">Manage plan <span aria-hidden="true">→</span></Link>
       </div>
-      <div className="budget-category-list">
-        {period.categories.map((category) => (
-          <div className="budget-category-row" key={category.id}>
-            <div><strong>{category.name}</strong>{category.systemKey === "uncategorized" ? <small>System category</small> : null}</div>
-            <span>{formatRupiah(category.allocatedAmount)}</span>
-            <span>{formatSignedRupiah(category.netSpent)}</span>
-            <strong>{formatSignedRupiah(category.remaining)}</strong>
-          </div>
-        ))}
-      </div>
+      <dl className="budget-plan-summary">
+        <div><dt>Allocated</dt><dd>{formatRupiah(period.totalAllocated)}</dd></div>
+        <div><dt>Unallocated</dt><dd>{formatRupiah(period.unallocatedBudget)}</dd></div>
+      </dl>
+      <BudgetCategoryList
+        categories={period.categories.map((category) => ({
+          ...category,
+          note: category.systemKey === "uncategorized" ? "System category" : null,
+        }))}
+      />
     </section>
   );
 }
@@ -242,9 +262,15 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
         <PageHeader period={period} importAvailable={dashboard.importAvailable} />
         {imported ? <RecordConfirmation queryKey="imported" message="Eligible activity imported into Budget." /> : null}
         <BudgetSectionNav current="dashboard" />
-        <BudgetSummary period={period} expectedBack={dashboard.expectedBack ?? 0} stillOwe={dashboard.stillOwe ?? 0} groupObligations={dashboard.groupObligations ?? []} recurring={dashboard.recurringSummary ?? { dueCount: 0, expectedAmount: 0, nextDueOn: null }} />
+        <CurrentPeriodSummary period={period} recurring={dashboard.recurringSummary ?? { dueCount: 0, expectedAmount: 0, nextDueOn: null }} />
         <CategorySection period={period} />
         <RecentSection transactions={dashboard.recentTransactions} categories={period.categories.map(({ id, name }) => ({ id, name }))} />
+        <SharedMoneySection
+          expectedBack={dashboard.expectedBack ?? 0}
+          groupObligations={dashboard.groupObligations ?? []}
+          stillOwe={dashboard.stillOwe ?? 0}
+          categories={period.categories.map(({ id, name }) => ({ id, name }))}
+        />
       </div>
       {openCreate ? <TaskPanel open eyebrow="New budget record" title="Add transaction" description="Record a manual expense or credit/refund in the active period." triggerId="budget-transaction"><BudgetTransactionForm action={createBudgetTransactionAction} categories={period.categories.map(({ id, name }) => ({ id, name }))} /></TaskPanel> : null}
       {openManage ? <TaskPanel open eyebrow="Active plan" title="Manage plan" description="Adjust this period and its category allocations." triggerId="budget-plan"><BudgetPlanForm action={updateBudgetPlanAction} period={period} categories={period.categories.map(({ id, name, allocatedAmount, systemKey }) => ({ id, name, allocatedAmount, systemKey }))} /></TaskPanel> : null}

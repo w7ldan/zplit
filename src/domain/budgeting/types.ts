@@ -34,6 +34,7 @@ export type BudgetOverviewPeriod = {
   name: string;
   startsOn: string;
   endsOn: string;
+  totalBudget: number;
   netSpent: number;
   remaining: number;
 };

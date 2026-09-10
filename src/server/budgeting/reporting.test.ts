@@ -91,7 +91,7 @@ describe("Budget Overview snapshot reporting", () => {
 
     expect(snapshot).toMatchObject({
       configured: true,
-      period: { id: "period-1", name: "September", netSpent: 200, remaining: 800 },
+      period: { id: "period-1", name: "September", totalBudget: 1_000, netSpent: 200, remaining: 800 },
       recurring: { dueCount: 2, expectedAmount: 300 },
     });
     expect(select).toHaveBeenCalledTimes(4);

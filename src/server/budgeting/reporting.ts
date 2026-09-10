@@ -163,6 +163,7 @@ export async function getBudgetOverviewSnapshot(database: Database, ownerUserId:
       name: period.name,
       startsOn: period.startsOn,
       endsOn: period.endsOn,
+      totalBudget: period.totalBudget,
       netSpent,
       remaining: remainingBudget(period.totalBudget, netSpent),
     },

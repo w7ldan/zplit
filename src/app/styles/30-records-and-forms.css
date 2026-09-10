@@ -6016,26 +6016,12 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .budget-setup,
 .budget-category-section,
-.budget-recent-section {
+.budget-recent-section,
+.budget-shared-money {
   display: grid;
   gap: 0.8rem;
 }
 
-.budget-summary {
-  display: grid;
-  gap: 0.8rem;
-  padding: 1rem 0 1.2rem;
-  border-top: 1px solid var(--budget-rule);
-  border-bottom: 1px solid var(--budget-rule);
-}
-
-.budget-summary__grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.budget-summary__grid > div,
 .budget-plan-summary > div,
 .budget-category-row > div,
 .budget-transaction-row > span:nth-child(2),
@@ -6044,7 +6030,6 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   gap: 0.25rem;
 }
 
-.budget-summary__grid span,
 .budget-plan-summary dt,
 .budget-category-row > span,
 .budget-category-row small,
@@ -6054,7 +6039,6 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   font-size: 0.72rem;
 }
 
-.budget-summary__grid strong,
 .budget-value,
 .budget-plan-summary dd,
 .budget-category-row > span,
@@ -6065,7 +6049,6 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   white-space: nowrap;
 }
 
-.budget-summary__grid strong,
 .budget-value {
   font-size: 1.1rem;
 }
@@ -6085,29 +6068,64 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   margin: 0;
 }
 
-.budget-shared-money {
+.budget-shared-money__values {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem 2rem;
+  gap: 1rem 2rem;
   align-items: end;
-  padding-top: 0.8rem;
-  border-top: 1px solid var(--budget-rule);
 }
 
-.budget-shared-money > div {
+.budget-shared-money__values > div {
   display: grid;
   gap: 0.25rem;
 }
 
-.budget-shared-money span {
+.budget-shared-money__values span {
   color: var(--muted-ink);
   font-size: 0.72rem;
 }
 
-.budget-shared-money strong {
+.budget-shared-money__values strong {
   font-size: 1rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.budget-group-obligations {
+  border-top: 1px solid var(--rule);
+}
+
+.budget-group-obligations > summary {
+  width: fit-content;
+}
+
+.budget-group-obligation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(7rem, auto) minmax(0, auto);
+  gap: 0.35rem 1rem;
+  align-items: center;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.budget-group-obligation > span {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.budget-group-obligation > span:nth-child(2) {
+  text-align: end;
+}
+
+.budget-group-obligation small {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.budget-group-obligation strong {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .budget-category-list,
@@ -6390,18 +6408,14 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   display: none;
 }
 
-.budget-period-history summary > span,
-.budget-period-history__meta,
-.budget-period-history__categories > div {
+.budget-period-history summary > span {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 1rem;
   justify-content: space-between;
 }
 
-.budget-period-history summary small,
-.budget-period-history__meta,
-.budget-period-history__categories > div {
+.budget-period-history summary small {
   color: var(--muted-ink);
   font-size: 0.72rem;
 }
@@ -6410,23 +6424,85 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   text-align: end;
 }
 
-.budget-period-history__meta {
-  gap: 1rem 2rem;
-  padding: 0.65rem 0;
+.budget-period-dates {
+  margin: 0;
+  padding-bottom: 0.6rem;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-period-figures {
+  display: grid;
+  margin: 0;
   border-top: 1px solid var(--rule);
 }
 
-.budget-period-history__categories {
-  display: grid;
-  gap: 0.45rem;
-  padding: 0.65rem 0 0.8rem;
+.budget-period-figures > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
 }
 
-.budget-period-history__categories strong,
-.budget-period-history__categories span:nth-child(2),
-.budget-period-history__categories span:last-child {
+.budget-period-figures dt {
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+}
+
+.budget-period-figures dd {
+  margin: 0;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.budget-period-detail {
+  display: grid;
+  gap: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
+.budget-period-detail > section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.budget-period-detail h3,
+.budget-period-detail__heading h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.budget-period-detail__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+}
+
+.budget-period-detail > summary {
+  width: fit-content;
+  cursor: pointer;
+  list-style: none;
+}
+
+.budget-period-detail > summary::-webkit-details-marker {
+  display: none;
+}
+
+.budget-period-detail > summary::after {
+  content: " +";
+}
+
+.budget-period-detail[open] > summary::after {
+  content: " −";
 }
 
 .budget-form__category-row {
@@ -6471,14 +6547,10 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 @media (max-width: 767px) {
-  .budget-summary__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .budget-summary__grid strong,
   .budget-value,
   .budget-plan-summary dd,
-  .budget-shared-money strong,
+  .budget-shared-money__values strong,
+  .budget-group-obligation strong,
   .budget-category-row > span,
   .budget-category-row > strong,
   .budget-transaction-row > span:last-child strong,
@@ -6486,11 +6558,17 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   .budget-recurring-row > span:nth-child(3) strong,
   .budget-recurring-due-row > span:nth-child(3) strong,
   .budget-recurring-candidate__amount,
-  .budget-period-history__categories strong,
-  .budget-period-history__categories span:nth-child(2),
-  .budget-period-history__categories span:last-child {
+  .budget-period-figures dd {
     white-space: normal;
     overflow-wrap: anywhere;
+  }
+
+  .budget-group-obligation {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-group-obligation > span:nth-child(2) {
+    text-align: start;
   }
 
   .budget-category-row {
