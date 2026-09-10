@@ -140,6 +140,7 @@ async function createPayment(database: Database, fixture: Fixture, senderPartici
     recipientParticipantId,
     amount,
     paymentMethod: "Cash",
+    paidOn: "2026-08-27",
   });
 }
 

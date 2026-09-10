@@ -109,4 +109,14 @@ until the owner explicitly confirms the source date by saving it. Viewer
 timezone affects timestamp presentation only and never changes canonical date
 authority.
 
+Group cash sources use the same separation. A Group Expense's
+`occurredAt` remains the exact submitted instant, while `occurredOn` is the
+source payer's explicit financial calendar date. A Group Settlement's
+`createdAt` and `confirmedAt` remain audit instants, while `paidOn` is the
+sender-entered date the money was actually sent. Future Group Budget
+authority uses `occurredOn` for expenses and `paidOn` for settlements; it
+never uses `occurredAt`, `createdAt`, or `confirmedAt` as a fallback.
+These nullable source dates are not guessed or backfilled, and legacy `NULL`
+values are not automatically ingestible into Budgeting.
+
 Theme preference is a client-side Light/Dark/System value persisted under `zplit-theme`. The provider resolves System through `prefers-color-scheme`, sets `data-theme` and `color-scheme` on the document root, and updates the theme-color metadata. CSS owns the semantic token mapping; no server-side financial or ledger behavior depends on the selected theme.

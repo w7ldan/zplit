@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { CalendarDate, LocalDateTime } from "@/components/editorial/local-date-time";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { RepaymentPaymentProof } from "@/components/repayments/repayment-payment-proof";
 import { GroupParticipantLabel } from "@/components/groups/group-expense-row";
@@ -79,6 +79,10 @@ function GroupSettlementSummary({
         <div>
           <dt>Payment method</dt>
           <dd>{settlement.paymentMethod}</dd>
+        </div>
+        <div>
+          <dt>Payment date</dt>
+          <dd>{settlement.paidOn ? <CalendarDate value={settlement.paidOn} /> : "Not recorded"}</dd>
         </div>
         <div>
           <dt>Group context</dt>

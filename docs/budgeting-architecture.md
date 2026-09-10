@@ -132,6 +132,13 @@ Historical Outings and Repayments are intentionally not backfilled. Their
 canonical date columns remain `NULL` until an explicit source edit confirms a
 date.
 
+When Group integration is implemented, its source-date authority will be
+`Group Expense.occurred_on` for expenses and `Group Settlement.paid_on` for
+payments. Group `occurred_at`, `created_at`, and `confirmed_at` remain exact or
+audit instants and must never establish a Budget date. These nullable Group
+dates will not be guessed or backfilled; a legacy `NULL` source date is not
+automatically ingestible into Budgeting.
+
 ## B2 Personal ledger integration
 
 B2 connects only the authenticated user's Personal ledger through the typed

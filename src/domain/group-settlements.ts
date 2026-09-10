@@ -1,6 +1,7 @@
 import { parsePaymentMethodFields } from "./payment-method";
 import { normalizeUuid } from "./record-retrieval";
 import { MAX_RUPIAH, parseRupiah } from "./rupiah";
+import { isValidDateOnly } from "./date-only";
 
 export type GroupSettlementState = "pending" | "confirmed";
 
@@ -11,6 +12,7 @@ export type GroupSettlementInput = {
   recipientParticipantId: string;
   amount: number;
   paymentMethod: string;
+  paidOn: string;
 };
 
 export type GroupSettlementAllocationObligation = {
@@ -33,7 +35,7 @@ export class GroupSettlementAllocationError extends Error {
 }
 
 export class GroupSettlementInputError extends Error {
-  constructor(readonly code: "invalid_input" | "invalid_amount" | "invalid_payment_method" | "same_participant") {
+  constructor(readonly code: "invalid_input" | "invalid_amount" | "invalid_payment_method" | "invalid_paid_on" | "same_participant") {
     super(code);
     this.name = "GroupSettlementInputError";
   }
@@ -72,7 +74,8 @@ export function normalizeGroupSettlementInput(input: unknown): GroupSettlementIn
   const amount = requiredAmount(record.amount ?? record.amountRupiah);
   const paymentMethod = paymentMethodValue(record);
   if (!paymentMethod || paymentMethod.length > 40) throw new GroupSettlementInputError("invalid_payment_method");
-  return { senderParticipantId, recipientParticipantId, amount, paymentMethod };
+  if (!isValidDateOnly(record.paidOn)) throw new GroupSettlementInputError("invalid_paid_on");
+  return { senderParticipantId, recipientParticipantId, amount, paymentMethod, paidOn: record.paidOn };
 }
 
 export function allocateGroupSettlement(

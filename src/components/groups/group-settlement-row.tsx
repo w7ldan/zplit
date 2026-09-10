@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { CalendarDate, LocalDateTime } from "@/components/editorial/local-date-time";
 import { formatRupiah } from "@/domain/rupiah";
 import type { GroupSettlementPresentation } from "@/server/group-settlements";
 import { GroupParticipantLabel } from "./group-expense-row";
@@ -49,6 +49,10 @@ export function GroupSettlementRow({
         <span>
           <span className="technical-label">Method</span>
           {settlement.paymentMethod}
+        </span>
+        <span>
+          <span className="technical-label">Payment date</span>
+          {settlement.paidOn ? <CalendarDate value={settlement.paidOn} /> : "Not recorded"}
         </span>
         <span>
           <span className="technical-label">Created</span>

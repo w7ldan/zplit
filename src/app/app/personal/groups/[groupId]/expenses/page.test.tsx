@@ -19,7 +19,7 @@ describe("Group expenses page", () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "user-a" } });
     mocks.getDatabase.mockReturnValue("database");
     mocks.createGroupAccountingRepository.mockReturnValue({
-      listExpenses: vi.fn().mockResolvedValue({ items: [{ id: "expense-a", groupId: "group-a", creatorParticipantId: "alice", payerParticipantId: "alice", description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), totalAmount: 100000, state: "pending", confirmedAt: null, createdAt: new Date(), updatedAt: new Date(), payer, shareCount: 2 }], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }),
+      listExpenses: vi.fn().mockResolvedValue({ items: [{ id: "expense-a", groupId: "group-a", creatorParticipantId: "alice", payerParticipantId: "alice", description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), occurredOn: "2026-08-27", totalAmount: 100000, state: "pending", confirmedAt: null, createdAt: new Date(), updatedAt: new Date(), payer, shareCount: 2 }], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }),
       getParticipantEligibility: vi.fn().mockResolvedValue([]),
     });
   });

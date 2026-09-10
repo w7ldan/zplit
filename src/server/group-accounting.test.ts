@@ -96,7 +96,7 @@ function databaseFor(selects: unknown[][], updates: unknown[][], inserts: unknow
 }
 
 function expense(state: "pending" | "confirmed" | "rejected" | "voided") {
-  return { id: expenseId, groupId, creatorParticipantId, payerParticipantId, description: "Dinner", occurredAt: new Date("2026-08-28T12:00:00Z"), totalAmount: 100, state, confirmedAt: state === "confirmed" || state === "voided" ? new Date("2026-08-28T12:01:00Z") : null, createdAt: new Date("2026-08-28T12:00:00Z"), updatedAt: new Date("2026-08-28T12:01:00Z") };
+  return { id: expenseId, groupId, creatorParticipantId, payerParticipantId, description: "Dinner", occurredAt: new Date("2026-08-28T12:00:00Z"), occurredOn: "2026-08-28", totalAmount: 100, state, confirmedAt: state === "confirmed" || state === "voided" ? new Date("2026-08-28T12:01:00Z") : null, createdAt: new Date("2026-08-28T12:00:00Z"), updatedAt: new Date("2026-08-28T12:01:00Z") };
 }
 
 const share = { id: "55555555-5555-4555-8555-555555555555", groupId, expenseId, participantId: debtorParticipantId, amount: 100, createdAt: new Date(), updatedAt: new Date() };

@@ -54,6 +54,7 @@ async function pendingExpense(database: Database, groupId: string, creatorId: st
   const expense = await createGroupExpense(database, groupId, creatorId, {
     description,
     occurredAt: new Date("2026-08-28T12:00:00.000Z"),
+    occurredOn: "2026-08-28",
     totalAmount: 4,
     payerParticipantId,
     shares: [{ participantId: payerParticipantId, amount: 4 }],
@@ -259,7 +260,7 @@ export async function runGroupReceiptSmoke() {
     assert(await deleteGroupExpenseReceipt(database, group.id, creatorExpenseId, creatorReceipt.id, users[1]!.id), "authorized receipt delete failed");
     assert(await countReceipts(pool, group.id, creatorExpenseId) === 1, "authorized delete removed the wrong receipt");
 
-    const confirmed = await createGroupExpense(database, group.id, users[0]!.id, { description: "Confirmed expense", occurredAt: new Date("2026-08-28T13:00:00.000Z"), totalAmount: 4, payerParticipantId: ownerParticipantId, shares: [{ participantId: ownerParticipantId, amount: 4 }] });
+    const confirmed = await createGroupExpense(database, group.id, users[0]!.id, { description: "Confirmed expense", occurredAt: new Date("2026-08-28T13:00:00.000Z"), occurredOn: "2026-08-28", totalAmount: 4, payerParticipantId: ownerParticipantId, shares: [{ participantId: ownerParticipantId, amount: 4 }] });
     await expectRejected(() => createGroupExpenseReceipt(database, group.id, confirmed.id, users[0]!.id, file("k")), "confirmed-expense upload");
     assert(await countReceipts(pool, group.id, confirmed.id) === 0, "confirmed expense gained a receipt");
 

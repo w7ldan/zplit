@@ -52,6 +52,7 @@ function valuesFromForm(formData: FormData): GroupSettlementFormValues {
   return {
     recipientParticipantId: text(formData, "recipientParticipantId"),
     amountRupiah: text(formData, "amountRupiah"),
+    paidOn: text(formData, "paidOn"),
     paymentMethodChoice: choice as GroupSettlementFormValues["paymentMethodChoice"],
     paymentMethodOther: text(formData, "paymentMethodOther"),
   };
@@ -69,6 +70,7 @@ function inputErrorState(error: unknown, values: GroupSettlementFormValues) {
   if (error instanceof GroupSettlementInputError) {
     const fieldErrors: Partial<Record<GroupSettlementInputError["code"], GroupSettlementActionState["fieldErrors"]>> = {
       invalid_amount: { amountRupiah: "Use a positive whole-rupiah amount." },
+      invalid_paid_on: { paidOn: "Enter a valid payment date." },
       invalid_payment_method: { paymentMethodChoice: "Choose a payment method." },
       invalid_input: { recipientParticipantId: "Choose an eligible recipient." },
     };
@@ -129,6 +131,7 @@ export async function createGroupSettlementAction(
       senderParticipantId,
       recipientParticipantId: values.recipientParticipantId,
       amountRupiah: values.amountRupiah,
+      paidOn: values.paidOn,
       paymentMethodChoice: values.paymentMethodChoice,
       paymentMethodOther: values.paymentMethodOther,
     });

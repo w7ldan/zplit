@@ -1,5 +1,6 @@
 import { normalizeUuid } from "./record-retrieval";
 import { MAX_RUPIAH, parseRupiah } from "./rupiah";
+import { isValidDateOnly } from "./date-only";
 
 export type GroupExpenseState = "pending" | "confirmed" | "rejected" | "voided";
 
@@ -22,6 +23,7 @@ export type GroupExpenseShareInput = {
 export type GroupExpenseInput = {
   description: string;
   occurredAt: Date;
+  occurredOn: string;
   totalAmount: number;
   payerParticipantId: string;
   shares: GroupExpenseShareInput[];
@@ -69,6 +71,11 @@ function requiredDate(value: unknown) {
   return date;
 }
 
+function requiredDateOnly(value: unknown) {
+  if (!isValidDateOnly(value)) throw new GroupAccountingInputError("invalid_date");
+  return value;
+}
+
 export function normalizeGroupExpenseInput(input: unknown): GroupExpenseInput {
   const record = inputRecord(input);
   const description = typeof record.description === "string" ? record.description.trim() : "";
@@ -89,6 +96,7 @@ export function normalizeGroupExpenseInput(input: unknown): GroupExpenseInput {
   return {
     description,
     occurredAt: requiredDate(record.occurredAt),
+    occurredOn: requiredDateOnly(record.occurredOn),
     totalAmount,
     payerParticipantId: requiredUuid(record.payerParticipantId),
     shares,

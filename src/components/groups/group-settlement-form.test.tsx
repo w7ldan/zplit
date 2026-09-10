@@ -15,6 +15,7 @@ const emptyState = {
   values: {
     recipientParticipantId: recipient.id,
     amountRupiah: "",
+    paidOn: "",
     paymentMethodChoice: "",
     paymentMethodOther: "",
   },
@@ -34,6 +35,7 @@ describe("GroupSettlementForm", () => {
     expect(screen.getByText(/recipient must confirm it/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Paid by")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Paid to")).toHaveValue(recipient.id);
+    expect(screen.getByLabelText("Payment date")).not.toHaveValue("");
     expect(screen.getByText("Rp 100.000")).toBeInTheDocument();
     expect(screen.getByLabelText("Optional payment proof")).toHaveAttribute(
       "accept",

@@ -20,12 +20,12 @@ const groupId = "22222222-2222-4222-8222-222222222222";
 const expenseId = "33333333-3333-4333-8333-333333333333";
 const emptyGroupExpenseActionState: GroupExpenseActionState = { fieldErrors: {}, formError: "", values: { description: "", totalAmount: "", occurredAtLocal: "", timezoneOffsetMinutes: "", payerParticipantId: "", shares: [] } };
 
-function form(values: { payer: string; total?: string; shares?: Array<[string, string]> }) {
+function form(values: { payer: string; total?: string; shares?: Array<[string, string]>; occurredAtLocal?: string; timezoneOffsetMinutes?: string }) {
   const data = new FormData();
   data.set("description", "Dinner");
   data.set("totalAmount", values.total ?? "100000");
-  data.set("occurredAtLocal", "2026-08-27T12:00");
-  data.set("timezoneOffsetMinutes", "0");
+  data.set("occurredAtLocal", values.occurredAtLocal ?? "2026-08-27T12:00");
+  data.set("timezoneOffsetMinutes", values.timezoneOffsetMinutes ?? "0");
   data.set("payerParticipantId", values.payer);
   for (const [participantId, amount] of values.shares ?? [[values.payer, "100000"]]) {
     data.append("participantId", participantId);
@@ -47,7 +47,7 @@ describe("Group expense actions", () => {
 
   it("uses the authenticated creator and redirects a self-payer expense", async () => {
     await expect(createGroupExpenseAction("group-a", emptyGroupExpenseActionState, form({ payer: payerId }))).rejects.toThrow("redirect:/app/personal/groups/group-a/expenses/expense-a?created=1");
-    expect(mocks.createGroupExpense).toHaveBeenCalledWith("database", "group-a", "user-a", expect.objectContaining({ payerParticipantId: payerId, totalAmount: 100000 }));
+    expect(mocks.createGroupExpense).toHaveBeenCalledWith("database", "group-a", "user-a", expect.objectContaining({ payerParticipantId: payerId, totalAmount: 100000, occurredOn: "2026-08-27" }));
     expect(mocks.createGroupExpense.mock.calls[0]?.[2]).toBe("user-a");
   });
 
@@ -55,6 +55,23 @@ describe("Group expense actions", () => {
     const result = await createGroupExpenseAction("group-a", emptyGroupExpenseActionState, form({ payer: payerId, shares: [[payerId, "99999"]] }));
     expect(result).toMatchObject({ fieldErrors: { shares: "Shares must equal the expense total." } });
     expect(mocks.createGroupExpense).not.toHaveBeenCalled();
+  });
+
+  it("takes the financial date from the submitted local date, not the converted instant", async () => {
+    await expect(createGroupExpenseAction(
+      "group-a",
+      emptyGroupExpenseActionState,
+      form({ payer: payerId, occurredAtLocal: "2026-09-10T00:30", timezoneOffsetMinutes: "-420" }),
+    )).rejects.toThrow("redirect:");
+    expect(mocks.createGroupExpense).toHaveBeenCalledWith(
+      "database",
+      "group-a",
+      "user-a",
+      expect.objectContaining({
+        occurredOn: "2026-09-10",
+        occurredAt: new Date("2026-09-09T17:30:00.000Z"),
+      }),
+    );
   });
 
   it("maps invalid total and share amounts to their own fields", async () => {

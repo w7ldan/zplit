@@ -157,6 +157,7 @@ async function raceFixture(pool: Pool, database: Database, ownerId: string, memb
   await createGroupExpense(database, group.id, ownerId, {
     description: "History seed",
     occurredAt: new Date("2026-08-27T22:00:00.000Z"),
+    occurredOn: "2026-08-27",
     totalAmount: 1,
     payerParticipantId: ownerParticipant,
     shares: [{ participantId: memberParticipant, amount: 1 }],
@@ -227,6 +228,7 @@ async function runCoreAccountingChecks(pool: Pool, database: Database, users: Ar
     const selfExpense = await createGroupExpense(database, group.id, users[0]!.id, {
       description: "Self payer",
       occurredAt: new Date("2026-08-27T12:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 100_000,
       payerParticipantId: ownerParticipant,
       shares: [
@@ -235,13 +237,14 @@ async function runCoreAccountingChecks(pool: Pool, database: Database, users: Ar
         { participantId: memberParticipant, amount: 50_000 },
       ],
     });
-    assert(selfExpense.state === "confirmed", "self-payer expense was not confirmed");
+    assert(selfExpense.state === "confirmed" && selfExpense.occurredOn === "2026-08-27", "self-payer expense did not persist its canonical date");
     assert(selfExpense.shares.length === 3 && selfExpense.obligations.length === 2, "self-payer rows are incomplete");
     assert(selfExpense.obligations.every((obligation) => obligation.creditorParticipantId === ownerParticipant), "self-payer creditor is wrong");
 
     const pendingExpense = await createGroupExpense(database, group.id, users[0]!.id, {
       description: "Third-party payer",
       occurredAt: new Date("2026-08-27T13:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 100_000,
       payerParticipantId: payerParticipant,
       shares: [
@@ -261,6 +264,7 @@ async function runCoreAccountingChecks(pool: Pool, database: Database, users: Ar
     await expectCode(() => createGroupExpense(database, group.id, users[0]!.id, {
       description: "External payer",
       occurredAt: new Date("2026-08-27T14:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 1,
       payerParticipantId: external.id,
       shares: [{ participantId: external.id, amount: 1 }],
@@ -274,6 +278,7 @@ async function runCoreAccountingChecks(pool: Pool, database: Database, users: Ar
       await expectCode(() => createGroupExpense(database, group.id, users[0]!.id, {
         description: "Invalid allocation",
         occurredAt: new Date("2026-08-27T15:00:00.000Z"),
+        occurredOn: "2026-08-27",
         totalAmount,
         payerParticipantId: ownerParticipant,
         shares: [{ participantId: ownerParticipant, amount: 100_000 }],
@@ -282,6 +287,7 @@ async function runCoreAccountingChecks(pool: Pool, database: Database, users: Ar
     await expectCode(() => createGroupExpense(database, group.id, users[0]!.id, {
       description: "Invalid amount",
       occurredAt: new Date("2026-08-27T15:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 1,
       payerParticipantId: ownerParticipant,
       shares: [{ participantId: ownerParticipant, amount: -1 }],
@@ -290,6 +296,7 @@ async function runCoreAccountingChecks(pool: Pool, database: Database, users: Ar
     const creatorWithoutShare = await createGroupExpense(database, group.id, users[0]!.id, {
       description: "Creator does not share",
       occurredAt: new Date("2026-08-27T16:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 100,
       payerParticipantId: ownerParticipant,
       shares: [{ participantId: memberParticipant, amount: 100 }],
@@ -298,6 +305,7 @@ async function runCoreAccountingChecks(pool: Pool, database: Database, users: Ar
     const singleParticipant = await createGroupExpense(database, group.id, users[0]!.id, {
       description: "Single participant",
       occurredAt: new Date("2026-08-27T17:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 1,
       payerParticipantId: ownerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 1 }],
@@ -307,6 +315,7 @@ async function runCoreAccountingChecks(pool: Pool, database: Database, users: Ar
     const reciprocal = await createGroupExpense(database, group.id, users[1]!.id, {
       description: "Reciprocal direction",
       occurredAt: new Date("2026-08-27T18:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 20,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 20 }],
@@ -317,6 +326,7 @@ async function runCoreAccountingChecks(pool: Pool, database: Database, users: Ar
     const rollbackExpense = await createGroupExpense(database, group.id, users[0]!.id, {
       description: "Rollback claim",
       occurredAt: new Date("2026-08-27T19:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 2,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: external.id, amount: 1 }],
@@ -344,6 +354,7 @@ async function runClaimLifecycleChecks(pool: Pool, database: Database, users: Ar
     const pending = await createGroupExpense(database, groupId, users[0]!.id, {
       description: "Lifecycle claim",
       occurredAt: new Date("2026-08-28T03:00:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 100,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 40 }, { participantId: payerParticipant, amount: 20 }, { participantId: externalParticipant, amount: 40 }],
@@ -361,6 +372,7 @@ async function runClaimLifecycleChecks(pool: Pool, database: Database, users: Ar
     const rejected = await createGroupExpense(database, groupId, users[0]!.id, {
       description: "Rejected claim",
       occurredAt: new Date("2026-08-28T03:01:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 1,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 1 }],
@@ -374,6 +386,7 @@ async function runRepeatedExpenseNotificationChecks(pool: Pool, database: Databa
     const repeatedOne = await createGroupExpense(database, groupId, users[0]!.id, {
       description: "Repeated claim",
       occurredAt: new Date("2026-08-28T03:02:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 1,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 1 }],
@@ -381,6 +394,7 @@ async function runRepeatedExpenseNotificationChecks(pool: Pool, database: Databa
     const repeatedTwo = await createGroupExpense(database, groupId, users[0]!.id, {
       description: "Repeated claim",
       occurredAt: new Date("2026-08-28T03:03:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 1,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 1 }],
@@ -393,6 +407,7 @@ async function runVoidLifecycleChecks(pool: Pool, database: Database, users: Arr
     const self = await createGroupExpense(database, groupId, users[0]!.id, {
       description: "Voidable claim",
       occurredAt: new Date("2026-08-28T03:04:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 2,
       payerParticipantId: ownerParticipant,
       shares: [{ participantId: memberParticipant, amount: 1 }, { participantId: externalParticipant, amount: 1 }],
@@ -413,6 +428,7 @@ async function runLifecycleRaces(pool: Pool, database: Database, users: Array<{ 
     const confirmFirst = await createGroupExpense(database, groupId, users[0]!.id, {
       description: "Confirm wins",
       occurredAt: new Date("2026-08-28T03:10:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 2,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: memberParticipant, amount: 1 }],
@@ -429,6 +445,7 @@ async function runLifecycleRaces(pool: Pool, database: Database, users: Array<{ 
     const rejectFirst = await createGroupExpense(database, groupId, users[0]!.id, {
       description: "Reject wins",
       occurredAt: new Date("2026-08-28T03:11:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 2,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: memberParticipant, amount: 1 }],
@@ -445,6 +462,7 @@ async function runLifecycleRaces(pool: Pool, database: Database, users: Array<{ 
     const duplicateConfirm = await createGroupExpense(database, groupId, users[0]!.id, {
       description: "Duplicate confirm",
       occurredAt: new Date("2026-08-28T03:12:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 2,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: memberParticipant, amount: 1 }],
@@ -460,6 +478,7 @@ async function runLifecycleRaces(pool: Pool, database: Database, users: Array<{ 
     const voidRace = await createGroupExpense(database, groupId, users[0]!.id, {
       description: "Duplicate void",
       occurredAt: new Date("2026-08-28T03:13:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 2,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: memberParticipant, amount: 1 }],
@@ -486,6 +505,7 @@ async function runPayerMembershipRaces(pool: Pool, database: Database, users: Ar
     const confirmFirst = await createGroupExpense(database, confirmFirstGroup.id, users[0]!.id, {
       description: "Payer membership confirm first",
       occurredAt: new Date("2026-08-28T03:14:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 1,
       payerParticipantId: confirmFirstPayer,
       shares: [{ participantId: confirmFirstOwner, amount: 1 }],
@@ -505,6 +525,7 @@ async function runPayerMembershipRaces(pool: Pool, database: Database, users: Ar
     const removalFirstExpense = await createGroupExpense(database, removalFirstGroup.id, users[0]!.id, {
       description: "Payer membership removal first",
       occurredAt: new Date("2026-08-28T03:15:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 1,
       payerParticipantId: removalFirstPayer,
       shares: [{ participantId: removalFirstOwner, amount: 1 }],
@@ -525,6 +546,7 @@ async function runCrossScopeAccountingChecks(pool: Pool, database: Database, use
     await expectCode(() => createGroupExpense(database, group.id, users[0]!.id, {
       description: "Cross Group",
       occurredAt: new Date("2026-08-27T20:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 1,
       payerParticipantId: foreignParticipant,
       shares: [{ participantId: foreignParticipant, amount: 1 }],
@@ -539,6 +561,7 @@ async function runCrossScopeAccountingChecks(pool: Pool, database: Database, use
     const concurrentExpense = await createGroupExpense(database, group.id, users[0]!.id, {
       description: "Concurrent confirmation",
       occurredAt: new Date("2026-08-27T21:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 2,
       payerParticipantId: payerParticipant,
       shares: [{ participantId: ownerParticipant, amount: 1 }, { participantId: external.id, amount: 1 }],
@@ -561,6 +584,7 @@ async function runMembershipAccountingRaces(pool: Pool, database: Database, user
       const expensePromise = createGroupExpense(database, expenseFirst.groupId, users[0]!.id, {
         description: "Race expense first",
         occurredAt: new Date("2026-08-27T23:00:00.000Z"),
+        occurredOn: "2026-08-27",
         totalAmount: 2,
         payerParticipantId: expenseFirst.ownerParticipant,
         shares: [{ participantId: expenseFirst.memberParticipant, amount: 2 }],
@@ -587,6 +611,7 @@ async function runMembershipAccountingRaces(pool: Pool, database: Database, user
       const expensePromise = createGroupExpense(database, removalFirst.groupId, users[0]!.id, {
         description: "Race removal first",
         occurredAt: new Date("2026-08-28T00:00:00.000Z"),
+        occurredOn: "2026-08-28",
         totalAmount: 2,
         payerParticipantId: removalFirst.ownerParticipant,
         shares: [{ participantId: removalFirst.memberParticipant, amount: 2 }],
@@ -610,6 +635,7 @@ async function runMembershipAccountingRaces(pool: Pool, database: Database, user
       const expensePromise = createGroupExpense(database, creatorExpenseFirst.groupId, users[2]!.id, {
         description: "Creator race expense first",
         occurredAt: new Date("2026-08-28T01:00:00.000Z"),
+        occurredOn: "2026-08-28",
         totalAmount: 2,
         payerParticipantId: creatorExpenseFirst.ownerParticipant,
         shares: [{ participantId: creatorExpenseFirst.ownerParticipant, amount: 2 }],
@@ -636,6 +662,7 @@ async function runMembershipAccountingRaces(pool: Pool, database: Database, user
       const expensePromise = createGroupExpense(database, creatorRemovalFirst.groupId, users[2]!.id, {
         description: "Creator race removal first",
         occurredAt: new Date("2026-08-28T02:00:00.000Z"),
+        occurredOn: "2026-08-28",
         totalAmount: 2,
         payerParticipantId: creatorRemovalFirst.ownerParticipant,
         shares: [{ participantId: creatorRemovalFirst.ownerParticipant, amount: 2 }],

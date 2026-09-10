@@ -216,6 +216,7 @@ async function settlement(database: Database, fixture: Fixture, amount: number) 
     recipientParticipantId: fixture.recipientParticipantId,
     amount,
     paymentMethod: "Bank transfer",
+    paidOn: "2026-08-27",
   });
 }
 
@@ -245,6 +246,7 @@ async function runLifecycleAndMigrationChecks(pool: Pool, database: Database, fi
     recipientParticipantId: externalParticipantId,
     amount: 1,
     paymentMethod: "Cash",
+    paidOn: "2026-08-27",
   }), "recipient_external");
   const pending = await settlement(database, fixture, 70);
   assert(pending.state === "pending", "settlement did not start pending");
@@ -257,6 +259,7 @@ async function runLifecycleAndMigrationChecks(pool: Pool, database: Database, fi
     recipientParticipantId: fixture.recipientParticipantId,
     amount: 1,
     paymentMethod: "Cash",
+    paidOn: "2026-08-27",
   }), "forbidden");
   await expectCode(confirmGroupSettlement(database, fixture.groupId, pending.id, fixture.ownerUserId), "forbidden");
   const notificationCount = await pool.query<{ count: string }>(
@@ -265,7 +268,9 @@ async function runLifecycleAndMigrationChecks(pool: Pool, database: Database, fi
   );
   assert(notificationCount.rows[0]?.count === "1", "settlement creation did not create one deduplicated notification");
   const confirmed = await confirmGroupSettlement(database, fixture.groupId, pending.id, fixture.recipientUserId);
-  assert(confirmed.state === "confirmed" && confirmed.confirmedAt !== null, "recipient confirmation did not persist");
+  assert(confirmed.state === "confirmed" && confirmed.confirmedAt !== null && confirmed.paidOn === "2026-08-27", "recipient confirmation did not preserve the payment date");
+  const confirmedRow = await pool.query<{ paid_on: string | null; confirmed_at: Date | null }>("SELECT paid_on, confirmed_at FROM group_settlements WHERE id = $1", [pending.id]);
+  assert(confirmedRow.rows[0]?.paid_on === "2026-08-27" && confirmedRow.rows[0]?.confirmed_at !== null, "settlement source date and confirmation audit were not stored separately");
   assert(confirmed.applications.length === 1 && confirmed.applications[0]?.appliedAmount === 70, "settlement was not fully applied to the debt");
   assert(await balance(database, fixture) === 30, "confirmed settlement did not reduce the balance once");
   const outcomeCount = await pool.query<{ count: string }>(
@@ -280,6 +285,13 @@ async function runLifecycleAndMigrationChecks(pool: Pool, database: Database, fi
   assert(selfOutcomeCount.rows[0]?.count === "0", "settlement confirmation notified the recipient about their own action");
   const repeated = await confirmGroupSettlement(database, fixture.groupId, pending.id, fixture.recipientUserId);
   assert(repeated.state === "confirmed" && await balance(database, fixture) === 30, "repeated confirmation changed the balance");
+  const legacySettlementId = randomUUID();
+  await pool.query(
+    "INSERT INTO group_settlements (id, group_id, sender_participant_id, recipient_participant_id, amount, payment_method, state, created_at) VALUES ($1, $2, $3, $4, 1, 'Cash', 'pending', $5)",
+    [legacySettlementId, fixture.groupId, fixture.senderParticipantId, fixture.recipientParticipantId, new Date("2026-08-01T00:00:00Z")],
+  );
+  const confirmedLegacy = await confirmGroupSettlement(database, fixture.groupId, legacySettlementId, fixture.recipientUserId);
+  assert(confirmedLegacy.state === "confirmed" && confirmedLegacy.paidOn === null && confirmedLegacy.confirmedAt !== null, "confirming a legacy settlement manufactured a payment date");
   const repeatedOutcomeCount = await pool.query<{ count: string }>(
     "SELECT count(*)::text AS count FROM notifications WHERE recipient_user_id = $1 AND type = $2 AND dedupe_key = $3",
     [fixture.senderUserId, "group.settlement.outcome", `group-settlement-outcome:${pending.id}:confirmed`],

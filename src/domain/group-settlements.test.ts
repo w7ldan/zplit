@@ -46,18 +46,20 @@ describe("Group settlement domain", () => {
       amount: "84.000",
       paymentMethodChoice: "GoPay",
       paymentMethodOther: "ignored",
-    })).toEqual({ senderParticipantId, recipientParticipantId, amount: 84_000, paymentMethod: "GoPay" });
+      paidOn: "2026-09-10",
+    })).toEqual({ senderParticipantId, recipientParticipantId, amount: 84_000, paymentMethod: "GoPay", paidOn: "2026-09-10" });
   });
 
   it("accepts the existing custom payment method vocabulary", () => {
-    expect(normalizeGroupSettlementInput({ senderParticipantId, recipientParticipantId, amount: 1, paymentMethodChoice: "Other", paymentMethodOther: "Wallet" }).paymentMethod).toBe("Wallet");
+    expect(normalizeGroupSettlementInput({ senderParticipantId, recipientParticipantId, amount: 1, paymentMethodChoice: "Other", paymentMethodOther: "Wallet", paidOn: "2026-09-10" }).paymentMethod).toBe("Wallet");
   });
 
   it.each([
-    [senderParticipantId, senderParticipantId, 1, "Cash"],
-    [senderParticipantId, recipientParticipantId, 0, "Cash"],
-    [senderParticipantId, recipientParticipantId, 1, ""],
-  ])("rejects invalid settlement input", (sender, recipient, amount, paymentMethod) => {
-    expect(() => normalizeGroupSettlementInput({ senderParticipantId: sender, recipientParticipantId: recipient, amount, paymentMethod })).toThrow(GroupSettlementInputError);
+    [senderParticipantId, senderParticipantId, 1, "Cash", "2026-09-10"],
+    [senderParticipantId, recipientParticipantId, 0, "Cash", "2026-09-10"],
+    [senderParticipantId, recipientParticipantId, 1, "", "2026-09-10"],
+    [senderParticipantId, recipientParticipantId, 1, "Cash", "2026-02-30"],
+  ])("rejects invalid settlement input", (sender, recipient, amount, paymentMethod, paidOn) => {
+    expect(() => normalizeGroupSettlementInput({ senderParticipantId: sender, recipientParticipantId: recipient, amount, paymentMethod, paidOn })).toThrow(GroupSettlementInputError);
   });
 });

@@ -21,10 +21,17 @@ const emptyState = (recipientParticipantId: string): GroupSettlementActionState 
   values: {
     recipientParticipantId,
     amountRupiah: "",
+    paidOn: "",
     paymentMethodChoice: "",
     paymentMethodOther: "",
   },
 });
+
+function localCalendarDate() {
+  const date = new Date();
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return (
@@ -74,6 +81,7 @@ export function GroupSettlementForm({
   const [proofFilename, setProofFilename] = useState("");
   const [localError, setLocalError] = useState("");
   const proofInput = useRef<HTMLInputElement>(null);
+  const paidOnInput = useRef<HTMLInputElement>(null);
   const previousState = useRef(state);
   const selectedRecipient = recipients.find(
     (recipient) => recipient.id === recipientParticipantId,
@@ -81,16 +89,22 @@ export function GroupSettlementForm({
   const currentDebt = selectedRecipient?.currentDebt ?? 0;
 
   useEffect(() => {
+    if (paidOnInput.current && !paidOnInput.current.value) paidOnInput.current.value = localCalendarDate();
+  }, []);
+
+  useEffect(() => {
     if (previousState.current === state) return;
     previousState.current = state;
     setRecipientParticipantId(state.values.recipientParticipantId);
     setAmountRupiah(state.values.amountRupiah);
+    if (paidOnInput.current) paidOnInput.current.value = state.values.paidOn;
     setPaymentMethodChoice(state.values.paymentMethodChoice);
     setPaymentMethodOther(state.values.paymentMethodOther);
   }, [state]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     const amount = parseRupiah(amountRupiah);
+    const paidOn = paidOnInput.current?.value.trim() ?? "";
     const error = !recipientParticipantId
       ? "Choose a registered Group member."
       : amount === null || amount < 1
@@ -99,11 +113,13 @@ export function GroupSettlementForm({
           ? "There is no current debt to settle with this member."
           : amount > currentDebt
             ? `The amount cannot exceed the current debt of ${formatRupiah(currentDebt)}.`
-            : !paymentMethodChoice
-              ? "Choose a payment method."
-              : paymentMethodChoice === "Other" && !paymentMethodOther.trim()
-                ? "Enter a custom payment method."
-                : "";
+            : !paidOn
+              ? "Enter the payment date."
+              : !paymentMethodChoice
+                ? "Choose a payment method."
+                : paymentMethodChoice === "Other" && !paymentMethodOther.trim()
+                  ? "Enter a custom payment method."
+                  : "";
     if (!error) {
       setLocalError("");
       return;
@@ -198,6 +214,29 @@ export function GroupSettlementForm({
         <FieldError
           id="group-settlement-amount-error"
           message={state.fieldErrors.amountRupiah}
+        />
+      </div>
+      <div className="group-settlement-form__field">
+        <label htmlFor="group-settlement-paid-on">Payment date</label>
+        <input
+          ref={paidOnInput}
+          id="group-settlement-paid-on"
+          name="paidOn"
+          type="date"
+          defaultValue={state.values.paidOn}
+          onChange={() => {
+            setLocalError("");
+          }}
+          required
+          aria-invalid={Boolean(state.fieldErrors.paidOn)}
+          aria-describedby="group-settlement-paid-on-help group-settlement-paid-on-error"
+        />
+        <p className="group-settlement-form__help" id="group-settlement-paid-on-help">
+          The calendar date you actually sent the money. It is not the confirmation date.
+        </p>
+        <FieldError
+          id="group-settlement-paid-on-error"
+          message={state.fieldErrors.paidOn}
         />
       </div>
       <div className="group-settlement-form__field">

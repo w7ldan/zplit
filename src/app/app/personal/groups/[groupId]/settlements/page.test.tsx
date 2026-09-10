@@ -33,7 +33,7 @@ vi.mock("@/server/group-accounting", () => ({
   },
 }));
 vi.mock("@/components/realtime/group-settlement-live-refresh", () => ({ GroupSettlementLiveRefresh: () => null }));
-vi.mock("@/components/app/task-panel", () => ({ TaskPanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
+vi.mock("@/components/app/task-panel", () => ({ TaskPanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, TaskPanelFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("./actions", () => ({ createGroupSettlementAction: mocks.createSettlementAction, createGroupOffsetAction: mocks.createOffsetAction }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
@@ -92,6 +92,7 @@ const settlement = {
   amount: 70000,
   paymentMethod: "Cash",
   state: "pending" as const,
+  paidOn: "2026-09-10",
   createdAt: new Date("2026-08-27T12:00:00Z"),
   confirmedAt: null,
   sender,

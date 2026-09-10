@@ -141,7 +141,7 @@ describe("database schema", () => {
 
   it("defines Group expenses, shares, obligations, and private receipt storage with same-Group keys", () => {
     const expenses = getTableConfig(schema.groupExpenses);
-    expect(expenses.columns.map((column) => column.name)).toEqual(["id", "group_id", "creator_participant_id", "payer_participant_id", "description", "occurred_at", "total_amount", "state", "confirmed_at", "created_at", "updated_at"]);
+    expect(expenses.columns.map((column) => column.name)).toEqual(["id", "group_id", "creator_participant_id", "payer_participant_id", "description", "occurred_at", "occurred_on", "total_amount", "state", "confirmed_at", "created_at", "updated_at"]);
     expect(expenses.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_expenses_total_amount_positive", "group_expenses_state_allowed", "group_expenses_confirmation_timestamp_shape"]));
     expect(foreignKeyShape(schema.groupExpenses)).toEqual(expect.arrayContaining([
       { from: ["group_id", "creator_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
@@ -199,7 +199,7 @@ describe("database schema", () => {
   it("defines immutable Group settlements and separate proof storage", () => {
     const settlements = getTableConfig(schema.groupSettlements);
     expect(settlements.columns.map((column) => column.name)).toEqual([
-      "id", "group_id", "sender_participant_id", "recipient_participant_id", "amount", "payment_method", "state", "created_at", "confirmed_at",
+      "id", "group_id", "sender_participant_id", "recipient_participant_id", "amount", "payment_method", "state", "paid_on", "created_at", "confirmed_at",
     ]);
     expect(settlements.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
       "group_settlements_amount_positive",

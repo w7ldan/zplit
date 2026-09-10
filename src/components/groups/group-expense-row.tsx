@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatRupiah } from "@/domain/rupiah";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import type { GroupParticipantPresentation } from "@/server/group-participant-presentation";
 import type { GroupExpenseListRecord } from "@/server/group-accounting";
 
@@ -34,7 +34,7 @@ export function GroupExpenseRow({ expense, viewerUserId, basePath }: { expense: 
           >{formatRupiah(expense.totalAmount)}</strong>
         </span>
         <span>
-          <span className="technical-label">Occurred</span><LocalDateTime iso={expense.occurredAt.toISOString()} />
+          <span className="technical-label">Occurred</span><SourceCalendarDate canonicalDate={expense.occurredOn} timestamp={expense.occurredAt.toISOString()} />
         </span>
         <span>
           <span className="technical-label">Paid by</span><GroupParticipantLabel participant={expense.payer} />

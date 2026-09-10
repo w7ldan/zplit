@@ -6,28 +6,29 @@ const payer = { id: "payer", userId: "user-a", displayName: "Alice", label: null
 
 describe("GroupExpenseRow", () => {
   it("shows payer, state, share count, and confirmation attention", () => {
-    render(<GroupExpenseRow expense={{ id: "expense-a", groupId: "group-a", creatorParticipantId: "creator", payerParticipantId: "payer", description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), totalAmount: 100000, state: "pending", confirmedAt: null, createdAt: new Date(), updatedAt: new Date(), payer, shareCount: 3 }} viewerUserId="user-a" basePath="/app/personal/groups/group-a/expenses" />);
+    render(<GroupExpenseRow expense={{ id: "expense-a", groupId: "group-a", creatorParticipantId: "creator", payerParticipantId: "payer", description: "Dinner", occurredAt: new Date("2026-09-09T17:30:00Z"), occurredOn: "2026-09-10", totalAmount: 100000, state: "pending", confirmedAt: null, createdAt: new Date(), updatedAt: new Date(), payer, shareCount: 3 }} viewerUserId="user-a" basePath="/app/personal/groups/group-a/expenses" />);
     expect(screen.getByRole("link", { name: "Dinner" })).toHaveAttribute("href", "/app/personal/groups/group-a/expenses/expense-a");
     expect(screen.getByText("Rp 100.000")).toBeInTheDocument();
     expect(screen.getByText("Pending confirmation")).toBeInTheDocument();
     expect(screen.getByText("Needs your confirmation")).toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getByText("10 Sept 2026")).toBeInTheDocument();
     expect(screen.getByText("3", { exact: true })).toBeInTheDocument();
   });
 
   it("labels historical and external identities", () => {
-    render(<GroupExpenseRow expense={{ id: "expense-a", groupId: "group-a", creatorParticipantId: "creator", payerParticipantId: "payer", description: "Taxi", occurredAt: new Date("2026-08-27T12:00:00Z"), totalAmount: 100000, state: "confirmed", confirmedAt: new Date(), createdAt: new Date(), updatedAt: new Date(), payer: { ...payer, userId: null, status: "external", displayName: "Charlie", label: "Driver" }, shareCount: 1 }} viewerUserId="user-a" basePath="/app/personal/groups/group-a/expenses" />);
+    render(<GroupExpenseRow expense={{ id: "expense-a", groupId: "group-a", creatorParticipantId: "creator", payerParticipantId: "payer", description: "Taxi", occurredAt: new Date("2026-08-27T12:00:00Z"), occurredOn: "2026-08-27", totalAmount: 100000, state: "confirmed", confirmedAt: new Date(), createdAt: new Date(), updatedAt: new Date(), payer: { ...payer, userId: null, status: "external", displayName: "Charlie", label: "Driver" }, shareCount: 1 }} viewerUserId="user-a" basePath="/app/personal/groups/group-a/expenses" />);
     expect(screen.getByText("Charlie · Driver · External")).toBeInTheDocument();
   });
 
   it.each([["confirmed"], ["rejected"], ["voided"]] as const)("presents the %s lifecycle state", (state) => {
-    render(<GroupExpenseRow expense={{ id: `expense-${state}`, groupId: "group-a", creatorParticipantId: "creator", payerParticipantId: "payer", description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), totalAmount: 100000, state, confirmedAt: state === "voided" || state === "confirmed" ? new Date() : null, createdAt: new Date(), updatedAt: new Date(), payer, shareCount: 3 }} viewerUserId="user-a" basePath="/app/personal/groups/group-a/expenses" />);
+    render(<GroupExpenseRow expense={{ id: `expense-${state}`, groupId: "group-a", creatorParticipantId: "creator", payerParticipantId: "payer", description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), occurredOn: "2026-08-27", totalAmount: 100000, state, confirmedAt: state === "voided" || state === "confirmed" ? new Date() : null, createdAt: new Date(), updatedAt: new Date(), payer, shareCount: 3 }} viewerUserId="user-a" basePath="/app/personal/groups/group-a/expenses" />);
     expect(screen.getByText(state[0].toUpperCase() + state.slice(1), { exact: true })).toBeInTheDocument();
     expect(screen.queryByText("Needs your confirmation")).not.toBeInTheDocument();
   });
 
   it("does not call an inactive payer to act", () => {
-    render(<GroupExpenseRow expense={{ id: "expense-pending", groupId: "group-a", creatorParticipantId: "creator", payerParticipantId: "payer", description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), totalAmount: 100000, state: "pending", confirmedAt: null, createdAt: new Date(), updatedAt: new Date(), payer: { ...payer, status: "former" }, shareCount: 1 }} viewerUserId="user-a" basePath="/app/personal/groups/group-a/expenses" />);
+    render(<GroupExpenseRow expense={{ id: "expense-pending", groupId: "group-a", creatorParticipantId: "creator", payerParticipantId: "payer", description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), occurredOn: null, totalAmount: 100000, state: "pending", confirmedAt: null, createdAt: new Date(), updatedAt: new Date(), payer: { ...payer, status: "former" }, shareCount: 1 }} viewerUserId="user-a" basePath="/app/personal/groups/group-a/expenses" />);
     expect(screen.queryByText("Needs your confirmation")).not.toBeInTheDocument();
   });
 });

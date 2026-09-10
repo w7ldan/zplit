@@ -119,6 +119,7 @@ async function confirmPayment(database: Database, fixture: Fixture, amount: numb
     recipientParticipantId: fixture.recipientParticipantId,
     amount,
     paymentMethod: "Bank transfer",
+    paidOn: "2026-08-27",
   });
   return confirmGroupSettlement(database, fixture.groupId, pending.id, fixture.recipientUserId);
 }
@@ -225,6 +226,7 @@ async function runRollbackAndVoidChecks(pool: Pool, database: Database, fixtures
     recipientParticipantId: fixture.recipientParticipantId,
     amount: 50,
     paymentMethod: "Cash",
+    paidOn: "2026-08-27",
   });
   await expectCode(pool.query(
     `INSERT INTO group_settlement_applications (group_id, settlement_id, obligation_id, applied_amount)

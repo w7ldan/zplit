@@ -73,6 +73,7 @@ export type GroupExpenseConfirmationState = { error: string; success?: string };
 export type GroupSettlementFormValues = {
   recipientParticipantId: string;
   amountRupiah: string;
+  paidOn: string;
   paymentMethodChoice: PaymentMethodChoice;
   paymentMethodOther: string;
 };

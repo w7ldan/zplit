@@ -60,6 +60,7 @@ const emptyState: GroupSettlementActionState = {
   values: {
     recipientParticipantId: "",
     amountRupiah: "",
+    paidOn: "",
     paymentMethodChoice: "",
     paymentMethodOther: "",
   },
@@ -69,6 +70,7 @@ function paymentForm(overrides: Record<string, string> = {}) {
   const form = new FormData();
   form.set("recipientParticipantId", recipientParticipantId);
   form.set("amountRupiah", "70000");
+  form.set("paidOn", "2026-09-10");
   form.set("paymentMethodChoice", "Cash");
   for (const [key, value] of Object.entries(overrides)) form.set(key, value);
   return form;
@@ -101,6 +103,7 @@ describe("Group settlement actions", () => {
         recipientParticipantId,
         amount: 70000,
         paymentMethod: "Cash",
+        paidOn: "2026-09-10",
       }),
     );
   });
@@ -113,6 +116,17 @@ describe("Group settlement actions", () => {
       paymentForm({ amountRupiah: "0" }),
     );
     expect(result.fieldErrors.amountRupiah).toBe("Use a positive whole-rupiah amount.");
+    expect(mocks.createSettlement).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid Gregorian payment dates before touching accounting", async () => {
+    const result = await createGroupSettlementAction(
+      groupId,
+      senderParticipantId,
+      emptyState,
+      paymentForm({ paidOn: "2026-02-30" }),
+    );
+    expect(result.fieldErrors.paidOn).toBe("Enter a valid payment date.");
     expect(mocks.createSettlement).not.toHaveBeenCalled();
   });
 

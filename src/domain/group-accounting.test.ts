@@ -9,6 +9,7 @@ function input(overrides: Record<string, unknown> = {}) {
   return {
     description: "Dinner",
     occurredAt: "2026-08-27T12:00:00.000Z",
+    occurredOn: "2026-08-27",
     totalAmount: 100_000,
     payerParticipantId: payer,
     shares: [{ participantId: debtor, amount: 50_000 }, { participantId: payer, amount: 50_000 }],
@@ -29,6 +30,19 @@ describe("Group accounting domain", () => {
 
   it.each([0, -1, 2_147_483_648])("rejects invalid share amount %s", (amount) => {
     expect(() => normalizeGroupExpenseInput(input({ totalAmount: 100_000, shares: [{ participantId: debtor, amount }] }))).toThrow(GroupAccountingInputError);
+  });
+
+  it("keeps the source calendar date independent from the exact instant", () => {
+    const values = normalizeGroupExpenseInput(input({
+      occurredAt: "2026-09-09T17:30:00.000Z",
+      occurredOn: "2026-09-10",
+    }));
+    expect(values.occurredOn).toBe("2026-09-10");
+    expect(values.occurredAt).toEqual(new Date("2026-09-09T17:30:00.000Z"));
+  });
+
+  it.each(["2026-02-30", "2026-13-01", "not-a-date"])("rejects invalid source calendar date %s", (occurredOn) => {
+    expect(() => normalizeGroupExpenseInput(input({ occurredOn }))).toThrow(GroupAccountingInputError);
   });
 
   it("keeps reciprocal obligations independent instead of netting them", () => {

@@ -276,6 +276,7 @@ async function runLifecycleRaces({ pool, database, owner, invitee, groupIds, org
   const mutationFirstExpense = createGroupExpense(database, mutationFirstGroup.id, owner.id, {
     description: "Serialized expense",
     occurredAt: new Date("2026-08-28T00:00:00.000Z"),
+    occurredOn: "2026-08-28",
     totalAmount: 10,
     payerParticipantId: mutationFirstParticipantId,
     shares: [{ participantId: mutationFirstParticipantId, amount: 10 }],
@@ -301,6 +302,7 @@ async function runLifecycleRaces({ pool, database, owner, invitee, groupIds, org
   const archiveFirstExpense = createGroupExpense(database, archiveFirstGroup.id, owner.id, {
     description: "Rejected after archive",
     occurredAt: new Date("2026-08-28T00:00:00.000Z"),
+    occurredOn: "2026-08-28",
     totalAmount: 10,
     payerParticipantId: archiveFirstParticipantId,
     shares: [{ participantId: archiveFirstParticipantId, amount: 10 }],
@@ -383,6 +385,7 @@ async function runGroupArchiveSmoke({ pool, database, owner, member, invitee, gr
     await createGroupExpense(database, group.id, owner.id, {
       description: "Dinner",
       occurredAt: new Date("2026-08-27T22:00:00.000Z"),
+      occurredOn: "2026-08-27",
       totalAmount: 100,
       payerParticipantId: ownerPid,
       shares: [{ participantId: memberPid, amount: 100 }],
@@ -394,6 +397,7 @@ async function runGroupArchiveSmoke({ pool, database, owner, member, invitee, gr
       recipientParticipantId: ownerPid,
       amount: 40,
       paymentMethod: "Cash",
+      paidOn: "2026-08-27",
     });
     const invitation = await createGroupInvitation(database, group.id, owner.id, { targetUserId: invitee.id });
     const archived = await archiveGroup(database, group.id, owner.id);
@@ -419,6 +423,7 @@ async function runGroupArchiveSmoke({ pool, database, owner, member, invitee, gr
     await expectCode(() => createGroupExpense(database, group.id, owner.id, {
       description: "Late expense",
       occurredAt: new Date("2026-08-28T00:00:00.000Z"),
+      occurredOn: "2026-08-28",
       totalAmount: 10,
       payerParticipantId: ownerPid,
       shares: [{ participantId: memberPid, amount: 10 }],

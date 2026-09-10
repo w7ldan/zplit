@@ -72,6 +72,7 @@ function settlement(
     amount: 70000,
     paymentMethod: "Cash",
     state,
+    paidOn: "2026-09-10",
     createdAt: new Date("2026-08-27T12:00:00Z"),
     confirmedAt: state === "confirmed" ? new Date("2026-08-27T13:00:00Z") : null,
     sender,
@@ -98,6 +99,17 @@ describe("Group settlement detail", () => {
     expect(screen.queryByRole("heading", { name: "Payment applications" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Confirm payment/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add payment proof" })).toBeDisabled();
+    expect(screen.getByText("10 Sept 2026")).toBeInTheDocument();
+  });
+
+  it("keeps a legacy missing payment date explicit", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "user-a" } });
+    const legacy = { ...settlement("pending"), paidOn: null as string | null };
+    mocks.createSettlementRepository.mockReturnValue({
+      getSettlement: vi.fn().mockResolvedValue(legacy),
+    });
+    render(await GroupSettlementDetailPage({ params: Promise.resolve({ groupId: "group-a", settlementId: "settlement-a" }) }));
+    expect(screen.getByText("Not recorded")).toBeInTheDocument();
   });
 
   it("shows the recipient-only confirm action for the current recipient", async () => {

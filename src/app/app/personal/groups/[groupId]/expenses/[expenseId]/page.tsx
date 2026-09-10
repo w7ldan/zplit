@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
-import { LocalDateTime } from "@/components/editorial/local-date-time";
+import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
 import {
@@ -307,7 +307,13 @@ function GroupExpenseSidebar({ expense }: { expense: GroupExpenseDetail }) {
           <dd>{formatRupiah(expense.totalAmount)}</dd>
         </div>
         <div>
-          <dt>Occurred</dt>
+          <dt>Financial date</dt>
+          <dd>
+            <SourceCalendarDate canonicalDate={expense.occurredOn} timestamp={expense.occurredAt.toISOString()} />
+          </dd>
+        </div>
+        <div>
+          <dt>Occurred at</dt>
           <dd>
             <LocalDateTime iso={expense.occurredAt.toISOString()} />
           </dd>

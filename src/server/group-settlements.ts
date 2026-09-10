@@ -118,6 +118,7 @@ function settlementColumns() {
     amount: groupSettlements.amount,
     paymentMethod: groupSettlements.paymentMethod,
     state: groupSettlements.state,
+    paidOn: groupSettlements.paidOn,
     createdAt: groupSettlements.createdAt,
     confirmedAt: groupSettlements.confirmedAt,
   };
@@ -239,6 +240,7 @@ async function createSettlement(database: Database, groupId: string, creatorUser
           amount: values.amount,
           paymentMethod: values.paymentMethod,
           state: "pending",
+          paidOn: values.paidOn,
           createdAt: now,
         })
         .returning();

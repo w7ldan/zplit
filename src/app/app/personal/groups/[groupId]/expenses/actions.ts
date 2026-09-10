@@ -39,7 +39,7 @@ function inputFromValues(values: GroupExpenseFormValues) {
   const offset = Number(values.timezoneOffsetMinutes);
   const occurredAt = /^-?\d+$/.test(values.timezoneOffsetMinutes) && Number.isInteger(offset) && offset >= -840 && offset <= 840 ? parseLocalDateTime(values.occurredAtLocal, offset) : null;
   if (!occurredAt) return null;
-  return { description: values.description, totalAmount: values.totalAmount, occurredAt, payerParticipantId: values.payerParticipantId, shares: values.shares.map((share) => ({ participantId: share.participantId, amount: share.amount })) };
+  return { description: values.description, totalAmount: values.totalAmount, occurredAt, occurredOn: values.occurredAtLocal.slice(0, 10), payerParticipantId: values.payerParticipantId, shares: values.shares.map((share) => ({ participantId: share.participantId, amount: share.amount })) };
 }
 
 function inputErrorState(error: unknown, values: GroupExpenseFormValues): GroupExpenseActionState {
