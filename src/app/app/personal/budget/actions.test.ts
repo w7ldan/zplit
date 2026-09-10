@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BudgetError } from "@/domain/budgeting/errors";
 
+vi.mock("server-only", () => ({}));
+
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   getDatabase: vi.fn(() => "database"),

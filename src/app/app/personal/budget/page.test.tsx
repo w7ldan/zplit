@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   getBudgetDashboard: vi.fn(),
   replace: vi.fn(),
   changePersonalExpenseBudgetCategoryAction: vi.fn(),
+  changeGroupExpenseBudgetCategoryAction: vi.fn(),
+  changeGroupObligationBudgetCategoryAction: vi.fn(),
   importPersonalActivityAction: vi.fn(),
 }));
 
@@ -15,6 +17,8 @@ vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/budgeting/reporting", () => ({ getBudgetDashboard: mocks.getBudgetDashboard }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
 vi.mock("./actions", () => ({
+  changeGroupExpenseBudgetCategoryAction: mocks.changeGroupExpenseBudgetCategoryAction,
+  changeGroupObligationBudgetCategoryAction: mocks.changeGroupObligationBudgetCategoryAction,
   changePersonalExpenseBudgetCategoryAction: mocks.changePersonalExpenseBudgetCategoryAction,
   createBudgetSetupAction: vi.fn(),
   createBudgetTransactionAction: vi.fn(),
@@ -73,6 +77,8 @@ describe("/app/personal/budget task-panel modes", () => {
       configured: true,
       period,
       expectedBack: 40_000,
+      stillOwe: 20_000,
+      groupObligations: [{ id: "obligation-a", groupId: "group-a", groupName: "Trip", description: "Hotel", amount: 20_000, categoryId: null, categoryName: "Uncategorized" }],
       importAvailable: true,
       recentTransactions: [{
         id: "transaction-expense",
@@ -94,6 +100,8 @@ describe("/app/personal/budget task-panel modes", () => {
     const sharedMoney = screen.getByRole("region", { name: "SHARED MONEY" });
     expect(within(sharedMoney).getByText("Expected back")).toBeInTheDocument();
     expect(within(sharedMoney).getByText("Rp 40.000")).toBeInTheDocument();
+    expect(within(sharedMoney).getAllByText("You still owe").length).toBeGreaterThan(0);
+    expect(within(sharedMoney).getByText("View Group obligations")).toBeInTheDocument();
     expect(document.querySelector(".budget-summary__grid")).not.toHaveTextContent("Expected back");
     const categoryDisclosure = screen.getByText("Change budget category").closest("details");
     expect(categoryDisclosure).toBeInTheDocument();

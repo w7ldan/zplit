@@ -48,4 +48,22 @@ describe("budgeting schema", () => {
       expect(config.foreignKeys.length).toBe(3);
     }
   });
+
+  it("defines typed Group source links and owner-private obligation classifications", () => {
+    expect(tableNames(schema.budgetGroupExpenseSources)).toEqual(["owner_user_id", "budget_transaction_id", "group_expense_id", "created_at"]);
+    expect(tableNames(schema.budgetGroupSettlementSources)).toEqual(["owner_user_id", "budget_transaction_id", "group_settlement_id", "created_at"]);
+    expect(tableNames(schema.budgetGroupObligationClassifications)).toEqual(["owner_user_id", "group_obligation_id", "budget_category_id", "created_at", "updated_at"]);
+    expect(getTableConfig(schema.budgetGroupExpenseSources).uniqueConstraints.map((constraint) => constraint.name)).toEqual(expect.arrayContaining([
+      "budget_group_expense_sources_owner_expense_unique",
+      "budget_group_expense_sources_owner_transaction_unique",
+    ]));
+    expect(getTableConfig(schema.budgetGroupSettlementSources).uniqueConstraints.map((constraint) => constraint.name)).toEqual(expect.arrayContaining([
+      "budget_group_settlement_sources_owner_settlement_unique",
+      "budget_group_settlement_sources_owner_transaction_unique",
+    ]));
+    expect(getTableConfig(schema.budgetGroupObligationClassifications).uniqueConstraints.map((constraint) => constraint.name)).toContain("budget_group_obligation_classifications_owner_obligation_unique");
+    expect(getTableConfig(schema.budgetGroupExpenseSources).foreignKeys.length).toBe(3);
+    expect(getTableConfig(schema.budgetGroupSettlementSources).foreignKeys.length).toBe(3);
+    expect(getTableConfig(schema.budgetGroupObligationClassifications).foreignKeys.length).toBe(3);
+  });
 });

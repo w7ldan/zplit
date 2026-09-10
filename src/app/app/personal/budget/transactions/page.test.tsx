@@ -13,6 +13,7 @@ vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/budgeting/transactions", () => ({ listBudgetTransactions: mocks.listBudgetTransactions }));
 vi.mock("@/server/budgeting/categories", () => ({ listBudgetCategoryOptions: mocks.listBudgetCategoryOptions }));
 vi.mock("../actions", () => ({
+  changeGroupExpenseBudgetCategoryAction: vi.fn(),
   changePersonalExpenseBudgetCategoryAction: vi.fn(),
   voidBudgetTransactionAction: vi.fn(),
 }));
@@ -52,6 +53,48 @@ describe("/app/personal/budget/transactions presentation", () => {
         categoryNames: [],
         categoryId: null,
       },
+      {
+        id: "transaction-group-expense",
+        direction: "outflow",
+        amount: 700,
+        description: "Group dinner",
+        occurredOn: "2026-09-07",
+        status: "posted",
+        origin: "linked",
+        sourceType: "group_expense",
+        sourceId: "group-expense-a",
+        categoryName: "Food",
+        categoryNames: ["Food"],
+        categoryId: "food",
+      },
+      {
+        id: "transaction-group-sent",
+        direction: "outflow",
+        amount: 200,
+        description: "Group payment to Ari",
+        occurredOn: "2026-09-08",
+        status: "posted",
+        origin: "linked",
+        sourceType: "group_payment_sent",
+        sourceId: "group-settlement-a",
+        categoryName: "Travel",
+        categoryNames: ["Travel"],
+        categoryId: "travel",
+      },
+      {
+        id: "transaction-group-received",
+        direction: "inflow",
+        amount: 200,
+        description: "Group payment from Bima",
+        occurredOn: "2026-09-08",
+        status: "posted",
+        origin: "linked",
+        sourceType: "group_payment_received",
+        sourceId: "group-settlement-b",
+        categoryName: "Dining",
+        categoryNames: ["Dining"],
+        categoryId: "dining",
+      },
     ]);
     mocks.listBudgetCategoryOptions.mockResolvedValue([{ id: "food", name: "Food" }]);
   });
@@ -61,10 +104,13 @@ describe("/app/personal/budget/transactions presentation", () => {
 
     expect(screen.getByText("Multiple categories", { exact: false })).toBeInTheDocument();
     expect(screen.queryByText("Food + Transport + Dining")).not.toBeInTheDocument();
-    const categoryDisclosure = screen.getByText("Change budget category").closest("details");
+    const categoryDisclosure = screen.getAllByText("Change budget category")[0]?.closest("details");
     expect(categoryDisclosure).toBeInTheDocument();
     expect(categoryDisclosure).not.toHaveAttribute("open");
     expect(screen.queryByRole("button", { name: "Void" })).not.toBeInTheDocument();
     expect(screen.getByText("Personal repayment")).toBeInTheDocument();
+    expect(screen.getByText("Group expense")).toBeInTheDocument();
+    expect(screen.getByText("Group payment sent")).toBeInTheDocument();
+    expect(screen.getByText("Group payment received")).toBeInTheDocument();
   });
 });

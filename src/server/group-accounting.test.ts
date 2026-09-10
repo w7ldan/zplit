@@ -20,6 +20,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/server/groups", () => ({ GroupError: mocks.FakeGroupError, requireGroupAccess: mocks.requireGroupAccess }));
 vi.mock("@/server/notifications", () => ({ createNotificationInDatabase: mocks.createNotificationInDatabase, publishNotificationStateChange: mocks.publishNotificationStateChange }));
 vi.mock("@/server/realtime", () => ({ publishRealtimeEvent: mocks.publishRealtimeEvent }));
+vi.mock("@/server/budgeting/sources-group", () => ({ reconcileGroupExpense: vi.fn(async () => undefined) }));
 vi.mock("@/db/client", () => ({ getDatabase: vi.fn() }));
 
 import { createGroupAccountingRepository } from "./group-accounting";
