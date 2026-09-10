@@ -16,6 +16,12 @@ describe("budgeting schema", () => {
     expect(tableNames(schema.budgetPeriodCategories)).toContain("allocated_amount");
     expect(tableNames(schema.budgetTransactions)).toContain("direction");
     expect(tableNames(schema.budgetImpacts)).toContain("target_period_ordinal");
+    expect(tableNames(schema.budgetRecurringTemplates)).toEqual([
+      "id", "owner_user_id", "name", "amount", "category_id", "frequency", "starts_on", "spread_count", "archived_at", "created_at", "updated_at",
+    ]);
+    expect(tableNames(schema.budgetRecurringOccurrences)).toEqual([
+      "id", "owner_user_id", "recurring_template_id", "scheduled_period_id", "scheduled_on", "amount", "category_id", "spread_count", "status", "budget_transaction_id", "created_at", "updated_at",
+    ]);
   });
 
   it("keeps row-local invariants and one active period in PostgreSQL", () => {
@@ -35,6 +41,39 @@ describe("budgeting schema", () => {
       "budget_impacts_status_allowed",
     ]));
     expect(getTableConfig(schema.budgetImpacts).indexes.map((index) => index.config.name)).toContain("budget_impacts_owner_target_status_idx");
+  });
+
+  it("keeps recurring templates and occurrences owner-safe and lifecycle-consistent", () => {
+    const templates = getTableConfig(schema.budgetRecurringTemplates);
+    expect(templates.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "budget_recurring_templates_amount_positive",
+      "budget_recurring_templates_frequency_allowed",
+      "budget_recurring_templates_spread_count_range",
+      "budget_recurring_templates_spread_count_fits_amount",
+    ]));
+    expect(templates.foreignKeys.map((key) => key.getName())).toEqual(expect.arrayContaining(["budget_recurring_templates_owner_category_fk"]));
+    expect(templates.indexes.map((index) => index.config.name)).toContain("budget_recurring_templates_owner_archived_idx");
+
+    const occurrences = getTableConfig(schema.budgetRecurringOccurrences);
+    expect(occurrences.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
+      "budget_recurring_occurrences_lifecycle",
+      "budget_recurring_occurrences_status_allowed",
+      "budget_recurring_occurrences_spread_count_fits_amount",
+    ]));
+    expect(occurrences.uniqueConstraints.map((constraint) => constraint.name)).toEqual(expect.arrayContaining([
+      "budget_recurring_occurrences_identity_unique",
+      "budget_recurring_occurrences_owner_id_unique",
+    ]));
+    expect(occurrences.foreignKeys.map((key) => key.getName())).toEqual(expect.arrayContaining([
+      "budget_recurring_occurrences_owner_template_fk",
+      "budget_recurring_occurrences_owner_period_fk",
+      "budget_recurring_occurrences_owner_category_fk",
+      "budget_recurring_occurrences_owner_transaction_fk",
+    ]));
+    expect(occurrences.indexes.map((index) => index.config.name)).toEqual(expect.arrayContaining([
+      "budget_recurring_occurrences_owner_status_scheduled_idx",
+      "budget_recurring_occurrences_owner_transaction_uidx",
+    ]));
   });
 
   it("defines typed Personal source links without polymorphic source columns", () => {

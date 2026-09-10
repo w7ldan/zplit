@@ -6,6 +6,7 @@ import type { GroupOffsetSettlementState } from "@/domain/group-offsets";
 import type { GroupSettlementState } from "@/domain/group-settlements";
 import type { GroupJoinRequestKind, GroupJoinRequestStatus } from "@/domain/group-join-requests";
 import type { OrganizationCapability, OrganizationInvitationRole } from "@/domain/organization-permissions";
+import type { BudgetRecurringFrequency, BudgetRecurringOccurrenceStatus } from "@/domain/budgeting/recurrence";
 import {
   boolean,
   check,
@@ -1611,6 +1612,92 @@ export const budgetImpacts = pgTable(
     index("budget_impacts_owner_period_status_idx").on(table.ownerUserId, table.budgetPeriodId, table.status),
     index("budget_impacts_owner_target_status_idx").on(table.ownerUserId, table.targetPeriodOrdinal, table.status),
     index("budget_impacts_owner_transaction_idx").on(table.ownerUserId, table.budgetTransactionId),
+  ],
+);
+
+export const budgetRecurringTemplates = pgTable(
+  "budget_recurring_templates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 240 }).notNull(),
+    amount: integer("amount").notNull(),
+    categoryId: uuid("category_id").notNull(),
+    frequency: varchar("frequency", { length: 32 }).$type<BudgetRecurringFrequency>().notNull(),
+    startsOn: date("starts_on", { mode: "string" }).notNull(),
+    spreadCount: integer("spread_count").default(1).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("budget_recurring_templates_name_not_blank", sql`btrim(${table.name}) <> ''`),
+    check("budget_recurring_templates_amount_positive", sql`${table.amount} > 0`),
+    check("budget_recurring_templates_frequency_allowed", sql`${table.frequency} IN ('every_budget_period', 'monthly')`),
+    check("budget_recurring_templates_spread_count_range", sql`${table.spreadCount} BETWEEN 1 AND 24`),
+    check("budget_recurring_templates_spread_count_fits_amount", sql`${table.spreadCount} <= ${table.amount}`),
+    unique("budget_recurring_templates_owner_id_unique").on(table.ownerUserId, table.id),
+    foreignKey({
+      columns: [table.ownerUserId, table.categoryId],
+      foreignColumns: [budgetCategories.ownerUserId, budgetCategories.id],
+      name: "budget_recurring_templates_owner_category_fk",
+    }).onDelete("restrict"),
+    index("budget_recurring_templates_owner_archived_idx").on(table.ownerUserId, table.archivedAt),
+  ],
+);
+
+export const budgetRecurringOccurrences = pgTable(
+  "budget_recurring_occurrences",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    recurringTemplateId: uuid("recurring_template_id").notNull(),
+    scheduledPeriodId: uuid("scheduled_period_id").notNull(),
+    scheduledOn: date("scheduled_on", { mode: "string" }).notNull(),
+    amount: integer("amount").notNull(),
+    categoryId: uuid("category_id").notNull(),
+    spreadCount: integer("spread_count").notNull(),
+    status: varchar("status", { length: 16 }).$type<BudgetRecurringOccurrenceStatus>().default("due").notNull(),
+    budgetTransactionId: uuid("budget_transaction_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("budget_recurring_occurrences_amount_positive", sql`${table.amount} > 0`),
+    check("budget_recurring_occurrences_spread_count_range", sql`${table.spreadCount} BETWEEN 1 AND 24`),
+    check("budget_recurring_occurrences_spread_count_fits_amount", sql`${table.spreadCount} <= ${table.amount}`),
+    check("budget_recurring_occurrences_status_allowed", sql`${table.status} IN ('due', 'recorded', 'skipped')`),
+    check("budget_recurring_occurrences_lifecycle", sql`(${table.status} = 'recorded' AND ${table.budgetTransactionId} IS NOT NULL) OR (${table.status} IN ('due', 'skipped') AND ${table.budgetTransactionId} IS NULL)`),
+    unique("budget_recurring_occurrences_owner_id_unique").on(table.ownerUserId, table.id),
+    unique("budget_recurring_occurrences_identity_unique").on(table.ownerUserId, table.recurringTemplateId, table.scheduledOn),
+    uniqueIndex("budget_recurring_occurrences_owner_transaction_uidx").on(table.ownerUserId, table.budgetTransactionId).where(sql`${table.budgetTransactionId} IS NOT NULL`),
+    foreignKey({
+      columns: [table.ownerUserId, table.recurringTemplateId],
+      foreignColumns: [budgetRecurringTemplates.ownerUserId, budgetRecurringTemplates.id],
+      name: "budget_recurring_occurrences_owner_template_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.ownerUserId, table.scheduledPeriodId],
+      foreignColumns: [budgetPeriods.ownerUserId, budgetPeriods.id],
+      name: "budget_recurring_occurrences_owner_period_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.ownerUserId, table.categoryId],
+      foreignColumns: [budgetCategories.ownerUserId, budgetCategories.id],
+      name: "budget_recurring_occurrences_owner_category_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.ownerUserId, table.budgetTransactionId],
+      foreignColumns: [budgetTransactions.ownerUserId, budgetTransactions.id],
+      name: "budget_recurring_occurrences_owner_transaction_fk",
+    }).onDelete("restrict"),
+    index("budget_recurring_occurrences_owner_status_scheduled_idx").on(table.ownerUserId, table.status, table.scheduledOn, table.id),
+    index("budget_recurring_occurrences_owner_period_idx").on(table.ownerUserId, table.scheduledPeriodId),
+    index("budget_recurring_occurrences_owner_template_idx").on(table.ownerUserId, table.recurringTemplateId),
   ],
 );
 
