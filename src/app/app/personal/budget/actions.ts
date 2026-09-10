@@ -11,7 +11,8 @@ import { parseRupiah } from "@/domain/rupiah";
 import { getDatabase } from "@/db/client";
 import { createBudgetSetup } from "@/server/budgeting/profiles";
 import { createBudgetCategory, updateBudgetPlan } from "@/server/budgeting/categories";
-import { createManualBudgetTransaction, voidManualBudgetTransaction } from "@/server/budgeting/transactions";
+import { createManualBudgetTransaction, spreadBudgetTransaction, voidManualBudgetTransaction } from "@/server/budgeting/transactions";
+import { startNextBudgetPeriod } from "@/server/budgeting/periods";
 import { changePersonalExpenseBudgetCategory, importBudgetActivity } from "@/server/budgeting/sources-personal";
 import { changeGroupExpenseBudgetCategory, changeGroupObligationBudgetCategory } from "@/server/budgeting/sources-group";
 import { getPersonalLedgerScopeId, LedgerScopeError } from "@/server/ledger-scopes";
@@ -45,6 +46,17 @@ export type BudgetTransactionValues = {
   categoryId: string;
 };
 
+export type BudgetTransitionValues = {
+  expectedActivePeriodId: string;
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  totalBudget: string;
+  categories: Array<{ id: string; name: string; allocation: string }>;
+};
+
+export type BudgetSpreadValues = { transactionId: string; count: string };
+
 function textValue(formData: FormData, name: string) {
   const value = formData.get(name);
   return typeof value === "string" ? value.trim() : "";
@@ -68,6 +80,7 @@ function revalidateBudget() {
   revalidatePath("/app/personal");
   revalidatePath("/app/personal/budget");
   revalidatePath("/app/personal/budget/transactions");
+  revalidatePath("/app/personal/budget/periods");
 }
 
 function setupValues(formData: FormData): BudgetSetupValues {
@@ -222,6 +235,62 @@ export async function createBudgetTransactionAction(_previousState: BudgetFormSt
   }
   revalidateBudget();
   redirect("/app/personal/budget?created=1");
+}
+
+function transitionValues(formData: FormData): BudgetTransitionValues {
+  const ids = formData.getAll("categoryId");
+  const names = formData.getAll("categoryName");
+  const allocations = formData.getAll("categoryAllocation");
+  return {
+    expectedActivePeriodId: textValue(formData, "expectedActivePeriodId"),
+    name: textValue(formData, "periodName"),
+    startsOn: textValue(formData, "startsOn"),
+    endsOn: textValue(formData, "endsOn"),
+    totalBudget: textValue(formData, "totalBudget"),
+    categories: ids.map((id, index) => ({ id: String(id), name: typeof names[index] === "string" ? names[index].trim() : "", allocation: typeof allocations[index] === "string" ? allocations[index].trim() : "" })),
+  };
+}
+
+function parseTransitionSubmission(values: BudgetTransitionValues) {
+  const fieldErrors: Record<string, string> = {};
+  const totalBudget = parseRupiah(values.totalBudget);
+  if (!values.name) fieldErrors.periodName = "Period name is required.";
+  if (!isValidBudgetDate(values.startsOn)) fieldErrors.startsOn = "Enter a valid date.";
+  if (!isValidBudgetDate(values.endsOn)) fieldErrors.endsOn = "Enter a valid date.";
+  if (isValidBudgetDate(values.startsOn) && isValidBudgetDate(values.endsOn) && values.startsOn > values.endsOn) fieldErrors.endsOn = "End date must be on or after the start date.";
+  if (totalBudget === null) fieldErrors.totalBudget = "Enter a whole Rupiah amount greater than zero.";
+  const categories = values.categories.map((category, index) => ({ id: category.id, allocatedAmount: parseNonNegativeRupiah(category.allocation), index }));
+  categories.forEach((category) => { if (category.allocatedAmount === null) fieldErrors[`categoryAllocation${category.index}`] = "Enter zero or a whole Rupiah amount."; });
+  if (Object.keys(fieldErrors).length) return { ok: false as const, state: { fieldErrors, formError: "Please correct the marked fields.", values } };
+  return { ok: true as const, totalBudget: totalBudget!, allocations: categories.map((category) => ({ categoryId: category.id, allocatedAmount: category.allocatedAmount! })) };
+}
+
+export async function startNextBudgetPeriodAction(_previousState: BudgetFormState<BudgetTransitionValues>, formData: FormData): Promise<BudgetFormState<BudgetTransitionValues>> {
+  const values = transitionValues(formData);
+  const parsed = parseTransitionSubmission(values);
+  if (!parsed.ok) return parsed.state;
+  try {
+    const session = await requireSession();
+    await startNextBudgetPeriod(getDatabase(), session.user.id, { expectedActivePeriodId: values.expectedActivePeriodId, name: values.name, startsOn: values.startsOn, endsOn: values.endsOn, totalBudget: parsed.totalBudget, allocations: parsed.allocations });
+  } catch (error) {
+    return { fieldErrors: {}, formError: budgetErrorMessage(error, "Unable to start the next budget period."), values };
+  }
+  revalidateBudget();
+  redirect("/app/personal/budget");
+}
+
+export async function spreadBudgetTransactionAction(_previousState: BudgetFormState<BudgetSpreadValues>, formData: FormData): Promise<BudgetFormState<BudgetSpreadValues>> {
+  const values = { transactionId: textValue(formData, "transactionId"), count: textValue(formData, "count") };
+  const count = parseNonNegativeRupiah(values.count);
+  if (!values.transactionId || count === null || count < 1 || count > 24) return { fieldErrors: { count: "Choose between 1 and 24 periods." }, formError: "Please correct the marked field.", values };
+  try {
+    const session = await requireSession();
+    await spreadBudgetTransaction(getDatabase(), session.user.id, values.transactionId, count);
+  } catch (error) {
+    return { fieldErrors: {}, formError: budgetErrorMessage(error, "Unable to spread this transaction."), values };
+  }
+  revalidateBudget();
+  redirect("/app/personal/budget");
 }
 
 export async function voidBudgetTransactionAction(transactionId: string) {

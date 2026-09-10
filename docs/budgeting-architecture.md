@@ -111,7 +111,6 @@ edit or restore action.
 
 The following are intentionally deferred:
 
-- **B4:** spread/split-period impacts and period transitions.
 - **B5:** recurrence and subscriptions.
 - **B6:** Overview integration and advanced polish.
 
@@ -188,6 +187,51 @@ and does not affect Remaining or Safe Daily; actual Repayment inflows do.
 B2 alone did not integrate Group or Organization activity and did not add
 spread, recurrence, next-period transitions, or subscriptions; B3 adds only
 the Group cash integration described below.
+
+## Period transitions and spread
+
+Period transitions and spread keep one real cash event as one `BudgetTransaction`. A spread outflow has
+multiple `BudgetImpacts`, all in one private Budget category. The first impact
+is `applied` to the active period; later impacts are `pending`, have no period
+ID, and retain the exact target period ordinal. Pending impacts are future
+absorption, not future cash, and are excluded from every current and closed
+period report until applied. They are never a recurrence or a second real
+transaction.
+
+The requested count is 1–24 and cannot exceed the transaction amount. Integer
+distribution is deterministic: `floor(amount / count)` is the base and the
+remainder is added to the earliest slices. This keeps every impact positive,
+preserves the exact transaction total, and uses no floating point. Spread can
+be restructured only while exactly one current-period impact is applied and
+all other slices are still pending. Once a transition applies a future slice,
+the spread is historical and immutable.
+
+Starting the next period is one transaction. It locks the owner's
+`BudgetProfile`, then the active period, and verifies the submitted active
+period ID is still current. A stale request conflicts before any write. The
+active period is closed, ordinal +1 is inserted as the sole active period, and
+the submitted stable category IDs and explicit allocations are copied into
+the new plan. Dates do not assume a cadence: the new start must be after the
+closed period's end, while gaps are allowed. The transition then applies only
+posted pending impacts targeted at the new ordinal; voided parents remain
+pending and are ignored.
+
+After the new period exists, the same source-aware Personal and Group
+reconciliation primitives absorb linked posted BudgetTransactions with zero
+impacts whose canonical Budget date falls inside the new period. This avoids
+permanently unabsorbed future Expenses, Repayments, or settlement cash and
+does not lock source rows from the Budget-only path. Reconciliation of a
+linked Personal or Group Expense with multiple spread impacts preserves every
+target ordinal, status, period ID, and category while deterministically
+rebalancing amounts. Private category changes update every applied and
+pending impact. Repayment and settlement category derivation treats repeated
+same-category spread rows as one category and raises an invariant conflict if
+spread rows disagree.
+
+Closed periods have a bounded, read-only history using the same applied-impact
+reporting authority as the active dashboard. The transition form previews
+pending totals targeted at the next ordinal without changing allocations.
+B5 recurrence and subscriptions remain deferred.
 
 ## B3 Group cash integration
 
@@ -277,6 +321,9 @@ existing Budget order. Budget-only classification follows
 no Group source `FOR UPDATE` locks. This prevents an Alice/Bob versus
 Bob/Alice cross-owner cycle without changing Group accounting locks.
 
-B3 deliberately does not implement period spreading/transitions, pending
-BudgetImpacts, recurrence/subscriptions, Organization budgeting, shared Group
-Budget plans, or any other B4 behavior.
+The earlier Group cash integration deliberately kept period spreading/transitions,
+pending BudgetImpacts, recurrence/subscriptions, Organization budgeting, and
+shared Group Budget plans outside its scope. Period spreading and transitions
+are now handled by the Budget-only flow described above; recurrence,
+subscriptions, Organization budgeting, and shared Group Budget plans remain
+deferred.

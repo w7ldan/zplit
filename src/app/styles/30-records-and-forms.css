@@ -5923,6 +5923,44 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   margin-top: 0.35rem;
 }
 
+.budget-spread-form {
+  display: grid;
+  grid-template-columns: auto 5rem auto;
+  gap: 0.35rem;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+.budget-spread-form label,
+.budget-spread-form small {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.budget-spread-form input {
+  min-height: 2rem;
+  width: 5rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.35rem;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+
+.budget-spread-form small,
+.budget-spread-form .budget-form__error,
+.budget-spread-form .budget-form__message {
+  grid-column: 1 / -1;
+}
+
+.budget-spread-status {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
 .budget-category-change select {
   max-width: 10rem;
   min-height: 2rem;
@@ -6143,6 +6181,96 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   font-size: 0.78rem;
 }
 
+.budget-form__warning {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-left: 2px solid var(--ink);
+  background: color-mix(in srgb, var(--pastel-blue) 35%, transparent);
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+}
+
+.budget-pending-preview {
+  display: grid;
+  gap: 0.45rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+}
+
+.budget-pending-preview > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+}
+
+.budget-pending-preview strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-period-history-list {
+  display: grid;
+  border-top: 1px solid var(--rule);
+}
+
+.budget-period-history {
+  border-bottom: 1px solid var(--rule);
+}
+
+.budget-period-history summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, auto);
+  gap: 1rem;
+  padding: 0.8rem 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.budget-period-history summary::-webkit-details-marker {
+  display: none;
+}
+
+.budget-period-history summary > span,
+.budget-period-history__meta,
+.budget-period-history__categories > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  justify-content: space-between;
+}
+
+.budget-period-history summary small,
+.budget-period-history__meta,
+.budget-period-history__categories > div {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.budget-period-history summary > span:last-child {
+  text-align: right;
+}
+
+.budget-period-history__meta {
+  gap: 1rem 2rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--rule);
+}
+
+.budget-period-history__categories {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.65rem 0 0.8rem;
+}
+
+.budget-period-history__categories strong,
+.budget-period-history__categories span:nth-child(2),
+.budget-period-history__categories span:last-child {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .budget-form__category-row {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(8rem, 0.8fr);
@@ -6215,5 +6343,13 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   .budget-form__grid,
   .budget-form__category-row {
     grid-template-columns: 1fr;
+  }
+
+  .budget-period-history summary {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-period-history summary > span:last-child {
+    text-align: left;
   }
 }

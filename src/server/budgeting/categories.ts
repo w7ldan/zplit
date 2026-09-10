@@ -6,6 +6,7 @@ import { BudgetError } from "@/domain/budgeting/errors";
 import { MAX_RUPIAH } from "@/domain/budgeting/amounts";
 import { isValidBudgetDate } from "@/domain/budgeting/dates";
 import { lockBudgetProfile } from "./locks";
+import { rejectPeriodOverlap } from "./periods";
 
 export type BudgetPlanCategoryUpdate = { id: string; name: string; allocatedAmount: number };
 export type BudgetPlanUpdate = {
@@ -125,6 +126,7 @@ export async function updateBudgetPlan(database: Database, ownerUserId: string, 
       .for("update") as PlanRow[];
     validatePlanShape(input, rows);
     validateStalePlanAllocation(input, rows, period.updatedAt.toISOString());
+    await rejectPeriodOverlap(transaction as Database, ownerUserId, period, input.period.startsOn);
     if (input.period.startsOn !== period.startsOn || input.period.endsOn !== period.endsOn) await rejectExcludedPostedTransaction(transaction as Database, ownerUserId, period.id, input.period.startsOn, input.period.endsOn);
     await transaction.update(budgetPeriods).set({ name: input.period.name.trim(), startsOn: input.period.startsOn, endsOn: input.period.endsOn, totalBudget: input.period.totalBudget, updatedAt: new Date() }).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.id, period.id)));
     await updatePlanCategories(transaction as Database, ownerUserId, period.id, input.categories, rows);

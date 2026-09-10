@@ -4,11 +4,14 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ReactNode } from "react";
 import { TaskPanelFooter } from "@/components/app/task-panel";
-import type { BudgetFormState, BudgetPlanValues, BudgetSetupValues, BudgetTransactionValues } from "@/app/app/personal/budget/actions";
+import { formatRupiah } from "@/domain/rupiah";
+import type { BudgetFormState, BudgetPlanValues, BudgetSetupValues, BudgetSpreadValues, BudgetTransactionValues, BudgetTransitionValues } from "@/app/app/personal/budget/actions";
 
 type SetupAction = (state: BudgetFormState<BudgetSetupValues>, formData: FormData) => Promise<BudgetFormState<BudgetSetupValues>>;
 type PlanAction = (state: BudgetFormState<BudgetPlanValues>, formData: FormData) => Promise<BudgetFormState<BudgetPlanValues>>;
 type TransactionAction = (state: BudgetFormState<BudgetTransactionValues>, formData: FormData) => Promise<BudgetFormState<BudgetTransactionValues>>;
+type TransitionAction = (state: BudgetFormState<BudgetTransitionValues>, formData: FormData) => Promise<BudgetFormState<BudgetTransitionValues>>;
+type SpreadAction = (state: BudgetFormState<BudgetSpreadValues>, formData: FormData) => Promise<BudgetFormState<BudgetSpreadValues>>;
 
 function ErrorText({ id, message }: { id: string; message?: string }) {
   return <p className="budget-form__error" id={id}>{message || "\u00a0"}</p>;
@@ -164,5 +167,78 @@ export function BudgetTransactionForm({ action, categories, initialValues = empt
     </Field>
     <p className="budget-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
     <TaskPanelFooter className="budget-form__actions"><SubmitButton label="Add transaction" /></TaskPanelFooter>
+  </form>;
+}
+
+export function BudgetSpreadForm({ action, transactionId, amount, initialCount = "1" }: { action: SpreadAction; transactionId: string; amount: number; initialCount?: string }) {
+  const initialValues: BudgetSpreadValues = { transactionId, count: initialCount };
+  const [state, formAction] = useActionState(action, { fieldErrors: {}, formError: "", values: initialValues });
+  return <form className="budget-spread-form" action={formAction} noValidate>
+    <input type="hidden" name="transactionId" value={state.values.transactionId} />
+    <label htmlFor={`budget-spread-count-${transactionId}`}>Periods</label>
+    <input id={`budget-spread-count-${transactionId}`} name="count" type="number" min="1" max={Math.min(24, amount)} step="1" defaultValue={state.values.count} aria-describedby={`budget-spread-count-${transactionId}-error`} />
+    <button className="action-link action-link--quiet" type="submit">Save spread</button>
+    <small>Rp {amount.toLocaleString("id-ID")} is divided into positive whole Rupiah slices.</small>
+    <ErrorText id={`budget-spread-count-${transactionId}-error`} message={state.fieldErrors.count} />
+    <p className="budget-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+  </form>;
+}
+
+export type BudgetTransitionCategory = { id: string; name: string; allocation: string };
+
+function TransitionCategoryRow({ category, index, errors }: { category: BudgetTransitionCategory; index: number; errors: Record<string, string> }) {
+  return (
+    <div className="budget-form__category-row">
+      <div>
+        <label htmlFor={`budget-next-category-name-${index}`}>Category</label>
+        <input id={`budget-next-category-name-${index}`} name="categoryName" value={category.name} readOnly />
+        <input type="hidden" name="categoryId" value={category.id} />
+      </div>
+      <div>
+        <label htmlFor={`budget-next-category-allocation-${index}`}>Allocation</label>
+        <input id={`budget-next-category-allocation-${index}`} name="categoryAllocation" inputMode="numeric" defaultValue={category.allocation} aria-describedby={`budget-next-category-allocation-${index}-error`} />
+        <ErrorText id={`budget-next-category-allocation-${index}-error`} message={errors[`categoryAllocation${index}`]} />
+      </div>
+    </div>
+  );
+}
+
+function PendingPreview({ pending }: { pending: Array<{ categoryId: string; categoryName: string; amount: number }> }) {
+  if (pending.length === 0) return null;
+  return (
+    <section className="budget-pending-preview" aria-labelledby="budget-pending-preview-heading">
+      <p className="technical-label" id="budget-pending-preview-heading">COMING INTO THIS PERIOD</p>
+      {pending.map((item) => <div key={item.categoryId}><span>{item.categoryName}</span><strong>{formatRupiah(item.amount)}</strong></div>)}
+    </section>
+  );
+}
+
+export function BudgetTransitionForm({ action, period, categories, pending }: { action: TransitionAction; period: { id: string; name: string; startsOn: string; endsOn: string; totalBudget: number }; categories: BudgetTransitionCategory[]; pending: Array<{ categoryId: string; categoryName: string; amount: number }> }) {
+  const initialValues: BudgetTransitionValues = {
+    expectedActivePeriodId: period.id,
+    name: "",
+    startsOn: "",
+    endsOn: "",
+    totalBudget: String(period.totalBudget),
+    categories,
+  };
+  const [state, formAction] = useActionState(action, { fieldErrors: {}, formError: "", values: initialValues });
+  return <form className="budget-form" action={formAction} noValidate>
+    <input type="hidden" name="expectedActivePeriodId" value={state.values.expectedActivePeriodId} />
+    <p className="budget-form__warning">Starting the next period closes <strong>{period.name}</strong> immediately. This cannot be undone.</p>
+    <div className="budget-form__grid">
+      <Field label="Period name" id="budget-next-period-name" error={state.fieldErrors.periodName}><input id="budget-next-period-name" name="periodName" defaultValue={state.values.name} aria-invalid={Boolean(state.fieldErrors.periodName)} /></Field>
+      <Field label="Total budget" id="budget-next-period-total" error={state.fieldErrors.totalBudget}><input id="budget-next-period-total" name="totalBudget" inputMode="numeric" defaultValue={state.values.totalBudget} aria-invalid={Boolean(state.fieldErrors.totalBudget)} /></Field>
+      <Field label="Starts on" id="budget-next-period-starts" error={state.fieldErrors.startsOn}><input id="budget-next-period-starts" name="startsOn" type="date" defaultValue={state.values.startsOn} aria-invalid={Boolean(state.fieldErrors.startsOn)} /></Field>
+      <Field label="Ends on" id="budget-next-period-ends" error={state.fieldErrors.endsOn}><input id="budget-next-period-ends" name="endsOn" type="date" defaultValue={state.values.endsOn} aria-invalid={Boolean(state.fieldErrors.endsOn)} /></Field>
+    </div>
+    <fieldset className="budget-form__categories"><legend>Next category plan</legend>
+      <p className="budget-form__hint">Categories and their order stay the same. Allocations are copied for convenience; submitted values are explicit.</p>
+      {state.values.categories.map((category, index) => <TransitionCategoryRow category={category} errors={state.fieldErrors} index={index} key={category.id} />)}
+      <ErrorText id="budget-next-categories-error" message={state.fieldErrors.categories} />
+    </fieldset>
+    <PendingPreview pending={pending} />
+    <p className="budget-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+    <TaskPanelFooter className="budget-form__actions"><SubmitButton label="Start next period" /></TaskPanelFooter>
   </form>;
 }

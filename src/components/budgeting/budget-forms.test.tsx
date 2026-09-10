@@ -1,11 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { BudgetPlanForm, BudgetSetupForm, BudgetTransactionForm } from "./budget-forms";
+import { BudgetPlanForm, BudgetSetupForm, BudgetSpreadForm, BudgetTransactionForm, BudgetTransitionForm } from "./budget-forms";
 import type { BudgetFormState, BudgetPlanValues, BudgetSetupValues, BudgetTransactionValues } from "@/app/app/personal/budget/actions";
+import type { BudgetSpreadValues, BudgetTransitionValues } from "@/app/app/personal/budget/actions";
 
 const setupAction = vi.fn(async (state: BudgetFormState<BudgetSetupValues>) => state);
 const planAction = vi.fn(async (state: BudgetFormState<BudgetPlanValues>) => state);
 const transactionAction = vi.fn(async (state: BudgetFormState<BudgetTransactionValues>) => state);
+const spreadAction = vi.fn(async (state: BudgetFormState<BudgetSpreadValues>) => state);
+const transitionAction = vi.fn(async (state: BudgetFormState<BudgetTransitionValues>) => state);
 
 describe("budget forms", () => {
   it("renders setup fields without asking the user to enter Uncategorized", () => {
@@ -28,5 +31,15 @@ describe("budget forms", () => {
     expect(screen.getByLabelText("Date")).toHaveValue("2026-09-03");
     expect(screen.getByLabelText("Category")).toHaveValue("food");
     expect(screen.getByDisplayValue("100.000")).toBeInTheDocument();
+  });
+
+  it("shows a compact spread control and warns before closing a period", () => {
+    render(<BudgetSpreadForm action={spreadAction} transactionId="transaction-a" amount={1200000} />);
+    expect(screen.getByLabelText("Periods")).toHaveAttribute("max", "24");
+    expect(screen.getByText(/positive whole Rupiah slices/)).toBeInTheDocument();
+    render(<BudgetTransitionForm action={transitionAction} period={{ id: "period-a", name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 100000 }} categories={[{ id: "uncategorized", name: "Uncategorized", allocation: "0" }, { id: "food", name: "Food", allocation: "50000" }]} pending={[{ categoryId: "food", categoryName: "Food", amount: 10000 }]} />);
+    expect(document.body.textContent).toContain("closes September immediately");
+    expect(screen.getByText("COMING INTO THIS PERIOD")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Uncategorized")).toHaveAttribute("readonly");
   });
 });

@@ -1,10 +1,11 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { budgetCategories, budgetImpacts, budgetPeriodCategories, budgetTransactions } from "@/db/schema";
+import { budgetCategories, budgetImpacts, budgetPeriodCategories, budgetPeriods, budgetTransactions } from "@/db/schema";
 import { categoryNetSpent, netBudgetSpent, remainingBudget, sumBudgetAppliedAmounts } from "@/domain/budgeting/reporting";
-import type { BudgetCategoryPlan, BudgetPeriodSummary, BudgetTransactionView } from "@/domain/budgeting/types";
+import type { BudgetCategoryPlan, BudgetPeriodHistorySummary, BudgetPeriodSummary, BudgetTransactionView } from "@/domain/budgeting/types";
+import type { PendingBudgetImpactPreview } from "./periods";
 import { getBudgetProfile } from "./profiles";
-import { getActiveBudgetPeriod } from "./periods";
+import { getActiveBudgetPeriod, listPendingBudgetImpactPreview } from "./periods";
 import { listBudgetTransactions } from "./transactions";
 import { createLedgerSummaryRepository } from "@/domain/ledger/summary";
 import { getPersonalLedgerScopeId, LedgerScopeError } from "@/server/ledger-scopes";
@@ -17,12 +18,17 @@ function amount(value: string | number | null | undefined) {
 
 type GroupSharedMoney = { expectedBack: number; stillOwe: number; obligations: GroupBudgetObligation[] };
 
+type BudgetDashboard =
+  | { configured: false }
+  | { configured: true; period: BudgetPeriodSummary; recentTransactions: BudgetTransactionView[]; expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[]; importAvailable: boolean; pendingNextPeriod: PendingBudgetImpactPreview[] }
+  | { configured: true; period: null };
+
 async function groupSharedMoney(database: Database, ownerUserId: string): Promise<GroupSharedMoney> {
   const { readGroupBudgetSharedMoney } = await import("./sources-group");
   return readGroupBudgetSharedMoney(database, ownerUserId);
 }
 
-export async function getBudgetDashboard(database: Database, ownerUserId: string): Promise<{ configured: false } | { configured: true; period: BudgetPeriodSummary; recentTransactions: BudgetTransactionView[]; expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[]; importAvailable: boolean } | { configured: true; period: null }> {
+export async function getBudgetDashboard(database: Database, ownerUserId: string): Promise<BudgetDashboard> {
   if (!(await getBudgetProfile(database, ownerUserId))) return { configured: false };
   const period = await getActiveBudgetPeriod(database, ownerUserId);
   if (!period) return { configured: true, period: null };
@@ -41,7 +47,7 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
       hasImportableBudgetActivity(database, ownerUserId, null, period),
       groupSharedMoney(database, ownerUserId),
     ]);
-  const [plans, impactRows, recentTransactions] = await Promise.all([
+  const [plans, impactRows, recentTransactions, pendingNextPeriod] = await Promise.all([
     database.select({
       id: budgetCategories.id,
       name: budgetCategories.name,
@@ -66,6 +72,7 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
       ))
       .groupBy(budgetImpacts.budgetCategoryId, budgetTransactions.direction),
     listBudgetTransactions(database, ownerUserId, 5),
+    listPendingBudgetImpactPreview(database, ownerUserId, period.ordinal + 1),
   ]);
   const byCategory = new Map<string, { outflow: number; inflow: number }>();
   for (const row of impactRows) {
@@ -103,5 +110,62 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
     stillOwe: groupMoney.stillOwe,
     groupObligations: groupMoney.obligations,
     importAvailable,
+    pendingNextPeriod,
   };
+}
+
+export async function listBudgetPeriodHistory(database: Database, ownerUserId: string, limit = 100): Promise<BudgetPeriodHistorySummary[]> {
+  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
+  const periods = await database.select({
+    id: budgetPeriods.id,
+    ordinal: budgetPeriods.ordinal,
+    name: budgetPeriods.name,
+    startsOn: budgetPeriods.startsOn,
+    endsOn: budgetPeriods.endsOn,
+    status: budgetPeriods.status,
+    totalBudget: budgetPeriods.totalBudget,
+  }).from(budgetPeriods)
+    .where(eq(budgetPeriods.ownerUserId, ownerUserId))
+    .orderBy(desc(budgetPeriods.ordinal))
+    .limit(boundedLimit);
+  if (periods.length === 0) return [];
+  const periodIds = periods.map((period) => period.id);
+  const [plans, impactRows] = await Promise.all([
+    database.select({ periodId: budgetPeriodCategories.budgetPeriodId, categoryId: budgetCategories.id, categoryName: budgetCategories.name, allocatedAmount: budgetPeriodCategories.allocatedAmount, displayOrder: budgetPeriodCategories.displayOrder })
+      .from(budgetPeriodCategories)
+      .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetPeriodCategories.budgetCategoryId)))
+      .where(and(eq(budgetPeriodCategories.ownerUserId, ownerUserId), inArray(budgetPeriodCategories.budgetPeriodId, periodIds)))
+      .orderBy(asc(budgetPeriodCategories.budgetPeriodId), asc(budgetPeriodCategories.displayOrder), asc(budgetCategories.name)),
+    database.select({ periodId: budgetImpacts.budgetPeriodId, categoryId: budgetCategories.id, categoryName: budgetCategories.name, direction: budgetTransactions.direction, amount: sql<string>`sum(${budgetImpacts.amount})::text` })
+      .from(budgetImpacts)
+      .innerJoin(budgetTransactions, and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, budgetImpacts.budgetTransactionId), eq(budgetTransactions.status, "posted")))
+      .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetImpacts.budgetCategoryId)))
+      .where(and(eq(budgetImpacts.ownerUserId, ownerUserId), inArray(budgetImpacts.budgetPeriodId, periodIds), eq(budgetImpacts.status, "applied")))
+      .groupBy(budgetImpacts.budgetPeriodId, budgetCategories.id, budgetCategories.name, budgetTransactions.direction),
+  ]);
+  const totalsByPeriod = new Map<string, { outflow: number; inflow: number }>();
+  const categoriesByPeriod = new Map<string, Map<string, { name: string; outflow: number; inflow: number }>>();
+  for (const row of impactRows) {
+    if (!row.periodId) continue;
+    const totals = totalsByPeriod.get(row.periodId) ?? { outflow: 0, inflow: 0 };
+    totals[row.direction] = Number(row.amount);
+    totalsByPeriod.set(row.periodId, totals);
+    const categories = categoriesByPeriod.get(row.periodId) ?? new Map();
+    const category = categories.get(row.categoryId) ?? { name: row.categoryName, outflow: 0, inflow: 0 };
+    category[row.direction] = Number(row.amount);
+    categories.set(row.categoryId, category);
+    categoriesByPeriod.set(row.periodId, categories);
+  }
+  const plansByPeriod = new Map<string, typeof plans>();
+  for (const row of plans) plansByPeriod.set(row.periodId, [...(plansByPeriod.get(row.periodId) ?? []), row]);
+  return periods.map((period) => {
+    const totals = totalsByPeriod.get(period.id) ?? { outflow: 0, inflow: 0 };
+    const netSpent = netBudgetSpent(totals.outflow, totals.inflow);
+    const categories = (plansByPeriod.get(period.id) ?? []).map((plan) => {
+      const applied = categoriesByPeriod.get(period.id)?.get(plan.categoryId) ?? { name: plan.categoryName, outflow: 0, inflow: 0 };
+      const netSpent = categoryNetSpent(applied.outflow, applied.inflow);
+      return { id: plan.categoryId, name: plan.categoryName, allocatedAmount: plan.allocatedAmount, outflowApplied: applied.outflow, inflowApplied: applied.inflow, netSpent, remaining: plan.allocatedAmount - netSpent };
+    });
+    return { ...period, netSpent, remaining: remainingBudget(period.totalBudget, netSpent), categories };
+  });
 }

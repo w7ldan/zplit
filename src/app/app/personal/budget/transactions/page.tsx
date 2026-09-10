@@ -7,6 +7,7 @@ import { summarizeBudgetCategories, type BudgetTransactionView } from "@/domain/
 import { listBudgetTransactions } from "@/server/budgeting/transactions";
 import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
 import { changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, voidBudgetTransactionAction } from "../actions";
+import { SpreadControl } from "@/components/budgeting/spread-control";
 
 export const metadata = { title: "Budget transactions" };
 export const dynamic = "force-dynamic";
@@ -52,6 +53,7 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
         <strong>{transaction.description}</strong>
         <small>{categoryLabel} · {formatCalendarDate(transaction.occurredOn)}</small>
         <ChangeCategoryForm transaction={transaction} categories={categories} />
+        <SpreadControl transaction={transaction} />
       </span>
       <span><strong>{amount}</strong><small>{transaction.status === "voided" ? "Voided" : "Posted"}</small></span>
       {transaction.status === "posted" && transaction.origin === "manual" ? <form action={voidBudgetTransactionAction.bind(null, transaction.id)}><button className="action-link action-link--quiet" type="submit">Void</button></form> : <span />}

@@ -1,4 +1,4 @@
-import type { BudgetTransactionDirection, BudgetTransactionOrigin, BudgetTransactionStatus } from "@/db/schema";
+import type { BudgetPeriodStatus, BudgetTransactionDirection, BudgetTransactionOrigin, BudgetTransactionStatus } from "@/db/schema";
 
 export type BudgetCategoryPlan = {
   id: string;
@@ -29,6 +29,29 @@ export type BudgetPeriodSummary = {
   categories: BudgetCategoryPlan[];
 };
 
+export type BudgetPeriodHistoryCategory = {
+  id: string;
+  name: string;
+  allocatedAmount: number;
+  outflowApplied: number;
+  inflowApplied: number;
+  netSpent: number;
+  remaining: number;
+};
+
+export type BudgetPeriodHistorySummary = {
+  id: string;
+  ordinal: number;
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  status: BudgetPeriodStatus;
+  totalBudget: number;
+  netSpent: number;
+  remaining: number;
+  categories: BudgetPeriodHistoryCategory[];
+};
+
 export type BudgetTransactionView = {
   id: string;
   direction: BudgetTransactionDirection;
@@ -42,6 +65,10 @@ export type BudgetTransactionView = {
   categoryName: string;
   categoryNames: string[];
   categoryId: string | null;
+  spreadCount?: number | null;
+  pendingImpactCount?: number;
+  spreadCanChange?: boolean;
+  spreadLocked?: boolean;
 };
 
 export function summarizeBudgetCategories(categoryNames: readonly string[]) {

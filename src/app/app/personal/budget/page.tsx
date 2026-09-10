@@ -5,12 +5,13 @@ import { formatRupiah } from "@/domain/rupiah";
 import { formatSignedRupiah } from "@/domain/budgeting/amounts";
 import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { TaskPanel } from "@/components/app/task-panel";
-import { BudgetSetupForm, BudgetPlanForm, BudgetTransactionForm } from "@/components/budgeting/budget-forms";
+import { BudgetSetupForm, BudgetPlanForm, BudgetTransactionForm, BudgetTransitionForm } from "@/components/budgeting/budget-forms";
 import { SafeDaily } from "@/components/budgeting/safe-daily";
+import { SpreadControl } from "@/components/budgeting/spread-control";
 import { summarizeBudgetCategories, type BudgetPeriodSummary, type BudgetTransactionView } from "@/domain/budgeting/types";
 import type { GroupBudgetObligation } from "@/server/budgeting/sources-group";
 import { getBudgetDashboard } from "@/server/budgeting/reporting";
-import { changeGroupObligationBudgetCategoryAction, changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, createBudgetSetupAction, createBudgetTransactionAction, importPersonalActivityAction, updateBudgetPlanAction } from "./actions";
+import { changeGroupObligationBudgetCategoryAction, changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, createBudgetSetupAction, createBudgetTransactionAction, importPersonalActivityAction, startNextBudgetPeriodAction, updateBudgetPlanAction } from "./actions";
 
 export const metadata = { title: "Budget" };
 export const dynamic = "force-dynamic";
@@ -45,6 +46,8 @@ function PageHeader({ period, importAvailable = false }: { period?: BudgetPeriod
           {importAvailable ? <form action={importPersonalActivityAction}><button className="action-link action-link--quiet" type="submit">Import activity</button></form> : null}
           <Link className="action-link action-link--primary" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
           <Link className="action-link action-link--quiet" href="/app/personal/budget?create=plan" data-task-trigger="budget-plan">Manage plan</Link>
+          <Link className="action-link action-link--quiet" href="/app/personal/budget?create=period" data-task-trigger="budget-period">Start next period</Link>
+          <Link className="text-link" href="/app/personal/budget/periods">Budget periods <span aria-hidden="true">→</span></Link>
         </div>
       ) : null}
     </header>
@@ -170,6 +173,7 @@ function TransactionRow({ transaction, categories }: { transaction: BudgetTransa
         <strong>{transaction.description}</strong>
         <small>{categoryLabel} · {formatCalendarDate(transaction.occurredOn)}</small>
         <ChangeCategoryForm transaction={transaction} categories={categories} />
+        <SpreadControl transaction={transaction} />
       </span>
       <span><strong>{transactionAmount(transaction.direction, transaction.amount)}</strong><small>{transaction.status === "voided" ? "Voided" : "Posted"}</small></span>
     </div>
@@ -210,6 +214,7 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
   const createMode = Array.isArray(query.create) ? query.create[0] : query.create;
   const openCreate = createMode === "transaction";
   const openManage = createMode === "plan";
+  const openNext = createMode === "period";
   return (
     <section className="app-page budget-page" id="top">
       <div className="editorial-shell app-page__layout">
@@ -220,6 +225,22 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
       </div>
       {openCreate ? <TaskPanel open eyebrow="NEW BUDGET RECORD" title="Add transaction" description="Record a manual expense or credit/refund in the active period." triggerId="budget-transaction"><BudgetTransactionForm action={createBudgetTransactionAction} categories={period.categories.map(({ id, name }) => ({ id, name }))} /></TaskPanel> : null}
       {openManage ? <TaskPanel open eyebrow="ACTIVE PLAN" title="Manage plan" description="Adjust this period and its category allocations." triggerId="budget-plan"><BudgetPlanForm action={updateBudgetPlanAction} period={period} categories={period.categories.map(({ id, name, allocatedAmount, systemKey }) => ({ id, name, allocatedAmount, systemKey }))} /></TaskPanel> : null}
+      {openNext ? (
+        <TaskPanel
+          open
+          eyebrow="PERIOD TRANSITION"
+          title="Start next period"
+          description="This closes the active period immediately. Enter the next period and its complete category plan."
+          triggerId="budget-period"
+        >
+          <BudgetTransitionForm
+            action={startNextBudgetPeriodAction}
+            period={period}
+            categories={period.categories.map(({ id, name, allocatedAmount }) => ({ id, name, allocation: String(allocatedAmount) }))}
+            pending={dashboard.pendingNextPeriod ?? []}
+          />
+        </TaskPanel>
+      ) : null}
     </section>
   );
 }
