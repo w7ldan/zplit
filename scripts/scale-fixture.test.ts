@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { SCALE_FIXTURE_DATABASE, SCALE_FIXTURE_CONFIRMATION } from "./scale-fixture-data";
 import {
+  credentialAccountId,
   parseScaleCommand,
+  readOwnerPassword,
   redactScaleError,
   runScaleCommand,
   validateScaleCommandEnvironment,
@@ -40,5 +42,15 @@ describe("scale fixture command safety", () => {
 
   it("redacts database secrets from failure text", () => {
     expect(redactScaleError(new Error("password=s3cret connection failed"), ["s3cret"])).toBe("password=[redacted] connection failed");
+  });
+
+  it("reads the optional owner password file without requiring it", () => {
+    expect(readOwnerPassword({})).toBeUndefined();
+    expect(() => readOwnerPassword({ SCALE_OWNER_PASSWORD_FILE: " /nonexistent " })).toThrow(/SCALE_OWNER_PASSWORD_FILE/);
+  });
+
+  it("derives a deterministic fixture-owned credential account id", () => {
+    expect(credentialAccountId("scale-owner")).toBe("scale-credential-scale-owner");
+    expect(credentialAccountId("scale-owner")).not.toBe(credentialAccountId("someone-else"));
   });
 });

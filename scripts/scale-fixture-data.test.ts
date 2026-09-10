@@ -1,10 +1,16 @@
 import { createHash } from "node:crypto";
 import { inflateSync } from "node:zlib";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { normalizeNotificationMetadata } from "../src/domain/notifications";
 import {
   generateScaleFixture,
+  SCALE_ACTIVE_BUDGET_PERIOD_NAME,
   SCALE_FIXTURE_COUNTS,
   SCALE_FIXTURE_SCENARIO_IDS,
+  SCALE_GROUP_ANCHORS,
+  SCALE_HEAVY_RECURRING_NAME,
+  SCALE_ORGANIZATION_ANCHORS,
+  SCALE_SCENARIO_ANCHORS,
 } from "./scale-fixture-data";
 
 function sums(fixture: ReturnType<typeof generateScaleFixture>) {
@@ -74,9 +80,9 @@ describe("scale fixture data", () => {
     expect(fixture.expenses[0]!.description).toHaveLength(200);
     expect(new Set(fixture.outings.map(({ occurredAt }) => `${occurredAt.getUTCFullYear()}-${occurredAt.getUTCMonth()}`))).toHaveLength(36);
     expect(fixture.outings.slice(0, 3).map(({ occurredAt }) => occurredAt.toISOString())).toEqual([
-      "2023-01-31T23:59:59.999Z",
-      "2023-02-01T00:00:00.000Z",
-      "2023-02-28T10:00:00.000Z",
+      "2026-01-31T23:59:59.999Z",
+      "2026-02-01T00:00:00.000Z",
+      "2026-02-28T10:00:00.000Z",
     ]);
     expect(fixture.repayments.slice(0, 3).map(({ paidAt }) => paidAt.toISOString())).toEqual([
       "2024-03-31T23:59:59.999Z",
@@ -147,5 +153,226 @@ describe("scale fixture data", () => {
     const pairs = fixture.repaymentAllocations.map(({ repaymentId, expenseShareId }) => `${repaymentId}:${expenseShareId}`);
     expect(new Set(pairs).size).toBe(pairs.length);
     expect(fixture.repaymentAllocations.every(({ repaymentId, expenseShareId }) => repaymentIds.has(repaymentId) && shareIds.has(expenseShareId))).toBe(true);
+  });
+});
+
+describe("full-product scale fixture data", () => {
+  let fixture: ReturnType<typeof generateScaleFixture>;
+  beforeAll(() => {
+    fixture = generateScaleFixture("owner");
+  });
+
+  it("is deterministic across runs for every domain", () => {
+    expect(generateScaleFixture("owner")).toEqual(fixture);
+  });
+
+  it("keeps exact collaboration counts stable", () => {
+    expect(fixture.secondaryUsers).toHaveLength(SCALE_FIXTURE_COUNTS.secondaryUsers);
+    expect(fixture.friendConnections).toHaveLength(SCALE_FIXTURE_COUNTS.friendConnections);
+    expect(fixture.trips).toHaveLength(SCALE_FIXTURE_COUNTS.trips);
+    expect(fixture.groups).toHaveLength(SCALE_FIXTURE_COUNTS.groups);
+    expect(fixture.groupParticipants).toHaveLength(SCALE_FIXTURE_COUNTS.groupParticipants);
+    expect(fixture.groupMemberships).toHaveLength(SCALE_FIXTURE_COUNTS.groupMemberships);
+    expect(fixture.groupExpenses).toHaveLength(SCALE_FIXTURE_COUNTS.groupExpenses);
+    expect(fixture.groupExpenseShares).toHaveLength(SCALE_FIXTURE_COUNTS.groupExpenseShares);
+    expect(fixture.groupObligations).toHaveLength(SCALE_FIXTURE_COUNTS.groupObligations);
+    expect(fixture.groupSettlements).toHaveLength(SCALE_FIXTURE_COUNTS.groupSettlements);
+    expect(fixture.groupSettlementApplications).toHaveLength(SCALE_FIXTURE_COUNTS.groupSettlementApplications);
+    expect(fixture.groupOffsets).toHaveLength(SCALE_FIXTURE_COUNTS.groupOffsets);
+    expect(fixture.groupOffsetApplications).toHaveLength(SCALE_FIXTURE_COUNTS.groupOffsetApplications);
+    expect(fixture.groupExpenseReceipts).toHaveLength(SCALE_FIXTURE_COUNTS.groupExpenseReceipts);
+    expect(fixture.groupSettlementProofs).toHaveLength(SCALE_FIXTURE_COUNTS.groupSettlementProofs);
+    expect(fixture.groupExpenseLifecycleEvents).toHaveLength(SCALE_FIXTURE_COUNTS.groupExpenseLifecycleEvents);
+    expect(fixture.groupJoinRequests).toHaveLength(SCALE_FIXTURE_COUNTS.groupJoinRequests);
+    expect(fixture.organizations).toHaveLength(SCALE_FIXTURE_COUNTS.organizations);
+    expect(fixture.organizationScopes).toHaveLength(SCALE_FIXTURE_COUNTS.organizations);
+    expect(fixture.organizationParticipants).toHaveLength(SCALE_FIXTURE_COUNTS.organizationParticipants);
+    expect(fixture.organizationMemberships).toHaveLength(SCALE_FIXTURE_COUNTS.organizationMemberships);
+    expect(fixture.organizationInvitations).toHaveLength(SCALE_FIXTURE_COUNTS.organizationInvitations);
+    expect(fixture.organizationFriends).toHaveLength(SCALE_FIXTURE_COUNTS.organizationFriends);
+    expect(fixture.organizationOutings).toHaveLength(SCALE_FIXTURE_COUNTS.organizationOutings);
+    expect(fixture.organizationExpenses).toHaveLength(SCALE_FIXTURE_COUNTS.organizationExpenses);
+    expect(fixture.organizationExpenseShares).toHaveLength(SCALE_FIXTURE_COUNTS.organizationExpenseShares);
+    expect(fixture.organizationRepayments).toHaveLength(SCALE_FIXTURE_COUNTS.organizationRepayments);
+    expect(fixture.organizationRepaymentAllocations).toHaveLength(SCALE_FIXTURE_COUNTS.organizationRepaymentAllocations);
+    expect(fixture.organizationReceipts).toHaveLength(SCALE_FIXTURE_COUNTS.organizationReceipts);
+    expect(fixture.budgetPeriods).toHaveLength(SCALE_FIXTURE_COUNTS.budgetPeriods);
+    expect(fixture.budgetCategories).toHaveLength(SCALE_FIXTURE_COUNTS.budgetCategories);
+    expect(fixture.budgetPeriodCategories).toHaveLength(SCALE_FIXTURE_COUNTS.budgetPeriodCategories);
+    expect(fixture.budgetTransactions).toHaveLength(SCALE_FIXTURE_COUNTS.budgetTransactions);
+    expect(fixture.budgetImpacts).toHaveLength(SCALE_FIXTURE_COUNTS.budgetImpacts);
+    expect(fixture.budgetPersonalExpenseSources).toHaveLength(SCALE_FIXTURE_COUNTS.budgetPersonalExpenseSources);
+    expect(fixture.budgetPersonalRepaymentSources).toHaveLength(SCALE_FIXTURE_COUNTS.budgetPersonalRepaymentSources);
+    expect(fixture.budgetGroupExpenseSources).toHaveLength(SCALE_FIXTURE_COUNTS.budgetGroupExpenseSources);
+    expect(fixture.budgetGroupSettlementSources).toHaveLength(SCALE_FIXTURE_COUNTS.budgetGroupSettlementSources);
+    expect(fixture.budgetGroupObligationClassifications).toHaveLength(SCALE_FIXTURE_COUNTS.budgetGroupObligationClassifications);
+    expect(fixture.recurringTemplates).toHaveLength(SCALE_FIXTURE_COUNTS.recurringTemplates);
+    expect(fixture.recurringTemplates.filter((template) => template.archivedAt === null)).toHaveLength(SCALE_FIXTURE_COUNTS.activeRecurringTemplates);
+    expect(fixture.recurringOccurrences).toHaveLength(SCALE_FIXTURE_COUNTS.recurringOccurrences);
+    expect(fixture.notifications).toHaveLength(SCALE_FIXTURE_COUNTS.notifications);
+    expect(fixture.chatThreads).toHaveLength(SCALE_FIXTURE_COUNTS.chatThreads);
+    expect(fixture.chatMessages).toHaveLength(SCALE_FIXTURE_COUNTS.chatMessages);
+  });
+
+  it("keeps generated IDs unique and well-formed", () => {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/;
+    const unique = (values: string[]) => new Set(values).size === values.length && values.every((value) => uuid.test(value));
+    expect(unique(fixture.groups.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.groupParticipants.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.groupExpenses.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.groupExpenseShares.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.groupObligations.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.groupSettlements.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.groupOffsets.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.organizations.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.organizationParticipants.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.budgetPeriods.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.budgetCategories.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.budgetTransactions.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.budgetImpacts.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.recurringTemplates.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.recurringOccurrences.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.notifications.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.chatThreads.map(({ id }) => id))).toBe(true);
+    expect(unique(fixture.chatMessages.map(({ id }) => id))).toBe(true);
+    expect(new Set(fixture.secondaryUsers.map(({ id }) => id)).size).toBe(fixture.secondaryUsers.length);
+    expect(fixture.secondaryUsers.every(({ email }) => email === email.toLowerCase())).toBe(true);
+    expect(fixture.secondaryUsers.every(({ username }) => /^[a-z0-9][a-z0-9._]*[a-z0-9]$/.test(username) && username.length >= 3 && username.length <= 20)).toBe(true);
+    for (const connection of fixture.friendConnections) {
+      expect(connection.userAId < connection.userBId).toBe(true);
+    }
+  });
+
+  it("exposes memorable scenario anchors", () => {
+    for (const name of SCALE_GROUP_ANCHORS) expect(fixture.groups.some((group) => group.name === name)).toBe(true);
+    for (const name of SCALE_ORGANIZATION_ANCHORS) expect(fixture.organizations.some((organization) => organization.name === name)).toBe(true);
+    expect(SCALE_SCENARIO_ANCHORS.budgetPeriod).toBe(SCALE_ACTIVE_BUDGET_PERIOD_NAME);
+    expect(SCALE_SCENARIO_ANCHORS.heavyRecurring).toBe(SCALE_HEAVY_RECURRING_NAME);
+    expect(fixture.trips.some((trip) => trip.name === "Japan Trip 2026")).toBe(true);
+    expect(fixture.budgetPeriods.some((period) => period.name === SCALE_ACTIVE_BUDGET_PERIOD_NAME && period.status === "active")).toBe(true);
+    expect(fixture.recurringTemplates.some((template) => template.name === SCALE_HEAVY_RECURRING_NAME && template.archivedAt === null)).toBe(true);
+  });
+
+  it("covers every Group lifecycle and identity shape", () => {
+    const states = new Set(fixture.groupExpenses.map(({ state }) => state));
+    expect(states).toEqual(new Set(["pending", "confirmed", "rejected", "voided"]));
+    expect(new Set(fixture.groupSettlements.map(({ state }) => state))).toEqual(new Set(["pending", "confirmed"]));
+    expect(new Set(fixture.groupOffsets.map(({ state }) => state))).toEqual(new Set(["pending", "confirmed"]));
+    for (const participant of fixture.groupParticipants) {
+      expect((participant.userId !== null) === (participant.displayName === null)).toBe(true);
+    }
+    expect(fixture.groupParticipants.some((participant) => participant.userId === null)).toBe(true);
+    for (const group of fixture.groups) {
+      const owners = fixture.groupMemberships.filter((membership) => membership.groupId === group.id && membership.role === "owner");
+      expect(owners).toHaveLength(1);
+    }
+    const pendingExpenseIds = new Set(fixture.groupExpenses.filter(({ state }) => state === "pending" || state === "rejected").map(({ id }) => id));
+    expect(fixture.groupObligations.every(({ sourceExpenseId }) => !pendingExpenseIds.has(sourceExpenseId))).toBe(true);
+    expect(fixture.groupSettlementApplications.every((application) => {
+      const settlement = fixture.groupSettlements.find(({ id }) => id === application.settlementId)!;
+      const obligation = fixture.groupObligations.find(({ id }) => id === application.obligationId)!;
+      return settlement.senderParticipantId === obligation.debtorParticipantId && settlement.recipientParticipantId === obligation.creditorParticipantId;
+    })).toBe(true);
+  });
+
+  it("keeps Group settlement and offset applications within eligible amounts", () => {
+    const appliedBySettlement = new Map<string, number>();
+    for (const application of fixture.groupSettlementApplications) {
+      appliedBySettlement.set(application.settlementId, (appliedBySettlement.get(application.settlementId) ?? 0) + application.appliedAmount);
+    }
+    for (const settlement of fixture.groupSettlements.filter(({ state }) => state === "confirmed")) {
+      expect(appliedBySettlement.get(settlement.id)).toBe(settlement.amount);
+    }
+    for (const settlement of fixture.groupSettlements.filter(({ state }) => state === "pending")) {
+      expect(appliedBySettlement.get(settlement.id) ?? 0).toBe(0);
+    }
+    const appliedByObligation = new Map<string, number>();
+    for (const application of [...fixture.groupSettlementApplications, ...fixture.groupOffsetApplications]) {
+      const key = application.obligationId;
+      appliedByObligation.set(key, (appliedByObligation.get(key) ?? 0) + application.appliedAmount);
+    }
+    const obligations = new Map(fixture.groupObligations.map((obligation) => [obligation.id, obligation]));
+    for (const [obligationId, total] of appliedByObligation) {
+      expect(total).toBeLessThanOrEqual(obligations.get(obligationId)!.originalAmount);
+    }
+  });
+
+  it("covers Organization roles and ledger activity", () => {
+    const ownerRoles = new Set(fixture.organizationMemberships.filter(({ userId }) => userId === "owner").map(({ role }) => role));
+    expect(ownerRoles.has("owner")).toBe(true);
+    expect(ownerRoles.size).toBeGreaterThan(1);
+    expect(fixture.organizations.some(({ archivedAt }) => archivedAt !== null)).toBe(true);
+    expect(new Set(fixture.organizationInvitations.map(({ status }) => status)).size).toBeGreaterThan(3);
+    expect(fixture.organizationScopes.every(({ organizationId }) => fixture.organizations.some(({ id }) => id === organizationId))).toBe(true);
+    const friendIds = new Set(fixture.organizationFriends.map(({ id }) => id));
+    expect(fixture.organizationExpenseShares.every(({ friendId }) => friendIds.has(friendId))).toBe(true);
+  });
+
+  it("keeps Budget periods, categories, and recurrence coherent", () => {
+    expect(fixture.budgetPeriods.filter(({ status }) => status === "active")).toHaveLength(1);
+    expect(new Set(fixture.budgetPeriods.map(({ ordinal }) => ordinal)).size).toBe(fixture.budgetPeriods.length);
+    expect(fixture.budgetCategories.filter(({ systemKey }) => systemKey === "uncategorized")).toHaveLength(1);
+    const impactsByTransaction = new Map<string, number>();
+    for (const impact of fixture.budgetImpacts) {
+      impactsByTransaction.set(impact.budgetTransactionId, (impactsByTransaction.get(impact.budgetTransactionId) ?? 0) + impact.amount);
+      if (impact.status === "pending") {
+        expect(impact.budgetPeriodId).toBeNull();
+      } else {
+        expect(impact.budgetPeriodId).not.toBeNull();
+      }
+    }
+    const transactions = new Map(fixture.budgetTransactions.map((transaction) => [transaction.id, transaction]));
+    for (const [transactionId, total] of impactsByTransaction) {
+      expect(total).toBe(transactions.get(transactionId)!.amount);
+    }
+    const occurrenceKeys = fixture.recurringOccurrences.map(({ recurringTemplateId, scheduledOn }) => `${recurringTemplateId}:${scheduledOn}`);
+    expect(new Set(occurrenceKeys).size).toBe(occurrenceKeys.length);
+    expect(new Set(fixture.recurringOccurrences.map(({ status }) => status))).toEqual(new Set(["due", "recorded", "skipped"]));
+    for (const occurrence of fixture.recurringOccurrences) {
+      expect((occurrence.status === "recorded") === (occurrence.budgetTransactionId !== null)).toBe(true);
+    }
+    for (const template of fixture.recurringTemplates) {
+      expect(template.spreadCount).toBeGreaterThanOrEqual(1);
+      expect(template.spreadCount).toBeLessThanOrEqual(24);
+      expect(template.spreadCount).toBeLessThanOrEqual(template.amount);
+    }
+  });
+
+  it("produces only supported notification shapes", () => {
+    const types = new Set(fixture.notifications.map(({ type }) => type));
+    expect(types.size).toBeGreaterThanOrEqual(8);
+    for (const notification of fixture.notifications) {
+      expect(() => normalizeNotificationMetadata(notification.type as never, notification.metadata)).not.toThrow();
+    }
+    expect(fixture.notifications.some(({ readAt }) => readAt === null)).toBe(true);
+    expect(fixture.notifications.some(({ readAt }) => readAt !== null)).toBe(true);
+  });
+
+  it("keeps chat threads and messages coherent", () => {
+    const threadIds = new Set(fixture.chatThreads.map(({ id }) => id));
+    expect(fixture.chatThreads.filter(({ groupId }) => groupId !== null)).toHaveLength(fixture.groups.length);
+    expect(fixture.chatThreads.filter(({ organizationId }) => organizationId !== null)).toHaveLength(fixture.organizations.length);
+    for (const message of fixture.chatMessages) {
+      expect(threadIds.has(message.threadId)).toBe(true);
+      expect(message.body.length).toBeGreaterThan(0);
+      expect(message.body.length).toBeLessThanOrEqual(4000);
+      if (message.groupId) {
+        expect(message.senderParticipantId).not.toBeNull();
+      } else {
+        expect(message.senderParticipantId).toBeNull();
+      }
+    }
+    const perThread = new Map<string, number>();
+    for (const message of fixture.chatMessages) perThread.set(message.threadId, (perThread.get(message.threadId) ?? 0) + 1);
+    expect(Math.max(...perThread.values())).toBeGreaterThanOrEqual(1000);
+  });
+
+  it("links Personal dates and trips for Budget ingestion", () => {
+    expect(fixture.outings.every(({ occurredOn }) => /^\d{4}-\d{2}-\d{2}$/.test(occurredOn))).toBe(true);
+    expect(fixture.repayments.every(({ paidOn }) => /^\d{4}-\d{2}-\d{2}$/.test(paidOn))).toBe(true);
+    expect(fixture.friends.filter(({ linkedUserId }) => linkedUserId !== null)).toHaveLength(SCALE_FIXTURE_COUNTS.linkedFriends);
+    const tripIds = new Set(fixture.trips.map(({ id }) => id));
+    expect(fixture.outings.filter(({ tripId }) => tripId !== null).length).toBeGreaterThan(0);
+    expect(fixture.outings.every(({ tripId }) => tripId === null || tripIds.has(tripId))).toBe(true);
   });
 });
