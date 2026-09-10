@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
-import { formatRupiah } from "@/domain/rupiah";
+import { formatSignedRupiah } from "@/domain/budgeting/amounts";
 import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { summarizeBudgetCategories, type BudgetTransactionView } from "@/domain/budgeting/types";
 import { listBudgetTransactions } from "@/server/budgeting/transactions";
 import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
+import { ConfirmationDialog } from "@/components/app/delete-confirmation-dialog";
 import { changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, voidBudgetTransactionAction } from "../actions";
 import { SpreadControl } from "@/components/budgeting/spread-control";
 import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
@@ -20,21 +21,21 @@ function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTr
   const action = transaction.sourceType === "group_expense" ? changeGroupExpenseBudgetCategoryAction : changePersonalExpenseBudgetCategoryAction;
   return (
     <details className="budget-category-change">
-      <summary className="action-link action-link--quiet">Change budget category</summary>
+      <summary className="action-link action-link--quiet" aria-label={`Change budget category for ${transaction.description}`}>Change budget category</summary>
       <form action={action}>
         <input type="hidden" name="transactionId" value={transaction.id} />
-        <label className="sr-only" htmlFor={`budget-history-category-${transaction.id}`}>Budget category</label>
+        <label className="sr-only" htmlFor={`budget-history-category-${transaction.id}`}>Budget category for {transaction.description}</label>
         <select id={`budget-history-category-${transaction.id}`} name="categoryId" defaultValue={transaction.categoryId ?? categories[0]?.id}>
           {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
-        <button className="action-link action-link--quiet" type="submit">Save category</button>
+        <button className="action-link action-link--quiet" type="submit" aria-label={`Save category for ${transaction.description}`}>Save category</button>
       </form>
     </details>
   );
 }
 
 function TransactionHistoryRow({ transaction, categories }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[] }) {
-  const amount = `${transaction.direction === "outflow" ? "−" : "+"}${formatRupiah(transaction.amount)}`;
+  const amount = transaction.direction === "inflow" ? `+${formatSignedRupiah(transaction.amount)}` : formatSignedRupiah(-transaction.amount);
   const sourceLabel = transaction.sourceType === "personal_expense"
     ? "Personal expense"
     : transaction.sourceType === "recurring"
@@ -59,14 +60,31 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
         <SpreadControl transaction={transaction} />
       </span>
       <span><strong>{amount}</strong><small>{transaction.status === "voided" ? "Voided" : "Posted"}</small></span>
-      {transaction.status === "posted" && (transaction.origin === "manual" || transaction.origin === "recurring") ? <form action={voidBudgetTransactionAction.bind(null, transaction.id)}><button className="action-link action-link--quiet" type="submit">Void</button></form> : <span />}
+      {transaction.status === "posted" && (transaction.origin === "manual" || transaction.origin === "recurring") ? (
+        <ConfirmationDialog
+          title="Void transaction?"
+          entityName={transaction.description}
+          confirmLabel="Void transaction"
+          pendingLabel="Voiding transaction…"
+          triggerLabel="Void"
+          triggerAriaLabel={`Void ${transaction.description} transaction`}
+          description={`Voiding “${transaction.description}” removes its applied amount from Budget totals. The record stays in history as voided.`}
+          action={voidBudgetTransactionAction.bind(null, transaction.id)}
+        />
+      ) : <span />}
     </div>
   );
 }
 
 function HistoryContent({ transactions, categories }: { transactions: BudgetTransactionView[]; categories: Array<{ id: string; name: string }> }) {
   if (!transactions.length) {
-    return <div className="ledger-empty"><p>No budget transactions yet.</p><Link className="text-link" href="/app/personal/budget">Return to Budget <span aria-hidden="true">→</span></Link></div>;
+    return (
+      <div className="ledger-empty">
+        <p>No budget transactions yet.</p>
+        <Link className="text-link" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add a transaction <span aria-hidden="true">→</span></Link>
+        <Link className="text-link" href="/app/personal/budget">Return to Budget <span aria-hidden="true">→</span></Link>
+      </div>
+    );
   }
   return <div className="budget-transaction-list">{transactions.map((transaction) => <TransactionHistoryRow transaction={transaction} categories={categories} key={transaction.id} />)}</div>;
 }

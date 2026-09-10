@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { cloneElement, isValidElement, useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { TaskPanelFooter } from "@/components/app/task-panel";
 import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { formatRupiah } from "@/domain/rupiah";
@@ -15,7 +15,7 @@ type TransactionAction = (state: BudgetFormState<BudgetTransactionValues>, formD
 type TransitionAction = (state: BudgetFormState<BudgetTransitionValues>, formData: FormData) => Promise<BudgetFormState<BudgetTransitionValues>>;
 type SpreadAction = (state: BudgetFormState<BudgetSpreadValues>, formData: FormData) => Promise<BudgetFormState<BudgetSpreadValues>>;
 
-function ErrorText({ id, message }: { id: string; message?: string }) {
+export function ErrorText({ id, message }: { id: string; message?: string }) {
   return <p className="budget-form__error" id={id}>{message || "\u00a0"}</p>;
 }
 
@@ -24,8 +24,12 @@ function SubmitButton({ label }: { label: string }) {
   return <button className="action-link action-link--primary" type="submit" disabled={pending} aria-busy={pending}>{pending ? "Saving…" : label}</button>;
 }
 
-function Field({ label, id, error, children }: { label: string; id: string; error?: string; children: ReactNode }) {
-  return <div className="budget-form__field"><label htmlFor={id}>{label}</label>{children}<ErrorText id={`${id}-error`} message={error} /></div>;
+export function Field({ label, id, error, children }: { label: string; id: string; error?: string; children: ReactNode }) {
+  const errorId = `${id}-error`;
+  const control = isValidElement(children)
+    ? cloneElement(children as ReactElement<{ "aria-describedby"?: string }>, { "aria-describedby": errorId })
+    : children;
+  return <div className="budget-form__field"><label htmlFor={id}>{label}</label>{control}<ErrorText id={errorId} message={error} /></div>;
 }
 
 const emptySetup: BudgetSetupValues = { periodName: "", startsOn: "", endsOn: "", totalBudget: "", categories: Array.from({ length: 3 }, () => ({ name: "", allocation: "" })) };
@@ -51,6 +55,7 @@ export function BudgetSetupForm({ action, initialValues = emptySetup }: { action
               name="categoryName"
               defaultValue={category.name}
               placeholder="e.g. Food"
+              aria-invalid={Boolean(state.fieldErrors[`categoryName${index}`])}
               aria-describedby={`budget-setup-category-name-${index}-error`}
             />
             <ErrorText id={`budget-setup-category-name-${index}-error`} message={state.fieldErrors[`categoryName${index}`]} />
@@ -63,6 +68,8 @@ export function BudgetSetupForm({ action, initialValues = emptySetup }: { action
               inputMode="numeric"
               defaultValue={category.allocation}
               placeholder="0"
+              aria-label={`Allocation for category ${index + 1}`}
+              aria-invalid={Boolean(state.fieldErrors[`categoryAllocation${index}`])}
               aria-describedby={`budget-setup-category-allocation-${index}-error`}
             />
             <ErrorText id={`budget-setup-category-allocation-${index}-error`} message={state.fieldErrors[`categoryAllocation${index}`]} />
@@ -71,7 +78,7 @@ export function BudgetSetupForm({ action, initialValues = emptySetup }: { action
       ))}
       <ErrorText id="budget-setup-categories-error" message={state.fieldErrors.categories} />
     </fieldset>
-    <p className="budget-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+    <p className="budget-form__message" role={state.formError ? "alert" : undefined}>{state.formError || "\u00a0"}</p>
     <TaskPanelFooter className="budget-form__actions"><SubmitButton label="Start budgeting" /></TaskPanelFooter>
   </form>;
 }
@@ -93,10 +100,10 @@ export function BudgetPlanForm({ action, period, categories }: { action: PlanAct
   return <form className="budget-form" action={formAction} noValidate>
     <div className="budget-form__grid">
       <input type="hidden" name="periodUpdatedAt" value={state.values.periodUpdatedAt} />
-      <Field label="Period name" id="budget-plan-period-name" error={state.fieldErrors.periodName}><input id="budget-plan-period-name" name="periodName" defaultValue={state.values.periodName} /></Field>
-      <Field label="Total budget" id="budget-plan-total-budget" error={state.fieldErrors.totalBudget}><input id="budget-plan-total-budget" name="totalBudget" inputMode="numeric" defaultValue={state.values.totalBudget} /></Field>
-      <Field label="Starts on" id="budget-plan-starts-on" error={state.fieldErrors.startsOn}><input id="budget-plan-starts-on" name="startsOn" type="date" defaultValue={state.values.startsOn} /></Field>
-      <Field label="Ends on" id="budget-plan-ends-on" error={state.fieldErrors.endsOn}><input id="budget-plan-ends-on" name="endsOn" type="date" defaultValue={state.values.endsOn} /></Field>
+      <Field label="Period name" id="budget-plan-period-name" error={state.fieldErrors.periodName}><input id="budget-plan-period-name" name="periodName" defaultValue={state.values.periodName} aria-invalid={Boolean(state.fieldErrors.periodName)} /></Field>
+      <Field label="Total budget" id="budget-plan-total-budget" error={state.fieldErrors.totalBudget}><input id="budget-plan-total-budget" name="totalBudget" inputMode="numeric" defaultValue={state.values.totalBudget} aria-invalid={Boolean(state.fieldErrors.totalBudget)} /></Field>
+      <Field label="Starts on" id="budget-plan-starts-on" error={state.fieldErrors.startsOn}><input id="budget-plan-starts-on" name="startsOn" type="date" defaultValue={state.values.startsOn} aria-invalid={Boolean(state.fieldErrors.startsOn)} /></Field>
+      <Field label="Ends on" id="budget-plan-ends-on" error={state.fieldErrors.endsOn}><input id="budget-plan-ends-on" name="endsOn" type="date" defaultValue={state.values.endsOn} aria-invalid={Boolean(state.fieldErrors.endsOn)} /></Field>
     </div>
     <fieldset className="budget-form__categories"><legend>Category plan</legend>
       {state.values.categories.map((category, index) => (
@@ -110,6 +117,7 @@ export function BudgetPlanForm({ action, period, categories }: { action: PlanAct
               name="categoryName"
               defaultValue={category.name}
               readOnly={category.systemKey === "uncategorized"}
+              aria-label={category.systemKey === "uncategorized" ? "Uncategorized category name" : `Category name for ${category.name}`}
             />
             <input type="hidden" name="categoryId" value={category.id} />
             <input type="hidden" name={`categorySystemKey${index}`} value={category.systemKey ?? ""} readOnly />
@@ -121,6 +129,8 @@ export function BudgetPlanForm({ action, period, categories }: { action: PlanAct
               name="categoryAllocation"
               inputMode="numeric"
               defaultValue={category.allocation}
+              aria-label={`Allocation for ${category.name}`}
+              aria-invalid={Boolean(state.fieldErrors[`categoryAllocation${index}`])}
               aria-describedby={`budget-plan-category-allocation-${index}-error`}
             />
             <ErrorText id={`budget-plan-category-allocation-${index}-error`} message={state.fieldErrors[`categoryAllocation${index}`]} />
@@ -134,16 +144,17 @@ export function BudgetPlanForm({ action, period, categories }: { action: PlanAct
       <div className="budget-form__category-row">
         <div>
           <label htmlFor="budget-plan-new-category-name">New category name</label>
-          <input id="budget-plan-new-category-name" name="newCategoryName" defaultValue={state.values.newCategoryName} />
+          <input id="budget-plan-new-category-name" name="newCategoryName" defaultValue={state.values.newCategoryName} aria-invalid={Boolean(state.fieldErrors.newCategoryName)} aria-describedby="budget-plan-new-category-name-error" />
           <ErrorText id="budget-plan-new-category-name-error" message={state.fieldErrors.newCategoryName} />
         </div>
         <div>
           <label htmlFor="budget-plan-new-category-allocation">Allocation</label>
-          <input id="budget-plan-new-category-allocation" name="newCategoryAllocation" inputMode="numeric" defaultValue={state.values.newCategoryAllocation} placeholder="0" />
+          <input id="budget-plan-new-category-allocation" name="newCategoryAllocation" inputMode="numeric" defaultValue={state.values.newCategoryAllocation} placeholder="0" aria-invalid={Boolean(state.fieldErrors.newCategoryAllocation)} aria-describedby="budget-plan-new-category-allocation-error" />
+          <ErrorText id="budget-plan-new-category-allocation-error" message={state.fieldErrors.newCategoryAllocation} />
         </div>
       </div>
     </fieldset>
-    <p className="budget-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+    <p className="budget-form__message" role={state.formError ? "alert" : undefined}>{state.formError || "\u00a0"}</p>
     <TaskPanelFooter className="budget-form__actions"><SubmitButton label="Save plan" /></TaskPanelFooter>
   </form>;
 }
@@ -167,22 +178,22 @@ export function BudgetTransactionForm({ action, categories, initialValues = empt
         {categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}
       </select>
     </Field>
-    <p className="budget-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+    <p className="budget-form__message" role={state.formError ? "alert" : undefined}>{state.formError || "\u00a0"}</p>
     <TaskPanelFooter className="budget-form__actions"><SubmitButton label="Add transaction" /></TaskPanelFooter>
   </form>;
 }
 
-export function BudgetSpreadForm({ action, transactionId, amount, initialCount = "1" }: { action: SpreadAction; transactionId: string; amount: number; initialCount?: string }) {
+export function BudgetSpreadForm({ action, transactionId, amount, initialCount = "1", saveLabel }: { action: SpreadAction; transactionId: string; amount: number; initialCount?: string; saveLabel?: string }) {
   const initialValues: BudgetSpreadValues = { transactionId, count: initialCount };
   const [state, formAction] = useActionState(action, { fieldErrors: {}, formError: "", values: initialValues });
   return <form className="budget-spread-form" action={formAction} noValidate>
     <input type="hidden" name="transactionId" value={state.values.transactionId} />
     <label htmlFor={`budget-spread-count-${transactionId}`}>Periods</label>
-    <input id={`budget-spread-count-${transactionId}`} name="count" type="number" min="1" max={Math.min(24, amount)} step="1" defaultValue={state.values.count} aria-describedby={`budget-spread-count-${transactionId}-error`} />
-    <button className="action-link action-link--quiet" type="submit">Save spread</button>
+    <input id={`budget-spread-count-${transactionId}`} name="count" type="number" min="1" max={Math.min(24, amount)} step="1" defaultValue={state.values.count} aria-invalid={Boolean(state.fieldErrors.count)} aria-describedby={`budget-spread-count-${transactionId}-error`} />
+    <button className="action-link action-link--quiet" type="submit" aria-label={saveLabel}>Save spread</button>
     <small>Rp {amount.toLocaleString("id-ID")} is divided into positive whole Rupiah slices.</small>
     <ErrorText id={`budget-spread-count-${transactionId}-error`} message={state.fieldErrors.count} />
-    <p className="budget-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+    <p className="budget-form__message" role={state.formError ? "alert" : undefined}>{state.formError || "\u00a0"}</p>
   </form>;
 }
 
@@ -198,7 +209,7 @@ function TransitionCategoryRow({ category, index, errors }: { category: BudgetTr
       </div>
       <div>
         <label htmlFor={`budget-next-category-allocation-${index}`}>Allocation</label>
-        <input id={`budget-next-category-allocation-${index}`} name="categoryAllocation" inputMode="numeric" defaultValue={category.allocation} aria-describedby={`budget-next-category-allocation-${index}-error`} />
+        <input id={`budget-next-category-allocation-${index}`} name="categoryAllocation" inputMode="numeric" defaultValue={category.allocation} aria-label={`Allocation for ${category.name}`} aria-invalid={Boolean(errors[`categoryAllocation${index}`])} aria-describedby={`budget-next-category-allocation-${index}-error`} />
         <ErrorText id={`budget-next-category-allocation-${index}-error`} message={errors[`categoryAllocation${index}`]} />
       </div>
     </div>
@@ -209,7 +220,7 @@ function PendingPreview({ pending }: { pending: Array<{ categoryId: string; cate
   if (pending.length === 0) return null;
   return (
     <section className="budget-pending-preview" aria-labelledby="budget-pending-preview-heading">
-      <p className="technical-label" id="budget-pending-preview-heading">COMING INTO THIS PERIOD</p>
+      <h3 className="technical-label" id="budget-pending-preview-heading">Coming into this period</h3>
       {pending.map((item) => <div key={item.categoryId}><span>{item.categoryName}</span><strong>{formatRupiah(item.amount)}</strong></div>)}
     </section>
   );
@@ -303,7 +314,7 @@ export function BudgetTransitionForm({ action, period, categories, pending, recu
     </fieldset>
     <PendingPreview pending={pending} />
     <RecurringCandidatePreview candidates={candidates} categories={categories} uncategorizedCategoryId={uncategorizedCategoryId} skipped={skipped} toggle={toggleCandidate} />
-    <p className="budget-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+    <p className="budget-form__message" role={state.formError ? "alert" : undefined}>{state.formError || "\u00a0"}</p>
     <TaskPanelFooter className="budget-form__actions"><SubmitButton label="Start next period" /></TaskPanelFooter>
   </form>;
 }

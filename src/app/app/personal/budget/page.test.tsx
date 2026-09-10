@@ -23,6 +23,7 @@ vi.mock("./actions", () => ({
   createBudgetSetupAction: vi.fn(),
   createBudgetTransactionAction: vi.fn(),
   importPersonalActivityAction: mocks.importPersonalActivityAction,
+  startNextBudgetPeriodAction: vi.fn(),
   updateBudgetPlanAction: vi.fn(),
 }));
 
@@ -74,7 +75,7 @@ describe("/app/personal/budget task-panel modes", () => {
     expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/app/personal/budget/transactions");
     expect(within(nav).getByRole("link", { name: "Period history" })).toHaveAttribute("href", "/app/personal/budget/periods");
-    expect(within(nav).getByRole("link", { name: "Subscriptions" })).toHaveAttribute("href", "/app/personal/budget/subscriptions");
+    expect(within(nav).getByRole("link", { name: "Recurring" })).toHaveAttribute("href", "/app/personal/budget/subscriptions");
   });
 
   it("labels linked Personal activity and keeps Expected Back outside Remaining", async () => {
@@ -104,7 +105,8 @@ describe("/app/personal/budget task-panel modes", () => {
     });
     render(await BudgetPage());
     expect(screen.getByText("Personal expense")).toBeInTheDocument();
-    const sharedMoney = screen.getByRole("region", { name: "SHARED MONEY" });
+    expect(screen.getByText("-Rp 600")).toBeInTheDocument();
+    const sharedMoney = screen.getByRole("region", { name: "Shared money" });
     expect(within(sharedMoney).getByText("Expected back")).toBeInTheDocument();
     expect(within(sharedMoney).getByText("Rp 40.000")).toBeInTheDocument();
     expect(within(sharedMoney).getAllByText("You still owe").length).toBeGreaterThan(0);
@@ -116,5 +118,27 @@ describe("/app/personal/budget task-panel modes", () => {
     expect(screen.getByRole("button", { name: "Import activity" })).toBeInTheDocument();
     expect(screen.getByText(/Upcoming recurring/)).toBeInTheDocument();
     expect(document.querySelector(".budget-summary__grid")).not.toHaveTextContent("Upcoming recurring");
+  });
+
+  it("keeps Start next period as one deliberate submission without a second confirmation", async () => {
+    render(await BudgetPage({ searchParams: Promise.resolve({ create: "period" }) }));
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(document.querySelector(".budget-form__warning")).toHaveTextContent("closes September immediately");
+    expect(screen.getByRole("button", { name: "Start next period" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Confirm/ })).not.toBeInTheDocument();
+  });
+
+  it("recovers from a missing active period through period history", async () => {
+    mocks.getBudgetDashboard.mockResolvedValue({ configured: true, period: null, recentTransactions: [] });
+    render(await BudgetPage());
+    expect(screen.getByRole("heading", { name: "No active budget period is available." })).toBeInTheDocument();
+    const recovery = screen.getByRole("link", { name: "Review period history" });
+    expect(recovery).toHaveAttribute("href", "/app/personal/budget/periods");
+    expect(screen.queryByRole("button", { name: /create|period/i })).not.toBeInTheDocument();
+  });
+
+  it("confirms a successful activity import from the query state", async () => {
+    render(await BudgetPage({ searchParams: Promise.resolve({ imported: "1" }) }));
+    expect(screen.getByRole("status")).toHaveTextContent("Eligible activity imported into Budget.");
   });
 });

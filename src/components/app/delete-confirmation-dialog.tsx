@@ -9,6 +9,8 @@ type DeleteConfirmationDialogProps = {
   confirmLabel: string;
   pendingLabel: string;
   description?: string;
+  triggerLabel?: string;
+  triggerAriaLabel?: string;
   action: (formData: FormData) => void | Promise<void>;
 };
 
@@ -38,6 +40,8 @@ export function DeleteConfirmationDialog({
   confirmLabel,
   pendingLabel,
   description,
+  triggerLabel,
+  triggerAriaLabel,
   action,
 }: DeleteConfirmationDialogProps) {
   const [open, setOpen] = useState(false);
@@ -104,9 +108,10 @@ export function DeleteConfirmationDialog({
         ref={triggerRef}
         className="action-link action-link--quiet"
         type="button"
+        aria-label={triggerAriaLabel}
         onClick={openDialog}
       >
-        {confirmLabel}
+        {triggerLabel ?? confirmLabel}
       </button>
       {open ? (
         <dialog

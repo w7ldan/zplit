@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getDatabase: vi.fn(() => "database"),
   listBudgetTransactions: vi.fn(),
   listBudgetCategoryOptions: vi.fn(),
+  voidBudgetTransactionAction: vi.fn(),
 }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
@@ -15,7 +16,7 @@ vi.mock("@/server/budgeting/categories", () => ({ listBudgetCategoryOptions: moc
 vi.mock("../actions", () => ({
   changeGroupExpenseBudgetCategoryAction: vi.fn(),
   changePersonalExpenseBudgetCategoryAction: vi.fn(),
-  voidBudgetTransactionAction: vi.fn(),
+  voidBudgetTransactionAction: mocks.voidBudgetTransactionAction,
 }));
 
 import BudgetTransactionsPage from "./page";
@@ -107,7 +108,7 @@ describe("/app/personal/budget/transactions presentation", () => {
     const categoryDisclosure = screen.getAllByText("Change budget category")[0]?.closest("details");
     expect(categoryDisclosure).toBeInTheDocument();
     expect(categoryDisclosure).not.toHaveAttribute("open");
-    expect(screen.queryByRole("button", { name: "Void" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Void/ })).not.toBeInTheDocument();
     expect(screen.getByText("Personal repayment")).toBeInTheDocument();
     expect(screen.getByText("Group expense")).toBeInTheDocument();
     expect(screen.getByText("Group payment sent")).toBeInTheDocument();
@@ -135,8 +136,56 @@ describe("/app/personal/budget/transactions presentation", () => {
     }]);
     render(await BudgetTransactionsPage());
     expect(screen.getByText("Recurring expense")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Void" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Void Gym transaction" })).toBeInTheDocument();
+    expect(screen.getByText("-Rp 300.000")).toBeInTheDocument();
     expect(screen.getByText(/Spread across 3 periods/)).toBeInTheDocument();
+  });
+
+  it("renders canonical signed amounts for linked rows", async () => {
+    render(await BudgetTransactionsPage());
+    expect(screen.getByText("-Rp 600")).toBeInTheDocument();
+    expect(screen.getByText("+Rp 300")).toBeInTheDocument();
+  });
+
+  it("requires confirmation before voiding and keeps the existing action authoritative", async () => {
+    mocks.listBudgetTransactions.mockResolvedValue([{
+      id: "transaction-recurring",
+      direction: "outflow",
+      amount: 300_000,
+      description: "Gym",
+      occurredOn: "2026-10-03",
+      status: "posted",
+      origin: "recurring",
+      sourceType: "recurring",
+      sourceId: null,
+      categoryName: "Health",
+      categoryNames: ["Health"],
+      categoryId: "health",
+      spreadCanChange: false,
+      spreadLocked: true,
+    }]);
+    render(await BudgetTransactionsPage());
+
+    fireEvent.click(screen.getByRole("button", { name: "Void Gym transaction" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Void transaction?" })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("Gym");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(mocks.voidBudgetTransactionAction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Void Gym transaction" }));
+    const reopened = screen.getByRole("dialog");
+    fireEvent.submit(within(reopened).getByRole("button", { name: "Void transaction" }).closest("form")!);
+    await waitFor(() => expect(mocks.voidBudgetTransactionAction).toHaveBeenCalledOnce());
+  });
+
+  it("offers a direct transaction action from the empty history", async () => {
+    mocks.listBudgetTransactions.mockResolvedValue([]);
+    render(await BudgetTransactionsPage());
+    expect(screen.getByText("No budget transactions yet.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add a transaction" })).toHaveAttribute("href", "/app/personal/budget?create=transaction");
+    expect(screen.getByRole("link", { name: "Return to Budget" })).toBeInTheDocument();
   });
 
   it("keeps Budget contextual navigation on the semantic routes", async () => {
@@ -144,6 +193,6 @@ describe("/app/personal/budget/transactions presentation", () => {
     const nav = screen.getByRole("navigation", { name: "Budget sections" });
     expect(within(nav).getByRole("link", { name: "Transactions" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app/personal/budget");
-    expect(within(nav).getByRole("link", { name: "Subscriptions" })).toHaveAttribute("href", "/app/personal/budget/subscriptions");
+    expect(within(nav).getByRole("link", { name: "Recurring" })).toHaveAttribute("href", "/app/personal/budget/subscriptions");
   });
 });

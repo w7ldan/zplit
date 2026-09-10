@@ -6,7 +6,7 @@ const budgetSections: Array<{ key: BudgetSection; href: string; label: string }>
   { key: "dashboard", href: "/app/personal/budget", label: "Overview" },
   { key: "transactions", href: "/app/personal/budget/transactions", label: "Transactions" },
   { key: "periods", href: "/app/personal/budget/periods", label: "Period history" },
-  { key: "subscriptions", href: "/app/personal/budget/subscriptions", label: "Subscriptions" },
+  { key: "subscriptions", href: "/app/personal/budget/subscriptions", label: "Recurring" },
 ];
 
 export function BudgetSectionNav({ current }: { current: BudgetSection }) {

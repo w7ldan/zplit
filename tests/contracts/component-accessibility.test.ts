@@ -4,6 +4,8 @@ import { cssRuleBody, readSource, root } from "./helpers";
 
 const css = readCssBundle(root).css;
 const searchableComboboxSource = readSource("src/components/records/searchable-combobox.tsx");
+const recordsAndFormsSource = readSource("src/app/styles/30-records-and-forms.css");
+const lateOverridesSource = readSource("src/app/styles/90-late-overrides.css");
 
 describe("Component and accessibility contract", () => {
   it("keeps browser defaults neutral and component typography authoritative", () => {
@@ -70,5 +72,13 @@ describe("Component and accessibility contract", () => {
     expect(css).not.toContain(".friends-page__view:hover span");
     expect(css).toMatch(/\.friends-page__view\s*\{[\s\S]*?min-height:\s*2\.75rem;[\s\S]*?text-decoration:\s*none;[\s\S]*?text-decoration-thickness:\s*1px;/);
     expect(css).toMatch(/\.friends-page__view--selected,[\s\S]*?\.friends-page__view:hover,[\s\S]*?\.friends-page__view:focus-visible\s*\{[\s\S]*?text-decoration-line:\s*underline;/);
+  });
+
+  it("keeps budget accessibility and narrow-screen hardening explicit", () => {
+    expect(lateOverridesSource).toMatch(/@media \(forced-colors: active\)[\s\S]*?:is\(input, select, textarea\):focus-visible\s*\{[\s\S]*?outline: 2px solid ButtonText;[\s\S]*?box-shadow: none;/);
+    expect(recordsAndFormsSource).toMatch(/\.budget-section-nav a\s*\{[\s\S]*?min-height: 2\.5rem;/);
+    expect(recordsAndFormsSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.budget-category-change select,[\s\S]*?font-size: 1rem;/);
+    expect(recordsAndFormsSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.budget-category-row > span,[\s\S]*?white-space: normal;[\s\S]*?overflow-wrap: anywhere;/);
+    expect(recordsAndFormsSource).toContain("border-left: 3px solid var(--amber);");
   });
 });

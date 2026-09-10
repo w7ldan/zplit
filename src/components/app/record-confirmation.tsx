@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type RecordConfirmationProps = {
-  queryKey: "created" | "updated" | "splitSaved" | "saved";
+  queryKey: "created" | "updated" | "splitSaved" | "saved" | "imported";
   message: string;
   focusTargetId?: string;
 };

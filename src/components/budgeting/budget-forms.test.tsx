@@ -39,8 +39,30 @@ describe("budget forms", () => {
     expect(screen.getByText(/positive whole Rupiah slices/)).toBeInTheDocument();
     render(<BudgetTransitionForm action={transitionAction} period={{ id: "period-a", name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 100000 }} categories={[{ id: "uncategorized", name: "Uncategorized", allocation: "0" }, { id: "food", name: "Food", allocation: "50000" }]} pending={[{ categoryId: "food", categoryName: "Food", amount: 10000 }]} />);
     expect(document.body.textContent).toContain("closes September immediately");
-    expect(screen.getByText("COMING INTO THIS PERIOD")).toBeInTheDocument();
+    expect(screen.getByText("Coming into this period")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Uncategorized")).toHaveAttribute("readonly");
+  });
+
+  it("associates transaction field errors with their controls and announces the form error once", async () => {
+    const failingAction = vi.fn(async () => ({
+      fieldErrors: { amount: "Enter a whole Rupiah amount greater than zero.", description: "Description is required." },
+      formError: "Please correct the marked fields.",
+      values: { direction: "outflow" as const, amount: "", description: "", occurredOn: "", categoryId: "" },
+    }));
+    const { container } = render(<BudgetTransactionForm action={failingAction} categories={[{ id: "food", name: "Food" }]} />);
+
+    fireEvent.submit(container.querySelector("form")!);
+
+    const amount = await screen.findByLabelText("Amount");
+    expect(amount).toHaveAttribute("aria-invalid", "true");
+    expect(amount).toHaveAttribute("aria-describedby", "budget-transaction-amount-error");
+    expect(screen.getByText("Enter a whole Rupiah amount greater than zero.")).toHaveAttribute("id", "budget-transaction-amount-error");
+    const description = screen.getByLabelText("Description");
+    expect(description).toHaveAttribute("aria-invalid", "true");
+    expect(description).toHaveAttribute("aria-describedby", "budget-transaction-description-error");
+    const message = screen.getByText("Please correct the marked fields.");
+    expect(message).toHaveAttribute("role", "alert");
+    expect(message).not.toHaveAttribute("aria-live");
   });
 
   it("previews recurring candidates for proposed dates and defaults them selected", () => {

@@ -21,7 +21,7 @@ describe("Budget period history presentation", () => {
 
   it("shows newest-first read-only summaries and category detail", async () => {
     render(await BudgetPeriodsPage());
-    expect(screen.getByRole("heading", { name: "Budget periods" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Period history" })).toBeInTheDocument();
     expect(screen.getAllByRole("group")[0]).toHaveTextContent("October");
     expect(screen.getByText(/Closed/)).toBeInTheDocument();
     expect(screen.getByText("Food")).toBeInTheDocument();

@@ -5896,6 +5896,9 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .budget-section-nav a {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
   padding: 0.4rem 0;
   border-bottom: 2px solid transparent;
   color: var(--muted-ink);
@@ -5960,10 +5963,11 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 .budget-spread-form small {
   color: var(--muted-ink);
   font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .budget-spread-form input {
-  min-height: 2rem;
+  min-height: 2.5rem;
   width: 5rem;
   padding: 0.25rem 0.4rem;
   border: 1px solid var(--rule);
@@ -5984,11 +5988,12 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   margin-top: 0.2rem;
   color: var(--muted-ink);
   font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .budget-category-change select {
   max-width: 10rem;
-  min-height: 2rem;
+  min-height: 2.5rem;
   padding: 0.25rem 0.45rem;
   border: 1px solid var(--rule);
   border-radius: 0.35rem;
@@ -6002,6 +6007,11 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   max-width: 42rem;
   margin: 0;
   color: var(--muted-ink);
+}
+
+.budget-page .text-link {
+  min-height: 2.5rem;
+  align-items: center;
 }
 
 .budget-setup,
@@ -6120,7 +6130,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 .budget-category-row > strong,
 .budget-transaction-row > span:last-child,
 .budget-history-row > span:nth-child(3) {
-  text-align: right;
+  text-align: end;
 }
 
 .budget-category-row small {
@@ -6209,9 +6219,9 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 .budget-form__warning {
   margin: 0;
   padding: 0.65rem 0.75rem;
-  border-left: 2px solid var(--ink);
-  background: color-mix(in srgb, var(--pastel-blue) 35%, transparent);
-  color: var(--muted-ink);
+  border-left: 3px solid var(--amber);
+  background: color-mix(in srgb, var(--amber) 30%, transparent);
+  color: var(--ink);
   font-size: 0.78rem;
 }
 
@@ -6266,7 +6276,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 .budget-recurring-due-row > span:nth-child(3) {
   display: grid;
   gap: 0.25rem;
-  text-align: right;
+  text-align: end;
 }
 
 .budget-recurring-row > span:nth-child(3) strong,
@@ -6296,7 +6306,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .budget-recurring-record input {
   width: 9.5rem;
-  min-height: 2rem;
+  min-height: 2.5rem;
   padding: 0.25rem 0.4rem;
   border: 1px solid var(--rule);
   border-radius: 0.35rem;
@@ -6333,6 +6343,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 .budget-recurring-candidate > small {
   color: var(--muted-ink);
   font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .budget-recurring-candidate__amount {
@@ -6342,7 +6353,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 
 .budget-recurring-candidate__category select {
   width: 100%;
-  min-height: 2rem;
+  min-height: 2.5rem;
   padding: 0.25rem 0.45rem;
   border: 1px solid var(--rule);
   border-radius: 0.35rem;
@@ -6396,7 +6407,7 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .budget-period-history summary > span:last-child {
-  text-align: right;
+  text-align: end;
 }
 
 .budget-period-history__meta {
@@ -6459,32 +6470,68 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   gap: 0.4rem;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 767px) {
   .budget-summary__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .budget-summary__grid strong,
+  .budget-value,
+  .budget-plan-summary dd,
+  .budget-shared-money strong,
+  .budget-category-row > span,
+  .budget-category-row > strong,
+  .budget-transaction-row > span:last-child strong,
+  .budget-history-row > span:nth-child(3) strong,
+  .budget-recurring-row > span:nth-child(3) strong,
+  .budget-recurring-due-row > span:nth-child(3) strong,
+  .budget-recurring-candidate__amount,
+  .budget-period-history__categories strong,
+  .budget-period-history__categories span:nth-child(2),
+  .budget-period-history__categories span:last-child {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .budget-category-row {
-    grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(4rem, 0.7fr));
-    gap: 0.35rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.25rem 0.5rem;
     font-size: 0.82rem;
+  }
+
+  .budget-category-row > div:first-child {
+    grid-column: 1 / -1;
   }
 
   .budget-category-row > span,
   .budget-category-row > strong {
-    overflow-wrap: anywhere;
+    text-align: start;
   }
 
   .budget-transaction-row,
   .budget-history-row {
-    grid-template-columns: minmax(5.5rem, 0.65fr) minmax(0, 1.5fr) minmax(5.5rem, 0.7fr);
-    gap: 0.45rem;
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+    gap: 0.35rem 0.75rem;
     font-size: 0.82rem;
   }
 
+  .budget-transaction-row > span:nth-child(2),
+  .budget-history-row > span:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .budget-transaction-row > span:last-child,
+  .budget-history-row > span:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: end;
+  }
+
   .budget-history-row > form {
-    grid-column: 2 / -1;
-    justify-self: end;
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: start;
   }
 
   .budget-form__grid,
@@ -6492,12 +6539,22 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
     grid-template-columns: 1fr;
   }
 
+  .budget-form__field input,
+  .budget-form__field select,
+  .budget-form__category-row input,
+  .budget-category-change select,
+  .budget-spread-form input,
+  .budget-recurring-record input,
+  .budget-recurring-candidate__category select {
+    font-size: 1rem;
+  }
+
   .budget-period-history summary {
     grid-template-columns: 1fr;
   }
 
   .budget-period-history summary > span:last-child {
-    text-align: left;
+    text-align: start;
   }
 
   .budget-recurring-row,
@@ -6509,11 +6566,32 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   .budget-recurring-row > span:nth-child(3),
   .budget-recurring-due-row > span:nth-child(3),
   .budget-recurring-row > form {
-    text-align: left;
+    text-align: start;
     justify-self: start;
   }
 
   .budget-recurring-preview .budget-recurring-candidate {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  .budget-section-nav a,
+  .budget-page .text-link,
+  .budget-category-change select,
+  .budget-spread-form input,
+  .budget-recurring-record input,
+  .budget-recurring-candidate__category select {
+    min-height: 2.75rem;
+  }
+
+  .budget-form__field select,
+  .budget-form__field input,
+  .budget-form__category-row input,
+  .budget-category-change select,
+  .budget-spread-form input,
+  .budget-recurring-record input,
+  .budget-recurring-candidate__category select {
+    font-size: 1rem;
   }
 }

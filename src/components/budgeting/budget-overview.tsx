@@ -6,12 +6,13 @@ import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { SafeDaily } from "./safe-daily";
 
 const budgetHref = "/app/personal/budget";
+const budgetPeriodsHref = "/app/personal/budget/periods";
 
 function SectionHeading() {
   return (
     <div className="ledger-section__heading">
       <div>
-        <p className="technical-label">PERSONAL · PRIVATE BUDGET</p>
+        <p className="technical-label">Personal · private budget</p>
         <h2 id="budget-overview-heading">Budget</h2>
       </div>
       <Link className="text-link overview-section__link" href={budgetHref}>
@@ -33,7 +34,7 @@ export function BudgetOverviewSection({ snapshot }: { snapshot: BudgetOverviewSn
       ) : snapshot.period === null ? (
         <div className="ledger-empty">
           <p>Budgeting is configured, but its active period needs attention.</p>
-          <Link className="text-link" href={budgetHref}>Review Budget <span aria-hidden="true">→</span></Link>
+          <Link className="text-link" href={budgetPeriodsHref}>Review period history <span aria-hidden="true">→</span></Link>
         </div>
       ) : (
         <>

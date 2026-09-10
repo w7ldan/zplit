@@ -2097,13 +2097,17 @@ body.global-search-open {
   margin: 0;
   color: var(--muted-ink);
   font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .overview-budget__recurring {
-  display: block;
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
   margin-top: 0.55rem;
   color: var(--muted-ink);
   font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .overview-ledger-clarity {
@@ -2230,6 +2234,11 @@ body.global-search-open {
   .overview-budget__metrics {
     grid-template-columns: 1fr;
     gap: 0.6rem;
+  }
+
+  .overview-budget__metrics strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -2640,7 +2649,8 @@ summary.text-link {
 
 @media (max-width: 767px), (pointer: coarse) {
   button.text-link,
-  summary.text-link {
+  summary.text-link,
+  .overview-budget__recurring {
     min-height: 2.75rem;
   }
 }

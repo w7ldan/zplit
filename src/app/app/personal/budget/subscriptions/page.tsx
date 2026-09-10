@@ -4,6 +4,7 @@ import { getDatabase } from "@/db/client";
 import { formatRupiah } from "@/domain/rupiah";
 import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { TaskPanel } from "@/components/app/task-panel";
+import { ConfirmationDialog } from "@/components/app/delete-confirmation-dialog";
 import { budgetRecurringFrequencyLabel } from "@/domain/budgeting/recurrence";
 import { listActiveBudgetPlanCategoryOptions } from "@/server/budgeting/categories";
 import { getBudgetRecurringDashboardSummary, listBudgetRecurringTemplates, listDueBudgetRecurringOccurrences, type BudgetRecurringTemplateView } from "@/server/budgeting/recurring";
@@ -17,7 +18,7 @@ import {
   updateBudgetRecurringTemplateAction,
 } from "../actions";
 
-export const metadata = { title: "Subscriptions" };
+export const metadata = { title: "Recurring" };
 export const dynamic = "force-dynamic";
 
 function spreadSummary(count: number) {
@@ -32,11 +33,12 @@ function TemplateRow({ template, categories }: { template: BudgetRecurringTempla
         <strong>{template.name}</strong>
         <small>{template.categoryName} · {spreadSummary(template.spreadCount)} · from {formatCalendarDate(template.startsOn)}</small>
         <details className="budget-category-change">
-          <summary className="action-link action-link--quiet">Edit</summary>
+          <summary className="action-link action-link--quiet" aria-label={`Edit ${template.name} recurring expense`}>Edit</summary>
           <RecurringTemplateForm
             action={updateBudgetRecurringTemplateAction}
             categories={categories}
             submitLabel="Save recurring expense"
+            contextLabel={template.name}
             template={{
               templateId: template.id,
               name: template.name,
@@ -53,9 +55,16 @@ function TemplateRow({ template, categories }: { template: BudgetRecurringTempla
         <strong>{formatRupiah(template.amount)}</strong>
         <small>{template.nextDueOn ? `Next ${formatCalendarDate(template.nextDueOn)}` : "No upcoming occurrence"}</small>
       </span>
-      <form action={archiveBudgetRecurringTemplateAction.bind(null, template.id)}>
-        <button className="action-link action-link--quiet" type="submit">Archive</button>
-      </form>
+      <ConfirmationDialog
+        title="Archive recurring expense?"
+        entityName={template.name}
+        confirmLabel="Archive recurring expense"
+        pendingLabel="Archiving recurring expense…"
+        triggerLabel="Archive"
+        triggerAriaLabel={`Archive ${template.name} recurring expense`}
+        description={`Archiving “${template.name}” removes it from recurring planning. Recorded transactions and past occurrences are unchanged.`}
+        action={archiveBudgetRecurringTemplateAction.bind(null, template.id)}
+      />
     </div>
   );
 }
@@ -80,7 +89,7 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
         <header className="app-page__header">
           <div>
             <p className="technical-label">Personal · budget</p>
-            <h1>Subscriptions</h1>
+            <h1>Recurring</h1>
             <p className="app-page__lede">Expected recurring expenses. Nothing here affects spending until a payment is recorded.</p>
           </div>
           <div className="budget-page__actions">
@@ -97,7 +106,12 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
         <section className="ledger-section" aria-labelledby="budget-recurring-due-heading">
           <div className="ledger-section__heading"><h2 id="budget-recurring-due-heading">Upcoming and due</h2><span className="technical-label">{dueCountLabel}</span></div>
           {dueOccurrences.length === 0
-            ? <div className="ledger-empty"><p>No unresolved occurrences.</p></div>
+            ? (
+              <div className="ledger-empty">
+                <p>No recurring payments are due right now.</p>
+                <Link className="text-link" href="/app/personal/budget/subscriptions?create=template">Add recurring expense <span aria-hidden="true">→</span></Link>
+              </div>
+            )
             : (
               <div className="budget-recurring-due-list">
                 {dueOccurrences.map((occurrence) => (
@@ -108,10 +122,17 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
                       <small>{occurrence.categoryName} · {spreadSummary(occurrence.spreadCount)}</small>
                     </span>
                     <span><strong>{formatRupiah(occurrence.amount)}</strong><small>Expected</small></span>
-                    <RecurringRecordForm action={recordBudgetRecurringOccurrenceAction} occurrenceId={occurrence.id} />
-                    <form action={skipBudgetRecurringOccurrenceAction.bind(null, occurrence.id)}>
-                      <button className="action-link action-link--quiet" type="submit">Skip</button>
-                    </form>
+                    <RecurringRecordForm action={recordBudgetRecurringOccurrenceAction} occurrenceId={occurrence.id} contextLabel={occurrence.templateName} />
+                    <ConfirmationDialog
+                      title="Skip occurrence?"
+                      entityName={`${occurrence.templateName} on ${formatCalendarDate(occurrence.scheduledOn)}`}
+                      confirmLabel="Skip occurrence"
+                      pendingLabel="Skipping occurrence…"
+                      triggerLabel="Skip"
+                      triggerAriaLabel={`Skip ${occurrence.templateName} occurrence scheduled ${formatCalendarDate(occurrence.scheduledOn)}`}
+                      description={`Skipping “${occurrence.templateName}” on ${formatCalendarDate(occurrence.scheduledOn)} marks this expected occurrence as skipped. No cash is recorded and Budget totals are unchanged.`}
+                      action={skipBudgetRecurringOccurrenceAction.bind(null, occurrence.id)}
+                    />
                   </div>
                 ))}
               </div>
@@ -119,7 +140,7 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
         </section>
       </div>
       {createMode === "template" ? (
-        <TaskPanel open eyebrow="NEW RECURRING EXPENSE" title="Add recurring expense" description="Describe a future payment expectation. No cash is recorded until you record a payment." triggerId="budget-recurring">
+        <TaskPanel open eyebrow="New recurring expense" title="Add recurring expense" description="Describe a future payment expectation. No cash is recorded until you record a payment." triggerId="budget-recurring">
           <RecurringTemplateForm action={createBudgetRecurringTemplateAction} categories={categories} />
         </TaskPanel>
       ) : null}

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getBudgetRecurringDashboardSummary: vi.fn(),
   listActiveBudgetPlanCategoryOptions: vi.fn(),
   replace: vi.fn(),
+  archiveBudgetRecurringTemplateAction: vi.fn(),
+  skipBudgetRecurringOccurrenceAction: vi.fn(),
 }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
@@ -21,10 +23,10 @@ vi.mock("@/server/budgeting/recurring", () => ({
 vi.mock("@/server/budgeting/categories", () => ({ listActiveBudgetPlanCategoryOptions: mocks.listActiveBudgetPlanCategoryOptions }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
 vi.mock("../actions", () => ({
-  archiveBudgetRecurringTemplateAction: vi.fn(),
+  archiveBudgetRecurringTemplateAction: mocks.archiveBudgetRecurringTemplateAction,
   createBudgetRecurringTemplateAction: vi.fn(),
   recordBudgetRecurringOccurrenceAction: vi.fn(),
-  skipBudgetRecurringOccurrenceAction: vi.fn(),
+  skipBudgetRecurringOccurrenceAction: mocks.skipBudgetRecurringOccurrenceAction,
   updateBudgetRecurringTemplateAction: vi.fn(),
 }));
 
@@ -64,15 +66,49 @@ describe("/app/personal/budget/subscriptions presentation", () => {
 
   it("keeps recurring planning dense and separate from recorded cash", async () => {
     render(await BudgetSubscriptionsPage());
-    expect(screen.getByRole("heading", { name: "Subscriptions" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Recurring" })).toBeInTheDocument();
     expect(screen.getAllByText("Gym").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Monthly").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Spread over 3 periods/).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Record" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Payment date")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Record Gym payment" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Skip Gym occurrence scheduled/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Archive Gym recurring expense" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Payment date for Gym/)).toBeInTheDocument();
     expect(screen.getByText(/Nothing here affects spending until a payment is recorded/)).toBeInTheDocument();
     expect(screen.getByText("1 due")).toBeInTheDocument();
+  });
+
+  it("requires confirmation before archiving a recurring expense", async () => {
+    render(await BudgetSubscriptionsPage());
+    fireEvent.click(screen.getByRole("button", { name: "Archive Gym recurring expense" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Archive recurring expense?" })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("Gym");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(mocks.archiveBudgetRecurringTemplateAction).not.toHaveBeenCalled();
+    fireEvent.transitionEnd(dialog, { propertyName: "transform" });
+    fireEvent.click(screen.getByRole("button", { name: "Archive Gym recurring expense" }));
+    const reopened = screen.getByRole("dialog");
+    fireEvent.submit(within(reopened).getByRole("button", { name: "Archive recurring expense" }).closest("form")!);
+    await waitFor(() => expect(mocks.archiveBudgetRecurringTemplateAction).toHaveBeenCalledOnce());
+  });
+
+  it("requires confirmation before skipping an occurrence", async () => {
+    render(await BudgetSubscriptionsPage());
+    fireEvent.click(screen.getByRole("button", { name: /Skip Gym occurrence scheduled/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Skip occurrence?" })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("Gym");
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Skip occurrence" }).closest("form")!);
+    await waitFor(() => expect(mocks.skipBudgetRecurringOccurrenceAction).toHaveBeenCalledOnce());
+  });
+
+  it("explains the unresolved-occurrence empty state with a forward action", async () => {
+    mocks.listDueBudgetRecurringOccurrences.mockResolvedValue([]);
+    mocks.getBudgetRecurringDashboardSummary.mockResolvedValue({ dueCount: 0, expectedAmount: 0, nextDueOn: null });
+    render(await BudgetSubscriptionsPage());
+    expect(screen.getByText("No recurring payments are due right now.")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Upcoming and due" })).getByRole("link", { name: "Add recurring expense" })).toHaveAttribute("href", "/app/personal/budget/subscriptions?create=template");
   });
 
   it("reports the real due total when the bounded list is truncated", async () => {
@@ -84,7 +120,7 @@ describe("/app/personal/budget/subscriptions presentation", () => {
   it("links to the semantic Budget sections and marks the current one", async () => {
     render(await BudgetSubscriptionsPage());
     const nav = screen.getByRole("navigation", { name: "Budget sections" });
-    expect(within(nav).getByRole("link", { name: "Subscriptions" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Recurring" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/app/personal/budget/transactions");
     expect(within(nav).getByRole("link", { name: "Period history" })).toHaveAttribute("href", "/app/personal/budget/periods");
   });

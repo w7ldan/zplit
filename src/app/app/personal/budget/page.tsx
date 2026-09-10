@@ -5,6 +5,7 @@ import { formatRupiah } from "@/domain/rupiah";
 import { formatSignedRupiah } from "@/domain/budgeting/amounts";
 import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { TaskPanel } from "@/components/app/task-panel";
+import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { BudgetSetupForm, BudgetPlanForm, BudgetTransactionForm, BudgetTransitionForm } from "@/components/budgeting/budget-forms";
 import { SafeDaily } from "@/components/budgeting/safe-daily";
 import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
@@ -19,13 +20,13 @@ export const metadata = { title: "Budget" };
 export const dynamic = "force-dynamic";
 
 function transactionAmount(direction: "outflow" | "inflow", amount: number) {
-  return `${direction === "outflow" ? "−" : "+"}${formatRupiah(amount)}`;
+  return direction === "inflow" ? `+${formatSignedRupiah(amount)}` : formatSignedRupiah(-amount);
 }
 
 function SetupState() {
   return (
     <section className="ledger-section budget-setup" aria-labelledby="budget-setup-heading">
-      <p className="technical-label">FIRST-TIME SETUP</p>
+      <p className="technical-label">First-time setup</p>
       <h2 id="budget-setup-heading">Set up your first budget period</h2>
       <p className="budget-copy">
         Budgeting is private to you and separate from your Personal ledger. Add a period and optional category plan to begin.
@@ -66,14 +67,14 @@ function GroupObligationRows({ obligations, categories }: { obligations: GroupBu
             <span><strong>{obligation.groupName}</strong><small>{obligation.description} · {obligation.categoryName}</small></span>
             <span><strong>{formatRupiah(obligation.amount)}</strong><small>You still owe</small></span>
             <details className="budget-category-change">
-              <summary className="action-link action-link--quiet">Categorize</summary>
+              <summary className="action-link action-link--quiet" aria-label={`Categorize ${obligation.description}`}>Categorize</summary>
               <form action={changeGroupObligationBudgetCategoryAction}>
                 <input type="hidden" name="obligationId" value={obligation.id} />
-                <label className="sr-only" htmlFor={`group-obligation-category-${obligation.id}`}>Budget category</label>
+                <label className="sr-only" htmlFor={`group-obligation-category-${obligation.id}`}>Budget category for {obligation.description}</label>
                 <select id={`group-obligation-category-${obligation.id}`} name="categoryId" defaultValue={obligation.categoryId ?? categories[0]?.id}>
                   {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
                 </select>
-                <button className="action-link action-link--quiet" type="submit">Save category</button>
+                <button className="action-link action-link--quiet" type="submit" aria-label={`Save category for ${obligation.description}`}>Save category</button>
               </form>
             </details>
           </div>
@@ -87,7 +88,7 @@ function BudgetSummary({ period, expectedBack, stillOwe, groupObligations, recur
   return (
     <section className="budget-summary" aria-labelledby="budget-summary-heading">
       <div className="ledger-section__heading">
-        <div><p className="technical-label">CURRENT PERIOD</p><h2 id="budget-summary-heading">{period.name}</h2></div>
+        <div><p className="technical-label">Current period</p><h2 id="budget-summary-heading">{period.name}</h2></div>
         <span className="technical-label">IDR</span>
       </div>
       <div className="budget-summary__grid">
@@ -102,7 +103,7 @@ function BudgetSummary({ period, expectedBack, stillOwe, groupObligations, recur
       </dl>
       <section className="budget-shared-money" aria-labelledby="budget-shared-money-heading">
         <div>
-          <p className="technical-label" id="budget-shared-money-heading">SHARED MONEY</p>
+          <h3 className="technical-label" id="budget-shared-money-heading">Shared money</h3>
           <span>Personal reimbursements and Group balances</span>
         </div>
         <div><span>Expected back</span><strong>{formatRupiah(expectedBack)}</strong></div>
@@ -146,14 +147,14 @@ function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTr
   const action = transaction.sourceType === "group_expense" ? changeGroupExpenseBudgetCategoryAction : changePersonalExpenseBudgetCategoryAction;
   return (
     <details className="budget-category-change">
-      <summary className="action-link action-link--quiet">Change budget category</summary>
+      <summary className="action-link action-link--quiet" aria-label={`Change budget category for ${transaction.description}`}>Change budget category</summary>
       <form action={action}>
         <input type="hidden" name="transactionId" value={transaction.id} />
-        <label className="sr-only" htmlFor={`budget-category-${transaction.id}`}>Budget category</label>
+        <label className="sr-only" htmlFor={`budget-category-${transaction.id}`}>Budget category for {transaction.description}</label>
         <select id={`budget-category-${transaction.id}`} name="categoryId" defaultValue={transaction.categoryId ?? categories[0]?.id}>
           {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
-        <button className="action-link action-link--quiet" type="submit">Save category</button>
+        <button className="action-link action-link--quiet" type="submit" aria-label={`Save category for ${transaction.description}`}>Save category</button>
       </form>
     </details>
   );
@@ -212,14 +213,26 @@ function RecentSection({ transactions, categories }: { transactions: BudgetTrans
   );
 }
 
-export default async function BudgetPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ create?: string | string[] }> } = {}) {
+export default async function BudgetPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ create?: string | string[]; imported?: string | string[] }> } = {}) {
   const session = await requireSession();
   const dashboard = await getBudgetDashboard(getDatabase(), session.user.id);
   if (!dashboard.configured) return <section className="app-page budget-page" id="top"><div className="editorial-shell app-page__layout"><PageHeader /><SetupState /></div></section>;
-  if (!dashboard.period) return <section className="app-page budget-page" id="top"><div className="editorial-shell app-page__layout"><PageHeader /><section className="ledger-empty budget-invariant"><h2>No active budget period is available.</h2><p>Budgeting is configured, but its active period needs recovery.</p></section></div></section>;
+  if (!dashboard.period) return (
+    <section className="app-page budget-page" id="top">
+      <div className="editorial-shell app-page__layout">
+        <PageHeader />
+        <section className="ledger-empty budget-invariant">
+          <h2>No active budget period is available.</h2>
+          <p>Budgeting is configured, but its active period cannot be opened right now. Review period history to confirm the latest state.</p>
+          <Link className="text-link" href="/app/personal/budget/periods">Review period history <span aria-hidden="true">→</span></Link>
+        </section>
+      </div>
+    </section>
+  );
   const period = dashboard.period;
   const query = await searchParams;
   const createMode = Array.isArray(query.create) ? query.create[0] : query.create;
+  const imported = (Array.isArray(query.imported) ? query.imported[0] : query.imported) === "1";
   const openCreate = createMode === "transaction";
   const openManage = createMode === "plan";
   const openNext = createMode === "period";
@@ -227,17 +240,18 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
     <section className="app-page budget-page" id="top">
       <div className="editorial-shell app-page__layout">
         <PageHeader period={period} importAvailable={dashboard.importAvailable} />
+        {imported ? <RecordConfirmation queryKey="imported" message="Eligible activity imported into Budget." /> : null}
         <BudgetSectionNav current="dashboard" />
         <BudgetSummary period={period} expectedBack={dashboard.expectedBack ?? 0} stillOwe={dashboard.stillOwe ?? 0} groupObligations={dashboard.groupObligations ?? []} recurring={dashboard.recurringSummary ?? { dueCount: 0, expectedAmount: 0, nextDueOn: null }} />
         <CategorySection period={period} />
         <RecentSection transactions={dashboard.recentTransactions} categories={period.categories.map(({ id, name }) => ({ id, name }))} />
       </div>
-      {openCreate ? <TaskPanel open eyebrow="NEW BUDGET RECORD" title="Add transaction" description="Record a manual expense or credit/refund in the active period." triggerId="budget-transaction"><BudgetTransactionForm action={createBudgetTransactionAction} categories={period.categories.map(({ id, name }) => ({ id, name }))} /></TaskPanel> : null}
-      {openManage ? <TaskPanel open eyebrow="ACTIVE PLAN" title="Manage plan" description="Adjust this period and its category allocations." triggerId="budget-plan"><BudgetPlanForm action={updateBudgetPlanAction} period={period} categories={period.categories.map(({ id, name, allocatedAmount, systemKey }) => ({ id, name, allocatedAmount, systemKey }))} /></TaskPanel> : null}
+      {openCreate ? <TaskPanel open eyebrow="New budget record" title="Add transaction" description="Record a manual expense or credit/refund in the active period." triggerId="budget-transaction"><BudgetTransactionForm action={createBudgetTransactionAction} categories={period.categories.map(({ id, name }) => ({ id, name }))} /></TaskPanel> : null}
+      {openManage ? <TaskPanel open eyebrow="Active plan" title="Manage plan" description="Adjust this period and its category allocations." triggerId="budget-plan"><BudgetPlanForm action={updateBudgetPlanAction} period={period} categories={period.categories.map(({ id, name, allocatedAmount, systemKey }) => ({ id, name, allocatedAmount, systemKey }))} /></TaskPanel> : null}
       {openNext ? (
         <TaskPanel
           open
-          eyebrow="PERIOD TRANSITION"
+          eyebrow="Period transition"
           title="Start next period"
           description="This closes the active period immediately. Enter the next period and its complete category plan."
           triggerId="budget-period"

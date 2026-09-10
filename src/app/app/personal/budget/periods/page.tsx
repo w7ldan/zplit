@@ -7,7 +7,7 @@ import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { listBudgetPeriodHistory } from "@/server/budgeting/reporting";
 import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
 
-export const metadata = { title: "Budget periods" };
+export const metadata = { title: "Period history" };
 export const dynamic = "force-dynamic";
 
 type BudgetPeriodHistory = Awaited<ReturnType<typeof listBudgetPeriodHistory>>[number];
@@ -45,7 +45,7 @@ export default async function BudgetPeriodsPage() {
         <header className="app-page__header">
           <div>
             <p className="technical-label">Personal · budget</p>
-            <h1>Budget periods</h1>
+            <h1>Period history</h1>
             <p className="app-page__lede">Read-only history of how each period absorbed posted cash.</p>
           </div>
         </header>
