@@ -139,18 +139,27 @@ The permanent warm-median budgets are:
 
 Run the app with `DB_NAME=zplit_scale_test` (plus the usual `DB_HOST`,
 `DB_PORT`, `DB_USER`, `DB_PASSWORD_FILE`, `BETTER_AUTH_*` settings for that
-environment) and sign in as the scale owner. The owner account already exists
-in `zplit_scale_test`; to make it login-capable, place a disposable
-16–128 character password in a secret file, export
+environment) and sign in as the scale owner (`SCALE_TEST_OWNER_EMAIL` in
+`zplit_scale_test`; the account already exists there). To make it
+login-capable, place a disposable local/test-only 16–128 character password
+in a secret file outside tracked source, export
 `SCALE_OWNER_PASSWORD_FILE=/path/to/that/file`, and run `npm run seed:scale`.
 Seeding hashes the password with the same Better Auth helper production uses,
-stores only the hash in a fixture-owned credential row, and never logs or
-documents the secret. Without that variable the seed still succeeds but
-prints that manual login is unavailable. Start from `/app`, then visit the
-Personal ledger, Groups (Japan Trip 2026, Fasilkom Study Group, Archived
-Club), Organizations (Engineering Guild, Quiet Collective), the Budget
-workspace (September Budget, period history, subscriptions), Inbox, and the
-long Japan Trip 2026 thread.
+stores only the hash in the fixture-owned `scale-credential-{ownerId}`
+credential row, and never logs or documents the secret. Re-seeding with the
+same file deterministically ensures that credential uses the supplied
+password; `npm run verify:scale` with the same variable confirms the
+fixture-owned credential exists and matches without a browser. Without that
+variable the seed still succeeds but prints that manual login is unavailable
+and verification does not require the deterministic credential. Start from
+`/app`, then visit the Personal ledger, Groups (Japan Trip 2026, Fasilkom
+Study Group, Archived Club), Organizations (Engineering Guild, Quiet
+Collective), the Budget workspace (September Budget, period history,
+subscriptions), Inbox, and the long Japan Trip 2026 thread. The September
+Budget is intentionally realistic (about Rp 10–15m net against Rp 20m total,
+positive remaining and Safe Daily on 2026-09-15, Makanan slightly over,
+Transportasi nearly exhausted, unallocated positive) with historical periods
+carrying hostile overspend for edge coverage.
 
 Production-scale acceptance repeats the bounded database checks and performs a no-browser `next start` check for the authenticated pages `/app`, `/app/friends`, `/app/outings`, `/app/expenses`, and `/app/repayments`. It requires at least 700 MiB available memory, at least 4 GiB free disk, no competing Next process, and no recent OOM event. It measures warm responses, HTML size, process health, and peak RSS.
 

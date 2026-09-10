@@ -46,13 +46,13 @@ export const SCALE_FIXTURE_COUNTS = {
   budgetPeriods: 20,
   budgetCategories: 15,
   budgetPeriodCategories: 186,
-  budgetTransactions: 3_272,
-  budgetImpacts: 3_127,
+  budgetTransactions: 3_147,
+  budgetImpacts: 3_008,
   budgetPersonalExpenseSources: 461,
   budgetPersonalRepaymentSources: 118,
-  budgetGroupExpenseSources: 207,
-  budgetGroupSettlementSources: 96,
-  budgetGroupObligationClassifications: 40,
+  budgetGroupExpenseSources: 162,
+  budgetGroupSettlementSources: 10,
+  budgetGroupObligationClassifications: 5,
   recurringTemplates: 75,
   activeRecurringTemplates: 60,
   recurringOccurrences: 390,
@@ -1418,9 +1418,70 @@ function appendGroupJoinRequests(
 const BUDGET_ACTIVE_PLAN_NAMES = ["Uncategorized", "Makanan", "Transportasi", "Belanja", "Hiburan", "Kesehatan", "Tagihan", "Tabungan", "Donasi", "Keluarga"];
 
 const BUDGET_ACTIVE_BASE_ALLOCATIONS: Record<string, number> = {
-  Uncategorized: 1_000_000, Makanan: 3_000_000, Transportasi: 2_000_000, Belanja: 2_500_000,
+  Uncategorized: 1_800_000, Makanan: 3_000_000, Transportasi: 2_000_000, Belanja: 2_500_000,
   Hiburan: 1_000_000, Kesehatan: 1_500_000, Tagihan: 2_000_000, Tabungan: 1_000_000,
-  Donasi: 500_000, Keluarga: 1_200_000,
+  Donasi: 800_000, Keluarga: 1_200_000,
+};
+
+// The canonical active period (September 2026) is the manual UI-inspection
+// scenario, so its manual activity is a small deterministic set of curated
+// rows instead of a slice of the bulk stress traffic. Amounts are sized so
+// the active period nets roughly Rp 10-15m against the Rp 20m total budget:
+// Makanan slightly over plan, Transportasi nearly exhausted, several normal
+// categories, Tabungan/Belanja with remaining budget, and one voided plus one
+// inflow row for authority coverage. Bulk manual volume lives in historical
+// periods (ordinals 1-19).
+type ActiveManualRow = {
+  direction: "outflow" | "inflow";
+  amount: number;
+  description: string;
+  occurredOn: string;
+  status: "posted" | "voided";
+  category: string;
+};
+
+const ACTIVE_MANUAL_SCENARIO: ActiveManualRow[] = [
+  { direction: "outflow", amount: 850_000, description: "Belanja mingguan pasar " + "x".repeat(217), occurredOn: "2026-09-02", status: "posted", category: "Makanan" },
+  { direction: "outflow", amount: 380_000, description: "Bensin motor", occurredOn: "2026-09-03", status: "posted", category: "Transportasi" },
+  { direction: "outflow", amount: 480_000, description: "Belanja bulanan", occurredOn: "2026-09-06", status: "posted", category: "Belanja" },
+  { direction: "outflow", amount: 90_000, description: "Iuran RT", occurredOn: "2026-09-07", status: "posted", category: "Tagihan" },
+  { direction: "outflow", amount: 620_000, description: "Makan siang kantor", occurredOn: "2026-09-09", status: "posted", category: "Makanan" },
+  { direction: "outflow", amount: 500_000, description: "Catering dibatalkan", occurredOn: "2026-09-11", status: "voided", category: "Makanan" },
+  { direction: "outflow", amount: 420_000, description: "Tol dan parkir", occurredOn: "2026-09-12", status: "posted", category: "Transportasi" },
+  { direction: "outflow", amount: 60_000, description: "Obat", occurredOn: "2026-09-14", status: "posted", category: "Kesehatan" },
+  { direction: "outflow", amount: 740_000, description: "Traktir keluarga", occurredOn: "2026-09-16", status: "posted", category: "Makanan" },
+  { direction: "outflow", amount: 260_000, description: "Peralatan rumah", occurredOn: "2026-09-19", status: "posted", category: "Belanja" },
+  { direction: "outflow", amount: 310_000, description: "Ojek dan MRT", occurredOn: "2026-09-21", status: "posted", category: "Transportasi" },
+  { direction: "outflow", amount: 590_000, description: "Kopi dan jajan", occurredOn: "2026-09-23", status: "posted", category: "Makanan" },
+  { direction: "inflow", amount: 150_000, description: "Refund belanja", occurredOn: "2026-09-24", status: "posted", category: "Belanja" },
+];
+
+// Linked Group imports are selective, mirroring a user who has not imported
+// every Group expense/settlement into the Budget. Historical owner activity
+// links in full; the active period links only a bounded subset so it stays
+// realistic while keeping linked Personal/Group coverage.
+const ACTIVE_LINKED_GROUP_EXPENSE_BUDGET = 300_000;
+const ACTIVE_LINKED_SETTLEMENT_COUNT = 10;
+
+// Safety-net calibration: after all deterministic sources are built, top up
+// the active showcase categories toward their designed net levels. Curated
+// rows are sized to land near these targets, so calibration normally adds
+// little or nothing; it only fires when a source stream shifts underneath.
+const ACTIVE_CATEGORY_NET_TARGETS: Record<string, number> = {
+  Makanan: 3_450_000, Transportasi: 1_900_000, Belanja: 1_500_000, Tagihan: 2_050_000,
+  Tabungan: 850_000,
+};
+const ACTIVE_CALIBRATION_DUST = 100_000;
+
+// Deliberate historical hostility: one explicit overspend row in August 2026
+// so edge/negative coverage does not depend on incidental random volume.
+const HISTORICAL_STRESS_SCENARIO = {
+  direction: "outflow" as const,
+  amount: 6_000_000,
+  description: "Stress: belanja elektronik Agustus",
+  occurredOn: "2026-08-15",
+  category: "Hiburan",
+  ordinal: 19,
 };
 
 type BudgetBuildState = {
@@ -1532,8 +1593,27 @@ function buildBudgetPeriodsAndPlans(fixture: ScaleBudgetFixture, fixedCreatedAt:
 }
 
 function buildManualBudgetTransactions(ctx: BudgetBuildContext) {
-  for (let index = 0; index < 2140; index += 1) {
-    const period = ctx.next() < 0.18 ? ctx.activePeriod : ctx.periodByOrdinal.get(1 + integer(ctx.next, 19))!;
+  for (const row of ACTIVE_MANUAL_SCENARIO) {
+    const categoryId = ctx.categoryByName.get(row.category)!.id;
+    const transactionId = pushBudgetTransaction(ctx, {
+      direction: row.direction, amount: row.amount, description: row.description,
+      occurredOn: row.occurredOn, status: row.status, origin: "manual",
+    });
+    pushBudgetImpact(ctx, transactionId, categoryId, ctx.activePeriod.id, row.amount, "applied", ctx.activePeriod.ordinal);
+  }
+  {
+    const categoryId = ctx.categoryByName.get(HISTORICAL_STRESS_SCENARIO.category)!.id;
+    const period = ctx.periodByOrdinal.get(HISTORICAL_STRESS_SCENARIO.ordinal)!;
+    const transactionId = pushBudgetTransaction(ctx, {
+      direction: HISTORICAL_STRESS_SCENARIO.direction, amount: HISTORICAL_STRESS_SCENARIO.amount,
+      description: HISTORICAL_STRESS_SCENARIO.description, occurredOn: HISTORICAL_STRESS_SCENARIO.occurredOn,
+      status: "posted", origin: "manual",
+    });
+    pushBudgetImpact(ctx, transactionId, categoryId, period.id, HISTORICAL_STRESS_SCENARIO.amount, "applied", period.ordinal);
+  }
+  const bulkCount = 2140 - ACTIVE_MANUAL_SCENARIO.length - 1;
+  for (let index = 0; index < bulkCount; index += 1) {
+    const period = ctx.periodByOrdinal.get(1 + integer(ctx.next, 19))!;
     const occurredOn = randomBudgetDay(ctx, period);
     const direction = ctx.next() < 0.15 ? "inflow" : "outflow";
     const amount = index % 40 === 11
@@ -1542,30 +1622,24 @@ function buildManualBudgetTransactions(ctx: BudgetBuildContext) {
         ? 5_000 + integer(ctx.next, 15_000)
         : 20_000 + integer(ctx.next, 980_000);
     const title = SCALE_BUDGET_DESCRIPTIONS[(index * 7) % SCALE_BUDGET_DESCRIPTIONS.length]!;
-    const description = index === 0
-      ? "Manual budget " + "x".repeat(226)
-      : `${title}${index >= SCALE_BUDGET_DESCRIPTIONS.length ? ` #${Math.floor(index / SCALE_BUDGET_DESCRIPTIONS.length) + 1}` : ""}`;
+    const description = `${title}${index >= SCALE_BUDGET_DESCRIPTIONS.length ? ` #${Math.floor(index / SCALE_BUDGET_DESCRIPTIONS.length) + 1}` : ""}`;
     const status = ctx.next() < 0.04 ? "voided" : "posted";
     const transactionId = pushBudgetTransaction(ctx, { direction, amount, description, occurredOn, status, origin: "manual" });
-    const categoryId = period.ordinal === 20
-      ? ctx.activePlanCategoryIds[index % ctx.activePlanCategoryIds.length]!
-      : ctx.fixture.budgetCategories[integer(ctx.next, ctx.fixture.budgetCategories.length)]!.id;
+    const categoryId = ctx.fixture.budgetCategories[integer(ctx.next, ctx.fixture.budgetCategories.length)]!.id;
     pushBudgetImpact(ctx, transactionId, categoryId, period.id, amount, "applied", period.ordinal);
   }
 }
 
 function buildSpreadBudgetTransactions(ctx: BudgetBuildContext) {
   for (let index = 0; index < 36; index += 1) {
-    const historical = index < 24;
+    const historical = index < 32;
     const originOrdinal = historical ? 14 + (index % 6) : 20;
     const maxCount = historical ? 21 - originOrdinal : 6;
     const count = Math.max(2, Math.min(2 + (index % 5), maxCount));
     const amount = 120_000 + integer(ctx.next, 780_000);
     const origin = ctx.periodByOrdinal.get(originOrdinal)!;
     const occurredOn = randomBudgetDay(ctx, origin);
-    const categoryId = originOrdinal === 20
-      ? ctx.activePlanCategoryIds[index % ctx.activePlanCategoryIds.length]!
-      : ctx.fixture.budgetCategories[1 + (index % 13)]!.id;
+    const categoryId = ctx.activePlanCategoryIds[index % ctx.activePlanCategoryIds.length]!;
     const transactionId = pushBudgetTransaction(ctx, {
       direction: "outflow", amount, description: `Spread plan #${index + 1}`,
       occurredOn, status: "posted", origin: "manual",
@@ -1618,7 +1692,18 @@ function buildGroupBudgetLinks(ctx: BudgetBuildContext, groups: ScaleGroupFixtur
     const payer = participantById.get(expense.payerParticipantId);
     return expense.state === "confirmed" && payer?.userId === ctx.ownerUserId;
   });
-  ownerPayerExpenses.slice(0, 268).forEach((expense) => {
+  const historicalOwnerExpenses = ownerPayerExpenses.filter((expense) => expense.occurredOn < "2026-09-01");
+  const activeCandidates = ownerPayerExpenses
+    .filter((expense) => expense.occurredOn >= "2026-09-01" && expense.occurredOn <= "2026-09-30")
+    .sort((left, right) => left.totalAmount - right.totalAmount || (left.id < right.id ? -1 : 1));
+  const activeOwnerExpenses: typeof activeCandidates = [];
+  let activeBudget = 0;
+  for (const expense of activeCandidates) {
+    if (activeBudget + expense.totalAmount > ACTIVE_LINKED_GROUP_EXPENSE_BUDGET) continue;
+    activeOwnerExpenses.push(expense);
+    activeBudget += expense.totalAmount;
+  }
+  [...historicalOwnerExpenses, ...activeOwnerExpenses].forEach((expense) => {
     const transactionId = pushBudgetTransaction(ctx, {
       direction: "outflow", amount: expense.totalAmount, description: `Group: ${expense.description}`.slice(0, 240),
       occurredOn: expense.occurredOn, status: "posted", origin: "linked",
@@ -1633,7 +1718,7 @@ function buildGroupBudgetLinks(ctx: BudgetBuildContext, groups: ScaleGroupFixtur
     const recipient = participantById.get(settlement.recipientParticipantId);
     return sender?.userId === ctx.ownerUserId || recipient?.userId === ctx.ownerUserId;
   });
-  ownerSettlements.slice(0, 96).forEach((settlement) => {
+  ownerSettlements.slice(0, ACTIVE_LINKED_SETTLEMENT_COUNT).forEach((settlement) => {
     const sender = participantById.get(settlement.senderParticipantId)!;
     const isSender = sender.userId === ctx.ownerUserId;
     const transactionId = pushBudgetTransaction(ctx, {
@@ -1711,6 +1796,7 @@ function recordRecurringPayment(
 }
 
 function buildRecurringOccurrences(ctx: BudgetBuildContext) {
+  const activePlanSet = new Set(ctx.activePlanCategoryIds);
   for (const template of ctx.fixture.recurringTemplates) {
     const archived = template.archivedAt !== null;
     for (let ordinal = 15; ordinal <= 20; ordinal += 1) {
@@ -1719,9 +1805,21 @@ function buildRecurringOccurrences(ctx: BudgetBuildContext) {
       if (template.startsOn > period.endsOn) continue;
       const scheduledOn = scheduledRecurringDate(template, period);
       const roll = ctx.next();
-      const status = ordinal === 20
-        ? roll < 0.4 ? "due" : roll < 0.75 ? "recorded" : "skipped"
-        : roll < 0.6 ? "recorded" : "skipped";
+      let status: "due" | "recorded" | "skipped";
+      if (ordinal === 20) {
+        if (!activePlanSet.has(template.categoryId)) {
+          status = roll < 0.5 ? "due" : "skipped";
+        } else {
+          status = roll < 0.5 ? "due" : roll < 0.65 ? "recorded" : "skipped";
+        }
+      } else {
+        const wouldReachActive = ordinal + template.spreadCount - 1 >= 20;
+        if (wouldReachActive && !activePlanSet.has(template.categoryId)) {
+          status = "skipped";
+        } else {
+          status = roll < 0.62 ? "recorded" : "skipped";
+        }
+      }
       const budgetTransactionId = status === "recorded"
         ? recordRecurringPayment(ctx, template, period, scheduledOn, template.categoryId)
         : null;
@@ -1753,8 +1851,12 @@ function applyBudgetTopUps(ctx: BudgetBuildContext) {
     if (transaction.status !== "posted") continue;
     appliedByCategory.set(impact.budgetCategoryId, (appliedByCategory.get(impact.budgetCategoryId) ?? 0) + (transaction.direction === "outflow" ? impact.amount : -impact.amount));
   }
-  topUpBudgetCategory(ctx, appliedByCategory, "Makanan", Math.floor(BUDGET_ACTIVE_BASE_ALLOCATIONS.Makanan! * 1.15));
-  topUpBudgetCategory(ctx, appliedByCategory, "Transportasi", Math.floor(BUDGET_ACTIVE_BASE_ALLOCATIONS.Transportasi! * 0.95));
+  for (const [categoryName, targetNet] of Object.entries(ACTIVE_CATEGORY_NET_TARGETS)) {
+    const categoryId = ctx.categoryByName.get(categoryName)!.id;
+    const current = appliedByCategory.get(categoryId) ?? 0;
+    if (current >= targetNet - ACTIVE_CALIBRATION_DUST) continue;
+    topUpBudgetCategory(ctx, appliedByCategory, categoryName, targetNet);
+  }
 }
 
 function topUpBudgetCategory(ctx: BudgetBuildContext, appliedByCategory: Map<string, number>, categoryName: string, targetNet: number) {

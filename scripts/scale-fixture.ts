@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import type { PoolClient } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { hashPassword } from "better-auth/crypto";
+import { hashPassword, verifyPassword } from "better-auth/crypto";
 import { createDatabasePool, readRuntimeDatabaseConfig } from "../src/db/client";
 import * as schema from "../src/db/schema";
+import { calculateSafeDaily } from "../src/domain/budgeting/dates";
 import { getPersonalLedgerScopeId } from "../src/server/ledger-scopes";
 import { readSecretFile } from "../src/server/secret-file";
 import {
@@ -137,19 +138,21 @@ async function deleteFixture(client: PoolClient, fixture: ScaleFixtureData, owne
   await client.query("DELETE FROM chat_messages WHERE thread_id = ANY($1::uuid[])", [ids.chatThreadIds]);
   await client.query("DELETE FROM chat_threads WHERE id = ANY($1::uuid[])", [ids.chatThreadIds]);
   // Budget rows link Personal, Group, and recurring sources, so they clear
-  // before the workspaces they reference.
-  await client.query("DELETE FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND id = ANY($2::uuid[])", [ownerId, ids.occurrenceIds]);
-  await client.query("DELETE FROM budget_recurring_templates WHERE owner_user_id = $1 AND id = ANY($2::uuid[])", [ownerId, ids.recurringTemplateIds]);
-  await client.query("DELETE FROM budget_group_obligation_classifications WHERE owner_user_id = $1 AND group_obligation_id = ANY($2::uuid[])", [ownerId, ids.obligationIds]);
-  await client.query("DELETE FROM budget_group_settlement_sources WHERE owner_user_id = $1 AND budget_transaction_id = ANY($2::uuid[])", [ownerId, ids.budgetTransactionIds]);
-  await client.query("DELETE FROM budget_group_expense_sources WHERE owner_user_id = $1 AND budget_transaction_id = ANY($2::uuid[])", [ownerId, ids.budgetTransactionIds]);
-  await client.query("DELETE FROM budget_personal_repayment_sources WHERE owner_user_id = $1 AND budget_transaction_id = ANY($2::uuid[])", [ownerId, ids.budgetTransactionIds]);
-  await client.query("DELETE FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND budget_transaction_id = ANY($2::uuid[])", [ownerId, ids.budgetTransactionIds]);
-  await client.query("DELETE FROM budget_impacts WHERE owner_user_id = $1 AND id = ANY($2::uuid[])", [ownerId, ids.budgetImpactIds]);
-  await client.query("DELETE FROM budget_transactions WHERE owner_user_id = $1 AND id = ANY($2::uuid[])", [ownerId, ids.budgetTransactionIds]);
-  await client.query("DELETE FROM budget_period_categories WHERE owner_user_id = $1 AND budget_period_id = ANY($2::uuid[])", [ownerId, ids.budgetPeriodIds]);
-  await client.query("DELETE FROM budget_categories WHERE owner_user_id = $1 AND id = ANY($2::uuid[])", [ownerId, ids.budgetCategoryIds]);
-  await client.query("DELETE FROM budget_periods WHERE owner_user_id = $1 AND id = ANY($2::uuid[])", [ownerId, ids.budgetPeriodIds]);
+  // before the workspaces they reference. Clear by owner (not by fixture IDs)
+  // so a shrunk fixture still removes orphaned rows from a larger previous
+  // seed in the disposable database; the scale owner holds only fixture data.
+  await client.query("DELETE FROM budget_recurring_occurrences WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_recurring_templates WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_group_obligation_classifications WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_group_settlement_sources WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_group_expense_sources WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_personal_repayment_sources WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_personal_expense_sources WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_impacts WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_transactions WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_period_categories WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_categories WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_periods WHERE owner_user_id = $1", [ownerId]);
   await client.query("DELETE FROM organization_invitations WHERE id = ANY($1::uuid[])", [ids.orgInvitationIds]);
   await client.query("DELETE FROM group_join_requests WHERE group_id = ANY($1::uuid[])", [ids.groupIds]);
   // Group money movements are immutable financial history by production
@@ -496,7 +499,63 @@ async function verifyFixture(client: PoolClient, fixture: ScaleFixtureData, owne
   await verifyGroupInvariants(client, fixture);
   await verifyOrganizationInvariants(client, fixture, ownerId);
   await verifyBudgetAuthority(client, fixture, ownerId);
+  await verifyActiveBudgetRealism(client, ownerId);
   await verifyCollaborationAnchors(client, fixture, ownerId);
+}
+
+async function verifyActiveBudgetRealism(client: PoolClient, ownerId: string) {
+  const periodResult = await client.query<{ id: string; total_budget: string; starts_on: string; ends_on: string }>(
+    "SELECT id, total_budget::text AS total_budget, starts_on::text AS starts_on, ends_on::text AS ends_on FROM budget_periods WHERE owner_user_id = $1 AND status = 'active'",
+    [ownerId],
+  );
+  assert(periodResult.rows.length === 1, "budget must have exactly one active period");
+  const period = periodResult.rows[0]!;
+  const totalBudget = count(period.total_budget);
+  assert(totalBudget === 20_000_000, "active budget total is not the fixture anchor");
+  // Reuse the dashboard authority: posted transactions plus applied impacts.
+  const sums = await client.query<{ outflow: string; inflow: string; allocated: string }>(
+    `SELECT
+      (SELECT coalesce(sum(i.amount) FILTER (WHERE t.direction = 'outflow'), 0)::text FROM budget_impacts i JOIN budget_transactions t ON t.owner_user_id = i.owner_user_id AND t.id = i.budget_transaction_id WHERE i.owner_user_id = $1 AND i.budget_period_id = $2 AND i.status = 'applied' AND t.status = 'posted') AS outflow,
+      (SELECT coalesce(sum(i.amount) FILTER (WHERE t.direction = 'inflow'), 0)::text FROM budget_impacts i JOIN budget_transactions t ON t.owner_user_id = i.owner_user_id AND t.id = i.budget_transaction_id WHERE i.owner_user_id = $1 AND i.budget_period_id = $2 AND i.status = 'applied' AND t.status = 'posted') AS inflow,
+      (SELECT coalesce(sum(allocated_amount), 0)::text FROM budget_period_categories WHERE owner_user_id = $1 AND budget_period_id = $2) AS allocated`,
+    [ownerId, period.id],
+  );
+  const outflow = count(sums.rows[0]!.outflow);
+  const inflow = count(sums.rows[0]!.inflow);
+  const netSpent = outflow - inflow;
+  const remaining = totalBudget - netSpent;
+  const allocated = count(sums.rows[0]!.allocated);
+  const unallocated = totalBudget - allocated;
+  assert(netSpent < totalBudget, "active budget is overspent and not useful for UI inspection");
+  assert(netSpent >= 10_000_000 && netSpent <= 15_000_000, "active budget net is outside the realistic 10-15m band");
+  assert(remaining > 0, "active budget has no remaining amount");
+  assert(unallocated > 0, "active budget has no unallocated amount");
+  const safeDaily = calculateSafeDaily(period.starts_on, period.ends_on, "2026-09-15", remaining);
+  assert(safeDaily !== null && safeDaily > 0, "active budget Safe Daily is not positive on the fixture reference date");
+  const categories = await client.query<{ allocated: string; net: string }>(
+    `SELECT pc.allocated_amount::text AS allocated,
+      (coalesce(sum(i.amount) FILTER (WHERE t.direction = 'outflow'), 0) - coalesce(sum(i.amount) FILTER (WHERE t.direction = 'inflow'), 0))::text AS net
+      FROM budget_period_categories pc LEFT JOIN budget_impacts i ON i.owner_user_id = pc.owner_user_id AND i.budget_period_id = pc.budget_period_id AND i.budget_category_id = pc.budget_category_id AND i.status = 'applied'
+      LEFT JOIN budget_transactions t ON t.owner_user_id = i.owner_user_id AND t.id = i.budget_transaction_id AND t.status = 'posted'
+      WHERE pc.owner_user_id = $1 AND pc.budget_period_id = $2 GROUP BY pc.allocated_amount`,
+    [ownerId, period.id],
+  );
+  const nets = categories.rows.map((row) => ({ allocated: count(row.allocated), net: count(row.net) }));
+  assert(nets.some((row) => row.net > row.allocated || row.net >= Math.floor(row.allocated * 0.9)), "no active category is near or over allocation");
+  assert(nets.some((row) => row.net < row.allocated), "no active category has remaining budget");
+  const links = await client.query<Record<string, string>>(
+    `SELECT
+      (SELECT count(*) FROM budget_personal_expense_sources s JOIN budget_transactions t ON t.owner_user_id = s.owner_user_id AND t.id = s.budget_transaction_id WHERE s.owner_user_id = $1 AND t.occurred_on >= '2026-09-01' AND t.occurred_on <= '2026-09-30') AS personal,
+      (SELECT count(*) FROM budget_group_expense_sources s JOIN budget_transactions t ON t.owner_user_id = s.owner_user_id AND t.id = s.budget_transaction_id WHERE s.owner_user_id = $1 AND t.occurred_on >= '2026-09-01' AND t.occurred_on <= '2026-09-30') AS group_expenses,
+      (SELECT count(*) FROM budget_transactions WHERE owner_user_id = $1 AND origin = 'recurring' AND occurred_on >= '2026-09-01' AND occurred_on <= '2026-09-30') AS recurring,
+      (SELECT count(*) FROM budget_transactions WHERE owner_user_id = $1 AND occurred_on >= '2026-09-24' AND occurred_on <= '2026-09-30') AS recent`,
+    [ownerId],
+  );
+  const linkRow = links.rows[0]!;
+  assert(count(linkRow.personal!) > 0, "no active-period linked Personal activity");
+  assert(count(linkRow.group_expenses!) > 0, "no active-period linked Group activity");
+  assert(count(linkRow.recurring!) > 0, "no active-period recurring activity");
+  assert(count(linkRow.recent!) > 0, "no recent active-period transactions");
 }
 
 async function verifyGroupInvariants(client: PoolClient, fixture: ScaleFixtureData) {
@@ -649,31 +708,51 @@ export function readOwnerPassword(environment: ScaleEnvironment) {
   return password;
 }
 
-async function ensureScaleCredential(client: PoolClient, ownerId: string, password: string | undefined) {
-  const existing = await client.query<{ id: string }>(
-    "SELECT id FROM accounts WHERE user_id = $1 AND provider_id = 'credential'",
-    [ownerId],
-  );
-  if (existing.rows.length > 0) return "present" as const;
-  if (!password) return "skipped" as const;
+export async function ensureScaleCredential(client: PoolClient, ownerId: string, password: string | undefined) {
+  if (!password) {
+    const existing = await client.query<{ id: string }>(
+      "SELECT id FROM accounts WHERE user_id = $1 AND provider_id = 'credential'",
+      [ownerId],
+    );
+    if (existing.rows.length > 0) return "present" as const;
+    return "skipped" as const;
+  }
   // TEST-ONLY credential for the disposable scale database, hashed with the
   // same Better Auth password helper production uses. Never a plaintext store,
   // never outside zplit_scale_test (guarded by validateScaleCommandEnvironment).
+  // When an explicit disposable password is supplied, the fixture owns its
+  // deterministic credential: any other credential rows for this owner are
+  // removed first so the supplied password cannot be silently ignored via the
+  // unique (provider_id, account_id) constraint. Repeated seeds re-hash (new
+  // salt) but remain login-equivalent, hence idempotent for manual UI use.
+  const deterministicId = credentialAccountId(ownerId);
   const hashed = await hashPassword(password);
   await client.query(
-    "INSERT INTO accounts (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES ($1, $2, 'credential', $2, $3, now(), now()) ON CONFLICT (id) DO NOTHING",
-    [credentialAccountId(ownerId), ownerId, hashed],
+    "DELETE FROM accounts WHERE user_id = $1 AND provider_id = 'credential' AND id <> $2",
+    [ownerId, deterministicId],
+  );
+  await client.query(
+    "INSERT INTO accounts (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES ($1, $2, 'credential', $2, $3, now(), now()) ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password, account_id = EXCLUDED.account_id, updated_at = now()",
+    [deterministicId, ownerId, hashed],
   );
   return "created" as const;
 }
 
-async function verifyScaleCredential(client: PoolClient, ownerId: string, passwordFileSet: boolean) {
+export async function verifyScaleCredential(client: PoolClient, ownerId: string, password: string | undefined, passwordFileSet: boolean) {
   if (!passwordFileSet) return;
-  const result = await client.query<{ has_password: boolean }>(
-    "SELECT password IS NOT NULL AND btrim(password) <> '' AS has_password FROM accounts WHERE id = $1 AND user_id = $2 AND provider_id = 'credential'",
+  const result = await client.query<{ id: string; user_id: string; provider_id: string; password: string | null }>(
+    "SELECT id, user_id, provider_id, password FROM accounts WHERE id = $1 AND user_id = $2 AND provider_id = 'credential'",
     [credentialAccountId(ownerId), ownerId],
   );
-  assert(result.rows.length === 1 && result.rows[0]!.has_password, "scale owner credential account is missing");
+  assert(result.rows.length === 1, "scale owner credential account is missing");
+  const row = result.rows[0]!;
+  assert(row.provider_id === "credential", "scale owner credential provider is wrong");
+  assert(typeof row.password === "string" && row.password.trim() !== "", "scale owner credential has no password material");
+  assert(row.password !== password, "scale owner credential stores a plaintext password");
+  if (password) {
+    const matches = await verifyPassword({ hash: row.password, password });
+    assert(matches, "scale owner credential does not match SCALE_OWNER_PASSWORD_FILE");
+  }
 }
 
 export async function runScaleCommand(
@@ -682,7 +761,7 @@ export async function runScaleCommand(
   dependencies: ScaleFixtureDependencies = {},
 ) {
   const { ownerEmail } = validateScaleCommandEnvironment(command, environment);
-  const ownerPassword = command === "verify" ? undefined : readOwnerPassword(environment);
+  const ownerPassword = command === "clear" ? undefined : readOwnerPassword(environment);
   const config = (dependencies.readDatabaseConfig ?? readRuntimeDatabaseConfig)();
   const pool = (dependencies.createPool ?? createDatabasePool)(config);
   let client: PoolClient | undefined;
@@ -704,7 +783,7 @@ export async function runScaleCommand(
     if (command === "clear") await deleteFixture(client, fixture, user.id, ledgerScopeId);
     if (command === "verify") {
       await verifyFixture(client, fixture, user.id, ledgerScopeId);
-      await verifyScaleCredential(client, user.id, Boolean(environment.SCALE_OWNER_PASSWORD_FILE?.trim()));
+      await verifyScaleCredential(client, user.id, ownerPassword, Boolean(environment.SCALE_OWNER_PASSWORD_FILE?.trim()));
     }
     await client.query("COMMIT");
     transactionStarted = false;

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { inflateSync } from "node:zlib";
 import { beforeAll, describe, expect, it } from "vitest";
+import { calculateSafeDaily } from "../src/domain/budgeting/dates";
 import { normalizeNotificationMetadata } from "../src/domain/notifications";
 import {
   generateScaleFixture,
@@ -374,5 +375,107 @@ describe("full-product scale fixture data", () => {
     const tripIds = new Set(fixture.trips.map(({ id }) => id));
     expect(fixture.outings.filter(({ tripId }) => tripId !== null).length).toBeGreaterThan(0);
     expect(fixture.outings.every(({ tripId }) => tripId === null || tripIds.has(tripId))).toBe(true);
+  });
+});
+
+describe("scale active budget realism", () => {
+  const owner = "owner";
+  const activeStartsOn = "2026-09-01";
+  const activeEndsOn = "2026-09-30";
+  const referenceDate = "2026-09-15";
+
+  function activeSummary() {
+    const data = generateScaleFixture(owner);
+    const active = data.budgetPeriods.find((period) => period.status === "active")!;
+    const transactions = new Map(data.budgetTransactions.map((row) => [row.id, row]));
+    let outflow = 0;
+    let inflow = 0;
+    for (const impact of data.budgetImpacts) {
+      if (impact.status !== "applied" || impact.budgetPeriodId !== active.id) continue;
+      const transaction = transactions.get(impact.budgetTransactionId)!;
+      if (transaction.status !== "posted") continue;
+      if (transaction.direction === "outflow") outflow += impact.amount;
+      else inflow += impact.amount;
+    }
+    const netSpent = outflow - inflow;
+    const remaining = active.totalBudget - netSpent;
+    const allocated = data.budgetPeriodCategories
+      .filter((row) => row.budgetPeriodId === active.id)
+      .reduce((sum, row) => sum + row.allocatedAmount, 0);
+    return { data, active, outflow, inflow, netSpent, remaining, allocated, unallocated: active.totalBudget - allocated };
+  }
+
+  it("keeps overall Budget scale in the thousands", () => {
+    const { data } = activeSummary();
+    expect(data.budgetPeriods).toHaveLength(20);
+    expect(data.budgetTransactions.length).toBeGreaterThan(3000);
+    expect(data.budgetImpacts.length).toBeGreaterThan(2900);
+    expect(data.recurringTemplates).toHaveLength(75);
+  });
+
+  it("bounds active manual volume relative to historical periods", () => {
+    const { data } = activeSummary();
+    const activeManual = data.budgetTransactions.filter((row) => row.origin === "manual" && row.occurredOn >= activeStartsOn && row.occurredOn <= activeEndsOn);
+    const historicalManual = data.budgetTransactions.filter((row) => row.origin === "manual" && row.occurredOn < activeStartsOn);
+    expect(activeManual.length).toBeLessThan(60);
+    expect(historicalManual.length).toBeGreaterThan(2000);
+    expect(activeManual.length).toBeLessThan(historicalManual.length / 20);
+  });
+
+  it("keeps the active period realistic with positive remaining and Safe Daily", () => {
+    const { active, netSpent, remaining, unallocated } = activeSummary();
+    expect(active.totalBudget).toBe(20_000_000);
+    expect(netSpent).toBeGreaterThanOrEqual(10_000_000);
+    expect(netSpent).toBeLessThanOrEqual(15_000_000);
+    expect(netSpent).toBeLessThan(active.totalBudget);
+    expect(remaining).toBeGreaterThan(0);
+    expect(unallocated).toBeGreaterThan(0);
+    expect(calculateSafeDaily(active.startsOn, active.endsOn, referenceDate, remaining)).toBeGreaterThan(0);
+  });
+
+  it("covers near/over, remaining, unallocated, and linked plus recurring activity", () => {
+    const { data, active } = activeSummary();
+    const transactions = new Map(data.budgetTransactions.map((row) => [row.id, row]));
+    const netByCategory = new Map<string, number>();
+    for (const impact of data.budgetImpacts) {
+      if (impact.status !== "applied" || impact.budgetPeriodId !== active.id) continue;
+      const transaction = transactions.get(impact.budgetTransactionId)!;
+      if (transaction.status !== "posted") continue;
+      const value = transaction.direction === "outflow" ? impact.amount : -impact.amount;
+      netByCategory.set(impact.budgetCategoryId, (netByCategory.get(impact.budgetCategoryId) ?? 0) + value);
+    }
+    const plans = data.budgetPeriodCategories.filter((row) => row.budgetPeriodId === active.id);
+    expect(plans.some((row) => (netByCategory.get(row.budgetCategoryId) ?? 0) > row.allocatedAmount || (netByCategory.get(row.budgetCategoryId) ?? 0) >= Math.floor(row.allocatedAmount * 0.9))).toBe(true);
+    expect(plans.some((row) => (netByCategory.get(row.budgetCategoryId) ?? 0) < row.allocatedAmount)).toBe(true);
+    expect(data.budgetPersonalExpenseSources.some((row) => {
+      const transaction = transactions.get(row.budgetTransactionId)!;
+      return transaction.occurredOn >= activeStartsOn && transaction.occurredOn <= activeEndsOn;
+    })).toBe(true);
+    expect(data.budgetGroupExpenseSources.some((row) => {
+      const transaction = transactions.get(row.budgetTransactionId)!;
+      return transaction.occurredOn >= activeStartsOn && transaction.occurredOn <= activeEndsOn;
+    })).toBe(true);
+    expect(data.budgetTransactions.some((row) => row.origin === "recurring" && row.occurredOn >= activeStartsOn && row.occurredOn <= activeEndsOn)).toBe(true);
+    expect(data.budgetTransactions.some((row) => row.occurredOn >= "2026-09-24" && row.occurredOn <= activeEndsOn)).toBe(true);
+  });
+
+  it("preserves historical overspend stress coverage", () => {
+    const { data } = activeSummary();
+    const transactions = new Map(data.budgetTransactions.map((row) => [row.id, row]));
+    const netByPeriod = new Map<string, number>();
+    for (const impact of data.budgetImpacts) {
+      if (impact.status !== "applied" || !impact.budgetPeriodId) continue;
+      const transaction = transactions.get(impact.budgetTransactionId)!;
+      if (transaction.status !== "posted") continue;
+      const value = transaction.direction === "outflow" ? impact.amount : -impact.amount;
+      netByPeriod.set(impact.budgetPeriodId, (netByPeriod.get(impact.budgetPeriodId) ?? 0) + value);
+    }
+    const historical = data.budgetPeriods.filter((period) => period.status !== "active");
+    const overspent = historical.some((period) => (netByPeriod.get(period.id) ?? 0) > period.totalBudget);
+    expect(overspent).toBe(true);
+  });
+
+  it("is deterministic for the same seed", () => {
+    expect(generateScaleFixture(owner)).toEqual(generateScaleFixture(owner));
   });
 });
