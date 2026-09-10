@@ -51,59 +51,53 @@ export type AvailableGroupObligation = GroupOffsetAllocationObligation & {
   creditorParticipantId: string;
 };
 
-export async function loadAvailableGroupObligations(
+export type AvailableGroupObligationWithGroup = AvailableGroupObligation & {
+  groupId: string;
+};
+
+type AvailableGroupObligationRow = Omit<AvailableGroupObligationWithGroup, "paymentAppliedAmount" | "offsetAppliedAmount">;
+
+async function applyAvailableObligationApplications(
   database: Database,
-  groupId: string,
-  participantIds: [string, string],
-  at: Date,
+  obligations: AvailableGroupObligationRow[],
   lockRows: boolean,
-): Promise<AvailableGroupObligation[]> {
-  const [firstParticipantId, secondParticipantId] = participantIds;
-  const query = database
-    .select({
-      id: groupObligations.id,
-      authoritativeAt: groupObligations.createdAt,
-      originalAmount: groupObligations.originalAmount,
-      debtorParticipantId: groupObligations.debtorParticipantId,
-      creditorParticipantId: groupObligations.creditorParticipantId,
-    })
-    .from(groupObligations)
-    .where(and(
-      eq(groupObligations.groupId, groupId),
-      or(
-        and(eq(groupObligations.debtorParticipantId, firstParticipantId), eq(groupObligations.creditorParticipantId, secondParticipantId)),
-        and(eq(groupObligations.debtorParticipantId, secondParticipantId), eq(groupObligations.creditorParticipantId, firstParticipantId)),
-      ),
-      lte(groupObligations.createdAt, at),
-      or(isNull(groupObligations.voidedAt), gt(groupObligations.voidedAt, at)),
-    ))
-    .orderBy(asc(groupObligations.id));
-  const obligations = await (lockRows ? query.for("update") : query);
+): Promise<AvailableGroupObligationWithGroup[]> {
   const obligationIds = obligations.map(({ id }) => id);
   if (obligationIds.length === 0) return [];
+  const groupIds = [...new Set(obligations.map(({ groupId }) => groupId))];
+  const applicationScope = (groupId: string) => and(
+    eq(groupSettlementApplications.groupId, groupId),
+    inArray(groupSettlementApplications.obligationId, obligationIds),
+  );
+  const offsetScope = (groupId: string) => and(
+    eq(groupOffsetApplications.groupId, groupId),
+    inArray(groupOffsetApplications.obligationId, obligationIds),
+  );
   const paymentApplications = await database
     .select({ obligationId: groupSettlementApplications.obligationId, amount: groupSettlementApplications.appliedAmount })
     .from(groupSettlementApplications)
-    .where(and(eq(groupSettlementApplications.groupId, groupId), inArray(groupSettlementApplications.obligationId, obligationIds)))
+    .where(and(inArray(groupSettlementApplications.groupId, groupIds), inArray(groupSettlementApplications.obligationId, obligationIds)))
     .orderBy(asc(groupSettlementApplications.obligationId), asc(groupSettlementApplications.id));
   const offsetApplications = await database
     .select({ obligationId: groupOffsetApplications.obligationId, amount: groupOffsetApplications.appliedAmount })
     .from(groupOffsetApplications)
-    .where(and(eq(groupOffsetApplications.groupId, groupId), inArray(groupOffsetApplications.obligationId, obligationIds)))
+    .where(and(inArray(groupOffsetApplications.groupId, groupIds), inArray(groupOffsetApplications.obligationId, obligationIds)))
     .orderBy(asc(groupOffsetApplications.obligationId), asc(groupOffsetApplications.id));
   if (lockRows) {
-    await database
-      .select({ id: groupSettlementApplications.id })
-      .from(groupSettlementApplications)
-      .where(and(eq(groupSettlementApplications.groupId, groupId), inArray(groupSettlementApplications.obligationId, obligationIds)))
-      .orderBy(asc(groupSettlementApplications.obligationId), asc(groupSettlementApplications.id))
-      .for("update");
-    await database
-      .select({ id: groupOffsetApplications.id })
-      .from(groupOffsetApplications)
-      .where(and(eq(groupOffsetApplications.groupId, groupId), inArray(groupOffsetApplications.obligationId, obligationIds)))
-      .orderBy(asc(groupOffsetApplications.obligationId), asc(groupOffsetApplications.id))
-      .for("update");
+    for (const groupId of groupIds) {
+      await database
+        .select({ id: groupSettlementApplications.id })
+        .from(groupSettlementApplications)
+        .where(applicationScope(groupId))
+        .orderBy(asc(groupSettlementApplications.obligationId), asc(groupSettlementApplications.id))
+        .for("update");
+      await database
+        .select({ id: groupOffsetApplications.id })
+        .from(groupOffsetApplications)
+        .where(offsetScope(groupId))
+        .orderBy(asc(groupOffsetApplications.obligationId), asc(groupOffsetApplications.id))
+        .for("update");
+    }
   }
   const paymentsByObligation = new Map<string, number>();
   for (const application of paymentApplications) {
@@ -124,6 +118,73 @@ export async function loadAvailableGroupObligations(
     paymentAppliedAmount: paymentsByObligation.get(obligation.id) ?? 0,
     offsetAppliedAmount: offsetsByObligation.get(obligation.id) ?? 0,
   }));
+}
+
+export async function loadAvailableGroupObligations(
+  database: Database,
+  groupId: string,
+  participantIds: [string, string],
+  at: Date,
+  lockRows: boolean,
+): Promise<AvailableGroupObligation[]> {
+  const [firstParticipantId, secondParticipantId] = participantIds;
+  const query = database
+    .select({
+      id: groupObligations.id,
+      groupId: groupObligations.groupId,
+      authoritativeAt: groupObligations.createdAt,
+      originalAmount: groupObligations.originalAmount,
+      debtorParticipantId: groupObligations.debtorParticipantId,
+      creditorParticipantId: groupObligations.creditorParticipantId,
+    })
+    .from(groupObligations)
+    .where(and(
+      eq(groupObligations.groupId, groupId),
+      or(
+        and(eq(groupObligations.debtorParticipantId, firstParticipantId), eq(groupObligations.creditorParticipantId, secondParticipantId)),
+        and(eq(groupObligations.debtorParticipantId, secondParticipantId), eq(groupObligations.creditorParticipantId, firstParticipantId)),
+      ),
+      lte(groupObligations.createdAt, at),
+      or(isNull(groupObligations.voidedAt), gt(groupObligations.voidedAt, at)),
+    ))
+    .orderBy(asc(groupObligations.id));
+  const obligations = await (lockRows ? query.for("update") : query);
+  return (await applyAvailableObligationApplications(database, obligations, lockRows))
+    .map(({ id, authoritativeAt, originalAmount, paymentAppliedAmount, offsetAppliedAmount, debtorParticipantId, creditorParticipantId }) => ({
+      id,
+      authoritativeAt,
+      originalAmount,
+      paymentAppliedAmount,
+      offsetAppliedAmount,
+      debtorParticipantId,
+      creditorParticipantId,
+    }));
+}
+
+export async function loadAvailableGroupObligationsForParticipants(
+  database: Database,
+  participantIds: string[],
+  at: Date,
+): Promise<AvailableGroupObligationWithGroup[]> {
+  const ids = [...new Set(participantIds)];
+  if (ids.length === 0) return [];
+  const obligations = await database
+    .select({
+      id: groupObligations.id,
+      groupId: groupObligations.groupId,
+      authoritativeAt: groupObligations.createdAt,
+      originalAmount: groupObligations.originalAmount,
+      debtorParticipantId: groupObligations.debtorParticipantId,
+      creditorParticipantId: groupObligations.creditorParticipantId,
+    })
+    .from(groupObligations)
+    .where(and(
+      or(inArray(groupObligations.debtorParticipantId, ids), inArray(groupObligations.creditorParticipantId, ids)),
+      lte(groupObligations.createdAt, at),
+      or(isNull(groupObligations.voidedAt), gt(groupObligations.voidedAt, at)),
+    ))
+    .orderBy(asc(groupObligations.id));
+  return applyAvailableObligationApplications(database, obligations, false);
 }
 
 export async function loadOffsetApplications(database: Database, groupId: string, offsetId: string): Promise<GroupOffsetApplicationPresentation[]> {

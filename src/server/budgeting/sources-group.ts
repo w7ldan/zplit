@@ -12,14 +12,14 @@ import {
   groupObligations,
   groupSettlementApplications,
   groupSettlements,
-  groupMemberships,
   groupParticipants,
   groups,
 } from "@/db/schema";
 import { BudgetError } from "@/domain/budgeting/errors";
 import { LedgerIntegrityError } from "@/domain/ledger-summary";
 import type { LedgerTransaction } from "@/domain/ledger/mutation-hooks";
-import { loadAvailableGroupObligations } from "@/server/group-obligation-applications";
+import { loadAvailableGroupObligationsForParticipants } from "@/server/group-obligation-applications";
+import { loadParticipantMap } from "@/server/group-participant-presentation";
 import { lockBudgetProfiles, lockBudgetProfile } from "./locks";
 
 type ActivePeriod = typeof budgetPeriods.$inferSelect;
@@ -228,15 +228,11 @@ async function groupExpenseSource(transaction: LedgerTransaction, groupExpenseId
 async function groupSettlementSource(transaction: LedgerTransaction, groupSettlementId: string) {
   const [settlement] = await transaction.select().from(groupSettlements).where(eq(groupSettlements.id, groupSettlementId)).limit(1);
   if (!settlement) return null;
-  const participants = await transaction
-    .select({ id: groupParticipants.id, userId: groupParticipants.userId, displayName: groupParticipants.displayName })
-    .from(groupParticipants)
-    .where(and(eq(groupParticipants.groupId, settlement.groupId), inArray(groupParticipants.id, [settlement.senderParticipantId, settlement.recipientParticipantId])));
-  const byId = new Map(participants.map((participant) => [participant.id, participant]));
+  const participants = await loadParticipantMap(transaction as Database, settlement.groupId, [settlement.senderParticipantId, settlement.recipientParticipantId]);
   return {
     ...settlement,
-    sender: byId.get(settlement.senderParticipantId) ?? null,
-    recipient: byId.get(settlement.recipientParticipantId) ?? null,
+    sender: participants.get(settlement.senderParticipantId) ?? null,
+    recipient: participants.get(settlement.recipientParticipantId) ?? null,
   };
 }
 
@@ -328,7 +324,7 @@ function settlementOwnerSide(settlement: NonNullable<Awaited<ReturnType<typeof g
   return null;
 }
 
-function settlementDescription(direction: "outflow" | "inflow", counterparty: { displayName: string | null } | null) {
+export function settlementDescription(direction: "outflow" | "inflow", counterparty: { displayName: string | null } | null) {
   const name = counterparty?.displayName ?? "Group participant";
   return direction === "outflow" ? `Group payment to ${name}` : `Group payment from ${name}`;
 }
@@ -493,26 +489,14 @@ export async function changeGroupObligationBudgetCategory(database: Database, ow
 }
 
 export async function readGroupBudgetSharedMoney(database: Database, ownerUserId: string): Promise<GroupBudgetSharedMoney> {
-  const memberships = await database
-    .select({ groupId: groupMemberships.groupId, participantId: groupMemberships.participantId })
-    .from(groupMemberships)
-    .where(eq(groupMemberships.userId, ownerUserId));
-  if (memberships.length === 0) return { expectedBack: 0, stillOwe: 0, obligations: [] };
-  const participantRows = await database
+  const ownerParticipants = await database
     .select({ groupId: groupParticipants.groupId, participantId: groupParticipants.id })
     .from(groupParticipants)
-    .where(inArray(groupParticipants.groupId, uniqueIds(memberships.map((membership) => membership.groupId))));
-  const participantsByGroup = new Map<string, string[]>();
-  for (const row of participantRows) participantsByGroup.set(row.groupId, [...(participantsByGroup.get(row.groupId) ?? []), row.participantId]);
-  const outstanding = new Map<string, Awaited<ReturnType<typeof loadAvailableGroupObligations>>[number] & { groupId: string }>();
-  const now = new Date();
-  for (const membership of memberships) {
-    for (const participantId of participantsByGroup.get(membership.groupId) ?? []) {
-      if (participantId === membership.participantId) continue;
-      const pair = await loadAvailableGroupObligations(database, membership.groupId, [membership.participantId, participantId], now, false);
-      for (const obligation of pair) outstanding.set(obligation.id, { ...obligation, groupId: membership.groupId });
-    }
-  }
+    .where(eq(groupParticipants.userId, ownerUserId));
+  const ownerParticipantIds = uniqueIds(ownerParticipants.map(({ participantId }) => participantId));
+  if (ownerParticipantIds.length === 0) return { expectedBack: 0, stillOwe: 0, obligations: [] };
+  const available = await loadAvailableGroupObligationsForParticipants(database, ownerParticipantIds, new Date());
+  const outstanding = new Map(available.map((obligation) => [obligation.id, obligation]));
   const rows = outstanding.size === 0 ? [] : await database.select({
     id: groupObligations.id,
     groupId: groupObligations.groupId,
@@ -535,16 +519,15 @@ export async function readGroupBudgetSharedMoney(database: Database, ownerUserId
     .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetGroupObligationClassifications.budgetCategoryId), isNull(budgetCategories.archivedAt)))
     .where(and(eq(budgetGroupObligationClassifications.ownerUserId, ownerUserId), inArray(budgetGroupObligationClassifications.groupObligationId, [...outstanding.keys()])));
   const categoryById = new Map(classifications.map((row) => [row.obligationId, { id: row.categoryId, name: row.categoryName }]));
-  const ownerParticipants = new Map(memberships.map((membership) => [membership.groupId, membership.participantId]));
+  const ownerParticipantIdSet = new Set(ownerParticipantIds);
   let expectedBack = 0;
   let stillOwe = 0;
   const obligations: GroupBudgetObligation[] = [];
   for (const [id, obligation] of outstanding) {
     const amount = obligation.originalAmount - obligation.paymentAppliedAmount - obligation.offsetAppliedAmount;
     if (amount <= 0) continue;
-    const ownerParticipantId = ownerParticipants.get(obligation.groupId);
-    if (obligation.creditorParticipantId === ownerParticipantId) expectedBack += amount;
-    if (obligation.debtorParticipantId !== ownerParticipantId) continue;
+    if (ownerParticipantIdSet.has(obligation.creditorParticipantId)) expectedBack += amount;
+    if (!ownerParticipantIdSet.has(obligation.debtorParticipantId)) continue;
     stillOwe += amount;
     const detail = details.get(id);
     if (!detail) continue;

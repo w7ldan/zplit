@@ -11,13 +11,13 @@ import { formatSafeError, readDatabaseConfig } from "./migrate.js";
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
 if (!require.cache[serverOnlyPath]) require.cache[serverOnlyPath] = { exports: {} } as never;
-const { createGroup } = await import("../src/server/groups");
+const { createGroup, removeGroupMember, requireGroupAccess } = await import("../src/server/groups");
 const { createGroupExpense, confirmGroupExpenseAsPayer, rejectGroupExpenseAsPayer, voidGroupExpenseAsPayer } = await import("../src/server/group-accounting");
 const { createGroupSettlement, confirmGroupSettlement } = await import("../src/server/group-settlements");
 const { createGroupOffset, confirmGroupOffset } = await import("../src/server/group-offsets");
 const { createBudgetSetup } = await import("../src/server/budgeting/profiles");
 const { importBudgetActivity } = await import("../src/server/budgeting/sources-personal");
-const { changeGroupExpenseBudgetCategory, changeGroupObligationBudgetCategory } = await import("../src/server/budgeting/sources-group");
+const { changeGroupExpenseBudgetCategory, changeGroupObligationBudgetCategory, readGroupBudgetSharedMoney } = await import("../src/server/budgeting/sources-group");
 const { listBudgetTransactions } = await import("../src/server/budgeting/transactions");
 
 async function addMember(pool: Pool, groupId: string, userId: string) {
@@ -49,17 +49,24 @@ export async function runBudgetingGroupSmoke() {
     alice: randomUUID(),
     bob: randomUUID(),
     carol: randomUUID(),
+    dave: randomUUID(),
   };
   let groupId = "";
+  const groupIds: string[] = [];
   try {
     for (const [label, id] of Object.entries(users)) {
       await pool.query("INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, true)", [id, label, `b3-${id}@example.com`]);
     }
     const group = await createGroup(database, users.alice, { name: "B3 budget smoke" });
     groupId = group.id;
+    groupIds.push(group.id);
     const aliceParticipant = (await pool.query<{ participant_id: string }>("SELECT participant_id FROM group_memberships WHERE group_id = $1 AND user_id = $2", [groupId, users.alice])).rows[0]!.participant_id;
     const bobParticipant = await addMember(pool, groupId, users.bob);
     const carolParticipant = await addMember(pool, groupId, users.carol);
+
+    const secondGroup = await createGroup(database, users.alice, { name: "B3 second budget smoke" });
+    groupIds.push(secondGroup.id);
+    const daveParticipant = await addMember(pool, secondGroup.id, users.dave);
 
     await createBudgetSetup(database, users.alice, { periodName: "Alice September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 10_000, categories: [{ name: "Food", allocatedAmount: 0 }, { name: "Dining", allocatedAmount: 0 }] });
     await createBudgetSetup(database, users.bob, { periodName: "Bob September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 10_000, categories: [{ name: "Travel", allocatedAmount: 0 }, { name: "Accommodation", allocatedAmount: 0 }] });
@@ -155,6 +162,29 @@ export async function runBudgetingGroupSmoke() {
     await Promise.all([importBudgetActivity(database, users.carol, null), importBudgetActivity(database, users.carol, null)]);
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_group_expense_sources WHERE owner_user_id = $1 AND group_expense_id = $2", [users.carol, importExpense.id]), 1, "concurrent Group imports did not converge");
 
+    await createGroupExpense(database, secondGroup.id, users.alice, {
+      description: "Second Group dinner",
+      occurredAt: new Date("2026-09-11T10:00:00Z"),
+      occurredOn: "2026-09-11",
+      totalAmount: 400,
+      payerParticipantId: (await pool.query<{ participant_id: string }>("SELECT participant_id FROM group_memberships WHERE group_id = $1 AND user_id = $2", [secondGroup.id, users.alice])).rows[0]!.participant_id,
+      shares: [{ participantId: daveParticipant, amount: 400 }],
+    });
+
+    await removeGroupMember(database, groupId, users.alice, users.bob);
+    await removeGroupMember(database, groupId, users.alice, users.carol);
+    await assert.rejects(() => requireGroupAccess(database, groupId, users.bob));
+    await assert.rejects(() => requireGroupAccess(database, groupId, users.carol));
+    const formerDebtorMoney = await readGroupBudgetSharedMoney(database, users.bob);
+    assert.equal(formerDebtorMoney.stillOwe, 100, "former debtor lost the remaining Group obligation");
+    assert.equal(formerDebtorMoney.expectedBack, 0);
+    assert.equal(formerDebtorMoney.obligations.filter(({ id }) => id === obligationId).length, 1, "Group obligation was counted more than once");
+    const formerCreditorMoney = await readGroupBudgetSharedMoney(database, users.carol);
+    assert.equal(formerCreditorMoney.expectedBack, 40, "former creditor lost the remaining Group obligation");
+    const aliceSharedMoney = await readGroupBudgetSharedMoney(database, users.alice);
+    assert.equal(aliceSharedMoney.expectedBack, 500, "active owner did not aggregate multiple Groups/counterparties");
+    assert.equal(aliceSharedMoney.stillOwe, 40);
+
     const outside = await createGroupExpense(database, groupId, users.alice, {
       description: "Outside active period",
       occurredAt: new Date("2026-08-31T10:00:00Z"),
@@ -181,21 +211,43 @@ export async function runBudgetingGroupSmoke() {
     console.error(`Group budgeting smoke failed: ${formatSafeError(error)}`);
     process.exitCode = 1;
   } finally {
-    if (groupId) {
+    const historyTriggers = [
+      "DROP TRIGGER IF EXISTS group_offset_applications_totals ON group_offset_applications",
+      "DROP TRIGGER IF EXISTS group_offset_settlements_applications_complete ON group_offset_settlements",
+      "DROP TRIGGER IF EXISTS group_offset_applications_integrity ON group_offset_applications",
+      "DROP TRIGGER IF EXISTS group_offset_settlements_historical_facts ON group_offset_settlements",
+      "DROP TRIGGER IF EXISTS group_settlement_applications_totals ON group_settlement_applications",
+      "DROP TRIGGER IF EXISTS group_settlements_applications_complete ON group_settlements",
+      "DROP TRIGGER IF EXISTS group_settlement_applications_integrity ON group_settlement_applications",
+      "DROP TRIGGER IF EXISTS group_settlements_historical_facts ON group_settlements",
+    ];
+    for (const statement of historyTriggers) await pool.query(statement);
+    try {
       await pool.query("DELETE FROM budget_group_obligation_classifications WHERE owner_user_id = ANY($1::text[])", [Object.values(users)]);
       await pool.query("DELETE FROM budget_group_expense_sources WHERE owner_user_id = ANY($1::text[])", [Object.values(users)]);
       await pool.query("DELETE FROM budget_group_settlement_sources WHERE owner_user_id = ANY($1::text[])", [Object.values(users)]);
-      await pool.query("DELETE FROM group_offset_applications WHERE group_id = $1", [groupId]);
-      await pool.query("DELETE FROM group_offset_settlements WHERE group_id = $1", [groupId]);
-      await pool.query("DELETE FROM group_settlement_applications WHERE group_id = $1", [groupId]);
-      await pool.query("DELETE FROM group_settlements WHERE group_id = $1", [groupId]);
-      await pool.query("DELETE FROM group_expense_lifecycle_events WHERE group_id = $1", [groupId]);
-      await pool.query("DELETE FROM group_obligations WHERE group_id = $1", [groupId]);
-      await pool.query("DELETE FROM group_expense_shares WHERE group_id = $1", [groupId]);
-      await pool.query("DELETE FROM group_expenses WHERE group_id = $1", [groupId]);
-      await pool.query("DELETE FROM group_memberships WHERE group_id = $1", [groupId]);
-      await pool.query("DELETE FROM group_participants WHERE group_id = $1", [groupId]);
-      await pool.query("DELETE FROM groups WHERE id = $1", [groupId]);
+      for (const currentGroupId of groupIds) {
+        await pool.query("DELETE FROM group_offset_applications WHERE group_id = $1", [currentGroupId]);
+        await pool.query("DELETE FROM group_offset_settlements WHERE group_id = $1", [currentGroupId]);
+        await pool.query("DELETE FROM group_settlement_applications WHERE group_id = $1", [currentGroupId]);
+        await pool.query("DELETE FROM group_settlements WHERE group_id = $1", [currentGroupId]);
+        await pool.query("DELETE FROM group_expense_lifecycle_events WHERE group_id = $1", [currentGroupId]);
+        await pool.query("DELETE FROM group_obligations WHERE group_id = $1", [currentGroupId]);
+        await pool.query("DELETE FROM group_expense_shares WHERE group_id = $1", [currentGroupId]);
+        await pool.query("DELETE FROM group_expenses WHERE group_id = $1", [currentGroupId]);
+        await pool.query("DELETE FROM group_memberships WHERE group_id = $1", [currentGroupId]);
+        await pool.query("DELETE FROM group_participants WHERE group_id = $1", [currentGroupId]);
+        await pool.query("DELETE FROM groups WHERE id = $1", [currentGroupId]);
+      }
+    } finally {
+      await pool.query("CREATE TRIGGER group_offset_applications_integrity BEFORE INSERT OR UPDATE OR DELETE ON group_offset_applications FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_offset_application()");
+      await pool.query("CREATE CONSTRAINT TRIGGER group_offset_settlements_applications_complete AFTER INSERT OR UPDATE ON group_offset_settlements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_offset_application_totals()");
+      await pool.query("CREATE CONSTRAINT TRIGGER group_offset_applications_totals AFTER INSERT ON group_offset_applications DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_offset_application_totals()");
+      await pool.query("CREATE TRIGGER group_offset_settlements_historical_facts BEFORE INSERT OR UPDATE OR DELETE ON group_offset_settlements FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_offset_settlement()");
+      await pool.query("CREATE TRIGGER group_settlement_applications_integrity BEFORE INSERT OR UPDATE OR DELETE ON group_settlement_applications FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_settlement_application()");
+      await pool.query("CREATE CONSTRAINT TRIGGER group_settlements_applications_complete AFTER INSERT OR UPDATE ON group_settlements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_settlement_application_totals()");
+      await pool.query("CREATE CONSTRAINT TRIGGER group_settlement_applications_totals AFTER INSERT ON group_settlement_applications DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_settlement_application_totals()");
+      await pool.query("CREATE TRIGGER group_settlements_historical_facts BEFORE INSERT OR UPDATE OR DELETE ON group_settlements FOR EACH ROW EXECUTE FUNCTION zplit_validate_group_settlement()");
     }
     await pool.query("DELETE FROM users WHERE id = ANY($1::text[])", [Object.values(users)]);
     await pool.end();
