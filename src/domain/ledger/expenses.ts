@@ -3,6 +3,7 @@ import type { Database } from "../../db/client";
 import { debtorShareReceipts, expenseCharges, expenseChargeTargets, expenseReceipts, expenseShares, expenses, friends, outings, repaymentAllocations, trips } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
 import { calculateShareBreakdown } from "../expense-share-input";
+import type { ExpenseBudgetParticipation } from "../budgeting/participation";
 import type { RepaymentAllocationRepository } from "./allocations";
 import type { PersonalBudgetMutationHooks } from "./mutation-hooks";
 import { ExpenseShareAllocationInvariantError, ExpenseShareInvariantError, LedgerRepositoryError } from "./errors";
@@ -457,7 +458,7 @@ async function assertOwnedOuting(transaction: Parameters<Parameters<Database["tr
     if (!outing) return notFound();
   }
 
-async function createExpense(input: CreateExpenseInput) {
+async function createExpense(input: CreateExpenseInput, budgetParticipation?: ExpenseBudgetParticipation) {
     assertExpenseInput(input);
     try {
       return await database.transaction(async (transaction) => {
@@ -465,7 +466,7 @@ async function createExpense(input: CreateExpenseInput) {
         await assertOwnedOuting(transaction, input.outingId);
         const [expense] = await transaction.insert(expenses).values({ ...input, ledgerScopeId: scope }).returning();
         if (!expense) return persistenceError(new Error("expense insert returned no row"));
-        await personalBudget?.reconcileExpense(transaction, expense.id);
+        await personalBudget?.reconcileExpense(transaction, expense.id, budgetParticipation);
         const [created] = await transaction
           .select(expenseSelection())
           .from(expenses)

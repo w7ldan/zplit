@@ -3,6 +3,7 @@ import type { Database } from "@/db/client";
 import {
   budgetCategories,
   budgetImpacts,
+  budgetPersonalExpenseExclusions,
   budgetPersonalExpenseSources,
   budgetPersonalRepaymentSources,
   budgetProfiles,
@@ -16,6 +17,7 @@ import {
   friends,
 } from "@/db/schema";
 import { BudgetError } from "@/domain/budgeting/errors";
+import type { ExpenseBudgetParticipation } from "@/domain/budgeting/participation";
 import { splitBudgetAmount } from "@/domain/budgeting/spread";
 import { LedgerIntegrityError } from "@/domain/ledger-summary";
 import type { LedgerTransaction, PersonalBudgetMutationHooks } from "@/domain/ledger/mutation-hooks";
@@ -24,6 +26,11 @@ import { lockBudgetProfile } from "./locks";
 type ActivePeriod = typeof budgetPeriods.$inferSelect;
 
 export type PersonalBudgetIntegration = PersonalBudgetMutationHooks;
+
+export type PersonalExpenseBudgetState =
+  | { status: "included"; transactionId: string; categoryId: string | null; categoryName: string }
+  | { status: "not_included" }
+  | { status: "unprocessed" };
 
 type BudgetTransactionRecord = typeof budgetTransactions.$inferSelect;
 
@@ -136,6 +143,53 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
     return link ?? null;
   }
 
+  async function expenseExcluded(transaction: LedgerTransaction, expenseId: string) {
+    const [exclusion] = await transaction
+      .select({ expenseId: budgetPersonalExpenseExclusions.expenseId })
+      .from(budgetPersonalExpenseExclusions)
+      .where(and(eq(budgetPersonalExpenseExclusions.ownerUserId, ownerUserId), eq(budgetPersonalExpenseExclusions.expenseId, expenseId)))
+      .limit(1);
+    return Boolean(exclusion);
+  }
+
+  async function recordExpenseExclusion(transaction: LedgerTransaction, expenseId: string) {
+    await transaction
+      .insert(budgetPersonalExpenseExclusions)
+      .values({ ownerUserId, expenseId })
+      .onConflictDoNothing({ target: [budgetPersonalExpenseExclusions.ownerUserId, budgetPersonalExpenseExclusions.expenseId] });
+  }
+
+  async function resolveParticipationCategoryId(transaction: LedgerTransaction, categoryId: string | null) {
+    if (!categoryId) return null;
+    const [category] = await transaction
+      .select({ id: budgetCategories.id })
+      .from(budgetCategories)
+      .where(and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, categoryId), isNull(budgetCategories.archivedAt)))
+      .limit(1);
+    if (!category) throw new BudgetError("NOT_FOUND", "That budget category is no longer available.");
+    return category.id;
+  }
+
+  /**
+   * Applies the creation-time decision, if any, and reports whether this
+   * source must stay out of the Budget. Without a decision the persisted
+   * exclusion still wins over the legacy "eligible until imported" default.
+   */
+  async function applyParticipationDecision(
+    transaction: LedgerTransaction,
+    expenseId: string,
+    existing: Awaited<ReturnType<typeof expenseLink>>,
+    participation?: ExpenseBudgetParticipation,
+  ): Promise<{ excluded: boolean; categoryId: string | null }> {
+    if (participation && !participation.includeInBudget) {
+      await recordExpenseExclusion(transaction, expenseId);
+      return { excluded: true, categoryId: null };
+    }
+    if (!existing && await expenseExcluded(transaction, expenseId)) return { excluded: true, categoryId: null };
+    if (participation?.includeInBudget) return { excluded: false, categoryId: await resolveParticipationCategoryId(transaction, participation.categoryId) };
+    return { excluded: false, categoryId: null };
+  }
+
   async function repaymentLink(transaction: LedgerTransaction, repaymentId: string) {
     const [link] = await transaction
       .select({ link: budgetPersonalRepaymentSources, transaction: budgetTransactions })
@@ -218,10 +272,13 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
     return existing;
   }
 
-  async function reconcileExpenseWithPeriod(transaction: LedgerTransaction, expenseId: string, period: ActivePeriod | null) {
+  async function reconcileExpenseWithPeriod(transaction: LedgerTransaction, expenseId: string, period: ActivePeriod | null, participation?: ExpenseBudgetParticipation) {
     const expense = await getExpense(transaction, expenseId);
     if (!expense) return;
     const existing = await expenseLink(transaction, expenseId);
+    const decision = await applyParticipationDecision(transaction, expenseId, existing, participation);
+    if (decision.excluded) return;
+    const participationCategoryId = decision.categoryId;
     if (!expense.occurredOn) {
       if (existing && existing.transaction.status === "posted") {
         await transaction.update(budgetTransactions).set({ status: "voided", voidedAt: new Date(), updatedAt: new Date() }).where(and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, existing.transaction.id)));
@@ -232,8 +289,8 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
     if (!existing) await createExpenseLink(transaction, expenseId, linkedTransaction.id);
     const impacts = await lockImpacts(transaction, linkedTransaction.id);
     if (impacts.length === 0 && period && isInside(period, expense.occurredOn)) {
-      const uncategorizedId = await getUncategorizedId(transaction);
-      await transaction.insert(budgetImpacts).values({ ownerUserId, budgetTransactionId: linkedTransaction.id, budgetCategoryId: uncategorizedId, budgetPeriodId: period.id, amount: expense.amount, status: "applied", targetPeriodOrdinal: period.ordinal });
+      const categoryId = participationCategoryId ?? await getUncategorizedId(transaction);
+      await transaction.insert(budgetImpacts).values({ ownerUserId, budgetTransactionId: linkedTransaction.id, budgetCategoryId: categoryId, budgetPeriodId: period.id, amount: expense.amount, status: "applied", targetPeriodOrdinal: period.ordinal });
     } else if (impacts.length === 1) {
       await transaction.update(budgetImpacts).set({ amount: expense.amount, updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, impacts[0]!.id)));
     } else if (impacts.length > 1) {
@@ -313,9 +370,9 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
     }
   }
 
-  async function reconcileExpense(transaction: LedgerTransaction, expenseId: string) {
+  async function reconcileExpense(transaction: LedgerTransaction, expenseId: string, participation?: ExpenseBudgetParticipation) {
     const period = await lockProfileAndPeriod(transaction);
-    if (period !== undefined) await reconcileExpenseWithPeriod(transaction, expenseId, period);
+    if (period !== undefined) await reconcileExpenseWithPeriod(transaction, expenseId, period, participation);
   }
 
   async function reconcileRepayment(transaction: LedgerTransaction, repaymentId: string) {
@@ -435,6 +492,7 @@ export async function hasImportablePersonalActivity(database: Database, ownerUse
         gte(outings.occurredOn, period.startsOn),
         lte(outings.occurredOn, period.endsOn),
         sql`not exists (select 1 from ${budgetPersonalExpenseSources} source where source.owner_user_id = ${ownerUserId} and source.expense_id = ${expenses.id})`,
+        sql`not exists (select 1 from ${budgetPersonalExpenseExclusions} exclusion where exclusion.owner_user_id = ${ownerUserId} and exclusion.expense_id = ${expenses.id})`,
       )),
     database
       .select({ count: sql<number>`count(*)`.mapWith(Number) })
@@ -479,7 +537,7 @@ export async function importBudgetActivity(database: Database, ownerUserId: stri
         .select({ id: expenses.id })
         .from(expenses)
         .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
-        .where(and(eq(expenses.ledgerScopeId, scope), gte(outings.occurredOn, period.startsOn), lte(outings.occurredOn, period.endsOn), sql`not exists (select 1 from ${budgetPersonalExpenseSources} source where source.owner_user_id = ${ownerUserId} and source.expense_id = ${expenses.id})`))
+        .where(and(eq(expenses.ledgerScopeId, scope), gte(outings.occurredOn, period.startsOn), lte(outings.occurredOn, period.endsOn), sql`not exists (select 1 from ${budgetPersonalExpenseSources} source where source.owner_user_id = ${ownerUserId} and source.expense_id = ${expenses.id})`, sql`not exists (select 1 from ${budgetPersonalExpenseExclusions} exclusion where exclusion.owner_user_id = ${ownerUserId} and exclusion.expense_id = ${expenses.id})`))
         .orderBy(asc(outings.occurredOn), asc(expenses.id));
       const repaymentRows = await transaction
         .select({ id: repayments.id })
@@ -512,7 +570,7 @@ export async function importPersonalActivity(database: Database, ownerUserId: st
       .select({ id: expenses.id })
       .from(expenses)
       .innerJoin(outings, and(eq(outings.ledgerScopeId, scope), eq(outings.id, expenses.outingId)))
-      .where(and(eq(expenses.ledgerScopeId, scope), gte(outings.occurredOn, period.startsOn), lte(outings.occurredOn, period.endsOn), sql`not exists (select 1 from ${budgetPersonalExpenseSources} source where source.owner_user_id = ${ownerUserId} and source.expense_id = ${expenses.id})`))
+      .where(and(eq(expenses.ledgerScopeId, scope), gte(outings.occurredOn, period.startsOn), lte(outings.occurredOn, period.endsOn), sql`not exists (select 1 from ${budgetPersonalExpenseSources} source where source.owner_user_id = ${ownerUserId} and source.expense_id = ${expenses.id})`, sql`not exists (select 1 from ${budgetPersonalExpenseExclusions} exclusion where exclusion.owner_user_id = ${ownerUserId} and exclusion.expense_id = ${expenses.id})`))
       .orderBy(asc(outings.occurredOn), asc(expenses.id));
     const repaymentRows = await transaction
       .select({ id: repayments.id })
@@ -524,4 +582,44 @@ export async function importPersonalActivity(database: Database, ownerUserId: st
     for (const repayment of repaymentRows) await integration.reconcileRepayment(transaction as LedgerTransaction, repayment.id);
     return { expenseCount: expenseRows.length, repaymentCount: repaymentRows.length };
   });
+}
+
+/**
+ * Private Budget participation for one Personal expense, read for the expense
+ * detail surface. `unprocessed` means no decision and no link: a legacy source
+ * that existing import/reconciliation behavior may still absorb.
+ */
+export async function getPersonalExpenseBudgetState(database: Database, ownerUserId: string, scope: string, expenseId: string): Promise<PersonalExpenseBudgetState> {
+  const [link] = await database
+    .select({
+      transactionId: budgetTransactions.id,
+      categoryId: budgetImpacts.budgetCategoryId,
+      categoryName: budgetCategories.name,
+    })
+    .from(budgetPersonalExpenseSources)
+    .innerJoin(expenses, and(eq(expenses.ledgerScopeId, scope), eq(expenses.id, budgetPersonalExpenseSources.expenseId)))
+    .innerJoin(budgetTransactions, and(
+      eq(budgetTransactions.ownerUserId, ownerUserId),
+      eq(budgetTransactions.id, budgetPersonalExpenseSources.budgetTransactionId),
+      eq(budgetTransactions.status, "posted"),
+    ))
+    .leftJoin(budgetImpacts, and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, budgetTransactions.id)))
+    .leftJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetImpacts.budgetCategoryId)))
+    .where(and(eq(budgetPersonalExpenseSources.ownerUserId, ownerUserId), eq(budgetPersonalExpenseSources.expenseId, expenseId)))
+    .orderBy(asc(budgetImpacts.targetPeriodOrdinal), asc(budgetImpacts.id))
+    .limit(1);
+  if (link) {
+    return {
+      status: "included",
+      transactionId: link.transactionId,
+      categoryId: link.categoryId ?? null,
+      categoryName: link.categoryName ?? "Uncategorized",
+    };
+  }
+  const [exclusion] = await database
+    .select({ expenseId: budgetPersonalExpenseExclusions.expenseId })
+    .from(budgetPersonalExpenseExclusions)
+    .where(and(eq(budgetPersonalExpenseExclusions.ownerUserId, ownerUserId), eq(budgetPersonalExpenseExclusions.expenseId, expenseId)))
+    .limit(1);
+  return exclusion ? { status: "not_included" } : { status: "unprocessed" };
 }

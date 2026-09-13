@@ -49,8 +49,10 @@ export const SCALE_FIXTURE_COUNTS = {
   budgetTransactions: 3_147,
   budgetImpacts: 3_008,
   budgetPersonalExpenseSources: 461,
+  budgetPersonalExpenseExclusions: 6,
   budgetPersonalRepaymentSources: 118,
   budgetGroupExpenseSources: 162,
+  budgetGroupExpenseExclusions: 4,
   budgetGroupSettlementSources: 10,
   budgetGroupObligationClassifications: 5,
   recurringTemplates: 75,
@@ -237,8 +239,10 @@ export type ScaleFixtureData = {
   budgetTransactions: FixtureBudgetTransaction[];
   budgetImpacts: FixtureBudgetImpact[];
   budgetPersonalExpenseSources: FixtureBudgetPersonalExpenseSource[];
+  budgetPersonalExpenseExclusions: FixtureBudgetPersonalExpenseExclusion[];
   budgetPersonalRepaymentSources: FixtureBudgetPersonalRepaymentSource[];
   budgetGroupExpenseSources: FixtureBudgetGroupExpenseSource[];
+  budgetGroupExpenseExclusions: FixtureBudgetGroupExpenseExclusion[];
   budgetGroupSettlementSources: FixtureBudgetGroupSettlementSource[];
   budgetGroupObligationClassifications: FixtureBudgetGroupObligationClassification[];
   recurringTemplates: FixtureBudgetRecurringTemplate[];
@@ -1663,16 +1667,26 @@ function buildPersonalBudgetLinks(
   repayments: FixtureRepayment[],
 ) {
   const outingById = new Map(outings.map((outing) => [outing.id, outing]));
+  const linkedExpenseIds = new Set<string>();
+  let variedCategoryCount = 0;
   expenses.forEach((expense, expenseIndex) => {
     if ((expenseIndex * 7 + 3) % 13 >= 3) return;
     const outing = outingById.get(expense.outingId)!;
+    const period = periodForBudgetDate(ctx, outing.occurredOn);
+    // Category variety stays historical so the accepted active Budget totals
+    // and per-category nets are untouched.
+    const variedCategory = period !== undefined && period.ordinal < 20 && variedCategoryCount < 8;
+    const categoryId = variedCategory
+      ? ctx.categoryByName.get(SCALE_LINKED_VARIED_CATEGORY_NAMES[variedCategoryCount % SCALE_LINKED_VARIED_CATEGORY_NAMES.length]!)!.id
+      : ctx.uncategorizedId;
+    if (variedCategory) variedCategoryCount += 1;
     const transactionId = pushBudgetTransaction(ctx, {
       direction: "outflow", amount: expense.amount, description: expense.description,
       occurredOn: outing.occurredOn, status: "posted", origin: "linked",
     });
     ctx.fixture.budgetPersonalExpenseSources.push({ budgetTransactionId: transactionId, expenseId: expense.id });
-    const period = periodForBudgetDate(ctx, outing.occurredOn);
-    if (period) pushBudgetImpact(ctx, transactionId, ctx.uncategorizedId, period.id, expense.amount, "applied", period.ordinal);
+    linkedExpenseIds.add(expense.id);
+    if (period) pushBudgetImpact(ctx, transactionId, categoryId, period.id, expense.amount, "applied", period.ordinal);
   });
   repayments.forEach((repayment, repaymentIndex) => {
     if ((repaymentIndex * 5 + 1) % 17 >= 2) return;
@@ -1684,6 +1698,28 @@ function buildPersonalBudgetLinks(
     const period = periodForBudgetDate(ctx, repayment.paidOn);
     if (period) pushBudgetImpact(ctx, transactionId, ctx.uncategorizedId, period.id, repayment.amount, "applied", period.ordinal);
   });
+  for (const expense of buildExcludedPersonalExpenses(ctx, outingById, expenses, linkedExpenseIds)) {
+    ctx.fixture.budgetPersonalExpenseExclusions.push({ expenseId: expense.id });
+  }
+}
+
+// Explicit creation-time exclusions are deliberately rare: most scale
+// expenses stay linked or legacy-importable. The first entry is an eligible
+// active-period source so import skipping is exercised by the fixture.
+function buildExcludedPersonalExpenses(
+  ctx: BudgetBuildContext,
+  outingById: Map<string, FixtureOuting>,
+  expenses: FixtureExpense[],
+  linkedExpenseIds: Set<string>,
+) {
+  const candidates = expenses
+    .filter((expense) => !linkedExpenseIds.has(expense.id))
+    .map((expense) => ({ expense, occurredOn: outingById.get(expense.outingId)!.occurredOn }))
+    .filter((entry): entry is { expense: FixtureExpense; occurredOn: string } => entry.occurredOn !== null)
+    .sort((left, right) => left.occurredOn.localeCompare(right.occurredOn) || (left.expense.id < right.expense.id ? -1 : 1));
+  const active = candidates.find((entry) => entry.occurredOn >= ctx.activePeriod.startsOn && entry.occurredOn <= ctx.activePeriod.endsOn);
+  const ordered = [...(active ? [active] : []), ...candidates.filter((entry) => entry !== active)];
+  return ordered.slice(0, SCALE_FIXTURE_COUNTS.budgetPersonalExpenseExclusions).map((entry) => entry.expense);
 }
 
 function buildGroupBudgetLinks(ctx: BudgetBuildContext, groups: ScaleGroupFixture) {
@@ -1703,15 +1739,24 @@ function buildGroupBudgetLinks(ctx: BudgetBuildContext, groups: ScaleGroupFixtur
     activeOwnerExpenses.push(expense);
     activeBudget += expense.totalAmount;
   }
-  [...historicalOwnerExpenses, ...activeOwnerExpenses].forEach((expense) => {
+  const linkedGroupExpenseIds = new Set<string>();
+  const linkedExpenses = [...historicalOwnerExpenses, ...activeOwnerExpenses];
+  linkedExpenses.forEach((expense) => {
     const transactionId = pushBudgetTransaction(ctx, {
       direction: "outflow", amount: expense.totalAmount, description: `Group: ${expense.description}`.slice(0, 240),
       occurredOn: expense.occurredOn, status: "posted", origin: "linked",
     });
     ctx.fixture.budgetGroupExpenseSources.push({ budgetTransactionId: transactionId, groupExpenseId: expense.id });
+    linkedGroupExpenseIds.add(expense.id);
     const period = periodForBudgetDate(ctx, expense.occurredOn);
     if (period && expense.occurredOn) pushBudgetImpact(ctx, transactionId, ctx.uncategorizedId, period.id, expense.totalAmount, "applied", period.ordinal);
   });
+  // The current-user payer explicitly excluded a small number of eligible
+  // Group expenses, including active-period sources the linked subset skipped.
+  ownerPayerExpenses
+    .filter((expense) => !linkedGroupExpenseIds.has(expense.id) && expense.occurredOn >= ctx.activePeriod.startsOn && expense.occurredOn <= ctx.activePeriod.endsOn)
+    .slice(0, SCALE_FIXTURE_COUNTS.budgetGroupExpenseExclusions)
+    .forEach((expense) => ctx.fixture.budgetGroupExpenseExclusions.push({ groupExpenseId: expense.id }));
   const ownerSettlements = groups.groupSettlements.filter((settlement) => {
     if (settlement.state !== "confirmed" || !settlement.paidOn) return false;
     const sender = participantById.get(settlement.senderParticipantId);
@@ -2378,8 +2423,10 @@ export type FixtureBudgetRecurringOccurrence = {
 };
 
 export type FixtureBudgetPersonalExpenseSource = { budgetTransactionId: string; expenseId: string };
+export type FixtureBudgetPersonalExpenseExclusion = { expenseId: string };
 export type FixtureBudgetPersonalRepaymentSource = { budgetTransactionId: string; repaymentId: string };
 export type FixtureBudgetGroupExpenseSource = { budgetTransactionId: string; groupExpenseId: string };
+export type FixtureBudgetGroupExpenseExclusion = { groupExpenseId: string };
 export type FixtureBudgetGroupSettlementSource = { budgetTransactionId: string; groupSettlementId: string };
 export type FixtureBudgetGroupObligationClassification = { groupObligationId: string; budgetCategoryId: string };
 
@@ -2390,8 +2437,10 @@ export type ScaleBudgetFixture = {
   budgetTransactions: FixtureBudgetTransaction[];
   budgetImpacts: FixtureBudgetImpact[];
   budgetPersonalExpenseSources: FixtureBudgetPersonalExpenseSource[];
+  budgetPersonalExpenseExclusions: FixtureBudgetPersonalExpenseExclusion[];
   budgetPersonalRepaymentSources: FixtureBudgetPersonalRepaymentSource[];
   budgetGroupExpenseSources: FixtureBudgetGroupExpenseSource[];
+  budgetGroupExpenseExclusions: FixtureBudgetGroupExpenseExclusion[];
   budgetGroupSettlementSources: FixtureBudgetGroupSettlementSource[];
   budgetGroupObligationClassifications: FixtureBudgetGroupObligationClassification[];
   recurringTemplates: FixtureBudgetRecurringTemplate[];
@@ -2419,6 +2468,9 @@ const SCALE_BUDGET_DESCRIPTIONS = [
   "Oleh-oleh", "Cetak foto", "Peralatan", "Kado", "Zakat", "Tabungan",
   "Gaji masuk", "Refund", "Bonus", "Cashback", "Penjualan preloved",
 ];
+
+// Category variety for a bounded set of historical linked Personal expenses.
+const SCALE_LINKED_VARIED_CATEGORY_NAMES = ["Makanan", "Transportasi", "Belanja", "Kesehatan", "Tagihan"];
 
 const SCALE_RECURRING_NAMES = [
   "Netflix", "Spotify", "Internet bulanan", "Kos bulanan", "Heavy Recurring",
@@ -2463,8 +2515,10 @@ function generateBudget(
   const fixture: ScaleBudgetFixture = {
     budgetPeriods: [], budgetCategories: [], budgetPeriodCategories: [],
     budgetTransactions: [], budgetImpacts: [],
-    budgetPersonalExpenseSources: [], budgetPersonalRepaymentSources: [],
-    budgetGroupExpenseSources: [], budgetGroupSettlementSources: [],
+    budgetPersonalExpenseSources: [], budgetPersonalExpenseExclusions: [],
+    budgetPersonalRepaymentSources: [],
+    budgetGroupExpenseSources: [], budgetGroupExpenseExclusions: [],
+    budgetGroupSettlementSources: [],
     budgetGroupObligationClassifications: [],
     recurringTemplates: [], recurringOccurrences: [],
   };
@@ -2482,7 +2536,9 @@ function generateBudget(
   buildSpreadBudgetTransactions(ctx);
 
   // Linked Personal activity: full-amount flows with Uncategorized absorption
-  // in-period and zero-impact links outside budget coverage.
+  // in-period and zero-impact links outside budget coverage. A bounded set of
+  // historical links carries category variety, and a small deterministic
+  // sample of eligible sources is explicitly excluded from Budget.
   buildPersonalBudgetLinks(ctx, outings, expenses, repayments);
   buildGroupBudgetLinks(ctx, groups);
   buildRecurringTemplates(ctx);

@@ -21,6 +21,7 @@ Repository tests exercise owner-scoped reads and writes, composite relationships
 
 ```sh
 npm run test:database
+npm run test:budget-participation
 npm run test:record-retrieval
 npm run test:auth
 npm run test:invitations
@@ -101,7 +102,9 @@ On top of that baseline the same scale owner holds:
   transactions across manual, linked Personal, linked Group, and recurring
   origins, ~3,120 impacts with applied/pending authority intact, spread
   plans, 60 active plus 15 archived recurring templates (Heavy Recurring),
-  and ~390 due/recorded/skipped occurrences;
+  and ~390 due/recorded/skipped occurrences; a bounded deterministic sample
+  of explicitly excluded Personal and Group expenses carries durable
+  owner-private exclusions while legacy unlinked sources stay importable;
 - ~260 notifications across the supported families (unread and read,
   recent and older) and ~2,000 chat messages across all Group and
   Organization threads, including a 1,300-message thread for scroll testing.

@@ -1455,6 +1455,7 @@ export const budgetProfiles = pgTable("budget_profiles", {
   ownerUserId: text("owner_user_id")
     .primaryKey()
     .references(() => users.id, { onDelete: "cascade" }),
+  includeNewExpensesByDefault: boolean("include_new_expenses_by_default").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -1725,6 +1726,23 @@ export const budgetPersonalExpenseSources = pgTable(
   ],
 );
 
+export const budgetPersonalExpenseExclusions = pgTable(
+  "budget_personal_expense_exclusions",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expenseId: uuid("expense_id")
+      .notNull()
+      .references(() => expenses.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.ownerUserId, table.expenseId], name: "budget_personal_expense_exclusions_pkey" }),
+    index("budget_personal_expense_exclusions_expense_idx").on(table.expenseId),
+  ],
+);
+
 export const budgetPersonalRepaymentSources = pgTable(
   "budget_personal_repayment_sources",
   {
@@ -1770,6 +1788,23 @@ export const budgetGroupExpenseSources = pgTable(
     unique("budget_group_expense_sources_owner_expense_unique").on(table.ownerUserId, table.groupExpenseId),
     unique("budget_group_expense_sources_owner_transaction_unique").on(table.ownerUserId, table.budgetTransactionId),
     index("budget_group_expense_sources_expense_idx").on(table.groupExpenseId),
+  ],
+);
+
+export const budgetGroupExpenseExclusions = pgTable(
+  "budget_group_expense_exclusions",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    groupExpenseId: uuid("group_expense_id")
+      .notNull()
+      .references(() => groupExpenses.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.ownerUserId, table.groupExpenseId], name: "budget_group_expense_exclusions_pkey" }),
+    index("budget_group_expense_exclusions_expense_idx").on(table.groupExpenseId),
   ],
 );
 

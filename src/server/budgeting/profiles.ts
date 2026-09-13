@@ -6,6 +6,7 @@ import { BudgetError } from "@/domain/budgeting/errors";
 import { isValidBudgetDate } from "@/domain/budgeting/dates";
 import { MAX_RUPIAH } from "@/domain/budgeting/amounts";
 import { databaseCode } from "@/server/database-error-code";
+import { listBudgetCategoryOptions } from "./categories";
 
 export type BudgetSetupInput = {
   periodName: string;
@@ -39,6 +40,53 @@ function validateSetup(input: BudgetSetupInput) {
 export async function getBudgetProfile(database: Database, ownerUserId: string) {
   const [profile] = await database.select().from(budgetProfiles).where(eq(budgetProfiles.ownerUserId, ownerUserId)).limit(1);
   return profile ?? null;
+}
+
+export type ExpenseBudgetControlOptions = {
+  defaultIncluded: boolean;
+  defaultCategoryId: string;
+  categories: Array<{ id: string; name: string }>;
+};
+
+/**
+ * The private preference plus the owner's usable categories for an eligible
+ * expense create form. `undefined` means the owner has not configured
+ * Budgeting.
+ */
+export async function getExpenseBudgetControl(database: Database, ownerUserId: string): Promise<ExpenseBudgetControlOptions | undefined> {
+  const profile = await getBudgetProfile(database, ownerUserId);
+  if (!profile) return undefined;
+  const categories = await listBudgetCategoryOptions(database, ownerUserId);
+  if (categories.length === 0) return undefined;
+  return {
+    defaultIncluded: profile.includeNewExpensesByDefault,
+    defaultCategoryId: categories.find((category) => category.name === "Uncategorized")?.id ?? categories[0]!.id,
+    categories,
+  };
+}
+
+/**
+ * The single private preference that seeds the creation-time Budget control.
+ * It only affects forms rendered afterwards; existing sources keep their
+ * recorded participation.
+ */
+export async function setBudgetIncludeNewExpensesByDefault(database: Database, ownerUserId: string, includeNewExpensesByDefault: boolean) {
+  return database.transaction(async (transaction) => {
+    const [profile] = await transaction
+      .select({ ownerUserId: budgetProfiles.ownerUserId })
+      .from(budgetProfiles)
+      .where(eq(budgetProfiles.ownerUserId, ownerUserId))
+      .limit(1)
+      .for("update");
+    if (!profile) throw new BudgetError("NOT_CONFIGURED", "Budgeting is not configured.");
+    const [updated] = await transaction
+      .update(budgetProfiles)
+      .set({ includeNewExpensesByDefault, updatedAt: new Date() })
+      .where(eq(budgetProfiles.ownerUserId, ownerUserId))
+      .returning();
+    if (!updated) throw new BudgetError("CONFLICT", "The Budget preference could not be saved.");
+    return updated;
+  });
 }
 
 export async function createBudgetSetup(database: Database, ownerUserId: string, input: BudgetSetupInput) {

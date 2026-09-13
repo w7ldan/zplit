@@ -8,7 +8,7 @@ function tableNames(table: unknown) {
 
 describe("budgeting schema", () => {
   it("defines the private user-owned budgeting model", () => {
-    expect(tableNames(schema.budgetProfiles)).toEqual(["owner_user_id", "created_at", "updated_at"]);
+    expect(tableNames(schema.budgetProfiles)).toEqual(["owner_user_id", "include_new_expenses_by_default", "created_at", "updated_at"]);
     expect(tableNames(schema.budgetPeriods)).toEqual([
       "id", "owner_user_id", "ordinal", "name", "starts_on", "ends_on", "total_budget", "status", "created_at", "updated_at",
     ]);
@@ -79,6 +79,7 @@ describe("budgeting schema", () => {
   it("defines typed Personal source links without polymorphic source columns", () => {
     expect(tableNames(schema.budgetPersonalExpenseSources)).toEqual(["owner_user_id", "budget_transaction_id", "expense_id", "created_at"]);
     expect(tableNames(schema.budgetPersonalRepaymentSources)).toEqual(["owner_user_id", "budget_transaction_id", "repayment_id", "created_at"]);
+    expect(tableNames(schema.budgetPersonalExpenseExclusions)).toEqual(["owner_user_id", "expense_id", "created_at"]);
     for (const table of [schema.budgetPersonalExpenseSources, schema.budgetPersonalRepaymentSources]) {
       const config = getTableConfig(table);
       expect(config.uniqueConstraints.map((constraint) => constraint.name)).toEqual(expect.arrayContaining([
@@ -87,11 +88,15 @@ describe("budgeting schema", () => {
       ]));
       expect(config.foreignKeys.length).toBe(3);
     }
+    const exclusions = getTableConfig(schema.budgetPersonalExpenseExclusions);
+    expect(exclusions.primaryKeys.map((key) => key.getName())).toEqual(["budget_personal_expense_exclusions_pkey"]);
+    expect(exclusions.foreignKeys.length).toBe(2);
   });
 
   it("defines typed Group source links and owner-private obligation classifications", () => {
     expect(tableNames(schema.budgetGroupExpenseSources)).toEqual(["owner_user_id", "budget_transaction_id", "group_expense_id", "created_at"]);
     expect(tableNames(schema.budgetGroupSettlementSources)).toEqual(["owner_user_id", "budget_transaction_id", "group_settlement_id", "created_at"]);
+    expect(tableNames(schema.budgetGroupExpenseExclusions)).toEqual(["owner_user_id", "group_expense_id", "created_at"]);
     expect(tableNames(schema.budgetGroupObligationClassifications)).toEqual(["owner_user_id", "group_obligation_id", "budget_category_id", "created_at", "updated_at"]);
     expect(getTableConfig(schema.budgetGroupExpenseSources).uniqueConstraints.map((constraint) => constraint.name)).toEqual(expect.arrayContaining([
       "budget_group_expense_sources_owner_expense_unique",
@@ -105,5 +110,8 @@ describe("budgeting schema", () => {
     expect(getTableConfig(schema.budgetGroupExpenseSources).foreignKeys.length).toBe(3);
     expect(getTableConfig(schema.budgetGroupSettlementSources).foreignKeys.length).toBe(3);
     expect(getTableConfig(schema.budgetGroupObligationClassifications).foreignKeys.length).toBe(3);
+    const exclusions = getTableConfig(schema.budgetGroupExpenseExclusions);
+    expect(exclusions.primaryKeys.map((key) => key.getName())).toEqual(["budget_group_expense_exclusions_pkey"]);
+    expect(exclusions.foreignKeys.length).toBe(2);
   });
 });

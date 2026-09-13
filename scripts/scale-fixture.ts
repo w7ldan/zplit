@@ -146,8 +146,10 @@ async function deleteFixture(client: PoolClient, fixture: ScaleFixtureData, owne
   await client.query("DELETE FROM budget_group_obligation_classifications WHERE owner_user_id = $1", [ownerId]);
   await client.query("DELETE FROM budget_group_settlement_sources WHERE owner_user_id = $1", [ownerId]);
   await client.query("DELETE FROM budget_group_expense_sources WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_group_expense_exclusions WHERE owner_user_id = $1", [ownerId]);
   await client.query("DELETE FROM budget_personal_repayment_sources WHERE owner_user_id = $1", [ownerId]);
   await client.query("DELETE FROM budget_personal_expense_sources WHERE owner_user_id = $1", [ownerId]);
+  await client.query("DELETE FROM budget_personal_expense_exclusions WHERE owner_user_id = $1", [ownerId]);
   await client.query("DELETE FROM budget_impacts WHERE owner_user_id = $1", [ownerId]);
   await client.query("DELETE FROM budget_transactions WHERE owner_user_id = $1", [ownerId]);
   await client.query("DELETE FROM budget_period_categories WHERE owner_user_id = $1", [ownerId]);
@@ -233,8 +235,10 @@ async function seedFixture(client: PoolClient, fixture: ScaleFixtureData, ownerI
   await insertBatches(client, "budget_transactions", ["id", "owner_user_id", "direction", "amount", "description", "occurred_on", "status", "origin", "created_at", "updated_at", "voided_at"], fixture.budgetTransactions.map((row) => [row.id, ownerId, row.direction, row.amount, row.description, row.occurredOn, row.status, row.origin, row.createdAt, row.updatedAt, row.voidedAt]));
   await insertBatches(client, "budget_impacts", ["id", "owner_user_id", "budget_transaction_id", "budget_category_id", "budget_period_id", "amount", "status", "target_period_ordinal", "created_at", "updated_at"], fixture.budgetImpacts.map((row) => [row.id, ownerId, row.budgetTransactionId, row.budgetCategoryId, row.budgetPeriodId, row.amount, row.status, row.targetPeriodOrdinal, row.createdAt, row.updatedAt]));
   await insertBatches(client, "budget_personal_expense_sources", ["owner_user_id", "budget_transaction_id", "expense_id", "created_at"], fixture.budgetPersonalExpenseSources.map((row) => [ownerId, row.budgetTransactionId, row.expenseId, new Date("2026-01-01T00:00:00.000Z")]));
+  await insertBatches(client, "budget_personal_expense_exclusions", ["owner_user_id", "expense_id", "created_at"], fixture.budgetPersonalExpenseExclusions.map((row) => [ownerId, row.expenseId, new Date("2026-01-01T00:00:00.000Z")]));
   await insertBatches(client, "budget_personal_repayment_sources", ["owner_user_id", "budget_transaction_id", "repayment_id", "created_at"], fixture.budgetPersonalRepaymentSources.map((row) => [ownerId, row.budgetTransactionId, row.repaymentId, new Date("2026-01-01T00:00:00.000Z")]));
   await insertBatches(client, "budget_group_expense_sources", ["owner_user_id", "budget_transaction_id", "group_expense_id", "created_at"], fixture.budgetGroupExpenseSources.map((row) => [ownerId, row.budgetTransactionId, row.groupExpenseId, new Date("2026-01-01T00:00:00.000Z")]));
+  await insertBatches(client, "budget_group_expense_exclusions", ["owner_user_id", "group_expense_id", "created_at"], fixture.budgetGroupExpenseExclusions.map((row) => [ownerId, row.groupExpenseId, new Date("2026-01-01T00:00:00.000Z")]));
   await insertBatches(client, "budget_group_settlement_sources", ["owner_user_id", "budget_transaction_id", "group_settlement_id", "created_at"], fixture.budgetGroupSettlementSources.map((row) => [ownerId, row.budgetTransactionId, row.groupSettlementId, new Date("2026-01-01T00:00:00.000Z")]));
   await insertBatches(client, "budget_group_obligation_classifications", ["owner_user_id", "group_obligation_id", "budget_category_id", "created_at", "updated_at"], fixture.budgetGroupObligationClassifications.map((row) => [ownerId, row.groupObligationId, row.budgetCategoryId, new Date("2026-01-01T00:00:00.000Z"), new Date("2026-01-01T00:00:00.000Z")]));
   await insertBatches(client, "budget_recurring_templates", ["id", "owner_user_id", "name", "amount", "category_id", "frequency", "starts_on", "spread_count", "archived_at", "created_at", "updated_at"], fixture.recurringTemplates.map((row) => [row.id, ownerId, row.name, row.amount, row.categoryId, row.frequency, row.startsOn, row.spreadCount, row.archivedAt, row.createdAt, row.updatedAt]));
@@ -404,8 +408,10 @@ async function verifyCounts(client: PoolClient, fixture: ScaleFixtureData, owner
   await ownedCount("budget transactions", "SELECT count(*)::text AS total FROM budget_transactions WHERE owner_user_id = $1 AND id = ANY($2::uuid[])", [ownerId, ids.budgetTransactionIds], fixture.budgetTransactions.length);
   await ownedCount("budget impacts", "SELECT count(*)::text AS total FROM budget_impacts WHERE owner_user_id = $1 AND id = ANY($2::uuid[])", [ownerId, ids.budgetImpactIds], fixture.budgetImpacts.length);
   await ownedCount("personal expense sources", "SELECT count(*)::text AS total FROM budget_personal_expense_sources WHERE owner_user_id = $1", [ownerId], fixture.budgetPersonalExpenseSources.length);
+  await ownedCount("personal expense exclusions", "SELECT count(*)::text AS total FROM budget_personal_expense_exclusions WHERE owner_user_id = $1", [ownerId], fixture.budgetPersonalExpenseExclusions.length);
   await ownedCount("personal repayment sources", "SELECT count(*)::text AS total FROM budget_personal_repayment_sources WHERE owner_user_id = $1", [ownerId], fixture.budgetPersonalRepaymentSources.length);
   await ownedCount("group expense sources", "SELECT count(*)::text AS total FROM budget_group_expense_sources WHERE owner_user_id = $1", [ownerId], fixture.budgetGroupExpenseSources.length);
+  await ownedCount("group expense exclusions", "SELECT count(*)::text AS total FROM budget_group_expense_exclusions WHERE owner_user_id = $1", [ownerId], fixture.budgetGroupExpenseExclusions.length);
   await ownedCount("group settlement sources", "SELECT count(*)::text AS total FROM budget_group_settlement_sources WHERE owner_user_id = $1", [ownerId], fixture.budgetGroupSettlementSources.length);
   await ownedCount("obligation classifications", "SELECT count(*)::text AS total FROM budget_group_obligation_classifications WHERE owner_user_id = $1", [ownerId], fixture.budgetGroupObligationClassifications.length);
   await ownedCount("recurring templates", "SELECT count(*)::text AS total FROM budget_recurring_templates WHERE owner_user_id = $1 AND id = ANY($2::uuid[])", [ownerId, ids.recurringTemplateIds], fixture.recurringTemplates.length);
@@ -500,7 +506,35 @@ async function verifyFixture(client: PoolClient, fixture: ScaleFixtureData, owne
   await verifyOrganizationInvariants(client, fixture, ownerId);
   await verifyBudgetAuthority(client, fixture, ownerId);
   await verifyActiveBudgetRealism(client, ownerId);
+  await verifyBudgetParticipation(client, fixture, ownerId, ledgerScopeId);
   await verifyCollaborationAnchors(client, fixture, ownerId);
+}
+
+async function verifyBudgetParticipation(client: PoolClient, fixture: ScaleFixtureData, ownerId: string, ledgerScopeId: string) {
+  const participation = await client.query<Record<string, string>>(
+    `SELECT
+      (SELECT count(*) FROM budget_personal_expense_exclusions e JOIN budget_personal_expense_sources s ON s.owner_user_id = e.owner_user_id AND s.expense_id = e.expense_id WHERE e.owner_user_id = $1) AS personal_excluded_linked,
+      (SELECT count(*) FROM budget_group_expense_exclusions e JOIN budget_group_expense_sources s ON s.owner_user_id = e.owner_user_id AND s.group_expense_id = e.group_expense_id WHERE e.owner_user_id = $1) AS group_excluded_linked,
+      (SELECT count(*) FROM budget_personal_expense_exclusions e JOIN expenses x ON x.ledger_scope_id = $2 AND x.id = e.expense_id JOIN outings o ON o.ledger_scope_id = x.ledger_scope_id AND o.id = x.outing_id WHERE e.owner_user_id = $1 AND o.occurred_on >= '2026-09-01' AND o.occurred_on <= '2026-09-30') AS excluded_active_personal,
+      (SELECT count(*) FROM budget_group_expense_exclusions e JOIN group_expenses g ON g.id = e.group_expense_id JOIN group_participants p ON p.group_id = g.group_id AND p.id = g.payer_participant_id WHERE e.owner_user_id = $1 AND p.user_id = $1 AND g.state = 'confirmed' AND g.occurred_on >= '2026-09-01' AND g.occurred_on <= '2026-09-30') AS excluded_active_group,
+      (SELECT count(*) FROM expenses x JOIN outings o ON o.ledger_scope_id = x.ledger_scope_id AND o.id = x.outing_id WHERE x.ledger_scope_id = $2 AND o.occurred_on >= '2026-09-01' AND o.occurred_on <= '2026-09-30' AND NOT EXISTS (SELECT 1 FROM budget_personal_expense_sources s WHERE s.owner_user_id = $1 AND s.expense_id = x.id) AND NOT EXISTS (SELECT 1 FROM budget_personal_expense_exclusions e WHERE e.owner_user_id = $1 AND e.expense_id = x.id)) AS legacy_active_personal,
+      (SELECT count(*) FROM group_expenses g JOIN group_participants p ON p.group_id = g.group_id AND p.id = g.payer_participant_id WHERE p.user_id = $1 AND g.state = 'confirmed' AND g.occurred_on >= '2026-09-01' AND g.occurred_on <= '2026-09-30' AND NOT EXISTS (SELECT 1 FROM budget_group_expense_sources s WHERE s.owner_user_id = $1 AND s.group_expense_id = g.id) AND NOT EXISTS (SELECT 1 FROM budget_group_expense_exclusions e WHERE e.owner_user_id = $1 AND e.group_expense_id = g.id)) AS legacy_active_group,
+      (SELECT count(*) FROM budget_impacts i JOIN budget_transactions t ON t.owner_user_id = i.owner_user_id AND t.id = i.budget_transaction_id JOIN budget_personal_expense_sources s ON s.owner_user_id = t.owner_user_id AND s.budget_transaction_id = t.id WHERE i.owner_user_id = $1 AND i.budget_category_id <> (SELECT id FROM budget_categories WHERE owner_user_id = $1 AND system_key = 'uncategorized')) AS categorized_personal_links`,
+    [ownerId, ledgerScopeId],
+  );
+  const row = participation.rows[0]!;
+  // An explicit creation-time exclusion never carries a linked Budget cash
+  // event, while the typed links remain the only path into Budget totals.
+  assert(count(row.personal_excluded_linked!) === 0, "excluded Personal expenses must not be linked");
+  assert(count(row.group_excluded_linked!) === 0, "excluded Group expenses must not be linked");
+  assert(count(row.excluded_active_personal!) > 0, "no active-period Personal exclusion is represented");
+  assert(count(row.excluded_active_group!) > 0, "no active-period Group exclusion is represented");
+  // Absence of a link alone still means legacy/importable, so the eligible
+  // unprocessed sources must stay visible next to the explicit exclusions.
+  assert(count(row.legacy_active_personal!) > 0, "no legacy active-period Personal source remains importable");
+  assert(count(row.legacy_active_group!) > 0, "no legacy active-period Group source remains importable");
+  assert(count(row.categorized_personal_links!) > 0, "no category-varied linked Personal expense is represented");
+  assert(fixture.budgetPersonalExpenseExclusions.length <= fixture.expenses.length / 10, "most scale expenses must not be excluded from Budget");
 }
 
 async function verifyActiveBudgetRealism(client: PoolClient, ownerId: string) {

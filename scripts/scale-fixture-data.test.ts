@@ -203,8 +203,10 @@ describe("full-product scale fixture data", () => {
     expect(fixture.budgetTransactions).toHaveLength(SCALE_FIXTURE_COUNTS.budgetTransactions);
     expect(fixture.budgetImpacts).toHaveLength(SCALE_FIXTURE_COUNTS.budgetImpacts);
     expect(fixture.budgetPersonalExpenseSources).toHaveLength(SCALE_FIXTURE_COUNTS.budgetPersonalExpenseSources);
+    expect(fixture.budgetPersonalExpenseExclusions).toHaveLength(SCALE_FIXTURE_COUNTS.budgetPersonalExpenseExclusions);
     expect(fixture.budgetPersonalRepaymentSources).toHaveLength(SCALE_FIXTURE_COUNTS.budgetPersonalRepaymentSources);
     expect(fixture.budgetGroupExpenseSources).toHaveLength(SCALE_FIXTURE_COUNTS.budgetGroupExpenseSources);
+    expect(fixture.budgetGroupExpenseExclusions).toHaveLength(SCALE_FIXTURE_COUNTS.budgetGroupExpenseExclusions);
     expect(fixture.budgetGroupSettlementSources).toHaveLength(SCALE_FIXTURE_COUNTS.budgetGroupSettlementSources);
     expect(fixture.budgetGroupObligationClassifications).toHaveLength(SCALE_FIXTURE_COUNTS.budgetGroupObligationClassifications);
     expect(fixture.recurringTemplates).toHaveLength(SCALE_FIXTURE_COUNTS.recurringTemplates);
@@ -337,6 +339,60 @@ describe("full-product scale fixture data", () => {
       expect(template.spreadCount).toBeLessThanOrEqual(24);
       expect(template.spreadCount).toBeLessThanOrEqual(template.amount);
     }
+  });
+
+  it("keeps explicit Budget exclusions rare, durable, and distinct from legacy sources", () => {
+    const activeStartsOn = "2026-09-01";
+    const activeEndsOn = "2026-09-30";
+    const outingById = new Map(fixture.outings.map((outing) => [outing.id, outing]));
+    const linkedExpenseIds = new Set(fixture.budgetPersonalExpenseSources.map(({ expenseId }) => expenseId));
+    const personalExclusionIds = new Set(fixture.budgetPersonalExpenseExclusions.map(({ expenseId }) => expenseId));
+    expect(personalExclusionIds.size).toBe(fixture.budgetPersonalExpenseExclusions.length);
+    for (const expenseId of personalExclusionIds) {
+      expect(linkedExpenseIds.has(expenseId)).toBe(false);
+    }
+    expect(fixture.budgetPersonalExpenseExclusions.length).toBeLessThanOrEqual(fixture.expenses.length / 10);
+    const excludedActivePersonal = fixture.expenses.filter((expense) => {
+      if (!personalExclusionIds.has(expense.id)) return false;
+      const occurredOn = outingById.get(expense.outingId)?.occurredOn;
+      return occurredOn !== null && occurredOn !== undefined && occurredOn >= activeStartsOn && occurredOn <= activeEndsOn;
+    });
+    expect(excludedActivePersonal.length).toBeGreaterThan(0);
+    const legacyActivePersonal = fixture.expenses.filter((expense) => {
+      if (linkedExpenseIds.has(expense.id) || personalExclusionIds.has(expense.id)) return false;
+      const occurredOn = outingById.get(expense.outingId)?.occurredOn;
+      return occurredOn !== null && occurredOn !== undefined && occurredOn >= activeStartsOn && occurredOn <= activeEndsOn;
+    });
+    expect(legacyActivePersonal.length).toBeGreaterThan(0);
+    const transactionById = new Map(fixture.budgetTransactions.map((transaction) => [transaction.id, transaction]));
+    const variedPersonalLinks = fixture.budgetPersonalExpenseSources.filter(({ budgetTransactionId }) => {
+      const transaction = transactionById.get(budgetTransactionId)!;
+      return transaction.occurredOn < activeStartsOn;
+    });
+    const categorizedImpactCategories = new Set(fixture.budgetImpacts
+      .filter((impact) => variedPersonalLinks.some(({ budgetTransactionId }) => budgetTransactionId === impact.budgetTransactionId))
+      .map(({ budgetCategoryId }) => budgetCategoryId));
+    expect(categorizedImpactCategories.size).toBeGreaterThan(1);
+
+    const payerParticipantIds = new Set(fixture.groupParticipants.filter(({ userId }) => userId !== null).map(({ id }) => id));
+    const linkedGroupExpenseIds = new Set(fixture.budgetGroupExpenseSources.map(({ groupExpenseId }) => groupExpenseId));
+    const groupExclusionIds = new Set(fixture.budgetGroupExpenseExclusions.map(({ groupExpenseId }) => groupExpenseId));
+    expect(groupExclusionIds.size).toBe(fixture.budgetGroupExpenseExclusions.length);
+    for (const groupExpenseId of groupExclusionIds) {
+      expect(linkedGroupExpenseIds.has(groupExpenseId)).toBe(false);
+    }
+    const excludedActiveGroup = fixture.groupExpenses.filter((expense) => groupExclusionIds.has(expense.id)
+      && payerParticipantIds.has(expense.payerParticipantId)
+      && expense.occurredOn >= activeStartsOn
+      && expense.occurredOn <= activeEndsOn);
+    expect(excludedActiveGroup.length).toBeGreaterThan(0);
+    const legacyActiveGroup = fixture.groupExpenses.filter((expense) => !groupExclusionIds.has(expense.id)
+      && !linkedGroupExpenseIds.has(expense.id)
+      && expense.state === "confirmed"
+      && payerParticipantIds.has(expense.payerParticipantId)
+      && expense.occurredOn >= activeStartsOn
+      && expense.occurredOn <= activeEndsOn);
+    expect(legacyActiveGroup.length).toBeGreaterThan(0);
   });
 
   it("produces only supported notification shapes", () => {

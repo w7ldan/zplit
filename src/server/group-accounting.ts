@@ -40,6 +40,7 @@ import {
   type GroupExpenseLifecycleEventType,
 } from "@/domain/group-accounting";
 import type { GroupParticipantEligibility } from "@/domain/group-contracts";
+import type { ExpenseBudgetParticipation } from "@/domain/budgeting/participation";
 import { NOTIFICATION_TYPES } from "@/domain/notifications";
 import {
   clampPage,
@@ -668,7 +669,7 @@ async function voidConfirmedExpense(database: Database, groupId: string, expense
   return { expense: voided, userIds: await listActiveGroupUserIds(database, groupId) };
 }
 
-async function createExpense(database: Database, groupId: string, creatorUserId: string, input: unknown) {
+async function createExpense(database: Database, groupId: string, creatorUserId: string, input: unknown, budgetParticipation?: ExpenseBudgetParticipation) {
   assertGroupId(groupId);
   assertUserId(creatorUserId);
   const values = normalizeGroupExpenseInput(input);
@@ -711,7 +712,10 @@ async function createExpense(database: Database, groupId: string, creatorUserId:
       if (shares.length !== values.shares.length) throw new Error("Group expense shares were not created");
       if (creatorParticipantId === values.payerParticipantId) {
         await confirmPendingExpense(transactionalDatabase, groupId, expense.id, values.payerParticipantId, creatorUserId, "created", now);
-        await reconcileGroupExpense(transaction, expense.id);
+        // Only the registered payer's own creation-time decision reaches their
+        // private Budget; anyone else's claim stays pending and Budget-free.
+        const confirmedParticipation = payerUserId === creatorUserId ? budgetParticipation : undefined;
+        await reconcileGroupExpense(transaction, expense.id, confirmedParticipation);
       } else {
         const [group] = await transactionalDatabase.select({ name: groups.name }).from(groups).where(eq(groups.id, groupId)).limit(1);
         if (!group) throw new GroupAccountingError("not_found");
@@ -844,7 +848,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
   }
 
   return {
-    createExpense: (creatorUserId: string, input: unknown) => createExpense(database, groupId, creatorUserId, input),
+    createExpense: (creatorUserId: string, input: unknown, budgetParticipation?: ExpenseBudgetParticipation) => createExpense(database, groupId, creatorUserId, input, budgetParticipation),
     confirmExpenseAsPayer: async (expenseId: string, payerUserId: string) => {
       if (!normalizeUuid(expenseId)) throw new GroupAccountingError("not_found");
       assertUserId(payerUserId);
@@ -966,13 +970,13 @@ export function createGroupAccountingRepository(database: Database, groupId: str
   };
 }
 
-export async function createGroupExpense(database: Database, groupId: string, creatorUserId: string, input: unknown) {
-  return createGroupAccountingRepository(database, groupId).createExpense(creatorUserId, input);
+export async function createGroupExpense(database: Database, groupId: string, creatorUserId: string, input: unknown, budgetParticipation?: ExpenseBudgetParticipation) {
+  return createGroupAccountingRepository(database, groupId).createExpense(creatorUserId, input, budgetParticipation);
 }
 
-export async function createGroupExpenseForCurrentUser(groupId: string, input: unknown) {
+export async function createGroupExpenseForCurrentUser(groupId: string, input: unknown, budgetParticipation?: ExpenseBudgetParticipation) {
   const session = await requireSession();
-  return createGroupExpense(getDatabase(), groupId, session.user.id, input);
+  return createGroupExpense(getDatabase(), groupId, session.user.id, input, budgetParticipation);
 }
 
 export async function confirmGroupExpenseAsPayer(database: Database, groupId: string, expenseId: string, payerUserId: string) {

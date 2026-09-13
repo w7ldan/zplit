@@ -2,6 +2,7 @@ import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
   budgetCategories,
+  budgetGroupExpenseExclusions,
   budgetGroupExpenseSources,
   budgetGroupObligationClassifications,
   budgetGroupSettlementSources,
@@ -16,6 +17,7 @@ import {
   groups,
 } from "@/db/schema";
 import { BudgetError } from "@/domain/budgeting/errors";
+import type { ExpenseBudgetParticipation } from "@/domain/budgeting/participation";
 import { splitBudgetAmount } from "@/domain/budgeting/spread";
 import { LedgerIntegrityError } from "@/domain/ledger-summary";
 import type { LedgerTransaction } from "@/domain/ledger/mutation-hooks";
@@ -41,6 +43,11 @@ export type GroupBudgetSharedMoney = {
   stillOwe: number;
   obligations: GroupBudgetObligation[];
 };
+
+export type GroupExpenseBudgetState =
+  | { status: "included"; transactionId: string; categoryId: string | null; categoryName: string }
+  | { status: "not_included" }
+  | { status: "unprocessed" };
 
 type GroupSettlementApplicationRow = {
   appliedAmount: number;
@@ -125,6 +132,54 @@ async function groupExpenseLink(transaction: LedgerTransaction, ownerUserId: str
     .where(and(eq(budgetGroupExpenseSources.ownerUserId, ownerUserId), eq(budgetGroupExpenseSources.groupExpenseId, groupExpenseId)))
     .limit(1);
   return link ?? null;
+}
+
+async function groupExpenseExcluded(transaction: LedgerTransaction, ownerUserId: string, groupExpenseId: string) {
+  const [exclusion] = await transaction
+    .select({ groupExpenseId: budgetGroupExpenseExclusions.groupExpenseId })
+    .from(budgetGroupExpenseExclusions)
+    .where(and(eq(budgetGroupExpenseExclusions.ownerUserId, ownerUserId), eq(budgetGroupExpenseExclusions.groupExpenseId, groupExpenseId)))
+    .limit(1);
+  return Boolean(exclusion);
+}
+
+async function recordGroupExpenseExclusion(transaction: LedgerTransaction, ownerUserId: string, groupExpenseId: string) {
+  await transaction
+    .insert(budgetGroupExpenseExclusions)
+    .values({ ownerUserId, groupExpenseId })
+    .onConflictDoNothing({ target: [budgetGroupExpenseExclusions.ownerUserId, budgetGroupExpenseExclusions.groupExpenseId] });
+}
+
+async function resolveParticipationCategoryId(transaction: LedgerTransaction, ownerUserId: string, categoryId: string | null) {
+  if (!categoryId) return null;
+  const [category] = await transaction
+    .select({ id: budgetCategories.id })
+    .from(budgetCategories)
+    .where(and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, categoryId), isNull(budgetCategories.archivedAt)))
+    .limit(1);
+  if (!category) throw new BudgetError("NOT_FOUND", "That budget category is no longer available.");
+  return category.id;
+}
+
+/**
+ * Applies the confirmed payer's creation-time decision, if any, and reports
+ * whether this source must stay out of that payer's Budget. Without a
+ * decision the persisted exclusion still wins over legacy eligibility.
+ */
+async function applyParticipationDecision(
+  transaction: LedgerTransaction,
+  ownerUserId: string,
+  expenseId: string,
+  existing: Awaited<ReturnType<typeof groupExpenseLink>>,
+  participation?: ExpenseBudgetParticipation,
+): Promise<{ excluded: boolean; categoryId: string | null }> {
+  if (participation && !participation.includeInBudget) {
+    await recordGroupExpenseExclusion(transaction, ownerUserId, expenseId);
+    return { excluded: true, categoryId: null };
+  }
+  if (!existing && await groupExpenseExcluded(transaction, ownerUserId, expenseId)) return { excluded: true, categoryId: null };
+  if (participation?.includeInBudget) return { excluded: false, categoryId: await resolveParticipationCategoryId(transaction, ownerUserId, participation.categoryId) };
+  return { excluded: false, categoryId: null };
 }
 
 async function groupSettlementLink(transaction: LedgerTransaction, ownerUserId: string, groupSettlementId: string) {
@@ -237,7 +292,7 @@ async function groupSettlementSource(transaction: LedgerTransaction, groupSettle
   };
 }
 
-async function reconcileGroupExpenseForOwner(transaction: LedgerTransaction, ownerUserId: string, expenseId: string, period: ActivePeriod | null) {
+async function reconcileGroupExpenseForOwner(transaction: LedgerTransaction, ownerUserId: string, expenseId: string, period: ActivePeriod | null, participation?: ExpenseBudgetParticipation) {
   const expense = await groupExpenseSource(transaction, expenseId);
   if (!expense || expense.payerUserId !== ownerUserId) return;
   const existing = await groupExpenseLink(transaction, ownerUserId, expenseId);
@@ -245,6 +300,9 @@ async function reconcileGroupExpenseForOwner(transaction: LedgerTransaction, own
     if (existing?.transaction.status === "posted") await voidTransaction(transaction, ownerUserId, existing.transaction.id);
     return;
   }
+  const decision = await applyParticipationDecision(transaction, ownerUserId, expenseId, existing, participation);
+  if (decision.excluded) return;
+  const participationCategoryId = decision.categoryId;
   const created = await createOrSyncTransaction(transaction, ownerUserId, {
     direction: "outflow",
     amount: expense.totalAmount,
@@ -254,8 +312,8 @@ async function reconcileGroupExpenseForOwner(transaction: LedgerTransaction, own
   const linkedTransaction = await linkedExpenseTransaction(transaction, ownerUserId, expenseId, created, existing);
   const impacts = await lockImpacts(transaction, ownerUserId, linkedTransaction.id);
   if (impacts.length === 0 && period && isInside(period, expense.occurredOn)) {
-    const uncategorizedId = await getUncategorizedId(transaction, ownerUserId);
-    await transaction.insert(budgetImpacts).values({ ownerUserId, budgetTransactionId: linkedTransaction.id, budgetCategoryId: uncategorizedId, budgetPeriodId: period.id, amount: expense.totalAmount, status: "applied", targetPeriodOrdinal: period.ordinal });
+    const categoryId = participationCategoryId ?? await getUncategorizedId(transaction, ownerUserId);
+    await transaction.insert(budgetImpacts).values({ ownerUserId, budgetTransactionId: linkedTransaction.id, budgetCategoryId: categoryId, budgetPeriodId: period.id, amount: expense.totalAmount, status: "applied", targetPeriodOrdinal: period.ordinal });
   } else if (impacts.length === 1) {
     await transaction.update(budgetImpacts).set({ amount: expense.totalAmount, updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, impacts[0]!.id)));
   } else if (impacts.length > 1) {
@@ -396,11 +454,11 @@ async function profilePeriods(transaction: LedgerTransaction, ownerUserIds: stri
   return periods;
 }
 
-export async function reconcileGroupExpense(transaction: LedgerTransaction, expenseId: string) {
+export async function reconcileGroupExpense(transaction: LedgerTransaction, expenseId: string, participation?: ExpenseBudgetParticipation) {
   const expense = await groupExpenseSource(transaction, expenseId);
   if (!expense?.payerUserId) return;
   const periods = await profilePeriods(transaction, [expense.payerUserId]);
-  if (periods.has(expense.payerUserId)) await reconcileGroupExpenseForOwner(transaction, expense.payerUserId, expenseId, periods.get(expense.payerUserId) ?? null);
+  if (periods.has(expense.payerUserId)) await reconcileGroupExpenseForOwner(transaction, expense.payerUserId, expenseId, periods.get(expense.payerUserId) ?? null, participation);
 }
 
 export async function reconcileGroupSettlement(transaction: LedgerTransaction, settlementId: string, ownerFilter?: string[]) {
@@ -416,7 +474,7 @@ export async function hasImportableGroupActivity(database: Database, ownerUserId
   const [expensesCount, senderCount, recipientCount] = await Promise.all([
     database.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(groupExpenses)
       .innerJoin(groupParticipants, and(eq(groupParticipants.groupId, groupExpenses.groupId), eq(groupParticipants.id, groupExpenses.payerParticipantId), eq(groupParticipants.userId, ownerUserId)))
-      .where(and(eq(groupExpenses.state, "confirmed"), gte(groupExpenses.occurredOn, period.startsOn), lte(groupExpenses.occurredOn, period.endsOn), sql`not exists (select 1 from ${budgetGroupExpenseSources} source where source.owner_user_id = ${ownerUserId} and source.group_expense_id = ${groupExpenses.id})`)),
+      .where(and(eq(groupExpenses.state, "confirmed"), gte(groupExpenses.occurredOn, period.startsOn), lte(groupExpenses.occurredOn, period.endsOn), sql`not exists (select 1 from ${budgetGroupExpenseSources} source where source.owner_user_id = ${ownerUserId} and source.group_expense_id = ${groupExpenses.id})`, sql`not exists (select 1 from ${budgetGroupExpenseExclusions} exclusion where exclusion.owner_user_id = ${ownerUserId} and exclusion.group_expense_id = ${groupExpenses.id})`)),
     database.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(groupSettlements)
       .innerJoin(groupParticipants, and(eq(groupParticipants.groupId, groupSettlements.groupId), eq(groupParticipants.id, groupSettlements.senderParticipantId), eq(groupParticipants.userId, ownerUserId)))
       .where(and(eq(groupSettlements.state, "confirmed"), gte(groupSettlements.paidOn, period.startsOn), lte(groupSettlements.paidOn, period.endsOn), sql`not exists (select 1 from ${budgetGroupSettlementSources} source where source.owner_user_id = ${ownerUserId} and source.group_settlement_id = ${groupSettlements.id})`)),
@@ -430,7 +488,7 @@ export async function hasImportableGroupActivity(database: Database, ownerUserId
 export async function importGroupActivity(transaction: LedgerTransaction, ownerUserId: string, period: Pick<ActivePeriod, "startsOn" | "endsOn">) {
   const expenseRows = await transaction.select({ id: groupExpenses.id }).from(groupExpenses)
     .innerJoin(groupParticipants, and(eq(groupParticipants.groupId, groupExpenses.groupId), eq(groupParticipants.id, groupExpenses.payerParticipantId), eq(groupParticipants.userId, ownerUserId)))
-    .where(and(eq(groupExpenses.state, "confirmed"), gte(groupExpenses.occurredOn, period.startsOn), lte(groupExpenses.occurredOn, period.endsOn), sql`not exists (select 1 from ${budgetGroupExpenseSources} source where source.owner_user_id = ${ownerUserId} and source.group_expense_id = ${groupExpenses.id})`))
+    .where(and(eq(groupExpenses.state, "confirmed"), gte(groupExpenses.occurredOn, period.startsOn), lte(groupExpenses.occurredOn, period.endsOn), sql`not exists (select 1 from ${budgetGroupExpenseSources} source where source.owner_user_id = ${ownerUserId} and source.group_expense_id = ${groupExpenses.id})`, sql`not exists (select 1 from ${budgetGroupExpenseExclusions} exclusion where exclusion.owner_user_id = ${ownerUserId} and exclusion.group_expense_id = ${groupExpenses.id})`))
     .orderBy(asc(groupExpenses.occurredOn), asc(groupExpenses.id));
   for (const expense of expenseRows) await reconcileGroupExpense(transaction, expense.id);
   const settlementRows = await transaction.select({ id: groupSettlements.id }).from(groupSettlements)
@@ -558,4 +616,49 @@ export async function readGroupBudgetSharedMoney(database: Database, ownerUserId
 
 export async function readGroupBudgetObligations(database: Database, ownerUserId: string) {
   return (await readGroupBudgetSharedMoney(database, ownerUserId)).obligations;
+}
+
+/**
+ * Private Budget participation for one Group expense, read for the Group
+ * expense detail surface. Only the confirmed payer ever receives a state, so
+ * a participant never learns another member's Budget classification.
+ */
+export async function getGroupExpenseBudgetState(database: Database, ownerUserId: string, groupExpenseId: string): Promise<GroupExpenseBudgetState> {
+  const [link] = await database
+    .select({
+      transactionId: budgetTransactions.id,
+      categoryId: budgetImpacts.budgetCategoryId,
+      categoryName: budgetCategories.name,
+    })
+    .from(budgetGroupExpenseSources)
+    .innerJoin(groupExpenses, eq(groupExpenses.id, budgetGroupExpenseSources.groupExpenseId))
+    .innerJoin(groupParticipants, and(
+      eq(groupParticipants.groupId, groupExpenses.groupId),
+      eq(groupParticipants.id, groupExpenses.payerParticipantId),
+      eq(groupParticipants.userId, ownerUserId),
+    ))
+    .innerJoin(budgetTransactions, and(
+      eq(budgetTransactions.ownerUserId, ownerUserId),
+      eq(budgetTransactions.id, budgetGroupExpenseSources.budgetTransactionId),
+      eq(budgetTransactions.status, "posted"),
+    ))
+    .leftJoin(budgetImpacts, and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, budgetTransactions.id)))
+    .leftJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetImpacts.budgetCategoryId)))
+    .where(and(eq(budgetGroupExpenseSources.ownerUserId, ownerUserId), eq(budgetGroupExpenseSources.groupExpenseId, groupExpenseId)))
+    .orderBy(asc(budgetImpacts.targetPeriodOrdinal), asc(budgetImpacts.id))
+    .limit(1);
+  if (link) {
+    return {
+      status: "included",
+      transactionId: link.transactionId,
+      categoryId: link.categoryId ?? null,
+      categoryName: link.categoryName ?? "Uncategorized",
+    };
+  }
+  const [exclusion] = await database
+    .select({ groupExpenseId: budgetGroupExpenseExclusions.groupExpenseId })
+    .from(budgetGroupExpenseExclusions)
+    .where(and(eq(budgetGroupExpenseExclusions.ownerUserId, ownerUserId), eq(budgetGroupExpenseExclusions.groupExpenseId, groupExpenseId)))
+    .limit(1);
+  return exclusion ? { status: "not_included" } : { status: "unprocessed" };
 }

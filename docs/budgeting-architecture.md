@@ -308,6 +308,52 @@ record, and skip actions. The dashboard and Overview may show a quiet
 upcoming-recurring count and expected amount, but that planning context is
 excluded from every financial total.
 
+## Expense source participation
+
+An eligible Personal or Group Expense is created either **included in** or
+**explicitly excluded from** its owner's private Budget. The decision is made
+once, at creation, and participation is never edited afterwards. A new expense
+form seeds its initial choice from the single private preference
+`budget_profiles.include_new_expenses_by_default` (default `true`), which only
+affects forms rendered afterwards and never rewrites existing sources.
+
+Explicit exclusion is durable owner-private state, not the absence of a source
+link. The typed exclusion tables mirror the existing typed link tables:
+`budget_personal_expense_exclusions` is one owner/Expense row and
+`budget_group_expense_exclusions` is one owner/Group Expense row for the
+confirmed payer. Each is keyed by owner and source, so a repeated creation or
+retry converges to one decision. Exclusion rows follow the deletion semantics
+of their source family: the Personal expense foreign key cascades, and the
+Group Expense foreign key is deletion-protected like its link table.
+
+```text
+explicit exclusion          → never auto-linked by import or reconciliation
+no link and no exclusion    → existing legacy/unprocessed eligibility
+linked                      → existing linkage and classification
+```
+
+`Import activity` and live reconciliation therefore skip explicitly excluded
+sources without dropping the rest of their candidate set. Legacy unlinked
+records keep their previous treatment; absence of a link alone must never be
+interpreted as an exclusion.
+
+Creation-time participation is applied inside the same transaction as the
+source write. An included source is linked and classified with the submitted
+owner category (falling back to Uncategorized) through the existing
+integration; an excluded source records only the exclusion and creates no
+BudgetTransaction. Only the registered payer's own decision is stored for a
+Group Expense, so a creator never records another member's private Budget
+choice, and a pending payer claim still creates no Budget cash. When a
+different registered payer later confirms such a claim, the existing
+reconciliation behavior applies because no creation-time decision exists for
+that owner.
+
+After creation, the only editable Budget field is the private category of an
+included source, changed through the canonical Budget classification action
+from the expense detail surface. Amount, source identity, posted/voided state,
+spread, and impact-period invariants are unchanged by that operation, and
+excluded sources expose no participation toggle and cannot be recategorized.
+
 ## B3 Group cash integration
 
 B3 keeps the authority split explicit. Group accounting remains canonical for
