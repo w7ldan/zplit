@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ExpenseRecordPage from "./page";
 import { deletionImpactRevision } from "@/domain/ledger-repository";
 import { ToastProvider } from "@/components/feedback/toast";
@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   listExpenseReceipts: vi.fn(),
   replace: vi.fn(),
   notFound: vi.fn(() => { throw new Error("not-found"); }),
+  getPersonalExpenseBudgetState: vi.fn().mockResolvedValue({ status: "unprocessed" }),
+  listBudgetCategoryOptions: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
@@ -21,11 +23,14 @@ vi.mock("@/domain/ledger-repository", async () => {
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
 });
 vi.mock("@/server/expense-receipts", () => ({ listExpenseReceipts: mocks.listExpenseReceipts }));
+vi.mock("@/server/budgeting/sources-personal", () => ({ getPersonalExpenseBudgetState: mocks.getPersonalExpenseBudgetState }));
+vi.mock("@/server/budgeting/categories", () => ({ listBudgetCategoryOptions: mocks.listBudgetCategoryOptions }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound, useRouter: () => ({ replace: mocks.replace, refresh: vi.fn() }) }));
 
 const expense = {
   id: "22222222-2222-4222-8222-222222222222",
   ownerUserId: "owner-a",
+  ledgerScopeId: "scope-a",
   outingId: "11111111-1111-4111-8111-111111111111",
   description: "Dinner",
   amount: 84000,
@@ -35,6 +40,8 @@ const expense = {
   outingTitle: "Jakarta dinner",
 };
 const deletionImpact = { recordType: "expense" as const, receiptCount: 0, shareCount: 0, allocationCount: 0, affectedRepaymentCount: 0, affectedRepaymentIds: [], affectedFriendIds: [] };
+const budgetCategoryId = "55555555-5555-4555-8555-555555555555";
+const budgetTransactionId = "66666666-6666-4666-8666-666666666666";
 
 function prepareRecord(shares: unknown[]) {
   mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
@@ -52,6 +59,13 @@ function prepareRecord(shares: unknown[]) {
 }
 
 describe("expense record", () => {
+  beforeEach(() => {
+    mocks.getPersonalExpenseBudgetState.mockClear();
+    mocks.listBudgetCategoryOptions.mockClear();
+    mocks.getPersonalExpenseBudgetState.mockResolvedValue({ status: "unprocessed" });
+    mocks.listBudgetCategoryOptions.mockResolvedValue([]);
+  });
+
   it("uses the outing date and has no independent occurrence field", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", email: "owner@example.com" } });
     mocks.getDatabase.mockReturnValue("database");
@@ -147,5 +161,42 @@ describe("expense record", () => {
     render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }), searchParams: Promise.resolve({ splitSaved: "1" }) })}</ToastProvider>);
 
     expect(screen.getByText("Split saved · No friend shares assigned", { exact: true })).toBeInTheDocument();
+  });
+
+  it("shows an included expense its private Budget category with a change control", async () => {
+    prepareRecord([]);
+    mocks.getPersonalExpenseBudgetState.mockResolvedValue({ status: "included", transactionId: budgetTransactionId, categoryId: budgetCategoryId, categoryName: "Food" });
+    mocks.listBudgetCategoryOptions.mockResolvedValue([{ id: budgetCategoryId, name: "Food" }, { id: "77777777-7777-4777-8777-777777777777", name: "Transport" }]);
+
+    render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) })}</ToastProvider>);
+
+    expect(mocks.getPersonalExpenseBudgetState).toHaveBeenCalledWith("database", "owner-a", "scope-a", expense.id);
+    const block = document.querySelector(".budget-participation")!;
+    expect(block).toHaveTextContent("Category");
+    expect(block).toHaveTextContent("Food");
+    expect(screen.getByRole("combobox", { name: "Budget category for Dinner" })).toHaveValue(budgetCategoryId);
+    expect(screen.getByRole("button", { name: "Save budget category for Dinner" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Budget/ })).not.toBeInTheDocument();
+  });
+
+  it("states an explicit creation-time exclusion read-only without a participation toggle", async () => {
+    prepareRecord([]);
+    mocks.getPersonalExpenseBudgetState.mockResolvedValue({ status: "not_included" });
+
+    render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) })}</ToastProvider>);
+
+    expect(document.querySelector(".budget-participation")).toHaveTextContent("Not included");
+    expect(screen.queryByRole("checkbox", { name: /Budget/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /Budget category/ })).not.toBeInTheDocument();
+    expect(mocks.listBudgetCategoryOptions).not.toHaveBeenCalled();
+  });
+
+  it("keeps a legacy unprocessed expense free of Budget presentation", async () => {
+    prepareRecord([]);
+    render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) })}</ToastProvider>);
+
+    expect(document.querySelector(".budget-participation")).toBeNull();
+    expect(screen.queryByText("Not included")).not.toBeInTheDocument();
+    expect(mocks.listBudgetCategoryOptions).not.toHaveBeenCalled();
   });
 });

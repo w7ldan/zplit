@@ -17,12 +17,19 @@ import { TaskPanelFooter } from "@/components/app/task-panel";
 
 type ExpenseAction = (previousState: ExpenseActionState, formData: FormData) => Promise<ExpenseActionState>;
 
+type ExpenseBudgetControl = {
+  defaultIncluded: boolean;
+  defaultCategoryId: string;
+  categories: Array<{ id: string; name: string }>;
+};
+
 type ExpenseFormProps = {
   action: ExpenseAction;
   outings: SearchableOption[];
   searchOutings: SearchableOptionAction;
   initialValues?: ExpenseInputValues;
   mode?: "create" | "edit";
+  budget?: ExpenseBudgetControl;
 };
 
 const emptyValues: ExpenseInputValues = { description: "", amountRupiah: "", outingId: "" };
@@ -56,12 +63,55 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
+/**
+ * Compact creation-time Budget section. The parent remounts it after a
+ * continued save so the next expense starts from the stored preference again.
+ */
+function ExpenseBudgetField({ budget, error }: { budget: ExpenseBudgetControl; error?: string }) {
+  const [included, setIncluded] = useState(budget.defaultIncluded);
+  const [categoryId, setCategoryId] = useState(budget.defaultCategoryId);
+  return (
+    <fieldset className="expense-form__budget">
+      <legend>Budget</legend>
+      <input type="hidden" name="budgetParticipation" value="1" />
+      <label className="expense-form__budget-toggle" htmlFor="expense-budget-include">
+        <input
+          id="expense-budget-include"
+          name="includeInBudget"
+          type="checkbox"
+          value="1"
+          checked={included}
+          onChange={(event) => setIncluded(event.target.checked)}
+        />
+        <span>Include this expense in Budget</span>
+      </label>
+      {included ? (
+        <div className="expense-form__field">
+          <label htmlFor="expense-budget-category">Category</label>
+          <select
+            id="expense-budget-category"
+            name="budgetCategoryId"
+            value={categoryId}
+            onChange={(event) => setCategoryId(event.target.value)}
+            aria-invalid={Boolean(error)}
+            aria-describedby="expense-budget-category-error"
+          >
+            {budget.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+          <FieldError id="expense-budget-category-error" message={error} />
+        </div>
+      ) : null}
+    </fieldset>
+  );
+}
+
 export function ExpenseForm({
   action,
   outings: outingOptions,
   searchOutings,
   initialValues = emptyValues,
   mode = "create",
+  budget,
 }: ExpenseFormProps) {
   const submissionReleaseRef = useRef<(() => void) | null>(null);
   const submitAction = useCallback(
@@ -208,6 +258,13 @@ export function ExpenseForm({
         />
         <FieldError id="expense-outing-error" message={state.fieldErrors.outingId} />
       </div>
+      {budget ? (
+        <ExpenseBudgetField
+          key={state.success?.expenseId ?? "budget-defaults"}
+          budget={budget}
+          error={state.fieldErrors.budgetCategoryId}
+        />
+      ) : null}
       <p
         className="expense-form__message"
         role={state.formError ? "alert" : undefined}

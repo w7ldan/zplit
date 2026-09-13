@@ -1,7 +1,9 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
+import { BudgetParticipationBlock } from "@/components/budgeting/budget-participation-block";
 import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
@@ -12,6 +14,8 @@ import {
 import { GroupParticipantLabel } from "@/components/groups/group-expense-row";
 import { GroupExpenseLiveRefresh } from "@/components/realtime/group-expense-live-refresh";
 import { formatRupiah } from "@/domain/rupiah";
+import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
+import { getGroupExpenseBudgetState } from "@/server/budgeting/sources-group";
 import {
   createGroupAccountingRepository,
   GroupAccountingError,
@@ -19,6 +23,7 @@ import {
   type GroupExpenseDetail,
 } from "@/server/group-accounting";
 import {
+  changeGroupExpenseBudgetCategoryAction,
   confirmGroupExpenseAction,
   rejectGroupExpenseAction,
   voidGroupExpenseAction,
@@ -294,7 +299,7 @@ function GroupExpenseHistory({ expense }: { expense: GroupExpenseDetail }) {
   );
 }
 
-function GroupExpenseSidebar({ expense }: { expense: GroupExpenseDetail }) {
+function GroupExpenseSidebar({ expense, budget }: { expense: GroupExpenseDetail; budget?: ReactNode }) {
   return (
     <aside className="group-expense-record__sidebar">
       <dl className="group-expense__meta">
@@ -339,6 +344,7 @@ function GroupExpenseSidebar({ expense }: { expense: GroupExpenseDetail }) {
           </div>
         ) : null}
       </dl>
+      {budget}
     </aside>
   );
 }
@@ -348,7 +354,7 @@ export default async function GroupExpenseDetailPage({
   searchParams = Promise.resolve({}),
 }: {
   params: Promise<{ groupId: string; expenseId: string }>;
-  searchParams?: Promise<{ created?: string | string[] }>;
+  searchParams?: Promise<{ created?: string | string[]; budgetSaved?: string | string[] }>;
 }) {
   const session = await requireSession();
   const { groupId, expenseId } = await params;
@@ -371,6 +377,18 @@ export default async function GroupExpenseDetailPage({
     expense.creator.status === "active" &&
     expense.creator.userId === session.user.id;
   const activePayer = expense.payer.status === "active" && expense.payer.userId === session.user.id;
+  const budgetState = await getGroupExpenseBudgetState(getDatabase(), session.user.id, expense.id);
+  const budgetCategories = budgetState.status === "included" ? await listBudgetCategoryOptions(getDatabase(), session.user.id) : [];
+  const budget = budgetState.status === "unprocessed" ? undefined : (
+    <div id="budget" tabIndex={-1}>
+      <BudgetParticipationBlock
+        participation={budgetState}
+        categories={budgetCategories}
+        description={expense.description}
+        action={changeGroupExpenseBudgetCategoryAction.bind(null, groupId, expense.id)}
+      />
+    </div>
+  );
   const query = await searchParams;
   return (
     <section className="app-page group-expense-record" id="top">
@@ -393,6 +411,12 @@ export default async function GroupExpenseDetailPage({
             queryKey="created"
             message={`Expense saved · ${expense.state === "confirmed" ? "Confirmed" : "Pending confirmation"}`}
             focusTargetId="group-expense-status"
+          />
+        ) : first(query.budgetSaved) === "1" ? (
+          <RecordConfirmation
+            queryKey="budgetSaved"
+            message="Budget category saved."
+            focusTargetId="budget"
           />
         ) : null}
         <div className="group-expense-record__workspace">
@@ -444,7 +468,7 @@ export default async function GroupExpenseDetailPage({
               }
             />
           </main>
-          <GroupExpenseSidebar expense={expense} />
+          <GroupExpenseSidebar expense={expense} budget={budget} />
         </div>
       </div>
     </section>

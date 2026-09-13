@@ -6,11 +6,14 @@ import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ExpenseShareEditor } from "@/components/expenses/expense-share-editor";
 import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
+import { BudgetParticipationBlock } from "@/components/budgeting/budget-participation-block";
 import { formatRupiah } from "@/domain/rupiah";
 import { deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
+import { getPersonalExpenseBudgetState } from "@/server/budgeting/sources-personal";
 import { listExpenseReceipts } from "@/server/expense-receipts";
-import { replaceExpenseSharesAction, searchExpenseFriendOptions, searchOutingOptions, updateExpenseAction } from "../actions";
+import { changeExpenseBudgetCategoryAction, replaceExpenseSharesAction, searchExpenseFriendOptions, searchOutingOptions, updateExpenseAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteExpenseAction } from "../actions";
@@ -27,6 +30,7 @@ export default async function ExpenseRecordPage({
     created?: string | string[];
     updated?: string | string[];
     splitSaved?: string | string[];
+    budgetSaved?: string | string[];
   }>;
 }) {
   const session = await requireSession();
@@ -43,6 +47,8 @@ export default async function ExpenseRecordPage({
   }
   const deletionImpact = await repository.getExpenseDeletionImpact(expenseId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
+  const budgetState = await getPersonalExpenseBudgetState(database, session.user.id, expense.ledgerScopeId, expense.id);
+  const budgetCategories = budgetState.status === "included" ? await listBudgetCategoryOptions(database, session.user.id) : [];
   const [outingRows, friendOptionRows, shares, charges, receipts, previousSplit] = await Promise.all([
     repository.searchOutings({ selectedId: expense.outingId }),
     repository.searchFriends({ activeOnly: true }),
@@ -97,6 +103,12 @@ export default async function ExpenseRecordPage({
             queryKey="splitSaved"
             message={splitMessage}
             focusTargetId="friend-shares"
+          />
+        ) : query?.budgetSaved === "1" ? (
+          <RecordConfirmation
+            queryKey="budgetSaved"
+            message="Budget category saved."
+            focusTargetId="expense-details"
           />
         ) : null}
         <div className="expense-record__tasks">
@@ -168,6 +180,12 @@ export default async function ExpenseRecordPage({
                   initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
                 />
               </div>
+              <BudgetParticipationBlock
+                participation={budgetState}
+                categories={budgetCategories}
+                description={expense.description}
+                action={changeExpenseBudgetCategoryAction.bind(null, expense.id)}
+              />
               <DeleteRecordForm
                 action={deleteExpenseAction.bind(null, expense.id)}
                 recordType="expense"

@@ -24,14 +24,21 @@ const initialState = {
 };
 const outingOption = { id: outing.id, label: outing.title };
 const secondOuting = { id: "22222222-2222-4222-8222-222222222222", label: "Bandung day out" };
+const uncategorizedId = "33333333-3333-4333-8333-333333333333";
+const foodId = "44444444-4444-4444-8444-444444444444";
+const budget = {
+  defaultIncluded: true,
+  defaultCategoryId: uncategorizedId,
+  categories: [{ id: uncategorizedId, name: "Uncategorized" }, { id: foodId, name: "Food" }],
+};
 
 describe("ExpenseForm", () => {
   beforeEach(() => router.refresh.mockClear());
 
-  function renderForm(action = vi.fn().mockResolvedValue(initialState), mode: "create" | "edit" = "create", initialValues = initialState.values, outings = [outingOption], searchOutings = vi.fn().mockResolvedValue(outings)) {
+  function renderForm(action = vi.fn().mockResolvedValue(initialState), mode: "create" | "edit" = "create", initialValues = initialState.values, outings = [outingOption], searchOutings = vi.fn().mockResolvedValue(outings), budgetControl?: typeof budget) {
     return render(
       <ToastProvider>
-        <ExpenseForm action={action} outings={outings} searchOutings={searchOutings} mode={mode} initialValues={initialValues} />
+        <ExpenseForm action={action} outings={outings} searchOutings={searchOutings} mode={mode} initialValues={initialValues} budget={budgetControl} />
       </ToastProvider>,
     );
   }
@@ -61,6 +68,62 @@ describe("ExpenseForm", () => {
     expect(container.querySelector('input[name="timezoneOffsetMinutes"]')).toBeNull();
     expect(document.querySelectorAll(".expense-form__field-error")).toHaveLength(3);
     expect(document.querySelectorAll(".expense-form__message")).toHaveLength(1);
+  });
+
+  it("offers no Budget participation control without a configured owner Budget", () => {
+    renderForm();
+    expect(screen.queryByRole("checkbox", { name: "Include this expense in Budget" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+  });
+
+  it("seeds the Budget control from the preference and lets the user override it before submit", async () => {
+    const action = vi.fn().mockResolvedValue(initialState);
+    renderForm(action, "create", initialState.values, [outingOption], vi.fn().mockResolvedValue([outingOption]), budget);
+
+    const include = screen.getByRole("checkbox", { name: "Include this expense in Budget" });
+    expect(include).toBeChecked();
+    const category = screen.getByLabelText("Category");
+    expect(category).toHaveValue(uncategorizedId);
+    fireEvent.change(category, { target: { value: foodId } });
+
+    const form = screen.getByRole("button", { name: "Add expense" }).closest("form")!;
+    fireEvent.submit(form);
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    expect(action.mock.calls[0]?.[1].get("budgetParticipation")).toBe("1");
+    expect(action.mock.calls[0]?.[1].get("includeInBudget")).toBe("1");
+    expect(action.mock.calls[0]?.[1].get("budgetCategoryId")).toBe(foodId);
+
+    fireEvent.click(include);
+    expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+    fireEvent.submit(form);
+    await waitFor(() => expect(action).toHaveBeenCalledTimes(2));
+    expect(action.mock.calls[1]?.[1].get("budgetParticipation")).toBe("1");
+    expect(action.mock.calls[1]?.[1].get("includeInBudget")).toBeNull();
+    expect(action.mock.calls[1]?.[1].get("budgetCategoryId")).toBeNull();
+  });
+
+  it("starts the Budget control unchecked when the preference is off", () => {
+    renderForm(vi.fn().mockResolvedValue(initialState), "create", initialState.values, [outingOption], vi.fn().mockResolvedValue([outingOption]), { ...budget, defaultIncluded: false });
+    expect(screen.getByRole("checkbox", { name: "Include this expense in Budget" })).not.toBeChecked();
+    expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+  });
+
+  it("preserves the Budget choice and reports a rejected category", async () => {
+    const action = vi.fn().mockResolvedValue({
+      ...initialState,
+      fieldErrors: { budgetCategoryId: "Choose a valid Budget category." },
+      formError: "Please correct the marked fields.",
+      values: { description: "Dinner", amountRupiah: "84000", outingId: outing.id },
+    });
+    renderForm(action, "create", initialState.values, [outingOption], vi.fn().mockResolvedValue([outingOption]), budget);
+    fireEvent.submit(screen.getByRole("button", { name: "Add expense" }).closest("form")!);
+
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    expect(screen.getByRole("checkbox", { name: "Include this expense in Budget" })).toBeChecked();
+    const category = screen.getByLabelText("Category");
+    expect(category).toHaveValue(uncategorizedId);
+    expect(category).toHaveAttribute("aria-invalid", "true");
+    expect(document.getElementById("expense-budget-category-error")).toHaveTextContent("Choose a valid Budget category.");
   });
 
   it("preserves values and exposes field errors after validation failure", async () => {

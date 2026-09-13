@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ThemeControl } from "@/components/theme/theme-provider";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { AvatarSettings } from "@/components/settings/avatar-settings";
@@ -5,11 +6,13 @@ import { RepaymentDestinationsSettings } from "@/components/settings/repayment-d
 import { UsernameSettings } from "@/components/settings/username-settings";
 import { getDatabase } from "@/db/client";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { getBudgetProfile } from "@/server/budgeting/profiles";
 import { getUserAvatarMetadata } from "@/server/user-avatars";
 import {
   createRepaymentDestinationAction,
   deleteRepaymentDestinationAction,
   setRepaymentDestinationOrderAction,
+  updateBudgetDefaultAction,
   updateUsernameAction,
   updateRepaymentDestinationAction,
 } from "./actions";
@@ -25,7 +28,7 @@ function first(value: string | string[] | undefined) {
 
 export default async function SettingsPage({ searchParams }: { searchParams?: Promise<SettingsSearchParams> }) {
   const { user, ledger } = await getAuthenticatedLedger();
-  const [destinations, avatar] = await Promise.all([ledger.listRepaymentDestinations(), getUserAvatarMetadata(getDatabase(), user.id)]);
+  const [destinations, avatar, budgetProfile] = await Promise.all([ledger.listRepaymentDestinations(), getUserAvatarMetadata(getDatabase(), user.id), getBudgetProfile(getDatabase(), user.id)]);
   const query = searchParams ? await searchParams : {};
   const destinationEntries = destinations.map((destination) => ({
     id: destination.id,
@@ -77,6 +80,30 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
         <section className="settings-page__section ledger-section" id="repays-to" aria-labelledby="settings-repayment-heading">
           <div className="settings-page__section-heading"><div><p className="technical-label">Repays to</p><h2 id="settings-repayment-heading">Repayment destinations</h2><p>Choose where friends can repay you. Destinations marked as shared appear on active balance links.</p></div><span className="technical-label">{destinations.length} destinations</span></div>
           <RepaymentDestinationsSettings destinations={destinationEntries} createAction={createRepaymentDestinationAction} setOrderAction={setRepaymentDestinationOrderAction} />
+        </section>
+        <section className="settings-page__section" id="budget" aria-labelledby="settings-budget-heading">
+          <div className="settings-page__section-heading">
+            <div>
+              <p className="technical-label">Budget</p>
+              <h2 id="settings-budget-heading">New expense default</h2>
+            </div>
+          </div>
+          {budgetProfile ? (
+            <form className="settings-budget" action={updateBudgetDefaultAction}>
+              <label className="settings-budget__control" htmlFor="settings-budget-include">
+                <input id="settings-budget-include" name="includeNewExpensesByDefault" type="checkbox" value="1" defaultChecked={budgetProfile.includeNewExpensesByDefault} />
+                <span>
+                  <strong>Include new expenses in Budget by default</strong>
+                  <small>Sets the initial choice when creating an expense. Existing expenses are not changed.</small>
+                </span>
+              </label>
+              <button className="action-link action-link--quiet" type="submit">Save preference</button>
+            </form>
+          ) : (
+            <p className="settings-budget__empty">
+              Budgeting is not set up yet. <Link className="text-link" href="/app/personal/budget">Set up Budget <span aria-hidden="true">→</span></Link>
+            </p>
+          )}
         </section>
       </div>
     </section>

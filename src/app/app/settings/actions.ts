@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { getDatabase } from "@/db/client";
 import { users } from "@/db/schema";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { setBudgetIncludeNewExpensesByDefault } from "@/server/budgeting/profiles";
 import { getLedgerForAction, assertOrganizationLedgerWritableFromForm, ledgerPath } from "@/server/organization-ledger";
 
 export type RepaymentDestinationActionState = {
@@ -182,4 +183,17 @@ export async function setRepaymentDestinationOrderAction(orderedIds: string[]): 
   } catch {
     return { ok: false, message: "Unable to save repayment destination order." };
   }
+}
+
+export async function updateBudgetDefaultAction(formData: FormData) {
+  const session = await requireSession();
+  const includeNewExpensesByDefault = formData.get("includeNewExpensesByDefault") === "1";
+  try {
+    await setBudgetIncludeNewExpensesByDefault(getDatabase(), session.user.id, includeNewExpensesByDefault);
+  } catch {
+    redirect("/app/settings?error=1#budget");
+  }
+  revalidatePath("/app/settings");
+  revalidatePath("/app/expenses");
+  redirect("/app/settings?saved=1#budget");
 }

@@ -13,7 +13,11 @@ export type ExpenseInput = {
 };
 
 export type ExpenseField = keyof ExpenseInputValues;
-export type ExpenseFieldErrors = Partial<Record<ExpenseField, string>>;
+/**
+ * Budget field errors come from the creation-time Budget control, which the
+ * Budgeting owner validates; they are not part of the ledger expense input.
+ */
+export type ExpenseFieldErrors = Partial<Record<ExpenseField, string>> & { budgetCategoryId?: string };
 
 export type ExpenseValidationResult =
   | { ok: true; value: ExpenseInput; values: ExpenseInputValues }

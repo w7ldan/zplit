@@ -4,10 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
+import { parseExpenseBudgetParticipation } from "@/domain/budgeting/participation";
+import { BudgetError } from "@/domain/budgeting/errors";
 import { GroupAccountingInputError, normalizeGroupExpenseInput } from "@/domain/group-accounting";
 import type { GroupExpenseActionState, GroupExpenseConfirmationState, GroupExpenseFormValues } from "@/domain/group-contracts";
 import { parseLocalDateTime } from "@/domain/outing-input";
 import { normalizeUuid } from "@/domain/record-retrieval";
+import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
+import { changeGroupExpenseBudgetCategory } from "@/server/budgeting/sources-group";
 import { GroupAccountingError, confirmGroupExpenseAsPayer, createGroupExpense, rejectGroupExpenseAsPayer, voidGroupExpenseAsPayer } from "@/server/group-accounting";
 import type { Database } from "@/db/client";
 
@@ -74,7 +78,19 @@ export async function createGroupExpenseAction(groupId: string, _previousState: 
   const session = await requireSession();
   let expense;
   try {
-    expense = await createGroupExpense(getDatabase(), groupId, session.user.id, normalizeGroupExpenseInput(input));
+    const database = getDatabase();
+    const parsedBudget = parseExpenseBudgetParticipation(formData);
+    if (!parsedBudget.ok) return state(values, { budgetCategoryId: parsedBudget.categoryError }, "Please correct the marked fields.");
+    const participation = parsedBudget.participation;
+    // The private Budget choice is authorized for this user only; it takes
+    // effect solely when this user is also the confirmed payer below.
+    if (participation?.includeInBudget && participation.categoryId) {
+      const categories = await listBudgetCategoryOptions(database, session.user.id);
+      if (!categories.some((category) => category.id === participation.categoryId)) {
+        return state(values, { budgetCategoryId: "Choose a valid Budget category." }, "Please correct the marked fields.");
+      }
+    }
+    expense = await createGroupExpense(database, groupId, session.user.id, normalizeGroupExpenseInput(input), participation);
   } catch (error) {
     return inputErrorState(error, values);
   }
@@ -82,6 +98,22 @@ export async function createGroupExpenseAction(groupId: string, _previousState: 
   revalidatePath(`/app/personal/groups/${groupId}`);
   revalidatePath(path);
   redirect(`${path}/${expense.id}?created=1`);
+}
+
+export async function changeGroupExpenseBudgetCategoryAction(groupId: string, expenseId: string, formData: FormData) {
+  const transactionId = text(formData, "transactionId");
+  const categoryId = text(formData, "categoryId");
+  const path = `/app/personal/groups/${groupId}/expenses/${expenseId}`;
+  if (!normalizeUuid(groupId) || !normalizeUuid(expenseId) || !normalizeUuid(transactionId) || !normalizeUuid(categoryId)) throw new BudgetError("INVALID_INPUT", "A budget transaction and category are required.");
+  const session = await requireSession();
+  await changeGroupExpenseBudgetCategory(getDatabase(), session.user.id, transactionId, categoryId);
+  revalidatePath("/app/personal");
+  revalidatePath("/app/personal/budget");
+  revalidatePath("/app/personal/budget/transactions");
+  revalidatePath(`/app/personal/groups/${groupId}`);
+  revalidatePath(`/app/personal/groups/${groupId}/expenses`);
+  revalidatePath(path);
+  redirect(`${path}?budgetSaved=1#budget`);
 }
 
 export async function confirmGroupExpenseAction(groupId: string, expenseId: string, _previousState: GroupExpenseConfirmationState, _formData: FormData): Promise<GroupExpenseConfirmationState> {

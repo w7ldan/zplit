@@ -54,11 +54,18 @@ export function GroupExpenseForm({
   participants,
   defaultPayerId,
   initialOccurredAtUtc,
+  budget,
 }: {
   action: GroupExpenseAction;
   participants: GroupParticipantEligibility[];
   defaultPayerId: string;
   initialOccurredAtUtc: string;
+  budget?: {
+    payerParticipantId: string;
+    defaultIncluded: boolean;
+    defaultCategoryId: string;
+    categories: Array<{ id: string; name: string }>;
+  };
 }) {
   const payerOptions = participants.filter((participant) => participant.canPay);
   const shareOptions = participants.filter((participant) => participant.canParticipate);
@@ -81,6 +88,8 @@ export function GroupExpenseForm({
   const [shares, setShares] = useState<ShareDraft[]>(state.values.shares);
   const [addParticipantId, setAddParticipantId] = useState("");
   const [localError, setLocalError] = useState("");
+  const [budgetIncluded, setBudgetIncluded] = useState(budget?.defaultIncluded ?? false);
+  const [budgetCategoryId, setBudgetCategoryId] = useState(budget?.defaultCategoryId ?? "");
   const previousState = useRef(state);
   const formRef = useRef<HTMLFormElement>(null);
   const initialized = useRef(false);
@@ -242,6 +251,42 @@ export function GroupExpenseForm({
           message={state.fieldErrors.payerParticipantId}
         />
       </div>
+      {budget && payerParticipantId === budget.payerParticipantId ? (
+        <fieldset className="group-expense-form__budget">
+          <legend>Budget</legend>
+          <input type="hidden" name="budgetParticipation" value="1" />
+          <label className="group-expense-form__budget-toggle" htmlFor="group-expense-budget-include">
+            <input
+              id="group-expense-budget-include"
+              name="includeInBudget"
+              type="checkbox"
+              value="1"
+              checked={budgetIncluded}
+              onChange={(event) => setBudgetIncluded(event.target.checked)}
+            />
+            <span>Include this expense in my Budget</span>
+          </label>
+          {budgetIncluded ? (
+            <div className="group-expense-form__field">
+              <label htmlFor="group-expense-budget-category">Budget category</label>
+              <select
+                id="group-expense-budget-category"
+                name="budgetCategoryId"
+                value={budgetCategoryId}
+                onChange={(event) => setBudgetCategoryId(event.target.value)}
+                aria-invalid={Boolean(state.fieldErrors.budgetCategoryId)}
+                aria-describedby="group-expense-budget-category-help group-expense-budget-category-error"
+              >
+                {budget.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+              <p className="group-expense-form__help" id="group-expense-budget-category-help">
+                Budget is private to the confirmed payer.
+              </p>
+              <FieldError id="group-expense-budget-category-error" message={state.fieldErrors.budgetCategoryId} />
+            </div>
+          ) : null}
+        </fieldset>
+      ) : null}
       <fieldset
         className="group-expense-form__shares"
         aria-describedby="group-expense-shares-help group-expense-shares-error"

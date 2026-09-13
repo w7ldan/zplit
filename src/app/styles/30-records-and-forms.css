@@ -6003,6 +6003,116 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   font-size: 0.75rem;
 }
 
+.budget-participation {
+  display: grid;
+  gap: 0.35rem;
+  padding-block: 0.9rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.budget-participation__excluded {
+  margin: 0;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+}
+
+.budget-participation__category {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: baseline;
+}
+
+.budget-participation__category > span {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.budget-participation__category > strong {
+  overflow-wrap: anywhere;
+  font-size: 0.92rem;
+}
+
+.budget-participation .budget-category-change {
+  margin-top: 0;
+}
+
+.expense-form__budget,
+.group-expense-form__budget {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--rule);
+}
+
+.expense-form__budget legend,
+.group-expense-form__budget legend {
+  padding-inline: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.expense-form__budget-toggle,
+.group-expense-form__budget-toggle {
+  display: flex;
+  align-items: start;
+  gap: 0.6rem;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.expense-form__budget-toggle input,
+.group-expense-form__budget-toggle input {
+  flex: 0 0 auto;
+  min-height: auto;
+  margin-top: 0.1rem;
+}
+
+.settings-budget {
+  display: grid;
+  gap: 0.8rem;
+  justify-items: start;
+  margin-top: 1rem;
+}
+
+.settings-budget__control {
+  display: flex;
+  align-items: start;
+  gap: 0.6rem;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.settings-budget__control input {
+  flex: 0 0 auto;
+  min-height: auto;
+  margin-top: 0.1rem;
+}
+
+.settings-budget__control span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.settings-budget__control strong {
+  color: var(--ink);
+}
+
+.settings-budget__control small {
+  color: var(--muted-ink);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.settings-budget__empty {
+  margin: 1rem 0 0;
+  color: var(--muted-ink);
+}
+
 .budget-copy {
   max-width: 42rem;
   margin: 0;

@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createExpenseAction, deleteExpenseAction, replaceExpenseSharesAction, searchExpenseFriendOptions, updateExpenseAction, type ExpenseActionState, type ExpenseShareActionState } from "./actions";
+import { changeExpenseBudgetCategoryAction, createExpenseAction, deleteExpenseAction, replaceExpenseSharesAction, searchExpenseFriendOptions, updateExpenseAction, type ExpenseActionState, type ExpenseShareActionState } from "./actions";
 import { deletionImpactRevision, ExpenseShareInvariantError, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   getDatabase: vi.fn(),
   createLedgerRepository: vi.fn(),
+  changePersonalExpenseBudgetCategory: vi.fn(),
+  listBudgetCategoryOptions: vi.fn(),
+  getPersonalLedgerScopeId: vi.fn(),
   revalidatePath: vi.fn(),
   redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }),
 }));
@@ -19,6 +22,9 @@ vi.mock("@/domain/ledger-repository", async () => {
   const actual = await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository");
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
 });
+vi.mock("@/server/budgeting/sources-personal", () => ({ changePersonalExpenseBudgetCategory: mocks.changePersonalExpenseBudgetCategory }));
+vi.mock("@/server/budgeting/categories", () => ({ listBudgetCategoryOptions: mocks.listBudgetCategoryOptions }));
+vi.mock("@/server/ledger-scopes", () => ({ getPersonalLedgerScopeId: mocks.getPersonalLedgerScopeId }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
@@ -51,9 +57,14 @@ const values = {
   amountRupiah: "84.000",
   outingId: "11111111-1111-4111-8111-111111111111",
 };
+const budgetCategoryId = "44444444-4444-4444-8444-444444444444";
 
 describe("expense actions", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.listBudgetCategoryOptions.mockResolvedValue([{ id: budgetCategoryId, name: "Food" }]);
+    mocks.getPersonalLedgerScopeId.mockResolvedValue("scope-a");
+  });
 
   it("returns only bounded active friend options for the session owner", async () => {
     const searchFriends = vi.fn().mockResolvedValue([
@@ -136,7 +147,7 @@ describe("expense actions", () => {
     await expect(updateExpenseAction("expense-a", initialState, form(values))).rejects.toThrow("redirect:/app/expenses/expense-a?updated=1#expense-details");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
-    expect(createExpense).toHaveBeenCalledWith({ description: "Dinner", amount: 84000, outingId: values.outingId });
+    expect(createExpense).toHaveBeenCalledWith({ description: "Dinner", amount: 84000, outingId: values.outingId }, undefined);
     expect(updateExpense).toHaveBeenCalledWith("expense-a", { description: "Dinner", amount: 84000, outingId: values.outingId });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/expenses");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/expenses/expense-a");
@@ -150,6 +161,43 @@ describe("expense actions", () => {
     const state = await updateExpenseAction("expense-b", initialState, form(values));
     expect(state.formError).toBe("This outing or expense is no longer available.");
     expect(state.formError).not.toContain("expense-b");
+  });
+
+  it("passes the submitted creation-time Budget participation to the owner's ledger", async () => {
+    const createExpense = vi.fn().mockResolvedValue({ id: "expense-a", amount: 84000 });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createExpense });
+
+    const included = form({ ...values, budgetParticipation: "1", includeInBudget: "1", budgetCategoryId });
+    await expect(createExpenseAction(initialState, included)).rejects.toThrow("redirect:/app/expenses/expense-a?created=1#friend-shares");
+    expect(createExpense).toHaveBeenCalledWith({ description: "Dinner", amount: 84000, outingId: values.outingId }, { includeInBudget: true, categoryId: budgetCategoryId });
+
+    createExpense.mockClear();
+    await expect(createExpenseAction(initialState, form({ ...values, budgetParticipation: "1", budgetCategoryId }))).rejects.toThrow("redirect:");
+    expect(createExpense).toHaveBeenCalledWith(expect.anything(), { includeInBudget: false });
+  });
+
+  it("rejects a Budget category the owner cannot use without creating the expense", async () => {
+    const createExpense = vi.fn().mockResolvedValue({ id: "expense-a", amount: 84000 });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.createLedgerRepository.mockReturnValue({ createExpense });
+
+    const foreign = await createExpenseAction(initialState, form({ ...values, budgetParticipation: "1", includeInBudget: "1", budgetCategoryId: "99999999-9999-4999-8999-999999999999" }));
+    expect(foreign).toMatchObject({ fieldErrors: { budgetCategoryId: "Choose a valid Budget category." }, formError: "Please correct the marked fields." });
+    const malformed = await createExpenseAction(initialState, form({ ...values, budgetParticipation: "1", includeInBudget: "1", budgetCategoryId: "not-a-category" }));
+    expect(malformed).toMatchObject({ fieldErrors: { budgetCategoryId: "Choose a valid Budget category." } });
+    expect(createExpense).not.toHaveBeenCalled();
+  });
+
+  it("changes an included expense Budget category through the canonical owner action", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    const data = form({ transactionId: "77777777-7777-4777-8777-777777777777", categoryId: budgetCategoryId });
+    const expenseId = "88888888-8888-4888-8888-888888888888";
+    await expect(changeExpenseBudgetCategoryAction(expenseId, data)).rejects.toThrow(`redirect:/app/expenses/${expenseId}?budgetSaved=1#expense-details`);
+    expect(mocks.changePersonalExpenseBudgetCategory).toHaveBeenCalledWith("database", "owner-a", "scope-a", "77777777-7777-4777-8777-777777777777", budgetCategoryId);
   });
 
   it("binds split replacement to the session owner and canonical detail route", async () => {

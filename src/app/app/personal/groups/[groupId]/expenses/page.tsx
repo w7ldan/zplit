@@ -9,6 +9,7 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { recordHref, type RecordPage } from "@/domain/record-retrieval";
 import type { GroupParticipantEligibility } from "@/domain/group-contracts";
+import { getExpenseBudgetControl, type ExpenseBudgetControlOptions } from "@/server/budgeting/profiles";
 import {
   createGroupAccountingRepository,
   GroupAccountingError,
@@ -136,11 +137,13 @@ function GroupExpenseCreatePanel({
   groupId,
   participants,
   defaultPayerId,
+  budget,
   query,
 }: {
   groupId: string;
   participants: GroupParticipantEligibility[];
   defaultPayerId: string;
+  budget: (ExpenseBudgetControlOptions & { payerParticipantId: string }) | undefined;
   query: GroupExpenseSearchParams;
 }) {
   return first(query.create) === "1" ? (
@@ -156,6 +159,7 @@ function GroupExpenseCreatePanel({
         participants={participants}
         defaultPayerId={defaultPayerId}
         initialOccurredAtUtc={new Date().toISOString()}
+        budget={budget}
       />
     </TaskPanel>
   ) : null;
@@ -197,6 +201,10 @@ export default async function GroupExpensesPage({
       (participant) =>
         participant.userId === session.user.id && participant.canPay,
     )?.id ?? "";
+  const budgetControl = first(query.create) === "1" && defaultPayerId
+    ? await getExpenseBudgetControl(getDatabase(), session.user.id)
+    : undefined;
+  const budget = budgetControl ? { ...budgetControl, payerParticipantId: defaultPayerId } : undefined;
   const filtered = Boolean(
     search || ["pending", "confirmed", "rejected", "voided"].includes(expenseState ?? ""),
   );
@@ -237,6 +245,7 @@ export default async function GroupExpensesPage({
         groupId={groupId}
         participants={participants}
         defaultPayerId={defaultPayerId}
+        budget={budget}
         query={query}
       />
     </section>

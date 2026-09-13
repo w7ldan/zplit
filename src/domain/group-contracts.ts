@@ -68,7 +68,7 @@ export type GroupJoinRequestActionState = { error: string; values: { targetUserI
 
 export type GroupExpenseShareFormValue = { participantId: string; amount: string };
 export type GroupExpenseFormValues = { description: string; totalAmount: string; occurredAtLocal: string; timezoneOffsetMinutes: string; payerParticipantId: string; shares: GroupExpenseShareFormValue[] };
-export type GroupExpenseActionState = { fieldErrors: Partial<Record<"description" | "totalAmount" | "occurredAtLocal" | "payerParticipantId" | "shares", string>>; formError: string; values: GroupExpenseFormValues };
+export type GroupExpenseActionState = { fieldErrors: Partial<Record<"description" | "totalAmount" | "occurredAtLocal" | "payerParticipantId" | "shares" | "budgetCategoryId", string>>; formError: string; values: GroupExpenseFormValues };
 export type GroupExpenseConfirmationState = { error: string; success?: string };
 export type GroupSettlementFormValues = {
   recipientParticipantId: string;

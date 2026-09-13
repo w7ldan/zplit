@@ -8,9 +8,16 @@ import { validateExpenseInput, type ExpenseFieldErrors, type ExpenseInputValues 
 import { deletionImpactRevision, ExpenseShareAllocationInvariantError, ExpenseShareInvariantError, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError } from "@/domain/ledger-repository";
 import type { DeleteRecordActionState } from "@/components/app/delete-record-form";
 import type { SearchableOption } from "@/components/records/searchable-combobox";
+import { BudgetError } from "@/domain/budgeting/errors";
+import { parseExpenseBudgetParticipation } from "@/domain/budgeting/participation";
 import { parseCascadeConfirmation, parseImpactRevision } from "@/domain/deletion-confirmation";
+import { normalizeUuid } from "@/domain/record-retrieval";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
-import { getLedgerForAction, assertOrganizationLedgerWritableFromForm, ledgerPath } from "@/server/organization-ledger";
+import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
+import { changePersonalExpenseBudgetCategory } from "@/server/budgeting/sources-personal";
+import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
+import { getDatabase } from "@/db/client";
+import { getLedgerForAction, assertOrganizationLedgerWritableFromForm, ledgerPath, organizationIdFromForm } from "@/server/organization-ledger";
 
 export type ExpenseSubmitIntent = "add" | "continue";
 export type ExpenseActionSuccess = { expenseId: string; amount: number };
@@ -57,6 +64,15 @@ function valuesFromForm(formData: FormData) {
     amountRupiah: formData.get("amountRupiah"),
     outingId: formData.get("outingId"),
   });
+}
+
+function textValue(formData: FormData, name: string) {
+  const value = formData.get(name);
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function budgetCategoryErrorState(values: ExpenseInputValues, message: string, intent?: ExpenseSubmitIntent): ExpenseActionState {
+  return { fieldErrors: { budgetCategoryId: message }, formError: "Please correct the marked fields.", values, ...(intent === "continue" ? { intent } : {}) };
 }
 
 function expenseSubmitIntent(formData: FormData): ExpenseSubmitIntent | null {
@@ -133,7 +149,14 @@ export async function createExpenseAction(
   let expense;
   try {
     const { ledger } = await actionLedger(session, formData, "expenses.create");
-    expense = await ledger.createExpense(result.value);
+    const parsedBudget = parseExpenseBudgetParticipation(formData);
+    if (!parsedBudget.ok) return budgetCategoryErrorState(result.values, parsedBudget.categoryError, intent);
+    const participation = organizationIdFromForm(formData) ? undefined : parsedBudget.participation;
+    if (participation?.includeInBudget && participation.categoryId) {
+      const categories = await listBudgetCategoryOptions(getDatabase(), session.user.id);
+      if (!categories.some((category) => category.id === participation.categoryId)) return budgetCategoryErrorState(result.values, "Choose a valid Budget category.", intent);
+    }
+    expense = await ledger.createExpense(result.value, participation);
   } catch (error) {
     return errorState(error, result.values, intent);
   }
@@ -148,6 +171,26 @@ export async function createExpenseAction(
     };
   }
   redirect(`${ledgerPath(formData, "/expenses")}/${encodeURIComponent(expense.id)}?created=1#friend-shares`);
+}
+
+export async function changeExpenseBudgetCategoryAction(expenseId: string, formData: FormData) {
+  const session = await requireSession();
+  const transactionId = textValue(formData, "transactionId");
+  const categoryId = textValue(formData, "categoryId");
+  const canonicalExpenseId = normalizeUuid(expenseId);
+  const canonicalTransactionId = normalizeUuid(transactionId);
+  const canonicalCategoryId = normalizeUuid(categoryId);
+  if (!canonicalExpenseId || !canonicalTransactionId || !canonicalCategoryId) throw new BudgetError("INVALID_INPUT", "A budget transaction and category are required.");
+  const database = getDatabase();
+  const scope = await getPersonalLedgerScopeId(database, session.user.id);
+  await changePersonalExpenseBudgetCategory(database, session.user.id, scope, canonicalTransactionId, canonicalCategoryId);
+  revalidatePath("/app");
+  revalidatePath("/app/expenses");
+  revalidatePath(`/app/expenses/${canonicalExpenseId}`);
+  revalidatePath("/app/personal");
+  revalidatePath("/app/personal/budget");
+  revalidatePath("/app/personal/budget/transactions");
+  redirect(`/app/expenses/${canonicalExpenseId}?budgetSaved=1#expense-details`);
 }
 
 export async function updateExpenseAction(

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
+import { getDatabase } from "@/db/client";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
+import { getExpenseBudgetControl, type ExpenseBudgetControlOptions } from "@/server/budgeting/profiles";
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ExpenseRow } from "@/components/expenses/expense-row";
 import { createExpenseAction, searchOutingFilterOptions, searchOutingOptions } from "./actions";
@@ -103,7 +105,7 @@ function ExpenseRecordList({ data, params }: { data: ExpensesPageData; params: A
   );
 }
 
-function ExpenseCreatePanel({ data, outingId }: { data: ExpensesPageData; outingId: string | undefined }) {
+function ExpenseCreatePanel({ data, outingId, budget }: { data: ExpensesPageData; outingId: string | undefined; budget: ExpenseBudgetControlOptions | undefined }) {
   if (!data.openCreate) return null;
   const { outingOptions, expenseReturnTarget } = data;
   return (
@@ -118,6 +120,7 @@ function ExpenseCreatePanel({ data, outingId }: { data: ExpensesPageData; outing
             amountRupiah: "",
             outingId: outingId ?? "",
           }}
+          budget={budget}
         />
       ) : (
         <div className="task-panel__empty">
@@ -138,7 +141,7 @@ function ExpenseCreatePanel({ data, outingId }: { data: ExpensesPageData; outing
   );
 }
 
-function ExpensesPageContent({ data, params }: { data: ExpensesPageData; params: Awaited<NonNullable<ExpensesPageProps["searchParams"]>> }) {
+function ExpensesPageContent({ data, params, budget }: { data: ExpensesPageData; params: Awaited<NonNullable<ExpensesPageProps["searchParams"]>>; budget: ExpenseBudgetControlOptions | undefined }) {
   const { filters, outingId, outingOptions, expensePage, filtered } = data;
   return (
     <section className="app-page expenses-page" id="top">
@@ -188,7 +191,7 @@ function ExpensesPageContent({ data, params }: { data: ExpensesPageData; params:
         />
         <ExpenseRecordList data={data} params={params} />
       </div>
-      <ExpenseCreatePanel data={data} outingId={outingId} />
+      <ExpenseCreatePanel data={data} outingId={outingId} budget={budget} />
     </section>
   );
 }
@@ -200,6 +203,7 @@ export default async function ExpensesPage({ searchParams = Promise.resolve({}) 
   const session = await requireSession();
   const { ledger: repository } = await getAuthenticatedLedger(session);
   const data = await loadExpensesPageData(params ?? {}, repository);
+  const budget = data.openCreate ? await getExpenseBudgetControl(getDatabase(), session.user.id) : undefined;
 
-  return <ExpensesPageContent data={data} params={params ?? {}} />;
+  return <ExpensesPageContent data={data} params={params ?? {}} budget={budget} />;
 }

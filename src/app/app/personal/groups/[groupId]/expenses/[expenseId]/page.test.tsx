@@ -1,11 +1,13 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createGroupAccountingRepository: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createGroupAccountingRepository: vi.fn(), getGroupExpenseBudgetState: vi.fn(), listBudgetCategoryOptions: vi.fn() }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/group-accounting", () => ({ createGroupAccountingRepository: mocks.createGroupAccountingRepository, GroupAccountingError: class GroupAccountingError extends Error { constructor(readonly code: string) { super(code); } } }));
+vi.mock("@/server/budgeting/sources-group", () => ({ getGroupExpenseBudgetState: mocks.getGroupExpenseBudgetState }));
+vi.mock("@/server/budgeting/categories", () => ({ listBudgetCategoryOptions: mocks.listBudgetCategoryOptions }));
 vi.mock("@/components/realtime/group-expense-live-refresh", () => ({ GroupExpenseLiveRefresh: () => null }));
 
 import GroupExpenseDetailPage from "./page";
@@ -48,6 +50,8 @@ describe("Group expense detail", () => {
     vi.clearAllMocks();
     mocks.requireSession.mockResolvedValue({ user: { id: "user-a" } });
     mocks.getDatabase.mockReturnValue("database");
+    mocks.getGroupExpenseBudgetState.mockResolvedValue({ status: "unprocessed" });
+    mocks.listBudgetCategoryOptions.mockResolvedValue([]);
   });
 
   it("shows shares and a payer-only confirmation for pending claims", async () => {
@@ -216,5 +220,36 @@ describe("Group expense detail", () => {
     expect(screen.getByText("Rp 40.000")).toBeInTheDocument();
     expect(screen.getByText(/source expense was later voided/)).toBeInTheDocument();
     expect(screen.getByText("Reversed")).toBeInTheDocument();
+  });
+
+  it("shows the confirmed payer their private Budget classification with a category change control", async () => {
+    configureExpense(expense("confirmed"));
+    mocks.getGroupExpenseBudgetState.mockResolvedValue({ status: "included", transactionId: "77777777-7777-4777-8777-777777777777", categoryId: "88888888-8888-4888-8888-888888888888", categoryName: "Food" });
+    mocks.listBudgetCategoryOptions.mockResolvedValue([{ id: "88888888-8888-4888-8888-888888888888", name: "Food" }, { id: "99999999-9999-4999-8999-999999999999", name: "Transport" }]);
+
+    render(await GroupExpenseDetailPage({ params: Promise.resolve({ groupId: "group-a", expenseId: "expense-a" }) }));
+
+    expect(mocks.getGroupExpenseBudgetState).toHaveBeenCalledWith("database", "user-a", "expense-a");
+    const budgetBlock = document.getElementById("budget");
+    expect(budgetBlock).toHaveTextContent("Budget");
+    expect(budgetBlock).toHaveTextContent("Food");
+    expect(screen.getByRole("combobox", { name: "Budget category for Dinner" })).toHaveValue("88888888-8888-4888-8888-888888888888");
+    expect(screen.getByRole("button", { name: "Save budget category for Dinner" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Budget/ })).not.toBeInTheDocument();
+  });
+
+  it("states an explicit exclusion read-only and shows nothing for a participant without Budget state", async () => {
+    configureExpense(expense("confirmed"));
+    mocks.getGroupExpenseBudgetState.mockResolvedValue({ status: "not_included" });
+    const excluded = render(await GroupExpenseDetailPage({ params: Promise.resolve({ groupId: "group-a", expenseId: "expense-a" }) }));
+    expect(screen.getByText("Not included")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Budget/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /Budget category/ })).not.toBeInTheDocument();
+    excluded.unmount();
+
+    mocks.getGroupExpenseBudgetState.mockResolvedValue({ status: "unprocessed" });
+    render(await GroupExpenseDetailPage({ params: Promise.resolve({ groupId: "group-a", expenseId: "expense-a" }) }));
+    expect(document.getElementById("budget")).toBeNull();
+    expect(screen.queryByText("Not included")).not.toBeInTheDocument();
   });
 });

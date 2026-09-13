@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ExpensesPage from "./page";
 import { ToastProvider } from "@/components/feedback/toast";
 
-const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }) }));
+const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createLedgerRepository: vi.fn(), getExpenseBudgetControl: vi.fn(), redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }) }));
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: async (session?: { user: { id: string } }) => { const current = session ?? await mocks.requireSession(); return { user: current.user, ledger: mocks.createLedgerRepository(mocks.getDatabase(), current.user.id) }; } }));
 vi.mock("@/domain/ledger-repository", () => ({ createLedgerRepository: mocks.createLedgerRepository }));
+vi.mock("@/server/budgeting/profiles", () => ({ getExpenseBudgetControl: mocks.getExpenseBudgetControl }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
 const outing = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", ownerUserId: "owner-a", title: "Jakarta dinner", occurredAt: new Date("2026-01-02T10:30:00.000Z"), occurredOn: null, notes: null, createdAt: new Date("2026-01-02T00:00:00.000Z"), updatedAt: new Date("2026-01-02T00:00:00.000Z") };
@@ -15,7 +16,11 @@ const expense = { id: "expense-a", ownerUserId: "owner-a", outingId: outing.id, 
 const expensePage = { items: [expense], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 };
 
 describe("/app/expenses", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.getExpenseBudgetControl.mockResolvedValue(undefined);
+  });
 
   it("redirects empty controlled parameters to the canonical URL", async () => {
     await expect(ExpensesPage({ searchParams: Promise.resolve({ assignment: "", outing: "", q: "" }) })).rejects.toThrow("redirect:/app/expenses");
@@ -84,6 +89,30 @@ describe("/app/expenses", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Amount in rupiah")).toBeInTheDocument();
     expect(within(screen.getByRole("dialog")).getByRole("combobox", { name: "Outing" })).toHaveTextContent(outing.title);
+  });
+
+  it("seeds the creation-time Budget control from the owner preference", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
+    mocks.getExpenseBudgetControl.mockResolvedValue({
+      defaultIncluded: false,
+      defaultCategoryId: "55555555-5555-4555-8555-555555555555",
+      categories: [{ id: "55555555-5555-4555-8555-555555555555", name: "Uncategorized" }],
+    });
+    render(<ToastProvider>{await ExpensesPage({ searchParams: Promise.resolve({ create: "1" }) })}</ToastProvider>);
+
+    expect(mocks.getExpenseBudgetControl).toHaveBeenCalledWith("database", "owner-a");
+    expect(screen.getByRole("checkbox", { name: "Include this expense in Budget" })).not.toBeChecked();
+    expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+  });
+
+  it("keeps Budget out of the create panel for an owner without a Budget profile", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({ listExpenseRecords: vi.fn().mockResolvedValue({ ...expensePage, items: [], totalItems: 0, totalPages: 1 }), searchOutings: vi.fn().mockResolvedValue([{ id: outing.id, title: outing.title }]) });
+    render(<ToastProvider>{await ExpensesPage({ searchParams: Promise.resolve({ create: "1" }) })}</ToastProvider>);
+
+    expect(screen.getByLabelText("Amount in rupiah")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Include this expense in Budget" })).not.toBeInTheDocument();
   });
 
   it("falls back without displaying an invalid outing context", async () => {

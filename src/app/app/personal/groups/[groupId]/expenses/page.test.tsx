@@ -1,12 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createGroupAccountingRepository: vi.fn(), notFound: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(), createGroupAccountingRepository: vi.fn(), getExpenseBudgetControl: vi.fn(), notFound: vi.fn() }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/group-accounting", () => ({ createGroupAccountingRepository: mocks.createGroupAccountingRepository, GroupAccountingError: class GroupAccountingError extends Error { constructor(readonly code: string) { super(code); } } }));
+vi.mock("@/server/budgeting/profiles", () => ({ getExpenseBudgetControl: mocks.getExpenseBudgetControl }));
 vi.mock("@/components/realtime/group-expense-live-refresh", () => ({ GroupExpenseLiveRefresh: () => null }));
+vi.mock("./actions", () => ({ createGroupExpenseAction: vi.fn(), changeGroupExpenseBudgetCategoryAction: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 
 import GroupExpensesPage from "./page";
@@ -18,6 +20,7 @@ describe("Group expenses page", () => {
     vi.clearAllMocks();
     mocks.requireSession.mockResolvedValue({ user: { id: "user-a" } });
     mocks.getDatabase.mockReturnValue("database");
+    mocks.getExpenseBudgetControl.mockResolvedValue(undefined);
     mocks.createGroupAccountingRepository.mockReturnValue({
       listExpenses: vi.fn().mockResolvedValue({ items: [{ id: "expense-a", groupId: "group-a", creatorParticipantId: "alice", payerParticipantId: "alice", description: "Dinner", occurredAt: new Date("2026-08-27T12:00:00Z"), occurredOn: "2026-08-27", totalAmount: 100000, state: "pending", confirmedAt: null, createdAt: new Date(), updatedAt: new Date(), payer, shareCount: 2 }], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 }),
       getParticipantEligibility: vi.fn().mockResolvedValue([]),
@@ -33,5 +36,23 @@ describe("Group expenses page", () => {
     expect(screen.getByRole("option", { name: "Rejected" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Voided" })).toBeInTheDocument();
     expect(mocks.createGroupAccountingRepository).toHaveBeenCalledWith("database", "group-a");
+  });
+
+  it("offers the current user's private Budget default when they can be the payer", async () => {
+    const alice = { ...payer, canCreate: true, canPay: true, canParticipate: true, canBeCreditor: true };
+    mocks.createGroupAccountingRepository.mockReturnValue({
+      listExpenses: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1 }),
+      getParticipantEligibility: vi.fn().mockResolvedValue([alice]),
+    });
+    mocks.getExpenseBudgetControl.mockResolvedValue({
+      defaultIncluded: true,
+      defaultCategoryId: "55555555-5555-4555-8555-555555555555",
+      categories: [{ id: "55555555-5555-4555-8555-555555555555", name: "Uncategorized" }],
+    });
+    render(await GroupExpensesPage({ params: Promise.resolve({ groupId: "group-a" }), searchParams: Promise.resolve({ create: "1" }) }));
+
+    expect(mocks.getExpenseBudgetControl).toHaveBeenCalledWith("database", "user-a");
+    expect(screen.getByRole("checkbox", { name: "Include this expense in my Budget" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Budget category" })).toHaveValue("55555555-5555-4555-8555-555555555555");
   });
 });
