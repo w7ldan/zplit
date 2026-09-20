@@ -11,7 +11,6 @@
     "check:boundaries": "tsx scripts/check-next-boundaries.ts",
     "check:readability": "tsx scripts/check-readability.ts",
     "typecheck": "next typegen && tsc --noEmit",
-    "typecheck:vm": "NODE_OPTIONS=--max-old-space-size=1500 npm run typecheck",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
