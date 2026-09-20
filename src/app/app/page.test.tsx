@@ -54,18 +54,15 @@ describe("/app overview", () => {
     expect("listExpenses" in repository).toBe(false);
     expect("listRepayments" in repository).toBe(false);
     expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
-    expect(screen.getByText("Overview · your Zplit")).toBeInTheDocument();
-    expect(screen.getByText("Your Zplit workspace across Personal, Groups, and Organizations.")).toBeInTheDocument();
-    const primary = document.querySelector<HTMLElement>(".overview-summary")!;
-    expect(primary.querySelectorAll("strong")).toHaveLength(3);
-    for (const label of ["Still owed to you", "Needs allocation", "Total spending"]) {
+    const primary = document.querySelector<HTMLElement>(".overview-personal")!;
+    for (const label of ["Still owed to you", "Needs matching", "Total spending"]) {
       expect(within(primary).getByText(label, { exact: true })).toBeInTheDocument();
     }
-    const clarity = document.querySelector<HTMLDetailsElement>(".overview-ledger-clarity");
+    const clarity = document.querySelector<HTMLDetailsElement>(".overview-accounting");
     expect(clarity).toBeInTheDocument();
     expect(clarity).not.toHaveAttribute("open");
     expect(within(clarity!).getByText("How are these totals calculated?", { exact: true })).toBeInTheDocument();
-    for (const label of ["Spending", "Friend debt", "Repayments", "Friend balances", "Recent activity"]) {
+    for (const label of ["Spending", "Friend debt", "Repayments", "People", "Recent"]) {
       expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
     }
     expect(within(clarity!).getByText("Total spending = Your portion + Assigned to friends")).toBeInTheDocument();
@@ -78,13 +75,13 @@ describe("/app overview", () => {
     expect(screen.getAllByText("Rp 4.000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Ari").length).toBeGreaterThan(0);
     expect(screen.getByText("Received money still needs an expense.")).toBeInTheDocument();
-    const attention = screen.getByRole("heading", { level: 2, name: "Needs attention" }).closest("section")!;
-    expect(attention.querySelectorAll(".overview-attention__row")).toHaveLength(1);
-    expect(within(attention).getByText("Rp 5.000 needs allocation")).toBeInTheDocument();
-    expect(within(attention).getByRole("link", { name: /Review/ })).toHaveAttribute("href", "/app/repayments/repayment-a#repayment-allocations");
+    const attention = screen.getByRole("heading", { level: 2, name: /Needs matching/ }).closest("section")!;
+    expect(attention.querySelectorAll(".overview-row--matching")).toHaveLength(1);
+    expect(within(attention).getByLabelText("Ari unallocated amount: Rp 5.000")).toBeInTheDocument();
+    expect(within(attention).getByRole("link", { name: /Match/ })).toHaveAttribute("href", "/app/repayments/repayment-a#repayment-allocations");
     expect(within(attention).queryByRole("link", { name: /View all/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/received remains unallocated/)).not.toBeInTheDocument();
-    const activityRows = [...document.querySelectorAll<HTMLAnchorElement>(".activity-row")];
+    const activityRows = [...document.querySelectorAll<HTMLAnchorElement>(".overview-row--recent")];
     expect(activityRows.map((row) => row.textContent)).toEqual([
       expect.stringContaining("Dinner"),
       expect.stringContaining("Ari"),
@@ -124,7 +121,7 @@ describe("/app overview", () => {
     expect(screen.getByText("Balances appear after assigning friends to an expense.")).toBeInTheDocument();
     expect(screen.getByText("All received money is applied to shares.")).toBeInTheDocument();
     expect(screen.queryByText("All received money is assigned.")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: "Needs attention" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: /Needs matching/ })).not.toBeInTheDocument();
     expect(repository.listRecentActivity).toHaveBeenCalledExactlyOnceWith({ limit: 6 });
   });
 
@@ -146,7 +143,7 @@ describe("/app overview", () => {
     expect(screen.getByText("You owe")).toBeInTheDocument();
     expect(screen.getByText("Rp 20.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Acme/ })).toHaveAttribute("href", "/app/organizations/org-a");
-    expect(screen.getByText("OUTSTANDING")).toBeInTheDocument();
+    expect(screen.getAllByText("Outstanding").length).toBeGreaterThan(0);
     expect(screen.getByText("Rp 40.000")).toBeInTheDocument();
     expect(screen.queryByText("Rp 80.000")).not.toBeInTheDocument();
     expect(screen.queryByText("EXPENSES")).not.toBeInTheDocument();
@@ -179,7 +176,7 @@ describe("/app overview", () => {
     render(await AppPage());
 
     expect(screen.getByRole("link", { name: /Bandung Trip/ })).toHaveAttribute("href", "/app/personal/groups/group-a");
-    expect(screen.getByText("Settled up")).toBeInTheDocument();
+    expect(screen.getByText("Settled")).toBeInTheDocument();
   });
 
   it("keeps an Organization card visible without protected ledger values", async () => {
@@ -226,14 +223,14 @@ describe("/app overview", () => {
 
     render(await AppPage());
 
-    const attention = screen.getByRole("heading", { level: 2, name: "Needs attention" }).closest("section")!;
-    expect([...attention.querySelectorAll<HTMLElement>(".overview-attention__friend strong")].map((element) => element.textContent)).toEqual(["Oldest", "Next", "Newest"]);
-    expect(attention.querySelectorAll(".overview-attention__row")).toHaveLength(3);
-    expect(within(attention).getByText("Rp 10.000 needs allocation")).toBeInTheDocument();
+    const attention = screen.getByRole("heading", { level: 2, name: /Needs matching/ }).closest("section")!;
+    expect([...attention.querySelectorAll<HTMLElement>(".overview-row--matching .overview-row__main strong")].map((element) => element.textContent)).toEqual(["Oldest", "Next", "Newest"]);
+    expect(attention.querySelectorAll(".overview-row--matching")).toHaveLength(3);
+    expect(within(attention).getByLabelText("Oldest unallocated amount: Rp 10.000")).toBeInTheDocument();
     expect(within(attention).getAllByRole("time")).toHaveLength(3);
     expect(within(attention).queryByText("Beyond", { exact: true })).not.toBeInTheDocument();
-    expect(within(attention).getByText("4", { exact: true })).toBeInTheDocument();
-    expect(within(attention).getByRole("link", { name: /View all unresolved repayments/ })).toHaveAttribute("href", "/app/repayments?allocation=needs");
+    expect(within(attention).getByRole("heading")).toHaveTextContent("4");
+    expect(within(attention).getByRole("link", { name: /View all/ })).toHaveAttribute("href", "/app/repayments?allocation=needs");
   });
 
   it("renders the bounded balance list and links to the full friend list", async () => {
@@ -246,7 +243,7 @@ describe("/app overview", () => {
 
     render(await AppPage());
 
-    expect(document.querySelectorAll(".balance-row")).toHaveLength(8);
+    expect(document.querySelectorAll(".overview-row--person")).toHaveLength(8);
     expect(screen.getByRole("link", { name: /View all friends/ })).toHaveAttribute("href", "/app/friends");
   });
 
@@ -283,15 +280,16 @@ describe("/app overview", () => {
 
     expect(mocks.getBudgetOverviewSnapshot).toHaveBeenCalledWith("database", "owner-a");
     const budget = screen.getByRole("heading", { level: 2, name: "Budget" }).closest("section")!;
-    const metrics = budget.querySelector<HTMLElement>(".overview-summary")!;
-    expect(metrics).toHaveTextContent("September");
-    expect(within(metrics).getByText("Rp 750.000")).toBeInTheDocument();
-    expect(within(metrics).getByText("Rp 250.000")).toBeInTheDocument();
-    for (const label of ["Remaining", "Safe daily", "Net spent"]) {
+    const remaining = budget.querySelector<HTMLElement>(".overview-budget__remaining")!;
+    expect(remaining).toHaveTextContent("September");
+    expect(within(remaining).getByLabelText("Budget remaining: Rp 750.000")).toBeInTheDocument();
+    const metrics = budget.querySelector<HTMLElement>(".overview-budget__metrics")!;
+    expect(within(metrics).getByLabelText("Net spent: Rp 250.000")).toBeInTheDocument();
+    expect(within(metrics).getByLabelText("Total budget: Rp 1.000.000")).toBeInTheDocument();
+    for (const label of ["Net spent", "Budget", "Safe / day", "2 recurring"]) {
       expect(within(metrics).getByText(label, { exact: true })).toBeInTheDocument();
     }
-    expect(within(metrics).getByText(/Of Rp 1.000.000 total budget/)).toBeInTheDocument();
-    expect(metrics.querySelector(".overview-summary__primary")).toHaveTextContent("Remaining");
+    expect(budget.querySelector(".overview-runway")).toHaveAttribute("aria-valuenow", "75");
     expect(metrics.querySelector(".budget-value")).toBeInTheDocument();
     expect(metrics).not.toHaveTextContent(/Recurring planning/);
     expect(budget).not.toHaveTextContent(/Shared Money|Expected back|You still owe/);
