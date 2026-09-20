@@ -86,7 +86,7 @@ export async function runBudgetingGroupSmoke() {
     assert(aliceExpenseTransaction, "authoritative payer Expense did not create a Budget link");
     assert.equal((await pool.query("SELECT amount, direction, occurred_on FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.alice, aliceExpenseTransaction])).rows[0].amount, 1_000);
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_group_expense_sources WHERE owner_user_id = $1 AND group_expense_id = $2", [users.bob, expense.id]), 0, "non-payer received Expense-time cash");
-    await changeGroupExpenseBudgetCategory(database, users.alice, aliceExpenseTransaction, aliceCategories.get("Food")!);
+    await changeGroupExpenseBudgetCategory(database, users.alice, expense.id, aliceCategories.get("Food")!);
     const obligationId = (await pool.query<{ id: string }>("SELECT id FROM group_obligations WHERE source_expense_id = $1 AND debtor_participant_id = $2", [expense.id, bobParticipant])).rows[0]!.id;
     await changeGroupObligationBudgetCategory(database, users.bob, obligationId, bobCategories.get("Travel")!);
 
@@ -120,12 +120,12 @@ export async function runBudgetingGroupSmoke() {
     assert.equal((await pool.query<{ name: string }>("SELECT c.name FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2", [users.alice, recipientTransaction])).rows[0]?.name, "Food");
     assert.equal((await pool.query<{ total: string }>("SELECT coalesce(sum(amount), 0)::text AS total FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2", [users.bob, senderTransaction])).rows[0]?.total, "300");
     assert.equal((await pool.query<{ total: string }>("SELECT coalesce(sum(amount), 0)::text AS total FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2", [users.alice, recipientTransaction])).rows[0]?.total, "300");
-    await changeGroupExpenseBudgetCategory(database, users.alice, aliceExpenseTransaction, aliceCategories.get("Dining")!);
+    await changeGroupExpenseBudgetCategory(database, users.alice, expense.id, aliceCategories.get("Dining")!);
     assert.equal((await pool.query<{ name: string }>("SELECT c.name FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2", [users.alice, recipientTransaction])).rows[0]?.name, "Dining");
     await changeGroupObligationBudgetCategory(database, users.bob, obligationId, bobCategories.get("Accommodation")!);
     assert.equal((await pool.query<{ name: string }>("SELECT c.name FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2", [users.bob, senderTransaction])).rows[0]?.name, "Accommodation");
 
-    await assert.rejects(() => changeGroupExpenseBudgetCategory(database, users.bob, aliceExpenseTransaction, bobCategories.get("Travel")!), (error: unknown) => isBudgetError(error, "NOT_FOUND"));
+    await assert.rejects(() => changeGroupExpenseBudgetCategory(database, users.bob, expense.id, bobCategories.get("Travel")!), (error: unknown) => isBudgetError(error, "NOT_FOUND"));
     await assert.rejects(() => changeGroupObligationBudgetCategory(database, users.alice, obligationId, aliceCategories.get("Dining")!), (error: unknown) => isBudgetError(error, "NOT_FOUND"));
     const bobHistory = await listBudgetTransactions(database, users.bob);
     assert(bobHistory.every((row) => row.sourceId !== expense.id), "Budget history leaked Alice's Group Expense");

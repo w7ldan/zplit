@@ -197,7 +197,7 @@ describe("expense actions", () => {
     const data = form({ transactionId: "77777777-7777-4777-8777-777777777777", categoryId: budgetCategoryId });
     const expenseId = "88888888-8888-4888-8888-888888888888";
     await expect(changeExpenseBudgetCategoryAction(expenseId, data)).rejects.toThrow(`redirect:/app/expenses/${expenseId}?budgetSaved=1#expense-details`);
-    expect(mocks.changePersonalExpenseBudgetCategory).toHaveBeenCalledWith("database", "owner-a", "scope-a", "77777777-7777-4777-8777-777777777777", budgetCategoryId);
+    expect(mocks.changePersonalExpenseBudgetCategory).toHaveBeenCalledWith("database", "owner-a", "scope-a", expenseId, budgetCategoryId);
   });
 
   it("binds split replacement to the session owner and canonical detail route", async () => {

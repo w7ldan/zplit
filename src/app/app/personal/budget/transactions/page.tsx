@@ -23,7 +23,7 @@ function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTr
     <details className="budget-category-change">
       <summary className="action-link action-link--quiet" aria-label={`Change budget category for ${transaction.description}`}>Change budget category</summary>
       <form action={action}>
-        <input type="hidden" name="transactionId" value={transaction.id} />
+        <input type="hidden" name={transaction.sourceType === "group_expense" ? "groupExpenseId" : "expenseId"} value={transaction.sourceId ?? ""} />
         <label className="sr-only" htmlFor={`budget-history-category-${transaction.id}`}>Budget category for {transaction.description}</label>
         <select id={`budget-history-category-${transaction.id}`} name="categoryId" defaultValue={transaction.categoryId ?? categories[0]?.id}>
           {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
@@ -50,6 +50,10 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
             ? "Group payment received"
             : transaction.direction === "outflow" ? "Expense" : "Credit / refund";
   const categoryLabel = summarizeBudgetCategories(transaction.categoryNames);
+  const appliedImpactAmount = transaction.appliedImpactAmount ?? transaction.amount;
+  const impactLabel = transaction.sourceType === "personal_repayment" && appliedImpactAmount !== transaction.amount
+    ? `Applied to Budget ${formatSignedRupiah(appliedImpactAmount)}`
+    : transaction.status === "voided" ? "Voided" : "Posted";
   return (
     <div className={`budget-history-row${transaction.status === "voided" ? " budget-history-row--voided" : ""}`}>
       <span className="technical-label">{sourceLabel}</span>
@@ -59,7 +63,7 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
         <ChangeCategoryForm transaction={transaction} categories={categories} />
         <SpreadControl transaction={transaction} />
       </span>
-      <span><strong>{amount}</strong><small>{transaction.status === "voided" ? "Voided" : "Posted"}</small></span>
+      <span><strong>{amount}</strong><small>{impactLabel}</small></span>
       {transaction.status === "posted" && (transaction.origin === "manual" || transaction.origin === "recurring") ? (
         <ConfirmationDialog
           title="Void transaction?"

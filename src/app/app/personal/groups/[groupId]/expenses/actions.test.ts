@@ -116,7 +116,7 @@ describe("Group expense actions", () => {
     data.set("transactionId", "77777777-7777-4777-8777-777777777777");
     data.set("categoryId", budgetCategoryId);
     await expect(changeGroupExpenseBudgetCategoryAction(groupId, expenseId, data)).rejects.toThrow(`redirect:/app/personal/groups/${groupId}/expenses/${expenseId}?budgetSaved=1#budget`);
-    expect(mocks.changeGroupExpenseBudgetCategory).toHaveBeenCalledWith("database", "user-a", "77777777-7777-4777-8777-777777777777", budgetCategoryId);
+    expect(mocks.changeGroupExpenseBudgetCategory).toHaveBeenCalledWith("database", "user-a", expenseId, budgetCategoryId);
   });
 
   it("maps invalid total and share amounts to their own fields", async () => {

@@ -78,7 +78,7 @@ async function run() {
     await spreadBudgetTransaction(database, ownerA, spreadExpenseTransaction.id, 3);
     await repository.updateExpense(spreadExpense.id, { outingId: currentOutingId, description: "Linked spread expense updated", amount: 1_300 });
     assert.deepEqual((await pool.query<{ amount: number; target_period_ordinal: number }>("SELECT amount, target_period_ordinal FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2 ORDER BY target_period_ordinal", [ownerA, spreadExpenseTransaction.id])).rows, [{ amount: 434, target_period_ordinal: 1 }, { amount: 433, target_period_ordinal: 2 }, { amount: 433, target_period_ordinal: 3 }]);
-    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, spreadExpenseTransaction.id, travelId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, spreadExpense.id, travelId);
     assert.equal((await pool.query("SELECT count(*) FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND budget_category_id <> $3", [ownerA, spreadExpenseTransaction.id, travelId])).rows[0].count, "0");
 
     const futureExpense = await repository.createExpense({ outingId: futureOutingId, description: "Future linked expense", amount: 80 });
@@ -89,12 +89,9 @@ async function run() {
     const historyExpense = await repository.createExpense({ outingId: currentOutingId, description: "Historical category move", amount: 175 });
     await repository.replaceExpenseShares(foodExpense.id, [{ friendId, baseAmount: 150 }]);
     await repository.replaceExpenseShares(travelExpense.id, [{ friendId, baseAmount: 150 }]);
-    const foodTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, foodExpense.id]);
-    const travelTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, travelExpense.id]);
-    const historyTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, historyExpense.id]);
-    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, foodTransaction.id, foodId);
-    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, travelTransaction.id, travelId);
-    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, historyTransaction.id, foodId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, foodExpense.id, foodId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, travelExpense.id, travelId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, historyExpense.id, foodId);
     const foodShare = (await repository.listExpenseShares(foodExpense.id))[0]!;
     const travelShare = (await repository.listExpenseShares(travelExpense.id))[0]!;
     const futureRepayment = await repository.createRepaymentWithAllocations({ friendId, amount: 300, paidAt: new Date("2026-10-06T10:00:00Z"), paidOn: "2026-10-06", paymentMethod: "Cash", notes: null }, [{ expenseShareId: foodShare.id, amount: 150 }, { expenseShareId: travelShare.id, amount: 150 }]);
@@ -125,7 +122,7 @@ async function run() {
     await createBudgetCategory(database, ownerA, "Transit", 0);
     const octoberWithImpactOnlyCategory = await activePlan(pool, ownerA);
     const transitId = octoberWithImpactOnlyCategory.plans.find((plan) => plan.name === "Transit")!.category_id;
-    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, historyTransaction.id, transitId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, historyExpense.id, transitId);
     assert.equal((await pool.query("SELECT count(*) FROM budget_period_categories WHERE owner_user_id = $1 AND budget_period_id = $2 AND budget_category_id = $3", [ownerA, initialPeriod.id, transitId])).rows[0].count, "0", "recategorization must not add a retroactive historical plan row");
 
     const third = transitionInput(october.period.id, "2026-11-01", "2026-11-30", "November", octoberWithImpactOnlyCategory.plans);

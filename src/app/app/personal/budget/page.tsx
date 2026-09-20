@@ -169,7 +169,7 @@ function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTr
     <details className="budget-category-change">
       <summary className="action-link action-link--quiet" aria-label={`Change budget category for ${transaction.description}`}>Change budget category</summary>
       <form action={action}>
-        <input type="hidden" name="transactionId" value={transaction.id} />
+        <input type="hidden" name={transaction.sourceType === "group_expense" ? "groupExpenseId" : "expenseId"} value={transaction.sourceId ?? ""} />
         <label className="sr-only" htmlFor={`budget-category-${transaction.id}`}>Budget category for {transaction.description}</label>
         <select id={`budget-category-${transaction.id}`} name="categoryId" defaultValue={transaction.categoryId ?? categories[0]?.id}>
           {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}

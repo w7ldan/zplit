@@ -13,7 +13,7 @@ import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
 import { getPersonalExpenseBudgetState } from "@/server/budgeting/sources-personal";
 import { listExpenseReceipts } from "@/server/expense-receipts";
-import { changeExpenseBudgetCategoryAction, replaceExpenseSharesAction, searchExpenseFriendOptions, searchOutingOptions, updateExpenseAction } from "../actions";
+import { changeExpenseBudgetCategoryAction, replaceExpenseSharesAction, searchExpenseFriendOptions, searchOutingOptions, setExpenseBudgetParticipationAction, updateExpenseAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteExpenseAction } from "../actions";
@@ -48,7 +48,7 @@ export default async function ExpenseRecordPage({
   const deletionImpact = await repository.getExpenseDeletionImpact(expenseId);
   const currentImpactRevision = deletionImpactRevision(deletionImpact);
   const budgetState = await getPersonalExpenseBudgetState(database, session.user.id, expense.ledgerScopeId, expense.id);
-  const budgetCategories = budgetState.status === "included" ? await listBudgetCategoryOptions(database, session.user.id) : [];
+  const budgetCategories = budgetState.status !== "unprocessed" ? await listBudgetCategoryOptions(database, session.user.id) : [];
   const [outingRows, friendOptionRows, shares, charges, receipts, previousSplit] = await Promise.all([
     repository.searchOutings({ selectedId: expense.outingId }),
     repository.searchFriends({ activeOnly: true }),
@@ -185,6 +185,8 @@ export default async function ExpenseRecordPage({
                 categories={budgetCategories}
                 description={expense.description}
                 action={changeExpenseBudgetCategoryAction.bind(null, expense.id)}
+                includeAction={setExpenseBudgetParticipationAction.bind(null, expense.id)}
+                excludeAction={setExpenseBudgetParticipationAction.bind(null, expense.id)}
               />
               <DeleteRecordForm
                 action={deleteExpenseAction.bind(null, expense.id)}

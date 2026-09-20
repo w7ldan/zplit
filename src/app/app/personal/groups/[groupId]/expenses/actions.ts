@@ -11,7 +11,7 @@ import type { GroupExpenseActionState, GroupExpenseConfirmationState, GroupExpen
 import { parseLocalDateTime } from "@/domain/outing-input";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
-import { changeGroupExpenseBudgetCategory } from "@/server/budgeting/sources-group";
+import { changeGroupExpenseBudgetCategory, setGroupExpenseBudgetParticipation } from "@/server/budgeting/sources-group";
 import { GroupAccountingError, confirmGroupExpenseAsPayer, createGroupExpense, rejectGroupExpenseAsPayer, voidGroupExpenseAsPayer } from "@/server/group-accounting";
 import type { Database } from "@/db/client";
 
@@ -101,17 +101,35 @@ export async function createGroupExpenseAction(groupId: string, _previousState: 
 }
 
 export async function changeGroupExpenseBudgetCategoryAction(groupId: string, expenseId: string, formData: FormData) {
-  const transactionId = text(formData, "transactionId");
   const categoryId = text(formData, "categoryId");
   const path = `/app/personal/groups/${groupId}/expenses/${expenseId}`;
-  if (!normalizeUuid(groupId) || !normalizeUuid(expenseId) || !normalizeUuid(transactionId) || !normalizeUuid(categoryId)) throw new BudgetError("INVALID_INPUT", "A budget transaction and category are required.");
+  if (!normalizeUuid(groupId) || !normalizeUuid(expenseId) || !normalizeUuid(categoryId)) throw new BudgetError("INVALID_INPUT", "A Group expense and category are required.");
   const session = await requireSession();
-  await changeGroupExpenseBudgetCategory(getDatabase(), session.user.id, transactionId, categoryId);
+  await changeGroupExpenseBudgetCategory(getDatabase(), session.user.id, expenseId, categoryId);
   revalidatePath("/app/personal");
   revalidatePath("/app/personal/budget");
   revalidatePath("/app/personal/budget/transactions");
   revalidatePath(`/app/personal/groups/${groupId}`);
   revalidatePath(`/app/personal/groups/${groupId}/expenses`);
+  revalidatePath(path);
+  redirect(`${path}?budgetSaved=1#budget`);
+}
+
+export async function setGroupExpenseBudgetParticipationAction(groupId: string, expenseId: string, formData: FormData) {
+  const canonicalGroupId = normalizeUuid(groupId);
+  const canonicalExpenseId = normalizeUuid(expenseId);
+  const includeInBudget = text(formData, "includeInBudget") === "1";
+  const rawCategoryId = text(formData, "categoryId");
+  const categoryId = rawCategoryId ? normalizeUuid(rawCategoryId) : null;
+  if (!canonicalGroupId || !canonicalExpenseId || (rawCategoryId && !categoryId)) throw new BudgetError("INVALID_INPUT", "Choose a valid Budget category.");
+  const session = await requireSession();
+  await setGroupExpenseBudgetParticipation(getDatabase(), session.user.id, canonicalExpenseId, includeInBudget ? { includeInBudget: true, categoryId: categoryId ?? null } : { includeInBudget: false });
+  const path = `/app/personal/groups/${canonicalGroupId}/expenses/${canonicalExpenseId}`;
+  revalidatePath("/app/personal");
+  revalidatePath("/app/personal/budget");
+  revalidatePath("/app/personal/budget/transactions");
+  revalidatePath(`/app/personal/groups/${canonicalGroupId}`);
+  revalidatePath(`/app/personal/groups/${canonicalGroupId}/expenses`);
   revalidatePath(path);
   redirect(`${path}?budgetSaved=1#budget`);
 }

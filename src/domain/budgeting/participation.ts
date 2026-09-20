@@ -1,11 +1,10 @@
 import { normalizeUuid } from "../record-retrieval";
 
 /**
- * The creation-time Budget decision for one eligible expense source.
+ * A Budget participation decision for one eligible expense source.
  *
- * Participation is decided when the expense is created and is never edited
- * afterwards. Absence of an explicit exclusion means the source stays
- * eligible for the existing import/reconciliation behavior.
+ * Absence of an explicit exclusion means the source stays eligible for the
+ * existing import/reconciliation behavior.
  */
 export type ExpenseBudgetParticipation =
   | { includeInBudget: false }

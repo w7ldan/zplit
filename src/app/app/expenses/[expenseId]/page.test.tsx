@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ExpenseRecordPage from "./page";
 import { deletionImpactRevision } from "@/domain/ledger-repository";
@@ -173,22 +173,28 @@ describe("expense record", () => {
     expect(mocks.getPersonalExpenseBudgetState).toHaveBeenCalledWith("database", "owner-a", "scope-a", expense.id);
     const block = document.querySelector(".budget-participation")!;
     expect(block).toHaveTextContent("Category");
+    expect(block).toHaveTextContent("Included in Budget");
+    expect(screen.getByRole("button", { name: "Exclude Dinner from Budget" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Exclude Dinner from Budget" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("remains in the ledger but stops affecting Budget");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Repayments allocated to it also stop affecting Budget");
     expect(block).toHaveTextContent("Food");
     expect(screen.getByRole("combobox", { name: "Budget category for Dinner" })).toHaveValue(budgetCategoryId);
     expect(screen.getByRole("button", { name: "Save budget category for Dinner" })).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: /Budget/ })).not.toBeInTheDocument();
   });
 
-  it("states an explicit creation-time exclusion read-only without a participation toggle", async () => {
+  it("shows an explicit exclusion with an include flow and no active category editor", async () => {
     prepareRecord([]);
     mocks.getPersonalExpenseBudgetState.mockResolvedValue({ status: "not_included" });
 
     render(<ToastProvider>{await ExpenseRecordPage({ params: Promise.resolve({ expenseId: expense.id }) })}</ToastProvider>);
 
-    expect(document.querySelector(".budget-participation")).toHaveTextContent("Not included");
-    expect(screen.queryByRole("checkbox", { name: /Budget/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox", { name: /Budget category/ })).not.toBeInTheDocument();
-    expect(mocks.listBudgetCategoryOptions).not.toHaveBeenCalled();
+    expect(document.querySelector(".budget-participation")).toHaveTextContent("Included in BudgetNo");
+    expect(screen.getByRole("button", { name: "Include in Budget" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Category when included" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Save budget category/ })).not.toBeInTheDocument();
+    expect(mocks.listBudgetCategoryOptions).toHaveBeenCalledWith("database", "owner-a");
   });
 
   it("keeps a legacy unprocessed expense free of Budget presentation", async () => {

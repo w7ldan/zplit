@@ -232,19 +232,22 @@ describe("Group expense detail", () => {
     expect(mocks.getGroupExpenseBudgetState).toHaveBeenCalledWith("database", "user-a", "expense-a");
     const budgetBlock = document.getElementById("budget");
     expect(budgetBlock).toHaveTextContent("Budget");
+    expect(budgetBlock).toHaveTextContent("Included in Budget");
+    expect(screen.getByRole("button", { name: "Exclude Dinner from Budget" })).toBeInTheDocument();
     expect(budgetBlock).toHaveTextContent("Food");
     expect(screen.getByRole("combobox", { name: "Budget category for Dinner" })).toHaveValue("88888888-8888-4888-8888-888888888888");
     expect(screen.getByRole("button", { name: "Save budget category for Dinner" })).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: /Budget/ })).not.toBeInTheDocument();
   });
 
-  it("states an explicit exclusion read-only and shows nothing for a participant without Budget state", async () => {
+  it("shows an explicit exclusion with an include flow and nothing for a participant without Budget state", async () => {
     configureExpense(expense("confirmed"));
     mocks.getGroupExpenseBudgetState.mockResolvedValue({ status: "not_included" });
     const excluded = render(await GroupExpenseDetailPage({ params: Promise.resolve({ groupId: "group-a", expenseId: "expense-a" }) }));
-    expect(screen.getByText("Not included")).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: /Budget/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox", { name: /Budget category/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Included in Budget")).toBeInTheDocument();
+    expect(screen.getByText("No")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Include in Budget" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Category when included" })).toBeInTheDocument();
     excluded.unmount();
 
     mocks.getGroupExpenseBudgetState.mockResolvedValue({ status: "unprocessed" });

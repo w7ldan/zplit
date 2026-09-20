@@ -147,6 +147,27 @@ describe("/app/personal/budget/transactions presentation", () => {
     expect(screen.getByText("+Rp 300")).toBeInTheDocument();
   });
 
+  it("distinguishes partial repayment Budget impact from actual cash", async () => {
+    mocks.listBudgetTransactions.mockResolvedValue([{
+      id: "transaction-partial-repayment",
+      direction: "inflow",
+      amount: 300,
+      appliedImpactAmount: 150,
+      description: "Partial repayment",
+      occurredOn: "2026-09-06",
+      status: "posted",
+      origin: "linked",
+      sourceType: "personal_repayment",
+      sourceId: "repayment-a",
+      categoryName: "Food + Uncategorized",
+      categoryNames: ["Food", "Uncategorized"],
+      categoryId: null,
+    }]);
+    render(await BudgetTransactionsPage());
+    expect(screen.getByText("+Rp 300")).toBeInTheDocument();
+    expect(screen.getByText("Applied to Budget Rp 150")).toBeInTheDocument();
+  });
+
   it("requires confirmation before voiding and keeps the existing action authoritative", async () => {
     mocks.listBudgetTransactions.mockResolvedValue([{
       id: "transaction-recurring",

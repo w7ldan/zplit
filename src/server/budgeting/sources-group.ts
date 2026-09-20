@@ -177,7 +177,7 @@ async function applyParticipationDecision(
     await recordGroupExpenseExclusion(transaction, ownerUserId, expenseId);
     return { excluded: true, categoryId: null };
   }
-  if (!existing && await groupExpenseExcluded(transaction, ownerUserId, expenseId)) return { excluded: true, categoryId: null };
+    if (await groupExpenseExcluded(transaction, ownerUserId, expenseId)) return { excluded: true, categoryId: null };
   if (participation?.includeInBudget) return { excluded: false, categoryId: await resolveParticipationCategoryId(transaction, ownerUserId, participation.categoryId) };
   return { excluded: false, categoryId: null };
 }
@@ -292,6 +292,31 @@ async function groupSettlementSource(transaction: LedgerTransaction, groupSettle
   };
 }
 
+async function reconcileGroupExpenseImpacts(transaction: LedgerTransaction, ownerUserId: string, linkedTransaction: BudgetTransactionRecord, amount: number, occurredOn: string, period: ActivePeriod | null, categoryId: string | null) {
+  const impacts = await lockImpacts(transaction, ownerUserId, linkedTransaction.id);
+  if (impacts.length === 0 && period && isInside(period, occurredOn)) {
+    const impactCategoryId = categoryId ?? await getUncategorizedId(transaction, ownerUserId);
+    await transaction.insert(budgetImpacts).values({ ownerUserId, budgetTransactionId: linkedTransaction.id, budgetCategoryId: impactCategoryId, budgetPeriodId: period.id, amount, status: "applied", targetPeriodOrdinal: period.ordinal });
+  } else if (impacts.length === 1) {
+    await transaction.update(budgetImpacts).set({ ...(categoryId ? { budgetCategoryId: categoryId } : {}), amount, updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, impacts[0]!.id)));
+  } else if (impacts.length > 1) {
+    const existingCategoryId = impacts[0]!.budgetCategoryId;
+    if (!categoryId && impacts.some((impact) => impact.budgetCategoryId !== existingCategoryId)) throw new LedgerIntegrityError("A spread Group expense has inconsistent Budget categories.");
+    if (categoryId) {
+      await transaction.update(budgetImpacts).set({ budgetCategoryId: categoryId, updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, linkedTransaction.id)));
+    }
+    let amounts: number[];
+    try {
+      amounts = splitBudgetAmount(amount, impacts.length);
+    } catch {
+      throw new LedgerIntegrityError("A spread Group expense cannot be distributed into positive impacts.");
+    }
+    for (const [index, impact] of impacts.entries()) {
+      await transaction.update(budgetImpacts).set({ amount: amounts[index], updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, impact.id)));
+    }
+  }
+}
+
 async function reconcileGroupExpenseForOwner(transaction: LedgerTransaction, ownerUserId: string, expenseId: string, period: ActivePeriod | null, participation?: ExpenseBudgetParticipation) {
   const expense = await groupExpenseSource(transaction, expenseId);
   if (!expense || expense.payerUserId !== ownerUserId) return;
@@ -301,7 +326,10 @@ async function reconcileGroupExpenseForOwner(transaction: LedgerTransaction, own
     return;
   }
   const decision = await applyParticipationDecision(transaction, ownerUserId, expenseId, existing, participation);
-  if (decision.excluded) return;
+  if (decision.excluded) {
+    if (existing?.transaction.status === "posted") await voidTransaction(transaction, ownerUserId, existing.transaction.id);
+    return;
+  }
   const participationCategoryId = decision.categoryId;
   const created = await createOrSyncTransaction(transaction, ownerUserId, {
     direction: "outflow",
@@ -310,25 +338,7 @@ async function reconcileGroupExpenseForOwner(transaction: LedgerTransaction, own
     occurredOn: expense.occurredOn,
   }, existing);
   const linkedTransaction = await linkedExpenseTransaction(transaction, ownerUserId, expenseId, created, existing);
-  const impacts = await lockImpacts(transaction, ownerUserId, linkedTransaction.id);
-  if (impacts.length === 0 && period && isInside(period, expense.occurredOn)) {
-    const categoryId = participationCategoryId ?? await getUncategorizedId(transaction, ownerUserId);
-    await transaction.insert(budgetImpacts).values({ ownerUserId, budgetTransactionId: linkedTransaction.id, budgetCategoryId: categoryId, budgetPeriodId: period.id, amount: expense.totalAmount, status: "applied", targetPeriodOrdinal: period.ordinal });
-  } else if (impacts.length === 1) {
-    await transaction.update(budgetImpacts).set({ amount: expense.totalAmount, updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, impacts[0]!.id)));
-  } else if (impacts.length > 1) {
-    const categoryId = impacts[0]!.budgetCategoryId;
-    if (impacts.some((impact) => impact.budgetCategoryId !== categoryId)) throw new LedgerIntegrityError("A spread Group expense has inconsistent Budget categories.");
-    let amounts: number[];
-    try {
-      amounts = splitBudgetAmount(expense.totalAmount, impacts.length);
-    } catch {
-      throw new LedgerIntegrityError("A spread Group expense cannot be distributed into positive impacts.");
-    }
-    for (const [index, impact] of impacts.entries()) {
-      await transaction.update(budgetImpacts).set({ amount: amounts[index], updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.id, impact.id)));
-    }
-  }
+  await reconcileGroupExpenseImpacts(transaction, ownerUserId, linkedTransaction, expense.totalAmount, expense.occurredOn, period, participationCategoryId);
 }
 
 async function settlementApplications(transaction: LedgerTransaction, settlementId: string): Promise<GroupSettlementApplicationRow[]> {
@@ -461,6 +471,44 @@ export async function reconcileGroupExpense(transaction: LedgerTransaction, expe
   if (periods.has(expense.payerUserId)) await reconcileGroupExpenseForOwner(transaction, expense.payerUserId, expenseId, periods.get(expense.payerUserId) ?? null, participation);
 }
 
+export async function setGroupExpenseBudgetParticipation(
+  database: Database,
+  ownerUserId: string,
+  groupExpenseId: string,
+  participation: ExpenseBudgetParticipation,
+) {
+  return database.transaction(async (transaction) => {
+    const [expense] = await transaction
+      .select({ id: groupExpenses.id, groupId: groupExpenses.groupId, payerParticipantId: groupExpenses.payerParticipantId, state: groupExpenses.state })
+      .from(groupExpenses)
+      .where(eq(groupExpenses.id, groupExpenseId))
+      .limit(1)
+      .for("update");
+    if (!expense) throw new BudgetError("NOT_FOUND", "That Group expense is no longer available.");
+    const [payer] = await transaction
+      .select({ userId: groupParticipants.userId })
+      .from(groupParticipants)
+      .where(and(eq(groupParticipants.groupId, expense.groupId), eq(groupParticipants.id, expense.payerParticipantId)))
+      .limit(1);
+    if (expense.state !== "confirmed" || payer?.userId !== ownerUserId) throw new BudgetError("NOT_FOUND", "That Group expense is not available for your Budget.");
+    await lockBudgetProfile(transaction as Database, ownerUserId);
+    const [source] = await transaction
+      .select({ budgetTransactionId: budgetGroupExpenseSources.budgetTransactionId, status: budgetTransactions.status })
+      .from(budgetGroupExpenseSources)
+      .innerJoin(budgetTransactions, and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, budgetGroupExpenseSources.budgetTransactionId)))
+      .where(and(eq(budgetGroupExpenseSources.ownerUserId, ownerUserId), eq(budgetGroupExpenseSources.groupExpenseId, groupExpenseId)))
+      .limit(1);
+    if (!participation.includeInBudget) {
+      await recordGroupExpenseExclusion(transaction as LedgerTransaction, ownerUserId, groupExpenseId);
+      if (source?.status === "posted") await voidTransaction(transaction as LedgerTransaction, ownerUserId, source.budgetTransactionId);
+      return;
+    }
+    await transaction.delete(budgetGroupExpenseExclusions).where(and(eq(budgetGroupExpenseExclusions.ownerUserId, ownerUserId), eq(budgetGroupExpenseExclusions.groupExpenseId, groupExpenseId)));
+    const period = await activePeriod(transaction as LedgerTransaction, ownerUserId);
+    await reconcileGroupExpenseForOwner(transaction as LedgerTransaction, ownerUserId, groupExpenseId, period, participation);
+  });
+}
+
 export async function reconcileGroupSettlement(transaction: LedgerTransaction, settlementId: string, ownerFilter?: string[]) {
   const settlement = await groupSettlementSource(transaction, settlementId);
   if (!settlement) return;
@@ -499,30 +547,30 @@ export async function importGroupActivity(transaction: LedgerTransaction, ownerU
   return { expenseCount: expenseRows.length, settlementCount: settlementRows.length };
 }
 
-export async function changeGroupExpenseBudgetCategory(database: Database, ownerUserId: string, transactionId: string, categoryId: string) {
+export async function changeGroupExpenseBudgetCategory(database: Database, ownerUserId: string, groupExpenseId: string, categoryId: string) {
   return database.transaction(async (transaction) => {
     await lockBudgetProfile(transaction as Database, ownerUserId);
     const [category] = await transaction.select().from(budgetCategories).where(and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, categoryId), isNull(budgetCategories.archivedAt))).limit(1).for("update");
     if (!category) throw new BudgetError("NOT_FOUND", "That budget category is no longer available.");
-    const [lockedTransaction] = await transaction.select().from(budgetTransactions)
-      .where(and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, transactionId), eq(budgetTransactions.status, "posted")))
-      .limit(1)
-      .for("update");
-    if (!lockedTransaction) throw new BudgetError("NOT_FOUND", "That linked Group Expense is no longer available.");
-    const impacts = await lockImpacts(transaction as LedgerTransaction, ownerUserId, transactionId);
     const [source] = await transaction.select({ source: budgetGroupExpenseSources, expense: groupExpenses })
       .from(budgetGroupExpenseSources)
       .innerJoin(groupExpenses, eq(groupExpenses.id, budgetGroupExpenseSources.groupExpenseId))
       .innerJoin(groupParticipants, and(eq(groupParticipants.groupId, groupExpenses.groupId), eq(groupParticipants.id, groupExpenses.payerParticipantId), eq(groupParticipants.userId, ownerUserId)))
-      .where(and(eq(budgetGroupExpenseSources.ownerUserId, ownerUserId), eq(budgetGroupExpenseSources.budgetTransactionId, transactionId), eq(groupExpenses.state, "confirmed")))
+      .where(and(eq(budgetGroupExpenseSources.ownerUserId, ownerUserId), eq(budgetGroupExpenseSources.groupExpenseId, groupExpenseId), eq(groupExpenses.state, "confirmed")))
       .limit(1);
     if (!source) throw new BudgetError("NOT_FOUND", "That linked Group Expense is no longer available.");
+    const [lockedSourceTransaction] = await transaction.select().from(budgetTransactions)
+      .where(and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, source.source.budgetTransactionId), eq(budgetTransactions.status, "posted")))
+      .limit(1)
+      .for("update");
+    if (!lockedSourceTransaction) throw new BudgetError("NOT_FOUND", "That linked Group Expense is no longer available.");
+    const impacts = await lockImpacts(transaction as LedgerTransaction, ownerUserId, source.source.budgetTransactionId);
     if (impacts.length > 0) {
-      await transaction.update(budgetImpacts).set({ budgetCategoryId: category.id, updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, transactionId)));
+      await transaction.update(budgetImpacts).set({ budgetCategoryId: category.id, updatedAt: new Date() }).where(and(eq(budgetImpacts.ownerUserId, ownerUserId), eq(budgetImpacts.budgetTransactionId, source.source.budgetTransactionId)));
     } else {
       const period = await activePeriod(transaction as LedgerTransaction, ownerUserId);
       if (!period) throw new BudgetError("NOT_FOUND", "No active budget period is available.");
-      await transaction.insert(budgetImpacts).values({ ownerUserId, budgetTransactionId: transactionId, budgetCategoryId: category.id, budgetPeriodId: period.id, amount: lockedTransaction.amount, status: "applied", targetPeriodOrdinal: period.ordinal });
+      await transaction.insert(budgetImpacts).values({ ownerUserId, budgetTransactionId: source.source.budgetTransactionId, budgetCategoryId: category.id, budgetPeriodId: period.id, amount: lockedSourceTransaction.amount, status: "applied", targetPeriodOrdinal: period.ordinal });
     }
     const settlementRows = await transaction.select({ settlementId: groupSettlementApplications.settlementId })
       .from(groupSettlementApplications)

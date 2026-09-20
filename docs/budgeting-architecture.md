@@ -159,9 +159,13 @@ Repayment impacts are rebuilt from the canonical
 `RepaymentAllocation → ExpenseShare → Expense` relationship. A usable,
 non-archived private Expense category receives its allocated credit, repeated
 categories are aggregated, and every unallocated or unclassified remainder is
-credited to Uncategorized. Thus the impact total always equals the repayment
-amount. Changing a linked Expense's private budget category reclassifies all
-linked Repayment credits without changing canonical allocations.
+credited to Uncategorized. An allocation to an explicitly excluded Expense
+receives no BudgetImpact; therefore qualifying impacts may total less than the
+actual repayment cash while the linked BudgetTransaction retains the full
+repayment amount. Changing a linked Expense's private budget category
+reclassifies all linked Repayment credits without changing canonical
+allocations, and changing its participation reconciles those credits
+immediately.
 
 Source mutation and reconciliation run in the same database transaction. The
 lock order is: existing Personal source/dependent locks, then `BudgetProfile`,
@@ -178,8 +182,9 @@ live reconciliation converge to one linked transaction per source.
 
 Budget history distinguishes manual expense, manual credit/refund, Personal
 expense, and Personal repayment. Linked source amount, date, and description
-are read-only from Budget; only a linked Expense's private category can be
-changed. Expected Back is a quiet derived Personal-ledger context from the
+are read-only from Budget; an eligible linked Expense's private participation
+and category can be changed only through its canonical owner action. Expected
+Back is a quiet derived Personal-ledger context from the
 existing outstanding-share authority. It is not a BudgetTransaction or impact,
 and does not affect Remaining or Safe Daily; actual Repayment inflows do.
 
@@ -311,9 +316,10 @@ excluded from every financial total.
 ## Expense source participation
 
 An eligible Personal or Group Expense is created either **included in** or
-**explicitly excluded from** its owner's private Budget. The decision is made
-once, at creation, and participation is never edited afterwards. A new expense
-form seeds its initial choice from the single private preference
+**explicitly excluded from** its owner's private Budget. The private
+participation decision can later move between those states through the
+canonical owner or confirmed-payer transition. A new expense form seeds its
+initial choice from the single private preference
 `budget_profiles.include_new_expenses_by_default` (default `true`), which only
 affects forms rendered afterwards and never rewrites existing sources.
 
@@ -348,11 +354,26 @@ different registered payer later confirms such a claim, the existing
 reconciliation behavior applies because no creation-time decision exists for
 that owner.
 
-After creation, the only editable Budget field is the private category of an
-included source, changed through the canonical Budget classification action
-from the expense detail surface. Amount, source identity, posted/voided state,
-spread, and impact-period invariants are unchanged by that operation, and
-excluded sources expose no participation toggle and cannot be recategorized.
+After creation, eligible Expense participation remains private to the Personal
+owner or confirmed Group payer and can be changed by that owner. The canonical
+transition resolves the source from the Expense identity, records or removes
+the explicit exclusion, and reconciles the linked source transaction and any
+dependent Personal repayment impacts in one transaction. Excluding a linked
+Expense voids its BudgetTransaction for authority while retaining the source
+link and impacts as history; re-inclusion restores the posted transaction and
+its authoritative impacts. A source that was originally excluded is linked on
+re-inclusion with Uncategorized unless the owner chooses another valid
+category. A previously classified source restores its prior category when the
+owner does not choose a replacement.
+
+An included Expense's private category remains editable through the canonical
+Budget classification action, which resolves the linked source from the route
+Expense rather than trusting a client-supplied Budget transaction ID. An
+excluded Expense has no active category classification; category selection is
+only part of the deliberate re-inclusion transition. Pending, rejected, or
+voided Group payer claims are not authoritative and expose no Budget
+participation state. A Group creator or other participant cannot change the
+confirmed payer's private decision.
 
 ## B3 Group cash integration
 

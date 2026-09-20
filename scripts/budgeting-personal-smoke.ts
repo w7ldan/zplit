@@ -88,16 +88,14 @@ async function run() {
     const expenseTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, expenseA.id]);
     const initialExpenseImpact = await row<{ direction: string; amount: number; category_id: string; status: string; origin: string }>(pool, "SELECT t.direction, t.amount, i.budget_category_id AS category_id, i.status, t.origin FROM budget_transactions t JOIN budget_impacts i ON i.owner_user_id = t.owner_user_id AND i.budget_transaction_id = t.id WHERE t.owner_user_id = $1 AND t.id = $2", [ownerA, expenseTransaction.id]);
     assert.deepEqual(initialExpenseImpact, { direction: "outflow", amount: 600, category_id: initialExpenseImpact.category_id, status: "applied", origin: "linked" });
-    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseTransaction.id, foodId);
-    const expenseBTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, expenseB.id]);
-    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseBTransaction.id, transportId);
-    const expenseTargetTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, expenseTarget.id]);
-    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseTargetTransaction.id, foodId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseA.id, foodId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseB.id, transportId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseTarget.id, foodId);
     const shares = await pool.query<{ id: string; expense_id: string }>("SELECT id, expense_id FROM expense_shares WHERE ledger_scope_id = $1 ORDER BY expense_id", [scopeA]);
     const repayment = await repository.createRepaymentWithAllocations({ friendId: ids.friendA, amount: 350, paidAt: new Date("2026-09-07T10:00:00Z"), paidOn: "2026-09-07", paymentMethod: "Cash", notes: null }, [{ expenseShareId: shares.rows.find((share) => share.expense_id === expenseA.id)!.id, amount: 200 }, { expenseShareId: shares.rows.find((share) => share.expense_id === expenseB.id)!.id, amount: 100 }]);
     const repaymentImpacts = await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_personal_repayment_sources s JOIN budget_impacts i ON i.owner_user_id = s.owner_user_id AND i.budget_transaction_id = s.budget_transaction_id JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE s.owner_user_id = $1 AND s.repayment_id = $2 ORDER BY c.name", [ownerA, repayment.id]);
     assert.deepEqual(repaymentImpacts.rows, [{ name: "Food", amount: 200 }, { name: "Transport", amount: 100 }, { name: "Uncategorized", amount: 50 }]);
-    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseTransaction.id, diningId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, expenseA.id, diningId);
     const recategorized = await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_personal_repayment_sources s JOIN budget_impacts i ON i.owner_user_id = s.owner_user_id AND i.budget_transaction_id = s.budget_transaction_id JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE s.owner_user_id = $1 AND s.repayment_id = $2 ORDER BY c.name", [ownerA, repayment.id]);
     assert.deepEqual(recategorized.rows, [{ name: "Dining", amount: 200 }, { name: "Transport", amount: 100 }, { name: "Uncategorized", amount: 50 }]);
 
@@ -133,7 +131,7 @@ async function run() {
 
     const deleteExpense = await repository.createExpense({ outingId: ids.outingA, description: "Delete me", amount: 75 });
     const deleteTransaction = await row<{ id: string }>(pool, "SELECT budget_transaction_id AS id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, deleteExpense.id]);
-    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, deleteTransaction.id, foodId);
+    await changePersonalExpenseBudgetCategory(database, ownerA, scopeA, deleteExpense.id, foodId);
     const deleteImpact = await repository.getExpenseDeletionImpact(deleteExpense.id);
     await repository.deleteExpense(deleteExpense.id, { cascadeDependents: false, expectedImpactRevision: deletionImpactRevision(deleteImpact) });
     const deletedSource = await pool.query("SELECT 1 FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, deleteExpense.id]);
@@ -177,7 +175,7 @@ async function run() {
 
     await expectConstraint(pool, "23503", "INSERT INTO budget_personal_expense_sources (owner_user_id, budget_transaction_id, expense_id) VALUES ($1, $2, $3)", [ownerA, randomUUID(), randomUUID()]);
     await expectConstraint(pool, "23505", "INSERT INTO budget_personal_expense_sources (owner_user_id, budget_transaction_id, expense_id) SELECT $1, budget_transaction_id, expense_id FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [ownerA, expenseA.id]);
-    await assert.rejects(changePersonalExpenseBudgetCategory(database, ownerA, scopeB, expenseTransaction.id, foodId), (error: unknown) => error instanceof BudgetError && error.code === "NOT_FOUND");
+    await assert.rejects(changePersonalExpenseBudgetCategory(database, ownerA, scopeB, expenseA.id, foodId), (error: unknown) => error instanceof BudgetError && error.code === "NOT_FOUND");
     const ownerBExpense = await ownerBRepository.createExpense({ outingId: ids.outingB, description: "No profile expense", amount: 25 });
     await ownerBRepository.replaceExpenseShares(ownerBExpense.id, [{ friendId: ids.friendB, baseAmount: 25 }]);
     const ownerBTargetExpense = await ownerBRepository.createExpense({ outingId: ids.outingB, description: "No profile target", amount: 25 });

@@ -198,6 +198,7 @@ export async function listBudgetTransactions(database: Database, ownerUserId: st
     transactionId: budgetImpacts.budgetTransactionId,
     categoryId: budgetCategories.id,
     categoryName: budgetCategories.name,
+    amount: budgetImpacts.amount,
     status: budgetImpacts.status,
     periodId: budgetImpacts.budgetPeriodId,
     targetPeriodOrdinal: budgetImpacts.targetPeriodOrdinal,
@@ -206,11 +207,13 @@ export async function listBudgetTransactions(database: Database, ownerUserId: st
     .where(and(eq(budgetImpacts.ownerUserId, ownerUserId), inArray(budgetImpacts.budgetTransactionId, transactionRows.map((row) => row.id))));
   const categoriesByTransaction = new Map<string, Array<{ id: string; name: string }>>();
   const impactsByTransaction = new Map<string, typeof impactRows>();
+  const appliedAmountByTransaction = new Map<string, number>();
   for (const row of impactRows) {
     const categories = categoriesByTransaction.get(row.transactionId) ?? [];
     if (!categories.some((category) => category.id === row.categoryId)) categories.push({ id: row.categoryId, name: row.categoryName });
     categoriesByTransaction.set(row.transactionId, categories);
     impactsByTransaction.set(row.transactionId, [...(impactsByTransaction.get(row.transactionId) ?? []), row]);
+    if (row.status === "applied") appliedAmountByTransaction.set(row.transactionId, (appliedAmountByTransaction.get(row.transactionId) ?? 0) + row.amount);
   }
   return transactionRows.map((row) => {
     const categories = categoriesByTransaction.get(row.id) ?? [];
@@ -228,6 +231,7 @@ export async function listBudgetTransactions(database: Database, ownerUserId: st
       origin: row.origin,
       sourceType,
       sourceId: row.expenseId ?? row.repaymentId ?? row.groupExpenseId ?? row.groupSettlementId ?? null,
+      appliedImpactAmount: appliedAmountByTransaction.get(row.id) ?? 0,
       categoryName: summarizeBudgetCategories(categories.map((category) => category.name)),
       categoryNames: categories.map((category) => category.name),
       categoryId: categories.length === 1 ? categories[0]!.id : null,

@@ -14,8 +14,8 @@ const serverOnlyPath = require.resolve("server-only");
 if (!require.cache[serverOnlyPath]) require.cache[serverOnlyPath] = { exports: {} } as never;
 
 const { createLedgerRepository } = await import("../src/domain/ledger-repository");
-const { createPersonalBudgetIntegration, changePersonalExpenseBudgetCategory, getPersonalExpenseBudgetState, importPersonalActivity } = await import("../src/server/budgeting/sources-personal");
-const { changeGroupExpenseBudgetCategory, getGroupExpenseBudgetState } = await import("../src/server/budgeting/sources-group");
+const { createPersonalBudgetIntegration, changePersonalExpenseBudgetCategory, getPersonalExpenseBudgetState, importPersonalActivity, setPersonalExpenseBudgetParticipation } = await import("../src/server/budgeting/sources-personal");
+const { changeGroupExpenseBudgetCategory, getGroupExpenseBudgetState, setGroupExpenseBudgetParticipation } = await import("../src/server/budgeting/sources-group");
 const { createBudgetSetup, getBudgetProfile, setBudgetIncludeNewExpensesByDefault } = await import("../src/server/budgeting/profiles");
 const { createGroupExpense, confirmGroupExpenseAsPayer } = await import("../src/server/group-accounting");
 const { createGroup } = await import("../src/server/groups");
@@ -43,12 +43,14 @@ async function run() {
   const database = drizzle(pool, { schema }) as Database;
   const users = { owner: randomUUID(), member: randomUUID() };
   let scope = "";
+  let memberScope = "";
   const groupIds: string[] = [];
   try {
     for (const [label, id] of Object.entries(users)) {
       await pool.query("INSERT INTO users (id, name, email, email_verified) VALUES ($1, $2, $3, true)", [id, label, `bp-${id}@example.com`]);
     }
     scope = await ensurePersonalLedgerScope(database, users.owner);
+    memberScope = await ensurePersonalLedgerScope(database, users.member);
     await createBudgetSetup(database, users.owner, {
       periodName: "Participation September",
       startsOn: "2026-09-01",
@@ -82,11 +84,13 @@ async function run() {
       outingExcluded: randomUUID(),
       outingLegacy: randomUUID(),
       legacyExpense: randomUUID(),
+      friend: randomUUID(),
     };
     await pool.query(
       "INSERT INTO outings (id, ledger_scope_id, title, occurred_at, occurred_on) VALUES ($1, $2, 'Included outing', '2026-09-05T10:00:00Z', '2026-09-05'), ($3, $2, 'Excluded outing', '2026-09-06T10:00:00Z', '2026-09-06'), ($4, $2, 'Legacy outing', '2026-09-08T10:00:00Z', '2026-09-08')",
       [ids.outingIncluded, scope, ids.outingExcluded, ids.outingLegacy],
     );
+    await pool.query("INSERT INTO friends (id, ledger_scope_id, name) VALUES ($1, $2, 'Participation friend')", [ids.friend, scope]);
     await pool.query("INSERT INTO expenses (id, ledger_scope_id, outing_id, description, amount) VALUES ($1, $2, $3, 'Legacy unlinked expense', 250)", [ids.legacyExpense, scope, ids.outingLegacy]);
 
     const repository = createLedgerRepository(database, scope, { personalBudget: createPersonalBudgetIntegration(users.owner, scope) });
@@ -109,6 +113,36 @@ async function run() {
     await repository.updateExpense(excluded.id, { outingId: ids.outingExcluded, description: "Excluded dinner edited", amount: 750 });
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 0, "reconciliation must not auto-link an explicitly excluded Personal expense");
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_exclusions WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 1);
+
+    await repository.replaceExpenseShares(included.id, [{ friendId: ids.friend, baseAmount: 100 }]);
+    await repository.replaceExpenseShares(excluded.id, [{ friendId: ids.friend, baseAmount: 150 }]);
+    const repayment = await repository.createRepaymentWithAllocations(
+      { friendId: ids.friend, amount: 300, paidAt: new Date("2026-09-07T10:00:00Z"), paidOn: "2026-09-07", paymentMethod: "Cash", notes: null },
+      [
+        { expenseShareId: (await repository.listExpenseShares(included.id))[0]!.id, amount: 100 },
+        { expenseShareId: (await repository.listExpenseShares(excluded.id))[0]!.id, amount: 150 },
+      ],
+    );
+    const repaymentLink = await row<{ budget_transaction_id: string }>(pool, "SELECT budget_transaction_id FROM budget_personal_repayment_sources WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, repayment.id]);
+    assert.equal((await pool.query("SELECT amount FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, repaymentLink.budget_transaction_id])).rows[0].amount, 300, "the repayment BudgetTransaction must retain actual cash");
+    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Food", amount: 100 }, { name: "Uncategorized", amount: 50 }], "excluded repayment allocations must not affect Budget");
+
+    await setPersonalExpenseBudgetParticipation(database, users.owner, scope, included.id, { includeInBudget: false });
+    await setPersonalExpenseBudgetParticipation(database, users.owner, scope, included.id, { includeInBudget: false });
+    assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, includedLink.budget_transaction_id])).rows[0].status, "voided");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_impacts i JOIN budget_transactions t ON t.owner_user_id = i.owner_user_id AND t.id = i.budget_transaction_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 AND t.status = 'posted'", [users.owner, includedLink.budget_transaction_id]), 0, "excluded expense effects must leave posted Budget authority");
+    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Uncategorized", amount: 50 }], "repayment impacts must reconcile immediately after exclusion");
+    await setPersonalExpenseBudgetParticipation(database, users.owner, scope, included.id, { includeInBudget: true, categoryId: null });
+    assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, includedLink.budget_transaction_id])).rows[0].status, "posted");
+    assert.deepEqual((await pool.query<{ name: string }>("SELECT c.name FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2", [users.owner, includedLink.budget_transaction_id])).rows, [{ name: "Food" }], "re-inclusion must restore the prior category");
+    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Food", amount: 100 }, { name: "Uncategorized", amount: 50 }], "re-inclusion must restore repayment effects");
+    await setPersonalExpenseBudgetParticipation(database, users.owner, scope, excluded.id, { includeInBudget: true, categoryId: null });
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 1, "an originally excluded expense must be linkable later");
+    assert.deepEqual((await pool.query<{ name: string }>("SELECT c.name FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id JOIN budget_personal_expense_sources s ON s.owner_user_id = i.owner_user_id AND s.budget_transaction_id = i.budget_transaction_id WHERE s.owner_user_id = $1 AND s.expense_id = $2", [users.owner, excluded.id])).rows, [{ name: "Uncategorized" }], "an originally excluded expense must default to Uncategorized");
+    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Food", amount: 100 }, { name: "Uncategorized", amount: 200 }], "re-including the excluded allocation must restore only that allocation plus the unallocated remainder");
+    await setPersonalExpenseBudgetParticipation(database, users.owner, scope, excluded.id, { includeInBudget: false });
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_exclusions WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 1);
+    await assert.rejects(() => setPersonalExpenseBudgetParticipation(database, users.member, memberScope, included.id, { includeInBudget: false }), (error: unknown) => isBudgetError(error, "NOT_FOUND"), "another user must not toggle a Personal expense");
     // A deleted source removes its exclusion through the typed foreign key.
     const disposable = await repository.createExpense({ outingId: ids.outingExcluded, description: "Disposable excluded", amount: 100 }, { includeInBudget: false });
     await repository.deleteExpense(disposable.id, { cascadeDependents: true });
@@ -118,11 +152,12 @@ async function run() {
     const firstImport = await importPersonalActivity(database, users.owner, scope);
     assert.equal(firstImport.expenseCount, 1, "import must only pick up the legacy unlinked Personal expense");
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, ids.legacyExpense]), 1, "import must keep seeing legacy unlinked Personal expenses");
-    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 0, "import must never resurrect an explicit exclusion");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 1, "import must preserve the retained excluded source link");
+    assert.equal((await pool.query("SELECT t.status FROM budget_personal_expense_sources s JOIN budget_transactions t ON t.owner_user_id = s.owner_user_id AND t.id = s.budget_transaction_id WHERE s.owner_user_id = $1 AND s.expense_id = $2", [users.owner, excluded.id])).rows[0].status, "voided", "import must not resurrect an explicitly excluded source");
     assert.equal((await importPersonalActivity(database, users.owner, scope)).expenseCount, 0, "a repeated import must be idempotent");
 
     // Category mutation keeps the canonical amount, status, and source identity.
-    await changePersonalExpenseBudgetCategory(database, users.owner, scope, includedLink.budget_transaction_id, transportId);
+    await changePersonalExpenseBudgetCategory(database, users.owner, scope, included.id, transportId);
     const recategorized = await row<{ amount: number; status: string; category_id: string }>(
       pool,
       "SELECT t.amount, t.status, i.budget_category_id AS category_id FROM budget_transactions t JOIN budget_impacts i ON i.owner_user_id = t.owner_user_id AND i.budget_transaction_id = t.id WHERE t.owner_user_id = $1 AND t.id = $2",
@@ -131,7 +166,7 @@ async function run() {
     assert.deepEqual(recategorized, { amount: 600, status: "posted", category_id: transportId });
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND expense_id = $3", [users.owner, includedLink.budget_transaction_id, included.id]), 1, "recategorization must preserve source identity");
     await assert.rejects(
-      () => changePersonalExpenseBudgetCategory(database, users.owner, scope, includedLink.budget_transaction_id, randomUUID()),
+      () => changePersonalExpenseBudgetCategory(database, users.owner, scope, included.id, randomUUID()),
       (error: unknown) => isBudgetError(error, "NOT_FOUND"),
       "an unowned Budget category must be rejected",
     );
@@ -157,6 +192,13 @@ async function run() {
     const groupIncludedLink = await row<{ budget_transaction_id: string }>(pool, "SELECT budget_transaction_id FROM budget_group_expense_sources WHERE owner_user_id = $1 AND group_expense_id = $2", [users.owner, groupIncluded.id]);
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND budget_category_id = $3", [users.owner, groupIncludedLink.budget_transaction_id, foodId]), 1, "an included Group expense must absorb into the payer's chosen category");
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_group_expense_sources WHERE owner_user_id = $1 AND group_expense_id = $2", [users.member, groupIncluded.id]), 0, "another member must never receive the payer's Budget cash");
+    await setGroupExpenseBudgetParticipation(database, users.owner, groupIncluded.id, { includeInBudget: false });
+    await setGroupExpenseBudgetParticipation(database, users.owner, groupIncluded.id, { includeInBudget: false });
+    assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, groupIncludedLink.budget_transaction_id])).rows[0].status, "voided");
+    assert.deepEqual(await getGroupExpenseBudgetState(database, users.owner, groupIncluded.id), { status: "not_included" });
+    await setGroupExpenseBudgetParticipation(database, users.owner, groupIncluded.id, { includeInBudget: true, categoryId: null });
+    assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, groupIncludedLink.budget_transaction_id])).rows[0].status, "posted");
+    await assert.rejects(() => setGroupExpenseBudgetParticipation(database, users.member, groupIncluded.id, { includeInBudget: false }), (error: unknown) => isBudgetError(error, "NOT_FOUND"), "another Group participant must not toggle the payer's Budget");
 
     const groupExcluded = await createGroupExpense(database, group.id, users.owner, {
       description: "Group groceries",
@@ -170,6 +212,8 @@ async function run() {
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_group_expense_exclusions WHERE owner_user_id = $1 AND group_expense_id = $2", [users.owner, groupExcluded.id]), 1, "an explicit Group exclusion must be durable");
     assert.deepEqual(await getGroupExpenseBudgetState(database, users.owner, groupExcluded.id), { status: "not_included" });
     assert.deepEqual(await getGroupExpenseBudgetState(database, users.member, groupExcluded.id), { status: "unprocessed" }, "a non-payer must not read another member's private Budget state");
+    await setGroupExpenseBudgetParticipation(database, users.owner, groupExcluded.id, { includeInBudget: true, categoryId: null });
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_group_expense_sources WHERE owner_user_id = $1 AND group_expense_id = $2", [users.owner, groupExcluded.id]), 1, "an originally excluded Group expense must be linkable later");
 
     // Reconciling Group activity must keep both the exclusion and Group authority intact.
     const linksBeforePendingClaim = await count(pool, "SELECT count(*)::text AS count FROM budget_group_expense_sources WHERE owner_user_id = ANY($1::text[])", [[users.owner, users.member]]);
@@ -182,15 +226,16 @@ async function run() {
       shares: [{ participantId: memberParticipant, amount: 500 }],
     }, { includeInBudget: true, categoryId: transportId });
     assert.equal(memberExpense.state, "pending", "a third-party claim stays financially non-authoritative");
+    await assert.rejects(() => setGroupExpenseBudgetParticipation(database, users.member, memberExpense.id, { includeInBudget: false }), (error: unknown) => isBudgetError(error, "NOT_FOUND"), "a pending payer claim must not expose a Budget toggle");
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_group_expense_sources WHERE owner_user_id = ANY($1::text[])", [[users.owner, users.member]]), linksBeforePendingClaim, "a pending payer claim must create no Budget cash for anyone");
-    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_group_expense_exclusions WHERE owner_user_id = ANY($1::text[])", [[users.owner, users.member]]), 1, "a creator must not record another member's private exclusion");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_group_expense_exclusions WHERE owner_user_id = ANY($1::text[])", [[users.owner, users.member]]), 0, "a creator must not record another member's private exclusion");
     await confirmGroupExpenseAsPayer(database, group.id, memberExpense.id, users.member);
     const memberLink = await row<{ budget_transaction_id: string }>(pool, "SELECT budget_transaction_id FROM budget_group_expense_sources WHERE owner_user_id = $1 AND group_expense_id = $2", [users.member, memberExpense.id]);
     const memberUncategorizedId = (await pool.query<{ id: string }>("SELECT id FROM budget_categories WHERE owner_user_id = $1 AND system_key = 'uncategorized'", [users.member])).rows[0]!.id;
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND budget_category_id = $3", [users.member, memberLink.budget_transaction_id, memberUncategorizedId]), 1, "a confirmed third-party payer keeps the existing reconciliation behavior");
 
     // Group category mutation preserves amount/source and stays owner-private.
-    await changeGroupExpenseBudgetCategory(database, users.owner, groupIncludedLink.budget_transaction_id, transportId);
+    await changeGroupExpenseBudgetCategory(database, users.owner, groupIncluded.id, transportId);
     const groupRecategorized = await row<{ amount: number; status: string; category_id: string }>(
       pool,
       "SELECT t.amount, t.status, i.budget_category_id AS category_id FROM budget_transactions t JOIN budget_impacts i ON i.owner_user_id = t.owner_user_id AND i.budget_transaction_id = t.id WHERE t.owner_user_id = $1 AND t.id = $2",
@@ -199,7 +244,7 @@ async function run() {
     assert.deepEqual(groupRecategorized, { amount: 900, status: "posted", category_id: transportId });
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_group_expense_sources WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND group_expense_id = $3", [users.owner, groupIncludedLink.budget_transaction_id, groupIncluded.id]), 1, "Group recategorization must preserve source identity");
     await assert.rejects(
-      () => changeGroupExpenseBudgetCategory(database, users.member, groupIncludedLink.budget_transaction_id, transportId),
+      () => changeGroupExpenseBudgetCategory(database, users.member, groupIncluded.id, transportId),
       (error: unknown) => isBudgetError(error, "NOT_FOUND"),
       "another user must not mutate this payer's Group classification",
     );
@@ -213,6 +258,8 @@ async function run() {
       await pool.query("DELETE FROM budget_personal_expense_exclusions WHERE owner_user_id = ANY($1::text[])", [Object.values(users)]).catch(() => undefined);
       await pool.query("DELETE FROM budget_group_expense_sources WHERE owner_user_id = ANY($1::text[])", [Object.values(users)]).catch(() => undefined);
       await pool.query("DELETE FROM budget_personal_expense_sources WHERE owner_user_id = ANY($1::text[])", [Object.values(users)]).catch(() => undefined);
+      await pool.query("DELETE FROM repayment_allocations WHERE ledger_scope_id = $1", [scope]).catch(() => undefined);
+      await pool.query("DELETE FROM repayments WHERE ledger_scope_id = $1", [scope]).catch(() => undefined);
       await pool.query("DELETE FROM budget_impacts WHERE owner_user_id = ANY($1::text[])", [Object.values(users)]).catch(() => undefined);
       await pool.query("DELETE FROM budget_transactions WHERE owner_user_id = ANY($1::text[])", [Object.values(users)]).catch(() => undefined);
       await pool.query("DELETE FROM budget_period_categories WHERE owner_user_id = ANY($1::text[])", [Object.values(users)]).catch(() => undefined);
@@ -228,8 +275,10 @@ async function run() {
         await pool.query("DELETE FROM group_participants WHERE group_id = $1", [groupId]).catch(() => undefined);
         await pool.query("DELETE FROM groups WHERE id = $1", [groupId]).catch(() => undefined);
       }
+      await pool.query("DELETE FROM expense_shares WHERE ledger_scope_id = $1", [scope]).catch(() => undefined);
       await pool.query("DELETE FROM expenses WHERE ledger_scope_id = $1", [scope]).catch(() => undefined);
       await pool.query("DELETE FROM outings WHERE ledger_scope_id = $1", [scope]).catch(() => undefined);
+      await pool.query("DELETE FROM friends WHERE ledger_scope_id = $1", [scope]).catch(() => undefined);
       await pool.query("DELETE FROM ledger_scopes WHERE id = $1", [scope]).catch(() => undefined);
       await pool.query("DELETE FROM users WHERE id = ANY($1::text[])", [Object.values(users)]).catch(() => undefined);
     }

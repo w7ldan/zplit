@@ -23,6 +23,24 @@ describe("Personal repayment budget distribution", () => {
     expect([...result.values()].reduce((sum, value) => sum + value, 0)).toBe(300);
   });
 
+  it("excludes allocated amounts for explicitly excluded expenses while preserving the unallocated remainder", () => {
+    const result = buildRepaymentBudgetDistribution(500, [
+      { expenseId: "expense-food", amount: 100 },
+      { expenseId: "expense-transport", amount: 200 },
+      { expenseId: "expense-excluded", amount: 150 },
+    ], "category-uncategorized", categoryByExpense, new Set(["expense-excluded"]));
+    expect(result).toEqual(new Map([
+      ["category-food", 100],
+      ["category-transport", 200],
+      ["category-uncategorized", 50],
+    ]));
+    expect([...result.values()].reduce((sum, value) => sum + value, 0)).toBe(350);
+  });
+
+  it("produces no impacts when the entire repayment is allocated to excluded expenses", () => {
+    expect(buildRepaymentBudgetDistribution(100, [{ expenseId: "expense-excluded", amount: 100 }], "category-uncategorized", categoryByExpense, new Set(["expense-excluded"]))).toEqual(new Map());
+  });
+
   it("rejects allocations greater than the canonical repayment amount", () => {
     expect(() => buildRepaymentBudgetDistribution(100, [{ expenseId: "expense-food", amount: 101 }], "category-uncategorized", categoryByExpense)).toThrow();
   });

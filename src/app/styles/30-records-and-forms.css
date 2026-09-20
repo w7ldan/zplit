@@ -6016,6 +6016,32 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   font-size: 0.82rem;
 }
 
+.budget-participation__state,
+.budget-participation__include {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: baseline;
+}
+
+.budget-participation__state span,
+.budget-participation__include label {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+}
+
+.budget-participation__include select {
+  max-width: 10rem;
+  min-height: 2.5rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.35rem;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.75rem;
+}
+
 .budget-participation__category {
   display: flex;
   flex-wrap: wrap;

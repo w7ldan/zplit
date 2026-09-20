@@ -14,7 +14,7 @@ import { parseCascadeConfirmation, parseImpactRevision } from "@/domain/deletion
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
-import { changePersonalExpenseBudgetCategory } from "@/server/budgeting/sources-personal";
+import { changePersonalExpenseBudgetCategory, setPersonalExpenseBudgetParticipation } from "@/server/budgeting/sources-personal";
 import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
 import { getDatabase } from "@/db/client";
 import { getLedgerForAction, assertOrganizationLedgerWritableFromForm, ledgerPath, organizationIdFromForm } from "@/server/organization-ledger";
@@ -175,15 +175,48 @@ export async function createExpenseAction(
 
 export async function changeExpenseBudgetCategoryAction(expenseId: string, formData: FormData) {
   const session = await requireSession();
-  const transactionId = textValue(formData, "transactionId");
   const categoryId = textValue(formData, "categoryId");
   const canonicalExpenseId = normalizeUuid(expenseId);
-  const canonicalTransactionId = normalizeUuid(transactionId);
   const canonicalCategoryId = normalizeUuid(categoryId);
-  if (!canonicalExpenseId || !canonicalTransactionId || !canonicalCategoryId) throw new BudgetError("INVALID_INPUT", "A budget transaction and category are required.");
+  if (!canonicalExpenseId || !canonicalCategoryId) throw new BudgetError("INVALID_INPUT", "A Personal expense and category are required.");
   const database = getDatabase();
   const scope = await getPersonalLedgerScopeId(database, session.user.id);
-  await changePersonalExpenseBudgetCategory(database, session.user.id, scope, canonicalTransactionId, canonicalCategoryId);
+  await changePersonalExpenseBudgetCategory(database, session.user.id, scope, canonicalExpenseId, canonicalCategoryId);
+  revalidatePath("/app");
+  revalidatePath("/app/expenses");
+  revalidatePath(`/app/expenses/${canonicalExpenseId}`);
+  revalidatePath("/app/personal");
+  revalidatePath("/app/personal/budget");
+  revalidatePath("/app/personal/budget/transactions");
+  redirect(`/app/expenses/${canonicalExpenseId}?budgetSaved=1#expense-details`);
+}
+
+export async function changePersonalExpenseBudgetCategoryAction(formData: FormData) {
+  const session = await requireSession();
+  const expenseId = normalizeUuid(textValue(formData, "expenseId"));
+  const categoryId = normalizeUuid(textValue(formData, "categoryId"));
+  if (!expenseId || !categoryId) throw new BudgetError("INVALID_INPUT", "A Personal expense and category are required.");
+  const database = getDatabase();
+  const scope = await getPersonalLedgerScopeId(database, session.user.id);
+  await changePersonalExpenseBudgetCategory(database, session.user.id, scope, expenseId, categoryId);
+  revalidatePath("/app");
+  revalidatePath("/app/expenses");
+  revalidatePath("/app/personal");
+  revalidatePath("/app/personal/budget");
+  revalidatePath("/app/personal/budget/transactions");
+  redirect("/app/personal/budget");
+}
+
+export async function setExpenseBudgetParticipationAction(expenseId: string, formData: FormData) {
+  const session = await requireSession();
+  const canonicalExpenseId = normalizeUuid(expenseId);
+  const includeInBudget = textValue(formData, "includeInBudget") === "1";
+  const rawCategoryId = textValue(formData, "categoryId");
+  const categoryId = rawCategoryId ? normalizeUuid(rawCategoryId) : null;
+  if (!canonicalExpenseId || (rawCategoryId && !categoryId)) throw new BudgetError("INVALID_INPUT", "Choose a valid Budget category.");
+  const database = getDatabase();
+  const scope = await getPersonalLedgerScopeId(database, session.user.id);
+  await setPersonalExpenseBudgetParticipation(database, session.user.id, scope, canonicalExpenseId, includeInBudget ? { includeInBudget: true, categoryId: categoryId ?? null } : { includeInBudget: false });
   revalidatePath("/app");
   revalidatePath("/app/expenses");
   revalidatePath(`/app/expenses/${canonicalExpenseId}`);

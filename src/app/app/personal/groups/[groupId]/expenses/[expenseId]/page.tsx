@@ -26,6 +26,7 @@ import {
   changeGroupExpenseBudgetCategoryAction,
   confirmGroupExpenseAction,
   rejectGroupExpenseAction,
+  setGroupExpenseBudgetParticipationAction,
   voidGroupExpenseAction,
 } from "../actions";
 
@@ -378,7 +379,7 @@ export default async function GroupExpenseDetailPage({
     expense.creator.userId === session.user.id;
   const activePayer = expense.payer.status === "active" && expense.payer.userId === session.user.id;
   const budgetState = await getGroupExpenseBudgetState(getDatabase(), session.user.id, expense.id);
-  const budgetCategories = budgetState.status === "included" ? await listBudgetCategoryOptions(getDatabase(), session.user.id) : [];
+  const budgetCategories = budgetState.status !== "unprocessed" ? await listBudgetCategoryOptions(getDatabase(), session.user.id) : [];
   const budget = budgetState.status === "unprocessed" ? undefined : (
     <div id="budget" tabIndex={-1}>
       <BudgetParticipationBlock
@@ -386,6 +387,8 @@ export default async function GroupExpenseDetailPage({
         categories={budgetCategories}
         description={expense.description}
         action={changeGroupExpenseBudgetCategoryAction.bind(null, groupId, expense.id)}
+        includeAction={setGroupExpenseBudgetParticipationAction.bind(null, groupId, expense.id)}
+        excludeAction={setGroupExpenseBudgetParticipationAction.bind(null, groupId, expense.id)}
       />
     </div>
   );

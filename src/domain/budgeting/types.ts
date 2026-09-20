@@ -83,6 +83,7 @@ export type BudgetTransactionView = {
   origin: BudgetTransactionOrigin;
   sourceType: "manual" | "recurring" | "personal_expense" | "personal_repayment" | "group_expense" | "group_payment_sent" | "group_payment_received";
   sourceId: string | null;
+  appliedImpactAmount: number;
   categoryName: string;
   categoryNames: string[];
   categoryId: string | null;

@@ -443,23 +443,23 @@ export async function skipBudgetRecurringOccurrenceAction(occurrenceId: string) 
 }
 
 export async function changePersonalExpenseBudgetCategoryAction(formData: FormData) {
-  const transactionId = textValue(formData, "transactionId");
+  const expenseId = textValue(formData, "expenseId");
   const categoryId = textValue(formData, "categoryId");
-  if (!transactionId || !categoryId) throw new BudgetError("INVALID_INPUT", "A budget transaction and category are required.");
+  if (!expenseId || !categoryId) throw new BudgetError("INVALID_INPUT", "A Personal expense and category are required.");
   const session = await requireSession();
   const database = getDatabase();
   const scope = await getPersonalLedgerScopeId(database, session.user.id);
-  await changePersonalExpenseBudgetCategory(database, session.user.id, scope, transactionId, categoryId);
+  await changePersonalExpenseBudgetCategory(database, session.user.id, scope, expenseId, categoryId);
   revalidateBudget();
   redirect("/app/personal/budget");
 }
 
 export async function changeGroupExpenseBudgetCategoryAction(formData: FormData) {
-  const transactionId = textValue(formData, "transactionId");
+  const groupExpenseId = textValue(formData, "groupExpenseId");
   const categoryId = textValue(formData, "categoryId");
-  if (!transactionId || !categoryId) throw new BudgetError("INVALID_INPUT", "A budget transaction and category are required.");
+  if (!groupExpenseId || !categoryId) throw new BudgetError("INVALID_INPUT", "A Group expense and category are required.");
   const session = await requireSession();
-  await changeGroupExpenseBudgetCategory(getDatabase(), session.user.id, transactionId, categoryId);
+  await changeGroupExpenseBudgetCategory(getDatabase(), session.user.id, groupExpenseId, categoryId);
   revalidateBudget();
   redirect("/app/personal/budget");
 }
