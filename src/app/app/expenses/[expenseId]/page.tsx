@@ -115,7 +115,7 @@ export default async function ExpenseRecordPage({
         ) : null}
         <div className="expense-record__tasks">
           <div className="expense-record__primary-task">
-            <section className="expense-record__shares vnext-surface vnext-surface--warm personal-vnext__shares personal-vnext__motion-reveal" id="friend-shares" tabIndex={-1} aria-label="Friend shares" data-motion="enter">
+            <section className="expense-record__shares personal-vnext__shares" id="friend-shares" tabIndex={-1} aria-label="Friend shares">
               <ExpenseShareEditor
                 action={replaceExpenseSharesAction.bind(null, expense.id)}
                 expenseAmount={expense.amount}

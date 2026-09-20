@@ -139,6 +139,7 @@
   display: inline-block;
   position: relative;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
   letter-spacing: normal;
   line-height: 1.1;
   max-inline-size: none;
@@ -171,11 +172,12 @@
 .zplit-vnext .animated-money__character {
   display: inline-block;
   flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
   white-space: pre;
 }
 
 .zplit-vnext .animated-money__separator {
-  min-inline-size: 0.35em;
+  inline-size: 0.35em;
   text-align: center;
 }
 
@@ -184,7 +186,7 @@
   inline-size: 1ch;
   block-size: 1.1em;
   flex: 0 0 1ch;
-  overflow: hidden;
+  overflow: clip;
   vertical-align: baseline;
 }
 
@@ -204,6 +206,7 @@
   inline-size: 1ch;
   block-size: 1.1em;
   flex: 0 0 1.1em;
+  font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
 

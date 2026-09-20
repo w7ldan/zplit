@@ -20,6 +20,26 @@ describe("AnimatedMoney", () => {
     expect(container.querySelector(".animated-money__static")).toHaveTextContent(formatRupiah(2450000));
   });
 
+  it("animates from a stable zero state on first meaningful render", () => {
+    const originalAnimate = HTMLElement.prototype.animate;
+    const animate = vi.fn(() => ({ cancel: vi.fn(), finished: Promise.resolve() } as unknown as Animation));
+    Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate });
+
+    try {
+      render(<AnimatedMoney amount={2450000} />);
+
+      expect(animate).toHaveBeenCalledTimes(7);
+      const firstCall = animate.mock.calls[0] as unknown as [unknown];
+      expect(firstCall?.[0]).toEqual([
+        { transform: "translate3d(0, -0em, 0)" },
+        { transform: "translate3d(0, -2.2em, 0)" },
+      ]);
+    } finally {
+      if (originalAnimate) Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: originalAnimate });
+      else Reflect.deleteProperty(HTMLElement.prototype, "animate");
+    }
+  });
+
   it("updates the final readable value when the amount changes", () => {
     const view = render(<AnimatedMoney amount={350000} />);
 

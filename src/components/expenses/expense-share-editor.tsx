@@ -162,7 +162,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
           <span>{overAllocated ? `Over-allocated by ${formatRupiah(totalOwed - expenseAmount)}.` : `${formatRupiah(ownerPortion)} is your portion. Assigned shares become friend balances.`}</span>
         </div>
       </div>
-      <form className="expense-share-editor__form personal-vnext__form" action={formAction} onSubmit={handleSubmit} noValidate>
+      <form className="expense-share-editor__form personal-vnext__form personal-vnext__form--workspace" action={formAction} onSubmit={handleSubmit} noValidate>
         <div className="expense-share-editor__add">
           <div>
             <label id="expense-share-add-label" htmlFor="expense-share-add">Add friend</label>

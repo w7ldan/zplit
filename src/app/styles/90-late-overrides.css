@@ -840,8 +840,14 @@
   font-family: var(--font-zplit-vnext), var(--font-body);
 }
 
+.personal-vnext {
+  --personal-content-narrow: 36rem;
+  --personal-content-standard: 52rem;
+  --personal-content-workspace: 86rem;
+}
+
 .personal-vnext .editorial-shell {
-  max-inline-size: 76rem;
+  max-inline-size: var(--authenticated-canvas-max-width);
 }
 
 .personal-vnext .app-page__layout {
@@ -1190,9 +1196,12 @@
   background: var(--vnext-paper);
 }
 
-.personal-vnext [data-motion="enter"],
+.personal-vnext [data-motion="enter"] {
+  animation: personal-vnext-surface-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+}
+
 .personal-vnext [data-motion="list"] > * {
-  animation: personal-vnext-enter var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+  animation: personal-vnext-list-in var(--vnext-motion-layout) var(--vnext-ease-product) both;
 }
 
 .personal-vnext [data-motion="list"] > :nth-child(2) { animation-delay: 60ms; }
@@ -1200,9 +1209,29 @@
 .personal-vnext [data-motion="list"] > :nth-child(4) { animation-delay: 140ms; }
 .personal-vnext [data-motion="list"] > :nth-child(5) { animation-delay: 180ms; }
 
-@keyframes personal-vnext-enter {
-  from { opacity: 0; transform: translateY(0.7rem); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes personal-vnext-hero-in {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateX(-1rem) scale(0.985); }
+  to { opacity: 1; clip-path: inset(0); transform: translateX(0) scale(1); }
+}
+
+@keyframes personal-vnext-surface-in {
+  from { opacity: 0; clip-path: inset(0 0 0 7%); transform: translateY(0.35rem); }
+  to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
+}
+
+@keyframes personal-vnext-list-in {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateX(0.6rem); }
+  to { opacity: 1; clip-path: inset(0); transform: translateX(0); }
+}
+
+@keyframes personal-vnext-split-in {
+  from { opacity: 0; clip-path: inset(0 8% 0 0); transform: translateX(-0.75rem); }
+  to { opacity: 1; clip-path: inset(0); transform: translateX(0); }
+}
+
+@keyframes personal-vnext-form-in {
+  from { opacity: 0; clip-path: inset(0 0 0 4%); transform: translateY(0.25rem); }
+  to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
 }
 
 @media (max-width: 900px) {
@@ -1285,12 +1314,11 @@
 @media (prefers-reduced-motion: reduce) {
   .personal-vnext [data-motion="enter"],
   .personal-vnext [data-motion="list"] > * {
-    animation: none;
+    animation: none !important;
   }
 }
 
 .personal-vnext .personal-vnext__layout {
-  inline-size: min(100%, 76rem);
   padding-block: 1.5rem 4rem;
 }
 
@@ -1341,6 +1369,10 @@
 
 .personal-vnext .personal-vnext__workspace {
   min-inline-size: 0;
+}
+
+.personal-vnext .outing-record__workspace {
+  max-inline-size: var(--personal-content-standard);
 }
 
 .personal-vnext .records-workspace.personal-vnext__workspace {
@@ -1615,8 +1647,24 @@
 .personal-vnext .personal-vnext__form,
 .personal-vnext .personal-vnext__share-form {
   display: grid;
-  max-inline-size: 40rem;
+  inline-size: min(100%, var(--personal-content-standard));
+  max-inline-size: var(--personal-content-standard);
   gap: 1rem;
+}
+
+.personal-vnext .personal-vnext__form--narrow,
+.personal-vnext .personal-vnext__share-form {
+  max-inline-size: var(--personal-content-narrow);
+}
+
+.personal-vnext .personal-vnext__form--workspace {
+  max-inline-size: var(--personal-content-workspace);
+}
+
+.personal-vnext .personal-vnext__share-editor,
+.personal-vnext .repayment-allocation-editor {
+  inline-size: 100%;
+  max-inline-size: var(--personal-content-workspace);
 }
 
 .personal-vnext .personal-vnext__field,
@@ -1988,27 +2036,27 @@
   background: var(--vnext-accent-wash);
 }
 
-.personal-vnext .receipt-preview {
+.receipt-preview--vnext {
   background-color: var(--vnext-overlay-heavy);
 }
 
-.personal-vnext .receipt-preview__surface {
+.receipt-preview--vnext .receipt-preview__surface {
   border-color: var(--vnext-rule);
   background: var(--vnext-surface);
   box-shadow: none;
 }
 
-.personal-vnext .receipt-preview__header h2 {
+.receipt-preview--vnext .receipt-preview__header h2 {
   color: var(--vnext-text);
   font-family: var(--font-zplit-vnext), var(--font-body);
 }
 
-.personal-vnext .receipt-preview__header,
-.personal-vnext .receipt-preview__footer {
+.receipt-preview--vnext .receipt-preview__header,
+.receipt-preview--vnext .receipt-preview__footer {
   border-color: var(--vnext-rule);
 }
 
-.personal-vnext .receipt-preview__close {
+.receipt-preview--vnext .receipt-preview__close {
   border-color: var(--vnext-rule);
   color: var(--vnext-text);
 }
@@ -2025,9 +2073,25 @@
   white-space: nowrap;
 }
 
-.personal-vnext .personal-vnext__motion-reveal,
-.personal-vnext .personal-vnext__motion-item {
-  animation: personal-vnext-enter var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+.personal-vnext :is(.personal-vnext__header, .personal-vnext__hero, .personal-vnext__detail-intro, .app-page__header) {
+  animation: personal-vnext-hero-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+}
+
+.personal-vnext .personal-vnext__motion-reveal {
+  animation: personal-vnext-surface-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+}
+
+.personal-vnext .personal-vnext__motion-item,
+.personal-vnext [data-motion="list"] > * {
+  animation: personal-vnext-list-in var(--vnext-motion-layout) var(--vnext-ease-product) both;
+}
+
+.personal-vnext :is(.personal-vnext__summary, .personal-vnext__responsive-split, .personal-vnext__responsive-detail) {
+  animation: personal-vnext-split-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+}
+
+.personal-vnext :is(.personal-vnext__form, .personal-vnext__share-editor, .personal-vnext__allocation-module, [data-motion="allocation-change"], [data-motion="proof-change"]) {
+  animation: personal-vnext-form-in var(--vnext-motion-state) var(--vnext-ease-product) both;
 }
 
 .personal-vnext .personal-vnext__motion-stagger > :nth-child(2) { animation-delay: 60ms; }
@@ -2068,6 +2132,11 @@
   .personal-vnext .expense-row__meta,
   .personal-vnext .repayment-row__meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .personal-vnext .repayment-allocation-editor__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
   }
 
   .personal-vnext .friend-row__edit,
@@ -2139,9 +2208,12 @@
   .personal-vnext .personal-vnext__motion-reveal,
   .personal-vnext .personal-vnext__motion-item,
   .personal-vnext [data-motion="enter"],
-  .personal-vnext [data-motion="list"] > * {
+  .personal-vnext [data-motion="list"] > *,
+  .personal-vnext [data-motion="allocation-change"],
+  .personal-vnext [data-motion="proof-change"] {
     animation: none !important;
     transform: none !important;
+    clip-path: none !important;
     transition: none !important;
   }
 }

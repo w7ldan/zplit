@@ -367,7 +367,7 @@ function FriendRecordContent({
           </div>
         </section>
         <div className="friend-record__workspace personal-vnext__workspace personal-vnext__responsive-split" data-motion="enter">
-          <div className="friend-record__form personal-vnext__form personal-vnext__motion-reveal">
+          <div className="friend-record__form personal-vnext__form personal-vnext__form--narrow personal-vnext__motion-reveal">
             <p className="technical-label personal-vnext__eyebrow">EDIT RECORD</p>
             <FriendForm
               action={updateFriendAction.bind(null, friend.id)}

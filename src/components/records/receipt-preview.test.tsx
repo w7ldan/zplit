@@ -84,6 +84,17 @@ describe("ReceiptPreview", () => {
     expect(dialog).toHaveAttribute("aria-modal", "true");
   });
 
+  it("keeps a Personal vNext preview at the modal layer while styling it in scope", () => {
+    const { container } = render(<div className="personal-vnext"><ReceiptPreview href="/receipt/vnext" filename="vnext.png" mediaType="image/png" /></div>);
+    fireEvent.click(within(container).getByRole("button", { name: "Preview vnext.png" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveClass("receipt-preview--vnext", "zplit-vnext");
+    expect(dialog.parentElement).toBe(document.body);
+    expect(container).toHaveAttribute("aria-hidden", "true");
+    expect((container as HTMLElement & { inert: boolean }).inert).toBe(true);
+  });
+
   it("restores background state, scroll state, and focus on Escape or backdrop close", () => {
     const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
     Object.defineProperty(window, "scrollY", { configurable: true, value: 240 });

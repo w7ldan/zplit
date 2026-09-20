@@ -28,7 +28,7 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [entering, setEntering] = useState(false);
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  const [isPersonalVNext, setIsPersonalVNext] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closingRef = useRef(false);
@@ -142,7 +142,7 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
       type="button"
       onClick={(event) => {
         triggerRef.current = event.currentTarget;
-        setPortalTarget((event.currentTarget.closest(".personal-vnext") as HTMLElement | null) ?? document.body);
+        setIsPersonalVNext(Boolean(event.currentTarget.closest(".personal-vnext")));
         closingRef.current = false;
         setEntering(true);
         setClosing(false);
@@ -153,7 +153,7 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
       {triggerLabel}
     </button>
     {open ? createPortal(
-      <div ref={dialogRef} className={`receipt-preview${entering ? " receipt-preview--entering" : ""}${closing ? " receipt-preview--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onClick={(event) => { if (event.target === event.currentTarget) closePreview(); }}>
+      <div ref={dialogRef} className={`receipt-preview${isPersonalVNext ? " receipt-preview--vnext zplit-vnext" : ""}${entering ? " receipt-preview--entering" : ""}${closing ? " receipt-preview--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onClick={(event) => { if (event.target === event.currentTarget) closePreview(); }}>
         <section className="receipt-preview__surface" onTransitionEnd={(event) => { if (closingRef.current && event.target === event.currentTarget && event.propertyName === "transform") finishClose(); }}>
           <header className="receipt-preview__header">
             <h2 id={titleId} title={filename}>{filename}</h2>
@@ -169,7 +169,7 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
           </footer>
         </section>
       </div>,
-      portalTarget ?? document.body,
+      document.body,
     ) : null}
   </>;
 }

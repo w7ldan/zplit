@@ -210,7 +210,7 @@ export function RepaymentAllocationEditor({
 
   if (allocationPage.items.length === 0) {
     return (
-      <div className="repayment-allocation-editor repayment-allocation-editor--empty vnext-surface vnext-surface--warm personal-vnext__allocation-module" data-motion="enter">
+    <div className="repayment-allocation-editor repayment-allocation-editor--empty vnext-surface vnext-surface--warm personal-vnext__allocation-module" data-motion="enter">
         <p className="technical-label">REPAYMENT ALLOCATIONS</p>
         {search}
         <p>{allocationQuery ? "No matching expense shares." : "No outstanding shares for this friend."}</p>
@@ -266,7 +266,7 @@ export function RepaymentAllocationEditor({
               : "This repayment is fully applied. Applied money reduces outstanding balances."}
         </span>
       </div>
-      <form className="repayment-allocation-editor__form" action={formAction} noValidate>
+      <form className="repayment-allocation-editor__form personal-vnext__form--workspace" action={formAction} noValidate>
         <input type="hidden" name="allocationPage" value={allocationPage.page} />
         <input type="hidden" name="allocationQuery" value={allocationQuery ?? ""} />
         <p className="repayment-allocation-editor__help">Enter a whole-rupiah amount. A blank field removes this allocation.</p>

@@ -51,7 +51,7 @@ export function FriendForm({ action, initialValues = emptyValues, mode = "create
     if (input instanceof HTMLInputElement) input.value = "1";
   };
   return (
-    <form ref={formRef} key={`${state.values.name}\u0000${state.values.phoneNumber}\u0000${state.values.countryCode}\u0000${state.values.otherCountryCode}\u0000${state.values.notes}`} className="friend-form personal-vnext__form" action={formAction} noValidate data-motion="enter">
+    <form ref={formRef} key={`${state.values.name}\u0000${state.values.phoneNumber}\u0000${state.values.countryCode}\u0000${state.values.otherCountryCode}\u0000${state.values.notes}`} className="friend-form personal-vnext__form personal-vnext__form--narrow" action={formAction} noValidate data-motion="enter">
       <div className="friend-form__field personal-vnext__field">
         <label className="personal-vnext__label" htmlFor="friend-name">Name</label>
         <input

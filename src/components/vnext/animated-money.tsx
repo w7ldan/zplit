@@ -45,6 +45,7 @@ function digitFromRight(digits: number[], index: number, targetLength: number) {
 export function AnimatedMoney({ amount, animate = true, className, label, tone = "default" }: AnimatedMoneyProps) {
   const formatted = formatRupiah(amount);
   const previousAmountRef = useRef<number | null>(null);
+  const initialAnimationPendingRef = useRef(true);
   const reelRefs = useRef<Array<HTMLElement | null>>([]);
   const animationsRef = useRef<Animation[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -56,9 +57,10 @@ export function AnimatedMoney({ amount, animate = true, className, label, tone =
     previousAmountRef.current = amount;
     cancelAnimations(animationsRef.current);
 
-    const shouldAnimate = animate && !reducedMotion && previousAmount !== null && previousAmount !== amount;
+    const shouldAnimate = animate && !reducedMotion && (initialAnimationPendingRef.current || (previousAmount !== null && previousAmount !== amount));
     if (!shouldAnimate) {
       applyFinalTransforms(reelRefs.current, targetDigits);
+      if (reducedMotion) initialAnimationPendingRef.current = false;
       setIsAnimating(false);
       return;
     }
@@ -87,6 +89,7 @@ export function AnimatedMoney({ amount, animate = true, className, label, tone =
 
     if (animations.length === 0) {
       applyFinalTransforms(reelRefs.current, targetDigits);
+      initialAnimationPendingRef.current = false;
       setIsAnimating(false);
       return;
     }
@@ -96,6 +99,7 @@ export function AnimatedMoney({ amount, animate = true, className, label, tone =
     Promise.all(animations.map((animation) => animation.finished.catch(() => undefined))).then(() => {
       if (!active || animationsRef.current !== animations) return;
       applyFinalTransforms(reelRefs.current, targetDigits);
+      initialAnimationPendingRef.current = false;
       setIsAnimating(false);
     });
 

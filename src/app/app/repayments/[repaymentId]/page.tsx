@@ -95,7 +95,7 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
         ) : null}
         <div className="repayment-record__tasks">
           <div className="repayment-record__primary-task">
-            <div className="repayment-record__allocations personal-vnext__allocation-module personal-vnext__motion-reveal" id="repayment-allocations" data-motion="enter">
+            <div className="repayment-record__allocations" id="repayment-allocations">
               <RepaymentAllocationEditor
                 action={replaceRepaymentAllocationsAction.bind(null, plan.id)}
                 plan={plan}
