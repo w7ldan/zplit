@@ -33,7 +33,7 @@ function identityParts(label: string) {
 
 function SubmitButton() {
   return (
-    <button className="action-link action-link--primary" type="submit">
+    <button className="action-link action-link--primary vnext-button vnext-button--primary" type="submit">
       Send request
     </button>
   );
@@ -65,12 +65,12 @@ export function FriendLinkSection({
 
   if (status.status === "linked") {
     return (
-      <section className="friend-link" aria-labelledby="friend-link-heading">
+      <section className="friend-link personal-vnext__link-section" aria-labelledby="friend-link-heading" data-motion="enter">
         <div className="friend-link__heading">
           <p className="technical-label" id="friend-link-heading">
             Zplit friend
           </p>
-          <span className="friend-link__state">Active</span>
+          <span className="friend-link__state personal-vnext__metadata">Active</span>
         </div>
         <p className="friend-link__identity">
           <strong>{status.user.displayName}</strong>
@@ -78,7 +78,7 @@ export function FriendLinkSection({
         </p>
         {unlinkAction ? (
           <details className="friend-link__unlink">
-            <summary className="text-link">Unlink</summary>
+            <summary className="text-link vnext-link">Unlink</summary>
             <div>
               <p>Unlink @{status.user.username}?</p>
               <p>
@@ -86,7 +86,7 @@ export function FriendLinkSection({
               </p>
               <form action={unlinkAction}>
                 <button
-                  className="action-link action-link--quiet"
+                  className="action-link action-link--quiet vnext-button vnext-button--secondary"
                   type="submit"
                 >
                   Unlink
@@ -101,19 +101,19 @@ export function FriendLinkSection({
 
   if (status.status === "pending") {
     return (
-      <section className="friend-link" aria-labelledby="friend-link-heading">
+      <section className="friend-link personal-vnext__link-section" aria-labelledby="friend-link-heading" data-motion="enter">
         <div className="friend-link__heading">
           <p className="technical-label" id="friend-link-heading">
             Zplit account
           </p>
-          <span className="friend-link__state">Awaiting confirmation</span>
+          <span className="friend-link__state personal-vnext__metadata">Awaiting confirmation</span>
         </div>
         <p className="friend-link__identity">
           <span>@{status.target.username}</span>
         </p>
         {cancelAction ? (
           <form action={cancelAction}>
-            <button className="text-link" type="submit">
+            <button className="text-link vnext-link" type="submit">
               Cancel request
             </button>
           </form>
@@ -124,17 +124,17 @@ export function FriendLinkSection({
 
   const selectedIdentity = selected ? identityParts(selected.label) : undefined;
   return (
-    <section className="friend-link" aria-labelledby="friend-link-heading">
+    <section className="friend-link personal-vnext__link-section" aria-labelledby="friend-link-heading" data-motion="enter">
       <div className="friend-link__heading">
         <p className="technical-label" id="friend-link-heading">
           Zplit account
         </p>
-        <span className="friend-link__state">Not linked</span>
+        <span className="friend-link__state personal-vnext__metadata">Not linked</span>
       </div>
       {!open ? (
         <button
           ref={trigger}
-          className="text-link"
+          className="text-link vnext-link"
           type="button"
           aria-expanded={open}
           onClick={() => setOpen(true)}
@@ -143,7 +143,7 @@ export function FriendLinkSection({
         </button>
       ) : null}
       <InlineDisclosure open={open} className="friend-link__presence">
-        <form className="friend-link__disclosure" action={formAction}>
+        <form className="friend-link__disclosure personal-vnext__disclosure" action={formAction}>
           <label id="friend-link-target-label" htmlFor="friend-link-target">
             Find by @username
           </label>
@@ -173,7 +173,7 @@ export function FriendLinkSection({
           </p>
           <div className="friend-link__actions">
             <button
-              className="action-link action-link--quiet"
+              className="action-link action-link--quiet vnext-button vnext-button--secondary"
               type="button"
               onClick={close}
             >

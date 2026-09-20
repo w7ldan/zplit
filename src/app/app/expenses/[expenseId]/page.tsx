@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { zplitVNextFont } from "@/app/fonts";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
@@ -8,6 +9,7 @@ import { ExpenseShareEditor } from "@/components/expenses/expense-share-editor";
 import { ExpenseReceipts } from "@/components/expenses/expense-receipts";
 import { BudgetParticipationBlock } from "@/components/budgeting/budget-participation-block";
 import { formatRupiah } from "@/domain/rupiah";
+import { AnimatedMoney } from "@/components/vnext/animated-money";
 import { deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
@@ -79,13 +81,13 @@ export default async function ExpenseRecordPage({
   const outings = outingRows.map((outing) => ({ id: outing.id, label: outing.title }));
 
   return (
-    <section className="app-page expense-record" id="top">
-      <div className="editorial-grid editorial-shell expense-record__layout">
-        <div className="expense-record__intro">
+    <section className={`app-page page-content zplit-vnext personal-vnext expense-record ${zplitVNextFont.variable}`} id="top">
+      <div className="editorial-grid editorial-shell expense-record__layout personal-vnext__detail-layout">
+        <header className="expense-record__intro personal-vnext__detail-intro personal-vnext__motion-reveal" data-motion="enter">
           <p className="technical-label">Expense · assign shares</p>
           <h1>{expense.description}</h1>
-          <Link className="expense-record__back" href="/app/expenses">← Expenses</Link>
-        </div>
+          <Link className="expense-record__back vnext-link" href="/app/expenses">← Expenses</Link>
+        </header>
         {query?.created === "1" ? (
           <RecordConfirmation
             queryKey="created"
@@ -113,7 +115,7 @@ export default async function ExpenseRecordPage({
         ) : null}
         <div className="expense-record__tasks">
           <div className="expense-record__primary-task">
-            <div className="expense-record__shares" id="friend-shares" tabIndex={-1}>
+            <section className="expense-record__shares vnext-surface vnext-surface--warm personal-vnext__shares personal-vnext__motion-reveal" id="friend-shares" tabIndex={-1} aria-label="Friend shares" data-motion="enter">
               <ExpenseShareEditor
                 action={replaceExpenseSharesAction.bind(null, expense.id)}
                 expenseAmount={expense.amount}
@@ -141,7 +143,7 @@ export default async function ExpenseRecordPage({
                   })),
                 } : null}
               />
-            </div>
+            </section>
             <ExpenseReceipts
               expenseId={expense.id}
               initialReceipts={receipts.map((receipt) => ({
@@ -151,11 +153,11 @@ export default async function ExpenseRecordPage({
             />
           </div>
           <aside className="expense-record__sidebar">
-            <div className="expense-record__controls">
-              <div className="expense-record__meta" aria-label="Expense metadata">
+            <div className="expense-record__controls vnext-surface vnext-surface--warm personal-vnext__controls personal-vnext__motion-stagger" data-motion="enter">
+              <section className="expense-record__meta personal-vnext__metadata" aria-label="Expense metadata">
                 <div>
                   <span className="technical-label">Amount</span>
-                  <strong>{formatRupiah(expense.amount)}</strong>
+                  <strong><AnimatedMoney amount={expense.amount} animate label="Expense amount" tone="primary" /></strong>
                 </div>
                 <div>
                   <span className="technical-label">Outing</span>
@@ -169,8 +171,8 @@ export default async function ExpenseRecordPage({
                   <span className="technical-label">Created</span>
                   <LocalDateTime iso={expense.createdAt.toISOString()} mode="date" />
                 </div>
-              </div>
-              <div className="expense-record__form">
+              </section>
+              <div className="expense-record__form personal-vnext__form">
                 <p className="technical-label" id="expense-details" tabIndex={-1}>EDIT RECORD</p>
                 <ExpenseForm
                   action={updateExpenseAction.bind(null, expense.id)}
@@ -180,14 +182,18 @@ export default async function ExpenseRecordPage({
                   initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
                 />
               </div>
-              <BudgetParticipationBlock
-                participation={budgetState}
-                categories={budgetCategories}
-                description={expense.description}
-                action={changeExpenseBudgetCategoryAction.bind(null, expense.id)}
-                includeAction={setExpenseBudgetParticipationAction.bind(null, expense.id)}
-                excludeAction={setExpenseBudgetParticipationAction.bind(null, expense.id)}
-              />
+              {budgetState.status !== "unprocessed" ? (
+                <section className="personal-vnext__budget-section personal-vnext__motion-item" aria-label="Budget participation">
+                  <BudgetParticipationBlock
+                    participation={budgetState}
+                    categories={budgetCategories}
+                    description={expense.description}
+                    action={changeExpenseBudgetCategoryAction.bind(null, expense.id)}
+                    includeAction={setExpenseBudgetParticipationAction.bind(null, expense.id)}
+                    excludeAction={setExpenseBudgetParticipationAction.bind(null, expense.id)}
+                  />
+                </section>
+              ) : null}
               <DeleteRecordForm
                 action={deleteExpenseAction.bind(null, expense.id)}
                 recordType="expense"

@@ -33,6 +33,7 @@ describe("/app/friends", () => {
     mocks.createLedgerRepository.mockReturnValue({ listFriendsExperience: vi.fn().mockResolvedValue(friendPage), getFriendBalances });
     render(await FriendsPage({ searchParams: Promise.resolve({ view: "active", q: "Ada" }) }));
 
+    expect(screen.getByRole("heading", { level: 1, name: "Friends" }).closest("section")).toHaveClass("page-content", "zplit-vnext", "personal-vnext");
     expect(screen.getByRole("heading", { level: 1, name: "Friends" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "← Personal" })).toHaveAttribute("href", "/app/personal");
     expect(document.querySelector(".friends-toolbar")!).toContainElement(document.querySelector(".live-record-filters"));

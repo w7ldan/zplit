@@ -13,6 +13,7 @@ import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { PaymentMethodFields } from "@/components/records/payment-method-fields";
 import { useRepaymentAllocationDraft } from "./use-repayment-allocation-draft";
 import { TaskPanelFooter } from "@/components/app/task-panel";
+import { useFocusFirstInvalid } from "@/components/records/use-focus-first-invalid";
 
 type RepaymentAction = (previousState: RepaymentActionState, formData: FormData) => Promise<RepaymentActionState>;
 
@@ -57,7 +58,7 @@ function SubmitButton({ mode }: { mode: "create" | "edit" }) {
   const { pending } = useFormStatus();
   return (
     <button
-      className="action-link action-link--primary repayment-form__submit"
+      className="action-link action-link--primary vnext-button vnext-button--primary repayment-form__submit"
       type="submit"
       disabled={pending}
       aria-busy={pending}
@@ -75,7 +76,7 @@ function SubmitButton({ mode }: { mode: "create" | "edit" }) {
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return (
-    <p className="repayment-form__field-error" id={id}>
+    <p className="repayment-form__field-error" id={id} aria-live={message ? "polite" : undefined}>
       {message || "\u00a0"}
     </p>
   );
@@ -113,11 +114,11 @@ function RepaymentAllocationSection({
     <details
       ref={disclosureRef}
       open={allocationDisclosureOpen || undefined}
-      className="repayment-form__disclosure"
+      className="repayment-form__disclosure vnext-surface vnext-surface--warm personal-vnext__disclosure"
     >
       <summary>Allocate now</summary>
       <section
-        className="repayment-form__allocations"
+        className="repayment-form__allocations personal-vnext__allocation-section"
         aria-labelledby="repayment-allocations-heading"
       >
         <h2 id="repayment-allocations-heading">Apply to outstanding expenses</h2>
@@ -201,7 +202,7 @@ function RepaymentAllocationSection({
           </div>
         </noscript>
         {selectedAllocationRows.map((share) => (
-          <div className="repayment-form__allocation" key={share.id}>
+          <div className="repayment-form__allocation personal-vnext__allocation-row" data-motion="allocation-change" key={share.id}>
             <div className="repayment-form__allocation-details">
               <strong>{share.expenseDescription}</strong>
               <span>
@@ -237,7 +238,7 @@ function RepaymentAllocationSection({
               </p>
             ) : null}
             <button
-              className="action-link action-link--quiet repayment-form__allocation-remove"
+              className="action-link action-link--quiet vnext-button vnext-button--secondary repayment-form__allocation-remove"
               type="button"
               onClick={() => removeAllocation(share.id)}
             >
@@ -312,7 +313,7 @@ function RepaymentDetailsFields({
     <details
       ref={detailsRef}
       open={detailsOpen || undefined}
-      className="repayment-form__disclosure"
+      className="repayment-form__disclosure vnext-surface vnext-surface--warm personal-vnext__disclosure"
     >
       <summary>Optional details</summary>
       {fields}
@@ -428,7 +429,7 @@ function RepaymentBasicFields({
           selectedContext &&
           selectedContext.outstandingAmount > 0 ? (
             <button
-              className="action-link action-link--quiet repayment-form__full-outstanding"
+              className="action-link action-link--quiet vnext-button vnext-button--secondary repayment-form__full-outstanding"
               type="button"
               onClick={() => {
                 if (!selectedContext) return;
@@ -538,6 +539,7 @@ export function RepaymentForm({
     state.fieldErrors.paymentMethod ||
     state.fieldErrors.notes,
   );
+  useFocusFirstInvalid(formRef, state.fieldErrors);
 
   useEffect(() => {
     if (state === previousActionStateRef.current) return;
@@ -574,7 +576,7 @@ export function RepaymentForm({
   return (
     <form
       ref={formRef}
-      className="repayment-form"
+      className="repayment-form personal-vnext__form"
       action={formAction}
       noValidate
       onSubmit={setCurrentTimezoneOffset}
@@ -621,7 +623,7 @@ export function RepaymentForm({
       >
         {state.formError || "\u00a0"}
       </p>
-      <TaskPanelFooter className="repayment-form__actions">
+      <TaskPanelFooter className="repayment-form__actions personal-vnext__form-actions">
         <SubmitButton mode={mode} />
       </TaskPanelFooter>
     </form>

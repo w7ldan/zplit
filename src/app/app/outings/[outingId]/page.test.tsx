@@ -42,6 +42,7 @@ describe("outing record", () => {
     mocks.createLedgerRepository.mockReturnValue({ getOuting: vi.fn().mockResolvedValue(outing), getOutingDeletionImpact, listExpenseRecords });
     render(await OutingRecordPage({ params: Promise.resolve({ outingId: outing.id }), searchParams: Promise.resolve({ expensePage: "1" }) }));
 
+    expect(document.querySelector(".page-content")).toHaveClass("zplit-vnext", "personal-vnext");
     expect(screen.getByText("Outing · editable record")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Jakarta dinner" })).toBeInTheDocument();
     expect(document.querySelector(".outing-record__summary")!).toContainElement(document.querySelector(".outing-record__meta"));
@@ -55,7 +56,10 @@ describe("outing record", () => {
     expect(screen.getByRole("link", { name: "Add expense" })).toHaveAttribute("href", `/app/expenses?create=1&outing=${outing.id}`);
     expect(screen.getByRole("heading", { level: 2, name: "Expenses" })).toBeInTheDocument();
     expect(screen.getByText("Dinner", { exact: true })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open expense" })).toHaveAttribute("href", `/app/expenses/${expense.id}`);
+    expect(screen.getByRole("link", { name: "Open expense: Dinner" })).toHaveAttribute("href", `/app/expenses/${expense.id}`);
+    expect(document.querySelectorAll(".record-history__row")).toHaveLength(1);
+    expect(document.querySelectorAll(".record-history__row a")).toHaveLength(0);
+    expect(document.querySelector(".record-history__row .vnext-open-tile")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("1 entries", { exact: true })).toBeInTheDocument();
     expect(listExpenseRecords).toHaveBeenCalledExactlyOnceWith({ outingId: outing.id, page: "1" });
     expect(screen.getByRole("link", { name: "← Outings" })).toHaveAttribute("href", "/app/outings");

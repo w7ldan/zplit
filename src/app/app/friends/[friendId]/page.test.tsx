@@ -58,6 +58,7 @@ describe("friend record", () => {
     mocks.getFriendLinkStatus.mockResolvedValue({ status: "unlinked" });
     render(<ToastProvider>{await FriendRecordPage({ params: Promise.resolve({ friendId: friend.id }) })}</ToastProvider>);
 
+    expect(screen.getByRole("heading", { level: 1, name: "Ada Lovelace" }).closest("section")).toHaveClass("page-content", "zplit-vnext", "personal-vnext");
     expect(screen.getByText("Friend · editable record")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Ada Lovelace" })).toBeInTheDocument();
     expect(document.querySelector(".friend-record__title")).toContainElement(screen.getByText("Friend · editable record"));
@@ -83,6 +84,9 @@ describe("friend record", () => {
     expect(screen.getByText("—", { exact: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open repayment" })).toHaveAttribute("href", `/app/repayments/${repayment.id}`);
     const repaymentRow = document.querySelector<HTMLElement>(".record-history__row--repayment")!;
+    expect(repaymentRow.tagName).toBe("A");
+    expect(repaymentRow.querySelectorAll("a")).toHaveLength(0);
+    expect(repaymentRow.querySelector(".vnext-open-tile")).toHaveAttribute("aria-hidden", "true");
     expect(repaymentRow.querySelectorAll(".record-history__link")).toHaveLength(1);
     expect(repaymentRow.querySelector(".record-history__links")).not.toBeInTheDocument();
     expect(listFriendExpenseShareRecords).toHaveBeenCalledExactlyOnceWith(friend.id, { page: undefined });

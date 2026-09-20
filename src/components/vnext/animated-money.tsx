@@ -56,7 +56,7 @@ export function AnimatedMoney({ amount, animate = true, className, label, tone =
     previousAmountRef.current = amount;
     cancelAnimations(animationsRef.current);
 
-    const shouldAnimate = animate && !reducedMotion && (previousAmount === null || previousAmount !== amount);
+    const shouldAnimate = animate && !reducedMotion && previousAmount !== null && previousAmount !== amount;
     if (!shouldAnimate) {
       applyFinalTransforms(reelRefs.current, targetDigits);
       setIsAnimating(false);

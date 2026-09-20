@@ -62,7 +62,7 @@ function linkViewState(state: LinkState, phoneNumber: string | null) {
 function SubmitButton({ label, pending, disabled }: { label: string; pending: string; disabled: boolean }) {
   return (
     <button
-      className="action-link action-link--primary"
+      className="action-link action-link--primary vnext-button vnext-button--primary"
       type="submit"
       disabled={disabled}
       aria-busy={disabled}
@@ -88,8 +88,8 @@ function FriendShareReceiptSelector({
   onReceiptChange: (receiptId: string, checked: boolean) => void;
 }) {
   return (
-    <form id="friend-share-create" onSubmit={onSubmit}>
-      <fieldset className="friend-share__receipts">
+    <form id="friend-share-create" className="personal-vnext__share-form" onSubmit={onSubmit}>
+      <fieldset className="friend-share__receipts personal-vnext__fieldset vnext-surface vnext-surface--strong">
         <legend>Receipts visible through this link</legend>
         <p>Only the receipts selected here can be opened through this balance link.</p>
         {eligibleReceipts?.length
@@ -98,7 +98,7 @@ function FriendShareReceiptSelector({
                 <h3>{group.expenseDescription}</h3>
                 <p>{group.outingTitle}</p>
                 {group.receipts.map((receipt) => (
-                  <label className="friend-share__receipt" key={receipt.id}>
+                  <label className="friend-share__receipt personal-vnext__receipt" key={receipt.id}>
                     <input
                       type="checkbox"
                       name="selectedReceiptId"
@@ -158,9 +158,10 @@ function FriendShareResult({
   if (!usableShareUrl || state.status !== "active") return null;
   return (
     <section
-      className="friend-share__result"
+      className="friend-share__result personal-vnext__share-result vnext-surface vnext-surface--strong"
       aria-label="Balance link ready"
       role="status"
+      data-motion="enter"
     >
       <p>
         <strong>Balance link ready.</strong> Save or send this link now.
@@ -179,7 +180,7 @@ function FriendShareResult({
         aria-label="Balance link actions"
       >
         <button
-          className="action-link action-link--primary"
+          className="action-link action-link--primary vnext-button vnext-button--primary"
           type="button"
           onClick={onCopyLink}
           aria-label={copyLabel(state.copyStatus, "Copy balance link")}
@@ -187,7 +188,7 @@ function FriendShareResult({
           {copyLabel(state.copyStatus, "Copy balance link")}
         </button>
         <button
-          className="action-link action-link--quiet"
+          className="action-link action-link--quiet vnext-button vnext-button--secondary"
           type="button"
           onClick={() =>
             window.open(usableShareUrl, "_blank", "noopener,noreferrer")
@@ -198,7 +199,7 @@ function FriendShareResult({
         </button>
         <button
           ref={showQrButton}
-          className="action-link action-link--quiet"
+          className="action-link action-link--quiet vnext-button vnext-button--secondary"
           type="button"
           onClick={onOpenQr}
           aria-expanded={qrVisible}
@@ -230,7 +231,7 @@ function FriendShareResult({
           <p className="friend-share__reminder-copy">{state.reminder}</p>
           <div className="friend-share__actions">
             <button
-              className="action-link action-link--quiet"
+              className="action-link action-link--quiet vnext-button vnext-button--secondary"
               type="button"
               onClick={onCopyReminder}
             >
@@ -238,7 +239,7 @@ function FriendShareResult({
             </button>
             {whatsappUrl ? (
               <button
-                className="action-link action-link--quiet"
+                className="action-link action-link--quiet vnext-button vnext-button--secondary"
                 type="button"
                 onClick={() =>
                   window.open(whatsappUrl, "_blank", "noopener,noreferrer")
@@ -492,19 +493,19 @@ export function FriendShareLink({
       ? "Replace balance link"
       : "Create balance link";
   return (
-    <section className="friend-share" aria-labelledby="friend-share-heading">
+    <section className="friend-share personal-vnext__share personal-vnext__motion-reveal" aria-labelledby="friend-share-heading" data-motion="enter">
       <div className="friend-share__heading">
         <div>
           <p className="technical-label">Share balance</p>
           <h2 id="friend-share-heading">A private, read-only view</h2>
         </div>
-        <span className="friend-share__state">
+        <span className="friend-share__state personal-vnext__metadata">
           {state.status === "none" ? "NONE" : state.status.toUpperCase()}
         </span>
       </div>
       <p className="friend-share__description">This temporary link shows this friend’s balance and itemized shares. It cannot change the ledger.</p>
       <section
-        className="friend-share__destinations"
+        className="friend-share__destinations personal-vnext__destination"
         aria-labelledby="friend-share-destinations-heading"
       >
         <div>
@@ -521,7 +522,7 @@ export function FriendShareLink({
             <p>{sharedDestinationNames?.join(" · ")}</p>
           ) : null}
         </div>
-        <a className="text-link" href="/app/settings#repays-to">
+        <a className="text-link vnext-link" href="/app/settings#repays-to">
           {destinationCount
             ? "Manage repayment details"
             : "Add repayment details"}
@@ -544,7 +545,7 @@ export function FriendShareLink({
         onReceiptChange={setReceiptSelected}
       />
       {state.status === "active" ? (
-        <form onSubmit={submitUpdate} className="friend-share__actions">
+        <form onSubmit={submitUpdate} className="friend-share__actions personal-vnext__share-form">
           <SubmitButton
             label="Save receipt visibility"
             pending="Saving…"
@@ -553,7 +554,7 @@ export function FriendShareLink({
         </form>
       ) : null}
       {state.status === "active" ? (
-        <form onSubmit={submitRevoke} className="friend-share__actions">
+        <form onSubmit={submitRevoke} className="friend-share__actions personal-vnext__share-form">
           <SubmitButton
             label="Revoke link"
             pending="Revoking…"

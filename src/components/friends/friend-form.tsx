@@ -9,6 +9,7 @@ import { friendPhoneFormValues, type FriendInputValues } from "@/domain/friend-i
 import { COUNTRY_CALLING_CODES, OTHER_COUNTRY_CODE } from "@/domain/country-calling-codes";
 import { useToast } from "@/components/feedback/toast";
 import { TaskPanelFooter } from "@/components/app/task-panel";
+import { useFocusFirstInvalid } from "@/components/records/use-focus-first-invalid";
 
 type FriendAction = (previousState: FriendActionState, formData: FormData) => Promise<FriendActionState>;
 
@@ -29,29 +30,32 @@ function SubmitButton({ mode }: { mode: "create" | "edit" }) {
   const { pending } = useFormStatus();
   const label = mode === "create" ? "Add friend" : "Save changes";
   return (
-    <button className="action-link action-link--primary friend-form__submit" type="submit" disabled={pending} aria-busy={pending}>
+    <button className="action-link action-link--primary vnext-button vnext-button--primary friend-form__submit" type="submit" disabled={pending} aria-busy={pending}>
       {pending ? (mode === "create" ? "Adding friend…" : "Saving changes…") : label}
     </button>
   );
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
-  return <p className="friend-form__field-error" id={id}>{message || "\u00a0"}</p>;
+  return <p className="friend-form__field-error" id={id} aria-live={message ? "polite" : undefined}>{message || "\u00a0"}</p>;
 }
 
 export function FriendForm({ action, initialValues = emptyValues, mode = "create" }: FriendFormProps) {
   const [state, formAction] = useActionState(action, { ...emptyActionState, values: initialValues });
+  const formRef = useRef<HTMLFormElement>(null);
   const phoneValues = friendPhoneFormValues(state.values);
+  useFocusFirstInvalid(formRef, state.fieldErrors);
   const [selectedCountryCode, setSelectedCountryCode] = useState(phoneValues.countryCode);
   const markPhoneChanged = () => {
     const input = document.getElementById("friend-phone-fields-changed");
     if (input instanceof HTMLInputElement) input.value = "1";
   };
   return (
-    <form key={`${state.values.name}\u0000${state.values.phoneNumber}\u0000${state.values.countryCode}\u0000${state.values.otherCountryCode}\u0000${state.values.notes}`} className="friend-form" action={formAction} noValidate>
-      <div className="friend-form__field">
-        <label htmlFor="friend-name">Name</label>
+    <form ref={formRef} key={`${state.values.name}\u0000${state.values.phoneNumber}\u0000${state.values.countryCode}\u0000${state.values.otherCountryCode}\u0000${state.values.notes}`} className="friend-form personal-vnext__form" action={formAction} noValidate data-motion="enter">
+      <div className="friend-form__field personal-vnext__field">
+        <label className="personal-vnext__label" htmlFor="friend-name">Name</label>
         <input
+          className="personal-vnext__control"
           id="friend-name"
           name="name"
           defaultValue={state.values.name}
@@ -61,16 +65,17 @@ export function FriendForm({ action, initialValues = emptyValues, mode = "create
         />
         <FieldError id="friend-name-error" message={state.fieldErrors.name} />
       </div>
-      <div className="friend-form__field">
-        <label htmlFor="friend-country-code">Country code</label>
-        <select id="friend-country-code" name="countryCode" defaultValue={phoneValues.countryCode} onChange={(event) => { setSelectedCountryCode(event.target.value); markPhoneChanged(); }}>
+      <div className="friend-form__field personal-vnext__field">
+        <label className="personal-vnext__label" htmlFor="friend-country-code">Country code</label>
+        <select className="personal-vnext__control" id="friend-country-code" name="countryCode" defaultValue={phoneValues.countryCode} onChange={(event) => { setSelectedCountryCode(event.target.value); markPhoneChanged(); }}>
           <option value="">No country code</option>
           {COUNTRY_CALLING_CODES.map((country) => <option key={country.value} value={country.value}>{country.label} {country.code}</option>)}
           <option value={OTHER_COUNTRY_CODE}>Other</option>
         </select>
-        {selectedCountryCode === OTHER_COUNTRY_CODE ? <input id="friend-other-country-code" name="otherCountryCode" placeholder="+999" defaultValue={phoneValues.otherCountryCode} onChange={markPhoneChanged} aria-label="Other calling code" /> : null}
-        <label htmlFor="friend-phone">Phone number</label>
+        {selectedCountryCode === OTHER_COUNTRY_CODE ? <input className="personal-vnext__control" id="friend-other-country-code" name="otherCountryCode" placeholder="+999" defaultValue={phoneValues.otherCountryCode} onChange={markPhoneChanged} aria-label="Other calling code" /> : null}
+        <label className="personal-vnext__label" htmlFor="friend-phone">Phone number</label>
         <input
+          className="personal-vnext__control"
           id="friend-phone"
           name="phoneNumber"
           defaultValue={phoneValues.phoneNumber}
@@ -84,9 +89,10 @@ export function FriendForm({ action, initialValues = emptyValues, mode = "create
         <input type="hidden" name="legacyPhoneNumber" value={phoneValues.legacyPhoneNumber} readOnly />
         <FieldError id="friend-phone-error" message={state.fieldErrors.phoneNumber} />
       </div>
-      <div className="friend-form__field">
-        <label htmlFor="friend-notes">Notes</label>
+      <div className="friend-form__field personal-vnext__field">
+        <label className="personal-vnext__label" htmlFor="friend-notes">Notes</label>
         <textarea
+          className="personal-vnext__control"
           id="friend-notes"
           name="notes"
           defaultValue={state.values.notes}
@@ -112,7 +118,7 @@ type UndoAction = (receipt: FriendArchiveReversalReceipt) => Promise<{ ok: true 
 function ArchiveSubmitButton({ archived }: { archived: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button className="action-link action-link--quiet friend-record__archive" type="submit" disabled={pending} aria-busy={pending}>
+    <button className="action-link action-link--quiet vnext-button vnext-button--secondary friend-record__archive" type="submit" disabled={pending} aria-busy={pending}>
       {pending ? (archived ? "Restoring…" : "Archiving…") : archived ? "Restore friend" : "Archive friend"}
     </button>
   );
@@ -151,7 +157,7 @@ export function FriendArchiveForm({ action, archived, undoAction }: { action: Ar
   }, [router, showToast, state.archiveReceipt, undoAction]);
 
   return (
-    <div className="friend-record__archive-wrap">
+    <div className="friend-record__archive-wrap personal-vnext__archive">
       <form action={formAction}>
         <ArchiveSubmitButton archived={archived} />
       </form>

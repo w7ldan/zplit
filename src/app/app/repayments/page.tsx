@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { zplitVNextFont } from "@/app/fonts";
 import { requireSession } from "@/auth/require-session";
 import { LedgerNotFoundError } from "@/domain/ledger-repository";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
@@ -131,23 +132,23 @@ type RepaymentsPageData = Awaited<ReturnType<typeof loadRepaymentsPageData>>;
 function RepaymentRecordList({ data }: { data: RepaymentsPageData }) {
   const { repaymentPage, groups, filtered, effectiveParams, friendOptions, listHref } = data;
   return (
-    <div className="ledger-list" id="record-list">
-      <div className="ledger-list__heading"><span className="technical-label">REPAYMENT RECORDS</span><span className="technical-label">{repaymentPage.totalItems} entries</span></div>
+    <div className="ledger-list repayment-list personal-vnext__list personal-vnext__responsive-list" id="record-list" data-motion="list">
+      <div className="ledger-list__heading repayment-list__heading personal-vnext__list-heading personal-vnext__motion-reveal"><span className="technical-label" id="repayment-records-heading">REPAYMENT RECORDS</span><span className="technical-label">{repaymentPage.totalItems} entries</span></div>
       {repaymentPage.items.length > 0 ? (
         groups.map((group) => (
-          <div className="record-month-group" key={group.month}>
-            <div className="record-month-divider">
-              <span className="technical-label">
+          <section className="record-month-group repayment-list__month personal-vnext__month-group personal-vnext__motion-stagger" key={group.month} aria-labelledby={`repayment-month-${group.month}`} data-motion="list">
+            <div className="record-month-divider personal-vnext__month-divider">
+              <span className="technical-label" id={`repayment-month-${group.month}`}>
                 {monthDisplayLabel(group.month).toUpperCase()}
               </span>
             </div>
             {group.items.map((repayment) => (
-              <RepaymentRow key={repayment.id} repayment={repayment} />
+              <RepaymentRow key={repayment.id} repayment={repayment} vnext />
             ))}
-          </div>
+          </section>
         ))
       ) : (
-        <div className="ledger-empty">
+        <div className="ledger-empty vnext-surface--warm personal-vnext__empty personal-vnext__motion-reveal">
           <h2>{filtered ? "No matching repayments." : "No repayments yet."}</h2>
           <p>
             {filtered
@@ -171,7 +172,9 @@ function RepaymentRecordList({ data }: { data: RepaymentsPageData }) {
           )}
         </div>
       )}
-      <RecordPagination page={repaymentPage.page} pageSize={repaymentPage.pageSize} totalItems={repaymentPage.totalItems} totalPages={repaymentPage.totalPages} href={listHref} />
+      <div className="personal-vnext__pagination personal-vnext__motion-reveal">
+        <RecordPagination page={repaymentPage.page} pageSize={repaymentPage.pageSize} totalItems={repaymentPage.totalItems} totalPages={repaymentPage.totalPages} href={listHref} />
+      </div>
     </div>
   );
 }
@@ -180,7 +183,7 @@ function RepaymentCreatePanel({ data }: { data: RepaymentsPageData }) {
   if (!data.openCreate) return null;
   const { friendOptions, initialFriendId, initialAmountRupiah, initialPaidAtUtc, initialAllocationStrategy, formContext, tripContext, repaymentReturnTarget } = data;
   return (
-    <TaskPanel open eyebrow="NEW REPAYMENT" title="Add a repayment" description="Record the money received and keep its eligible shares visible for allocation." triggerId="repayment-create">
+    <TaskPanel className="personal-task-panel" open eyebrow="NEW REPAYMENT" title="Add a repayment" description="Record the money received and keep its eligible shares visible for allocation." triggerId="repayment-create">
       {friendOptions.length > 0 ? (
         <RepaymentForm
           action={createRepaymentAction}
@@ -213,7 +216,7 @@ function RepaymentCreatePanel({ data }: { data: RepaymentsPageData }) {
         <div className="task-panel__empty">
           <p>Add a friend before recording money received.</p>
           <Link
-            className="action-link action-link--primary"
+            className="action-link action-link--primary vnext-button vnext-button--primary"
             href={
               "/app/friends?create=1&returnTo=" +
               encodeURIComponent(repaymentReturnTarget)
@@ -230,55 +233,61 @@ function RepaymentCreatePanel({ data }: { data: RepaymentsPageData }) {
 function RepaymentsPageContent({ data }: { data: RepaymentsPageData }) {
   const { filters, friendId, friendOptions, repaymentPage, effectiveParams, filtered } = data;
   return (
-    <section className="app-page repayments-page" id="top">
-      <div className="editorial-shell app-page__layout">
-        <div className="app-page__header">
+    <section className={`app-page page-content zplit-vnext personal-vnext repayments-page ${zplitVNextFont.variable}`} id="top">
+      <div className="editorial-shell app-page__layout personal-vnext__layout">
+        <header className="app-page__header personal-vnext__hero personal-vnext__motion-reveal">
           <div>
-            <Link className="personal-parent-link" href="/app/personal">← Personal</Link>
+            <Link className="personal-parent-link vnext-link personal-vnext__parent-link" href="/app/personal">← Personal</Link>
             <p className="technical-label">Repayments · money returned</p>
             <h1>Repayments</h1>
             <p className="app-page__lede">Record money received and apply it to outstanding expense shares.</p>
           </div>
-          <Link className="action-link action-link--primary" href={recordHref("/app/repayments", effectiveParams, { create: "1" })} data-task-trigger="repayment-create">Add repayment</Link>
+          <Link className="action-link action-link--primary vnext-button vnext-button--primary personal-vnext__primary-action" href={recordHref("/app/repayments", effectiveParams, { create: "1" })} data-task-trigger="repayment-create">Add repayment</Link>
+        </header>
+        <div className="records-workspace personal-vnext__workspace vnext-surface personal-vnext__responsive-workspace">
+          <div className="records-workspace__toolbar personal-vnext__toolbar personal-vnext__motion-stagger">
+            <div className="personal-vnext__filters personal-vnext__responsive-filters">
+              <LiveRecordFilters
+                action="/app/repayments"
+                search={{ label: "Search repayments", placeholder: "Friend or payment method", value: filters.q ?? "" }}
+                selects={[
+                  {
+                    name: "friendId",
+                    label: "Friend",
+                    value: friendId ?? "",
+                    options: [
+                      { value: "", label: "All friends" },
+                      ...friendOptions.map((friend) => ({
+                        value: friend.id,
+                        label:
+                          friend.label +
+                          (friend.archived ? " (ARCHIVED)" : ""),
+                      })),
+                    ],
+                    search: searchFriendFilterOptions,
+                  },
+                  {
+                    name: "allocation",
+                    label: "Allocation",
+                    value:
+                      filters.allocation === "all" ? "" : filters.allocation,
+                    options: [
+                      { value: "", label: "All allocation states" },
+                      { value: "complete", label: "Fully allocated" },
+                      { value: "needs", label: "Needs allocation" },
+                    ],
+                  },
+                ]}
+                month={{ label: "Month", value: filters.month ?? "" }}
+                mobileDisclosure={{ activeCount: [friendId, filters.month, filters.allocation === "all" ? undefined : filters.allocation].filter(Boolean).length }}
+                clearHref={filtered ? recordHref("/app/repayments", effectiveParams, { q: undefined, friendId: undefined, month: undefined, allocation: undefined, page: undefined }) : undefined}
+                resultStatus={repaymentPage.totalItems + " repayment" + (repaymentPage.totalItems === 1 ? "" : "s") + " found."}
+                preservedParams={effectiveParams}
+              />
+            </div>
+          </div>
+          <RepaymentRecordList data={data} />
         </div>
-        <LiveRecordFilters
-          action="/app/repayments"
-          search={{ label: "Search repayments", placeholder: "Friend or payment method", value: filters.q ?? "" }}
-          selects={[
-            {
-              name: "friendId",
-              label: "Friend",
-              value: friendId ?? "",
-              options: [
-                { value: "", label: "All friends" },
-                ...friendOptions.map((friend) => ({
-                  value: friend.id,
-                  label:
-                    friend.label +
-                    (friend.archived ? " (ARCHIVED)" : ""),
-                })),
-              ],
-              search: searchFriendFilterOptions,
-            },
-            {
-              name: "allocation",
-              label: "Allocation",
-              value:
-                filters.allocation === "all" ? "" : filters.allocation,
-              options: [
-                { value: "", label: "All allocation states" },
-                { value: "complete", label: "Fully allocated" },
-                { value: "needs", label: "Needs allocation" },
-              ],
-            },
-          ]}
-          month={{ label: "Month", value: filters.month ?? "" }}
-          mobileDisclosure={{ activeCount: [friendId, filters.month, filters.allocation === "all" ? undefined : filters.allocation].filter(Boolean).length }}
-          clearHref={filtered ? recordHref("/app/repayments", effectiveParams, { q: undefined, friendId: undefined, month: undefined, allocation: undefined, page: undefined }) : undefined}
-          resultStatus={repaymentPage.totalItems + " repayment" + (repaymentPage.totalItems === 1 ? "" : "s") + " found."}
-          preservedParams={effectiveParams}
-        />
-        <RepaymentRecordList data={data} />
       </div>
       <RepaymentCreatePanel data={data} />
     </section>

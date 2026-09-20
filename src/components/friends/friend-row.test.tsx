@@ -6,22 +6,25 @@ vi.mock("@/app/app/inbox/actions", () => ({ unlinkFriendLinkRequestAction: vi.fn
 
 describe("FriendRow", () => {
   it("exposes stable friend, state, created, outstanding, and action fields", () => {
-    render(<FriendRow friend={{ id: "friend-a", name: "Rani", phoneNumber: "+62 812", archivedAt: null, createdAt: new Date("2026-01-01T00:00:00Z") }} balance={{ assignedAmount: 84_000, repaidAmount: 20_000, outstandingAmount: 64_000 }} />);
+    render(<FriendRow vnext friend={{ id: "friend-a", name: "Rani", phoneNumber: "+62 812", archivedAt: null, createdAt: new Date("2026-01-01T00:00:00Z") }} balance={{ assignedAmount: 84_000, repaidAmount: 20_000, outstandingAmount: 64_000 }} />);
 
     for (const label of ["State", "Created", "Outstanding"]) expect(screen.getByText(label, { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Rp 64.000")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Edit record/ })).toBeInTheDocument();
+    const row = screen.getByRole("link", { name: "Rani" });
+    expect(row).toHaveClass("vnext-row");
+    expect(row.querySelectorAll("a")).toHaveLength(0);
+    expect(row.querySelector(".vnext-open-tile")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("keeps an unbroken friend name in the rendered row", () => {
     const name = "friend-" + "x".repeat(240);
-    render(<FriendRow friend={{ id: "friend-a", name, phoneNumber: null, archivedAt: null, createdAt: new Date("2026-01-01T00:00:00Z") }} />);
+    render(<FriendRow vnext friend={{ id: "friend-a", name, phoneNumber: null, archivedAt: null, createdAt: new Date("2026-01-01T00:00:00Z") }} />);
 
     expect(screen.getByRole("link", { name })).toBeInTheDocument();
   });
 
   it("renders an active registered Friend with identity and unlink but no ledger route", () => {
-    render(<FriendRow friend={{ type: "connection", id: "connection-a", userId: "user-a", name: "Alice Tan", username: "alice", requestId: "request-a" }} />);
+    render(<FriendRow vnext friend={{ type: "connection", id: "connection-a", userId: "user-a", name: "Alice Tan", username: "alice", requestId: "request-a" }} />);
 
     const row = document.querySelector<HTMLElement>(".friend-row")!;
     expect(within(row).getByText("Alice Tan")).toBeInTheDocument();
@@ -35,15 +38,15 @@ describe("FriendRow", () => {
   });
 
   it("enriches an existing local row without adding a connection row", () => {
-    render(<FriendRow friend={{ id: "friend-a", name: "Alice Tan", phoneNumber: null, archivedAt: null, createdAt: new Date("2026-01-01T00:00:00Z"), linkedUser: { displayName: "Alice Tan", username: "alice" } }} />);
+    render(<FriendRow vnext friend={{ id: "friend-a", name: "Alice Tan", phoneNumber: null, archivedAt: null, createdAt: new Date("2026-01-01T00:00:00Z"), linkedUser: { displayName: "Alice Tan", username: "alice" } }} />);
 
     expect(screen.getByText("@alice")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Edit record" })).toHaveAttribute("href", "/app/friends/friend-a");
+    expect(screen.getByRole("link", { name: "Alice Tan" })).toHaveAttribute("href", "/app/friends/friend-a");
     expect(document.querySelectorAll(".friend-row")).toHaveLength(1);
   });
 
   it("marks an unlinked local Friend as external", () => {
-    render(<FriendRow friend={{ id: "friend-a", name: "Cash", phoneNumber: null, archivedAt: null, createdAt: new Date("2026-01-01T00:00:00Z") }} />);
+    render(<FriendRow vnext friend={{ id: "friend-a", name: "Cash", phoneNumber: null, archivedAt: null, createdAt: new Date("2026-01-01T00:00:00Z") }} />);
 
     expect(screen.getByText("External")).toBeInTheDocument();
   });

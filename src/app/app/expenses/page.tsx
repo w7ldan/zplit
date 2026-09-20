@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { zplitVNextFont } from "@/app/fonts";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
@@ -60,23 +61,23 @@ type ExpensesPageData = Awaited<ReturnType<typeof loadExpensesPageData>>;
 function ExpenseRecordList({ data, params }: { data: ExpensesPageData; params: Awaited<NonNullable<ExpensesPageProps["searchParams"]>> }) {
   const { expensePage, groups, filtered, outingOptions, listHref } = data;
   return (
-    <div className="ledger-list" id="record-list">
-      <div className="ledger-list__heading"><span className="technical-label">EXPENSE RECORDS</span><span className="technical-label">{expensePage.totalItems} entries</span></div>
+    <div className="ledger-list expense-list personal-vnext__list personal-vnext__responsive-list" id="record-list" data-motion="list">
+      <div className="ledger-list__heading expense-list__heading personal-vnext__list-heading personal-vnext__motion-reveal"><span className="technical-label" id="expense-records-heading">EXPENSE RECORDS</span><span className="technical-label">{expensePage.totalItems} entries</span></div>
       {expensePage.items.length > 0 ? (
         groups.map((group) => (
-          <div className="record-month-group" key={group.month}>
-            <div className="record-month-divider">
-              <span className="technical-label">
+          <section className="record-month-group expense-list__month personal-vnext__month-group personal-vnext__motion-stagger" aria-labelledby={`expense-month-${group.month}`} data-motion="list" key={group.month}>
+            <div className="record-month-divider personal-vnext__month-divider">
+              <span className="technical-label" id={`expense-month-${group.month}`}>
                 {monthDisplayLabel(group.month).toUpperCase()}
               </span>
             </div>
             {group.items.map((expense) => (
-              <ExpenseRow key={expense.id} expense={expense} />
+              <ExpenseRow key={expense.id} expense={expense} vnext />
             ))}
-          </div>
+          </section>
         ))
       ) : (
-        <div className="ledger-empty">
+        <div className="ledger-empty vnext-surface--warm personal-vnext__empty personal-vnext__motion-reveal">
           <h2>{filtered ? "No matching expenses." : "No expenses yet."}</h2>
           <p>
             {filtered
@@ -85,7 +86,7 @@ function ExpenseRecordList({ data, params }: { data: ExpensesPageData; params: A
           </p>
           {filtered ? null : (
             <Link
-              className="text-link"
+              className="text-link vnext-link"
               href={recordHref(
                 outingOptions.length ? "/app/expenses" : "/app/outings",
                 params,
@@ -100,7 +101,9 @@ function ExpenseRecordList({ data, params }: { data: ExpensesPageData; params: A
           )}
         </div>
       )}
-      <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={listHref} />
+      <div className="personal-vnext__pagination personal-vnext__motion-reveal">
+        <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={listHref} />
+      </div>
     </div>
   );
 }
@@ -109,7 +112,7 @@ function ExpenseCreatePanel({ data, outingId, budget }: { data: ExpensesPageData
   if (!data.openCreate) return null;
   const { outingOptions, expenseReturnTarget } = data;
   return (
-    <TaskPanel open eyebrow="NEW EXPENSE" title="Add an expense" description="Choose the outing, record the whole-rupiah amount, and assign shares next." triggerId="expense-create">
+    <TaskPanel className="personal-task-panel" open eyebrow="NEW EXPENSE" title="Add an expense" description="Choose the outing, record the whole-rupiah amount, and assign shares next." triggerId="expense-create">
       {outingOptions.length > 0 ? (
         <ExpenseForm
           action={createExpenseAction}
@@ -126,7 +129,7 @@ function ExpenseCreatePanel({ data, outingId, budget }: { data: ExpensesPageData
         <div className="task-panel__empty">
           <p>Create an outing before recording an expense.</p>
           <Link
-            className="action-link action-link--primary"
+            className="action-link action-link--primary vnext-button vnext-button--primary personal-vnext__primary-action"
             href={
               "/app/outings?create=1&returnTo=" +
               encodeURIComponent(expenseReturnTarget)
@@ -144,52 +147,58 @@ function ExpenseCreatePanel({ data, outingId, budget }: { data: ExpensesPageData
 function ExpensesPageContent({ data, params, budget }: { data: ExpensesPageData; params: Awaited<NonNullable<ExpensesPageProps["searchParams"]>>; budget: ExpenseBudgetControlOptions | undefined }) {
   const { filters, outingId, outingOptions, expensePage, filtered } = data;
   return (
-    <section className="app-page expenses-page" id="top">
-      <div className="editorial-shell app-page__layout">
-        <div className="app-page__header">
+    <section className={`app-page page-content zplit-vnext personal-vnext expenses-page ${zplitVNextFont.variable}`} id="top">
+      <div className="editorial-shell app-page__layout personal-vnext__layout">
+        <header className="app-page__header personal-vnext__hero personal-vnext__motion-reveal" data-motion="enter">
           <div>
-            <Link className="personal-parent-link" href="/app/personal">← Personal</Link>
+            <Link className="personal-parent-link vnext-link personal-vnext__parent-link" href="/app/personal">← Personal</Link>
             <p className="technical-label">Expenses · money you paid</p>
             <h1>Expenses</h1>
             <p className="app-page__lede">Record shared spending and assign the amounts each friend owes.</p>
           </div>
-          <Link className="action-link action-link--primary" href={recordHref("/app/expenses", params, { create: "1" })} data-task-trigger="expense-create">Add expense</Link>
+          <Link className="action-link action-link--primary vnext-button vnext-button--primary personal-vnext__primary-action" href={recordHref("/app/expenses", params, { create: "1" })} data-task-trigger="expense-create">Add expense</Link>
+        </header>
+        <div className="records-workspace personal-vnext__workspace vnext-surface personal-vnext__responsive-workspace" data-motion="enter">
+          <div className="records-workspace__toolbar personal-vnext__toolbar personal-vnext__motion-stagger">
+            <div className="personal-vnext__filters personal-vnext__responsive-filters">
+              <LiveRecordFilters
+                action="/app/expenses"
+                search={{ label: "Search expenses", placeholder: "Description or outing", value: filters.q ?? "" }}
+                selects={[
+                  {
+                    name: "outing",
+                    label: "Outing",
+                    value: outingId ?? "",
+                    options: [
+                      { value: "", label: "All outings" },
+                      ...outingOptions.map((outing) => ({
+                        value: outing.id,
+                        label: outing.label,
+                      })),
+                    ],
+                    search: searchOutingFilterOptions,
+                  },
+                  {
+                    name: "assignment",
+                    label: "Assignment",
+                    value: filters.assignment === "all" ? "" : filters.assignment,
+                    options: [
+                      { value: "", label: "All assignment states" },
+                      { value: "assigned", label: "Assigned" },
+                      { value: "unassigned", label: "Unassigned" },
+                    ],
+                  },
+                ]}
+                month={{ label: "Month", value: filters.month ?? "" }}
+                mobileDisclosure={{ activeCount: [outingId, filters.month, filters.assignment === "all" ? undefined : filters.assignment].filter(Boolean).length }}
+                clearHref={filtered ? recordHref("/app/expenses", params, { q: undefined, outing: undefined, month: undefined, assignment: undefined, page: undefined }) : undefined}
+                resultStatus={expensePage.totalItems + " expense" + (expensePage.totalItems === 1 ? "" : "s") + " found."}
+                preservedParams={params}
+              />
+            </div>
+          </div>
+          <ExpenseRecordList data={data} params={params} />
         </div>
-        <LiveRecordFilters
-          action="/app/expenses"
-          search={{ label: "Search expenses", placeholder: "Description or outing", value: filters.q ?? "" }}
-          selects={[
-            {
-              name: "outing",
-              label: "Outing",
-              value: outingId ?? "",
-              options: [
-                { value: "", label: "All outings" },
-                ...outingOptions.map((outing) => ({
-                  value: outing.id,
-                  label: outing.label,
-                })),
-              ],
-              search: searchOutingFilterOptions,
-            },
-            {
-              name: "assignment",
-              label: "Assignment",
-              value: filters.assignment === "all" ? "" : filters.assignment,
-              options: [
-                { value: "", label: "All assignment states" },
-                { value: "assigned", label: "Assigned" },
-                { value: "unassigned", label: "Unassigned" },
-              ],
-            },
-          ]}
-          month={{ label: "Month", value: filters.month ?? "" }}
-          mobileDisclosure={{ activeCount: [outingId, filters.month, filters.assignment === "all" ? undefined : filters.assignment].filter(Boolean).length }}
-          clearHref={filtered ? recordHref("/app/expenses", params, { q: undefined, outing: undefined, month: undefined, assignment: undefined, page: undefined }) : undefined}
-          resultStatus={expensePage.totalItems + " expense" + (expensePage.totalItems === 1 ? "" : "s") + " found."}
-          preservedParams={params}
-        />
-        <ExpenseRecordList data={data} params={params} />
       </div>
       <ExpenseCreatePanel data={data} outingId={outingId} budget={budget} />
     </section>

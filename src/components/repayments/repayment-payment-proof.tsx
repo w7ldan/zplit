@@ -34,7 +34,7 @@ function ProofDate({ value }: { value: Date | string }) {
 
 function ReadOnlyMessage({ canEdit, message }: { canEdit: boolean; message?: string }) {
   if (canEdit || !message) return null;
-  return <p className="expense-receipts__readonly">{message}</p>;
+  return <p className="expense-receipts__readonly personal-vnext__proof-readonly">{message}</p>;
 }
 
 export function RepaymentPaymentProof({ repaymentId, initialPaymentProof, basePath = "/app/repayments", canEdit = true, description = "Private to you. JPEG, PNG, or WebP, up to 5 MiB.", readOnlyMessage }: RepaymentPaymentProofProps) {
@@ -106,7 +106,7 @@ export function RepaymentPaymentProof({ repaymentId, initialPaymentProof, basePa
   }
 
   return (
-    <section className="expense-receipts payment-proof" aria-labelledby="repayment-payment-proof-heading">
+    <section className="expense-receipts payment-proof vnext-surface personal-vnext__proof" aria-labelledby="repayment-payment-proof-heading" data-motion="enter">
       <p className="technical-label">PAYMENT PROOF</p>
       <div className="expense-receipts__heading">
         <div>
@@ -117,18 +117,18 @@ export function RepaymentPaymentProof({ repaymentId, initialPaymentProof, basePa
       <ReadOnlyMessage canEdit={canEdit} message={readOnlyMessage} />
       {canEdit ? <form className="expense-receipts__upload" onSubmit={upload}>
         <div className="expense-receipts__file-picker">
-          <label className="action-link action-link--quiet" htmlFor="repayment-payment-proof-file">{selectedFilename ? "Change" : "Choose payment proof image"}</label>
+          <label className="action-link action-link--quiet vnext-button vnext-button--secondary" htmlFor="repayment-payment-proof-file">{selectedFilename ? "Change" : "Choose payment proof image"}</label>
           {selectedFilename ? <><span className="expense-receipts__filename">{selectedFilename}</span><button className="text-link" type="button" onClick={() => { if (fileInput.current) fileInput.current.value = ""; setSelectedFilename(""); }}>Clear</button></> : null}
         </div>
         <input ref={fileInput} className="expense-receipts__file-input" id="repayment-payment-proof-file" name="paymentProof" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="repayment-payment-proof-help repayment-payment-proof-error" onChange={(event) => { setSelectedFilename(event.currentTarget.files?.[0]?.name ?? ""); setError(""); }} />
         <p className="expense-receipts__help" id="repayment-payment-proof-help">The file signature is checked before it is stored.</p>
         <p className="expense-receipts__error" id="repayment-payment-proof-error" role={error ? "alert" : undefined} aria-live="polite">{error || "\u00a0"}</p>
-        <button className="action-link action-link--primary" type="submit" disabled={uploading || !selectedFilename} aria-busy={uploading}>{uploading ? paymentProof ? "Replacing payment proof…" : "Uploading payment proof…" : paymentProof ? "Replace payment proof" : "Add payment proof"}</button>
+        <button className="action-link action-link--primary vnext-button vnext-button--primary" type="submit" disabled={uploading || !selectedFilename} aria-busy={uploading}>{uploading ? paymentProof ? "Replacing payment proof…" : "Uploading payment proof…" : paymentProof ? "Replace payment proof" : "Add payment proof"}</button>
       </form> : null}
       <p className="expense-receipts__status" role="status" aria-live="polite">{status || "\u00a0"}</p>
       {paymentProof ? (
         <div className="expense-receipts__list" aria-label="Repayment payment proof">
-          <div className="expense-receipts__row">
+          <div className="expense-receipts__row personal-vnext__proof-row" data-motion="proof-change">
             <div className="expense-receipts__details">
               <strong>{paymentProof.originalFilename}</strong>
               <span>{paymentProof.mediaType} · {formatBytes(paymentProof.byteSize)} · <ProofDate value={paymentProof.createdAt} /></span>

@@ -14,6 +14,7 @@ import { useToast } from "@/components/feedback/toast";
 import { useUnsavedChangesGuard } from "@/components/navigation/unsaved-changes";
 import { formatRupiah, sameRupiah } from "@/domain/rupiah";
 import { TaskPanelFooter } from "@/components/app/task-panel";
+import { useFocusFirstInvalid } from "@/components/records/use-focus-first-invalid";
 
 type ExpenseAction = (previousState: ExpenseActionState, formData: FormData) => Promise<ExpenseActionState>;
 
@@ -43,7 +44,7 @@ function SubmitButton({ mode, intent }: { mode: "create" | "edit"; intent?: "add
   const isSelected = pending && (intent ?? "add") === (selectedIntent === "continue" ? "continue" : "add");
   return (
     <button
-      className={`action-link ${intent === "continue" ? "action-link--quiet" : "action-link--primary"} expense-form__submit`}
+      className={`action-link vnext-button ${intent === "continue" ? "action-link--quiet vnext-button--secondary" : "action-link--primary vnext-button--primary"} expense-form__submit`}
       type="submit"
       name={intent ? "intent" : undefined}
       value={intent}
@@ -57,7 +58,7 @@ function SubmitButton({ mode, intent }: { mode: "create" | "edit"; intent?: "add
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return (
-    <p className="expense-form__field-error" id={id}>
+    <p className="expense-form__field-error personal-vnext__field-error" id={id} aria-live={message ? "polite" : undefined}>
       {message || "\u00a0"}
     </p>
   );
@@ -71,7 +72,7 @@ function ExpenseBudgetField({ budget, error }: { budget: ExpenseBudgetControl; e
   const [included, setIncluded] = useState(budget.defaultIncluded);
   const [categoryId, setCategoryId] = useState(budget.defaultCategoryId);
   return (
-    <fieldset className="expense-form__budget">
+    <fieldset className="expense-form__budget vnext-surface vnext-surface--warm personal-vnext__disclosure">
       <legend>Budget</legend>
       <input type="hidden" name="budgetParticipation" value="1" />
       <label className="expense-form__budget-toggle" htmlFor="expense-budget-include">
@@ -86,9 +87,10 @@ function ExpenseBudgetField({ budget, error }: { budget: ExpenseBudgetControl; e
         <span>Include this expense in Budget</span>
       </label>
       {included ? (
-        <div className="expense-form__field">
-          <label htmlFor="expense-budget-category">Category</label>
+        <div className="expense-form__field personal-vnext__field">
+          <label className="personal-vnext__label" htmlFor="expense-budget-category">Category</label>
           <select
+            className="personal-vnext__control"
             id="expense-budget-category"
             name="budgetCategoryId"
             value={categoryId}
@@ -139,6 +141,7 @@ export function ExpenseForm({
   const router = useRouter();
   const { showToast } = useToast();
   const descriptionRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const handledExpenseId = useRef<string | undefined>(undefined);
   const previousActionStateRef = useRef(state);
   const options =
@@ -150,6 +153,7 @@ export function ExpenseForm({
     || draftValues.outingId !== initialDraft.outingId;
 
   const guard = useUnsavedChangesGuard(isDirty);
+  useFocusFirstInvalid(formRef, state.fieldErrors);
 
   useEffect(() => () => {
     submissionReleaseRef.current?.();
@@ -188,14 +192,16 @@ export function ExpenseForm({
 
   return (
     <form
-      className="expense-form"
+      ref={formRef}
+      className="expense-form personal-vnext__form"
       action={formAction}
       onSubmit={handleSubmit}
       noValidate
     >
-      <div className="expense-form__field">
-        <label htmlFor="expense-description">Description</label>
+      <div className="expense-form__field personal-vnext__field">
+        <label className="personal-vnext__label" htmlFor="expense-description">Description</label>
         <input
+          className="personal-vnext__control"
           ref={descriptionRef}
           id="expense-description"
           name="description"
@@ -212,9 +218,10 @@ export function ExpenseForm({
         />
         <FieldError id="expense-description-error" message={state.fieldErrors.description} />
       </div>
-      <div className="expense-form__field">
-        <label htmlFor="expense-amount">Amount in rupiah</label>
+      <div className="expense-form__field personal-vnext__field">
+        <label className="personal-vnext__label" htmlFor="expense-amount">Amount in rupiah</label>
         <input
+          className="personal-vnext__control"
           id="expense-amount"
           name="amountRupiah"
           type="text"
@@ -230,11 +237,11 @@ export function ExpenseForm({
           aria-describedby="expense-amount-help expense-amount-error"
           autoComplete="off"
         />
-        <p className="expense-form__help" id="expense-amount-help">Whole rupiah only. Examples: 84000 or 84.000.</p>
+        <p className="expense-form__help personal-vnext__help" id="expense-amount-help">Whole rupiah only. Examples: 84000 or 84.000.</p>
         <FieldError id="expense-amount-error" message={state.fieldErrors.amountRupiah} />
       </div>
-      <div className="expense-form__field">
-        <label id="expense-outing-label" htmlFor="expense-outing">Outing</label>
+      <div className="expense-form__field personal-vnext__field">
+        <label className="personal-vnext__label" id="expense-outing-label" htmlFor="expense-outing">Outing</label>
         <SearchableCombobox
           id="expense-outing"
           name="outingId"
@@ -266,13 +273,13 @@ export function ExpenseForm({
         />
       ) : null}
       <p
-        className="expense-form__message"
+        className="expense-form__message personal-vnext__form-message"
         role={state.formError ? "alert" : undefined}
         aria-live="polite"
       >
         {state.formError || "\u00a0"}
       </p>
-      <TaskPanelFooter className="expense-form__actions">
+      <TaskPanelFooter className="expense-form__actions personal-vnext__form-actions">
         <SubmitButton
           mode={mode}
           intent={mode === "create" ? "add" : undefined}

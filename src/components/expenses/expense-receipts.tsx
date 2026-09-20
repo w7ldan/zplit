@@ -100,7 +100,7 @@ export function ExpenseReceipts({ expenseId, initialReceipts, basePath = "/app/e
   }
 
   return (
-    <section className="expense-receipts" aria-labelledby="expense-receipts-heading">
+    <section className="expense-receipts vnext-surface personal-vnext__receipts" aria-labelledby="expense-receipts-heading" data-motion="enter">
       <p className="technical-label">RECEIPTS</p>
       <div className="expense-receipts__heading">
         <div>
@@ -112,17 +112,17 @@ export function ExpenseReceipts({ expenseId, initialReceipts, basePath = "/app/e
       {!canEdit && readOnlyMessage ? <p className="expense-receipts__readonly">{readOnlyMessage}</p> : null}
       {canEdit ? <form className="expense-receipts__upload" onSubmit={upload}>
         <div className="expense-receipts__file-picker">
-          <label className="action-link action-link--quiet" htmlFor="expense-receipt-file">{selectedFilename ? "Change" : "Choose receipt image"}</label>
-          {selectedFilename ? <><span className="expense-receipts__filename">{selectedFilename}</span><button className="text-link" type="button" onClick={() => { if (fileInput.current) fileInput.current.value = ""; setSelectedFilename(""); }}>Clear</button></> : null}
+          <label className="action-link action-link--quiet vnext-button vnext-button--secondary" htmlFor="expense-receipt-file">{selectedFilename ? "Change" : "Choose receipt image"}</label>
+          {selectedFilename ? <><span className="expense-receipts__filename">{selectedFilename}</span><button className="text-link vnext-link" type="button" onClick={() => { if (fileInput.current) fileInput.current.value = ""; setSelectedFilename(""); }}>Clear</button></> : null}
         </div>
         <input ref={fileInput} className="expense-receipts__file-input" id="expense-receipt-file" name="receipt" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="expense-receipt-help expense-receipt-error" onChange={(event) => { setSelectedFilename(event.currentTarget.files?.[0]?.name ?? ""); setError(""); }} />
         <p className="expense-receipts__help" id="expense-receipt-help">The file signature is checked before it is stored.</p>
         <p className="expense-receipts__error" id="expense-receipt-error" role={error ? "alert" : undefined} aria-live="polite">{error || "\u00a0"}</p>
-        <button className="action-link action-link--primary" type="submit" disabled={uploading || !selectedFilename} aria-busy={uploading}>{uploading ? "Uploading receipt…" : "Upload receipt"}</button>
+        <button className="action-link action-link--primary vnext-button vnext-button--primary" type="submit" disabled={uploading || !selectedFilename} aria-busy={uploading}>{uploading ? "Uploading receipt…" : "Upload receipt"}</button>
       </form> : null}
       <p className="expense-receipts__status" role="status" aria-live="polite">{status || "\u00a0"}</p>
       {receipts.length > 0 ? (
-        <div className="expense-receipts__list" aria-label="Expense receipts">
+        <div className="expense-receipts__list" aria-label="Expense receipts" data-motion="list">
           {receipts.map((receipt) => {
             const confirming = pendingRemovalId === receipt.id;
             const removing = removingId === receipt.id;
@@ -136,10 +136,10 @@ export function ExpenseReceipts({ expenseId, initialReceipts, basePath = "/app/e
                   <ReceiptPreview href={`${basePath}/${encodeURIComponent(expenseId)}/receipts/${encodeURIComponent(receipt.id)}`} filename={receipt.originalFilename} mediaType={receipt.mediaType} />
                   {canEdit && confirming ? (
                     <>
-                      <button className="text-link expense-receipts__remove" type="button" onClick={() => remove(receipt.id)} disabled={removing} aria-busy={removing}>{removing ? "Removing…" : "Remove"}</button>
-                      <button className="text-link" type="button" onClick={() => setPendingRemovalId(null)} disabled={removing}>Cancel</button>
+                      <button className="text-link vnext-link expense-receipts__remove" type="button" onClick={() => remove(receipt.id)} disabled={removing} aria-busy={removing}>{removing ? "Removing…" : "Remove"}</button>
+                      <button className="text-link vnext-link" type="button" onClick={() => setPendingRemovalId(null)} disabled={removing}>Cancel</button>
                     </>
-                  ) : canEdit ? <button className="text-link expense-receipts__remove" type="button" onClick={() => { setPendingRemovalId(receipt.id); setError(""); }}>Remove</button> : null}
+                  ) : canEdit ? <button className="text-link vnext-link expense-receipts__remove" type="button" onClick={() => { setPendingRemovalId(receipt.id); setError(""); }}>Remove</button> : null}
                 </div>
               </div>
             );

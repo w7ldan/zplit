@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { zplitVNextFont } from "@/app/fonts";
 import { requireSession } from "@/auth/require-session";
 import { LedgerNotFoundError } from "@/domain/ledger-repository";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
@@ -80,13 +81,13 @@ type OutingsPageData = Awaited<ReturnType<typeof loadOutingsPageData>>;
 function OutingRecordList({ data }: { data: OutingsPageData }) {
   const { outingPage, groups, filtered, effectiveParams, listHref, created } = data;
   return (
-    <div className="ledger-list" id="record-list">
-      <div className="ledger-list__heading"><span className="technical-label">LATEST FIRST</span><span className="technical-label">{outingPage.totalItems} entries</span></div>
-      {outingPage.items.length > 0 ? groups.map((group) => <div className="record-month-group" key={group.month}>
-        <div className="record-month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
+    <div className="ledger-list personal-vnext__list personal-vnext__responsive-list" id="record-list" data-motion="enter">
+      <div className="ledger-list__heading personal-vnext__list-heading personal-vnext__motion-reveal"><span className="technical-label">LATEST FIRST</span><span className="technical-label">{outingPage.totalItems} entries</span></div>
+      {outingPage.items.length > 0 ? groups.map((group) => <div className="record-month-group personal-vnext__month-group personal-vnext__motion-stagger" key={group.month} data-motion="list">
+        <div className="record-month-divider personal-vnext__month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
         {group.items.map((outing) => <OutingRow key={outing.id} outing={outing} expenseCount={outing.expenseCount} expenseTotal={outing.expenseTotal} emphasized={created === outing.id} />)}
       </div>) : (
-        <div className="ledger-empty">
+        <div className="ledger-empty personal-vnext__empty personal-vnext__motion-reveal">
           <h2>{filtered ? "No matching outings." : "No outings yet."}</h2>
           <p>
             {filtered
@@ -95,7 +96,7 @@ function OutingRecordList({ data }: { data: OutingsPageData }) {
           </p>
           {filtered ? null : (
             <Link
-              className="text-link"
+              className="text-link vnext-link personal-vnext__secondary-action"
               href={recordHref("/app/outings", effectiveParams, {
                 create: "1",
               })}
@@ -106,7 +107,9 @@ function OutingRecordList({ data }: { data: OutingsPageData }) {
           )}
         </div>
       )}
-      <RecordPagination page={outingPage.page} pageSize={outingPage.pageSize} totalItems={outingPage.totalItems} totalPages={outingPage.totalPages} href={listHref} />
+      <div className="personal-vnext__pagination personal-vnext__motion-reveal">
+        <RecordPagination page={outingPage.page} pageSize={outingPage.pageSize} totalItems={outingPage.totalItems} totalPages={outingPage.totalPages} href={listHref} />
+      </div>
     </div>
   );
 }
@@ -115,7 +118,7 @@ function OutingCreatePanel({ data }: { data: OutingsPageData }) {
   if (!data.openCreate) return null;
   const { selectedTrip, initialOccurredAtUtc } = data;
   return (
-    <TaskPanel open eyebrow="NEW OUTING" title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create">
+    <TaskPanel open eyebrow="NEW OUTING" title="Add an outing" description="Give the shared moment a name and a local date before adding expenses." triggerId="outing-create" className="personal-task-panel">
       <OutingForm
         action={createOutingAction.bind(null, data.returnTo)}
         initialOccurredAtUtc={initialOccurredAtUtc}
@@ -141,59 +144,61 @@ function OutingCreatePanel({ data }: { data: OutingsPageData }) {
 function OutingsPageContent({ data }: { data: OutingsPageData }) {
   const { created, filters, outingOptions, tripFilter, outingPage, effectiveParams, filtered } = data;
   return (
-    <section className="app-page outings-page" id="top">
-      <div className="editorial-shell app-page__layout">
-        <div className="app-page__header">
+    <section className={["app-page", "page-content", "zplit-vnext", "personal-vnext", "outings-page", zplitVNextFont.variable].filter(Boolean).join(" ")} id="top">
+      <div className="editorial-shell app-page__layout personal-vnext__layout">
+        <header className="app-page__header personal-vnext__hero personal-vnext__motion-reveal" data-motion="enter">
           <div>
-            <Link className="personal-parent-link" href="/app/personal">← Personal</Link>
+            <Link className="personal-parent-link vnext-link personal-vnext__parent-link" href="/app/personal">← Personal</Link>
             <p className="technical-label">Outings · shared events</p>
             <h1>Outings</h1>
             <p className="app-page__lede">Keep related expenses together under the event where they happened.</p>
           </div>
-          <Link className="action-link action-link--primary" href={recordHref("/app/outings", effectiveParams, { create: "1" })} data-task-trigger="outing-create">Add outing</Link>
-        </div>
-        <div className="records-workspace">
-          <div className="records-workspace__toolbar">
+          <Link className="action-link action-link--primary vnext-button vnext-button--primary personal-vnext__primary-action" href={recordHref("/app/outings", effectiveParams, { create: "1" })} data-task-trigger="outing-create">Add outing</Link>
+        </header>
+        <div className="records-workspace personal-vnext__workspace vnext-surface personal-vnext__responsive-workspace" data-motion="enter">
+          <div className="records-workspace__toolbar personal-vnext__toolbar personal-vnext__motion-stagger">
             <OutingsTripsSwitch current="outings" />
             {created ? <RecordConfirmation queryKey="created" message="Outing added." /> : null}
-            <LiveRecordFilters
-              action="/app/outings"
-              search={{
-                label: "Search outings",
-                placeholder: "Outing title",
-                value: filters.q ?? "",
-              }}
-              selects={[
-                {
-                  name: "trip",
-                  label: "Trip",
-                  value: tripFilter ?? "",
-                  options: outingOptions,
-                  search: searchTripFilterOptions,
-                },
-              ]}
-              month={{ label: "Month", value: filters.month ?? "" }}
-              mobileDisclosure={{
-                activeCount: [tripFilter, filters.month].filter(Boolean).length,
-              }}
-              clearHref={
-                filtered
-                  ? recordHref("/app/outings", effectiveParams, {
-                      q: undefined,
-                      month: undefined,
-                      trip: undefined,
-                      page: undefined,
-                    })
-                  : undefined
-              }
-              resultStatus={
-                outingPage.totalItems +
-                " outing" +
-                (outingPage.totalItems === 1 ? "" : "s") +
-                " found."
-              }
-              preservedParams={effectiveParams}
-            />
+            <div className="personal-vnext__filters personal-vnext__responsive-filters">
+              <LiveRecordFilters
+                action="/app/outings"
+                search={{
+                  label: "Search outings",
+                  placeholder: "Outing title",
+                  value: filters.q ?? "",
+                }}
+                selects={[
+                  {
+                    name: "trip",
+                    label: "Trip",
+                    value: tripFilter ?? "",
+                    options: outingOptions,
+                    search: searchTripFilterOptions,
+                  },
+                ]}
+                month={{ label: "Month", value: filters.month ?? "" }}
+                mobileDisclosure={{
+                  activeCount: [tripFilter, filters.month].filter(Boolean).length,
+                }}
+                clearHref={
+                  filtered
+                    ? recordHref("/app/outings", effectiveParams, {
+                        q: undefined,
+                        month: undefined,
+                        trip: undefined,
+                        page: undefined,
+                      })
+                    : undefined
+                }
+                resultStatus={
+                  outingPage.totalItems +
+                  " outing" +
+                  (outingPage.totalItems === 1 ? "" : "s") +
+                  " found."
+                }
+                preservedParams={effectiveParams}
+              />
+            </div>
           </div>
           <OutingRecordList data={data} />
         </div>

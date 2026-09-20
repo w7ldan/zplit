@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { zplitVNextFont } from "@/app/fonts";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { RepaymentForm } from "@/components/repayments/repayment-form";
 import { RepaymentAllocationEditor } from "@/components/repayments/repayment-allocation-editor";
 import { RepaymentPaymentProof } from "@/components/repayments/repayment-payment-proof";
-import { formatRupiah } from "@/domain/rupiah";
+import { AnimatedMoney } from "@/components/vnext/animated-money";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
@@ -73,13 +74,14 @@ async function loadRepaymentRecordData(session: Awaited<ReturnType<typeof requir
 function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; query: RepaymentRecordQuery | undefined }) {
   const { plan, contextTrip, deletionImpact, currentImpactRevision, friendOptions, formContext, recentPaymentMethods, paymentProof } = data;
   return (
-    <section className="app-page repayment-record" id="top">
-      <div className="editorial-grid editorial-shell repayment-record__layout">
-        <div className="repayment-record__intro">
+    <section className={`app-page page-content zplit-vnext personal-vnext repayment-record ${zplitVNextFont.variable}`} id="top">
+      <div className="editorial-grid editorial-shell repayment-record__layout personal-vnext__detail-layout">
+        <header className="repayment-record__intro personal-vnext__detail-intro personal-vnext__motion-reveal" data-motion="enter">
           <p className="technical-label">Repayment · allocate received money</p>
           <h1>{plan.friendName}</h1>
-          <Link className="repayment-record__back" href={contextTrip ? "/app/trips/" + contextTrip.id : "/app/repayments"}>← {contextTrip ? "Back to " + contextTrip.name : "Repayments"}</Link>
-        </div>
+          {plan.friendArchivedAt ? <p className="technical-label">ARCHIVED FRIEND</p> : null}
+          <Link className="repayment-record__back vnext-link" href={contextTrip ? "/app/trips/" + contextTrip.id : "/app/repayments"}>← {contextTrip ? "Back to " + contextTrip.name : "Repayments"}</Link>
+        </header>
         {query?.created === "1" ? (
           <RecordConfirmation
             queryKey="created"
@@ -93,7 +95,7 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
         ) : null}
         <div className="repayment-record__tasks">
           <div className="repayment-record__primary-task">
-            <div className="repayment-record__allocations" id="repayment-allocations">
+            <div className="repayment-record__allocations personal-vnext__allocation-module personal-vnext__motion-reveal" id="repayment-allocations" data-motion="enter">
               <RepaymentAllocationEditor
                 action={replaceRepaymentAllocationsAction.bind(null, plan.id)}
                 plan={plan}
@@ -101,21 +103,22 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
                 allocationPage={plan.sharePage?.page}
                 removeAction={removeRepaymentAllocationAction}
                 undoAction={undoRepaymentAllocationAction}
+                vnext
               />
             </div>
             <RepaymentPaymentProof repaymentId={plan.id} initialPaymentProof={paymentProof} />
           </div>
           <aside className="repayment-record__sidebar">
-            <div className="repayment-record__controls">
-              <div className="repayment-record__meta" aria-label="Repayment metadata">
-                <div><span className="technical-label">Received</span><strong>{formatRupiah(plan.amount)}</strong></div>
-                <div><span className="technical-label">Applied to shares</span><strong>{formatRupiah(plan.allocatedAmount)}</strong></div>
-                <div><span className="technical-label">Needs allocation</span><strong>{formatRupiah(plan.unallocatedAmount)}</strong></div>
+            <div className="repayment-record__controls vnext-surface vnext-surface--warm personal-vnext__controls personal-vnext__motion-stagger" data-motion="enter">
+              <div className="repayment-record__meta personal-vnext__accounting" aria-label="Repayment metadata">
+                <div><span className="technical-label">Received</span><strong><AnimatedMoney amount={plan.amount} label="Received repayment amount" tone="primary" /></strong></div>
+                <div><span className="technical-label">Applied to shares</span><strong><AnimatedMoney amount={plan.allocatedAmount} label="Applied to shares" tone="settled" /></strong></div>
+                <div><span className="technical-label">Needs allocation</span><strong><AnimatedMoney amount={plan.unallocatedAmount} label="Needs allocation" tone={plan.unallocatedAmount > 0 ? "debt" : "settled"} /></strong></div>
                 <div><span className="technical-label">Payment date</span><SourceCalendarDate canonicalDate={plan.paidOn} timestamp={plan.paidAt.toISOString()} /></div>
                 <div><span className="technical-label">Payment method</span><span>{plan.paymentMethod ?? "—"}</span></div>
                 <div><span className="technical-label">Notes</span><span className="repayment-record__notes-value">{plan.notes ?? "—"}</span></div>
               </div>
-              <div className="repayment-record__form">
+              <div className="repayment-record__form personal-vnext__form">
                 <p className="technical-label">EDIT RECORD</p>
                 <RepaymentForm
                   action={updateRepaymentAction.bind(null, plan.id)}

@@ -35,7 +35,8 @@ describe("AnimatedMoney", () => {
     Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate });
 
     try {
-      const view = render(<AnimatedMoney amount={2450000} />);
+      const view = render(<AnimatedMoney amount={100} animate={false} />);
+      view.rerender(<AnimatedMoney amount={2450000} />);
       const reels = [...view.container.querySelectorAll("[data-money-reel]")];
 
       expect(reels).toHaveLength(7);

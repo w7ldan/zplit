@@ -13,6 +13,7 @@ type TaskPanelProps = {
   triggerId: string;
   children: ReactNode;
   footer?: ReactNode;
+  className?: string;
 };
 
 export function TaskPanelFooter({ children, className }: { children: ReactNode; className?: string }) {
@@ -39,7 +40,7 @@ function useOptionalRouter() {
 
 const panelExitFallbackMs = 260;
 
-export function TaskPanel({ open, title, description, eyebrow = "NEW RECORD", triggerId, children, footer }: TaskPanelProps) {
+export function TaskPanel({ open, title, description, eyebrow = "NEW RECORD", triggerId, children, footer, className }: TaskPanelProps) {
   const router = useOptionalRouter();
   const unsavedChanges = useUnsavedChangesNavigation();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -87,6 +88,12 @@ export function TaskPanel({ open, title, description, eyebrow = "NEW RECORD", tr
 
     const firstField = dialog.querySelector<HTMLElement>("input:not([type='hidden']), select, textarea") ?? dialog.querySelector<HTMLElement>("button");
     firstField?.focus();
+    if (!firstField?.matches(".searchable-combobox__native")) return;
+    const focusFrame = window.requestAnimationFrame(() => {
+      const root = firstField.closest<HTMLElement>(".searchable-combobox");
+      if (root?.dataset.enhanced === "true") root.querySelector<HTMLElement>(".searchable-combobox__custom > button")?.focus();
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
   }, [open, triggerId]);
 
   useEffect(() => {
@@ -130,7 +137,7 @@ export function TaskPanel({ open, title, description, eyebrow = "NEW RECORD", tr
   return (
     <dialog
       ref={dialogRef}
-      className={`task-panel${closing ? " task-panel--closing" : ""}`}
+      className={`task-panel${className ? ` ${className}` : ""}${closing ? " task-panel--closing" : ""}`}
       aria-labelledby="task-panel-title"
       aria-describedby="task-panel-description"
       onCancel={(event) => {

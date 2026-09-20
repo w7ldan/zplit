@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/auth/require-session";
+import { zplitVNextFont } from "@/app/fonts";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { createFriendAction } from "./actions";
 import { FriendForm } from "@/components/friends/friend-form";
 import { FriendRow } from "@/components/friends/friend-row";
+import { OpenTile } from "@/components/vnext/open-tile";
 import { TaskPanel } from "@/components/app/task-panel";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { LiveRecordFilters } from "@/components/records/live-record-filters";
@@ -59,8 +61,8 @@ type FriendsPageData = Awaited<ReturnType<typeof loadFriendsPageData>>;
 function FriendRecordList({ data, params }: { data: FriendsPageData; params: FriendsSearchParams }) {
   const { view, friendPage, balances, created, filtered } = data;
   return (
-    <div className="ledger-list" id="record-list">
-      <div className="ledger-list__heading">
+    <div className="ledger-list personal-vnext__list personal-vnext__responsive-list personal-vnext__motion-reveal" id="record-list" data-motion="enter">
+      <div className="ledger-list__heading personal-vnext__list-heading personal-vnext__motion-reveal">
         <span className="technical-label">
           {view === "active" ? "ACTIVE RECORDS" : "ARCHIVED RECORDS"}
         </span>
@@ -69,23 +71,27 @@ function FriendRecordList({ data, params }: { data: FriendsPageData; params: Fri
         </span>
       </div>
       {friendPage.items.length > 0 ? (
-        friendPage.items.map((entry) =>
-          entry.type === "local" ? (
-            <FriendRow
-              key={entry.friend.id}
-              friend={entry.friend}
-              balance={balances.get(entry.friend.id)}
-              emphasized={created === entry.friend.id}
-            />
-          ) : (
-            <FriendRow
-              key={"connection-" + entry.connection.id}
-              friend={entry.connection}
-            />
-          ),
-        )
+        <div className="personal-vnext__row-list" data-motion="list">
+          {friendPage.items.map((entry) =>
+            entry.type === "local" ? (
+              <FriendRow
+                key={entry.friend.id}
+                friend={entry.friend}
+                balance={balances.get(entry.friend.id)}
+                emphasized={created === entry.friend.id}
+                vnext
+              />
+            ) : (
+              <FriendRow
+                key={"connection-" + entry.connection.id}
+                friend={entry.connection}
+                vnext
+              />
+            ),
+          )}
+        </div>
       ) : (
-        <div className="ledger-empty">
+        <div className="ledger-empty personal-vnext__empty personal-vnext__motion-reveal">
           <h2>
             {filtered
               ? "No matching friends."
@@ -102,16 +108,18 @@ function FriendRecordList({ data, params }: { data: FriendsPageData; params: Fri
           </p>
           {filtered || view === "archived" ? null : (
             <Link
-              className="text-link"
+              className="text-link vnext-link personal-vnext__text-action"
               href={recordHref("/app/friends", params, { create: "1" })}
               data-task-trigger="friend-create"
             >
-              Add friend <span aria-hidden="true">→</span>
+              Add friend <OpenTile />
             </Link>
           )}
         </div>
       )}
-      <RecordPagination page={friendPage.page} pageSize={friendPage.pageSize} totalItems={friendPage.totalItems} totalPages={friendPage.totalPages} href={data.listHref} />
+      <div className="personal-vnext__pagination personal-vnext__motion-reveal">
+        <RecordPagination page={friendPage.page} pageSize={friendPage.pageSize} totalItems={friendPage.totalItems} totalPages={friendPage.totalPages} href={data.listHref} />
+      </div>
     </div>
   );
 }
@@ -119,19 +127,19 @@ function FriendRecordList({ data, params }: { data: FriendsPageData; params: Fri
 function FriendsPageContent({ data, params, returnTo }: { data: FriendsPageData; params: FriendsSearchParams; returnTo: string | undefined }) {
   const { view, friendPage, filtered, openCreate, created } = data;
   return (
-    <section className="app-page friends-page" id="top">
-      <div className="editorial-shell app-page__layout">
-        <div className="app-page__header">
+    <section className={["app-page", "page-content", "zplit-vnext", "personal-vnext", "friends-page", zplitVNextFont.variable].filter(Boolean).join(" ")} id="top">
+      <div className="editorial-shell app-page__layout personal-vnext__layout">
+        <div className="app-page__header personal-vnext__header personal-vnext__motion-reveal" data-motion="enter">
           <div>
-            <Link className="personal-parent-link" href="/app/personal">← Personal</Link>
-            <p className="technical-label">Friends · people you split with</p>
-            <h1>Friends</h1>
-            <p className="app-page__lede">Find people connected to your shared expenses and review what remains open.</p>
+            <Link className="personal-parent-link vnext-link personal-vnext__parent-link" href="/app/personal">← Personal</Link>
+            <p className="technical-label personal-vnext__eyebrow">Friends · people you split with</p>
+            <h1 className="personal-vnext__title">Friends</h1>
+            <p className="app-page__lede personal-vnext__lede">Find people connected to your shared expenses and review what remains open.</p>
           </div>
-          <Link className="action-link action-link--primary" href={recordHref("/app/friends", params, { create: "1" })} data-task-trigger="friend-create">Add friend</Link>
+          <Link className="action-link action-link--primary vnext-button vnext-button--primary personal-vnext__primary-action" href={recordHref("/app/friends", params, { create: "1" })} data-task-trigger="friend-create">Add friend</Link>
         </div>
         {created ? <RecordConfirmation queryKey="created" message="Friend added." /> : null}
-        <div className="friends-toolbar">
+        <div className="friends-toolbar personal-vnext__toolbar personal-vnext__responsive-stack">
           <LiveRecordFilters
             action="/app/friends"
             search={{
@@ -155,14 +163,25 @@ function FriendsPageContent({ data, params, returnTo }: { data: FriendsPageData;
             }
             preservedParams={params}
           />
-          <nav className="friends-page__views" aria-label="Friend record views">
-            <Link className={view === "active" ? "friends-page__view friends-page__view--selected" : "friends-page__view"} href={viewHref("active", params)} aria-current={view === "active" ? "page" : undefined}>Active</Link>
-            <Link className={view === "archived" ? "friends-page__view friends-page__view--selected" : "friends-page__view"} href={viewHref("archived", params)} aria-current={view === "archived" ? "page" : undefined}>Archived</Link>
+          <nav className="friends-page__views personal-vnext__views" aria-label="Friend record views">
+            <Link className={view === "active" ? "friends-page__view friends-page__view--selected vnext-link" : "friends-page__view vnext-link"} href={viewHref("active", params)} aria-current={view === "active" ? "page" : undefined}>Active</Link>
+            <Link className={view === "archived" ? "friends-page__view friends-page__view--selected vnext-link" : "friends-page__view vnext-link"} href={viewHref("archived", params)} aria-current={view === "archived" ? "page" : undefined}>Archived</Link>
           </nav>
         </div>
         <FriendRecordList data={data} params={params} />
       </div>
-      {openCreate ? <TaskPanel open eyebrow="NEW FRIEND" title="Add a friend" description="Keep the person’s details beside the records they support." triggerId="friend-create"><FriendForm action={createFriendAction.bind(null, returnTo)} /></TaskPanel> : null}
+      {openCreate ? (
+        <TaskPanel
+          open
+          eyebrow="NEW FRIEND"
+          title="Add a friend"
+          description="Keep the person’s details beside the records they support."
+          triggerId="friend-create"
+          className="personal-task-panel"
+        >
+          <FriendForm action={createFriendAction.bind(null, returnTo)} />
+        </TaskPanel>
+      ) : null}
     </section>
   );
 }

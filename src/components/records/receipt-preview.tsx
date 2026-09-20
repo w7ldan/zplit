@@ -28,6 +28,7 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [entering, setEntering] = useState(false);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closingRef = useRef(false);
@@ -76,7 +77,7 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
     if (!dialog) return;
 
     const background = [...document.body.children]
-      .filter((element): element is HTMLElement => element !== dialog)
+      .filter((element): element is HTMLElement => element !== dialog && !element.contains(dialog))
       .map((element) => {
         const inertElement = element as InertElement;
         const state = { element, inert: inertElement.inert === true, ariaHidden: element.getAttribute("aria-hidden") };
@@ -136,7 +137,21 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
   if (!previewable) return <a className="text-link" href={href} target="_blank" rel="noreferrer">Open original</a>;
 
   return <>
-    <button className="text-link expense-receipts__preview-trigger" type="button" onClick={(event) => { triggerRef.current = event.currentTarget; closingRef.current = false; setEntering(true); setClosing(false); setOpen(true); }} aria-label={triggerLabel === "Preview" ? `Preview ${filename}` : triggerLabel}>{triggerLabel}</button>
+    <button
+      className="text-link expense-receipts__preview-trigger"
+      type="button"
+      onClick={(event) => {
+        triggerRef.current = event.currentTarget;
+        setPortalTarget((event.currentTarget.closest(".personal-vnext") as HTMLElement | null) ?? document.body);
+        closingRef.current = false;
+        setEntering(true);
+        setClosing(false);
+        setOpen(true);
+      }}
+      aria-label={triggerLabel === "Preview" ? `Preview ${filename}` : triggerLabel}
+    >
+      {triggerLabel}
+    </button>
     {open ? createPortal(
       <div ref={dialogRef} className={`receipt-preview${entering ? " receipt-preview--entering" : ""}${closing ? " receipt-preview--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onClick={(event) => { if (event.target === event.currentTarget) closePreview(); }}>
         <section className="receipt-preview__surface" onTransitionEnd={(event) => { if (closingRef.current && event.target === event.currentTarget && event.propertyName === "transform") finishClose(); }}>
@@ -154,7 +169,7 @@ export function ReceiptPreview({ href, filename, mediaType, previewLabel = "rece
           </footer>
         </section>
       </div>,
-      document.body,
+      portalTarget ?? document.body,
     ) : null}
   </>;
 }

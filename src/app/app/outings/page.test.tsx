@@ -30,6 +30,9 @@ describe("/app/outings", () => {
     mocks.createLedgerRepository.mockReturnValue({ listOutingRecords: vi.fn().mockResolvedValue(outingPage) });
     render(await OutingsPage());
 
+    const page = document.querySelector(".page-content");
+    expect(page).toHaveClass("zplit-vnext", "personal-vnext");
+    expect(document.querySelector("header.zplit-vnext")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Outings" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "← Personal" })).toHaveAttribute("href", "/app/personal");
     expect(document.querySelector(".records-workspace")!).toContainElement(document.querySelector(".outings-trips-switch"));
@@ -42,7 +45,7 @@ describe("/app/outings", () => {
     expect(screen.getByText("Keep related expenses together under the event where they happened.")).toBeInTheDocument();
     expect(within(document.querySelector(".outing-row")!).getByText("Trip", { exact: true })).toBeInTheDocument();
     expect(screen.queryByText("Created", { exact: true })).not.toBeInTheDocument();
-    expect(screen.getByText("1 expense · Rp 84.000")).toBeInTheDocument();
+    expect(document.querySelector(".outing-row")).toHaveTextContent("1 expense · Rp 84.000");
     expect(screen.getByRole("status")).toHaveTextContent("1 outing found.");
     expect(screen.getByRole("status")).toHaveAttribute("aria-atomic", "true");
     expect(screen.getByRole("heading", { level: 1, name: "Outings" }).closest("section")).not.toHaveAttribute("aria-live");

@@ -15,6 +15,7 @@ import type {
 import { useToast } from "@/components/feedback/toast";
 import { ChangedValue } from "@/components/expenses/expense-share-editor";
 import { RecordPagination } from "@/components/records/record-pagination";
+import { AnimatedMoney, type AnimatedMoneyTone } from "@/components/vnext/animated-money";
 
 type RepaymentAllocationAction = (
   previousState: RepaymentAllocationActionState,
@@ -40,6 +41,7 @@ type RepaymentAllocationEditorProps = {
   allocationPage?: number;
   removeAction?: RepaymentAllocationRemovalActionFactory;
   undoAction?: (receipt: RepaymentAllocationReversalReceipt) => Promise<RepaymentAllocationUndoState>;
+  vnext?: boolean;
 };
 
 const emptyActionState: RepaymentAllocationActionState = { fieldErrors: {}, formError: "", values: [] };
@@ -55,7 +57,7 @@ function initialValues(plan: RepaymentAllocationPlan) {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button className="action-link action-link--primary repayment-allocation-editor__submit" type="submit" disabled={pending} aria-busy={pending}>
+    <button className="action-link action-link--primary vnext-button vnext-button--primary repayment-allocation-editor__submit" type="submit" disabled={pending} aria-busy={pending}>
       {pending ? "Saving allocations…" : "Save allocations"}
     </button>
   );
@@ -73,10 +75,14 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
+function AllocationMoney({ amount, label, tone, vnext }: { amount: number; label: string; tone?: AnimatedMoneyTone; vnext: boolean }) {
+  return vnext ? <AnimatedMoney amount={amount} label={label} tone={tone} /> : formatRupiah(amount);
+}
+
 function RemoveAllocationButton({ pending, onRemove }: { pending: boolean; onRemove: () => void }) {
   return (
     <button
-      className="action-link action-link--quiet"
+      className="action-link action-link--quiet vnext-button vnext-button--secondary"
       type="button"
       onClick={onRemove}
       disabled={pending}
@@ -167,6 +173,7 @@ export function RepaymentAllocationEditor({
   removeAction,
   undoAction,
   basePath = "/app",
+  vnext = false,
 }: RepaymentAllocationEditorProps & { basePath?: string }) {
   const allocationPage = plan.sharePage ?? {
     items: plan.shares,
@@ -196,26 +203,26 @@ export function RepaymentAllocationEditor({
       <label htmlFor="repayment-allocation-search">Search allocation choices</label>
       <div>
         <input id="repayment-allocation-search" name="q" type="search" defaultValue={allocationQuery ?? ""} placeholder="Expense, outing, or exact amount" />
-        <button className="action-link action-link--quiet" type="submit">Search</button>
+        <button className="action-link action-link--quiet vnext-button vnext-button--secondary" type="submit">Search</button>
       </div>
     </form>
   );
 
   if (allocationPage.items.length === 0) {
     return (
-      <div className="repayment-allocation-editor repayment-allocation-editor--empty">
+      <div className="repayment-allocation-editor repayment-allocation-editor--empty vnext-surface vnext-surface--warm personal-vnext__allocation-module" data-motion="enter">
         <p className="technical-label">REPAYMENT ALLOCATIONS</p>
         {search}
         <p>{allocationQuery ? "No matching expense shares." : "No outstanding shares for this friend."}</p>
         {allocationQuery ? (
           <Link
-            className="action-link"
+            className="action-link vnext-link"
             href={`${basePath}/repayments/${plan.id}#repayment-allocations`}
           >
             Clear search
           </Link>
         ) : (
-          <Link className="action-link" href={`${basePath}/expenses`}>
+          <Link className="action-link vnext-link" href={`${basePath}/expenses`}>
             Go to Expenses <span aria-hidden="true">→</span>
           </Link>
         )}
@@ -227,17 +234,18 @@ export function RepaymentAllocationEditor({
   const restoreDraftAmount = (receipt: RepaymentAllocationReversalReceipt) => setDraftAmounts((current) => ({ ...current, [receipt.expenseShareId]: receipt.amount.toString() }));
 
   return (
-    <div className="repayment-allocation-editor">
+    <div className="repayment-allocation-editor vnext-surface personal-vnext__allocation-module" data-motion="enter">
       <p className="technical-label">REPAYMENT ALLOCATIONS</p>
       <h2>Apply the received money</h2>
       {search}
       <div className="repayment-allocation-editor__totals" aria-live="polite">
-        <div><span className="technical-label">Repayment amount</span><strong>{formatRupiah(plan.amount)}</strong></div>
-        <div><span className="technical-label">Applied to shares</span><strong><ChangedValue>{formatRupiah(allocatedAmount)}</ChangedValue></strong></div>
-        <div><span className="technical-label">Needs allocation</span><strong><ChangedValue>{formatRupiah(unallocatedAmount)}</ChangedValue></strong></div>
+        <div data-motion="allocation-total"><span className="technical-label">Repayment amount</span><strong><AllocationMoney amount={plan.amount} label="Repayment amount" vnext={vnext} /></strong></div>
+        <div data-motion="allocation-total"><span className="technical-label">Applied to shares</span><strong><ChangedValue><AllocationMoney amount={allocatedAmount} label="Applied to shares" tone="settled" vnext={vnext} /></ChangedValue></strong></div>
+        <div data-motion="allocation-total"><span className="technical-label">Needs allocation</span><strong><ChangedValue><AllocationMoney amount={unallocatedAmount} label="Needs allocation" tone={unallocatedAmount > 0 ? "debt" : "settled"} vnext={vnext} /></ChangedValue></strong></div>
       </div>
       <div
-        className={`allocation-bar${overAllocated ? " allocation-bar--error" : ""}`}
+        className={`allocation-bar personal-vnext__allocation-progress${overAllocated ? " allocation-bar--error" : ""}`}
+        data-motion="allocation-change"
         aria-label="Repayment allocation progress"
         role="progressbar"
         aria-valuemin={0}
@@ -266,7 +274,7 @@ export function RepaymentAllocationEditor({
           const fieldErrorId = `repayment-allocation-${share.expenseShareId}-error`;
           const helpId = `repayment-allocation-${share.expenseShareId}-help`;
           return (
-            <div className="repayment-allocation-editor__row" key={share.expenseShareId}>
+            <div className="repayment-allocation-editor__row personal-vnext__allocation-row" data-motion="allocation-change" key={share.expenseShareId}>
               <div className="repayment-allocation-editor__details">
                 <p className="repayment-allocation-editor__description">{share.expenseDescription}</p>
                 <p className="repayment-allocation-editor__outing">

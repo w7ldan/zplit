@@ -361,7 +361,7 @@ export function SearchableCombobox({
   useEffect(() => setEnhanced(true), []);
 
   useEffect(() => {
-    setPortalTarget(rootRef.current?.closest("dialog") ?? document.body);
+    setPortalTarget(rootRef.current?.closest("dialog, .personal-vnext") ?? document.body);
   }, []);
 
   useEffect(() => {

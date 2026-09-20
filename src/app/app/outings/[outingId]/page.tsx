@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { zplitVNextFont } from "@/app/fonts";
 import { requireSession } from "@/auth/require-session";
 import { deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
@@ -12,6 +13,7 @@ import { deleteOutingAction } from "../actions";
 import { formatRupiah } from "@/domain/rupiah";
 import { recordHref } from "@/domain/record-retrieval";
 import { RecordPagination } from "@/components/records/record-pagination";
+import { OpenTile } from "@/components/vnext/open-tile";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Outing details" };
@@ -51,28 +53,28 @@ export default async function OutingRecordPage({ params, searchParams }: { param
   const expenseHref = recordHref(`/app/outings/${outing.id}`, query ?? {}, { saved: undefined });
 
   return (
-    <section className="app-page outing-record" id="top">
-      <div className="editorial-grid editorial-shell outing-record__layout">
-        <div className="outing-record__intro">
+    <section className={["app-page", "page-content", "zplit-vnext", "personal-vnext", "outing-record", zplitVNextFont.variable].filter(Boolean).join(" ")} id="top">
+      <div className="editorial-grid editorial-shell outing-record__layout personal-vnext__detail-layout">
+        <header className="outing-record__intro personal-vnext__detail-intro personal-vnext__motion-reveal" data-motion="enter">
           <p className="technical-label">Outing · editable record</p>
           <h1>{outing.title}</h1>
           <div className="outing-record__actions">
-            <Link className="action-link action-link--quiet" href={`/app/expenses?create=1&outing=${outing.id}`}>Add expense</Link>
-            <Link className="outing-record__back" href="/app/outings">← Outings</Link>
+            <Link className="action-link action-link--quiet vnext-button vnext-button--secondary personal-vnext__secondary-action" href={`/app/expenses?create=1&outing=${outing.id}`}>Add expense</Link>
+            <Link className="outing-record__back vnext-link personal-vnext__secondary-action" href="/app/outings">← Outings</Link>
           </div>
-        </div>
+        </header>
         {query?.saved === "1" ? <RecordConfirmation queryKey="saved" message="Outing changes saved." /> : null}
-        <section className="outing-record__summary" aria-label="Outing summary">
-          <div className="outing-record__meta" aria-label="Outing metadata">
+        <section className="outing-record__summary personal-vnext__summary vnext-surface vnext-surface--strong personal-vnext__motion-reveal" aria-label="Outing summary" data-motion="enter">
+          <div className="outing-record__meta personal-vnext__metadata" aria-label="Outing metadata">
             <div><span className="technical-label">Financial date</span><SourceCalendarDate canonicalDate={outing.occurredOn} timestamp={outing.occurredAt.toISOString()} /></div>
             <div><span className="technical-label">Exact time</span><LocalDateTime iso={outing.occurredAt.toISOString()} /></div>
-            <div><span className="technical-label">Trip</span>{trip ? <Link href={`/app/trips/${trip.id}`}>{trip.name} →</Link> : <span>No trip</span>}</div>
+            <div><span className="technical-label">Trip</span>{trip ? <Link className="vnext-link" href={`/app/trips/${trip.id}`}>{trip.name} →</Link> : <span>No trip</span>}</div>
             <div><span className="technical-label">Created</span><LocalDateTime iso={outing.createdAt.toISOString()} mode="date" /></div>
           </div>
           {outing.notes ? <p className="outing-record__notes">{outing.notes}</p> : null}
         </section>
-        <div className="outing-record__workspace">
-          <div className="outing-record__form">
+        <div className="outing-record__workspace personal-vnext__responsive-detail personal-vnext__motion-stagger" data-motion="enter">
+          <div className="outing-record__form personal-vnext__edit-surface vnext-surface">
             <p className="technical-label">EDIT RECORD</p>
             <OutingForm
               action={updateOutingAction.bind(null, outing.id)}
@@ -84,37 +86,34 @@ export default async function OutingRecordPage({ params, searchParams }: { param
             />
             <p className="outing-record__next">Expenses recorded under this outing keep its occurrence timestamp. Trip grouping does not change ledger calculations.</p>
           </div>
-          <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" impact={deletionImpact} impactRevision={currentImpactRevision} />
+          <div className="personal-vnext__delete-section personal-vnext__motion-item">
+            <DeleteRecordForm action={deleteOutingAction.bind(null, outing.id)} recordType="outing" impact={deletionImpact} impactRevision={currentImpactRevision} />
+          </div>
         </div>
-        <section className="record-history ledger-section" id="outing-expenses" aria-labelledby="outing-expenses-heading">
-          <div className="ledger-section__heading"><div><p className="technical-label">EXPENSE HISTORY</p><h2 id="outing-expenses-heading">Expenses</h2></div><span className="technical-label">{expensePage.totalItems} entries</span></div>
+        <section className="record-history ledger-section personal-vnext__history vnext-surface personal-vnext__motion-reveal" id="outing-expenses" aria-labelledby="outing-expenses-heading" data-motion="enter">
+          <div className="ledger-section__heading personal-vnext__section-heading"><div><p className="technical-label">EXPENSE HISTORY</p><h2 id="outing-expenses-heading">Expenses</h2></div><span className="technical-label">{expensePage.totalItems} entries</span></div>
           {expensePage.items.length > 0 ? (
-            <div className="record-history__rows">
+            <div className="record-history__rows" data-motion="list">
               {expensePage.items.map((expense) => (
-                <article className="record-history__row" key={expense.id}>
-                  <div className="record-history__primary">
-                    <span className="technical-label">EXPENSE</span>
-                    <h3>
-                      <Link href={`/app/expenses/${expense.id}`}>
-                        {expense.description}
-                      </Link>
-                    </h3>
-                  </div>
-                  <div className="record-history__value">
-                    <span className="technical-label">Amount</span>
-                    <strong>{formatRupiah(expense.amount)}</strong>
-                  </div>
-                  <Link
-                    className="record-history__link"
-                    href={`/app/expenses/${expense.id}`}
-                  >
-                    Open expense <span aria-hidden="true">→</span>
+                <article className="personal-vnext__history-item personal-vnext__motion-item" key={expense.id}>
+                  <Link className="record-history__row vnext-row personal-vnext__single-destination-row" href={`/app/expenses/${expense.id}`} aria-label={`Open expense: ${expense.description}`}>
+                    <div className="record-history__primary">
+                      <span className="technical-label">EXPENSE</span>
+                      <h3>{expense.description}</h3>
+                    </div>
+                    <div className="record-history__value">
+                      <span className="technical-label">Amount</span>
+                      <strong className="vnext-money">{formatRupiah(expense.amount)}</strong>
+                    </div>
+                    <span className="record-history__link">
+                      Open expense <OpenTile />
+                    </span>
                   </Link>
                 </article>
               ))}
             </div>
           ) : (
-            <div className="ledger-empty">
+            <div className="ledger-empty personal-vnext__empty personal-vnext__motion-reveal">
               <h3>No expenses recorded for this outing yet.</h3>
               <p>Add the first expense for this outing.</p>
               <Link
@@ -126,7 +125,9 @@ export default async function OutingRecordPage({ params, searchParams }: { param
               </Link>
             </div>
           )}
-          <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={expenseHref} anchor="outing-expenses" pageParam="expensePage" />
+          <div className="personal-vnext__pagination personal-vnext__motion-reveal">
+            <RecordPagination page={expensePage.page} pageSize={expensePage.pageSize} totalItems={expensePage.totalItems} totalPages={expensePage.totalPages} href={expenseHref} anchor="outing-expenses" pageParam="expensePage" />
+          </div>
         </section>
       </div>
     </section>

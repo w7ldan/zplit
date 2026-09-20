@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { zplitVNextFont } from "@/app/fonts";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { LedgerNotFoundError } from "@/domain/ledger-repository";
@@ -30,6 +31,8 @@ import { getDebtorShareLinkStatus, getDebtorShareReceiptSelection } from "@/serv
 import { getFriendLinkStatus } from "@/server/friend-links";
 import { FriendLinkSection } from "@/components/friends/friend-link-section";
 import { FriendLinkLiveRefresh } from "@/components/realtime/friend-link-live-refresh";
+import { AnimatedMoney } from "@/components/vnext/animated-money";
+import { OpenTile } from "@/components/vnext/open-tile";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Friend details" };
@@ -106,11 +109,12 @@ function FriendRecordHistory({
   return (
     <>
       <section
-        className="record-history ledger-section"
+        className="record-history ledger-section personal-vnext__history personal-vnext__motion-reveal"
         id="friend-expense-shares"
         aria-labelledby="friend-expense-shares-heading"
+        data-motion="enter"
       >
-        <div className="ledger-section__heading">
+        <div className="ledger-section__heading personal-vnext__section-heading">
           <div>
             <p className="technical-label">SHARE HISTORY</p>
             <h2 id="friend-expense-shares-heading">Expense shares</h2>
@@ -118,10 +122,10 @@ function FriendRecordHistory({
           <span className="technical-label">{expenseSharePage.totalItems} entries</span>
         </div>
         {expenseSharePage.items.length > 0 ? (
-          <div className="record-history__rows">
+          <div className="record-history__rows" data-motion="list">
             {expenseSharePage.items.map((share) => (
               <article
-                className="record-history__row record-history__row--share"
+                className="record-history__row record-history__row--share personal-vnext__multi-action-row personal-vnext__motion-item personal-vnext__responsive-stack"
                 key={share.id}
               >
                 <div className="record-history__primary">
@@ -138,15 +142,15 @@ function FriendRecordHistory({
                 <div className="record-history__values">
                   <span>
                     <span className="technical-label">Assigned</span>
-                    <strong>{formatRupiah(share.amountOwed)}</strong>
+                    <strong className="vnext-money">{formatRupiah(share.amountOwed)}</strong>
                   </span>
                   <span>
                     <span className="technical-label">Applied</span>
-                    <strong>{formatRupiah(share.appliedAmount)}</strong>
+                    <strong className="vnext-money">{formatRupiah(share.appliedAmount)}</strong>
                   </span>
                   <span>
                     <span className="technical-label">Remaining</span>
-                    <strong>{formatRupiah(share.remainingAmount)}</strong>
+                    <strong className="vnext-money">{formatRupiah(share.remainingAmount)}</strong>
                   </span>
                 </div>
                 <span
@@ -159,14 +163,14 @@ function FriendRecordHistory({
                 </span>
                 <div className="record-history__links">
                   <Link
-                    className="record-history__link"
+                    className="record-history__link vnext-link"
                     href={"/app/expenses/" + share.expenseId}
                   >
                     Open expense <span aria-hidden="true">→</span>
                   </Link>
                   {!share.settled && share.id ? (
                     <Link
-                      className="record-history__link"
+                      className="record-history__link vnext-link"
                       href={
                         "/app/repayments?create=1&friendId=" +
                         friend.id +
@@ -197,11 +201,12 @@ function FriendRecordHistory({
         />
       </section>
       <section
-        className="record-history ledger-section"
+        className="record-history ledger-section personal-vnext__history personal-vnext__motion-reveal"
         id="friend-repayments"
         aria-labelledby="friend-repayments-heading"
+        data-motion="enter"
       >
-        <div className="ledger-section__heading">
+        <div className="ledger-section__heading personal-vnext__section-heading">
           <div>
             <p className="technical-label">REPAYMENT HISTORY</p>
             <h2 id="friend-repayments-heading">Repayments</h2>
@@ -209,24 +214,26 @@ function FriendRecordHistory({
           <span className="technical-label">{repaymentPage.totalItems} entries</span>
         </div>
         {repaymentPage.items.length > 0 ? (
-          <div className="record-history__rows">
+          <div className="record-history__rows" data-motion="list">
             {repaymentPage.items.map((repayment) => (
-              <article
-                className="record-history__row record-history__row--repayment"
+              <Link
+                className="record-history__row record-history__row--repayment vnext-row personal-vnext__record-row personal-vnext__responsive-stack"
+                aria-label="Open repayment"
+                aria-describedby={`friend-repayment-${repayment.id}-summary`}
+                href={"/app/repayments/" + repayment.id}
                 key={repayment.id}
               >
+                <span className="sr-only" id={`friend-repayment-${repayment.id}-summary`}>Received {formatRupiah(repayment.amount)}, {repayment.paymentMethod ?? "no payment method"}, {formatRupiah(repayment.allocatedAmount)} applied and {formatRupiah(repayment.unallocatedAmount)} unallocated</span>
                 <div className="record-history__primary">
                   <span className="technical-label">REPAYMENT</span>
                   <h3>
-                    <Link href={"/app/repayments/" + repayment.id}>
-                      <SourceCalendarDate canonicalDate={repayment.paidOn} timestamp={repayment.paidAt.toISOString()} />
-                    </Link>
+                    <SourceCalendarDate canonicalDate={repayment.paidOn} timestamp={repayment.paidAt.toISOString()} />
                   </h3>
                 </div>
                 <div className="record-history__values">
                   <span>
                     <span className="technical-label">Received</span>
-                    <strong>{formatRupiah(repayment.amount)}</strong>
+                    <strong className="vnext-money">{formatRupiah(repayment.amount)}</strong>
                   </span>
                   <span>
                     <span className="technical-label">Method</span>
@@ -234,18 +241,13 @@ function FriendRecordHistory({
                   </span>
                   <span>
                     <span className="technical-label">Allocation</span>
-                    <strong>
+                    <strong className="vnext-money">
                       {formatRupiah(repayment.allocatedAmount)} applied · {formatRupiah(repayment.unallocatedAmount)} unallocated
                     </strong>
                   </span>
                 </div>
-                <Link
-                  className="record-history__link"
-                  href={"/app/repayments/" + repayment.id}
-                >
-                  Open repayment <span aria-hidden="true">→</span>
-                </Link>
-              </article>
+                <span className="record-history__link personal-vnext__row-action">Open repayment <OpenTile /></span>
+              </Link>
             ))}
           </div>
         ) : (
@@ -277,19 +279,19 @@ function FriendRecordContent({
   const { friend, balance, shareStatus, eligibleReceipts, selectedReceiptIds, sharedDestinationNames, friendLinkStatus } = data;
   const archived = friend.archivedAt !== null;
   return (
-    <section className="app-page friend-record" id="top">
+    <section className={["app-page", "page-content", "zplit-vnext", "personal-vnext", "friend-record", zplitVNextFont.variable].filter(Boolean).join(" ")} id="top">
       <FriendLinkLiveRefresh friendId={friend.id} />
-      <div className="editorial-grid editorial-shell friend-record__layout">
-        <div className="friend-record__intro">
+      <div className="editorial-grid editorial-shell friend-record__layout personal-vnext__layout">
+        <div className="friend-record__intro personal-vnext__header personal-vnext__motion-reveal" data-motion="enter">
           <div className="friend-record__title">
-            <p className="technical-label">Friend · editable record</p>
-            <h1>{friend.name}</h1>
+            <p className="technical-label personal-vnext__eyebrow">Friend · editable record</p>
+            <h1 className="personal-vnext__title">{friend.name}</h1>
           </div>
           <div className="friend-record__actions">
-            <Link className="action-link action-link--quiet" href={"/app/repayments?create=1&friendId=" + friend.id}>Record repayment</Link>
+            <Link className="action-link action-link--quiet vnext-button vnext-button--secondary" href={"/app/repayments?create=1&friendId=" + friend.id}>Record repayment</Link>
             {balance.outstandingAmount > 0 ? (
               <Link
-                className="action-link action-link--quiet"
+                className="action-link action-link--quiet vnext-button vnext-button--secondary"
                 href={
                   "/app/repayments?create=1&friendId=" +
                   friend.id +
@@ -301,7 +303,7 @@ function FriendRecordContent({
                 Settle {formatRupiah(balance.outstandingAmount)}
               </Link>
             ) : null}
-            <Link className="friend-record__back" href="/app/friends">
+            <Link className="friend-record__back vnext-link" href="/app/friends">
               ← Friends
             </Link>
           </div>
@@ -309,10 +311,10 @@ function FriendRecordContent({
         {query?.saved === "1" ? (
           <RecordConfirmation queryKey="saved" message="Friend changes saved." />
         ) : null}
-        <section className="friend-record__summary" aria-label="Friend summary">
+        <section className="friend-record__summary personal-vnext__summary personal-vnext__motion-reveal" aria-label="Friend summary" data-motion="enter">
           <section
             className={
-              "friend-record__balance" +
+              "friend-record__balance personal-vnext__balance" +
               (balance.assignedAmount === 0
                 ? " friend-record__balance--empty"
                 : balance.outstandingAmount === 0
@@ -330,28 +332,30 @@ function FriendRecordContent({
               ) : (
                 <>
                   <span className="technical-label">Still owes</span>
-                  <strong>{formatRupiah(balance.outstandingAmount)}</strong>
+                  <strong>
+                    <AnimatedMoney amount={balance.outstandingAmount} animate label="Still owes" tone="debt" />
+                  </strong>
                 </>
               )}
             </div>
             <dl>
               <div>
                 <dt>Assigned</dt>
-                <dd>{formatRupiah(balance.assignedAmount)}</dd>
+                <dd className="vnext-money">{formatRupiah(balance.assignedAmount)}</dd>
               </div>
               <div>
                 <dt>Applied</dt>
-                <dd>{formatRupiah(balance.repaidAmount)}</dd>
+                <dd className="vnext-money">{formatRupiah(balance.repaidAmount)}</dd>
               </div>
               {balance.outstandingAmount === 0 ? (
                 <div>
                   <dt>Still owes</dt>
-                  <dd>{formatRupiah(balance.outstandingAmount)}</dd>
+                <dd className="vnext-money">{formatRupiah(balance.outstandingAmount)}</dd>
                 </div>
               ) : null}
             </dl>
           </section>
-          <div className="friend-record__meta" aria-label="Friend metadata">
+          <div className="friend-record__meta personal-vnext__metadata-group" aria-label="Friend metadata">
             <div>
               <span className="technical-label">Record state</span>
               <strong>{archived ? "ARCHIVED" : "ACTIVE"}</strong>
@@ -362,9 +366,9 @@ function FriendRecordContent({
             </div>
           </div>
         </section>
-        <div className="friend-record__workspace">
-          <div className="friend-record__form">
-            <p className="technical-label">EDIT RECORD</p>
+        <div className="friend-record__workspace personal-vnext__workspace personal-vnext__responsive-split" data-motion="enter">
+          <div className="friend-record__form personal-vnext__form personal-vnext__motion-reveal">
+            <p className="technical-label personal-vnext__eyebrow">EDIT RECORD</p>
             <FriendForm
               action={updateFriendAction.bind(null, friend.id)}
               mode="edit"

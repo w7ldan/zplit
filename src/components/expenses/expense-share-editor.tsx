@@ -39,14 +39,14 @@ export function ChangedValue({ children }: { children: ReactNode }) {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button className="action-link action-link--primary expense-share-editor__submit" type="submit" disabled={pending} aria-busy={pending}>
+    <button className="action-link action-link--primary vnext-button vnext-button--primary expense-share-editor__submit" type="submit" disabled={pending} aria-busy={pending}>
       {pending ? "Saving split…" : "Save split"}
     </button>
   );
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
-  return <p className="expense-share-editor__field-error" id={id} role={message ? "alert" : undefined}>{message || "\u00a0"}</p>;
+  return <p className="expense-share-editor__field-error personal-vnext__field-error" id={id} role={message ? "alert" : undefined}>{message || "\u00a0"}</p>;
 }
 
 export function ExpenseShareEditor({ action, expenseAmount, friends: initialFriends, charges: initialChargeDefinitions = [], friendOptions: initialFriendOptions = [], searchFriends = emptySearch, previousSplit, basePath = "/app" }: ExpenseShareEditorProps & { basePath?: string }) {
@@ -139,19 +139,19 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
 
   if (selectedFriends.length === 0 && friendOptions.length === 0 && !undoRemoval) {
     return (
-      <div className="expense-share-editor expense-share-editor--empty">
+      <div className="expense-share-editor expense-share-editor--empty personal-vnext__share-editor" data-motion="enter">
         <p className="technical-label">FRIEND SHARES</p>
         <p>Add an active friend before assigning a share.</p>
-        <Link className="action-link" href={`${basePath}/friends`}>Go to friends <span aria-hidden="true">→</span></Link>
+        <Link className="action-link vnext-button vnext-button--secondary" href={`${basePath}/friends`}>Go to friends <span aria-hidden="true">→</span></Link>
       </div>
     );
   }
 
   return (
-    <div className="expense-share-editor">
+    <div className="expense-share-editor personal-vnext__share-editor" data-motion="enter">
       <p className="technical-label">FRIEND SHARES</p>
-      <h2>Assign the split</h2>
-      <div className="expense-share-editor__summary">
+      <h2 id="friend-shares-heading">Assign the split</h2>
+      <div className="expense-share-editor__summary vnext-surface vnext-surface--warm personal-vnext__summary">
         <div className="expense-share-editor__totals" aria-live="polite">
           <div><span className="technical-label">Expense total</span><strong>{formatRupiah(expenseAmount)}</strong></div>
           <div><span className="technical-label">Assigned to friends</span><strong><ChangedValue>{formatRupiah(totalOwed)}</ChangedValue></strong></div>
@@ -162,17 +162,17 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
           <span>{overAllocated ? `Over-allocated by ${formatRupiah(totalOwed - expenseAmount)}.` : `${formatRupiah(ownerPortion)} is your portion. Assigned shares become friend balances.`}</span>
         </div>
       </div>
-      <form className="expense-share-editor__form" action={formAction} onSubmit={handleSubmit} noValidate>
+      <form className="expense-share-editor__form personal-vnext__form" action={formAction} onSubmit={handleSubmit} noValidate>
         <div className="expense-share-editor__add">
           <div>
             <label id="expense-share-add-label" htmlFor="expense-share-add">Add friend</label>
-            {selectedFriends.length > 0 ? <button className="text-link" type="button" onClick={splitEvenly}>Split evenly with me</button> : null}
+            {selectedFriends.length > 0 ? <button className="text-link vnext-link" type="button" onClick={splitEvenly}>Split evenly with me</button> : null}
           </div>
           {previousSplit ? <div className="expense-share-editor__previous">
-            {!confirmPreviousSplit ? <button className="text-link" type="button" onClick={usePreviousSplit}>Use previous split</button> : <div className="expense-share-editor__previous-confirm">
+            {!confirmPreviousSplit ? <button className="text-link vnext-link" type="button" onClick={usePreviousSplit}>Use previous split</button> : <div className="expense-share-editor__previous-confirm">
               <span>Replace current draft?</span>
-              <button className="text-link" type="button" onClick={applyPreviousSplit}>Replace draft</button>
-              <button className="text-link" type="button" onClick={() => setConfirmPreviousSplit(false)}>Cancel</button>
+              <button className="text-link vnext-link" type="button" onClick={applyPreviousSplit}>Replace draft</button>
+              <button className="text-link vnext-link" type="button" onClick={() => setConfirmPreviousSplit(false)}>Cancel</button>
             </div>}
           </div> : null}
           <SearchableCombobox
@@ -196,19 +196,19 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
         </p> : null}
         <noscript>
           <p className="expense-share-editor__help">Without JavaScript, add one active friend per save. Existing charges are preserved.</p>
-          <label htmlFor="expense-share-native-friend">Friend to add</label>
+          <label className="personal-vnext__label" htmlFor="expense-share-native-friend">Friend to add</label>
           <select id="expense-share-native-friend" name="additionalFriendId" defaultValue="">
             <option value="">No additional friend</option>
             {friendOptions.map((friend) => <option key={friend.id} value={friend.id}>{friend.label}</option>)}
           </select>
-          <label htmlFor="expense-share-native-amount">Amount for friend to add</label>
-          <input id="expense-share-native-amount" name="additionalAmountRupiah" type="text" inputMode="numeric" autoComplete="off" />
+          <label className="personal-vnext__label" htmlFor="expense-share-native-amount">Amount for friend to add</label>
+          <input className="personal-vnext__control" id="expense-share-native-amount" name="additionalAmountRupiah" type="text" inputMode="numeric" autoComplete="off" />
         </noscript>
-        <details className="expense-share-editor__charges" open={chargesOpen} onToggle={(event) => setChargesOpen(event.currentTarget.open)}>
+        <details className="expense-share-editor__charges vnext-surface vnext-surface--warm personal-vnext__disclosure" open={chargesOpen} onToggle={(event) => setChargesOpen(event.currentTarget.open)}>
           <summary>{draftCharges.length > 0 ? `Charges · ${draftCharges.length}` : "Charges (optional)"}</summary>
           <div className="expense-share-editor__section-heading">
             <span className="technical-label">Optional charge tools</span>
-            <button className="text-link" type="button" onClick={addCharge}>Add charge</button>
+            <button className="text-link vnext-link" type="button" onClick={addCharge}>Add charge</button>
           </div>
           {draftCharges.map((charge, index) => {
             const errorId = `expense-share-charge-${index}-error`;
@@ -220,20 +220,20 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
               <div className="expense-share-editor__charge" key={index}>
                 <div className="expense-share-editor__charge-heading">
                   <span>Charge {index + 1}</span>
-                  <button className="text-link" type="button" onClick={() => removeCharge(index)}>Remove</button>
+                  <button className="text-link vnext-link" type="button" onClick={() => removeCharge(index)}>Remove</button>
                 </div>
                 <div className="expense-share-editor__charge-fields">
                   <div className="expense-share-editor__charge-field">
-                    <label htmlFor={nameId}>Name</label>
-                    <input id={nameId} type="text" value={charge.name} onChange={(event) => updateCharge(index, { name: event.target.value })} aria-describedby={errorId} />
+                    <label className="personal-vnext__label" htmlFor={nameId}>Name</label>
+                    <input className="personal-vnext__control" id={nameId} type="text" value={charge.name} onChange={(event) => updateCharge(index, { name: event.target.value })} aria-describedby={errorId} />
                   </div>
                   <div className="expense-share-editor__charge-field">
-                    <label htmlFor={rateId}>Rate</label>
-                    <div className="expense-share-editor__percentage-input"><input id={rateId} type="text" inputMode="decimal" value={charge.percentage} placeholder="7.5" onChange={(event) => updateCharge(index, { percentage: event.target.value })} aria-describedby={errorId} /><span aria-hidden="true">%</span></div>
+                    <label className="personal-vnext__label" htmlFor={rateId}>Rate</label>
+                    <div className="expense-share-editor__percentage-input"><input className="personal-vnext__control" id={rateId} type="text" inputMode="decimal" value={charge.percentage} placeholder="7.5" onChange={(event) => updateCharge(index, { percentage: event.target.value })} aria-describedby={errorId} /><span aria-hidden="true">%</span></div>
                   </div>
                   <div className="expense-share-editor__charge-field">
-                    <label htmlFor={scopeId}>Applies to</label>
-                    <select id={scopeId} value={charge.scope} onChange={(event) => updateCharge(index, { scope: event.target.value as "all" | "selected", friendIds: event.target.value === "all" ? [] : charge.friendIds })} aria-describedby={errorId}>
+                    <label className="personal-vnext__label" htmlFor={scopeId}>Applies to</label>
+                    <select className="personal-vnext__control" id={scopeId} value={charge.scope} onChange={(event) => updateCharge(index, { scope: event.target.value as "all" | "selected", friendIds: event.target.value === "all" ? [] : charge.friendIds })} aria-describedby={errorId}>
                       <option value="all">All friends</option>
                       <option value="selected">Selected friends</option>
                     </select>
@@ -274,18 +274,19 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
           const archived = friend.archivedAt !== null;
           const breakdown = breakdowns.find((value) => value.friendId === friend.id)!;
           return (
-            <div className="expense-share-editor__field" key={friend.id}>
+            <div className="expense-share-editor__field personal-vnext__share-row" data-motion="enter" key={friend.id}>
               <input type="hidden" name="friendId" value={friend.id} />
               <div className="expense-share-editor__field-heading">
-                <label htmlFor={`expense-share-${friend.id}`}>
+                <label className="personal-vnext__label" htmlFor={`expense-share-${friend.id}`}>
                   <span className="expense-share-editor__friend-name">{friend.name}</span>
                   {archived ? <span className="technical-label">ARCHIVED</span> : null}
                 </label>
-                <button className="text-link" type="button" onClick={() => removeFriend(friend.id)} aria-label={`Remove ${friend.name}`}>Remove</button>
+                <button className="text-link vnext-link" type="button" onClick={() => removeFriend(friend.id)} aria-label={`Remove ${friend.name}`}>Remove</button>
               </div>
-              {friend.expenseShareId && (friend.remainingAmount ?? 0) > 0 ? <Link className="text-link" href={`${basePath}/repayments?create=1&friendId=${encodeURIComponent(friend.id)}&expenseShareId=${encodeURIComponent(friend.expenseShareId)}`}>Record repayment</Link> : null}
+              {friend.expenseShareId && (friend.remainingAmount ?? 0) > 0 ? <Link className="text-link vnext-link" href={`${basePath}/repayments?create=1&friendId=${encodeURIComponent(friend.id)}&expenseShareId=${encodeURIComponent(friend.expenseShareId)}`}>Record repayment</Link> : null}
               <input
                 ref={(element) => { if (element) amountRefs.current.set(friend.id, element); else amountRefs.current.delete(friend.id); }}
+                className="personal-vnext__control"
                 id={`expense-share-${friend.id}`}
                 name="amountRupiah"
                 type="text"
@@ -306,7 +307,7 @@ export function ExpenseShareEditor({ action, expenseAmount, friends: initialFrie
             </div>
           );
         })}
-        <p className="expense-share-editor__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+        <p className="expense-share-editor__message personal-vnext__form-message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
         <SubmitButton />
       </form>
     </div>

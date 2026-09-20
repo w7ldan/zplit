@@ -10,6 +10,8 @@ import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { createGroupAction } from "./groups/actions";
 import { GroupForm } from "@/components/groups/group-form";
 import { TaskPanel } from "@/components/app/task-panel";
+import { OpenTile } from "@/components/vnext/open-tile";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const metadata = { title: "Personal" };
 export const dynamic = "force-dynamic";
@@ -37,17 +39,17 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
   const create = await searchParams;
   const openCreate = (Array.isArray(create.create) ? create.create[0] : create.create) === "1";
   return (
-    <section className="app-page personal-page" id="top">
+    <section className={`app-page personal-page personal-vnext zplit-vnext ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
-        <header className="app-page__header">
+        <header className="app-page__header" data-motion="enter">
           <div>
             <p className="technical-label">Personal · private ledger</p>
             <h1>Personal</h1>
             <p className="app-page__lede">Your private financial world, kept separate from future shared spaces.</p>
           </div>
-          <Link className="action-link action-link--primary" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
+          <Link className="vnext-button vnext-button--primary" href="/app/expenses?create=1" data-task-trigger="expense-create">Add expense</Link>
         </header>
-        <section className="personal-snapshot-section" aria-labelledby="personal-snapshot-heading">
+        <section className="personal-snapshot-section" aria-labelledby="personal-snapshot-heading" data-motion="enter">
           <div className="ledger-section__heading">
             <div>
               <p className="technical-label">PERSONAL SNAPSHOT</p>
@@ -71,18 +73,21 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
               </div>
             ) : (
               <>
+                <div data-motion="list">
                 {friendBalances.map((friend) => (
-                  <div className="balance-row" key={friend.friendId}>
-                    <Link href={`/app/friends/${friend.friendId}`}>
+                  <Link className="balance-row vnext-row personal-vnext-row" href={`/app/friends/${friend.friendId}`} key={friend.friendId}>
+                    <span>
                       <strong>{friend.name}</strong>
-                      <span aria-hidden="true">→</span>
-                    </Link>
+                      <small>{friend.archived ? "Archived friend" : "Open balance"}</small>
+                    </span>
                     <span>
                       <span className="technical-label">Outstanding</span>
                       <strong>{formatRupiah(friend.outstandingAmount)}</strong>
                     </span>
-                  </div>
+                    <OpenTile />
+                  </Link>
                 ))}
+                </div>
                 {summary.totalAssignedFriendCount > friendBalances.length ? (
                   <Link className="text-link" href="/app/friends">
                     View all friends <span aria-hidden="true">→</span>
@@ -101,9 +106,10 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
                 <p>No expenses or repayments yet.</p>
               </div>
             ) : (
-              activity.map((item) => (
+              <div data-motion="list">
+              {activity.map((item) => (
                 <Link
-                  className="activity-row"
+                  className="activity-row vnext-row personal-vnext-row"
                   href={item.kind === "Expense" ? `/app/expenses/${item.id}` : `/app/repayments/${item.id}`}
                   key={`${item.kind}-${item.id}`}
                 >
@@ -116,8 +122,10 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
                     <strong>{formatRupiah(item.amount)}</strong>
                     <LocalDateTime iso={item.date.toISOString()} mode="date" />
                   </span>
+                  <OpenTile />
                 </Link>
-              ))
+              ))}
+              </div>
             )}
           </section>
         </div>
@@ -126,11 +134,12 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
             <h2 id="personal-workspace-heading">Your workspace</h2>
             <span className="technical-label">Personal tools</span>
           </div>
-          <div className="personal-destinations__grid">
+          <div className="personal-destinations__grid" data-motion="list">
             {destinations.map(([label, href, description]) => (
-              <Link className="personal-destination" href={href} key={href}>
+              <Link className="personal-destination vnext-row personal-vnext-row" href={href} key={href}>
                 <strong>{label}</strong>
                 <span>{description}</span>
+                <OpenTile />
               </Link>
             ))}
           </div>
@@ -143,7 +152,7 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
             </Link>
           </div>
           {groups.length ? (
-            <div className="group-grid">
+            <div className="group-grid" data-motion="list">
               {groups.map((group) => (
                 <GroupCard group={group} key={group.id} />
               ))}
@@ -166,6 +175,7 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
           title="New group"
           description="Create a peer-to-peer shared-expense space. You become its Owner."
           triggerId="group-create"
+          className="personal-task-panel"
         >
           <GroupForm action={createGroupAction} />
         </TaskPanel>

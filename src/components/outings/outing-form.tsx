@@ -6,6 +6,7 @@ import type { OutingActionState } from "@/app/app/outings/actions";
 import type { OutingInputValues } from "@/domain/outing-input";
 import { SearchableCombobox, type SearchableOption, type SearchableOptionAction } from "@/components/records/searchable-combobox";
 import { TaskPanelFooter } from "@/components/app/task-panel";
+import { useFocusFirstInvalid } from "@/components/records/use-focus-first-invalid";
 
 type OutingAction = (previousState: OutingActionState, formData: FormData) => Promise<OutingActionState>;
 
@@ -31,14 +32,14 @@ function localValueFromUtc(utc: string) {
 function SubmitButton({ mode }: { mode: "create" | "edit" }) {
   const { pending } = useFormStatus();
   return (
-    <button className="action-link action-link--primary outing-form__submit" type="submit" disabled={pending} aria-busy={pending}>
+    <button className="action-link action-link--primary outing-form__submit vnext-button vnext-button--primary personal-vnext__primary-action" type="submit" disabled={pending} aria-busy={pending}>
       {pending ? (mode === "create" ? "Adding outing…" : "Saving changes…") : mode === "create" ? "Add outing" : "Save changes"}
     </button>
   );
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
-  return <p className="outing-form__field-error" id={id}>{message || "\u00a0"}</p>;
+  return <p className="outing-form__field-error personal-vnext__field-error" id={id} aria-live={message ? "polite" : undefined}>{message || "\u00a0"}</p>;
 }
 
 function OutingOptionalDetails({ state, detailsRef, open, selectedTripId, trips, searchTrips, onTripChange }: {
@@ -50,15 +51,15 @@ function OutingOptionalDetails({ state, detailsRef, open, selectedTripId, trips,
   searchTrips: SearchableOptionAction;
   onTripChange: (trip: SearchableOption) => void;
 }) {
-  return <details ref={detailsRef} open={open || undefined} className="outing-form__disclosure">
-    <summary>Optional details</summary>
-    <div className="outing-form__field">
-      <label id="outing-trip-label" htmlFor="outing-trip">Trip</label>
+  return <details ref={detailsRef} open={open || undefined} className="outing-form__disclosure personal-vnext__responsive-disclosure">
+    <summary className="personal-vnext__disclosure-trigger">Optional details</summary>
+    <div className="outing-form__field personal-vnext__field">
+      <label className="personal-vnext__label" id="outing-trip-label" htmlFor="outing-trip">Trip</label>
       <SearchableCombobox id="outing-trip" name="tripId" value={selectedTripId} options={trips} search={searchTrips} searchLabel="Search trips" placeholder="No trip" labelId="outing-trip-label" ariaInvalid={Boolean(state.fieldErrors.tripId)} ariaDescribedBy="outing-trip-error" onValueChange={onTripChange} />
       <FieldError id="outing-trip-error" message={state.fieldErrors.tripId} />
     </div>
-    <div className="outing-form__field">
-      <label htmlFor="outing-notes">Notes</label>
+    <div className="outing-form__field personal-vnext__field">
+      <label className="personal-vnext__label" htmlFor="outing-notes">Notes</label>
       <textarea id="outing-notes" name="notes" defaultValue={state.values.notes} aria-invalid={Boolean(state.fieldErrors.notes)} aria-describedby="outing-notes-error" rows={5} />
       <FieldError id="outing-notes-error" message={state.fieldErrors.notes} />
     </div>
@@ -76,6 +77,7 @@ export function OutingForm({ action, initialValues = emptyValues, initialOccurre
   const previousActionStateRef = useRef(state);
   const contextualTrip = mode === "create" && Boolean(initialValues.tripId);
   const detailsDisclosureOpen = (mode === "edit" && Boolean(state.values.tripId || state.values.notes)) || Boolean(state.values.notes || state.fieldErrors.tripId || state.fieldErrors.notes);
+  useFocusFirstInvalid(formRef, state.fieldErrors);
 
   useEffect(() => {
     const offset = new Date().getTimezoneOffset().toString();
@@ -114,26 +116,27 @@ export function OutingForm({ action, initialValues = emptyValues, initialOccurre
   return (
     <form
       ref={formRef}
-      className="outing-form"
+      className="outing-form personal-vnext__form personal-vnext__motion-reveal"
       action={formAction}
       noValidate
       onSubmit={setCurrentTimezoneOffset}
+      data-motion="enter"
     >
-      <div className="outing-form__field">
-        <label htmlFor="outing-title">Title</label>
-        <input id="outing-title" name="title" defaultValue={state.values.title} aria-invalid={Boolean(state.fieldErrors.title)} aria-describedby="outing-title-error" autoComplete="off" />
+      <div className="outing-form__field personal-vnext__field">
+        <label className="personal-vnext__label" htmlFor="outing-title">Title</label>
+        <input className="personal-vnext__control" id="outing-title" name="title" defaultValue={state.values.title} aria-invalid={Boolean(state.fieldErrors.title)} aria-describedby="outing-title-error" autoComplete="off" />
         <FieldError id="outing-title-error" message={state.fieldErrors.title} />
       </div>
-      <div className="outing-form__field">
-        <label htmlFor="outing-occurred-at">Date and time</label>
-        <input id="outing-occurred-at" name="occurredAtLocal" type="datetime-local" defaultValue={state.values.occurredAtLocal} aria-invalid={Boolean(state.fieldErrors.occurredAtLocal)} aria-describedby="outing-occurred-at-error" />
+      <div className="outing-form__field personal-vnext__field">
+        <label className="personal-vnext__label" htmlFor="outing-occurred-at">Date and time</label>
+        <input className="personal-vnext__control" id="outing-occurred-at" name="occurredAtLocal" type="datetime-local" defaultValue={state.values.occurredAtLocal} aria-invalid={Boolean(state.fieldErrors.occurredAtLocal)} aria-describedby="outing-occurred-at-error" />
       <FieldError id="outing-occurred-at-error" message={state.fieldErrors.occurredAtLocal} />
       </div>
       <input ref={timezoneOffsetRef} type="hidden" name="timezoneOffsetMinutes" defaultValue={state.values.timezoneOffsetMinutes} />
-      {contextualTrip ? <div className="outing-form__trip-context" aria-label="Selected Trip">
+      {contextualTrip ? <div className="outing-form__trip-context personal-vnext__context" aria-label="Selected Trip">
         <span className="technical-label">TRIP</span>
         <strong className="outing-form__trip-context-name">{selectedTripId ? selectedTrip?.label ?? trips.find((trip) => trip.id === selectedTripId)?.label ?? "Selected trip" : "No trip"}</strong>
-        <button className="outing-form__trip-context-change" type="button" onClick={() => detailsDisclosureRef.current?.setAttribute("open", "")}>Change</button>
+        <button className="outing-form__trip-context-change vnext-button vnext-button--secondary" type="button" onClick={() => detailsDisclosureRef.current?.setAttribute("open", "")}>Change</button>
       </div> : null}
       <OutingOptionalDetails
         state={state}
@@ -144,8 +147,8 @@ export function OutingForm({ action, initialValues = emptyValues, initialOccurre
         searchTrips={searchTrips}
         onTripChange={(trip) => { setSelectedTripId(trip.id); setSelectedTrip(trip); }}
       />
-      <p className="outing-form__message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
-      <TaskPanelFooter className="outing-form__actions">
+      <p className="outing-form__message personal-vnext__form-message" role={state.formError ? "alert" : undefined} aria-live="polite">{state.formError || "\u00a0"}</p>
+      <TaskPanelFooter className="outing-form__actions personal-vnext__form-actions">
         <SubmitButton mode={mode} />
       </TaskPanelFooter>
     </form>
