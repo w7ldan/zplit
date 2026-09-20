@@ -1,5 +1,5 @@
-import { Sora } from "next/font/google";
 import { requireSession } from "@/auth/require-session";
+import { zplitVNextFont } from "@/app/fonts";
 import { getDatabase } from "@/db/client";
 import { formatSignedRupiah } from "@/domain/budgeting/amounts";
 import type { BudgetOverviewSnapshot } from "@/domain/budgeting/types";
@@ -13,28 +13,17 @@ import { OrganizationAvatar } from "@/components/organizations/organization-avat
 import { SafeDaily } from "@/components/budgeting/safe-daily";
 import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { LocalDateTime, SourceCalendarDate } from "@/components/editorial/local-date-time";
-import { AnimatedMoney } from "@/components/overview/animated-money";
+import { AnimatedMoney } from "@/components/vnext/animated-money";
+import { OpenTile as VNextOpenTile } from "@/components/vnext/open-tile";
 import { OverviewLink } from "@/components/overview/overview-link";
 import { OverviewReveal } from "@/components/overview/overview-reveal";
 import { OverviewRunway } from "@/components/overview/overview-runway";
-
-const sora = Sora({
-  subsets: ["latin"],
-  weight: ["500", "600", "800"],
-  display: "swap",
-});
 
 export const metadata = { title: "Overview" };
 export const dynamic = "force-dynamic";
 
 function OpenTile() {
-  return (
-    <span className="overview-open-tile" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" focusable="false">
-        <path d="M5 19 19 5m0 0H9m10 0v10" />
-      </svg>
-    </span>
-  );
+  return <VNextOpenTile className="overview-open-tile" />;
 }
 
 function OverviewMoney({ amount, label, className, signed = false, animate = true }: { amount: number; label: string; className?: string; signed?: boolean; animate?: boolean }) {
@@ -343,7 +332,7 @@ export default async function AppPage() {
   const displayedNeedsAttention = needsAttention.items.slice(0, 3);
 
   return (
-    <section className={`app-page overview-page ${sora.className}`} id="top" style={sora.style}>
+    <section className={`app-page zplit-vnext overview-page ${zplitVNextFont.variable}`} id="top">
       <div className="overview-page__layout">
         <header className="overview-header">
           <h1>Overview</h1>

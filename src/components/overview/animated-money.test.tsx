@@ -14,6 +14,12 @@ describe("AnimatedMoney", () => {
     expect(screen.getByLabelText(`Still owed: ${formatRupiah(2450000)}`)).not.toHaveAttribute("aria-live");
   });
 
+  it("keeps the static formatted value in the layout contract", () => {
+    const { container } = render(<AnimatedMoney amount={2450000} animate={false} />);
+
+    expect(container.querySelector(".animated-money__static")).toHaveTextContent(formatRupiah(2450000));
+  });
+
   it("updates the final readable value when the amount changes", () => {
     const view = render(<AnimatedMoney amount={350000} />);
 

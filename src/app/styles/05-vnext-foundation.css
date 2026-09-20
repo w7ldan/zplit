@@ -1,0 +1,230 @@
+.zplit-vnext :focus-visible {
+  outline-color: var(--vnext-focus-ring);
+}
+
+.app-page.zplit-vnext {
+  background: var(--vnext-canvas);
+  color: var(--vnext-text);
+}
+
+.zplit-vnext .vnext-surface {
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-major);
+  background: var(--vnext-surface);
+}
+
+.zplit-vnext .vnext-surface--strong {
+  background: var(--vnext-surface-strong);
+}
+
+.zplit-vnext .vnext-surface--warm {
+  background: var(--vnext-surface-warm);
+}
+
+.zplit-vnext .vnext-button {
+  display: inline-flex;
+  min-block-size: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.9rem;
+  border: 1px solid var(--vnext-accent-strong);
+  border-radius: var(--vnext-radius-button);
+  color: var(--vnext-text);
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--vnext-motion-fast) var(--vnext-ease-product), border-color var(--vnext-motion-fast) var(--vnext-ease-product), color var(--vnext-motion-fast) var(--vnext-ease-product), transform var(--vnext-motion-press) var(--vnext-ease-product);
+}
+
+.zplit-vnext .vnext-button--primary {
+  background: var(--vnext-accent-strong);
+  color: var(--vnext-text-on-accent);
+}
+
+.zplit-vnext .vnext-button--secondary {
+  border-color: var(--vnext-rule);
+  background: var(--vnext-surface);
+}
+
+.zplit-vnext .vnext-button:hover,
+.zplit-vnext .vnext-button:focus-visible {
+  background: var(--vnext-accent);
+  border-color: var(--vnext-accent);
+  color: var(--vnext-text-on-accent);
+}
+
+.zplit-vnext .vnext-button:active {
+  transform: scale(0.985);
+}
+
+.zplit-vnext .vnext-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.zplit-vnext .vnext-row {
+  display: grid;
+  min-block-size: 3.5rem;
+  min-inline-size: 0;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-block-start: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-row);
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--vnext-motion-fast) var(--vnext-ease-product), transform var(--vnext-motion-press) var(--vnext-ease-product);
+}
+
+.zplit-vnext .vnext-row:hover,
+.zplit-vnext .vnext-row:focus-visible {
+  background: var(--vnext-accent-wash);
+}
+
+.zplit-vnext .vnext-row:active {
+  transform: scale(0.995);
+}
+
+.zplit-vnext .vnext-link {
+  position: relative;
+  color: var(--vnext-link);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.zplit-vnext .vnext-link::after {
+  position: absolute;
+  right: 0;
+  bottom: -0.15em;
+  left: 0;
+  height: 1px;
+  background: currentColor;
+  content: "";
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--vnext-motion-fast) var(--vnext-ease-product);
+}
+
+.zplit-vnext .vnext-link:hover::after,
+.zplit-vnext .vnext-link:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+.zplit-vnext .vnext-open-tile {
+  display: inline-grid;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: var(--vnext-radius-control);
+  flex: 0 0 auto;
+  transition: background-color var(--vnext-motion-fast) var(--vnext-ease-product), color var(--vnext-motion-fast) var(--vnext-ease-product), transform var(--vnext-motion-fast) var(--vnext-ease-emphasized);
+}
+
+.zplit-vnext .vnext-open-tile svg {
+  inline-size: 0.85rem;
+  block-size: 0.85rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  transition: transform var(--vnext-motion-fast) var(--vnext-ease-emphasized);
+}
+
+.zplit-vnext .vnext-money,
+.zplit-vnext .animated-money {
+  display: inline-block;
+  position: relative;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+  line-height: 1.1;
+  max-inline-size: none;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.zplit-vnext .animated-money__static {
+  display: inline-block;
+}
+
+.zplit-vnext .animated-money[data-animating="true"] .animated-money__static {
+  visibility: hidden;
+}
+
+.zplit-vnext .animated-money__visual {
+  position: absolute;
+  inset: 0 auto auto 0;
+  display: inline-flex;
+  align-items: baseline;
+  max-inline-size: none;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.zplit-vnext .animated-money[data-animating="true"] .animated-money__visual {
+  visibility: visible;
+}
+
+.zplit-vnext .animated-money__character {
+  display: inline-block;
+  flex: 0 0 auto;
+  white-space: pre;
+}
+
+.zplit-vnext .animated-money__separator {
+  min-inline-size: 0.35em;
+  text-align: center;
+}
+
+.zplit-vnext .animated-money__digit {
+  display: inline-block;
+  inline-size: 1ch;
+  block-size: 1.1em;
+  flex: 0 0 1ch;
+  overflow: hidden;
+  vertical-align: baseline;
+}
+
+.zplit-vnext .animated-money__reel {
+  display: flex;
+  inline-size: 1ch;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.zplit-vnext .animated-money[data-animating="true"] .animated-money__reel {
+  will-change: transform;
+}
+
+.zplit-vnext .animated-money__reel-digit {
+  display: block;
+  inline-size: 1ch;
+  block-size: 1.1em;
+  flex: 0 0 1.1em;
+  line-height: 1.1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zplit-vnext .vnext-button,
+  .zplit-vnext .vnext-row,
+  .zplit-vnext .vnext-link::after,
+  .zplit-vnext .vnext-open-tile,
+  .zplit-vnext .vnext-open-tile svg {
+    transition: none;
+  }
+}
+
+.zplit-vnext .animated-money[data-tone="primary"] {
+  color: var(--vnext-link);
+}
+
+.zplit-vnext .animated-money[data-tone="debt"] {
+  color: var(--vnext-debt);
+}
+
+.zplit-vnext .animated-money[data-tone="settled"] {
+  color: var(--vnext-settled);
+}

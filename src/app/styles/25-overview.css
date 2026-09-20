@@ -1,24 +1,24 @@
 .overview-page {
-  --overview-canvas: #F3F7F9;
-  --overview-paper: #FFFFFF;
-  --overview-warm: #FAF7F1;
-  --overview-ink: #0F1216;
-  --overview-ink-soft: #53606B;
-  --overview-ink-quiet: #78828B;
-  --overview-rule: #D8E2E8;
-  --overview-blue: #72C5F5;
-  --overview-blue-strong: #239FDF;
-  --overview-blue-deep: #0879B8;
-  --overview-blue-pale: #DAF1FC;
-  --overview-blue-wash: #EBF8FE;
-  --overview-debt: #D24B35;
-  --overview-debt-wash: #FCEDE8;
-  --overview-settled: #4E7460;
-  --overview-settled-wash: #EDF5F0;
+  --overview-canvas: var(--vnext-canvas);
+  --overview-paper: var(--vnext-paper);
+  --overview-warm: var(--vnext-surface-warm);
+  --overview-ink: var(--vnext-text);
+  --overview-ink-soft: var(--vnext-text-soft);
+  --overview-ink-quiet: var(--vnext-text-quiet);
+  --overview-rule: var(--vnext-rule);
+  --overview-blue: var(--vnext-accent);
+  --overview-blue-strong: var(--vnext-accent-strong);
+  --overview-blue-deep: var(--vnext-link);
+  --overview-blue-pale: var(--vnext-accent-pale);
+  --overview-blue-wash: var(--vnext-accent-wash);
+  --overview-debt: var(--vnext-debt);
+  --overview-debt-wash: var(--vnext-debt-wash);
+  --overview-settled: var(--vnext-settled);
+  --overview-settled-wash: var(--vnext-settled-wash);
   min-height: calc(100svh - var(--authenticated-header-height));
   background: var(--overview-canvas);
   color: var(--overview-ink);
-  font-family: Sora, Arial, sans-serif;
+  font-family: var(--font-zplit-vnext), var(--font-body);
   font-weight: 500;
 }
 
@@ -71,7 +71,7 @@
 .overview-action--primary {
   border-color: var(--overview-blue-strong);
   background: var(--overview-blue-strong);
-  color: var(--overview-paper);
+  color: var(--vnext-text-on-accent);
 }
 
 .overview-action--secondary {
@@ -81,9 +81,9 @@
 
 .overview-action:hover,
 .overview-action:focus-visible {
-  background: var(--overview-blue-deep);
-  border-color: var(--overview-blue-deep);
-  color: var(--overview-paper);
+  background: var(--overview-blue-strong);
+  border-color: var(--overview-blue-strong);
+  color: var(--vnext-text-on-accent);
   transform: translate(calc(var(--overview-pointer-x, 0) * 2px), calc(var(--overview-pointer-y, 0) * 2px));
 }
 
@@ -93,7 +93,6 @@
 
 .overview-module {
   min-width: 0;
-  overflow: hidden;
   border: 1px solid var(--overview-rule);
   border-radius: 20px;
   background: var(--overview-paper);
@@ -132,35 +131,33 @@
   vertical-align: 0.1em;
 }
 
-.animated-money,
-.overview-money {
+.overview-page .animated-money,
+.overview-page .overview-money {
   display: inline-block;
-  max-inline-size: 100%;
   font-variant-numeric: tabular-nums;
   letter-spacing: normal;
   line-height: 1.1;
   white-space: nowrap;
 }
 
-.animated-money__visual {
+.overview-page .animated-money__visual {
   display: inline-flex;
-  max-inline-size: 100%;
   align-items: baseline;
   white-space: nowrap;
 }
 
-.animated-money__character {
+.overview-page .animated-money__character {
   display: inline-block;
   flex: 0 0 auto;
   white-space: pre;
 }
 
-.animated-money__separator {
+.overview-page .animated-money__separator {
   min-inline-size: 0.35em;
   text-align: center;
 }
 
-.animated-money__digit {
+.overview-page .animated-money__digit {
   display: inline-block;
   flex: 0 0 1ch;
   inline-size: 1ch;
@@ -169,15 +166,14 @@
   vertical-align: baseline;
 }
 
-.animated-money__reel {
+.overview-page .animated-money__reel {
   display: flex;
   flex-direction: column;
   inline-size: 1ch;
   line-height: 1.1;
-  will-change: transform;
 }
 
-.animated-money__reel-digit {
+.overview-page .animated-money__reel-digit {
   display: block;
   flex: 0 0 1.1em;
   inline-size: 1ch;
@@ -185,7 +181,7 @@
   line-height: 1.1;
 }
 
-.animated-money__accessible {
+.overview-page .animated-money__accessible {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -275,9 +271,9 @@
 .overview-row:focus-visible .overview-open-tile,
 .overview-workspace-row:hover .overview-open-tile,
 .overview-workspace-row:focus-visible .overview-open-tile {
-  border-color: var(--overview-blue-deep);
-  background: var(--overview-blue-deep);
-  color: var(--overview-paper);
+  border-color: var(--overview-blue-strong);
+  background: var(--overview-blue-strong);
+  color: var(--vnext-text-on-accent);
   transform: translate(calc(var(--overview-pointer-x, 0) * 2px), calc(var(--overview-pointer-y, 0) * 2px));
 }
 

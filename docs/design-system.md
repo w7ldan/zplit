@@ -1,1379 +1,228 @@
-# Zplit Design System
+# Zplit design system vNext
 
-This is the authoritative visual and interaction reference for Zplit.
+Zplit vNext is the page-agnostic UI foundation for future route migrations. It is chunky, clean, playful, tactile, compact, bold, highly interactive, and motion-rich. It should feel unmistakably Zplit without turning every route into the Overview.
 
-It governs:
+This document is canonical for new UI and migrated UI. It defines semantic roles and interaction contracts; page-specific composition remains owned by the route.
 
-- visual identity;
-- information hierarchy;
-- layout and density;
-- component grammar;
-- responsive behavior;
-- interaction design;
-- accessibility;
-- motion;
-- feedback;
-- and CSS ownership.
+## Product character
 
-Product, accounting, authorization, durable-identity, and workspace-lifecycle semantics remain governed by `docs/collaboration-architecture.md`.
+The personality comes from Sora typography, oversized financial values, strong blue, rounded geometry, asymmetric composition, semantic split layouts, compact alignment, surface contrast, and responsive motion.
 
-The two documents are complementary:
+It does not come from gradients, shadows, glass, blobs, purple, random accents, excessive icons, fake insights, fake system status, or generic dashboard card grids.
 
-- `docs/collaboration-architecture.md` defines what the product means.
-- `docs/design-system.md` defines how that meaning is presented and interacted with.
+The current header is frozen. Do not redesign, partially migrate, or restyle it as part of a route migration.
 
-Unless a section is explicitly marked as future direction, it describes either:
+## Compatibility boundary
 
-1. an enduring Zplit design principle; or
-2. a current implementation contract.
+The existing global stylesheet and legacy tokens remain active for unmigrated UI. vNext is opt-in at a page-content root:
 
-A current implementation contract documents the present source but is not a permanent design constant. During an intentional redesign, exact dimensions, breakpoints, timings, or component arrangements may change when the new result better satisfies the principles in this document.
-
----
-
-## 1. Design philosophy
-
-Zplit is a financial coordination product, not a generic dashboard.
-
-Its interface should feel:
-
-- clean;
-- modern;
-- editorial;
-- practical;
-- understated;
-- precise;
-- information-dense where useful;
-- calm rather than decorative;
-- and trustworthy around financial state.
-
-Public surfaces may be more expressive.
-
-Authenticated product surfaces should be quieter, denser, more deliberate, and more task-focused.
-
-Both share the same visual identity without requiring the same composition or amount of motion.
-
-The interface should make financial relationships easy to understand without turning every fact into a card, badge, graph, or animated widget.
-
----
-
-## 2. Authenticated UI decision rule
-
-When multiple treatments solve the same problem, prefer the one with less visual machinery.
-
-Do not introduce a card, badge, icon, disclosure, animation, color role, container, modal, status chip, or decorative surface merely to make an area feel more designed.
-
-Add structure only when it clarifies:
-
-- hierarchy;
-- grouping;
-- state;
-- action;
-- navigation;
-- identity;
-- or financial meaning.
-
-Before inventing a new UI pattern, check whether an existing Zplit row, card, form, disclosure, dialog, task panel, list, or selection pattern already expresses the same relationship.
-
-A UI rehaul should improve coherence, hierarchy, ergonomics, and visual quality, not increase the amount of interface chrome.
-
----
-
-## 3. Visual identity
-
-Zplit's visual language is built from:
-
-- warm paper and surface roles;
-- light/dark parity;
-- restrained pastel-blue accent;
-- strong neutral ink;
-- thin borders and rules;
-- confident typography;
-- clear financial hierarchy;
-- restrained soft geometry;
-- deliberate negative space;
-- and low visual noise.
-
-The current semantic color roles are:
-
-- `--paper`
-- `--surface`
-- `--ink`
-- `--muted-ink`
-- `--rule`
-- `--pastel-blue`
-- `--mint`
-- `--peach`
-- `--amber`
-- `--error`
-
-Dark mode remaps semantic roles rather than creating a separate visual language.
-
-Financial meaning must never depend on color alone.
-
-### Current light palette
-
-| Role | Value | Typical use |
-| --- | --- | --- |
-| Ink | `#111315` | primary text, strong rules |
-| Paper | `#F4F1EA` | page background |
-| Surface | `#FFFEFA` | focused working surfaces |
-| Pastel blue | `#C7E4F6` | primary action, selection, active navigation |
-| Muted ink | `#62676B` | metadata, secondary copy |
-| Rule | `#C8C7C1` | dividers and boundaries |
-| Mint / peach / amber | restrained pale tones | contextual state |
-| Error | `#B42318` | validation/invariant failure with explicit wording |
-
-These exact values are current implementation contracts.
-
-A redesign may refine them while preserving:
-
-- warm-neutral foundation;
-- restrained blue accent;
-- adequate contrast;
-- light/dark parity;
-- and semantic color usage.
-
-Do not introduce:
-
-- generic SaaS blue everywhere;
-- glassmorphism;
-- gradient blobs;
-- glowing surfaces;
-- heavy shadows;
-- decorative 3D;
-- neon status colors;
-- giant colored cards;
-- fake analytics;
-- or unnecessary visual effects.
-
----
-
-## 4. Typography
-
-Use strong typographic hierarchy before adding containers.
-
-The current dependency-free stack is:
-
-`Arial, "Helvetica Neue", Helvetica, sans-serif`
-
-A UI rehaul may refine the typographic system, including choosing a different appropriate font stack if implementation constraints allow it.
-
-The result should remain:
-
-- highly readable;
-- neutral rather than trendy;
-- compact enough for financial data;
-- visually strong at headings;
-- and suitable for long-lived product UI.
-
-Use tabular numerals for rupiah values, dates, and other comparable numeric information where alignment improves comprehension.
-
-Authenticated headings, labels, controls, and actions normally use sentence case.
-
-Compact uppercase may be used for technical or contextual labels where the established visual grammar benefits from it.
-
-Avoid:
-
-- excessive all-caps;
-- giant marketing typography inside authenticated workflows;
-- overusing font weights;
-- or making every secondary label visually prominent.
-
----
-
-## 5. Public vs authenticated expression
-
-### Public
-
-The public experience may use:
-
-- larger typography;
-- stronger editorial composition;
-- more negative space;
-- more expressive motion;
-- scenario-driven product demonstration.
-
-The product UI remains the illustration.
-
-Public examples must remain clearly illustrative and truthful.
-
-### Authenticated
-
-Authenticated Zplit prioritizes:
-
-- task completion;
-- financial comprehension;
-- information locality;
-- compact navigation;
-- predictable interaction.
-
-It should not resemble a marketing page embedded inside the app.
-
-Authenticated pages may still be visually sophisticated, but sophistication should come from:
-
-- composition;
-- hierarchy;
-- typography;
-- alignment;
-- proportion;
-- and interaction quality;
-
-rather than decorative effects.
-
----
-
-## 6. Public landing and motion storytelling
-
-The public homepage is an editorial financial interface choreographed as an
-interactive motion piece. Public scenes may be more expressive than the
-authenticated product, but the product UI remains the illustration and every
-example must stay faithful to Zplit's actual accounting and collaboration
-semantics.
-
-Durable public storytelling contracts are:
-
-- Use a macro / meso / micro motion hierarchy. Macro motion directs the
-  narrative through pinned scenes and handoffs; meso motion exposes product
-  relationships and state; micro motion acknowledges pointer, focus, and
-  selection.
-- Treat scroll as scene progress when the composition has a meaningful state
-  sequence. A pinned scene must derive its state from current scroll progress,
-  remain reversible, and release naturally when the story resolves.
-- Prefer visual handoffs: an expense, participant, rule, or product surface
-  should layout-wise become part of the next idea where the relationship is
-  meaningful. Avoid a page rhythm of unrelated fade-ins.
-- Animate product state rather than screenshots. Expense amounts, explicit
-  shares, repayments, balances, scope, Chat context, receipts, search, and
-  read-only sharing may move when the motion makes their relationship clearer.
-- Pointer response is local and restrained. Use bounded parallax, proximity,
-  selection, magnetic actions, or related-record emphasis only where it gives
-  identity, causality, affordance, or delight. It must never be required to
-  understand the page.
-- Keep public motion client-side and scene-owned. Shared motion concerns such
-  as media queries, reduced motion, pointer input, refresh, and cleanup have a
-  clear owner. Authenticated routes must not import landing-only motion code.
-- Native scrolling, keyboard navigation, touch interaction, and anchor links
-  remain intact. Scroll smoothing is not a default requirement.
-
-On narrow screens, mobile may use shorter pinned distances, fewer simultaneous
-objects, and vertical compositions. Under `prefers-reduced-motion: reduce`,
-long scrub choreography, parallax, magnetic movement, and large spatial
-translations collapse into stable vertical scenes with the same content and
-usable controls.
-
-Public examples are illustrative, but financial direction, record ownership,
-share semantics, settlement behavior, permissions, Chat, receipts, Search,
-Inbox, history, and private sharing must not imply unsupported automation or
-capabilities. Public motion must remain keyboard-operable, reduced-motion-safe,
-and understandable without animation.
-
----
-
-## 7. Layout philosophy
-
-Zplit uses deliberate alignment rather than arbitrary containers.
-
-Primary principles:
-
-- related content shares alignment lines;
-- financial values remain easy to compare;
-- actions stay visually attached to the records they affect;
-- dense information is allowed when its hierarchy remains clear;
-- responsive layouts recompose instead of merely shrinking;
-- negative space separates meaning rather than inflating the interface.
-
-Avoid card-inside-card-inside-dashboard-section structures when rules, spacing, and typography can express the hierarchy more clearly.
-
----
-
-## 8. Current authenticated canvas
-
-The authenticated application uses one fluid working canvas with responsive
-horizontal space and an ultrawide ceiling:
-
-```css
---authenticated-canvas-gutter: clamp(2rem, 5vw, 5rem);
---authenticated-canvas-max-width: 118rem;
-width: min(
-  calc(100% - var(--authenticated-canvas-gutter)),
-  var(--authenticated-canvas-max-width)
-);
+```tsx
+<section className={`zplit-vnext ${zplitVNextFont.variable}`}>
+</section>
 ```
 
-The gutter is about `1rem` per side on mobile and scales to about `2.5rem`
-per side on desktop. The normal authenticated header uses the same canvas so
-its navigation and utility actions share the page alignment.
+Use `zplitVNextFont` from `src/app/fonts.ts`. The vNext scope owns its typography and semantic aliases; it must not be applied to `html`, `body`, `.app-shell`, or a header node.
 
-The detached header remains an intentional compact surface, capped at `72rem`;
-it is not widened automatically when the attached application canvas widens.
+The existing header continues to own its current typography, geometry, navigation, responsive behavior, sticky/detached behavior, animation, and interactions. Do not change the legacy root font or color variables while the header remains frozen.
 
-This is a current implementation contract, not a permanent maximum. Do not
-introduce multiple arbitrary page-width systems or compensate for the canvas
-with page-specific width hacks.
+The Overview is the current proving ground. Its layout, `--overview-*` aliases, runway presentation, choreography, and exact module ratios are not global requirements.
 
-The wide application canvas is not a requirement that every child stretch
-indefinitely. Prose, forms, settings editors, repayment editors, receipt and
-payment previews, dialogs, destructive explanations, and Chat conversation
-content keep intentional local reading or interaction bounds.
+## Typography
 
-### Chat workspace
+Sora is canonical for migrated UI. Use these approximate roles:
 
-Group Chat and Organization General use the shared `ChatPanel` surface. Its
-conversation workspace is centered and bounded at `72rem` while individual
-messages remain independently readable at `44rem` or less. The history owns
-scrolling and uses the available viewport height; the composer remains a
-full-workspace continuation of that surface with a thin rule between reading
-and composing.
+- `500`: metadata and secondary information.
+- `600`: rows, controls, and actions.
+- `800`: headings, financial values, major emphasis, and future wordmarks where appropriate.
 
-Messages keep other participants left-aligned and the current user
-right-aligned without relying on color alone. Sender identity and timestamps
-anchor each message group, grouped messages tighten their internal rhythm, and
-edited, deleted, action, and Seen-by states remain available as quiet metadata
-below the message content. Grouped messages do not repeat visible avatars, and
-the current user does not need a redundant avatar when alignment already
-establishes authorship.
+New UI must not default to Inter, Geist, Manrope, or serif. The current header typography is intentionally excluded from this rule until its separate migration.
 
----
+### Financial values
 
-## 9. Grid and alignment
+Financial values use Sora ExtraBold or the equivalent `800` weight, tabular numerals, normal or carefully measured tracking, and responsive sizing. Never use aggressive negative tracking.
 
-Public/editorial desktop layouts use a 12-column grid, reducing to four
-columns on mobile. The public canvas may extend to an ultrawide ceiling for
-product compositions while readable copy keeps an intentional local measure.
-The current public canvas ceiling is `118rem`; this is a public
-implementation contract and not a requirement that every child stretch to the
-viewport edge.
+Static formatted money is the layout authority. It must render with stable `Rp` alignment and separator widths before any enhancement runs. It must never overlap, clip, or depend on `overflow: hidden` to fit.
 
-Authenticated layouts do not need to visibly expose the same grid, but page headers, tools, summaries, records, metadata, financial values, and actions should feel aligned to shared structural lines.
+`AnimatedMoney` is an optional enhancement for prominent values. Its static value reserves the layout and its rolling digits settle exactly to that value. Do not globally animate tiny ledger amounts.
 
-Preserve baseline alignment where it helps users compare:
+## Semantic palette
 
-- amounts;
-- dates;
-- statuses;
-- people;
-- and related records.
+Tokens are owned by `src/app/styles/00-foundation.css` and are scoped beneath `.zplit-vnext`. Their implementation names use the `--vnext-*` namespace so legacy descendants inside a partially migrated route do not accidentally consume vNext aliases. Shared interaction contracts are in `src/app/styles/05-vnext-foundation.css`. Use semantic roles rather than page-specific color names.
 
-Do not let every component invent its own horizontal padding.
+The core roles are `--vnext-canvas`, `--vnext-paper`, `--vnext-surface`, `--vnext-surface-strong`, `--vnext-surface-warm`, `--vnext-text`, `--vnext-text-soft`, `--vnext-text-quiet`, `--vnext-rule`, `--vnext-accent`, `--vnext-accent-strong`, `--vnext-accent-deep`, `--vnext-link`, `--vnext-debt`, and `--vnext-settled`, with corresponding pale and wash roles.
 
----
+### Light theme
 
-## 10. Vertical rhythm
+| Role | Value |
+| --- | --- |
+| Canvas | `#F3F7F9` |
+| Paper | `#FFFFFF` |
+| Surface | `#FFFFFF` |
+| Surface strong | `#F3F7F9` |
+| Warm surface | `#FAF7F1` |
+| Text | `#0F1216` |
+| Text soft | `#53606B` |
+| Text quiet | `#78828B` |
+| Rule | `#D8E2E8` |
+| Accent | `#72C5F5` |
+| Accent strong | `#239FDF` |
+| Accent deep | `#0879B8` |
+| Link | `#006B9A` |
+| Accent pale | `#DAF1FC` |
+| Accent wash | `#EBF8FE` |
+| Debt | `#D24B35` |
+| Debt wash | `#FCEDE8` |
+| Settled | `#4E7460` |
+| Settled wash | `#EDF5F0` |
 
-Spacing communicates hierarchy.
+### Dark theme
 
-The current implementation commonly uses relationships such as:
+The dark canvas is exactly `#171816`. This value must not change.
 
-- about `1.5rem` between compact app sections;
-- about `2rem` where a stronger contextual break is needed;
-- larger `3–5rem` gaps only for meaningful page-level transitions;
-- roughly `0.35rem` label-to-control spacing;
-- roughly `0.9rem` between ordinary form fields;
-- compact row padding around `0.85–1rem`;
-- deliberate card-grid gaps around `0.75rem`;
-- about `2rem` breathing room after card groups before a new major context.
+| Role | Value |
+| --- | --- |
+| Canvas | `#171816` |
+| Paper | `#1D1E1C` |
+| Surface | `#20211F` |
+| Surface strong | `#252623` |
+| Warm surface | `#211F1B` |
+| Text | `#F3F4F1` |
+| Text soft | `#B4B9B2` |
+| Text quiet | `#878D86` |
+| Rule | `#6A726A` |
+| Accent | `#72C5F5` |
+| Accent strong | `#239FDF` |
+| Accent deep | `#0879B8` |
+| Link | `#72C5F5` |
+| Accent pale | `#1C3440` |
+| Accent wash | `#192A32` |
+| Debt | `#F0806C` |
+| Debt wash | `#35231F` |
+| Settled | `#8DB49B` |
+| Settled wash | `#202D25` |
 
-These values are references, not immutable tokens.
+Dark mode is the same product, not an inverted aesthetic. The dark rule is slightly lighter than the initial target so it remains a usable boundary when it is the sole non-text control or surface signal. Use surface, surface-strong, warm surface, borders, and spacing to communicate hierarchy. Color supports semantic meaning but never replaces words. Debt and settled washes are backgrounds, not the only state signal.
 
-A redesign may establish a cleaner spacing scale.
+## Geometry and surfaces
 
-The enduring rules are:
+The canonical radius scale is:
 
-- related things stay visually close;
-- unrelated things get meaningful separation;
-- record density stays practical;
-- financial pages do not become vertically bloated.
+- control: `8px`;
+- button: `10px`;
+- row: `12px`;
+- module: `16px`;
+- major surface: `20px`;
+- overlay: `24px`.
 
-Avoid random one-off spacing values.
+Use rounded geometry without pillifying everything. Do not use slash-cut corners, diagonal notches, or arbitrary clipped shapes.
 
----
+Surfaces communicate through fill, border, radius, spacing, layout, and typography. Shadows are not part of the vNext default language. Do not add `box-shadow`, `drop-shadow`, glow, offset backing plates, glass blur, or decorative gradients. A future exception requires an explicit design decision.
 
-## 11. Responsive design
+## Layout
 
-Desktop, tablet, and mobile are different compositions, not scaled copies.
+Prefer asymmetric composition, meaningful wide/narrow splits, compact vertical rhythm, strong alignment, responsive recomposition, large values where they matter, and fewer stronger surfaces.
 
-Requirements:
+Do not default to three equal KPI cards, four equal cards, uniform dashboard tiles, card-inside-card-inside-card, or equal columns without semantic reason. Page layouts remain free to express the route’s domain.
 
-- no horizontal overflow;
-- no clipped controls;
-- no clipped focus rings;
-- important actions must not depend on hover;
-- touch targets remain usable;
-- financial labels, amounts, and dates retain hierarchy;
-- cards and grids collapse intentionally;
-- record rows stack in a meaningful reading order;
-- long names, labels, and identifiers remain usable.
+Dense financial pages should use structured headings, grouped rows, dividers, compact financial alignment, full-row navigation, and responsive row transformations. Do not force dense ledgers into oversized cards.
 
-Current shell behavior includes:
+## Shared interaction contracts
 
-- full authenticated navigation at approximately `1200px+`;
-- mobile navigation below it;
-- public/shared desktop header composition around `1024px+`.
+The shared contracts live in `src/app/styles/05-vnext-foundation.css`. They are opt-in and page-agnostic.
 
-These breakpoints are current implementation contracts.
+### Navigable rows
 
-A rehaul may replace them with better breakpoints based on actual component pressure rather than device categories.
+The entire row is one hit target. Use one semantic link or button as the row root:
 
----
+- desktop hover and pointer response apply across the row;
+- mobile uses a full-row tap target with a practical touch height;
+- keyboard users receive exactly one logical focus target;
+- row feedback uses fill, border, and a small press compression without requiring precision clicking.
 
-## 12. Navigation and information architecture
+### Open Tile
 
-The current authenticated top-level navigation is:
+`OpenTile` is the visual cue: an arrow-up-right inside a compact rounded square. The containing row or link is the actual control. The tile is `aria-hidden`, must not be separately tabbable, and must not have its own click handler.
 
-- Overview
-- Personal
-- Organizations
+Allowed feedback includes tile fill, arrow translation, and a tightly damped return.
 
-Groups live under Personal rather than becoming a fourth top-level product area.
+### Text links
 
-Header utility actions prioritize:
+Section navigation such as “View all”, “History”, “Open Personal”, and “Set up” uses text and `600` weight with a restrained animated underline or directional treatment. Do not require a chevron or arrow on every link.
 
-- Inbox
-- Search
-- Account
+### Buttons
 
-The account menu contains secondary account destinations and theme controls.
+Buttons use tactile feedback through fill interpolation, local pointer response where genuinely useful, label translation, press compression, tight spring-like return, and crisp focus. No shadow is required.
 
-Navigation styling should clearly distinguish:
+### Forms
 
-- current location;
-- utility actions;
-- hierarchy;
-- and secondary destinations;
+Future migrated forms inherit strong labels, rounded controls, compact grouping, excellent focus, clear validation, tactile controls, animated state changes, and strong primary actions. Avoid floating-label gimmicks, excessive helper prose, and unnecessary nested cards.
 
-without excessive pills or colored navigation blocks.
+### Status UI
 
-Semantic parent navigation should describe logical hierarchy rather than browser history.
+Descriptive state is not decorative chrome. Prefer normal metadata or text for “Active”, “Current”, “Admin”, “Member”, “Settled”, “Synced”, “Live”, “Healthy”, permissions, and recency. Examples include `Admin · 18 members`, `Settled`, and `Pending confirmation`.
 
-Prefer:
+Pills remain valid for genuinely interactive filters, segmented choices, selections, and appropriate toggles. Do not add decorative status dots for online, active, synced, settled, permission, health, or recency states unless a future feature truly requires that signal.
 
-- `← Friends`
-- `← Groups`
-- `← Organizations`
+## Financial semantics
 
-over an opaque Back action when a meaningful parent exists.
+UI styling must preserve domain distinctions. Never silently net separate concepts, invent global totals across unrelated domains, or use color as a replacement for words.
 
----
+Use clear labels such as:
 
-## 13. Geometry
+```text
+You owe
+Rp250,000
 
-Zplit uses restrained soft geometry.
+Owed to you
+Rp480,000
+```
 
-Current foundation radii include approximately:
+No design-system change may alter financial logic, permissions, lifecycle semantics, or authoritative state transitions.
 
-- `6px`
-- `10px`
-- `16px`
-- `20px`
+## Motion
 
-Current roles include:
+Motion is part of Zplit’s product identity. Authenticated UI is no longer defined by a restrained or low-motion philosophy, but motion must remain purposeful and settle when untouched.
 
-- `--radius-control`
-- `--radius-md`
-- `--radius-panel`
+Use three scales:
 
-Exact token naming should remain synchronized with source.
+- macro: page headings, primary surfaces, major values, supporting sections, and lists;
+- meso: section reveals, views, disclosure, progress/runway, insertion/removal, dialogs/sheets, and state transitions;
+- micro: hover, focus, press, selection, pointer proximity, route intent, and value change.
 
-General principle:
+Do not make every element use the same generic fade-up. Page-specific choreography owns sequence, stagger, and semantic emphasis. Shared CSS owns durations, easing, focus, press, hover, and reduced-motion contracts. Small React helpers own browser preference, lifecycle-sensitive motion, and stable money rendering. GSAP remains isolated to the public editorial experience.
 
-- ordinary controls: restrained radius;
-- entity cards: restrained structural radius;
-- focused panels/dialogs: slightly larger radius;
-- pills only where pill semantics are genuinely appropriate.
+Use the existing vNext timings as the baseline: `100ms` press, `160ms` fast interaction, `220ms` state, `300ms` layout, `360ms` dialog/sheet, and `640ms` reveal. Prefer transforms, opacity, color, border, and deliberate clip reveals over layout-property animation.
 
-Rounded does not mean bubbly.
+Avoid global pointer listeners, React state updates on every pointer frame, continuous idle loops, random 3D, and rubbery cartoon motion. When untouched, the interface should mostly settle and idle CPU usage should remain low.
 
-Avoid:
+### Reduced motion
 
-- giant corner radii;
-- every element becoming a capsule;
-- arbitrary mixtures of square and heavily rounded surfaces.
+`prefers-reduced-motion: reduce` is mandatory. Remove or reduce rolling digits, major translations, parallax, magnetic effects, spring overshoot, and long choreography. Preserve all information and functionality. Browser-driven animations must cancel and settle when the preference changes at runtime.
 
-A rehaul may refine the radius scale while preserving structural restraint.
+### Lists and overlays
 
----
+React owns list presence and stable keys. CSS owns ordinary opacity and transform transitions. Exiting content remains mounted until its exit completes, with a bounded fallback. FLIP is a local solution for a genuinely complex reorder, not a global manager.
 
-## 14. Controls
+Dialogs and sheets use opaque solid surfaces, clear hierarchy, compact spacing, strong action placement, appropriate focus management, and quick translate/clip/scale motion. Desktop panels may enter from the side; mobile sheets may enter from the bottom. No glass or shadow dependency.
 
-Controls should feel deliberate, stable, and compact.
+### Empty states and progress
 
-Current authenticated inputs, selects, textareas, and common actions use approximately a `44px` minimum interaction height.
+Keep empty states compact: a clear heading, one useful sentence when needed, a clear action, and appearance motion. Do not fill space with meaningless illustration.
 
-Public primary actions may be larger.
+Progress and runway components must expose the correct semantic meter or progress information. Visual treatments such as crosshairs, seams, and pointers remain page-specific.
 
-### Primary controls
+## Migration order
 
-Clear, bordered or surface-backed controls used for direct task completion.
+Migrate incrementally:
 
-### Row actions
+1. Foundation and scoped tokens.
+2. Shared primitives and interaction contracts.
+3. Personal.
+4. Budget.
+5. Groups.
+6. Organizations.
+7. Settings, Inbox, and remaining authenticated pages.
+8. Public and auth surfaces if desired.
+9. Header last and separately.
 
-Compact text or icon actions visually attached to their record.
-
-### Destructive and lifecycle actions
-
-Explicitly worded and visually distinguishable without turning the whole section into a red warning panel.
-
-### Focused task surfaces
-
-Use stronger containment only when a user must concentrate on one temporary task.
-
-Do not introduce a new control family when an established one already expresses the action.
-
----
-
-## 15. Financial record grammar
-
-Financial records are:
-
-- compact;
-- rule-led;
-- information-dense;
-- hierarchical.
-
-Typical hierarchy:
-
-1. primary identity or title;
-2. financial amount or state;
-3. metadata;
-4. date or context;
-5. row-local actions.
-
-Friends, Outings, Expenses, Repayments, Group financial history, and settlement history should prioritize comparability.
-
-Ledger records are not generic rounded cards.
-
-Use:
-
-- alignment;
-- typography;
-- rules;
-- spacing;
-
-before card containment.
-
-On mobile, recompose into a clear vertical hierarchy rather than shrinking desktop columns until they become unreadable.
-
----
-
-## 16. Entity and workspace cards
-
-Cards are appropriate for browsing durable entities such as:
-
-- Groups;
-- Organizations;
-- major workspaces.
-
-They should not replace dense financial rows.
-
-Current card grammar is approximately:
-
-`[avatar] [details]`
-
-with:
-
-- thin border;
-- surface background;
-- restrained radius;
-- about `1rem` internal padding;
-- compact minimum height;
-- low visual elevation;
-- strong hover/focus border rather than heavy shadow.
-
-Wide screens currently target a multi-column grid, often four columns where space permits.
-
-A rehaul may change the exact grid.
-
-Card content should remain selective.
-
-### Group cards
-
-May include:
-
-- role;
-- participant count;
-- concise personal balance state.
-
-Examples:
-
-- You owe
-- Owed to you
-- Settled up
-
-### Organization cards
-
-May include:
-
-- role;
-- member count;
-- one concise ledger state where authorized.
-
-Do not turn entity cards into mini dashboards.
-
----
-
-## 17. Archived workspace presentation
-
-The domain determines whether a workspace may be deleted, archived, restored, or otherwise mutated.
-
-The design system governs presentation only.
-
-Presentation rules:
-
-- archived workspaces move out of normal active browsing;
-- they remain visually recognizable as the same entity;
-- show a compact Archived state;
-- avoid red/error treatment because archive is a lifecycle state, not a failure;
-- ordinary new-activity and management controls should not appear active when the canonical read model says they are unavailable;
-- authorized Restore remains clear and discoverable.
-
-Do not create a visually separate “dead workspace” design language.
-
-Financial and historical content should remain easy to inspect.
-
----
-
-## 18. Forms and progressive disclosure
-
-Large optional forms may remain collapsed until needed.
-
-Progressive disclosure is useful when it reduces visual density without hiding information the user must constantly compare.
-
-Good candidates include:
-
-- optional create-time fields;
-- destination editing;
-- charges;
-- advanced details;
-- secondary mobile filters.
-
-Do not hide controls merely to make a page appear minimalist.
-
-Financial review information should remain directly visible when hiding it would obstruct comprehension.
-
-For mutually exclusive editors:
-
-- opening one may close the competing editor;
-- Cancel should restore focus to the action that opened the editor where appropriate;
-- validation failures should preserve values, disclosure state, and actionable context.
-
-Dense financial disclosures should normally open immediately rather than gain decorative animation.
-
----
-
-## 19. Destructive and lifecycle presentation
-
-Destructive and lifecycle controls must reflect canonical domain state provided by the server.
-
-Presentation requirements:
-
-- permanent deletion uses an explicit confirmation surface;
-- the exact entity being affected is named;
-- consequence wording is concise and accurate;
-- Cancel and Confirm remain clearly distinct;
-- pending state prevents duplicate submission;
-- when the domain exposes Archive instead of Delete, Archive becomes the appropriate lifecycle action;
-- archived state uses restrained status treatment;
-- Restore appears only where the canonical authorization/read model permits it.
-
-The rules determining deletion eligibility, financial-history preservation, archive legality, restore legality, and financial completion belong to `docs/collaboration-architecture.md`.
-
-The design system must not redefine those semantics.
-
----
-
-## 20. Searchable selection
-
-The searchable combobox interaction contract is strict:
-
-- selected ID = submitted value;
-- selected label = display only;
-- search text = temporary query state.
-
-Arbitrary search text must never become the selected or submitted value.
-
-Preserve:
-
-- native `<select>` progressive fallback;
-- keyboard operation;
-- pointer selection;
-- focus restoration;
-- loading state;
-- empty state;
-- error state;
-- grouping where needed;
-- disabled and required semantics;
-- viewport-safe popup placement.
-
-Current implementation:
-
-- debounce: approximately `120ms`;
-- maximum results: approximately `20`;
-- stale requests cannot overwrite newer results.
-
-These are current component contracts rather than universal visual principles.
-
-The popup should visually originate from its trigger.
-
-Current motion is approximately:
-
-- `3px` directional travel;
-- `scale(.99)`;
-- fast timing.
-
-Use `top center` transform origin when opening below and `bottom center` when opening above.
-
-A redesign may refine the exact values while preserving subtle trigger continuity and reduced-motion safety.
-
----
-
-## 21. Dialogs and temporary surfaces
-
-Temporary surfaces must clearly belong to the action that opened them.
-
-Examples:
-
-- confirmation dialogs;
-- receipt previews;
-- payment-proof previews;
-- focused task panels;
-- searchable popovers.
-
-Requirements:
-
-- viewport-safe;
-- keyboard dismissible where appropriate;
-- visible close or cancel path;
-- focus managed correctly;
-- focus restored on close;
-- background interaction controlled where modal;
-- no unnecessary layout shift;
-- mobile-safe.
-
-Receipt and payment-proof previews should:
-
-- fit inside `100dvh`;
-- preserve image aspect ratio;
-- keep actions reachable;
-- contain oversized content in their own scrolling region;
-- avoid page-level overflow traps.
-
-Task panels may become bottom sheets on narrow or mobile screens when that composition improves usability.
-
-Do not turn ordinary inline editing into a modal without a meaningful reason.
-
----
-
-## 22. Feedback
-
-Feedback confirms meaningful action.
-
-It should not narrate obvious state.
-
-Success feedback should be:
-
-- concise;
-- transient when appropriate;
-- presented once.
-
-Errors should:
-
-- remain visible long enough to act on;
-- identify what failed;
-- provide a useful recovery path where one exists.
-
-Avoid showing a success toast, success banner, and success text for the same event unless there is a concrete reason.
-
----
-
-## 23. Inbox and realtime presentation
-
-Inbox is an authenticated attention surface.
-
-It should remain:
-
-- compact;
-- subordinate to primary product navigation;
-- clear about actionability;
-- restrained in unread presentation.
-
-Realtime transport itself is invisible.
-
-Do not visually narrate:
-
-- SSE reconnects;
-- transport state;
-- receipt churn;
-- low-level database events.
-
-Realtime changes should refresh canonical state and surface only meaningful user-facing consequences.
-
----
-
-## 24. Toasts
-
-Current toast behavior includes:
-
-- bounded visible count;
-- transient default lifetime;
-- pause while hovered or focused;
-- pause while associated action is pending;
-- movement without page-layout shift.
-
-The current implementation shows no more than roughly two visible toasts.
-
-That is a current component contract and may be refined during a redesign.
-
-Preserve the larger principle:
-
-Toasts are brief, actionable when needed, non-spammy, and never the primary home of important information.
-
----
-
-## 25. Reorder interactions
-
-Simple reorder interactions should remain simple.
-
-The repayment-destination list is the current reference:
-
-- explicit drag handle;
-- row itself not unnecessarily draggable;
-- keyboard or non-drag fallback;
-- restrained target feedback;
-- optimistic update only when rollback is reliable.
-
-Feedback may use:
-
-- opacity;
-- target rule;
-- position indicator.
-
-Avoid physics or spring animation unless the interaction genuinely benefits from it.
-
-Do not add a dependency-heavy drag system for a basic ordered list.
-
----
-
-## 26. Motion philosophy
-
-Motion is purposeful and restrained.
-
-It exists to explain:
-
-- state;
-- origin;
-- continuity;
-- relationship.
-
-It is not a reward layer.
-
-Authenticated Zplit should not animate simply because animation is available.
-
-### Frequent interactions
-
-Frequent financial and task interactions should feel effectively instant.
-
-Avoid motion on:
-
-- ledger values;
-- routine record insertion;
-- chat-message insertion;
-- global-search results;
-- mobile filters;
-- repayment-allocation rows;
-- frequent dense disclosures.
-
-### Occasional contextual surfaces
-
-Occasional menus, dialogs, previews, and popovers may use subtle spatial continuity.
-
-Prefer opacity plus no more than about `4px` translation.
-
-Scale is reserved for trigger-anchored surfaces where it improves physical origin.
-
-Keep scale extremely subtle.
-
----
-
-## 27. Current motion tokens
-
-Current foundation timings:
-
-| Token | Value | Typical role |
-| --- | ---: | --- |
-| `--motion-press` | `100ms` | press / very short feedback |
-| `--motion-fast` | `160ms` | menus and popovers |
-| `--motion-state` | `220ms` | dialogs, previews, state |
-| `--motion-layout` | `300ms` | deliberate layout change |
-| `--motion-panel` | `360ms` | larger task panel |
-| `--motion-reveal` | `640ms` | public/editorial reveal |
-
-Current easing roles:
-
-- `--ease-product`
-- `--ease-emphasized`
-- `--ease-standard`
-
-These are current implementation contracts.
-
-A redesign may refine them as a coordinated motion scale, not as isolated component tweaks.
-
----
-
-## 28. Motion behavior
-
-Entry and exit should be interruptible where practical.
-
-Avoid independent entry and exit keyframes when interruption can produce a visual jump.
-
-Prefer retargetable CSS transitions where component lifecycle permits it.
-
-Current examples include:
-
-### Account menu
-
-Fast anchored opacity and approximately `-3px` entry.
-
-Native `<details>` close may remain immediate when implementing animated close would add disproportionate lifecycle complexity.
-
-### Searchable combobox
-
-Fast trigger-anchored transition with:
-
-- approximately `3px` travel;
-- `scale(.99)`;
-- placement-aware transform origin.
-
-### Receipt preview
-
-Retargetable overlay and surface transition with transition-aware exit cleanup.
-
-### Confirmation dialog
-
-Opacity plus up to roughly `4px` vertical travel.
-
-### Public motion scenes
-
-May use expressive editorial motion within the public motion-scene contract:
-scene-owned scrubbed timelines, local pointer response, and stable handoffs.
-
----
-
-## 29. Reduced motion
-
-Under `prefers-reduced-motion: reduce`, remove:
-
-- translation;
-- scaling;
-- staged movement;
-- clipping travel;
-- animated scrolling;
-- decorative animation.
-
-State must remain immediately understandable.
-
-Acceptable:
-
-- immediate color change;
-- immediate background change;
-- immediate border or focus state.
-
-Do not add opacity fades merely to make reduced-motion mode prettier.
-
-Do not delay unmount or close only to preserve an animation that has been removed.
-
-Reduced-motion mode must retain:
-
-- keyboard operation;
-- focus behavior;
-- full content access;
-- scene comprehension.
-
----
-
-## 30. Iconography
-
-Icons are subordinate to typography and financial hierarchy.
-
-Use:
-
-- restrained geometry;
-- consistent stroke;
-- consistent optical size;
-- established Zplit-compatible forms.
-
-Do not mix arbitrary icon families.
-
-Avoid decorative icons where text alone communicates the action more clearly.
-
-Unread and attention treatment should remain compact rather than becoming a decorative status system.
-
----
-
-## 31. Identity visuals and avatars
-
-Avatar and identity visuals may be used where they improve orientation.
-
-The current system includes deterministic defaults for:
-
-- user;
-- Group;
-- Organization identity.
-
-Defaults should remain:
-
-- geometric or editorial;
-- recognizable at small sizes;
-- compatible with light and dark themes;
-- visually consistent with the product palette.
-
-Avoid:
-
-- generic person silhouettes;
-- colored-initial circles as the default identity system;
-- emoji avatars as product defaults;
-- external avatar-service art.
-
-Custom avatar media may be displayed where configured.
-
-Identity visuals remain subordinate to:
-
-- name;
-- role;
-- financial meaning.
-
-Zplit should not become an avatar-heavy social interface.
-
----
-
-## 32. Accessibility
-
-Use native semantics first.
-
-Prefer real:
-
-- links;
-- buttons;
-- inputs;
-- selects;
-- headings;
-- lists;
-- disclosures;
-- dialogs;
-
-where they express the interaction correctly.
-
-Use ARIA only where native semantics do not provide the necessary state or relationship.
-
-Requirements:
-
-- full keyboard operation;
-- visible focus;
-- useful accessible names;
-- associated validation and error text;
-- non-color-only state;
-- drag interactions have non-drag alternatives;
-- modal surfaces manage focus;
-- temporary surfaces remain dismissible;
-- reduced motion is respected.
-
-Financial meaning must remain understandable without:
-
-- motion;
-- color;
-- hover;
-- pointer-only interaction.
-
-Realtime updates must avoid disruptive announcement spam.
-
----
-
-## 33. CSS ownership
-
-`src/app/globals.css` is the root stylesheet manifest.
-
-Current semantic ownership:
-
-### `00-foundation`
-
-Owns:
-
-- semantic tokens;
-- browser baseline;
-- document defaults;
-- shared primitives;
-- shared controls;
-- radius roles;
-- motion timing;
-- easing roles.
-
-### `10-public`
-
-Owns:
-
-- public shell;
-- public navigation;
-- landing composition;
-- access presentation;
-- informational and public surfaces.
-
-### `20-authenticated-shell`
-
-Owns:
-
-- authenticated shell;
-- app navigation;
-- page scaffolding;
-- workspace and entity browsing;
-- account-menu presentation;
-- authenticated layout rules.
-
-### `30-records-and-forms`
-
-Owns:
-
-- financial record rows;
-- detail views;
-- forms;
-- filters;
-- searchable selection;
-- confirmation dialogs;
-- progressive disclosure.
-
-### `40-motion-and-feedback`
-
-Owns:
-
-- shared feedback motion;
-- result and status surfaces;
-- task-panel behavior;
-- receipt-preview motion;
-- shared keyframes where genuinely shared.
-
-### `90-late-overrides`
-
-Owns only genuine late cascade overrides still required by source order.
-
-It is not a dumping ground.
-
-A UI rehaul may reorganize CSS ownership if the new structure is more coherent, but it must preserve explicit semantic ownership and predictable cascade order.
-
-Do not move rules between layers merely for cosmetic cleanup without checking cascade consequences.
-
----
-
-## 34. UI rehaul mandate
-
-An intentional Zplit UI rehaul may change:
-
-- exact canvas width;
-- typography;
-- spacing scale;
-- breakpoint values;
-- card composition;
-- navigation composition;
-- visual density;
-- color values;
-- component geometry;
-- motion timings;
-- CSS organization;
-
-provided the new system improves coherence and continues to satisfy the enduring principles in this document.
-
-The rehaul should prioritize:
-
-1. clearer financial hierarchy;
-2. stronger alignment;
-3. better responsive composition;
-4. reduced visual noise;
-5. more coherent component grammar;
-6. better information density;
-7. improved focus and interaction states;
-8. consistent light and dark treatment;
-9. accessible controls;
-10. restrained motion.
-
-The redesign should not be evaluated by how different it looks.
-
-It should be evaluated by whether Zplit becomes:
-
-- easier to scan;
-- easier to understand;
-- faster to operate;
-- more visually coherent;
-- more trustworthy;
-- more distinctive.
-
----
-
-## 35. Rehaul constraints
-
-During the UI rehaul, do not casually change:
-
-- product semantics;
-- accounting behavior;
-- authorization;
-- durable identity;
-- navigation information architecture;
-- data ownership;
-- lifecycle legality.
-
-Do not hide missing product logic behind presentation.
-
-Do not introduce fake:
-
-- numbers;
-- analytics;
-- status;
-- activity;
-- capability.
-
-Do not replace established working interaction patterns merely for novelty.
-
-Avoid redesigns based primarily on:
-
-- more cards;
-- more shadows;
-- more gradients;
-- more pills;
-- more animation;
-- more iconography.
-
-Prefer fewer, stronger patterns.
-
----
-
-## 36. Rehaul component strategy
-
-The rehaul should establish a small number of recognizable component families.
-
-Recommended grammar:
-
-- Page
-- Section
-- Record row
-- Entity card
-- Summary
-- Form
-- Disclosure
-- Search or select surface
-- Dialog or task surface
-- Feedback surface
-- Identity visual
-
-Do not create a different bespoke card or container grammar for every feature.
-
-Financial content should generally choose between:
-
-- record row;
-- summary;
-- focused detail;
-
-rather than generic cards.
-
-Workspace browsing may use entity cards.
-
-Temporary focused tasks may use dialogs or task panels.
-
----
-
-## 37. Rehaul review checklist
-
-A redesigned screen should be reviewed against the following.
-
-### Hierarchy
-
-- Is the most important financial or state information obvious?
-- Are primary and secondary actions clearly separated?
-- Is metadata subordinate?
-
-### Density
-
-- Is information compact without becoming cramped?
-- Are we adding vertical space without adding comprehension?
-
-### Alignment
-
-- Do related values line up?
-- Do actions visually belong to their records?
-- Are page sections using shared structural lines?
-
-### Components
-
-- Does this reuse an established Zplit pattern?
-- Did we invent a container, icon, or badge unnecessarily?
-
-### Responsive behavior
-
-- Does mobile intentionally recompose?
-- Is any important desktop relationship lost when stacked?
-
-### Accessibility
-
-- Keyboard?
-- Focus?
-- Touch?
-- Contrast?
-- Reduced motion?
-- Non-color state?
-
-### Motion
-
-- Does motion explain anything?
-- Is it interruptible where needed?
-- Is it subtle enough for financial UI?
-
-### Truthfulness
-
-- Does the UI accurately represent canonical product state?
-- Is any visual implying functionality that does not exist?
-
----
-
-## 38. Document authority
-
-`docs/design-system.md` governs presentation and interaction:
-
-- visual identity;
-- layout;
-- spacing;
-- geometry;
-- responsive design;
-- accessibility;
-- motion;
-- feedback;
-- component grammar;
-- CSS ownership.
-
-`docs/collaboration-architecture.md` governs product and domain semantics:
-
-- Personal vs Organization vs Group;
-- accounting;
-- permissions;
-- durable identity;
-- participants and memberships;
-- lifecycle legality;
-- realtime meaning;
-- financial-history rules.
-
-When both domains are relevant, implementation must follow both.
-
-If a new product requirement introduces a genuinely new UI family, extend this document intentionally instead of introducing an isolated visual language in source.
-
-### Public landing stepped motion contract
-
-The public landing may use a landing-specific ordered state list rather than
-free analog scroll. On desktop, wheel and keyboard input advance one meaningful
-state at a time; GSAP animates to an exact viewport anchor and releases the
-input lock after the transition. Scene composition, product-state animation,
-and small pointer responses remain separate macro, meso, and micro layers.
-
-Mobile uses a purpose-built vertical composition with native touch scrolling
-and section snapping. It must not inherit desktop pinning, fixed-width grids,
-or oversized transformed stages. Reduced motion removes the stepped controller
-and long choreography while keeping every illustrative state readable in normal
-document flow.
-
-Illustrative balances may count between documented scenario states through
-direct DOM animation, without React renders on every frame. Numeric motion must
-use tabular figures and retain a truthful, internally coherent financial story.
+Each route migration should opt into `.zplit-vnext`, preserve product and financial semantics, preserve the frozen header, and avoid importing page-specific Overview layout assumptions.

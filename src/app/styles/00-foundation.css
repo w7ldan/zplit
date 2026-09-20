@@ -61,6 +61,81 @@
   --shadow-panel: rgb(0 0 0 / 38%);
 }
 
+.zplit-vnext {
+  --vnext-canvas: #F3F7F9;
+  --vnext-paper: #FFFFFF;
+  --vnext-surface: #FFFFFF;
+  --vnext-surface-strong: #F3F7F9;
+  --vnext-surface-warm: #FAF7F1;
+  --vnext-text: #0F1216;
+  --vnext-text-soft: #53606B;
+  --vnext-text-quiet: #78828B;
+  --vnext-rule: #D8E2E8;
+  --vnext-accent: #72C5F5;
+  --vnext-accent-strong: #239FDF;
+  --vnext-accent-deep: #0879B8;
+  --vnext-link: #006B9A;
+  --vnext-accent-pale: #DAF1FC;
+  --vnext-accent-wash: #EBF8FE;
+  --vnext-text-on-accent: #0F1216;
+  --vnext-debt: #D24B35;
+  --vnext-debt-wash: #FCEDE8;
+  --vnext-settled: #4E7460;
+  --vnext-settled-wash: #EDF5F0;
+  --vnext-overlay-soft: rgb(15 18 22 / 35%);
+  --vnext-overlay: rgb(15 18 22 / 42%);
+  --vnext-overlay-heavy: rgb(15 18 22 / 72%);
+  --vnext-radius-control: 8px;
+  --vnext-radius-button: 10px;
+  --vnext-radius-row: 12px;
+  --vnext-radius-module: 16px;
+  --vnext-radius-major: 20px;
+  --vnext-radius-overlay: 24px;
+  --vnext-motion-press: 100ms;
+  --vnext-motion-fast: 160ms;
+  --vnext-motion-state: 220ms;
+  --vnext-motion-layout: 300ms;
+  --vnext-motion-dialog: 360ms;
+  --vnext-motion-reveal: 640ms;
+  --vnext-ease-product: cubic-bezier(.2,.8,.2,1);
+  --vnext-ease-emphasized: cubic-bezier(.22,1,.36,1);
+  --vnext-ease-standard: cubic-bezier(.4,0,.2,1);
+  --vnext-focus-ring: #0879B8;
+  background: var(--vnext-canvas);
+  color: var(--vnext-text);
+  color-scheme: light;
+  font-family: var(--font-zplit-vnext), var(--font-body);
+  font-weight: 500;
+}
+
+:root[data-theme="dark"] .zplit-vnext {
+  --vnext-canvas: #171816;
+  --vnext-paper: #1D1E1C;
+  --vnext-surface: #20211F;
+  --vnext-surface-strong: #252623;
+  --vnext-surface-warm: #211F1B;
+  --vnext-text: #F3F4F1;
+  --vnext-text-soft: #B4B9B2;
+  --vnext-text-quiet: #878D86;
+  --vnext-rule: #6A726A;
+  --vnext-accent: #72C5F5;
+  --vnext-accent-strong: #239FDF;
+  --vnext-accent-deep: #0879B8;
+  --vnext-link: #72C5F5;
+  --vnext-accent-pale: #1C3440;
+  --vnext-accent-wash: #192A32;
+  --vnext-text-on-accent: #171816;
+  --vnext-debt: #F0806C;
+  --vnext-debt-wash: #35231F;
+  --vnext-settled: #8DB49B;
+  --vnext-settled-wash: #202D25;
+  --vnext-overlay-soft: rgb(0 0 0 / 52%);
+  --vnext-overlay: rgb(0 0 0 / 58%);
+  --vnext-overlay-heavy: rgb(0 0 0 / 78%);
+  --vnext-focus-ring: #72C5F5;
+  color-scheme: dark;
+}
+
 /* Explicit Zplit browser baseline. */
 *,
 ::before,
