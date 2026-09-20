@@ -71,8 +71,10 @@ export function OverviewRunway({ remaining, totalBudget }: OverviewRunwayProps) 
       style={style}
       onPointerEnter={() => { boundsRef.current = runwayRef.current?.getBoundingClientRect() ?? null; }}
     >
-      <span className="overview-runway__track" aria-hidden="true"><span className="overview-runway__fill" /></span>
-      <span className="overview-runway__seam" aria-hidden="true" />
+      <span className="overview-runway__track" aria-hidden="true">
+        <span className="overview-runway__fill" />
+        <span className="overview-runway__seam" />
+      </span>
       <span className="overview-runway__pointer" aria-hidden="true">{Math.round(ratio * 100)}% remaining</span>
     </div>
   );

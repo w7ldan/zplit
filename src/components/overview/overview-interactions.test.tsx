@@ -20,6 +20,8 @@ describe("Overview interactions", () => {
 
     expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "75");
     expect(screen.getByRole("meter")).toHaveAttribute("aria-valuetext", "Rp 750.000 remaining of Rp 1.000.000");
+    const track = document.querySelector(".overview-runway__track");
+    expect(track?.querySelector(".overview-runway__seam")).toBeInTheDocument();
   });
 
   it("makes reduced-motion content visible without waiting for an observer", () => {

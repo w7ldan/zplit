@@ -23,7 +23,7 @@ describe("AnimatedMoney", () => {
     expect(screen.queryByText(formatRupiah(350000))).not.toBeInTheDocument();
   });
 
-  it("settles reels immediately when reduced motion is preferred", () => {
+  it("renders one readable value without digit reels when reduced motion is preferred", () => {
     const addEventListener = vi.fn();
     const removeEventListener = vi.fn();
     vi.stubGlobal("matchMedia", vi.fn(() => ({
@@ -34,11 +34,10 @@ describe("AnimatedMoney", () => {
       removeListener: vi.fn(),
     })));
 
-    const view = render(<AnimatedMoney amount={84000} />);
-    const reels = [...view.container.querySelectorAll<HTMLElement>("[data-money-reel]")];
+    const view = render(<AnimatedMoney amount={84000} animate />);
 
     expect(screen.getByText(formatRupiah(84000))).toBeInTheDocument();
-    expect(reels.at(-1)?.style.transform).toBe("translate3d(0, -0%, 0)");
+    expect(view.container.querySelectorAll("[data-money-reel]")).toHaveLength(0);
     expect(addEventListener).toHaveBeenCalledWith("change", expect.any(Function));
   });
 });

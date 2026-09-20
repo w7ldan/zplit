@@ -37,12 +37,18 @@ function OpenTile() {
   );
 }
 
-function SignedMoney({ amount, label, className }: { amount: number; label: string; className?: string }) {
-  return amount < 0 ? (
-    <span className={`overview-money overview-money--static${className ? ` ${className}` : ""}`} aria-label={`${label}: ${formatSignedRupiah(amount)}`}>
-      {formatSignedRupiah(amount)}
+function OverviewMoney({ amount, label, className, signed = false }: { amount: number; label: string; className?: string; signed?: boolean }) {
+  const formatted = signed ? formatSignedRupiah(amount) : formatRupiah(amount);
+  return (
+    <span className={`overview-money overview-money--static${className ? ` ${className}` : ""}`} aria-label={`${label}: ${formatted}`}>
+      {formatted}
     </span>
-  ) : <AnimatedMoney amount={amount} className={className} label={label} />;
+  );
+}
+
+function SignedMoney({ amount, label, className, animate = false }: { amount: number; label: string; className?: string; animate?: boolean }) {
+  if (amount < 0 || !animate) return <OverviewMoney amount={amount} className={className} label={label} signed />;
+  return <AnimatedMoney amount={amount} animate className={className} label={label} />;
 }
 
 function roleLabel(role: string) {
@@ -62,17 +68,17 @@ function PersonalHero({ summary }: { summary: LedgerOverviewSummary }) {
         <div className="overview-personal__body">
           <div className="overview-personal__primary">
             <span className="overview-eyebrow">Still owed to you</span>
-            <h2 id="personal-overview-heading"><AnimatedMoney amount={summary.totalOutstandingAmount} label="Still owed to you" /></h2>
+            <h2 id="personal-overview-heading"><AnimatedMoney amount={summary.totalOutstandingAmount} animate label="Still owed to you" /></h2>
           </div>
           <div className="overview-personal__supporting">
             <div>
               <span className="overview-eyebrow">Needs matching</span>
-              <AnimatedMoney amount={summary.totalUnallocatedRepaymentAmount} label="Needs matching" />
+              <OverviewMoney amount={summary.totalUnallocatedRepaymentAmount} label="Needs matching" />
               <small className="overview-personal__note">{summary.totalUnallocatedRepaymentAmount > 0 ? "Received money still needs an expense." : "All received money is applied to shares."}</small>
             </div>
             <div>
               <span className="overview-eyebrow">Total spending</span>
-              <AnimatedMoney amount={summary.totalExpenseAmount} label="Total spending" />
+              <OverviewMoney amount={summary.totalExpenseAmount} label="Total spending" />
             </div>
           </div>
         </div>
@@ -110,7 +116,7 @@ function MatchingSection({ items, totalItems }: { items: Array<{ id: string; fri
             <OverviewLink className="overview-row overview-row--matching" href={`/app/repayments/${repayment.id}#repayment-allocations`} key={repayment.id}>
               <span className="overview-row__main">
                 <strong>{repayment.friendName}</strong>
-                <small><AnimatedMoney amount={repayment.unallocatedAmount} label={`${repayment.friendName} unallocated amount`} /> needs allocation</small>
+                <small><OverviewMoney amount={repayment.unallocatedAmount} label={`${repayment.friendName} unallocated amount`} /> needs allocation</small>
               </span>
               <span className="overview-row__meta"><SourceCalendarDate canonicalDate={repayment.paidOn} timestamp={repayment.paidAt.toISOString()} /></span>
               <span className="overview-row__action">Match <OpenTile /></span>
@@ -148,7 +154,7 @@ function BudgetSection({ snapshot }: { snapshot: BudgetOverviewSnapshot }) {
             <div className="overview-budget__hero">
               <div className="overview-budget__remaining">
                 <span className="overview-eyebrow">{snapshot.period.name}</span>
-                <SignedMoney amount={snapshot.period.remaining} label="Budget remaining" />
+                <SignedMoney amount={snapshot.period.remaining} animate label="Budget remaining" />
                 <span className="overview-budget__dates">{formatCalendarDate(snapshot.period.startsOn)} – {formatCalendarDate(snapshot.period.endsOn)}</span>
               </div>
               <OverviewRunway remaining={snapshot.period.remaining} totalBudget={snapshot.period.totalBudget} />
@@ -160,7 +166,7 @@ function BudgetSection({ snapshot }: { snapshot: BudgetOverviewSnapshot }) {
               </div>
               <div>
                 <span className="overview-eyebrow">Budget</span>
-                <AnimatedMoney amount={snapshot.period.totalBudget} label="Total budget" />
+                <OverviewMoney amount={snapshot.period.totalBudget} label="Total budget" />
               </div>
               <div>
                 <span className="overview-eyebrow">Safe / day</span>
@@ -168,7 +174,7 @@ function BudgetSection({ snapshot }: { snapshot: BudgetOverviewSnapshot }) {
               </div>
               <div>
                 <span className="overview-eyebrow">{snapshot.recurring.dueCount} recurring</span>
-                <AnimatedMoney amount={snapshot.recurring.expectedAmount} label="Recurring expected amount" />
+                <OverviewMoney amount={snapshot.recurring.expectedAmount} label="Recurring expected amount" />
                 <small>expected</small>
               </div>
             </div>
@@ -205,7 +211,7 @@ function PeopleSection({ summary }: { summary: LedgerOverviewSummary }) {
           {summary.friendBalances.map((friend) => (
             <OverviewLink className="overview-row overview-row--person" href={`/app/friends/${friend.friendId}`} key={friend.friendId}>
               <span className="overview-row__main"><strong>{friend.name}</strong><small>Outstanding</small></span>
-              <AnimatedMoney amount={friend.outstandingAmount} label={`${friend.name} outstanding`} />
+              <OverviewMoney amount={friend.outstandingAmount} label={`${friend.name} outstanding`} />
               <OpenTile />
             </OverviewLink>
           ))}
@@ -236,7 +242,7 @@ function RecentSection({ activity }: { activity: Array<{ kind: "Expense" | "Repa
             <OverviewLink className="overview-row overview-row--recent" href={item.kind === "Expense" ? `/app/expenses/${item.id}` : `/app/repayments/${item.id}`} key={`${item.kind}-${item.id}`}>
               <span className="overview-row__type">{item.kind}</span>
               <span className="overview-row__main"><strong>{item.title}</strong><small>{item.detail}</small></span>
-              <span className="overview-row__meta"><AnimatedMoney amount={item.amount} label={`${item.title} amount`} /><LocalDateTime iso={item.date.toISOString()} mode="date" /></span>
+              <span className="overview-row__meta"><OverviewMoney amount={item.amount} label={`${item.title} amount`} /><LocalDateTime iso={item.date.toISOString()} mode="date" /></span>
               <OpenTile />
             </OverviewLink>
           ))}
@@ -271,8 +277,8 @@ function WorkspaceRows({ groups, organizations }: { groups: Awaited<ReturnType<t
                   <GroupAvatar groupId={group.id} customAvatar={group.avatar} size="md" decorative />
                   <span className="overview-workspace-row__identity"><strong>{group.name}</strong><small>{roleLabel(group.role)} · {group.participantCount} {group.participantCount === 1 ? "participant" : "participants"}</small></span>
                   <span className="overview-workspace-row__finance">
-                    {group.youOwe > 0 ? <span><small>You owe</small><AnimatedMoney amount={group.youOwe} label={`${group.name} you owe`} /></span> : null}
-                    {group.owedToYou > 0 ? <span><small>Owed to you</small><AnimatedMoney amount={group.owedToYou} label={`${group.name} owed to you`} /></span> : null}
+                    {group.youOwe > 0 ? <span><small>You owe</small><OverviewMoney amount={group.youOwe} label={`${group.name} you owe`} /></span> : null}
+                    {group.owedToYou > 0 ? <span><small>Owed to you</small><OverviewMoney amount={group.owedToYou} label={`${group.name} owed to you`} /></span> : null}
                     {group.youOwe === 0 && group.owedToYou === 0 ? <span>Settled</span> : null}
                   </span>
                   <OpenTile />
@@ -306,7 +312,7 @@ function WorkspaceRows({ groups, organizations }: { groups: Awaited<ReturnType<t
                       {organization.ledgerSummary.totalOutstandingAmount > 0 ? (
                         <span>
                           <small>Outstanding</small>
-                          <AnimatedMoney amount={organization.ledgerSummary.totalOutstandingAmount} label={`${organization.name} outstanding`} />
+                          <OverviewMoney amount={organization.ledgerSummary.totalOutstandingAmount} label={`${organization.name} outstanding`} />
                         </span>
                       ) : <span>Settled</span>}
                     </span>
