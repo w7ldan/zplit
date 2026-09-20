@@ -73,7 +73,7 @@ describe("repayment record", () => {
     expect(screen.getAllByText("Bank transfer")).not.toHaveLength(0);
     expect(screen.getByLabelText("Notes")).toHaveValue("Received in full");
     expect(document.querySelector(`time[datetime="${repayment.paidAt.toISOString()}"]`)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "← Repayments" })).toHaveAttribute("href", "/app/repayments");
+    expect(screen.getByRole("link", { name: "Repayments" })).toHaveAttribute("href", "/app/repayments");
     expect(screen.getByRole("combobox", { name: "Friend" })).toHaveTextContent(friend.name);
     expect(screen.getByText("Apply the received money")).toBeInTheDocument();
     expect(screen.queryByText("How this repayment adds up")).not.toBeInTheDocument();
@@ -112,7 +112,7 @@ describe("repayment record", () => {
 
     render(<ToastProvider>{await RepaymentRecordPage({ params: Promise.resolve({ repaymentId: repayment.id }), searchParams: Promise.resolve({ tripId: trip.id }) })}</ToastProvider>);
 
-    expect(screen.getByRole("link", { name: "← Back to Bandung" })).toHaveAttribute("href", `/app/trips/${trip.id}`);
+    expect(screen.getByRole("link", { name: "Bandung" })).toHaveAttribute("href", `/app/trips/${trip.id}`);
     expect(screen.getByText("transfer.png")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Replace payment proof" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Preview transfer.png" })).toBeInTheDocument();

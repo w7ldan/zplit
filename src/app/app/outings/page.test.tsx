@@ -34,7 +34,7 @@ describe("/app/outings", () => {
     expect(page).toHaveClass("zplit-vnext", "personal-vnext");
     expect(document.querySelector("header.zplit-vnext")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Outings" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "← Personal" })).toHaveAttribute("href", "/app/personal");
+    expect(screen.getByRole("link", { name: "Personal" })).toHaveAttribute("href", "/app/personal");
     expect(document.querySelector(".records-workspace")!).toContainElement(document.querySelector(".outings-trips-switch"));
     expect(document.querySelector(".records-workspace")!).toContainElement(document.querySelector(".live-record-filters"));
     expect(document.querySelector(".records-workspace")!).toContainElement(document.querySelector(".ledger-list"));

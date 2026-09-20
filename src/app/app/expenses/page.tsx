@@ -63,6 +63,13 @@ function ExpenseRecordList({ data, params }: { data: ExpensesPageData; params: A
   return (
     <div className="ledger-list expense-list personal-vnext__list personal-vnext__responsive-list" id="record-list" data-motion="list">
       <div className="ledger-list__heading expense-list__heading personal-vnext__list-heading personal-vnext__motion-reveal"><span className="technical-label" id="expense-records-heading">EXPENSE RECORDS</span><span className="technical-label">{expensePage.totalItems} entries</span></div>
+      <div className="personal-vnext__ledger-columns" aria-hidden="true">
+        <span>Expense</span>
+        <span>Outing</span>
+        <span>Date</span>
+        <span>Amount</span>
+        <span />
+      </div>
       {expensePage.items.length > 0 ? (
         groups.map((group) => (
           <section className="record-month-group expense-list__month personal-vnext__month-group personal-vnext__motion-stagger" aria-labelledby={`expense-month-${group.month}`} data-motion="list" key={group.month}>
@@ -151,7 +158,7 @@ function ExpensesPageContent({ data, params, budget }: { data: ExpensesPageData;
       <div className="editorial-shell app-page__layout personal-vnext__layout">
         <header className="app-page__header personal-vnext__hero personal-vnext__motion-reveal" data-motion="enter">
           <div>
-            <Link className="personal-parent-link vnext-link personal-vnext__parent-link" href="/app/personal">← Personal</Link>
+            <Link className="personal-parent-link vnext-link personal-vnext__parent-link" href="/app/personal">Personal</Link>
             <p className="technical-label">Expenses · money you paid</p>
             <h1>Expenses</h1>
             <p className="app-page__lede">Record shared spending and assign the amounts each friend owes.</p>

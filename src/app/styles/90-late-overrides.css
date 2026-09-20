@@ -2204,6 +2204,192 @@
   }
 }
 
+.personal-vnext .personal-vnext__ledger-columns {
+  display: none;
+}
+
+.personal-vnext .personal-vnext__upload-zone {
+  max-inline-size: none;
+  justify-items: center;
+  margin-block-start: 1.25rem;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  border: 0;
+  background: transparent;
+  text-align: center;
+}
+
+.personal-vnext .personal-vnext__upload-zone .expense-receipts__file-picker {
+  justify-content: center;
+}
+
+.personal-vnext .personal-vnext__upload-zone .expense-receipts__help,
+.personal-vnext .personal-vnext__upload-zone .expense-receipts__error {
+  max-inline-size: 42rem;
+}
+
+.personal-vnext .expense-receipts__empty {
+  margin-block: 1.25rem 0;
+  padding-block: 1.25rem;
+  color: var(--vnext-text-soft);
+  text-align: center;
+}
+
+.personal-vnext .expense-receipts__empty::before {
+  display: block;
+  width: 2rem;
+  height: 2.5rem;
+  margin: 0 auto 0.75rem;
+  border: 2px solid var(--vnext-link);
+  border-radius: var(--vnext-radius-control);
+  content: "";
+}
+
+@media (min-width: 901px) {
+  .personal-vnext .personal-vnext__ledger-columns {
+    display: grid;
+    align-items: end;
+    gap: 1.25rem;
+    padding: 0.65rem 1rem 0.45rem;
+    border-block: 1px solid var(--vnext-rule);
+    color: var(--vnext-text-quiet);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .personal-vnext .expenses-page .personal-vnext__ledger-columns,
+  .personal-vnext .expenses-page .expense-row.personal-vnext__record-row {
+    grid-template-columns: minmax(18rem, 2.2fr) minmax(12rem, 1.2fr) minmax(10rem, 1fr) max-content 2rem;
+  }
+
+  .personal-vnext .expenses-page .expense-row.personal-vnext__record-row {
+    display: grid;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .personal-vnext .expenses-page .expense-row__meta,
+  .personal-vnext .expenses-page .expense-row__context {
+    display: contents;
+  }
+
+  .personal-vnext .expenses-page .expense-row__outing {
+    grid-column: 2;
+  }
+
+  .personal-vnext .expenses-page .expense-row__date {
+    grid-column: 3;
+  }
+
+  .personal-vnext .expenses-page .expense-row__amount {
+    grid-column: 4;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .personal-vnext .expenses-page .expense-row__open-tile {
+    grid-column: 5;
+    justify-self: end;
+  }
+
+  .personal-vnext .outings-page .personal-vnext__ledger-columns,
+  .personal-vnext .outings-page .outing-row.personal-vnext__outing-row {
+    grid-template-columns: minmax(18rem, 1.8fr) minmax(9rem, 0.9fr) minmax(10rem, 1fr) minmax(14rem, 1.2fr) max-content;
+  }
+
+  .personal-vnext .outings-page .outing-row.personal-vnext__outing-row {
+    display: grid;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .personal-vnext .outings-page .outing-row__meta {
+    display: contents;
+  }
+
+  .personal-vnext .outings-page .outing-row__date {
+    grid-column: 2;
+  }
+
+  .personal-vnext .outings-page .outing-row__trip {
+    grid-column: 3;
+  }
+
+  .personal-vnext .outings-page .outing-row__expenses {
+    grid-column: 4;
+  }
+
+  .personal-vnext .outings-page .outing-row__actions {
+    grid-column: 5;
+  }
+
+  .personal-vnext .repayments-page .personal-vnext__ledger-columns,
+  .personal-vnext .repayments-page .repayment-row.personal-vnext__record-row {
+    grid-template-columns: minmax(18rem, 1.8fr) max-content minmax(9rem, 0.9fr) minmax(15rem, 1.4fr) 2rem;
+  }
+
+  .personal-vnext .repayments-page .repayment-row.personal-vnext__record-row {
+    display: grid;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .personal-vnext .repayments-page .repayment-row__meta {
+    display: contents;
+  }
+
+  .personal-vnext .repayments-page .repayment-row__received {
+    grid-column: 2;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .personal-vnext .repayments-page .repayment-row__date {
+    grid-column: 3;
+  }
+
+  .personal-vnext .repayments-page .repayment-row__allocation {
+    grid-column: 4;
+  }
+
+  .personal-vnext .repayments-page .repayment-row__open-tile {
+    grid-column: 5;
+    justify-self: end;
+  }
+
+  .personal-vnext .personal-vnext__detail-layout > .expense-record__tasks,
+  .personal-vnext .personal-vnext__detail-layout > .repayment-record__tasks {
+    grid-template-columns: minmax(0, 7fr) minmax(18rem, 5fr);
+    gap: clamp(1rem, 2.5vw, 2rem);
+  }
+
+  .personal-vnext .personal-vnext__responsive-split,
+  .personal-vnext .personal-vnext__responsive-detail {
+    grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr);
+    gap: clamp(1rem, 2.5vw, 2rem);
+  }
+
+  .personal-vnext .repayment-allocation-editor__row {
+    grid-template-columns: minmax(0, 1.7fr) minmax(14rem, 0.8fr);
+    gap: clamp(1rem, 2.5vw, 2rem);
+  }
+
+  .personal-vnext .friend-record__summary {
+    grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .personal-vnext .personal-vnext__upload-zone {
+    justify-items: stretch;
+  }
+
+  .personal-vnext .personal-vnext__upload-zone .expense-receipts__file-picker {
+    justify-content: start;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .personal-vnext .personal-vnext__motion-reveal,
   .personal-vnext .personal-vnext__motion-item,

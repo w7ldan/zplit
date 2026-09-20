@@ -86,7 +86,7 @@ export default async function ExpenseRecordPage({
         <header className="expense-record__intro personal-vnext__detail-intro personal-vnext__motion-reveal" data-motion="enter">
           <p className="technical-label">Expense · assign shares</p>
           <h1>{expense.description}</h1>
-          <Link className="expense-record__back vnext-link" href="/app/expenses">← Expenses</Link>
+          <Link className="expense-record__back vnext-link" href="/app/expenses">Expenses</Link>
         </header>
         {query?.created === "1" ? (
           <RecordConfirmation

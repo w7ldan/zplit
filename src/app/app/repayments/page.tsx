@@ -134,6 +134,13 @@ function RepaymentRecordList({ data }: { data: RepaymentsPageData }) {
   return (
     <div className="ledger-list repayment-list personal-vnext__list personal-vnext__responsive-list" id="record-list" data-motion="list">
       <div className="ledger-list__heading repayment-list__heading personal-vnext__list-heading personal-vnext__motion-reveal"><span className="technical-label" id="repayment-records-heading">REPAYMENT RECORDS</span><span className="technical-label">{repaymentPage.totalItems} entries</span></div>
+      <div className="personal-vnext__ledger-columns" aria-hidden="true">
+        <span>Friend / method</span>
+        <span>Received</span>
+        <span>Date</span>
+        <span>Applied / needs allocation</span>
+        <span />
+      </div>
       {repaymentPage.items.length > 0 ? (
         groups.map((group) => (
           <section className="record-month-group repayment-list__month personal-vnext__month-group personal-vnext__motion-stagger" key={group.month} aria-labelledby={`repayment-month-${group.month}`} data-motion="list">
@@ -237,7 +244,7 @@ function RepaymentsPageContent({ data }: { data: RepaymentsPageData }) {
       <div className="editorial-shell app-page__layout personal-vnext__layout">
         <header className="app-page__header personal-vnext__hero personal-vnext__motion-reveal">
           <div>
-            <Link className="personal-parent-link vnext-link personal-vnext__parent-link" href="/app/personal">← Personal</Link>
+            <Link className="personal-parent-link vnext-link personal-vnext__parent-link" href="/app/personal">Personal</Link>
             <p className="technical-label">Repayments · money returned</p>
             <h1>Repayments</h1>
             <p className="app-page__lede">Record money received and apply it to outstanding expense shares.</p>

@@ -115,7 +115,8 @@ export function RepaymentPaymentProof({ repaymentId, initialPaymentProof, basePa
         </div>
       </div>
       <ReadOnlyMessage canEdit={canEdit} message={readOnlyMessage} />
-      {canEdit ? <form className="expense-receipts__upload" onSubmit={upload}>
+      {!paymentProof ? <p className="expense-receipts__empty">No payment proof attached.</p> : null}
+      {canEdit ? <form className="expense-receipts__upload personal-vnext__upload-zone" onSubmit={upload}>
         <div className="expense-receipts__file-picker">
           <label className="action-link action-link--quiet vnext-button vnext-button--secondary" htmlFor="repayment-payment-proof-file">{selectedFilename ? "Change" : "Choose payment proof image"}</label>
           {selectedFilename ? <><span className="expense-receipts__filename">{selectedFilename}</span><button className="text-link" type="button" onClick={() => { if (fileInput.current) fileInput.current.value = ""; setSelectedFilename(""); }}>Clear</button></> : null}
@@ -149,7 +150,7 @@ export function RepaymentPaymentProof({ repaymentId, initialPaymentProof, basePa
             </div>
           </div>
         </div>
-      ) : <p className="expense-receipts__empty">No payment proof attached.</p>}
+      ) : null}
     </section>
   );
 }

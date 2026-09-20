@@ -166,7 +166,7 @@ function FriendRecordHistory({
                     className="record-history__link vnext-link"
                     href={"/app/expenses/" + share.expenseId}
                   >
-                    Open expense <span aria-hidden="true">→</span>
+                    Open expense
                   </Link>
                   {!share.settled && share.id ? (
                     <Link
@@ -178,7 +178,7 @@ function FriendRecordHistory({
                         share.id
                       }
                     >
-                      Record repayment <span aria-hidden="true">→</span>
+                      Record repayment
                     </Link>
                   ) : null}
                 </div>
@@ -304,7 +304,7 @@ function FriendRecordContent({
               </Link>
             ) : null}
             <Link className="friend-record__back vnext-link" href="/app/friends">
-              ← Friends
+              Friends
             </Link>
           </div>
         </div>

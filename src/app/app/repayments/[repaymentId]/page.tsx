@@ -80,7 +80,7 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
           <p className="technical-label">Repayment · allocate received money</p>
           <h1>{plan.friendName}</h1>
           {plan.friendArchivedAt ? <p className="technical-label">ARCHIVED FRIEND</p> : null}
-          <Link className="repayment-record__back vnext-link" href={contextTrip ? "/app/trips/" + contextTrip.id : "/app/repayments"}>← {contextTrip ? "Back to " + contextTrip.name : "Repayments"}</Link>
+          <Link className="repayment-record__back vnext-link" href={contextTrip ? "/app/trips/" + contextTrip.id : "/app/repayments"}>{contextTrip ? contextTrip.name : "Repayments"}</Link>
         </header>
         {query?.created === "1" ? (
           <RecordConfirmation

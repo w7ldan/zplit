@@ -15,7 +15,7 @@ export function OutingRow({ outing, expenseCount, expenseTotal, emphasized = fal
         {showTripContext ? <span className="outing-row__trip"><span className="technical-label">Trip</span>{outing.tripId && outing.tripName ? <Link className="vnext-link" href={`${basePath}/trips/${outing.tripId}`}>{outing.tripName}</Link> : "—"}</span> : null}
         <span className="outing-row__expenses"><span className="technical-label">Expenses</span>{expenseCount} {expenseCount === 1 ? "expense" : "expenses"} · <span className="vnext-money">{formatRupiah(expenseTotal)}</span></span>
         <span className="outing-row__actions">
-          <Link className="outing-row__edit vnext-link personal-vnext__secondary-action" href={`${basePath}/outings/${outing.id}`}>Edit <span aria-hidden="true">→</span></Link>
+          <Link className="outing-row__edit vnext-link personal-vnext__secondary-action" href={`${basePath}/outings/${outing.id}`}>Edit</Link>
           <Link className="outing-row__add-expense vnext-button vnext-button--secondary personal-vnext__secondary-action" href={`${basePath}/expenses?create=1&outing=${outing.id}`}>Add expense</Link>
         </span>
       </div>

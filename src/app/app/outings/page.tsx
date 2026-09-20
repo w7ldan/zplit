@@ -83,6 +83,13 @@ function OutingRecordList({ data }: { data: OutingsPageData }) {
   return (
     <div className="ledger-list personal-vnext__list personal-vnext__responsive-list" id="record-list" data-motion="enter">
       <div className="ledger-list__heading personal-vnext__list-heading personal-vnext__motion-reveal"><span className="technical-label">LATEST FIRST</span><span className="technical-label">{outingPage.totalItems} entries</span></div>
+      <div className="personal-vnext__ledger-columns" aria-hidden="true">
+        <span>Outing</span>
+        <span>Date</span>
+        <span>Trip</span>
+        <span>Expenses / total</span>
+        <span>Actions</span>
+      </div>
       {outingPage.items.length > 0 ? groups.map((group) => <div className="record-month-group personal-vnext__month-group personal-vnext__motion-stagger" key={group.month} data-motion="list">
         <div className="record-month-divider personal-vnext__month-divider"><span className="technical-label">{monthDisplayLabel(group.month).toUpperCase()}</span></div>
         {group.items.map((outing) => <OutingRow key={outing.id} outing={outing} expenseCount={outing.expenseCount} expenseTotal={outing.expenseTotal} emphasized={created === outing.id} />)}
@@ -148,7 +155,7 @@ function OutingsPageContent({ data }: { data: OutingsPageData }) {
       <div className="editorial-shell app-page__layout personal-vnext__layout">
         <header className="app-page__header personal-vnext__hero personal-vnext__motion-reveal" data-motion="enter">
           <div>
-            <Link className="personal-parent-link vnext-link personal-vnext__parent-link" href="/app/personal">← Personal</Link>
+            <Link className="personal-parent-link vnext-link personal-vnext__parent-link" href="/app/personal">Personal</Link>
             <p className="technical-label">Outings · shared events</p>
             <h1>Outings</h1>
             <p className="app-page__lede">Keep related expenses together under the event where they happened.</p>

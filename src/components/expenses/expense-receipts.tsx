@@ -110,7 +110,8 @@ export function ExpenseReceipts({ expenseId, initialReceipts, basePath = "/app/e
         <span className="technical-label">{receipts.length}/5 · {formatBytes(totalBytes)}/15 MiB</span>
       </div>
       {!canEdit && readOnlyMessage ? <p className="expense-receipts__readonly">{readOnlyMessage}</p> : null}
-      {canEdit ? <form className="expense-receipts__upload" onSubmit={upload}>
+      {receipts.length === 0 ? <p className="expense-receipts__empty">No receipts attached.</p> : null}
+      {canEdit ? <form className="expense-receipts__upload personal-vnext__upload-zone" onSubmit={upload}>
         <div className="expense-receipts__file-picker">
           <label className="action-link action-link--quiet vnext-button vnext-button--secondary" htmlFor="expense-receipt-file">{selectedFilename ? "Change" : "Choose receipt image"}</label>
           {selectedFilename ? <><span className="expense-receipts__filename">{selectedFilename}</span><button className="text-link vnext-link" type="button" onClick={() => { if (fileInput.current) fileInput.current.value = ""; setSelectedFilename(""); }}>Clear</button></> : null}
@@ -145,7 +146,7 @@ export function ExpenseReceipts({ expenseId, initialReceipts, basePath = "/app/e
             );
           })}
         </div>
-      ) : <p className="expense-receipts__empty">No receipts attached.</p>}
+      ) : null}
     </section>
   );
 }

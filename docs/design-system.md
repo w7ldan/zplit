@@ -126,6 +126,8 @@ Do not default to three equal KPI cards, four equal cards, uniform dashboard til
 
 Dense financial pages should use structured headings, grouped rows, dividers, compact financial alignment, full-row navigation, and responsive row transformations. Do not force dense ledgers into oversized cards.
 
+Authenticated application pages should normally use the available authenticated canvas. Do not arbitrarily make an entire page narrow while substantial usable space remains on the left and right. The authenticated canvas owns the outer page width; constrain individual content based on task type. Narrow content is appropriate for tiny confirmation forms, very short account forms, and single-purpose inputs. Standard content is appropriate for ordinary edit forms and medium-complexity task sections. Wide content is expected for financial detail pages, allocation workspaces, history views, ledgers, long record lists, multi-section detail screens, and dense task workflows. Use the available horizontal space purposefully rather than applying an arbitrary Personal page cap.
+
 ## Shared interaction contracts
 
 The shared contracts live in `src/app/styles/05-vnext-foundation.css`. They are opt-in and page-agnostic.
@@ -144,6 +146,8 @@ The entire row is one hit target. Use one semantic link or button as the row roo
 `OpenTile` is the visual cue: an arrow-up-right inside a compact rounded square. The containing row or link is the actual control. The tile is `aria-hidden`, must not be separately tabbable, and must not have its own click handler.
 
 Allowed feedback includes tile fill, arrow translation, and a tightly damped return.
+
+Standalone destination and record actions should be concise and self-contained. Use the shortest unambiguous label, such as “Edit”, “Back”, “Save”, “Delete”, “Archive”, “Personal”, “Expenses”, or “Repayments”. One action is one control; if an icon adds genuine clarity, it belongs inside that same control. Do not place a second adjacent arrow control representing the same destination. A navigable list row may retain the `OpenTile` visual cue when the entire row is the actual link, `OpenTile` is not separately focusable, and it is not a second click target.
 
 ### Text links
 
