@@ -135,6 +135,7 @@
 .animated-money,
 .overview-money {
   display: inline-block;
+  max-inline-size: 100%;
   font-variant-numeric: tabular-nums;
   letter-spacing: normal;
   line-height: 1.1;
@@ -142,8 +143,58 @@
 }
 
 .animated-money__visual {
+  display: inline-flex;
+  max-inline-size: 100%;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.animated-money__character {
   display: inline-block;
-  white-space: inherit;
+  flex: 0 0 auto;
+  white-space: pre;
+}
+
+.animated-money__separator {
+  min-inline-size: 0.35em;
+  text-align: center;
+}
+
+.animated-money__digit {
+  display: inline-block;
+  flex: 0 0 1ch;
+  inline-size: 1ch;
+  block-size: 1.1em;
+  overflow: hidden;
+  vertical-align: baseline;
+}
+
+.animated-money__reel {
+  display: flex;
+  flex-direction: column;
+  inline-size: 1ch;
+  line-height: 1.1;
+  will-change: transform;
+}
+
+.animated-money__reel-digit {
+  display: block;
+  flex: 0 0 1.1em;
+  inline-size: 1ch;
+  block-size: 1.1em;
+  line-height: 1.1;
+}
+
+.animated-money__accessible {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .overview-eyebrow,
@@ -251,13 +302,16 @@
   align-content: center;
   gap: 0.8rem;
   min-width: 0;
+  container-type: inline-size;
   padding: 2.25rem 2rem 2rem 1rem;
 }
 
 .overview-personal__primary h2 {
   margin: 0;
   color: var(--overview-blue-deep);
-  font-size: clamp(3rem, 8vw, 7rem);
+  max-inline-size: 100%;
+  font-size: clamp(2.25rem, 8vw, 7rem);
+  font-size: clamp(2.25rem, 10cqw, 7rem);
   font-weight: 800;
   letter-spacing: normal;
   line-height: 1.05;
@@ -266,27 +320,30 @@
 .overview-personal__supporting {
   display: grid;
   align-content: end;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
+  container-type: inline-size;
   border-left: 1px solid rgb(8 121 184 / 24%);
 }
 
 .overview-personal__supporting > div {
   display: grid;
-  align-content: end;
+  align-content: start;
   gap: 0.7rem;
   min-width: 0;
   padding: 1rem;
 }
 
 .overview-personal__supporting > div + div {
-  border-left: 1px solid rgb(8 121 184 / 24%);
+  border-top: 1px solid rgb(8 121 184 / 24%);
 }
 
 .overview-personal__supporting .animated-money,
 .overview-personal__supporting .overview-money {
   color: var(--overview-ink);
-  font-size: clamp(1.45rem, 3vw, 2.8rem);
+  max-inline-size: 100%;
+  font-size: clamp(1.35rem, 3vw, 2.8rem);
+  font-size: clamp(1.35rem, 10cqw, 2.8rem);
   font-weight: 800;
   letter-spacing: normal;
   line-height: 1.08;
@@ -873,7 +930,8 @@
   }
 
   .overview-personal__primary h2 {
-    font-size: clamp(2.8rem, 14vw, 5rem);
+    font-size: clamp(2.25rem, 8vw, 5rem);
+    font-size: clamp(2.25rem, 10cqw, 5rem);
   }
 
   .overview-personal__supporting > div {

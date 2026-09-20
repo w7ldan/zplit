@@ -37,8 +37,9 @@ function OpenTile() {
   );
 }
 
-function OverviewMoney({ amount, label, className, signed = false }: { amount: number; label: string; className?: string; signed?: boolean }) {
+function OverviewMoney({ amount, label, className, signed = false, animate = true }: { amount: number; label: string; className?: string; signed?: boolean; animate?: boolean }) {
   const formatted = signed ? formatSignedRupiah(amount) : formatRupiah(amount);
+  if (animate && (!signed || amount >= 0)) return <AnimatedMoney amount={amount} animate className={className} label={label} />;
   return (
     <span className={`overview-money overview-money--static${className ? ` ${className}` : ""}`} aria-label={`${label}: ${formatted}`}>
       {formatted}
@@ -46,8 +47,8 @@ function OverviewMoney({ amount, label, className, signed = false }: { amount: n
   );
 }
 
-function SignedMoney({ amount, label, className, animate = false }: { amount: number; label: string; className?: string; animate?: boolean }) {
-  if (amount < 0 || !animate) return <OverviewMoney amount={amount} className={className} label={label} signed />;
+function SignedMoney({ amount, label, className, animate = true }: { amount: number; label: string; className?: string; animate?: boolean }) {
+  if (amount < 0 || !animate) return <OverviewMoney amount={amount} animate={false} className={className} label={label} signed />;
   return <AnimatedMoney amount={amount} animate className={className} label={label} />;
 }
 

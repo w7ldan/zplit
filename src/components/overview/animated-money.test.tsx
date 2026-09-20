@@ -23,7 +23,29 @@ describe("AnimatedMoney", () => {
     expect(screen.queryByText(formatRupiah(350000))).not.toBeInTheDocument();
   });
 
-  it("renders one readable value without digit reels when reduced motion is preferred", () => {
+  it("animates each digit in its own stable reel", () => {
+    const originalAnimate = HTMLElement.prototype.animate;
+    const animate = vi.fn(() => ({ cancel: vi.fn(), finished: Promise.resolve() } as unknown as Animation));
+    Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate });
+
+    try {
+      const view = render(<AnimatedMoney amount={2450000} />);
+      const reels = [...view.container.querySelectorAll("[data-money-reel]")];
+
+      expect(reels).toHaveLength(7);
+      expect(animate).toHaveBeenCalledTimes(7);
+      const firstCall = animate.mock.calls[0] as unknown as [unknown];
+      expect(firstCall?.[0]).toEqual([
+        { transform: "translate3d(0, -0em, 0)" },
+        { transform: "translate3d(0, -2.2em, 0)" },
+      ]);
+    } finally {
+      if (originalAnimate) Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: originalAnimate });
+      else Reflect.deleteProperty(HTMLElement.prototype, "animate");
+    }
+  });
+
+  it("settles every digit reel immediately when reduced motion is preferred", () => {
     const addEventListener = vi.fn();
     const removeEventListener = vi.fn();
     vi.stubGlobal("matchMedia", vi.fn(() => ({
@@ -37,7 +59,9 @@ describe("AnimatedMoney", () => {
     const view = render(<AnimatedMoney amount={84000} animate />);
 
     expect(screen.getByText(formatRupiah(84000))).toBeInTheDocument();
-    expect(view.container.querySelectorAll("[data-money-reel]")).toHaveLength(0);
+    const reels = [...view.container.querySelectorAll<HTMLElement>("[data-money-reel]")];
+    expect(reels).toHaveLength(5);
+    expect(reels.at(-1)?.style.transform).toBe("translate3d(0, -0em, 0)");
     expect(addEventListener).toHaveBeenCalledWith("change", expect.any(Function));
   });
 });

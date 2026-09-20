@@ -55,7 +55,7 @@ describe("/app overview", () => {
     expect("listRepayments" in repository).toBe(false);
     expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
     const primary = document.querySelector<HTMLElement>(".overview-personal")!;
-    expect(primary.querySelectorAll(".animated-money")).toHaveLength(1);
+    expect(primary.querySelectorAll(".animated-money")).toHaveLength(3);
     for (const label of ["Still owed to you", "Needs matching", "Total spending"]) {
       expect(within(primary).getByText(label, { exact: true })).toBeInTheDocument();
     }
@@ -284,7 +284,7 @@ describe("/app overview", () => {
     const remaining = budget.querySelector<HTMLElement>(".overview-budget__remaining")!;
     expect(remaining).toHaveTextContent("September");
     expect(within(remaining).getByLabelText("Budget remaining: Rp 750.000")).toBeInTheDocument();
-    expect(budget.querySelectorAll(".animated-money")).toHaveLength(1);
+    expect(budget.querySelectorAll(".animated-money")).toHaveLength(4);
     const metrics = budget.querySelector<HTMLElement>(".overview-budget__metrics")!;
     expect(within(metrics).getByLabelText("Net spent: Rp 250.000")).toBeInTheDocument();
     expect(within(metrics).getByLabelText("Total budget: Rp 1.000.000")).toBeInTheDocument();
