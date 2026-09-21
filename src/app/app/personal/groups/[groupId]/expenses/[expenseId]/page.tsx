@@ -13,6 +13,7 @@ import {
 } from "@/components/groups/group-expense-confirmation";
 import { GroupParticipantLabel } from "@/components/groups/group-expense-row";
 import { GroupExpenseLiveRefresh } from "@/components/realtime/group-expense-live-refresh";
+import { zplitVNextFont } from "@/app/fonts";
 import { formatRupiah } from "@/domain/rupiah";
 import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
 import { getGroupExpenseBudgetState } from "@/server/budgeting/sources-group";
@@ -394,8 +395,8 @@ export default async function GroupExpenseDetailPage({
   );
   const query = await searchParams;
   return (
-    <section className="app-page group-expense-record" id="top">
-      <div className="editorial-shell app-page__layout">
+    <section className={`app-page page-content zplit-vnext groups-vnext group-expense-record ${zplitVNextFont.variable}`} id="top">
+      <div className="editorial-shell app-page__layout groups-vnext__layout">
         <GroupExpenseLiveRefresh
           groupId={groupId}
           expenseId={expense.id}
@@ -405,8 +406,8 @@ export default async function GroupExpenseDetailPage({
             <p className="technical-label">GROUP EXPENSE · RECORD</p>
             <h1>{expense.description}</h1>
           </div>
-          <Link className="group-expense-record__back" href={path}>
-            ← Back to Group expenses
+          <Link className="group-expense-record__back vnext-link" href={path}>
+            Back
           </Link>
         </header>
         {first(query.created) === "1" ? (

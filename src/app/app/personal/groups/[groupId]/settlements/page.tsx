@@ -31,6 +31,7 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { createGroupSettlementAction } from "./actions";
 import { createGroupOffsetAction } from "./actions";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Group payments" };
@@ -194,9 +195,9 @@ export default async function GroupSettlementsPage({
   const openCreate = first(query.create) === "1" && recipients.length > 0;
   const openOffsetCreate = first(query.createOffset) === "1" && offsetOptions.length > 0;
   return (
-    <section className="app-page group-settlements-page" id="top">
+    <section className={`app-page page-content zplit-vnext groups-vnext group-settlements-page ${zplitVNextFont.variable}`} id="top">
       <GroupSettlementLiveRefresh groupId={groupId} />
-      <div className="editorial-shell app-page__layout">
+      <div className="editorial-shell app-page__layout groups-vnext__layout">
         <header className="app-page__header">
           <div>
             <p className="technical-label">GROUP PAYMENTS</p>

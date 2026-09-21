@@ -7,6 +7,7 @@ import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { GroupParticipantLabel } from "@/components/groups/group-expense-row";
 import { GroupOffsetConfirmation } from "@/components/groups/group-offset-confirmation";
 import { GroupSettlementLiveRefresh } from "@/components/realtime/group-settlement-live-refresh";
+import { zplitVNextFont } from "@/app/fonts";
 import { formatRupiah } from "@/domain/rupiah";
 import {
   createGroupOffsetRepository,
@@ -162,9 +163,9 @@ export default async function GroupOffsetDetailPage({
   const query = await searchParams;
   const path = `/app/personal/groups/${groupId}/settlements`;
   return (
-    <section className="app-page group-settlement-record group-offset-record" id="top">
+    <section className={`app-page page-content zplit-vnext groups-vnext group-settlement-record group-offset-record ${zplitVNextFont.variable}`} id="top">
       <GroupSettlementLiveRefresh groupId={groupId} offsetId={offset.id} />
-      <div className="editorial-shell app-page__layout">
+      <div className="editorial-shell app-page__layout groups-vnext__layout">
         <header className="group-settlement-record__header">
           <div>
             <p className="technical-label">GROUP OFFSET · RECORD</p>
@@ -174,7 +175,7 @@ export default async function GroupOffsetDetailPage({
               <GroupParticipantLabel participant={offset.counterparty} />
             </h1>
           </div>
-          <Link className="group-settlement-record__back" href={path}>← Back to Group payments</Link>
+          <Link className="group-settlement-record__back vnext-link" href={path}>Back</Link>
         </header>
         {first(query.created) === "1" ? (
           <RecordConfirmation

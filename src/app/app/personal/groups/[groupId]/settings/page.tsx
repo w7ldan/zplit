@@ -6,6 +6,7 @@ import { getGroupForMember, hasFinancialHistory } from "@/server/groups";
 import { DeleteConfirmationDialog } from "@/components/app/delete-confirmation-dialog";
 import { GroupProfile } from "@/components/groups/group-detail";
 import { archiveGroupAction, deleteGroupAction, restoreGroupAction, updateGroupAction } from "../../actions";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Group settings" };
@@ -30,8 +31,8 @@ export default async function GroupSettingsPage({
   const archived = group.archivedAt !== null;
   const financialHistory = archived ? true : await hasFinancialHistory(getDatabase(), groupId).catch(() => true);
   return (
-    <section className="app-page group-settings-page" id="top">
-      <div className="editorial-shell app-page__layout">
+    <section className={`app-page page-content zplit-vnext groups-vnext group-settings-page ${zplitVNextFont.variable}`} id="top">
+      <div className="editorial-shell app-page__layout groups-vnext__layout">
         <header className="app-page__header">
           <div>
             <p className="technical-label">Group settings</p>
@@ -102,10 +103,10 @@ export default async function GroupSettingsPage({
         ) : null}
         {!group.canDelete ? (
           <Link
-            className="text-link"
+            className="text-link vnext-link"
             href={`/app/personal/groups/${groupId}`}
           >
-            Back to Group <span aria-hidden="true">→</span>
+            Back
           </Link>
         ) : null}
       </div>

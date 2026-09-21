@@ -6,6 +6,7 @@ import { getDatabase } from "@/db/client";
 import { getGroupForMember } from "@/server/groups";
 import { getGroupChatUnreadCount } from "@/server/chat";
 import { GroupIdentity, GroupNavigation } from "@/components/groups/group-detail";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,12 @@ export default async function GroupLayout({ children, params }: { children: Reac
   const chatUnreadCount = await getGroupChatUnreadCount(getDatabase(), groupId, session.user.id);
   return (
     <>
-      <header className="group-context editorial-shell">
+      <header className={`group-context zplit-vnext groups-vnext editorial-shell ${zplitVNextFont.variable}`}>
         <Link
           href="/app/personal/groups"
           className="group-detail__back text-link"
         >
-          ← Personal Groups
+          Groups
         </Link>
         <div className="group-context__identity">
           <GroupIdentity group={group} />

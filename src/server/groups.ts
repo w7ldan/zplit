@@ -195,9 +195,9 @@ export type GroupOverviewSummary = GroupSummary & {
 export async function listGroupOverviewSummaries(
   database: Database,
   userId: string,
-  limit = 4,
+  limit: number | null = 4,
 ): Promise<GroupOverviewSummary[]> {
-  const groupsForOverview = await listGroups(database, userId, limit);
+  const groupsForOverview = await listGroups(database, userId, limit === null ? undefined : limit);
   if (groupsForOverview.length === 0) return [];
   const groupIds = groupsForOverview.map(({ id }) => id);
   const [memberships, obligations, settlements] = await Promise.all([

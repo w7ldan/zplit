@@ -4,6 +4,7 @@ import { getDatabase } from "@/db/client";
 import { getGroupForMember, listGroupParticipants } from "@/server/groups";
 import { listGroupJoinRequests } from "@/server/group-join-requests";
 import { GroupPeople } from "@/components/groups/group-people";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Group people" };
@@ -19,8 +20,8 @@ export default async function GroupPeoplePage({ params }: { params: Promise<{ gr
     group.canManageParticipants && group.archivedAt === null ? listGroupJoinRequests(database, groupId, session.user.id) : Promise.resolve({ invitations: [], links: [] }),
   ]);
   return (
-    <section className="app-page group-people-page" id="top">
-      <div className="editorial-shell app-page__layout">
+    <section className={`app-page page-content zplit-vnext groups-vnext group-people-page ${zplitVNextFont.variable}`} id="top">
+      <div className="editorial-shell app-page__layout groups-vnext__layout">
         <header className="app-page__header">
           <div>
             <p className="technical-label">Group people</p>

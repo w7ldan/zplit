@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDate, LocalDateTime } from "@/components/editorial/local-date-time";
 import { formatRupiah } from "@/domain/rupiah";
 import type { GroupSettlementPresentation } from "@/server/group-settlements";
+import { OpenTile } from "@/components/vnext/open-tile";
 import { GroupParticipantLabel } from "./group-expense-row";
 
 const stateLabels = {
@@ -23,15 +24,18 @@ export function GroupSettlementRow({
     settlement.recipient.status === "active" &&
     settlement.recipient.userId === viewerUserId;
   return (
-    <article className="group-settlement-row" data-record-id={settlement.id}>
+    <Link
+      className="group-settlement-row vnext-row"
+      data-record-id={settlement.id}
+      href={`${basePath}/${settlement.id}`}
+      aria-label={`${settlement.sender.displayName} → ${settlement.recipient.displayName}`}
+    >
       <div className="group-settlement-row__primary">
         <span className="technical-label">GROUP PAYMENT</span>
         <h2>
-          <Link href={`${basePath}/${settlement.id}`}>
-            <GroupParticipantLabel participant={settlement.sender} />
-            <span aria-hidden="true"> → </span>
-            <GroupParticipantLabel participant={settlement.recipient} />
-          </Link>
+          <GroupParticipantLabel participant={settlement.sender} />
+          <span aria-hidden="true"> → </span>
+          <GroupParticipantLabel participant={settlement.recipient} />
         </h2>
         {needsConfirmation ? (
           <strong className="group-settlement-row__attention">
@@ -74,6 +78,7 @@ export function GroupSettlementRow({
           <span className="group-settlement-row__proof">Proof attached</span>
         ) : null}
       </div>
-    </article>
+      <OpenTile />
+    </Link>
   );
 }

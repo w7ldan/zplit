@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
-import { listGroups } from "@/server/groups";
+import { listGroupOverviewSummaries, listGroups } from "@/server/groups";
 import { GroupCard } from "@/components/groups/group-card";
 import { GroupForm } from "@/components/groups/group-form";
 import { TaskPanel } from "@/components/app/task-panel";
+import { zplitVNextFont } from "@/app/fonts";
 import { createGroupAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -18,14 +19,17 @@ export default async function GroupsPage({
   const session = await requireSession();
   const params = await searchParams;
   const showArchived = (Array.isArray(params.filter) ? params.filter[0] : params.filter) === "archived";
-  const groups = await listGroups(getDatabase(), session.user.id, undefined, showArchived ? "archived" : "active");
+  const groups = showArchived
+    ? await listGroups(getDatabase(), session.user.id, undefined, "archived")
+    : await listGroupOverviewSummaries(getDatabase(), session.user.id, null);
   const openCreate = (Array.isArray(params.create) ? params.create[0] : params.create) === "1";
   return (
-    <section className="app-page groups-page" id="top">
-      <div className="editorial-shell app-page__layout">
+    <section className={`app-page page-content zplit-vnext groups-vnext groups-page ${zplitVNextFont.variable}`} id="top">
+      <div className="editorial-shell app-page__layout groups-vnext__layout">
         <header className="app-page__header">
           <div>
-            <p className="technical-label">Personal · peer-to-peer spaces</p>
+            <Link className="groups-vnext__parent-link vnext-link" href="/app/personal">Personal</Link>
+            <p className="technical-label groups-vnext__eyebrow">PEER-TO-PEER SPACES</p>
             <h1>Groups</h1>
             <p className="app-page__lede">Shared-expense spaces where participants remain the people behind the accounting.</p>
           </div>
@@ -44,21 +48,26 @@ export default async function GroupsPage({
               {groups.length} {groups.length === 1 ? "group" : "groups"}
             </span>
           </div>
-          <div>
+          <div className="groups-vnext__view-toggle">
             {showArchived ? (
               <Link className="text-link" href="/app/personal/groups">
-                View active groups <span aria-hidden="true">→</span>
+                Active groups
               </Link>
             ) : (
               <Link className="text-link" href="/app/personal/groups?filter=archived">
-                View archived groups <span aria-hidden="true">→</span>
+                Archived groups
               </Link>
             )}
           </div>
           {groups.length ? (
-            <div className="group-grid">
+            <div className="group-grid groups-vnext__group-list" aria-label={showArchived ? "Archived groups" : "Your groups"}>
               {groups.map((group) => (
-                <GroupCard group={group} key={group.id} />
+                <GroupCard
+                  group={group}
+                  balance={"youOwe" in group && "owedToYou" in group ? { youOwe: Number(group.youOwe), owedToYou: Number(group.owedToYou) } : undefined}
+                  vnext
+                  key={group.id}
+                />
               ))}
             </div>
           ) : showArchived ? (

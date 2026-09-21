@@ -16,6 +16,7 @@ import {
   type GroupExpenseListRecord,
 } from "@/server/group-accounting";
 import { createGroupExpenseAction } from "./actions";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Group expenses" };
@@ -210,9 +211,9 @@ export default async function GroupExpensesPage({
   );
   const listPath = recordHref(path, query);
   return (
-    <section className="app-page group-expenses-page" id="top">
+    <section className={`app-page page-content zplit-vnext groups-vnext group-expenses-page ${zplitVNextFont.variable}`} id="top">
       <GroupExpenseLiveRefresh groupId={groupId} />
-      <div className="editorial-shell app-page__layout">
+      <div className="editorial-shell app-page__layout groups-vnext__layout">
         <header className="app-page__header">
           <div>
             <p className="technical-label">GROUP EXPENSES</p>

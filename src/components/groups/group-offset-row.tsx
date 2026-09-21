@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { formatRupiah } from "@/domain/rupiah";
 import type { GroupOffsetPresentation } from "@/server/group-offsets";
+import { OpenTile } from "@/components/vnext/open-tile";
 import { GroupParticipantLabel } from "./group-expense-row";
 
 const stateLabels = {
@@ -23,15 +24,18 @@ export function GroupOffsetRow({
     offset.counterparty.status === "active" &&
     offset.counterparty.userId === viewerUserId;
   return (
-    <article className="group-settlement-row group-offset-row" data-record-id={offset.id}>
+    <Link
+      className="group-settlement-row group-offset-row vnext-row"
+      data-record-id={offset.id}
+      href={`${basePath}/offsets/${offset.id}`}
+      aria-label={`${offset.initiator.displayName} ⇄ ${offset.counterparty.displayName}`}
+    >
       <div className="group-settlement-row__primary">
         <span className="technical-label">GROUP OFFSET</span>
         <h2>
-          <Link href={`${basePath}/offsets/${offset.id}`}>
-            <GroupParticipantLabel participant={offset.initiator} />
-            <span aria-hidden="true"> ⇄ </span>
-            <GroupParticipantLabel participant={offset.counterparty} />
-          </Link>
+          <GroupParticipantLabel participant={offset.initiator} />
+          <span aria-hidden="true"> ⇄ </span>
+          <GroupParticipantLabel participant={offset.counterparty} />
         </h2>
         {needsConfirmation ? <strong className="group-settlement-row__attention">Needs your confirmation</strong> : null}
       </div>
@@ -59,6 +63,7 @@ export function GroupOffsetRow({
           {offset.confirmedAt ? <LocalDateTime iso={offset.confirmedAt.toISOString()} /> : "—"}
         </span>
       </div>
-    </article>
+      <OpenTile />
+    </Link>
   );
 }

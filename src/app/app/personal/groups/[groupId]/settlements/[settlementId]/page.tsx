@@ -8,6 +8,7 @@ import { RepaymentPaymentProof } from "@/components/repayments/repayment-payment
 import { GroupParticipantLabel } from "@/components/groups/group-expense-row";
 import { GroupSettlementConfirmation } from "@/components/groups/group-settlement-confirmation";
 import { GroupSettlementLiveRefresh } from "@/components/realtime/group-settlement-live-refresh";
+import { zplitVNextFont } from "@/app/fonts";
 import { formatRupiah } from "@/domain/rupiah";
 import {
   createGroupSettlementRepository,
@@ -204,12 +205,12 @@ export default async function GroupSettlementDetailPage({
   const path = `/app/personal/groups/${groupId}/settlements`;
 
   return (
-    <section className="app-page group-settlement-record" id="top">
+    <section className={`app-page page-content zplit-vnext groups-vnext group-settlement-record ${zplitVNextFont.variable}`} id="top">
       <GroupSettlementLiveRefresh
         groupId={groupId}
         settlementId={settlement.id}
       />
-      <div className="editorial-shell app-page__layout">
+      <div className="editorial-shell app-page__layout groups-vnext__layout">
         <header className="group-settlement-record__header">
           <div>
             <p className="technical-label">GROUP PAYMENT · RECORD</p>
@@ -219,8 +220,8 @@ export default async function GroupSettlementDetailPage({
               <GroupParticipantLabel participant={settlement.recipient} />
             </h1>
           </div>
-          <Link className="group-settlement-record__back" href={path}>
-            ← Back to Group payments
+          <Link className="group-settlement-record__back vnext-link" href={path}>
+            Back
           </Link>
         </header>
         {first(query.created) === "1" ? (

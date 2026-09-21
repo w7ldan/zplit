@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { formatRupiah } from "@/domain/rupiah";
 import { SourceCalendarDate } from "@/components/editorial/local-date-time";
+import { OpenTile } from "@/components/vnext/open-tile";
 import type { GroupParticipantPresentation } from "@/server/group-participant-presentation";
 import type { GroupExpenseListRecord } from "@/server/group-accounting";
 
@@ -13,14 +14,15 @@ export function GroupExpenseRow({ expense, viewerUserId, basePath }: { expense: 
   const needsConfirmation = expense.state === "pending" && expense.payer.status === "active" && expense.payer.userId === viewerUserId;
   const stateLabel = expense.state === "pending" ? "Pending confirmation" : expense.state[0]?.toUpperCase() + expense.state.slice(1);
   return (
-    <article className="group-expense-row" data-record-id={expense.id}>
+    <Link
+      className="group-expense-row vnext-row"
+      data-record-id={expense.id}
+      href={`${basePath}/${expense.id}`}
+      aria-label={expense.description}
+    >
       <div className="group-expense-row__primary">
         <span className="technical-label">GROUP EXPENSE</span>
-        <h2>
-          <Link href={`${basePath}/${expense.id}`}>
-            {expense.description}
-          </Link>
-        </h2>
+        <h2>{expense.description}</h2>
         {needsConfirmation ? (
           <strong className="group-expense-row__attention">
             Needs your confirmation
@@ -48,6 +50,7 @@ export function GroupExpenseRow({ expense, viewerUserId, basePath }: { expense: 
           {stateLabel}
         </span>
       </div>
-    </article>
+      <OpenTile />
+    </Link>
   );
 }

@@ -3,6 +3,7 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import { requireSession } from "@/auth/require-session";
 import { getDatabase } from "@/db/client";
 import { getGroupChat } from "@/server/chat";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Group chat" };
@@ -30,5 +31,9 @@ export default async function GroupChatPage({
   const olderHref = chat.nextCursor
     ? `/app/personal/groups/${groupId}/chat?before=${encodeURIComponent(chat.nextCursor)}#chat`
     : null;
-  return <ChatPanel chat={chat} title="Chat" olderHref={olderHref} />;
+  return (
+    <div className={`zplit-vnext groups-vnext groups-chat ${zplitVNextFont.variable}`}>
+      <ChatPanel chat={chat} title="Chat" olderHref={olderHref} />
+    </div>
+  );
 }

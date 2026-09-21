@@ -1,7 +1,9 @@
+import { zplitVNextFont } from "@/app/fonts";
+
 export default function GroupExpensesLoading() {
   return (
-    <section className="app-page group-expenses-page" aria-busy="true">
-      <div className="editorial-shell app-page__layout">
+    <section className={`app-page page-content zplit-vnext groups-vnext group-expenses-page ${zplitVNextFont.variable}`} aria-busy="true">
+      <div className="editorial-shell app-page__layout groups-vnext__layout">
         <header className="app-page__header">
           <div>
             <p className="technical-label">GROUP EXPENSES</p>
