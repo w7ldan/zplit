@@ -66,9 +66,9 @@ describe("friend record", () => {
     expect(document.querySelector(".friend-record__intro .friend-record__actions")).toBeInTheDocument();
     expect(document.querySelector(".friend-record__summary")).toContainElement(document.querySelector(".friend-record__meta"));
     expect(document.querySelector(".friend-record__summary")).toContainElement(document.querySelector(".friend-record__balance"));
-    expect(document.querySelector(".friend-record__workspace")).toContainElement(document.querySelector(".friend-record__form"));
-    expect(document.querySelector(".friend-record__workspace")).toContainElement(document.querySelector(".friend-share"));
-    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
+    expect(document.querySelector(".friend-record__workspace")).toContainElement(document.querySelector(".friend-record__editor-column"));
+    expect(document.querySelector(".friend-record__workspace")).toContainElement(document.querySelector(".friend-record__share-column"));
+    expect(screen.queryByText("ACTIVE")).not.toBeInTheDocument();
     expect(screen.getAllByText("02 Jan 2026")).toHaveLength(2);
     expect(getFriendBalances).toHaveBeenCalledExactlyOnceWith([friend.id]);
     expect(screen.getByRole("heading", { level: 2, name: "Balance" })).toBeInTheDocument();

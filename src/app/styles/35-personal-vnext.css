@@ -1,0 +1,1619 @@
+.app-page.personal-vnext.zplit-vnext {
+  min-block-size: 100%;
+  background: var(--vnext-canvas);
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+}
+
+.personal-vnext {
+  --personal-content-narrow: 36rem;
+  --personal-content-standard: 52rem;
+  --personal-content-workspace: 86rem;
+}
+
+.personal-vnext .editorial-shell {
+  max-inline-size: var(--authenticated-canvas-max-width);
+}
+
+.personal-vnext .app-page__layout {
+  gap: 2rem;
+}
+
+.personal-vnext .app-page__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem;
+  align-items: end;
+  padding-block: 1.5rem 1.75rem;
+  border-block-end: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext .app-page__header h1,
+.personal-vnext .app-page__header h2,
+.personal-vnext .app-page__header h3,
+.personal-vnext .ledger-section__heading h2 {
+  color: var(--vnext-text);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.personal-vnext .app-page__header h1 {
+  max-inline-size: 11ch;
+  font-size: clamp(2.75rem, 7vw, 6.25rem);
+  line-height: 0.95;
+}
+
+.personal-vnext .app-page__lede,
+.personal-vnext .technical-label,
+.personal-vnext small {
+  color: var(--vnext-text-soft);
+}
+
+.personal-vnext .technical-label {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.personal-vnext .app-page__lede {
+  max-inline-size: 42rem;
+  margin-block-start: 0.8rem;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.personal-vnext .personal-snapshot-section,
+.personal-vnext .ledger-section {
+  min-inline-size: 0;
+}
+
+.personal-vnext .ledger-section__heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: 0.8rem;
+}
+
+.personal-vnext .ledger-section__heading h2 {
+  font-size: clamp(1.2rem, 2vw, 1.7rem);
+  line-height: 1.05;
+}
+
+.personal-vnext .personal-vnext-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 0.8fr));
+  gap: 1px;
+  overflow: visible;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-major);
+  background: var(--vnext-rule);
+}
+
+.personal-vnext .personal-vnext-summary > div {
+  display: grid;
+  min-inline-size: 0;
+  align-content: start;
+  gap: 0.65rem;
+  padding: clamp(1.1rem, 3vw, 2rem);
+  background: var(--vnext-surface);
+}
+
+.personal-vnext .personal-vnext-summary > div:first-child {
+  border-radius: calc(var(--vnext-radius-major) - 1px) 0 0 calc(var(--vnext-radius-major) - 1px);
+  background: var(--vnext-surface-warm);
+}
+
+.personal-vnext .personal-vnext-summary > div:last-child {
+  border-radius: 0 calc(var(--vnext-radius-major) - 1px) calc(var(--vnext-radius-major) - 1px) 0;
+}
+
+.personal-vnext .personal-vnext-summary .animated-money,
+.personal-vnext .personal-vnext-summary strong {
+  display: block;
+  max-inline-size: 100%;
+  overflow: visible;
+  color: var(--vnext-text);
+  font-size: clamp(1.4rem, 3vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: normal;
+  line-height: 1;
+}
+
+.personal-vnext .personal-vnext-summary > div:first-child .animated-money {
+  font-size: clamp(2rem, 5vw, 4.5rem);
+}
+
+.personal-vnext .personal-vnext-summary .animated-money[data-tone="debt"] {
+  color: var(--vnext-debt);
+}
+
+.personal-vnext .personal-vnext-summary .animated-money[data-tone="settled"] {
+  color: var(--vnext-settled);
+}
+
+.personal-vnext .personal-vnext-summary > div > span:last-child {
+  max-inline-size: 27ch;
+  color: var(--vnext-text-soft);
+  line-height: 1.45;
+}
+
+.personal-vnext .app-page__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+  gap: clamp(1rem, 3vw, 2.25rem);
+  align-items: start;
+}
+
+.personal-vnext .personal-page__columns > .ledger-section,
+.personal-vnext .personal-destinations,
+.personal-vnext .group-section {
+  padding: clamp(1rem, 2vw, 1.5rem);
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+}
+
+.personal-vnext .personal-page__columns > .ledger-section:first-child {
+  background: var(--vnext-surface-strong);
+}
+
+.personal-vnext .ledger-empty {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1.25rem 0.25rem 0.5rem;
+  color: var(--vnext-text-soft);
+}
+
+.personal-vnext .balance-row,
+.personal-vnext .activity-row,
+.personal-vnext .personal-destination,
+.personal-vnext .group-card {
+  position: relative;
+  min-inline-size: 0;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext .balance-row,
+.personal-vnext .activity-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.85rem;
+}
+
+.personal-vnext .balance-row > span:first-child,
+.personal-vnext .activity-row > span:nth-child(2) {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.25rem;
+}
+
+.personal-vnext .balance-row strong,
+.personal-vnext .activity-row strong,
+.personal-vnext .personal-destination strong,
+.personal-vnext .group-card strong {
+  overflow-wrap: anywhere;
+  color: var(--vnext-text);
+  font-weight: 800;
+}
+
+.personal-vnext .balance-row small,
+.personal-vnext .activity-row small,
+.personal-vnext .activity-row > span:last-of-type,
+.personal-vnext .personal-destination > span {
+  color: var(--vnext-text-soft);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.personal-vnext .balance-row > span:nth-child(2),
+.personal-vnext .activity-row > span:nth-child(3) {
+  display: grid;
+  min-inline-size: max-content;
+  justify-items: end;
+  gap: 0.25rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.personal-vnext .balance-row > span:nth-child(2) strong,
+.personal-vnext .activity-row > span:nth-child(3) strong {
+  white-space: nowrap;
+  font-size: 1rem;
+}
+
+.personal-vnext .balance-row .vnext-open-tile,
+.personal-vnext .activity-row .vnext-open-tile,
+.personal-vnext .personal-destination .vnext-open-tile {
+  justify-self: end;
+}
+
+.personal-vnext .vnext-row:hover .vnext-open-tile,
+.personal-vnext .vnext-row:focus-visible .vnext-open-tile {
+  background: var(--vnext-accent-strong);
+  color: var(--vnext-text-on-accent);
+  transform: translate(0.12rem, -0.12rem);
+}
+
+.personal-vnext .text-link,
+.personal-vnext .vnext-link {
+  color: var(--vnext-link);
+  font-weight: 600;
+}
+
+.personal-vnext .personal-destinations__grid,
+.personal-vnext .group-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.personal-vnext .personal-destination {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem 0.75rem;
+  min-block-size: 5.5rem;
+  align-content: center;
+  background: var(--vnext-surface-strong);
+}
+
+.personal-vnext .personal-destination > span:not(.vnext-open-tile) {
+  grid-column: 1;
+}
+
+.personal-vnext .personal-destination .vnext-open-tile {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.personal-vnext .group-grid {
+  gap: 0;
+}
+
+.personal-vnext .group-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: center;
+  min-block-size: 4.5rem;
+  padding: 0.85rem 0;
+  border-color: var(--vnext-rule);
+  border-radius: var(--vnext-radius-row);
+  background: var(--vnext-surface);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--vnext-motion-fast) var(--vnext-ease-product), transform var(--vnext-motion-press) var(--vnext-ease-product);
+}
+
+.personal-vnext .group-card:hover,
+.personal-vnext .group-card:focus-visible {
+  background: var(--vnext-accent-wash);
+}
+
+.personal-vnext .group-card__details {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.25rem;
+}
+
+.personal-vnext .group-card__details > span {
+  color: var(--vnext-text-soft);
+  font-size: 0.8rem;
+}
+
+.personal-vnext .group-card__details strong,
+.personal-vnext .group-card__balance strong {
+  color: var(--vnext-text);
+}
+
+.personal-vnext .group-card__balance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: var(--vnext-text-soft);
+}
+
+.personal-vnext input:not([type="checkbox"]):not([type="radio"]),
+.personal-vnext select,
+.personal-vnext textarea {
+  min-block-size: 2.75rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-control);
+  background: var(--vnext-paper);
+  color: var(--vnext-text);
+}
+
+.personal-vnext input:focus-visible,
+.personal-vnext select:focus-visible,
+.personal-vnext textarea:focus-visible,
+.personal-vnext button:focus-visible,
+.personal-vnext a:focus-visible {
+  outline: 2px solid var(--vnext-focus-ring);
+  outline-offset: 3px;
+}
+
+.personal-vnext .vnext-button,
+.personal-vnext button.action-link,
+.personal-vnext .action-link {
+  min-block-size: 2.75rem;
+  border-radius: var(--vnext-radius-button);
+  font-family: inherit;
+  font-weight: 600;
+}
+
+.personal-vnext .task-panel.personal-task-panel {
+  border: 0;
+  background: transparent;
+  color: var(--vnext-text);
+}
+
+.personal-vnext .task-panel.personal-task-panel .task-panel__surface {
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-overlay);
+  background: var(--vnext-surface);
+}
+
+.personal-vnext .task-panel.personal-task-panel .task-panel__header,
+.personal-vnext .task-panel.personal-task-panel .task-panel__footer {
+  border-color: var(--vnext-rule);
+}
+
+.personal-vnext .task-panel.personal-task-panel input,
+.personal-vnext .task-panel.personal-task-panel select,
+.personal-vnext .task-panel.personal-task-panel textarea {
+  background: var(--vnext-paper);
+}
+
+.personal-vnext [data-motion="enter"] {
+  animation: personal-vnext-surface-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+}
+
+.personal-vnext [data-motion="list"] > * {
+  animation: personal-vnext-list-in var(--vnext-motion-layout) var(--vnext-ease-product) both;
+}
+
+.personal-vnext [data-motion="list"] > :nth-child(2) { animation-delay: 60ms; }
+.personal-vnext [data-motion="list"] > :nth-child(3) { animation-delay: 100ms; }
+.personal-vnext [data-motion="list"] > :nth-child(4) { animation-delay: 140ms; }
+.personal-vnext [data-motion="list"] > :nth-child(5) { animation-delay: 180ms; }
+
+@keyframes personal-vnext-hero-in {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateX(-1rem) scale(0.985); }
+  to { opacity: 1; clip-path: inset(0); transform: translateX(0) scale(1); }
+}
+
+@keyframes personal-vnext-surface-in {
+  from { opacity: 0; clip-path: inset(0 0 0 7%); transform: translateY(0.35rem); }
+  to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
+}
+
+@keyframes personal-vnext-list-in {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateX(0.6rem); }
+  to { opacity: 1; clip-path: inset(0); transform: translateX(0); }
+}
+
+@keyframes personal-vnext-split-in {
+  from { opacity: 0; clip-path: inset(0 8% 0 0); transform: translateX(-0.75rem); }
+  to { opacity: 1; clip-path: inset(0); transform: translateX(0); }
+}
+
+@keyframes personal-vnext-form-in {
+  from { opacity: 0; clip-path: inset(0 0 0 4%); transform: translateY(0.25rem); }
+  to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
+}
+
+@media (max-width: 900px) {
+  .personal-vnext .personal-vnext-summary {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .personal-vnext .personal-vnext-summary > div:first-child {
+    grid-column: 1 / -1;
+    border-radius: calc(var(--vnext-radius-major) - 1px) calc(var(--vnext-radius-major) - 1px) 0 0;
+  }
+
+  .personal-vnext .personal-vnext-summary > div:last-child {
+    border-radius: 0 calc(var(--vnext-radius-major) - 1px) calc(var(--vnext-radius-major) - 1px) 0;
+  }
+
+  .personal-vnext .app-page__columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .personal-vnext .app-page__header {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .personal-vnext .app-page__header .vnext-button {
+    inline-size: 100%;
+  }
+
+  .personal-vnext .personal-vnext-summary,
+  .personal-vnext .personal-vnext-summary > div:first-child,
+  .personal-vnext .personal-vnext-summary > div:last-child {
+    display: grid;
+    grid-template-columns: 1fr;
+    border-radius: 0;
+  }
+
+  .personal-vnext .personal-vnext-summary {
+    border-radius: var(--vnext-radius-module);
+  }
+
+  .personal-vnext .personal-vnext-summary > div:first-child {
+    border-radius: calc(var(--vnext-radius-module) - 1px) calc(var(--vnext-radius-module) - 1px) 0 0;
+  }
+
+  .personal-vnext .personal-vnext-summary > div:last-child {
+    border-radius: 0 0 calc(var(--vnext-radius-module) - 1px) calc(var(--vnext-radius-module) - 1px);
+  }
+
+  .personal-vnext .balance-row,
+  .personal-vnext .activity-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .personal-vnext .balance-row > span:nth-child(2),
+  .personal-vnext .activity-row > span:nth-child(3) {
+    grid-column: 1;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .personal-vnext .balance-row .vnext-open-tile,
+  .personal-vnext .activity-row .vnext-open-tile {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .personal-vnext .personal-destinations__grid,
+  .personal-vnext .group-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-vnext .personal-destination {
+    min-block-size: 4.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .personal-vnext [data-motion="enter"],
+  .personal-vnext [data-motion="list"] > * {
+    animation: none !important;
+  }
+}
+
+.personal-vnext .personal-vnext__layout {
+  padding-block: 1.5rem 4rem;
+}
+
+.personal-vnext .personal-vnext__header,
+.personal-vnext .personal-vnext__hero {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-block: 1.25rem 1.75rem;
+  border-block-end: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext .personal-vnext__title,
+.personal-vnext .personal-vnext__detail-intro h1,
+.personal-vnext .personal-vnext__hero h1 {
+  max-inline-size: 18ch;
+  overflow-wrap: anywhere;
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+  font-size: clamp(2.5rem, 6vw, 5.25rem);
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 0.94;
+}
+
+.personal-vnext .personal-vnext__eyebrow {
+  color: var(--vnext-text-soft);
+  font-weight: 600;
+}
+
+.personal-vnext .personal-vnext__lede {
+  max-inline-size: 42rem;
+  margin-block-start: 0.75rem;
+  color: var(--vnext-text-soft);
+  line-height: 1.5;
+}
+
+.personal-vnext .personal-vnext__primary-action {
+  flex: 0 0 auto;
+}
+
+.personal-vnext .personal-vnext__parent-link,
+.personal-vnext .personal-vnext__secondary-action,
+.personal-vnext .personal-vnext__text-action {
+  color: var(--vnext-link);
+}
+
+.personal-vnext .personal-vnext__workspace {
+  min-inline-size: 0;
+}
+
+.personal-vnext .outing-record__workspace {
+  max-inline-size: var(--personal-content-standard);
+}
+
+.personal-vnext .records-workspace.personal-vnext__workspace {
+  display: grid;
+  gap: 0;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+  border-radius: var(--vnext-radius-major);
+}
+
+.personal-vnext .personal-vnext__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0 1rem;
+}
+
+.personal-vnext .personal-vnext__filters {
+  flex: 1 1 30rem;
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__views,
+.personal-vnext .personal-vnext__view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.personal-vnext .friends-page__view,
+.personal-vnext .outings-trips-switch__link {
+  min-block-size: 2.75rem;
+  padding: 0.55rem 0.2rem;
+  color: var(--vnext-text-soft);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.personal-vnext .friends-page__view--selected,
+.personal-vnext .outings-trips-switch__link--selected {
+  color: var(--vnext-text);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.25rem;
+}
+
+.personal-vnext .personal-vnext__list {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__list-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.8rem;
+  border-block-start: 1px solid var(--vnext-rule);
+  color: var(--vnext-text-soft);
+}
+
+.personal-vnext .personal-vnext__month-group {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__month-divider {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1rem 0.45rem;
+  border-block-start: 1px solid var(--vnext-rule);
+  color: var(--vnext-text-soft);
+}
+
+.personal-vnext .personal-vnext__empty {
+  display: grid;
+  gap: 0.65rem;
+  margin-block: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface-warm);
+  color: var(--vnext-text-soft);
+}
+
+.personal-vnext .personal-vnext__empty h2,
+.personal-vnext .personal-vnext__empty h3 {
+  color: var(--vnext-text);
+  font-weight: 800;
+}
+
+.personal-vnext .personal-vnext__pagination {
+  padding-block-start: 1rem;
+}
+
+.personal-vnext .personal-vnext__record-row,
+.personal-vnext .personal-vnext__outing-row,
+.personal-vnext .personal-vnext__connection-row {
+  color: var(--vnext-text);
+}
+
+.personal-vnext .friend-row.personal-vnext__record-row,
+.personal-vnext .expense-row.personal-vnext__record-row,
+.personal-vnext .repayment-row.personal-vnext__record-row {
+  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+  gap: 1.25rem;
+  min-block-size: 5rem;
+  padding: 1rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext .outing-row.personal-vnext__outing-row {
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 1.25rem;
+  min-block-size: 5rem;
+  padding: 1rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext .personal-vnext__row-primary,
+.personal-vnext .personal-vnext__row-meta,
+.personal-vnext .friend-row__primary,
+.personal-vnext .outing-row__primary,
+.personal-vnext .expense-row__primary,
+.personal-vnext .repayment-row__primary {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__row-primary h2,
+.personal-vnext .outing-row__primary h2,
+.personal-vnext .expense-row__primary h2,
+.personal-vnext .repayment-row__primary h2 {
+  margin-block-start: 0.35rem;
+  overflow-wrap: anywhere;
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.personal-vnext .personal-vnext__row-primary p,
+.personal-vnext .personal-vnext__row-meta,
+.personal-vnext .outing-row__meta,
+.personal-vnext .expense-row__meta,
+.personal-vnext .repayment-row__meta {
+  color: var(--vnext-text-soft);
+}
+
+.personal-vnext .personal-vnext__row-meta,
+.personal-vnext .friend-row__meta,
+.personal-vnext .outing-row__meta,
+.personal-vnext .expense-row__meta,
+.personal-vnext .repayment-row__meta {
+  display: grid;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 0.75rem;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}
+
+.personal-vnext .friend-row__meta {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.personal-vnext .outing-row__meta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.personal-vnext .expense-row__meta {
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+}
+
+.personal-vnext .repayment-row__meta {
+  grid-template-columns: max-content max-content minmax(0, 1fr) auto;
+}
+
+.personal-vnext .friend-row__meta > *,
+.personal-vnext .outing-row__meta > *,
+.personal-vnext .expense-row__meta > *,
+.personal-vnext .repayment-row__meta > *,
+.personal-vnext .personal-vnext__row-meta > * {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.personal-vnext .friend-row__meta > span,
+.personal-vnext .outing-row__meta > span,
+.personal-vnext .expense-row__meta > span,
+.personal-vnext .repayment-row__meta > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.personal-vnext .friend-row__edit,
+.personal-vnext .outing-row__actions,
+.personal-vnext .expense-row__open-tile,
+.personal-vnext .repayment-row__open-tile {
+  justify-self: end;
+}
+
+.personal-vnext .outing-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+  gap: 0.55rem;
+}
+
+.personal-vnext .outing-row__add-expense {
+  min-block-size: 2.75rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-button);
+  background: var(--vnext-accent-pale);
+  color: var(--vnext-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.personal-vnext .repayment-row__allocation {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.personal-vnext .repayment-row__allocation-item {
+  display: grid;
+  gap: 0.2rem;
+  min-inline-size: 0;
+}
+
+.personal-vnext .repayment-row__allocation-item > span:last-child {
+  color: var(--vnext-settled);
+}
+
+.personal-vnext .personal-vnext__connection-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  padding: 1rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext .personal-vnext__connection-row details {
+  justify-self: end;
+}
+
+.personal-vnext .personal-vnext__connection-row details > div {
+  display: grid;
+  gap: 0.6rem;
+  min-inline-size: min(19rem, 70vw);
+  margin-block-start: 0.5rem;
+  padding: 0.8rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface-warm);
+}
+
+.personal-vnext .personal-vnext__single-destination-row,
+.personal-vnext .personal-vnext__record-row {
+  color: inherit;
+  text-decoration: none;
+}
+
+.personal-vnext .personal-vnext__single-destination-row .record-history__primary,
+.personal-vnext .personal-vnext__single-destination-row .record-history__value {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__form,
+.personal-vnext .personal-vnext__share-form {
+  display: grid;
+  inline-size: min(100%, var(--personal-content-standard));
+  max-inline-size: var(--personal-content-standard);
+  gap: 1rem;
+}
+
+.personal-vnext .personal-vnext__form--narrow,
+.personal-vnext .personal-vnext__share-form {
+  max-inline-size: var(--personal-content-narrow);
+}
+
+.personal-vnext .personal-vnext__form--workspace {
+  max-inline-size: var(--personal-content-workspace);
+}
+
+.personal-vnext .personal-vnext__share-editor,
+.personal-vnext .repayment-allocation-editor {
+  inline-size: 100%;
+  max-inline-size: var(--personal-content-workspace);
+}
+
+.personal-vnext .personal-vnext__field,
+.personal-vnext .friend-form__field,
+.personal-vnext .outing-form__field,
+.personal-vnext .expense-form__field,
+.personal-vnext .repayment-form__field,
+.personal-vnext .expense-share-editor__field,
+.personal-vnext .repayment-allocation-editor__field {
+  display: grid;
+  gap: 0.35rem;
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__label,
+.personal-vnext .personal-vnext__field label,
+.personal-vnext .friend-form__field label,
+.personal-vnext .outing-form__field label,
+.personal-vnext .expense-form__field label,
+.personal-vnext .repayment-form__field label,
+.personal-vnext .expense-share-editor__field label,
+.personal-vnext .repayment-allocation-editor__field label {
+  color: var(--vnext-text);
+  font-weight: 600;
+}
+
+.personal-vnext .personal-vnext__control,
+.personal-vnext .personal-vnext__field input,
+.personal-vnext .personal-vnext__field select,
+.personal-vnext .personal-vnext__field textarea,
+.personal-vnext .friend-form input,
+.personal-vnext .friend-form textarea,
+.personal-vnext .outing-form input,
+.personal-vnext .outing-form textarea,
+.personal-vnext .expense-form input,
+.personal-vnext .expense-form select,
+.personal-vnext .expense-form textarea,
+.personal-vnext .repayment-form input,
+.personal-vnext .repayment-form select,
+.personal-vnext .repayment-form textarea,
+.personal-vnext .expense-share-editor input,
+.personal-vnext .expense-share-editor select,
+.personal-vnext .expense-share-editor textarea,
+.personal-vnext .repayment-allocation-editor input,
+.personal-vnext .repayment-allocation-editor select,
+.personal-vnext .repayment-allocation-editor textarea {
+  min-block-size: 2.75rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-control);
+  background: var(--vnext-paper);
+  color: var(--vnext-text);
+}
+
+.personal-vnext :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--vnext-focus-ring);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+.personal-vnext .personal-vnext__help,
+.personal-vnext .friend-form__help,
+.personal-vnext .expense-form__help,
+.personal-vnext .repayment-form__help,
+.personal-vnext .personal-vnext__form-message {
+  color: var(--vnext-text-soft);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.personal-vnext .personal-vnext__field-error,
+.personal-vnext .friend-form__field-error,
+.personal-vnext .outing-form__field-error,
+.personal-vnext .expense-form__field-error,
+.personal-vnext .repayment-form__field-error,
+.personal-vnext .expense-share-editor__field-error,
+.personal-vnext .repayment-allocation-editor__field-error {
+  min-block-size: 1.1rem;
+  color: var(--vnext-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.personal-vnext .personal-vnext__disclosure,
+.personal-vnext .personal-vnext__allocation-module,
+.personal-vnext .personal-vnext__summary,
+.personal-vnext .personal-vnext__controls,
+.personal-vnext .personal-vnext__edit-surface,
+.personal-vnext .personal-vnext__history,
+.personal-vnext .personal-vnext__link-section,
+.personal-vnext .personal-vnext__receipts,
+.personal-vnext .personal-vnext__proof {
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+}
+
+.personal-vnext .personal-vnext__disclosure,
+.personal-vnext .personal-vnext__allocation-module,
+.personal-vnext .personal-vnext__summary,
+.personal-vnext .personal-vnext__controls,
+.personal-vnext .personal-vnext__edit-surface,
+.personal-vnext .personal-vnext__history,
+.personal-vnext .personal-vnext__link-section,
+.personal-vnext .personal-vnext__receipts,
+.personal-vnext .personal-vnext__proof {
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.personal-vnext .personal-vnext__disclosure,
+.personal-vnext .personal-vnext__edit-surface,
+.personal-vnext .personal-vnext__controls,
+.personal-vnext .personal-vnext__proof {
+  background: var(--vnext-surface-warm);
+}
+
+.personal-vnext .personal-vnext__disclosure summary,
+.personal-vnext .personal-vnext__disclosure-trigger {
+  min-block-size: 2.75rem;
+  padding-block: 0.6rem;
+  color: var(--vnext-text);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.personal-vnext .personal-vnext__summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
+  gap: 1rem;
+}
+
+.personal-vnext .personal-vnext__balance {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__balance .animated-money,
+.personal-vnext .personal-vnext__balance-primary .animated-money {
+  color: var(--vnext-debt);
+  font-size: clamp(2rem, 5vw, 4.5rem);
+  font-weight: 800;
+}
+
+.personal-vnext .personal-vnext__metadata-group,
+.personal-vnext .personal-vnext__accounting {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__metadata-group > div,
+.personal-vnext .personal-vnext__accounting > div {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__metadata {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  color: var(--vnext-text-soft);
+}
+
+.personal-vnext .outing-record__meta.personal-vnext__metadata,
+.personal-vnext .expense-record__meta.personal-vnext__metadata,
+.personal-vnext .repayment-record__meta.personal-vnext__accounting {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__accounting strong,
+.personal-vnext .personal-vnext__metadata-group strong {
+  overflow-wrap: anywhere;
+  color: var(--vnext-text);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.personal-vnext .personal-vnext__detail-layout {
+  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  gap: 1.5rem;
+}
+
+.personal-vnext .personal-vnext__detail-intro,
+.personal-vnext .personal-vnext__detail-layout > .record-confirmation,
+.personal-vnext .personal-vnext__summary,
+.personal-vnext .personal-vnext__history {
+  grid-column: 1 / -1;
+}
+
+.personal-vnext .personal-vnext__detail-intro {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__responsive-split,
+.personal-vnext .personal-vnext__responsive-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 1.25rem;
+  align-items: start;
+  grid-column: 1 / -1;
+}
+
+.personal-vnext .personal-vnext__detail-layout > .expense-record__tasks,
+.personal-vnext .personal-vnext__detail-layout > .repayment-record__tasks {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(18rem, 0.82fr);
+  gap: 1.25rem;
+  grid-column: 1 / -1;
+  min-inline-size: 0;
+}
+
+.personal-vnext .expense-record__primary-task,
+.personal-vnext .repayment-record__primary-task,
+.personal-vnext .expense-record__sidebar,
+.personal-vnext .repayment-record__sidebar {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__history {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__history-item,
+.personal-vnext .personal-vnext__multi-action-row {
+  min-inline-size: 0;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext .personal-vnext__history-item:first-child,
+.personal-vnext .personal-vnext__multi-action-row:first-child {
+  border-block-start: 0;
+}
+
+.personal-vnext .personal-vnext__record-row,
+.personal-vnext .personal-vnext__multi-action-row {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__multi-action-row {
+  padding-block: 1rem;
+}
+
+.personal-vnext .personal-vnext__multi-action-row .record-history__primary,
+.personal-vnext .personal-vnext__multi-action-row .record-history__values,
+.personal-vnext .personal-vnext__multi-action-row .record-history__links {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__multi-action-row .record-history__values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-block: 0.75rem;
+}
+
+.personal-vnext .personal-vnext__multi-action-row .record-history__values > span {
+  display: grid;
+  gap: 0.2rem;
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__multi-action-row .record-history__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.personal-vnext .personal-vnext__row-action {
+  display: inline-flex;
+  min-block-size: 2.75rem;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--vnext-link);
+  font-weight: 600;
+}
+
+.personal-vnext .personal-vnext__allocation-module .repayment-allocation-editor__totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-block: 1rem;
+  border: 1px solid var(--vnext-rule);
+  background: var(--vnext-rule);
+}
+
+.personal-vnext .personal-vnext__allocation-module .repayment-allocation-editor__totals > div {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.8rem;
+  background: var(--vnext-surface-strong);
+}
+
+.personal-vnext .personal-vnext__allocation-module .repayment-allocation-editor__totals .animated-money,
+.personal-vnext .personal-vnext__allocation-module .repayment-allocation-editor__totals strong {
+  overflow: visible;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.personal-vnext .personal-vnext__allocation-row {
+  min-inline-size: 0;
+  padding-block: 0.9rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext .personal-vnext__allocation-progress {
+  border-color: var(--vnext-rule);
+  background: var(--vnext-accent-pale);
+}
+
+.personal-vnext .personal-vnext__receipts,
+.personal-vnext .personal-vnext__proof {
+  margin-block-start: 1.25rem;
+}
+
+.personal-vnext .personal-vnext__link-section,
+.personal-vnext .personal-vnext__fieldset,
+.personal-vnext .personal-vnext__qr {
+  margin-block-start: 1.25rem;
+  padding: 1rem;
+}
+
+.personal-vnext .personal-vnext__delete-section {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-task-panel {
+  color: var(--vnext-text);
+}
+
+.personal-vnext .task-panel.personal-task-panel .task-panel__surface {
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-overlay);
+  background: var(--vnext-surface);
+}
+
+.personal-vnext .task-panel.personal-task-panel .task-panel__header,
+.personal-vnext .task-panel.personal-task-panel .task-panel__footer {
+  border-color: var(--vnext-rule);
+}
+
+.personal-vnext .task-panel.personal-task-panel .task-panel__close {
+  border-color: var(--vnext-rule);
+  background: var(--vnext-surface-strong);
+  color: var(--vnext-text);
+}
+
+.personal-vnext .delete-confirmation-dialog {
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-overlay);
+  background: var(--vnext-surface);
+  color: var(--vnext-text);
+}
+
+.personal-vnext .searchable-combobox__custom > button,
+.personal-vnext .searchable-combobox__panel {
+  border-color: var(--vnext-rule);
+  background: var(--vnext-paper);
+  color: var(--vnext-text);
+  box-shadow: none;
+}
+
+.personal-vnext .searchable-combobox__option:hover,
+.personal-vnext .searchable-combobox__option--active {
+  background: var(--vnext-accent-wash);
+}
+
+.receipt-preview--vnext {
+  background-color: var(--vnext-overlay-heavy);
+}
+
+.receipt-preview--vnext .receipt-preview__surface {
+  border-color: var(--vnext-rule);
+  background: var(--vnext-surface);
+  box-shadow: none;
+}
+
+.receipt-preview--vnext .receipt-preview__header h2 {
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+}
+
+.receipt-preview--vnext .receipt-preview__header,
+.receipt-preview--vnext .receipt-preview__footer {
+  border-color: var(--vnext-rule);
+}
+
+.receipt-preview--vnext .receipt-preview__close {
+  border-color: var(--vnext-rule);
+  color: var(--vnext-text);
+}
+
+.personal-vnext .vnext-money,
+.personal-vnext .animated-money,
+.personal-vnext [class*="__amount"],
+.personal-vnext [class*="__received"] strong,
+.personal-vnext [class*="__outstanding"] strong {
+  max-inline-size: 100%;
+  overflow: visible;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+  white-space: nowrap;
+}
+
+.personal-vnext :is(.personal-vnext__header, .personal-vnext__hero, .personal-vnext__detail-intro, .app-page__header) {
+  animation: personal-vnext-hero-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+}
+
+.personal-vnext .personal-vnext__motion-reveal {
+  animation: personal-vnext-surface-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+}
+
+.personal-vnext .personal-vnext__motion-item,
+.personal-vnext [data-motion="list"] > * {
+  animation: personal-vnext-list-in var(--vnext-motion-layout) var(--vnext-ease-product) both;
+}
+
+.personal-vnext :is(.personal-vnext__summary, .personal-vnext__responsive-split, .personal-vnext__responsive-detail) {
+  animation: personal-vnext-split-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+}
+
+.personal-vnext :is(.personal-vnext__form, .personal-vnext__share-editor, .personal-vnext__allocation-module, [data-motion="allocation-change"], [data-motion="proof-change"]) {
+  animation: personal-vnext-form-in var(--vnext-motion-state) var(--vnext-ease-product) both;
+}
+
+.personal-vnext .personal-vnext__motion-stagger > :nth-child(2) { animation-delay: 60ms; }
+.personal-vnext .personal-vnext__motion-stagger > :nth-child(3) { animation-delay: 100ms; }
+.personal-vnext .personal-vnext__motion-stagger > :nth-child(4) { animation-delay: 140ms; }
+
+.personal-vnext :is(h1, h2, h3, h4) {
+  font-family: var(--font-zplit-vnext), var(--font-body);
+}
+
+.personal-vnext .task-panel.personal-task-panel .task-panel__header h2 {
+  font-family: var(--font-zplit-vnext), var(--font-body);
+}
+
+@media (max-width: 900px) {
+  .personal-vnext .personal-vnext__header,
+  .personal-vnext .personal-vnext__hero {
+    align-items: start;
+  }
+
+  .personal-vnext .personal-vnext__detail-layout,
+  .personal-vnext .personal-vnext__detail-layout > .expense-record__tasks,
+  .personal-vnext .personal-vnext__detail-layout > .repayment-record__tasks,
+  .personal-vnext .personal-vnext__responsive-split,
+  .personal-vnext .personal-vnext__responsive-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-vnext .friend-row.personal-vnext__record-row,
+  .personal-vnext .outing-row.personal-vnext__outing-row,
+  .personal-vnext .expense-row.personal-vnext__record-row,
+  .personal-vnext .repayment-row.personal-vnext__record-row {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-vnext .friend-row__meta,
+  .personal-vnext .outing-row__meta,
+  .personal-vnext .expense-row__meta,
+  .personal-vnext .repayment-row__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .personal-vnext .repayment-allocation-editor__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .personal-vnext .friend-row__edit,
+  .personal-vnext .outing-row__actions,
+  .personal-vnext .expense-row__open-tile,
+  .personal-vnext .repayment-row__open-tile {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .personal-vnext .personal-vnext__layout {
+    padding-block-start: 0.75rem;
+  }
+
+  .personal-vnext .personal-vnext__header,
+  .personal-vnext .personal-vnext__hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .personal-vnext .personal-vnext__primary-action {
+    inline-size: 100%;
+  }
+
+  .personal-vnext .friend-row__meta,
+  .personal-vnext .outing-row__meta,
+  .personal-vnext .expense-row__meta,
+  .personal-vnext .repayment-row__meta,
+  .personal-vnext .personal-vnext__summary,
+  .personal-vnext .personal-vnext__metadata-group,
+  .personal-vnext .personal-vnext__accounting,
+  .personal-vnext .outing-record__meta.personal-vnext__metadata,
+  .personal-vnext .expense-record__meta.personal-vnext__metadata,
+  .personal-vnext .repayment-record__meta.personal-vnext__accounting,
+  .personal-vnext .personal-vnext__allocation-module .repayment-allocation-editor__totals,
+  .personal-vnext .personal-vnext__multi-action-row .record-history__values {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-vnext .personal-vnext__toolbar {
+    align-items: stretch;
+  }
+
+  .personal-vnext .personal-vnext__filters {
+    flex-basis: 100%;
+  }
+
+  .personal-vnext .personal-vnext__connection-row {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-vnext .personal-vnext__connection-row details {
+    justify-self: start;
+  }
+
+  .personal-vnext .outing-row__actions {
+    justify-content: start;
+  }
+
+  .personal-vnext .personal-vnext__multi-action-row .record-history__links {
+    display: grid;
+    justify-items: start;
+  }
+}
+.personal-vnext .personal-vnext__ledger-columns {
+  display: none;
+}
+
+.personal-vnext .personal-vnext__upload-zone {
+  display: grid;
+  max-inline-size: none;
+  justify-items: center;
+  gap: 0.75rem;
+  margin-block-start: 1.25rem;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  border: 1px dashed var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface-strong);
+  text-align: center;
+}
+
+.personal-vnext .personal-vnext__upload-zone .expense-receipts__file-picker {
+  justify-content: center;
+}
+
+.personal-vnext .personal-vnext__upload-zone .expense-receipts__help,
+.personal-vnext .personal-vnext__upload-zone .expense-receipts__error {
+  max-inline-size: 42rem;
+}
+
+.personal-vnext .expense-receipts__empty {
+  margin-block: 1.25rem 0;
+  padding-block: 1.25rem;
+  color: var(--vnext-text-soft);
+  text-align: center;
+}
+
+.personal-vnext .expense-receipts__empty::before {
+  display: block;
+  width: 2rem;
+  height: 2.5rem;
+  margin: 0 auto 0.75rem;
+  border: 2px solid var(--vnext-link);
+  border-radius: var(--vnext-radius-control);
+  content: "";
+}
+
+.personal-vnext .expense-record__sidebar,
+.personal-vnext .repayment-record__sidebar {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.personal-vnext .expense-record__summary,
+.personal-vnext .repayment-record__summary,
+.personal-vnext .expense-record__edit-surface,
+.personal-vnext .repayment-record__edit-surface,
+.personal-vnext .expense-record__delete-section,
+.personal-vnext .repayment-record__delete-section {
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.personal-vnext .expense-record__summary .expense-record__meta,
+.personal-vnext .repayment-record__summary .repayment-record__meta {
+  grid-column: auto;
+}
+
+.personal-vnext .friend-record__editor-column,
+.personal-vnext .friend-record__share-column {
+  min-inline-size: 0;
+}
+
+@media (min-width: 901px) {
+  .personal-vnext .personal-vnext__ledger-columns {
+    display: grid;
+    align-items: end;
+    gap: 1.25rem;
+    padding: 0.65rem 1rem 0.45rem;
+    border-block: 1px solid var(--vnext-rule);
+    color: var(--vnext-text-quiet);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .personal-vnext.expenses-page .personal-vnext__ledger-columns,
+  .personal-vnext.expenses-page .expense-row.personal-vnext__record-row {
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.05fr) minmax(9rem, 0.85fr) minmax(11rem, 0.9fr) 2rem;
+  }
+
+  .personal-vnext.expenses-page .expense-row.personal-vnext__record-row {
+    display: grid;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .personal-vnext.expenses-page .expense-row__outing {
+    grid-column: 2;
+  }
+
+  .personal-vnext.expenses-page .expense-row__date {
+    grid-column: 3;
+  }
+
+  .personal-vnext.expenses-page .expense-row__amount {
+    grid-column: 4;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .personal-vnext.expenses-page .expense-row__open-tile {
+    grid-column: 5;
+    justify-self: end;
+  }
+
+  .personal-vnext.outings-page .personal-vnext__ledger-columns,
+  .personal-vnext.outings-page .outing-row.personal-vnext__outing-row {
+    grid-template-columns: minmax(0, 1.45fr) minmax(8rem, 0.7fr) minmax(9rem, 0.8fr) minmax(12rem, 1fr) minmax(10rem, auto);
+  }
+
+  .personal-vnext.outings-page .outing-row.personal-vnext__outing-row {
+    display: grid;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .personal-vnext.outings-page .outing-row__date {
+    grid-column: 2;
+  }
+
+  .personal-vnext.outings-page .outing-row__trip {
+    grid-column: 3;
+  }
+
+  .personal-vnext.outings-page .outing-row__expenses {
+    grid-column: 4;
+  }
+
+  .personal-vnext.outings-page .outing-row__actions {
+    grid-column: 5;
+  }
+
+  .personal-vnext.repayments-page .personal-vnext__ledger-columns,
+  .personal-vnext.repayments-page .repayment-row.personal-vnext__record-row {
+    grid-template-columns: minmax(0, 1.25fr) minmax(10rem, 0.8fr) minmax(8rem, 0.7fr) minmax(15rem, 1fr) 2rem;
+  }
+
+  .personal-vnext.repayments-page .repayment-row.personal-vnext__record-row {
+    display: grid;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .personal-vnext.repayments-page .repayment-row__received {
+    grid-column: 2;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .personal-vnext.repayments-page .repayment-row__date {
+    grid-column: 3;
+  }
+
+  .personal-vnext.repayments-page .repayment-row__allocation {
+    grid-column: 4;
+  }
+
+  .personal-vnext.repayments-page .repayment-row__open-tile {
+    grid-column: 5;
+    justify-self: end;
+  }
+
+  .personal-vnext .personal-vnext__detail-layout > .expense-record__tasks,
+  .personal-vnext .personal-vnext__detail-layout > .repayment-record__tasks {
+    grid-template-columns: minmax(0, 7fr) minmax(18rem, 5fr);
+    gap: clamp(1rem, 2.5vw, 2rem);
+  }
+
+  .personal-vnext .personal-vnext__responsive-split,
+  .personal-vnext .personal-vnext__responsive-detail {
+    grid-template-columns: minmax(0, 7fr) minmax(18rem, 5fr);
+    gap: clamp(1rem, 2.5vw, 2rem);
+  }
+
+  .personal-vnext .repayment-allocation-editor__row {
+    grid-template-columns: minmax(0, 1.7fr) minmax(14rem, 0.8fr);
+    gap: clamp(1rem, 2.5vw, 2rem);
+  }
+
+  .personal-vnext .friend-record__summary {
+    grid-template-columns: minmax(0, 7fr) minmax(18rem, 5fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .personal-vnext .personal-vnext__upload-zone {
+    justify-items: stretch;
+  }
+
+  .personal-vnext .personal-vnext__upload-zone .expense-receipts__file-picker {
+    justify-content: start;
+  }
+
+  .personal-vnext .expense-row.personal-vnext__record-row,
+  .personal-vnext .repayment-row.personal-vnext__record-row,
+  .personal-vnext .outing-row.personal-vnext__outing-row {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .personal-vnext .expense-row__outing,
+  .personal-vnext .expense-row__date,
+  .personal-vnext .expense-row__amount,
+  .personal-vnext .expense-row__open-tile,
+  .personal-vnext .repayment-row__received,
+  .personal-vnext .repayment-row__date,
+  .personal-vnext .repayment-row__allocation,
+  .personal-vnext .repayment-row__open-tile,
+  .personal-vnext .outing-row__date,
+  .personal-vnext .outing-row__trip,
+  .personal-vnext .outing-row__expenses,
+  .personal-vnext .outing-row__actions {
+    grid-column: auto;
+    justify-self: start;
+    text-align: start;
+  }
+
+  .personal-vnext .expense-row__amount,
+  .personal-vnext .repayment-row__received {
+    justify-self: stretch;
+    text-align: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .personal-vnext .personal-vnext__motion-reveal,
+  .personal-vnext .personal-vnext__motion-item,
+  .personal-vnext [data-motion="enter"],
+  .personal-vnext [data-motion="list"] > *,
+  .personal-vnext [data-motion="allocation-change"],
+  .personal-vnext [data-motion="proof-change"] {
+    animation: none !important;
+    transform: none !important;
+    clip-path: none !important;
+    transition: none !important;
+  }
+}

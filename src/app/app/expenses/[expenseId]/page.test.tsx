@@ -103,11 +103,11 @@ describe("expense record", () => {
     expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
     expect(screen.getByRole("heading", { name: "Delete expense" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Receipts" })).toBeInTheDocument();
-    expect(document.querySelector(".expense-record__primary-task .expense-record__shares")).toBeInTheDocument();
-    expect(document.querySelector(".expense-record__sidebar .expense-record__meta")).toBeInTheDocument();
-    expect(document.querySelector(".expense-record__sidebar .expense-record__form")).toBeInTheDocument();
-    expect(document.querySelector(".expense-record__controls .delete-record-form")).toBeInTheDocument();
-    expect(document.querySelector(".expense-record__sidebar .expense-record__controls")).toContainElement(document.querySelector(".expense-record__meta"));
+    expect(document.querySelector(".expense-record__primary-task .expense-record__split-workspace")).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__primary-task .expense-receipts")).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__sidebar .expense-record__summary .expense-record__meta")).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__sidebar .expense-record__edit-surface")).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__sidebar .expense-record__delete-section .delete-record-form")).toBeInTheDocument();
     expect(screen.queryByText(/Remove repayment allocations before deleting this expense/)).not.toBeInTheDocument();
     expect(screen.getByDisplayValue(deletionImpactRevision(deletionImpact))).toHaveAttribute("name", "impactRevision");
     expect(getExpenseDeletionImpact).toHaveBeenCalledOnce();

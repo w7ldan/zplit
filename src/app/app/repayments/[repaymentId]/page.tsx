@@ -94,8 +94,8 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
           />
         ) : null}
         <div className="repayment-record__tasks">
-          <div className="repayment-record__primary-task">
-            <div className="repayment-record__allocations" id="repayment-allocations">
+          <section className="repayment-record__primary-task" aria-label="Repayment allocation and payment proof">
+            <section className="repayment-record__allocation-workspace" id="repayment-allocations">
               <RepaymentAllocationEditor
                 action={replaceRepaymentAllocationsAction.bind(null, plan.id)}
                 plan={plan}
@@ -105,12 +105,12 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
                 undoAction={undoRepaymentAllocationAction}
                 vnext
               />
-            </div>
+            </section>
             <RepaymentPaymentProof repaymentId={plan.id} initialPaymentProof={paymentProof} />
-          </div>
-          <aside className="repayment-record__sidebar">
-            <div className="repayment-record__controls vnext-surface vnext-surface--warm personal-vnext__controls personal-vnext__motion-stagger" data-motion="enter">
-              <div className="repayment-record__meta personal-vnext__accounting" aria-label="Repayment metadata">
+          </section>
+          <aside className="repayment-record__sidebar" aria-label="Repayment inspector">
+            <section className="repayment-record__summary vnext-surface vnext-surface--warm personal-vnext__controls personal-vnext__motion-stagger" aria-label="Repayment summary" data-motion="enter">
+              <div className="repayment-record__meta personal-vnext__accounting">
                 <div><span className="technical-label">Received</span><strong><AnimatedMoney amount={plan.amount} label="Received repayment amount" tone="primary" /></strong></div>
                 <div><span className="technical-label">Applied to shares</span><strong><AnimatedMoney amount={plan.allocatedAmount} label="Applied to shares" tone="settled" /></strong></div>
                 <div><span className="technical-label">Needs allocation</span><strong><AnimatedMoney amount={plan.unallocatedAmount} label="Needs allocation" tone={plan.unallocatedAmount > 0 ? "debt" : "settled"} /></strong></div>
@@ -118,30 +118,32 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
                 <div><span className="technical-label">Payment method</span><span>{plan.paymentMethod ?? "—"}</span></div>
                 <div><span className="technical-label">Notes</span><span className="repayment-record__notes-value">{plan.notes ?? "—"}</span></div>
               </div>
-              <div className="repayment-record__form personal-vnext__form">
-                <p className="technical-label">EDIT RECORD</p>
-                <RepaymentForm
-                  action={updateRepaymentAction.bind(null, plan.id)}
-                  friends={friendOptions}
-                  searchFriends={searchFriendOptions}
-                  recentPaymentMethods={recentPaymentMethods}
-                  mode="edit"
-                  friendLocked={plan.allocatedAmount > 0}
-                  initialFriendContext={formContext}
-                  loadFriendContext={loadRepaymentFriendContext}
-                  initialPaidAtUtc={plan.paidAt.toISOString()}
-                  initialValues={{
-                    friendId: plan.friendId,
-                    amountRupiah: plan.amount.toString(),
-                    paidAtLocal: "",
-                    timezoneOffsetMinutes: "",
-                    paymentMethod: plan.paymentMethod ?? "",
-                    notes: plan.notes ?? "",
-                  }}
-                />
-              </div>
+            </section>
+            <section className="repayment-record__edit-surface vnext-surface personal-vnext__form" aria-labelledby="repayment-details">
+              <p className="technical-label" id="repayment-details" tabIndex={-1}>EDIT RECORD</p>
+              <RepaymentForm
+                action={updateRepaymentAction.bind(null, plan.id)}
+                friends={friendOptions}
+                searchFriends={searchFriendOptions}
+                recentPaymentMethods={recentPaymentMethods}
+                mode="edit"
+                friendLocked={plan.allocatedAmount > 0}
+                initialFriendContext={formContext}
+                loadFriendContext={loadRepaymentFriendContext}
+                initialPaidAtUtc={plan.paidAt.toISOString()}
+                initialValues={{
+                  friendId: plan.friendId,
+                  amountRupiah: plan.amount.toString(),
+                  paidAtLocal: "",
+                  timezoneOffsetMinutes: "",
+                  paymentMethod: plan.paymentMethod ?? "",
+                  notes: plan.notes ?? "",
+                }}
+              />
+            </section>
+            <section className="repayment-record__delete-section vnext-surface vnext-surface--warm">
               <DeleteRecordForm action={deleteRepaymentAction.bind(null, plan.id)} recordType="repayment" impact={deletionImpact} impactRevision={currentImpactRevision} />
-            </div>
+            </section>
           </aside>
         </div>
       </div>

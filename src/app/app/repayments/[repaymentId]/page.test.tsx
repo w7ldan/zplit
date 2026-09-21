@@ -85,11 +85,11 @@ describe("repayment record", () => {
     expect(screen.getByRole("heading", { name: "Payment proof" })).toBeInTheDocument();
     expect(screen.getByText("No payment proof attached.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add payment proof" })).toBeDisabled();
-    expect(document.querySelector(".repayment-record__primary-task .repayment-record__allocations")).toBeInTheDocument();
-    expect(document.querySelector(".repayment-record__sidebar .repayment-record__meta")).toBeInTheDocument();
-    expect(document.querySelector(".repayment-record__sidebar .repayment-record__form")).toBeInTheDocument();
-    expect(document.querySelector(".repayment-record__controls .delete-record-form")).toBeInTheDocument();
-    expect(document.querySelector(".repayment-record__sidebar .repayment-record__controls")).toContainElement(document.querySelector(".repayment-record__meta"));
+    expect(document.querySelector(".repayment-record__primary-task .repayment-record__allocation-workspace")).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__primary-task .payment-proof")).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__sidebar .repayment-record__summary .repayment-record__meta")).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__sidebar .repayment-record__edit-surface")).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__sidebar .repayment-record__delete-section .delete-record-form")).toBeInTheDocument();
     expect(screen.queryByText(/Remove this repayment's allocations before deleting it/)).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/allocation editor|debtor|card|pill|status dot/i);
     expect(screen.getByDisplayValue(deletionImpactRevision(deletionImpact))).toHaveAttribute("name", "impactRevision");

@@ -47,44 +47,26 @@ export function RepaymentRow({ repayment, basePath = "/app/repayments", vnext = 
           {repayment.paymentMethod ? <p className="repayment-row__payment-method">{repayment.paymentMethod}</p> : null}
         </div>
       </div>
-      <div className="repayment-row__meta">
-        <div className="repayment-row__received">
-          <span className="technical-label">Received</span>
-          <strong
-            className="vnext-money"
-            aria-label={`Received repayment amount ${formatRupiah(repayment.amount)}`}
-          >
-            {formatRupiah(repayment.amount)}
-          </strong>
-        </div>
-        <div className="repayment-row__date">
-          <span className="technical-label">Date</span>
-          <SourceCalendarDate canonicalDate={repayment.paidOn} timestamp={repayment.paidAt.toISOString()} />
-        </div>
-        <div className="repayment-row__allocation">
-          <div className="repayment-row__allocation-item">
-            <span className="technical-label">Applied to shares</span>
-            <strong
-              className="vnext-money"
-              aria-label={`Applied to shares ${formatRupiah(repayment.allocatedAmount)}`}
-            >
-              {formatRupiah(repayment.allocatedAmount)}
-            </strong>
-          </div>
-          <div className="repayment-row__allocation-item">
-            <span className="technical-label">Needs allocation</span>
-            <strong
-              className="vnext-money"
-              aria-label={`Needs allocation ${formatRupiah(repayment.unallocatedAmount)}`}
-            >
-              {formatRupiah(repayment.unallocatedAmount)}
-              {repayment.unallocatedAmount === 0 ? null : " needs allocation"}
-            </strong>
-            {repayment.unallocatedAmount === 0 ? <span>Fully applied</span> : null}
-          </div>
-        </div>
-        <OpenTile className="repayment-row__open-tile" />
+      <div className="repayment-row__received">
+        <span className="technical-label">Received</span>
+        <strong className="vnext-money" aria-label={`Received repayment amount ${formatRupiah(repayment.amount)}`}>{formatRupiah(repayment.amount)}</strong>
       </div>
+      <div className="repayment-row__date">
+        <span className="technical-label">Date</span>
+        <SourceCalendarDate canonicalDate={repayment.paidOn} timestamp={repayment.paidAt.toISOString()} />
+      </div>
+      <div className="repayment-row__allocation">
+        <div className="repayment-row__allocation-item">
+          <span className="technical-label">Applied to shares</span>
+          <strong className="vnext-money" aria-label={`Applied to shares ${formatRupiah(repayment.allocatedAmount)}`}>{formatRupiah(repayment.allocatedAmount)}</strong>
+        </div>
+        <div className="repayment-row__allocation-item">
+          <span className="technical-label">Needs allocation</span>
+          <strong className="vnext-money" aria-label={`Needs allocation ${formatRupiah(repayment.unallocatedAmount)}`}>{formatRupiah(repayment.unallocatedAmount)}{repayment.unallocatedAmount === 0 ? null : " needs allocation"}</strong>
+          {repayment.unallocatedAmount === 0 ? <span>Fully applied</span> : null}
+        </div>
+      </div>
+      <OpenTile className="repayment-row__open-tile" />
     </Link>
   );
 }

@@ -357,17 +357,13 @@ function FriendRecordContent({
           </section>
           <div className="friend-record__meta personal-vnext__metadata-group" aria-label="Friend metadata">
             <div>
-              <span className="technical-label">Record state</span>
-              <strong>{archived ? "ARCHIVED" : "ACTIVE"}</strong>
-            </div>
-            <div>
               <span className="technical-label">Created</span>
               <LocalDateTime iso={friend.createdAt.toISOString()} mode="date" />
             </div>
           </div>
         </section>
         <div className="friend-record__workspace personal-vnext__workspace personal-vnext__responsive-split" data-motion="enter">
-          <div className="friend-record__form personal-vnext__form personal-vnext__form--narrow personal-vnext__motion-reveal">
+          <div className="friend-record__editor-column personal-vnext__form personal-vnext__form--narrow personal-vnext__motion-reveal">
             <p className="technical-label personal-vnext__eyebrow">EDIT RECORD</p>
             <FriendForm
               action={updateFriendAction.bind(null, friend.id)}
@@ -406,22 +402,24 @@ function FriendRecordContent({
               undoAction={undoFriendArchiveAction}
             />
           </div>
-          <FriendShareLink
-            status={{
-              status: shareStatus.status,
-              expiresAt: shareStatus.expiresAt?.toISOString() ?? null,
-            }}
-            phoneNumber={friend.phoneNumber}
-            createAction={createDebtorShareLinkAction.bind(null, friend.id)}
-            revokeAction={revokeDebtorShareLinkAction.bind(null, friend.id)}
-            updateSelectionAction={updateDebtorShareReceiptSelectionAction.bind(
-              null,
-              friend.id,
-            )}
-            eligibleReceipts={eligibleReceipts}
-            selectedReceiptIds={selectedReceiptIds}
-            sharedDestinationNames={sharedDestinationNames}
-          />
+          <div className="friend-record__share-column">
+            <FriendShareLink
+              status={{
+                status: shareStatus.status,
+                expiresAt: shareStatus.expiresAt?.toISOString() ?? null,
+              }}
+              phoneNumber={friend.phoneNumber}
+              createAction={createDebtorShareLinkAction.bind(null, friend.id)}
+              revokeAction={revokeDebtorShareLinkAction.bind(null, friend.id)}
+              updateSelectionAction={updateDebtorShareReceiptSelectionAction.bind(
+                null,
+                friend.id,
+              )}
+              eligibleReceipts={eligibleReceipts}
+              selectedReceiptIds={selectedReceiptIds}
+              sharedDestinationNames={sharedDestinationNames}
+            />
+          </div>
         </div>
         <FriendRecordHistory data={data} query={query} />
       </div>

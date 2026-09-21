@@ -114,8 +114,8 @@ export default async function ExpenseRecordPage({
           />
         ) : null}
         <div className="expense-record__tasks">
-          <div className="expense-record__primary-task">
-            <section className="expense-record__shares personal-vnext__shares" id="friend-shares" tabIndex={-1} aria-label="Friend shares">
+          <section className="expense-record__primary-task" aria-label="Expense shares and receipts">
+            <section className="expense-record__split-workspace" id="friend-shares" tabIndex={-1} aria-label="Friend shares">
               <ExpenseShareEditor
                 action={replaceExpenseSharesAction.bind(null, expense.id)}
                 expenseAmount={expense.amount}
@@ -151,10 +151,10 @@ export default async function ExpenseRecordPage({
                 createdAt: receipt.createdAt.toISOString(),
               }))}
             />
-          </div>
-          <aside className="expense-record__sidebar">
-            <div className="expense-record__controls vnext-surface vnext-surface--warm personal-vnext__controls personal-vnext__motion-stagger" data-motion="enter">
-              <section className="expense-record__meta personal-vnext__metadata" aria-label="Expense metadata">
+          </section>
+          <aside className="expense-record__sidebar" aria-label="Expense inspector">
+            <section className="expense-record__summary vnext-surface vnext-surface--warm personal-vnext__controls personal-vnext__motion-stagger" aria-label="Expense summary" data-motion="enter">
+              <div className="expense-record__meta personal-vnext__metadata">
                 <div>
                   <span className="technical-label">Amount</span>
                   <strong><AnimatedMoney amount={expense.amount} animate label="Expense amount" tone="primary" /></strong>
@@ -171,16 +171,6 @@ export default async function ExpenseRecordPage({
                   <span className="technical-label">Created</span>
                   <LocalDateTime iso={expense.createdAt.toISOString()} mode="date" />
                 </div>
-              </section>
-              <div className="expense-record__form personal-vnext__form">
-                <p className="technical-label" id="expense-details" tabIndex={-1}>EDIT RECORD</p>
-                <ExpenseForm
-                  action={updateExpenseAction.bind(null, expense.id)}
-                  outings={outings}
-                  searchOutings={searchOutingOptions}
-                  mode="edit"
-                  initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
-                />
               </div>
               {budgetState.status !== "unprocessed" ? (
                 <section className="personal-vnext__budget-section personal-vnext__motion-item" aria-label="Budget participation">
@@ -194,13 +184,25 @@ export default async function ExpenseRecordPage({
                   />
                 </section>
               ) : null}
+            </section>
+            <section className="expense-record__edit-surface vnext-surface personal-vnext__form" aria-labelledby="expense-details">
+              <p className="technical-label" id="expense-details" tabIndex={-1}>EDIT RECORD</p>
+              <ExpenseForm
+                action={updateExpenseAction.bind(null, expense.id)}
+                outings={outings}
+                searchOutings={searchOutingOptions}
+                mode="edit"
+                initialValues={{ description: expense.description, amountRupiah: expense.amount.toString(), outingId: expense.outingId }}
+              />
+            </section>
+            <section className="expense-record__delete-section vnext-surface vnext-surface--warm">
               <DeleteRecordForm
                 action={deleteExpenseAction.bind(null, expense.id)}
                 recordType="expense"
                 impact={deletionImpact}
                 impactRevision={currentImpactRevision}
               />
-            </div>
+            </section>
           </aside>
         </div>
       </div>

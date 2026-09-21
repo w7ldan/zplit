@@ -11,14 +11,17 @@ const publicSource = readSource("src/app/styles/10-public.css");
 const authenticatedSource = readSource("src/app/styles/20-authenticated-shell.css");
 const overviewSource = readSource("src/app/styles/25-overview.css");
 const recordsAndFormsSource = readSource("src/app/styles/30-records-and-forms.css");
+const personalVnextSource = readSource("src/app/styles/35-personal-vnext.css");
 const motionSource = readSource("src/app/styles/40-motion-and-feedback.css");
 const lateOverridesSource = readSource("src/app/styles/90-late-overrides.css");
 const requiredImports = [
   "src/app/styles/00-foundation.css",
+  "src/app/styles/05-vnext-foundation.css",
   "src/app/styles/10-public.css",
   "src/app/styles/20-authenticated-shell.css",
   "src/app/styles/25-overview.css",
   "src/app/styles/30-records-and-forms.css",
+  "src/app/styles/35-personal-vnext.css",
   "src/app/styles/40-motion-and-feedback.css",
   "src/app/styles/90-late-overrides.css",
 ];
@@ -76,13 +79,17 @@ describe("Repository CSS architecture contract", () => {
     expect(anchors.every((index) => index >= 0)).toBe(true);
     expect(anchors).toEqual([...anchors].sort((left, right) => left - right));
     expect(bundle.css.indexOf(".header-shell {")).toBeLessThan(bundle.css.indexOf(".app-shell {"));
-    expect(bundle.fragmentSources[2]).toContain(".app-page__layout");
+    expect(bundle.fragmentSources[3]).toContain(".app-page__layout");
     expect(overviewSource).toContain(".overview-page {");
-    expect(bundle.fragmentSources[4]).toContain("/* Shared authenticated record filters, pagination, and row actions. */");
-    expect(bundle.fragmentSources[4]).toContain(".live-record-filters {");
-    expect(bundle.fragmentSources[4]).toContain(".record-pagination {\n  display: flex;");
-    expect(bundle.fragmentSources[6]).not.toContain(".live-record-filters {");
-    expect(bundle.fragmentSources[6]).not.toContain(".record-pagination {");
+    expect(bundle.fragmentSources[5]).toContain("/* Shared authenticated record filters, pagination, and row actions. */");
+    expect(bundle.fragmentSources[5]).toContain(".live-record-filters {");
+    expect(bundle.fragmentSources[5]).toContain(".record-pagination {\n  display: flex;");
+    expect(personalVnextSource).toContain(".personal-vnext.expenses-page");
+    expect(personalVnextSource).toContain(".personal-vnext.repayments-page");
+    expect(personalVnextSource).toContain(".personal-vnext.outings-page");
+    expect(bundle.fragmentSources[8]).not.toContain(".live-record-filters {");
+    expect(bundle.fragmentSources[8]).not.toContain(".record-pagination {");
+    expect(bundle.fragmentSources[8]).not.toContain(".personal-vnext");
   });
 
   it("keeps mobile disclosure ownership in the records-and-forms fragment", () => {

@@ -30,14 +30,10 @@ export function ExpenseRow({ expense, emphasized = false, basePath = "/app/expen
         <span className="technical-label">EXPENSE</span>
         <h2>{expense.description}</h2>
       </div>
-      <div className="expense-row__meta">
-        <span className="expense-row__amount"><span className="technical-label">Amount</span><strong className="vnext-money" aria-label={`Expense amount ${formatRupiah(expense.amount)}`}>{formatRupiah(expense.amount)}</strong></span>
-        <div className="expense-row__context">
-          <span className="expense-row__date"><span className="technical-label">Date</span><SourceCalendarDate canonicalDate={expense.outingOccurredOn} timestamp={expense.outingOccurredAt.toISOString()} /></span>
-          <span className="expense-row__outing"><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></span>
-        </div>
-        <OpenTile className="expense-row__open-tile" />
-      </div>
+      <div className="expense-row__outing"><span className="technical-label">Outing</span><span>{expense.outingTitle}</span></div>
+      <div className="expense-row__date"><span className="technical-label">Date</span><SourceCalendarDate canonicalDate={expense.outingOccurredOn} timestamp={expense.outingOccurredAt.toISOString()} /></div>
+      <div className="expense-row__amount"><span className="technical-label">Amount</span><strong className="vnext-money" aria-label={`Expense amount ${formatRupiah(expense.amount)}`}>{formatRupiah(expense.amount)}</strong></div>
+      <OpenTile className="expense-row__open-tile" />
     </Link>
   );
 }
