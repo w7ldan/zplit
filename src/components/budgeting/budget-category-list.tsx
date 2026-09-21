@@ -13,15 +13,21 @@ export type BudgetCategoryListRow = {
 export function BudgetCategoryList({ categories }: { categories: readonly BudgetCategoryListRow[] }) {
   return (
     <div className="budget-category-list">
+      <div className="budget-ledger-header budget-category-list__header" aria-hidden="true">
+        <span>Category</span>
+        <span>Allocated</span>
+        <span>Used</span>
+        <span>Remaining</span>
+      </div>
       {categories.map((category) => (
         <div className="budget-category-row" key={category.id}>
-          <div>
+          <div className="budget-category-row__identity">
             <strong>{category.name}</strong>
             {category.note ? <small>{category.note}</small> : null}
           </div>
-          <span>{formatRupiah(category.allocatedAmount)}</span>
-          <span>{formatSignedRupiah(category.netSpent)}</span>
-          <strong>{formatSignedRupiah(category.remaining)}</strong>
+          <span className="budget-category-row__allocated">{formatRupiah(category.allocatedAmount)}</span>
+          <span className="budget-category-row__spent">{formatSignedRupiah(category.netSpent)}</span>
+          <strong className="budget-category-row__remaining">{formatSignedRupiah(category.remaining)}</strong>
         </div>
       ))}
     </div>

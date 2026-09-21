@@ -14,6 +14,7 @@ export function BudgetSectionNav({ current }: { current: BudgetSection }) {
     <nav className="budget-section-nav" aria-label="Budget sections">
       {budgetSections.map((section) => (
         <Link
+          className="budget-section-nav__link"
           aria-current={section.key === current ? "page" : undefined}
           href={section.href}
           key={section.key}

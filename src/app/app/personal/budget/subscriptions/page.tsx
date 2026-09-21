@@ -17,6 +17,7 @@ import {
   skipBudgetRecurringOccurrenceAction,
   updateBudgetRecurringTemplateAction,
 } from "../actions";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const metadata = { title: "Recurring" };
 export const dynamic = "force-dynamic";
@@ -28,8 +29,8 @@ function spreadSummary(count: number) {
 function TemplateRow({ template, categories }: { template: BudgetRecurringTemplateView; categories: Array<{ id: string; name: string }> }) {
   return (
     <div className="budget-recurring-row">
-      <span className="technical-label">{budgetRecurringFrequencyLabel(template.frequency)}</span>
-      <span>
+      <span className="technical-label budget-recurring-row__frequency">{budgetRecurringFrequencyLabel(template.frequency)}</span>
+      <span className="budget-recurring-row__identity">
         <strong>{template.name}</strong>
         <small>{template.categoryName} · {spreadSummary(template.spreadCount)} · from {formatCalendarDate(template.startsOn)}</small>
         <details className="budget-category-change">
@@ -51,11 +52,11 @@ function TemplateRow({ template, categories }: { template: BudgetRecurringTempla
           />
         </details>
       </span>
-      <span>
+      <span className="budget-recurring-row__amount">
         <strong>{formatRupiah(template.amount)}</strong>
         <small>{template.nextDueOn ? `Next ${formatCalendarDate(template.nextDueOn)}` : "No upcoming occurrence"}</small>
       </span>
-      <ConfirmationDialog
+      <div className="budget-recurring-row__action"><ConfirmationDialog
         title="Archive recurring expense?"
         entityName={template.name}
         confirmLabel="Archive recurring expense"
@@ -64,7 +65,7 @@ function TemplateRow({ template, categories }: { template: BudgetRecurringTempla
         triggerAriaLabel={`Archive ${template.name} recurring expense`}
         description={`Archiving “${template.name}” removes it from recurring planning. Recorded transactions and past occurrences are unchanged.`}
         action={archiveBudgetRecurringTemplateAction.bind(null, template.id)}
-      />
+      /></div>
     </div>
   );
 }
@@ -84,7 +85,7 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
     ? `${recurringSummary.dueCount} due · showing first ${dueOccurrences.length}`
     : `${recurringSummary.dueCount} due`;
   return (
-    <section className="app-page budget-page" id="top">
+    <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <header className="app-page__header">
           <div>
@@ -93,15 +94,32 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
             <p className="app-page__lede">Expected recurring expenses. Nothing here affects spending until a payment is recorded.</p>
           </div>
           <div className="budget-page__actions">
-            <Link className="action-link action-link--primary" href="/app/personal/budget/subscriptions?create=template" data-task-trigger="budget-recurring">Add recurring expense</Link>
+            <Link className="vnext-button vnext-button--primary action-link" href="/app/personal/budget/subscriptions?create=template" data-task-trigger="budget-recurring">Add recurring expense</Link>
           </div>
         </header>
         <BudgetSectionNav current="subscriptions" />
         <section className="ledger-section" aria-labelledby="budget-recurring-heading">
           <div className="ledger-section__heading"><h2 id="budget-recurring-heading">Active recurring</h2><span className="technical-label">Amount · next occurrence</span></div>
           {templates.length === 0
-            ? <div className="ledger-empty"><p>No recurring expenses yet.</p><Link className="text-link" href="/app/personal/budget/subscriptions?create=template">Add recurring expense <span aria-hidden="true">→</span></Link></div>
-            : <div className="budget-recurring-list">{templates.map((template) => <TemplateRow categories={categories} key={template.id} template={template} />)}</div>}
+            ? (
+              <div className="ledger-empty">
+                <p>No recurring expenses yet.</p>
+                <Link className="text-link" href="/app/personal/budget/subscriptions?create=template">
+                  Add recurring expense <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+            )
+            : (
+              <>
+                <div className="budget-ledger-header budget-recurring-list__header" aria-hidden="true">
+                  <span>Frequency</span>
+                  <span>Rule</span>
+                  <span>Amount</span>
+                  <span>Actions</span>
+                </div>
+                <div className="budget-recurring-list">{templates.map((template) => <TemplateRow categories={categories} key={template.id} template={template} />)}</div>
+              </>
+            )}
         </section>
         <section className="ledger-section" aria-labelledby="budget-recurring-due-heading">
           <div className="ledger-section__heading"><h2 id="budget-recurring-due-heading">Upcoming and due</h2><span className="technical-label">{dueCountLabel}</span></div>
@@ -113,17 +131,25 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
               </div>
             )
             : (
-              <div className="budget-recurring-due-list">
+              <>
+                <div className="budget-ledger-header budget-recurring-due-list__header" aria-hidden="true">
+                  <span>Due</span>
+                  <span>Rule</span>
+                  <span>Amount</span>
+                  <span>Record</span>
+                  <span>Actions</span>
+                </div>
+                <div className="budget-recurring-due-list">
                 {dueOccurrences.map((occurrence) => (
                   <div className="budget-recurring-due-row" key={occurrence.id}>
-                    <span className="technical-label">{formatCalendarDate(occurrence.scheduledOn)}</span>
-                    <span>
+                    <span className="technical-label budget-recurring-due-row__date">{formatCalendarDate(occurrence.scheduledOn)}</span>
+                    <span className="budget-recurring-due-row__identity">
                       <strong>{occurrence.templateName}</strong>
                       <small>{occurrence.categoryName} · {spreadSummary(occurrence.spreadCount)}</small>
                     </span>
-                    <span><strong>{formatRupiah(occurrence.amount)}</strong><small>Expected</small></span>
-                    <RecurringRecordForm action={recordBudgetRecurringOccurrenceAction} occurrenceId={occurrence.id} contextLabel={occurrence.templateName} />
-                    <ConfirmationDialog
+                    <span className="budget-recurring-due-row__amount"><strong>{formatRupiah(occurrence.amount)}</strong><small>Expected</small></span>
+                    <div className="budget-recurring-due-row__record"><RecurringRecordForm action={recordBudgetRecurringOccurrenceAction} occurrenceId={occurrence.id} contextLabel={occurrence.templateName} /></div>
+                    <div className="budget-recurring-due-row__action"><ConfirmationDialog
                       title="Skip occurrence?"
                       entityName={`${occurrence.templateName} on ${formatCalendarDate(occurrence.scheduledOn)}`}
                       confirmLabel="Skip occurrence"
@@ -132,10 +158,11 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
                       triggerAriaLabel={`Skip ${occurrence.templateName} occurrence scheduled ${formatCalendarDate(occurrence.scheduledOn)}`}
                       description={`Skipping “${occurrence.templateName}” on ${formatCalendarDate(occurrence.scheduledOn)} marks this expected occurrence as skipped. No cash is recorded and Budget totals are unchanged.`}
                       action={skipBudgetRecurringOccurrenceAction.bind(null, occurrence.id)}
-                    />
+                    /></div>
                   </div>
                 ))}
-              </div>
+                </div>
+              </>
             )}
         </section>
       </div>

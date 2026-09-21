@@ -134,6 +134,18 @@
   transition: transform var(--vnext-motion-fast) var(--vnext-ease-emphasized);
 }
 
+.zplit-vnext .vnext-row:hover .vnext-open-tile,
+.zplit-vnext .vnext-row:focus-visible .vnext-open-tile {
+  background: var(--vnext-accent-strong);
+  color: var(--vnext-text-on-accent);
+  transform: translate(0.12rem, -0.12rem);
+}
+
+.zplit-vnext .vnext-row:hover .vnext-open-tile svg,
+.zplit-vnext .vnext-row:focus-visible .vnext-open-tile svg {
+  transform: translate(0.06rem, -0.06rem);
+}
+
 .zplit-vnext .vnext-money,
 .zplit-vnext .animated-money {
   display: inline-block;

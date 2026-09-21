@@ -1,14 +1,16 @@
 # Zplit design system vNext
 
-Zplit vNext is the page-agnostic UI foundation for future route migrations. It is chunky, clean, playful, tactile, compact, bold, highly interactive, and motion-rich. It should feel unmistakably Zplit without turning every route into the Overview.
+Zplit vNext is the page-agnostic UI foundation for future route migrations. It is precise, architectural, tactile, compact, and financially legible. It should feel unmistakably Zplit without turning every route into a generic dashboard.
 
 This document is canonical for new UI and migrated UI. It defines semantic roles and interaction contracts; page-specific composition remains owned by the route.
 
 ## Product character
 
-The personality comes from Sora typography, oversized financial values, strong blue, rounded geometry, asymmetric composition, semantic split layouts, compact alignment, surface contrast, and responsive motion.
+The personality comes from Sora typography, strong financial hierarchy, asymmetric composition, semantic split layouts, compact alignment, surface contrast, tactile rules, and responsive motion. Technical Brutalism and Tonal Minimalism are the governing visual directions: structure, typography, borders, and tonal layers do the work.
 
 It does not come from gradients, shadows, glass, blobs, purple, random accents, excessive icons, fake insights, fake system status, or generic dashboard card grids.
+
+Current Zplit colors are authoritative. The supplied design specification is authoritative for typography, layout, density, geometry, borders, interaction, and responsive composition, but its literal color values are not copied into the product. Migrated routes consume the existing semantic palette from `src/app/styles/00-foundation.css`.
 
 The current header is frozen. Do not redesign, partially migrate, or restyle it as part of a route migration.
 
@@ -51,68 +53,13 @@ Tokens are owned by `src/app/styles/00-foundation.css` and are scoped beneath `.
 
 The core roles are `--vnext-canvas`, `--vnext-paper`, `--vnext-surface`, `--vnext-surface-strong`, `--vnext-surface-warm`, `--vnext-text`, `--vnext-text-soft`, `--vnext-text-quiet`, `--vnext-rule`, `--vnext-accent`, `--vnext-accent-strong`, `--vnext-accent-deep`, `--vnext-link`, `--vnext-debt`, and `--vnext-settled`, with corresponding pale and wash roles.
 
-### Light theme
+### Theme implementation
 
-| Role | Value |
-| --- | --- |
-| Canvas | `#F3F7F9` |
-| Paper | `#FFFFFF` |
-| Surface | `#FFFFFF` |
-| Surface strong | `#F3F7F9` |
-| Warm surface | `#FAF7F1` |
-| Text | `#0F1216` |
-| Text soft | `#53606B` |
-| Text quiet | `#78828B` |
-| Rule | `#D8E2E8` |
-| Accent | `#72C5F5` |
-| Accent strong | `#239FDF` |
-| Accent deep | `#0879B8` |
-| Link | `#006B9A` |
-| Accent pale | `#DAF1FC` |
-| Accent wash | `#EBF8FE` |
-| Debt | `#D24B35` |
-| Debt wash | `#FCEDE8` |
-| Settled | `#4E7460` |
-| Settled wash | `#EDF5F0` |
-
-### Dark theme
-
-The dark canvas is exactly `#171816`. This value must not change.
-
-| Role | Value |
-| --- | --- |
-| Canvas | `#171816` |
-| Paper | `#1D1E1C` |
-| Surface | `#20211F` |
-| Surface strong | `#252623` |
-| Warm surface | `#211F1B` |
-| Text | `#F3F4F1` |
-| Text soft | `#B4B9B2` |
-| Text quiet | `#878D86` |
-| Rule | `#6A726A` |
-| Accent | `#72C5F5` |
-| Accent strong | `#239FDF` |
-| Accent deep | `#0879B8` |
-| Link | `#72C5F5` |
-| Accent pale | `#1C3440` |
-| Accent wash | `#192A32` |
-| Debt | `#F0806C` |
-| Debt wash | `#35231F` |
-| Settled | `#8DB49B` |
-| Settled wash | `#202D25` |
-
-Dark mode is the same product, not an inverted aesthetic. The dark rule is slightly lighter than the initial target so it remains a usable boundary when it is the sole non-text control or surface signal. Use surface, surface-strong, warm surface, borders, and spacing to communicate hierarchy. Color supports semantic meaning but never replaces words. Debt and settled washes are backgrounds, not the only state signal.
+Light and dark values remain implementation details of the current Zplit semantic tokens. Do not add route-local color literals or replace those tokens with values copied from a design reference. Use the same roles in both themes: canvas, paper, surface, strong surface, warm surface, text, quiet text, rule, accent, debt, settled, and their washes. Color supports semantic meaning but never replaces words; debt and settled washes are backgrounds, not the only state signal.
 
 ## Geometry and surfaces
 
-The canonical radius scale is:
-
-- control: `8px`;
-- button: `10px`;
-- row: `12px`;
-- module: `16px`;
-- major surface: `20px`;
-- overlay: `24px`.
+The canonical shape language is restrained rather than pill-shaped. Controls and buttons use small radii, principal modules use a restrained medium radius, and overlays may be slightly larger. The migrated Budget family uses a local `4px / 8px / 12px` scale for controls, modules, and overlays while continuing to consume the shared semantic color tokens.
 
 Use rounded geometry without pillifying everything. Do not use slash-cut corners, diagonal notches, or arbitrary clipped shapes.
 
@@ -131,6 +78,8 @@ Authenticated application pages should normally use the available authenticated 
 ## Shared interaction contracts
 
 The shared contracts live in `src/app/styles/05-vnext-foundation.css`. They are opt-in and page-agnostic.
+
+Shared primitives own their visual identity. Route styles may place a primitive in a layout, but must not redefine its dimensions, icon treatment, border, radius, hover state, or motion. Migrated routes use semantic structural classes instead of broad descendant selectors such as `> span`, `:last-child`, or `nth-child()` for component identity. Legacy selectors remain available only where unmigrated routes still depend on them.
 
 ### Navigable rows
 
@@ -182,6 +131,12 @@ Rp480,000
 ```
 
 No design-system change may alter financial logic, permissions, lifecycle semantics, or authoritative state transitions.
+
+## Budget family
+
+The Personal Budget routes share one financial workspace language across Overview, Transactions, Period history, and Recurring. Use the available authenticated canvas with an asymmetric workbench, dense ledger rows, tactile 1px rules, tabular amounts, compact actions, and clear separation for Shared Money. Remaining is the primary current-period value; Total budget, Net spent, Safe daily, date ranges, category allocation, transaction provenance, recurring planning, and period lifecycle remain subordinate but explicit.
+
+Budget navigation is a reusable semantic rail with `aria-current="page"`. Category, transaction, recurring, and period rows use named identity, amount, and action regions so layout is resilient to content length and does not depend on child order. Planned recurring records remain visually distinct from posted transactions. Empty and invariant states stay concise and truthful.
 
 ## Motion
 

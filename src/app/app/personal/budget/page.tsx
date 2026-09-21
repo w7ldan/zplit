@@ -16,6 +16,7 @@ import type { BudgetRecurringDashboardSummary } from "@/server/budgeting/recurri
 import type { GroupBudgetObligation } from "@/server/budgeting/sources-group";
 import { getBudgetDashboard } from "@/server/budgeting/reporting";
 import { changeGroupObligationBudgetCategoryAction, changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, createBudgetSetupAction, createBudgetTransactionAction, importPersonalActivityAction, startNextBudgetPeriodAction, updateBudgetPlanAction } from "./actions";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const metadata = { title: "Budget" };
 export const dynamic = "force-dynamic";
@@ -47,10 +48,10 @@ function PageHeader({ period, importAvailable = false }: { period?: BudgetPeriod
       </div>
       {period ? (
         <div className="budget-page__actions">
-          {importAvailable ? <form action={importPersonalActivityAction}><button className="action-link action-link--quiet" type="submit">Import activity</button></form> : null}
-          <Link className="action-link action-link--primary" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
-          <Link className="action-link action-link--quiet" href="/app/personal/budget?create=plan" data-task-trigger="budget-plan">Manage plan</Link>
-          <Link className="action-link action-link--quiet" href="/app/personal/budget?create=period" data-task-trigger="budget-period">Start next period</Link>
+          {importAvailable ? <form action={importPersonalActivityAction}><button className="vnext-button vnext-button--secondary action-link" type="submit">Import activity</button></form> : null}
+          <Link className="vnext-button vnext-button--primary action-link" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
+          <Link className="vnext-button vnext-button--secondary action-link" href="/app/personal/budget?create=plan" data-task-trigger="budget-plan">Manage plan</Link>
+          <Link className="vnext-button vnext-button--secondary action-link" href="/app/personal/budget?create=period" data-task-trigger="budget-period">Start next period</Link>
         </div>
       ) : null}
     </header>
@@ -65,9 +66,9 @@ function GroupObligationRows({ obligations, categories }: { obligations: GroupBu
       <div className="budget-group-obligations__list">
         {obligations.map((obligation) => (
           <div className="budget-group-obligation" key={obligation.id}>
-            <span><strong>{obligation.groupName}</strong><small>{obligation.description} · {obligation.categoryName}</small></span>
-            <span><strong>{formatRupiah(obligation.amount)}</strong><small>You still owe</small></span>
-            <details className="budget-category-change">
+            <span className="budget-group-obligation__identity"><strong>{obligation.groupName}</strong><small>{obligation.description} · {obligation.categoryName}</small></span>
+            <span className="budget-group-obligation__amount"><strong>{formatRupiah(obligation.amount)}</strong><small>You still owe</small></span>
+            <details className="budget-category-change budget-group-obligation__action">
               <summary className="action-link action-link--quiet" aria-label={`Categorize ${obligation.description}`}>Categorize</summary>
               <form action={changeGroupObligationBudgetCategoryAction}>
                 <input type="hidden" name="obligationId" value={obligation.id} />
@@ -92,21 +93,26 @@ function CurrentPeriodSummary({ period, recurring }: { period: BudgetPeriodSumma
         <div><p className="technical-label">Current period</p><h2 id="budget-current-period-heading">{period.name}</h2></div>
         <span className="technical-label">{formatCalendarDate(period.startsOn)} – {formatCalendarDate(period.endsOn)}</span>
       </div>
-      <section className="overview-summary" aria-label="Current period summary">
-        <div className="overview-summary__primary">
+      <section className="overview-summary budget-workbench" aria-label="Current period summary">
+        <div className="overview-summary__primary budget-summary__remaining">
           <span className="technical-label">Remaining</span>
           <strong>{formatSignedRupiah(period.remaining)}</strong>
           <span>Of {formatRupiah(period.totalBudget)} total budget</span>
         </div>
-        <div>
+        <div className="budget-summary__metric">
           <span className="technical-label">Net spent</span>
           <strong>{formatSignedRupiah(period.netSpent)}</strong>
           <span>This period</span>
         </div>
-        <div>
+        <div className="budget-summary__metric">
           <span className="technical-label">Safe daily</span>
           <strong><SafeDaily startsOn={period.startsOn} endsOn={period.endsOn} remaining={period.remaining} /></strong>
           <span>Through {formatCalendarDate(period.endsOn)}</span>
+        </div>
+        <div className="budget-summary__metric budget-summary__total">
+          <span className="technical-label">Total budget</span>
+          <strong>{formatRupiah(period.totalBudget)}</strong>
+          <span>Planned for this period</span>
         </div>
       </section>
       {recurring.dueCount > 0 ? (
@@ -197,14 +203,14 @@ function TransactionRow({ transaction, categories }: { transaction: BudgetTransa
   const categoryLabel = summarizeBudgetCategories(transaction.categoryNames);
   return (
     <div className={`budget-transaction-row${transaction.status === "voided" ? " budget-transaction-row--voided" : ""}`}>
-      <span className="technical-label">{sourceLabel}</span>
-      <span>
+      <span className="technical-label budget-transaction-row__type">{sourceLabel}</span>
+      <span className="budget-transaction-row__identity">
         <strong>{transaction.description}</strong>
         <small>{categoryLabel} · {formatCalendarDate(transaction.occurredOn)}</small>
         <ChangeCategoryForm transaction={transaction} categories={categories} />
         <SpreadControl transaction={transaction} />
       </span>
-      <span><strong>{transactionAmount(transaction.direction, transaction.amount)}</strong><small>{transaction.status === "voided" ? "Voided" : "Posted"}</small></span>
+      <span className="budget-transaction-row__amount"><strong>{transactionAmount(transaction.direction, transaction.amount)}</strong><small>{transaction.status === "voided" ? "Voided" : "Posted"}</small></span>
     </div>
   );
 }
@@ -228,7 +234,16 @@ function RecentSection({ transactions, categories }: { transactions: BudgetTrans
         <h2 id="budget-recent-heading">Recent transactions</h2>
         <Link className="text-link" href="/app/personal/budget/transactions">View transaction history <span aria-hidden="true">→</span></Link>
       </div>
-      {content}
+      {transactions.length ? (
+        <>
+          <div className="budget-ledger-header budget-transaction-list__header" aria-hidden="true">
+            <span>Source</span>
+            <span>Description / category</span>
+            <span>Amount</span>
+          </div>
+          {content}
+        </>
+      ) : content}
     </section>
   );
 }
@@ -236,9 +251,9 @@ function RecentSection({ transactions, categories }: { transactions: BudgetTrans
 export default async function BudgetPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ create?: string | string[]; imported?: string | string[] }> } = {}) {
   const session = await requireSession();
   const dashboard = await getBudgetDashboard(getDatabase(), session.user.id);
-  if (!dashboard.configured) return <section className="app-page budget-page" id="top"><div className="editorial-shell app-page__layout"><PageHeader /><SetupState /></div></section>;
+  if (!dashboard.configured) return <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top"><div className="editorial-shell app-page__layout"><PageHeader /><SetupState /></div></section>;
   if (!dashboard.period) return (
-    <section className="app-page budget-page" id="top">
+    <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <PageHeader />
         <section className="ledger-empty budget-invariant">
@@ -257,7 +272,7 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
   const openManage = createMode === "plan";
   const openNext = createMode === "period";
   return (
-    <section className="app-page budget-page" id="top">
+    <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <PageHeader period={period} importAvailable={dashboard.importAvailable} />
         {imported ? <RecordConfirmation queryKey="imported" message="Eligible activity imported into Budget." /> : null}

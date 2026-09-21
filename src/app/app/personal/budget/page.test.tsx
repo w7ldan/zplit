@@ -91,7 +91,7 @@ describe("/app/personal/budget task-panel modes", () => {
     expect(summary).not.toHaveTextContent(/Expected back|You still owe|Group obligations/);
 
     const plan = screen.getByRole("heading", { level: 2, name: "Category plan" }).closest("section")!;
-    expect(within(plan).getByText("Allocated")).toBeInTheDocument();
+    expect(within(plan.querySelector(".budget-plan-summary")!).getByText("Allocated")).toBeInTheDocument();
     expect(within(plan).getByText("Unallocated")).toBeInTheDocument();
     expect(within(plan).getByRole("link", { name: /Manage plan/ })).toHaveAttribute("href", "/app/personal/budget?create=plan");
     expect(within(plan).getByText("Food")).toBeInTheDocument();

@@ -14,7 +14,7 @@ type CategoryOption = { id: string; name: string };
 
 function SubmitButton({ label, quiet = false, ariaLabel }: { label: string; quiet?: boolean; ariaLabel?: string }) {
   const { pending } = useFormStatus();
-  return <button className={quiet ? "action-link action-link--quiet" : "action-link action-link--primary"} type="submit" disabled={pending} aria-busy={pending} aria-label={ariaLabel}>{pending ? "Saving…" : label}</button>;
+  return <button className={quiet ? "action-link action-link--quiet vnext-button vnext-button--secondary" : "action-link action-link--primary vnext-button vnext-button--primary"} type="submit" disabled={pending} aria-busy={pending} aria-label={ariaLabel}>{pending ? "Saving…" : label}</button>;
 }
 
 const emptyTemplate: BudgetRecurringTemplateValues = {

@@ -76,15 +76,15 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
                 <div data-motion="list">
                 {friendBalances.map((friend) => (
                   <Link className="balance-row vnext-row personal-vnext-row" href={`/app/friends/${friend.friendId}`} key={friend.friendId}>
-                    <span>
+                    <span className="personal-balance-row__identity">
                       <strong>{friend.name}</strong>
                       <small>{friend.archived ? "Archived friend" : "Open balance"}</small>
                     </span>
-                    <span>
+                    <span className="personal-balance-row__amount">
                       <span className="technical-label">Outstanding</span>
                       <strong>{formatRupiah(friend.outstandingAmount)}</strong>
                     </span>
-                    <OpenTile />
+                    <OpenTile className="personal-balance-row__open" />
                   </Link>
                 ))}
                 </div>
@@ -113,16 +113,16 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
                   href={item.kind === "Expense" ? `/app/expenses/${item.id}` : `/app/repayments/${item.id}`}
                   key={`${item.kind}-${item.id}`}
                 >
-                  <span className="technical-label">{item.kind}</span>
-                  <span>
+                  <span className="technical-label personal-activity-row__type">{item.kind}</span>
+                  <span className="personal-activity-row__identity">
                     <strong>{item.title}</strong>
                     <small>{item.detail}</small>
                   </span>
-                  <span>
+                  <span className="personal-activity-row__amount">
                     <strong>{formatRupiah(item.amount)}</strong>
                     <LocalDateTime iso={item.date.toISOString()} mode="date" />
                   </span>
-                  <OpenTile />
+                  <OpenTile className="personal-activity-row__open" />
                 </Link>
               ))}
               </div>

@@ -38,7 +38,7 @@ describe("Budget period history presentation", () => {
     expect(within(current).getByText("Current period")).toBeInTheDocument();
     expect(within(current).getByText("Active")).toBeInTheDocument();
     for (const label of ["Remaining", "Net spent", "Total budget"]) {
-      expect(within(current).getByText(label)).toBeInTheDocument();
+      expect(within(current.querySelector(".budget-period-figures")!).getByText(label)).toBeInTheDocument();
     }
     const previous = screen.getByRole("heading", { level: 2, name: "Previous periods" }).closest("section")!;
     expect(within(previous).getByText("September")).toBeInTheDocument();

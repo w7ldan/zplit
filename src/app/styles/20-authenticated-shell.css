@@ -2618,8 +2618,8 @@ summary.text-link {
   transform: translateY(1px);
 }
 
-.balance-row,
-.activity-row {
+.balance-row:not(.vnext-row),
+.activity-row:not(.vnext-row) {
   display: grid;
   align-items: center;
   gap: 1rem;
@@ -2630,16 +2630,16 @@ summary.text-link {
   overflow-wrap: anywhere;
 }
 
-.balance-row {
+.balance-row:not(.vnext-row) {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.balance-row > a,
-.activity-row {
+.balance-row:not(.vnext-row) > a,
+.activity-row:not(.vnext-row) {
   text-decoration: none;
 }
 
-.balance-row > a {
+.balance-row:not(.vnext-row) > a {
   display: inline-flex;
   min-width: 0;
   max-width: 100%;
@@ -2649,8 +2649,8 @@ summary.text-link {
   overflow-wrap: anywhere;
 }
 
-.balance-row > a strong,
-.activity-row > span:nth-child(2) strong {
+.balance-row:not(.vnext-row) > a strong,
+.activity-row:not(.vnext-row) > span:nth-child(2) strong {
   display: -webkit-box;
   min-width: 0;
   overflow: hidden;
@@ -2659,8 +2659,8 @@ summary.text-link {
   -webkit-line-clamp: 2;
 }
 
-.balance-row > span,
-.activity-row > span:last-child {
+.balance-row:not(.vnext-row) > span,
+.activity-row:not(.vnext-row) > span:last-child {
   display: grid;
   min-width: 0;
   max-width: 100%;
@@ -2671,28 +2671,28 @@ summary.text-link {
   overflow-wrap: anywhere;
 }
 
-.balance-row strong,
-.activity-row strong {
+.balance-row:not(.vnext-row) strong,
+.activity-row:not(.vnext-row) strong {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
-.activity-row {
+.activity-row:not(.vnext-row) {
   grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr) auto;
 }
 
-.activity-row > span:first-child {
+.activity-row:not(.vnext-row) > span:first-child {
   white-space: nowrap;
 }
 
-.activity-row > span:nth-child(2) {
+.activity-row:not(.vnext-row) > span:nth-child(2) {
   display: grid;
   gap: 0.2rem;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.activity-row small {
+.activity-row:not(.vnext-row) small {
   min-width: 0;
   color: var(--muted-ink);
   font-size: 0.78rem;
@@ -2701,12 +2701,12 @@ summary.text-link {
 }
 
 @media (max-width: 767px) {
-  .activity-row {
+  .activity-row:not(.vnext-row) {
     grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr);
     align-items: start;
   }
 
-  .activity-row > span:last-child {
+  .activity-row:not(.vnext-row) > span:last-child {
     grid-column: 2;
     justify-items: start;
   }

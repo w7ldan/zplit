@@ -6809,3 +6809,978 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
     font-size: 1rem;
   }
 }
+.budget-page.zplit-vnext {
+  --budget-control-radius: 4px;
+  --budget-row-radius: 4px;
+  --budget-module-radius: 8px;
+  --budget-overlay-radius: 12px;
+  --budget-column-gap: clamp(1rem, 2vw, 1.5rem);
+  min-block-size: 100%;
+  background: var(--vnext-canvas);
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+}
+
+.budget-page.zplit-vnext .editorial-shell {
+  max-inline-size: var(--authenticated-canvas-max-width);
+}
+
+.budget-page.zplit-vnext .app-page__layout {
+  gap: 1.25rem;
+  padding-block: 1.5rem 5.5rem;
+}
+
+.budget-page.zplit-vnext .app-page__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  gap: var(--budget-column-gap);
+  align-items: end;
+  padding-block: 0.75rem 1.25rem;
+  border-block-end: 1px solid var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .app-page__header h1 {
+  max-inline-size: 16ch;
+  margin-block-start: 0.4rem;
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: clamp(2rem, 4vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.budget-page.zplit-vnext .app-page__lede,
+.budget-page.zplit-vnext .budget-copy {
+  max-inline-size: 46rem;
+  color: var(--vnext-text-soft);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.budget-page.zplit-vnext .technical-label {
+  color: var(--vnext-text-quiet);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.budget-page.zplit-vnext .budget-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.budget-page.zplit-vnext .budget-page__actions form {
+  display: contents;
+}
+
+.budget-page.zplit-vnext .vnext-button,
+.budget-page.zplit-vnext .action-link {
+  min-block-size: 2.5rem;
+  border-radius: var(--budget-control-radius);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.budget-page.zplit-vnext .vnext-button {
+  padding: 0.55rem 0.8rem;
+}
+
+.budget-page.zplit-vnext .vnext-button--secondary,
+.budget-page.zplit-vnext .action-link--quiet {
+  border-color: var(--vnext-rule);
+  background: var(--vnext-paper);
+  color: var(--vnext-text-soft);
+}
+
+.budget-page.zplit-vnext .vnext-button--primary,
+.budget-page.zplit-vnext .action-link--primary {
+  border-color: var(--vnext-accent-strong);
+  background: var(--vnext-accent-strong);
+  color: var(--vnext-text-on-accent);
+}
+
+.budget-page.zplit-vnext .vnext-button--primary:hover,
+.budget-page.zplit-vnext .vnext-button--primary:focus-visible,
+.budget-page.zplit-vnext .action-link--primary:hover,
+.budget-page.zplit-vnext .action-link--primary:focus-visible {
+  border-color: var(--vnext-accent);
+  background: var(--vnext-accent);
+  color: var(--vnext-text-on-accent);
+}
+
+.budget-page.zplit-vnext .vnext-button--secondary:hover,
+.budget-page.zplit-vnext .vnext-button--secondary:focus-visible,
+.budget-page.zplit-vnext .action-link--quiet:hover,
+.budget-page.zplit-vnext .action-link--quiet:focus-visible {
+  border-color: var(--vnext-accent-deep);
+  background: var(--vnext-accent-wash);
+  color: var(--vnext-text);
+}
+
+.budget-page.zplit-vnext .budget-section-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--budget-control-radius);
+  background: var(--vnext-surface-strong);
+}
+
+.budget-page.zplit-vnext .budget-section-nav__link {
+  display: flex;
+  min-block-size: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: var(--budget-control-radius);
+  color: var(--vnext-text-soft);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+}
+
+.budget-page.zplit-vnext .budget-section-nav__link:hover,
+.budget-page.zplit-vnext .budget-section-nav__link:focus-visible {
+  background: var(--vnext-accent-wash);
+  color: var(--vnext-text);
+}
+
+.budget-page.zplit-vnext .budget-section-nav__link[aria-current="page"] {
+  border-color: var(--vnext-accent);
+  background: var(--vnext-paper);
+  color: var(--vnext-text);
+}
+
+.budget-page.zplit-vnext .ledger-section {
+  min-inline-size: 0;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--budget-module-radius);
+  background: var(--vnext-paper);
+}
+
+.budget-page.zplit-vnext .ledger-section__heading {
+  min-block-size: auto;
+  margin-block-end: 0.75rem;
+  padding: 0;
+  align-items: end;
+}
+
+.budget-page.zplit-vnext .ledger-section__heading h2,
+.budget-page.zplit-vnext .budget-period-detail h3,
+.budget-page.zplit-vnext .budget-period-detail__heading h3,
+.budget-page.zplit-vnext .budget-setup h2 {
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.budget-page.zplit-vnext .budget-setup,
+.budget-page.zplit-vnext .budget-category-section,
+.budget-page.zplit-vnext .budget-recent-section,
+.budget-page.zplit-vnext .budget-shared-money,
+.budget-page.zplit-vnext .budget-invariant {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.budget-page.zplit-vnext .budget-setup {
+  max-inline-size: 64rem;
+}
+
+.budget-page.zplit-vnext .budget-workbench {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1.45fr) repeat(3, minmax(9rem, 0.75fr));
+  gap: 1px;
+  min-inline-size: 0;
+  overflow: hidden;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--budget-module-radius);
+  background: var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .budget-workbench > div {
+  display: grid;
+  min-inline-size: 0;
+  align-content: start;
+  gap: 0.5rem;
+  padding: 1.15rem 1rem;
+  background: var(--vnext-surface);
+}
+
+.budget-page.zplit-vnext .budget-workbench .budget-summary__remaining {
+  background: var(--vnext-accent-pale);
+}
+
+.budget-page.zplit-vnext .budget-workbench strong,
+.budget-page.zplit-vnext .budget-shared-money__values strong {
+  display: block;
+  color: var(--vnext-text);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 800;
+  letter-spacing: normal;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.budget-page.zplit-vnext .budget-workbench .budget-summary__remaining strong {
+  font-size: clamp(2rem, 4vw, 3.25rem);
+}
+
+.budget-page.zplit-vnext .budget-workbench .budget-summary__metric strong {
+  font-size: clamp(1.2rem, 2vw, 1.75rem);
+}
+
+.budget-page.zplit-vnext .budget-workbench > div > span:last-child {
+  color: var(--vnext-text-soft);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.budget-page.zplit-vnext .budget-recurring-summary {
+  display: inline-flex;
+  min-block-size: 2.5rem;
+  align-items: center;
+  width: fit-content;
+  color: var(--vnext-link);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.budget-page.zplit-vnext .budget-plan-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  border: 1px solid var(--vnext-rule);
+  background: var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .budget-plan-summary > div {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  background: var(--vnext-surface-strong);
+}
+
+.budget-page.zplit-vnext .budget-plan-summary dt,
+.budget-page.zplit-vnext .budget-shared-money__values span,
+.budget-page.zplit-vnext .budget-period-figures dt {
+  color: var(--vnext-text-quiet);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.budget-page.zplit-vnext .budget-plan-summary dd {
+  margin: 0;
+  color: var(--vnext-text);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.budget-page.zplit-vnext .budget-category-list,
+.budget-page.zplit-vnext .budget-transaction-list,
+.budget-page.zplit-vnext .budget-recurring-list,
+.budget-page.zplit-vnext .budget-recurring-due-list,
+.budget-page.zplit-vnext .budget-period-history-list {
+  min-inline-size: 0;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .budget-ledger-header,
+.budget-page.zplit-vnext .budget-category-row,
+.budget-page.zplit-vnext .budget-transaction-row,
+.budget-page.zplit-vnext .budget-history-row,
+.budget-page.zplit-vnext .budget-recurring-row,
+.budget-page.zplit-vnext .budget-recurring-due-row {
+  min-inline-size: 0;
+  border-block-end: 1px solid var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .budget-ledger-header {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  color: var(--vnext-text-quiet);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.budget-page.zplit-vnext .budget-category-list__header,
+.budget-page.zplit-vnext .budget-category-row {
+  grid-template-columns: minmax(11rem, 1.5fr) repeat(3, minmax(7rem, 0.75fr));
+}
+
+.budget-page.zplit-vnext .budget-transaction-list__header,
+.budget-page.zplit-vnext .budget-transaction-row {
+  grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 2fr) minmax(9rem, max-content);
+}
+
+.budget-page.zplit-vnext .budget-history-list__header,
+.budget-page.zplit-vnext .budget-history-row {
+  grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 2fr) minmax(9rem, max-content) auto;
+}
+
+.budget-page.zplit-vnext .budget-recurring-list__header,
+.budget-page.zplit-vnext .budget-recurring-row {
+  grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 2fr) minmax(9rem, max-content) auto;
+}
+
+.budget-page.zplit-vnext .budget-recurring-due-list__header,
+.budget-page.zplit-vnext .budget-recurring-due-row {
+  grid-template-columns: minmax(7rem, 0.65fr) minmax(0, 2fr) minmax(9rem, max-content) minmax(10rem, auto) auto;
+}
+
+.budget-page.zplit-vnext .budget-category-list__header,
+.budget-page.zplit-vnext .budget-category-row,
+.budget-page.zplit-vnext .budget-transaction-row,
+.budget-page.zplit-vnext .budget-history-row,
+.budget-page.zplit-vnext .budget-recurring-row,
+.budget-page.zplit-vnext .budget-recurring-due-row {
+  display: grid;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.budget-page.zplit-vnext .budget-category-row,
+.budget-page.zplit-vnext .budget-transaction-row,
+.budget-page.zplit-vnext .budget-history-row,
+.budget-page.zplit-vnext .budget-recurring-row,
+.budget-page.zplit-vnext .budget-recurring-due-row {
+  padding-block: 0.7rem;
+  border-radius: var(--budget-row-radius);
+}
+
+.budget-page.zplit-vnext .budget-category-row:hover,
+.budget-page.zplit-vnext .budget-transaction-row:hover,
+.budget-page.zplit-vnext .budget-history-row:hover,
+.budget-page.zplit-vnext .budget-recurring-row:hover,
+.budget-page.zplit-vnext .budget-recurring-due-row:hover {
+  background: var(--vnext-accent-wash);
+}
+
+.budget-page.zplit-vnext .budget-category-row__identity,
+.budget-page.zplit-vnext .budget-transaction-row__identity,
+.budget-page.zplit-vnext .budget-history-row__identity,
+.budget-page.zplit-vnext .budget-recurring-row__identity,
+.budget-page.zplit-vnext .budget-recurring-due-row__identity,
+.budget-page.zplit-vnext .budget-group-obligation__identity,
+.budget-page.zplit-vnext .budget-category-row__identity {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.2rem;
+}
+
+.budget-page.zplit-vnext .budget-category-row strong,
+.budget-page.zplit-vnext .budget-transaction-row strong,
+.budget-page.zplit-vnext .budget-history-row strong,
+.budget-page.zplit-vnext .budget-recurring-row strong,
+.budget-page.zplit-vnext .budget-recurring-due-row strong,
+.budget-page.zplit-vnext .budget-group-obligation strong {
+  min-inline-size: 0;
+  color: var(--vnext-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.budget-page.zplit-vnext .budget-category-row small,
+.budget-page.zplit-vnext .budget-transaction-row small,
+.budget-page.zplit-vnext .budget-history-row small,
+.budget-page.zplit-vnext .budget-recurring-row small,
+.budget-page.zplit-vnext .budget-recurring-due-row small,
+.budget-page.zplit-vnext .budget-group-obligation small,
+.budget-page.zplit-vnext .budget-spread-status {
+  color: var(--vnext-text-quiet);
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+.budget-page.zplit-vnext .budget-category-row__allocated,
+.budget-page.zplit-vnext .budget-category-row__spent,
+.budget-page.zplit-vnext .budget-category-row__remaining,
+.budget-page.zplit-vnext .budget-transaction-row__amount,
+.budget-page.zplit-vnext .budget-history-row__amount,
+.budget-page.zplit-vnext .budget-recurring-row__amount,
+.budget-page.zplit-vnext .budget-recurring-due-row__amount,
+.budget-page.zplit-vnext .budget-group-obligation__amount {
+  display: grid;
+  min-inline-size: max-content;
+  justify-items: end;
+  gap: 0.2rem;
+  color: var(--vnext-text);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.budget-page.zplit-vnext .budget-category-row__remaining,
+.budget-page.zplit-vnext .budget-transaction-row__amount strong,
+.budget-page.zplit-vnext .budget-history-row__amount strong {
+  font-weight: 800;
+}
+
+.budget-page.zplit-vnext .budget-transaction-row,
+.budget-page.zplit-vnext .budget-history-row {
+  grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 2fr) minmax(9rem, max-content) auto;
+}
+
+.budget-page.zplit-vnext .budget-transaction-row {
+  grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 2fr) minmax(9rem, max-content);
+}
+
+.budget-page.zplit-vnext .budget-transaction-row__type,
+.budget-page.zplit-vnext .budget-history-row__type,
+.budget-page.zplit-vnext .budget-recurring-row__frequency,
+.budget-page.zplit-vnext .budget-recurring-due-row__date {
+  align-self: start;
+  padding-block-start: 0.1rem;
+}
+
+.budget-page.zplit-vnext .budget-history-row__action,
+.budget-page.zplit-vnext .budget-recurring-row__action,
+.budget-page.zplit-vnext .budget-recurring-due-row__action {
+  justify-self: end;
+}
+
+.budget-page.zplit-vnext .budget-history-row__action .action-link,
+.budget-page.zplit-vnext .budget-recurring-row__action .action-link,
+.budget-page.zplit-vnext .budget-recurring-due-row__action .action-link,
+.budget-page.zplit-vnext .budget-recurring-due-row__record .action-link {
+  min-block-size: 2rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--budget-control-radius);
+  background: var(--vnext-paper);
+  color: var(--vnext-text-soft);
+  font-size: 0.6875rem;
+}
+
+.budget-page.zplit-vnext .budget-history-row__action .action-link:hover,
+.budget-page.zplit-vnext .budget-history-row__action .action-link:focus-visible,
+.budget-page.zplit-vnext .budget-recurring-row__action .action-link:hover,
+.budget-page.zplit-vnext .budget-recurring-row__action .action-link:focus-visible,
+.budget-page.zplit-vnext .budget-recurring-due-row__action .action-link:hover,
+.budget-page.zplit-vnext .budget-recurring-due-row__action .action-link:focus-visible,
+.budget-page.zplit-vnext .budget-recurring-due-row__record .action-link:hover,
+.budget-page.zplit-vnext .budget-recurring-due-row__record .action-link:focus-visible {
+  border-color: var(--vnext-accent-deep);
+  background: var(--vnext-accent-wash);
+  color: var(--vnext-text);
+}
+
+.budget-page.zplit-vnext .budget-shared-money {
+  background: var(--vnext-surface-warm);
+}
+
+.budget-page.zplit-vnext .budget-shared-money__values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--vnext-rule);
+  background: var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .budget-shared-money__values > div {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem;
+  background: var(--vnext-surface);
+}
+
+.budget-page.zplit-vnext .budget-shared-money__values strong {
+  font-size: 1.25rem;
+}
+
+.budget-page.zplit-vnext .budget-group-obligations {
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .budget-group-obligation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(9rem, max-content) auto;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  padding-block: 0.7rem;
+  border-block-end: 1px solid var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .budget-group-obligation__amount {
+  align-items: end;
+}
+
+.budget-page.zplit-vnext .budget-category-change {
+  margin-block-start: 0.25rem;
+}
+
+.budget-page.zplit-vnext .budget-category-change form,
+.budget-page.zplit-vnext .budget-history-row__action form {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin-block-start: 0.35rem;
+}
+
+.budget-page.zplit-vnext .budget-category-change summary {
+  width: fit-content;
+  color: var(--vnext-link);
+  cursor: pointer;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  list-style: none;
+}
+
+.budget-page.zplit-vnext .budget-category-change summary::-webkit-details-marker {
+  display: none;
+}
+
+.budget-page.zplit-vnext .budget-category-change summary::after {
+  content: " +";
+}
+
+.budget-page.zplit-vnext .budget-category-change[open] summary::after {
+  content: " −";
+}
+
+.budget-page.zplit-vnext .budget-category-change select,
+.budget-page.zplit-vnext .budget-form input,
+.budget-page.zplit-vnext .budget-form select,
+.budget-page.zplit-vnext .budget-form textarea,
+.budget-page.zplit-vnext .budget-recurring-record input,
+.budget-page.zplit-vnext .budget-spread-form input,
+.budget-page.zplit-vnext .budget-recurring-candidate__category select {
+  min-block-size: 2.5rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--budget-control-radius);
+  background: var(--vnext-paper);
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: 0.8125rem;
+}
+
+.budget-page.zplit-vnext .budget-form input,
+.budget-page.zplit-vnext .budget-form select,
+.budget-page.zplit-vnext .budget-form textarea {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+}
+
+.budget-page.zplit-vnext .budget-form input[type="radio"],
+.budget-page.zplit-vnext .budget-form input[type="checkbox"] {
+  width: 1rem;
+  min-block-size: 1rem;
+  accent-color: var(--vnext-accent-strong);
+}
+
+.budget-page.zplit-vnext :is(input, select, textarea, button, a):focus-visible {
+  outline: 2px solid var(--vnext-focus-ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.budget-page.zplit-vnext .budget-form {
+  max-inline-size: none;
+  gap: 0.75rem;
+}
+
+.budget-page.zplit-vnext .budget-form__grid {
+  gap: 0.75rem;
+}
+
+.budget-page.zplit-vnext .budget-form__field,
+.budget-page.zplit-vnext .budget-form__category-row > div {
+  gap: 0.25rem;
+}
+
+.budget-page.zplit-vnext .budget-form__field label,
+.budget-page.zplit-vnext .budget-form__category-row label,
+.budget-page.zplit-vnext .budget-form__direction legend,
+.budget-page.zplit-vnext .budget-form__categories legend {
+  color: var(--vnext-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.budget-page.zplit-vnext .budget-form__categories,
+.budget-page.zplit-vnext .budget-form__direction {
+  gap: 0.6rem;
+  padding-block-start: 0.75rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .budget-form__hint,
+.budget-page.zplit-vnext .budget-form__message,
+.budget-page.zplit-vnext .budget-form__error {
+  color: var(--vnext-text-quiet);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+
+.budget-page.zplit-vnext .budget-form__error,
+.budget-page.zplit-vnext .budget-form__message[role="alert"] {
+  color: var(--vnext-debt);
+}
+
+.budget-page.zplit-vnext .budget-form__warning {
+  border: 1px solid var(--vnext-debt);
+  border-radius: var(--budget-control-radius);
+  background: var(--vnext-debt-wash);
+  color: var(--vnext-text);
+}
+
+.budget-page.zplit-vnext .budget-recurring-row {
+  grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 2fr) minmax(9rem, max-content) auto;
+}
+
+.budget-page.zplit-vnext .budget-recurring-due-row {
+  grid-template-columns: minmax(7rem, 0.65fr) minmax(0, 2fr) minmax(9rem, max-content) minmax(10rem, auto) auto;
+}
+
+.budget-page.zplit-vnext .budget-recurring-record {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  justify-content: end;
+}
+
+.budget-page.zplit-vnext .budget-period-dates {
+  margin: 0 0 0.65rem;
+  color: var(--vnext-text-soft);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-page.zplit-vnext .budget-period-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-block: 1px solid var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .budget-period-figures__item {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  border-inline-end: 1px solid var(--vnext-rule);
+}
+
+.budget-page.zplit-vnext .budget-period-figures__item:last-child {
+  border-inline-end: 0;
+}
+
+.budget-page.zplit-vnext .budget-period-figures dd {
+  margin: 0;
+  color: var(--vnext-text);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.budget-page.zplit-vnext .budget-period-detail {
+  display: grid;
+  gap: 0.75rem;
+  padding-block-start: 0.75rem;
+}
+
+.budget-page.zplit-vnext .budget-period-detail__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.budget-page.zplit-vnext .budget-period-history summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, max-content);
+  gap: 1rem;
+  padding-block: 0.75rem;
+  border-block-end: 1px solid var(--vnext-rule);
+  cursor: pointer;
+  list-style: none;
+}
+
+.budget-page.zplit-vnext .budget-period-history summary::-webkit-details-marker {
+  display: none;
+}
+
+.budget-page.zplit-vnext .budget-period-history__identity,
+.budget-page.zplit-vnext .budget-period-history__amount {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.25rem;
+}
+
+.budget-page.zplit-vnext .budget-period-history__amount {
+  justify-items: end;
+  text-align: end;
+}
+
+.budget-page.zplit-vnext .budget-period-history small {
+  color: var(--vnext-text-quiet);
+  font-size: 0.6875rem;
+}
+
+.budget-page.zplit-vnext .budget-period-history__amount strong {
+  color: var(--vnext-text);
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+.budget-page.zplit-vnext .task-panel__surface {
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--budget-overlay-radius);
+  background: var(--vnext-surface);
+  box-shadow: none;
+}
+
+.budget-page.zplit-vnext .task-panel__header,
+.budget-page.zplit-vnext .task-panel .task-panel__footer {
+  border-color: var(--vnext-rule);
+  background: var(--vnext-surface);
+}
+
+.budget-page.zplit-vnext .task-panel__header h2,
+.budget-page.zplit-vnext .delete-confirmation-dialog h2 {
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.budget-page.zplit-vnext .task-panel__header p:last-child,
+.budget-page.zplit-vnext .delete-confirmation-dialog p {
+  color: var(--vnext-text-soft);
+}
+
+.budget-page.zplit-vnext .task-panel__close {
+  border-radius: var(--budget-control-radius);
+  background: var(--vnext-surface-strong);
+  color: var(--vnext-text-soft);
+}
+
+.budget-page.zplit-vnext .budget-transaction-row--voided,
+.budget-page.zplit-vnext .budget-history-row--voided {
+  opacity: 0.72;
+}
+
+@media (max-width: 960px) {
+  .budget-page.zplit-vnext .budget-workbench {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .budget-page.zplit-vnext .budget-summary__remaining {
+    grid-column: 1 / -1;
+  }
+
+  .budget-page.zplit-vnext .budget-recurring-due-row {
+    grid-template-columns: minmax(7rem, 0.65fr) minmax(0, 1fr) minmax(9rem, max-content);
+  }
+
+  .budget-page.zplit-vnext .budget-recurring-due-row__record,
+  .budget-page.zplit-vnext .budget-recurring-due-row__action {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 767px) {
+  .budget-page.zplit-vnext .app-page__layout {
+    gap: 1rem;
+    padding-block: 1rem 3rem;
+  }
+
+  .budget-page.zplit-vnext .app-page__header {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .budget-page.zplit-vnext .budget-page__actions {
+    justify-content: stretch;
+  }
+
+  .budget-page.zplit-vnext .budget-page__actions > *,
+  .budget-page.zplit-vnext .budget-page__actions form {
+    flex: 1 1 10rem;
+  }
+
+  .budget-page.zplit-vnext .budget-page__actions .vnext-button,
+  .budget-page.zplit-vnext .budget-page__actions .action-link {
+    width: 100%;
+  }
+
+  .budget-page.zplit-vnext .budget-section-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .budget-page.zplit-vnext .ledger-section {
+    padding: 1rem;
+  }
+
+  .budget-page.zplit-vnext .budget-workbench,
+  .budget-page.zplit-vnext .budget-shared-money__values,
+  .budget-page.zplit-vnext .budget-plan-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-page.zplit-vnext .budget-workbench > div {
+    padding: 0.9rem;
+  }
+
+  .budget-page.zplit-vnext .budget-ledger-header {
+    display: none;
+  }
+
+  .budget-page.zplit-vnext .budget-category-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem 0.5rem;
+    padding-block: 0.8rem;
+  }
+
+  .budget-page.zplit-vnext .budget-category-row__identity {
+    grid-column: 1 / -1;
+  }
+
+  .budget-page.zplit-vnext .budget-category-row__allocated,
+  .budget-page.zplit-vnext .budget-category-row__spent,
+  .budget-page.zplit-vnext .budget-category-row__remaining {
+    justify-items: start;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+    text-align: start;
+    white-space: normal;
+  }
+
+  .budget-page.zplit-vnext .budget-transaction-row,
+  .budget-page.zplit-vnext .budget-history-row,
+  .budget-page.zplit-vnext .budget-recurring-row,
+  .budget-page.zplit-vnext .budget-recurring-due-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+    gap: 0.4rem 0.75rem;
+    padding-block: 0.8rem;
+  }
+
+  .budget-page.zplit-vnext .budget-transaction-row__type,
+  .budget-page.zplit-vnext .budget-history-row__type,
+  .budget-page.zplit-vnext .budget-recurring-row__frequency,
+  .budget-page.zplit-vnext .budget-recurring-due-row__date {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .budget-page.zplit-vnext .budget-transaction-row__identity,
+  .budget-page.zplit-vnext .budget-history-row__identity,
+  .budget-page.zplit-vnext .budget-recurring-row__identity,
+  .budget-page.zplit-vnext .budget-recurring-due-row__identity {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .budget-page.zplit-vnext .budget-transaction-row__amount,
+  .budget-page.zplit-vnext .budget-history-row__amount,
+  .budget-page.zplit-vnext .budget-recurring-row__amount,
+  .budget-page.zplit-vnext .budget-recurring-due-row__amount {
+    grid-column: 2;
+    grid-row: 2;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .budget-page.zplit-vnext .budget-history-row__action,
+  .budget-page.zplit-vnext .budget-recurring-row__action,
+  .budget-page.zplit-vnext .budget-recurring-due-row__record,
+  .budget-page.zplit-vnext .budget-recurring-due-row__action {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: start;
+  }
+
+  .budget-page.zplit-vnext .budget-recurring-due-row__record {
+    grid-row: 3;
+  }
+
+  .budget-page.zplit-vnext .budget-recurring-due-row__action {
+    grid-row: 4;
+  }
+
+  .budget-page.zplit-vnext .budget-group-obligation {
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  }
+
+  .budget-page.zplit-vnext .budget-group-obligation__identity {
+    grid-column: 1 / -1;
+  }
+
+  .budget-page.zplit-vnext .budget-group-obligation__amount {
+    grid-column: 1;
+    justify-items: start;
+    text-align: start;
+  }
+
+  .budget-page.zplit-vnext .budget-group-obligation__action {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .budget-page.zplit-vnext .budget-period-figures {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-page.zplit-vnext .budget-period-figures__item {
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--vnext-rule);
+  }
+
+  .budget-page.zplit-vnext .budget-period-figures__item:last-child {
+    border-block-end: 0;
+  }
+
+  .budget-page.zplit-vnext .budget-period-history summary {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+
+  .budget-page.zplit-vnext .budget-period-history__amount {
+    justify-items: start;
+    text-align: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .budget-page.zplit-vnext .vnext-button:active,
+  .budget-page.zplit-vnext .budget-category-row,
+  .budget-page.zplit-vnext .budget-transaction-row,
+  .budget-page.zplit-vnext .budget-history-row,
+  .budget-page.zplit-vnext .budget-recurring-row,
+  .budget-page.zplit-vnext .budget-recurring-due-row {
+    transform: none;
+    transition: none;
+  }
+}

@@ -7,6 +7,7 @@ import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { listBudgetPeriodHistory } from "@/server/budgeting/reporting";
 import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
 import { BudgetCategoryList } from "@/components/budgeting/budget-category-list";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const metadata = { title: "Period history" };
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ function PeriodFigures({ period, order }: { period: BudgetPeriodHistory; order: 
   return (
     <dl className="budget-period-figures">
       {figures.map((figure) => (
-        <div key={figure.label}>
+        <div className="budget-period-figures__item" key={figure.label}>
           <dt>{figure.label}</dt>
           <dd>{figure.value}</dd>
         </div>
@@ -80,8 +81,8 @@ function PreviousPeriod({ period }: { period: BudgetPeriodHistory }) {
   return (
     <details className="budget-period-history">
       <summary>
-        <span><strong>{period.name}</strong><small>{periodRange(period)} · Closed</small></span>
-        <span><strong>{formatSignedRupiah(period.netSpent)}</strong><small>Net spent · {formatSignedRupiah(period.remaining)} remaining</small></span>
+        <span className="budget-period-history__identity"><strong>{period.name}</strong><small>{periodRange(period)} · Closed</small></span>
+        <span className="budget-period-history__amount"><strong>{formatSignedRupiah(period.netSpent)}</strong><small>Net spent · {formatSignedRupiah(period.remaining)} remaining</small></span>
       </summary>
       <div className="budget-period-detail">
         <section aria-labelledby={`budget-period-${period.id}-summary`}>
@@ -100,7 +101,7 @@ export default async function BudgetPeriodsPage() {
   const current = periods.find((period) => period.status === "active");
   const previous = periods.filter((period) => period.status !== "active");
   return (
-    <section className="app-page budget-page budget-period-history-page" id="top">
+    <section className={`app-page page-content zplit-vnext budget-page budget-period-history-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <header className="app-page__header">
           <div>
@@ -113,7 +114,12 @@ export default async function BudgetPeriodsPage() {
         {periods.length === 0 ? (
           <section className="ledger-section" aria-labelledby="budget-period-history-heading">
             <div className="ledger-section__heading"><h2 id="budget-period-history-heading">Period history</h2></div>
-            <div className="ledger-empty"><p>No budget periods yet.</p><Link className="text-link" href="/app/personal/budget">Set up Budget <span aria-hidden="true">→</span></Link></div>
+            <div className="ledger-empty">
+              <p>No budget periods yet.</p>
+              <Link className="text-link" href="/app/personal/budget">
+                Set up Budget <span aria-hidden="true">→</span>
+              </Link>
+            </div>
           </section>
         ) : (
           <>

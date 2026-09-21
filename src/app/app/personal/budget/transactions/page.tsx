@@ -10,6 +10,7 @@ import { ConfirmationDialog } from "@/components/app/delete-confirmation-dialog"
 import { changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, voidBudgetTransactionAction } from "../actions";
 import { SpreadControl } from "@/components/budgeting/spread-control";
 import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const metadata = { title: "Budget transactions" };
 export const dynamic = "force-dynamic";
@@ -56,16 +57,16 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
     : transaction.status === "voided" ? "Voided" : "Posted";
   return (
     <div className={`budget-history-row${transaction.status === "voided" ? " budget-history-row--voided" : ""}`}>
-      <span className="technical-label">{sourceLabel}</span>
-      <span>
+      <span className="technical-label budget-history-row__type">{sourceLabel}</span>
+      <span className="budget-history-row__identity">
         <strong>{transaction.description}</strong>
         <small>{categoryLabel} · {formatCalendarDate(transaction.occurredOn)}</small>
         <ChangeCategoryForm transaction={transaction} categories={categories} />
         <SpreadControl transaction={transaction} />
       </span>
-      <span><strong>{amount}</strong><small>{impactLabel}</small></span>
+      <span className="budget-history-row__amount"><strong>{amount}</strong><small>{impactLabel}</small></span>
       {transaction.status === "posted" && (transaction.origin === "manual" || transaction.origin === "recurring") ? (
-        <ConfirmationDialog
+        <div className="budget-history-row__action"><ConfirmationDialog
           title="Void transaction?"
           entityName={transaction.description}
           confirmLabel="Void transaction"
@@ -74,8 +75,8 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
           triggerAriaLabel={`Void ${transaction.description} transaction`}
           description={`Voiding “${transaction.description}” removes its applied amount from Budget totals. The record stays in history as voided.`}
           action={voidBudgetTransactionAction.bind(null, transaction.id)}
-        />
-      ) : <span />}
+        /></div>
+      ) : <span className="budget-history-row__action" aria-hidden="true" />}
     </div>
   );
 }
@@ -90,7 +91,17 @@ function HistoryContent({ transactions, categories }: { transactions: BudgetTran
       </div>
     );
   }
-  return <div className="budget-transaction-list">{transactions.map((transaction) => <TransactionHistoryRow transaction={transaction} categories={categories} key={transaction.id} />)}</div>;
+  return (
+    <>
+      <div className="budget-ledger-header budget-history-list__header" aria-hidden="true">
+        <span>Source</span>
+        <span>Description / category</span>
+        <span>Amount</span>
+        <span>Actions</span>
+      </div>
+      <div className="budget-transaction-list">{transactions.map((transaction) => <TransactionHistoryRow transaction={transaction} categories={categories} key={transaction.id} />)}</div>
+    </>
+  );
 }
 
 export default async function BudgetTransactionsPage() {
@@ -98,11 +109,11 @@ export default async function BudgetTransactionsPage() {
   const database = getDatabase();
   const [transactions, categories] = await Promise.all([listBudgetTransactions(database, session.user.id), listBudgetCategoryOptions(database, session.user.id)]);
   return (
-    <section className="app-page budget-page budget-history-page" id="top">
+    <section className={`app-page page-content zplit-vnext budget-page budget-history-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <header className="app-page__header">
           <div><p className="technical-label">Personal · budget</p><h1>Transaction history</h1><p className="app-page__lede">Manual, recurring, and linked budget records, including voided history.</p></div>
-          <Link className="action-link action-link--primary" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
+          <Link className="vnext-button vnext-button--primary action-link" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
         </header>
         <BudgetSectionNav current="transactions" />
         <section className="ledger-section" aria-labelledby="budget-history-heading">

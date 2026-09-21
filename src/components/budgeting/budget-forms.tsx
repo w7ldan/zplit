@@ -21,7 +21,7 @@ export function ErrorText({ id, message }: { id: string; message?: string }) {
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
-  return <button className="action-link action-link--primary" type="submit" disabled={pending} aria-busy={pending}>{pending ? "Saving…" : label}</button>;
+  return <button className="action-link action-link--primary vnext-button vnext-button--primary" type="submit" disabled={pending} aria-busy={pending}>{pending ? "Saving…" : label}</button>;
 }
 
 export function Field({ label, id, error, children }: { label: string; id: string; error?: string; children: ReactNode }) {
@@ -190,7 +190,7 @@ export function BudgetSpreadForm({ action, transactionId, amount, initialCount =
     <input type="hidden" name="transactionId" value={state.values.transactionId} />
     <label htmlFor={`budget-spread-count-${transactionId}`}>Periods</label>
     <input id={`budget-spread-count-${transactionId}`} name="count" type="number" min="1" max={Math.min(24, amount)} step="1" defaultValue={state.values.count} aria-invalid={Boolean(state.fieldErrors.count)} aria-describedby={`budget-spread-count-${transactionId}-error`} />
-    <button className="action-link action-link--quiet" type="submit" aria-label={saveLabel}>Save spread</button>
+    <button className="action-link action-link--quiet vnext-button vnext-button--secondary" type="submit" aria-label={saveLabel}>Save spread</button>
     <small>Rp {amount.toLocaleString("id-ID")} is divided into positive whole Rupiah slices.</small>
     <ErrorText id={`budget-spread-count-${transactionId}-error`} message={state.fieldErrors.count} />
     <p className="budget-form__message" role={state.formError ? "alert" : undefined}>{state.formError || "\u00a0"}</p>

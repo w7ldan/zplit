@@ -86,7 +86,12 @@ describe("/app/personal", () => {
     expect(screen.getByText("Rp 50.000")).toBeInTheDocument();
     expect(screen.getByText("Rp 10.000")).toBeInTheDocument();
     const balances = screen.getByRole("heading", { level: 2, name: "Friend balances" }).closest("section")!;
-    expect(within(balances).getAllByRole("link", { name: /Friend [0-4]/ })).toHaveLength(5);
+    const balanceLinks = within(balances).getAllByRole("link", { name: /Friend [0-4]/ });
+    expect(balanceLinks).toHaveLength(5);
+    expect(balanceLinks[0]).toHaveClass("balance-row");
+    expect(balanceLinks[0]?.querySelector(".personal-balance-row__identity")).toBeInTheDocument();
+    expect(balanceLinks[0]?.querySelector(".personal-balance-row__amount")).toBeInTheDocument();
+    expect(balanceLinks[0]?.querySelector(".personal-balance-row__open")).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByRole("link", { name: /Friend 6/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Dinner/ })).toHaveAttribute("href", "/app/expenses/expense-a");
     expect(screen.getByRole("link", { name: /Friend 0.*Money received/ })).toHaveAttribute("href", "/app/repayments/repayment-a");
@@ -96,6 +101,9 @@ describe("/app/personal", () => {
     expect(recentRows[0]?.children).toHaveLength(4);
     expect(recentRows[0]?.querySelectorAll("a")).toHaveLength(0);
     expect(recentRows[0]?.querySelector(".vnext-open-tile")).toHaveAttribute("aria-hidden", "true");
+    expect(recentRows[0]?.querySelector(".personal-activity-row__identity")).toBeInTheDocument();
+    expect(recentRows[0]?.querySelector(".personal-activity-row__amount")).toBeInTheDocument();
+    expect(recentRows[0]?.querySelector(".personal-activity-row__open")).toHaveClass("vnext-open-tile");
     expect(screen.getByRole("link", { name: /Bandung Trip/ })).toHaveAttribute("href", "/app/personal/groups/group-a");
     expect(document.querySelector(".personal-destination[href='/app/friends']")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/organization/i);
