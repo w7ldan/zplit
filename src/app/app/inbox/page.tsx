@@ -5,6 +5,7 @@ import { InboxIcon } from "@/components/notifications/inbox-icon";
 import { NotificationRowActions } from "@/components/notifications/notification-row-actions";
 import { RecordPagination } from "@/components/records/record-pagination";
 import { getCurrentUserInboxPage } from "@/server/inbox";
+import { zplitVNextFont } from "@/app/fonts";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export default async function InboxPage({ searchParams }: { searchParams?: Promi
   const { unreadCount } = page;
 
   return (
-    <section className="app-page inbox-page" id="top">
+    <section className={`app-page inbox-page inbox-vnext zplit-vnext ${zplitVNextFont.variable}`} id="top">
       <InboxLiveRefresh />
       <div className="editorial-shell app-page__layout">
         <header className="app-page__header">

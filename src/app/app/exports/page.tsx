@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireSession } from "@/auth/require-session";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Ledger exports" };
@@ -14,7 +15,7 @@ export default async function ExportsPage() {
   await requireSession();
 
   return (
-    <section className="app-page exports-page" id="top">
+    <section className={`app-page exports-page exports-vnext zplit-vnext ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>

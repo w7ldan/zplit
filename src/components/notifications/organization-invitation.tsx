@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import type { OrganizationInvitationState } from "@/server/organization-invitations";
 import { acceptOrganizationInvitationAction, declineOrganizationInvitationAction } from "@/app/app/inbox/actions";
+import { OpenTile } from "@/components/vnext/open-tile";
 
 function statusLabel(status: OrganizationInvitationState["status"]) {
   return status[0]?.toUpperCase() + status.slice(1);
@@ -32,8 +33,8 @@ export function OrganizationInvitationActions({ invitationId, status }: { invita
     return (
       <div className="notification-row__actions">
         <span>Joined</span>
-        <Link className="text-link" href={`/app/organizations/${status.organizationId}`}>
-          Open organization
+        <Link className="notification-row__destination" href={`/app/organizations/${status.organizationId}`}>
+          Open organization<OpenTile />
         </Link>
       </div>
     );

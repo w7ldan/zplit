@@ -11,8 +11,7 @@
 }
 
 .organizations-vnext .editorial-shell {
-  inline-size: min(calc(100% - 2rem), 90rem);
-  max-inline-size: 90rem;
+  max-inline-size: var(--authenticated-canvas-max-width);
 }
 
 .organizations-vnext .app-page__layout {
@@ -170,7 +169,7 @@
   white-space: nowrap;
 }
 
-.organizations-vnext .organization-context > .organization-detail__back {
+.organizations-vnext .organization-context__topline > .organization-detail__back {
   margin: 0;
   color: var(--vnext-link);
   font-size: 0.76rem;
@@ -1259,9 +1258,6 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .organizations-vnext .editorial-shell {
-    inline-size: min(calc(100% - 1.5rem), 90rem);
-  }
 }
 
 @media (max-width: 959px) {
@@ -1299,9 +1295,6 @@
 }
 
 @media (max-width: 767px) {
-  .organizations-vnext .editorial-shell {
-    inline-size: min(calc(100% - 1.25rem), 90rem);
-  }
 
   .organizations-vnext .app-page__layout {
     padding-block: 1rem 2.5rem;
@@ -1327,7 +1320,7 @@
     padding-inline-start: 3.25rem;
   }
 
-  .organizations-vnext .organization-context > .organization-detail__back {
+  .organizations-vnext .organization-context__topline > .organization-detail__back {
     justify-self: start;
   }
 

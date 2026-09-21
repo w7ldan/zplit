@@ -3,6 +3,7 @@ import { LocalDateTime } from "@/components/editorial/local-date-time";
 import type { GroupJoinRequestKind } from "@/domain/group-join-requests";
 import type { GroupJoinRequestState } from "@/server/group-join-requests";
 import { acceptGroupJoinRequestAction, declineGroupJoinRequestAction } from "@/app/app/inbox/actions";
+import { OpenTile } from "@/components/vnext/open-tile";
 
 function statusLabel(status: GroupJoinRequestState["status"]) {
   return status[0]?.toUpperCase() + status.slice(1);
@@ -32,8 +33,8 @@ export function GroupJoinRequestActions({ requestId, kind, status }: { requestId
   if (status.status === "accepted") return (
       <div className="notification-row__actions">
         <span>{kind === "participant_link" ? "Linked" : "Joined"}</span>
-        <Link className="text-link" href={`/app/personal/groups/${status.groupId}`}>
-          Open Group
+        <Link className="notification-row__destination" href={`/app/personal/groups/${status.groupId}`}>
+          Open Group<OpenTile />
         </Link>
       </div>
     );

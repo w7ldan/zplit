@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { InviteForm } from "@/components/invites/invite-form";
 import { LocalDateTime } from "@/components/editorial/local-date-time";
 import { createInviteAction, revokeInviteAction } from "./actions";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Invitations" };
@@ -24,7 +25,7 @@ export default async function InvitesPage() {
   const now = new Date();
 
   return (
-    <section className="app-page invites-page" id="top">
+    <section className={`app-page invites-page invites-vnext zplit-vnext ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <header className="app-page__header">
           <div>
@@ -49,7 +50,10 @@ export default async function InvitesPage() {
                   return (
                     <li className="invites-list__row" key={invitation.id}>
                       <div><strong>{invitation.email}</strong>{invitation.suggestedName ? <span>{invitation.suggestedName}</span> : null}</div>
-                      <div className="invites-list__meta"><span>{status}</span><span>Expires <LocalDateTime iso={invitation.expiresAt.toISOString()} mode="date" /></span></div>
+                      <div className="invites-list__meta">
+                        <span>{status}</span>
+                        <span>Expires <LocalDateTime iso={invitation.expiresAt.toISOString()} mode="date" /></span>
+                      </div>
                       {canRevoke ? <form action={revokeInviteAction.bind(null, invitation.id)}><button className="text-link invites-list__revoke" type="submit">Revoke</button></form> : null}
                     </li>
                   );

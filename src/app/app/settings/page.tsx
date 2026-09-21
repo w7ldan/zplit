@@ -4,6 +4,7 @@ import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { AvatarSettings } from "@/components/settings/avatar-settings";
 import { RepaymentDestinationsSettings } from "@/components/settings/repayment-destinations-settings";
 import { UsernameSettings } from "@/components/settings/username-settings";
+import { zplitVNextFont } from "@/app/fonts";
 import { getDatabase } from "@/db/client";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { getBudgetProfile } from "@/server/budgeting/profiles";
@@ -42,7 +43,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
     deleteAction: deleteRepaymentDestinationAction.bind(null, destination.id),
   }));
   return (
-    <section className="app-page settings-page" id="top">
+    <section className={`app-page settings-page settings-vnext zplit-vnext ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <header className="app-page__header">
           <div>
@@ -53,8 +54,9 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
         </header>
         {first(query.saved) === "1" ? <RecordConfirmation queryKey="saved" message="Settings saved." /> : null}
         {first(query.error) === "1" ? <p className="settings-page__error" role="alert">Unable to save that settings change.</p> : null}
-        <section className="settings-page__section" aria-labelledby="settings-profile-heading">
-          <div className="settings-page__section-heading"><div><p className="technical-label">Profile</p><h2 id="settings-profile-heading">Account context</h2></div></div>
+        <div className="settings-vnext__workbench">
+        <section className="settings-page__section settings-vnext__section settings-vnext__section--profile" aria-labelledby="settings-profile-heading">
+          <div className="settings-page__section-heading"><div><p className="technical-label">Profile</p><h2 id="settings-profile-heading">Account context</h2><p>Keep the identity people recognize when they share expenses with you.</p></div></div>
           <div className="settings-page__profile">
             <div className="settings-page__profile-column settings-page__profile-column--identity">
               <p className="technical-label">Identity</p>
@@ -65,23 +67,23 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
                 </dl>
               </AvatarSettings>
             </div>
-            <div className="settings-page__profile-column settings-page__profile-column--account">
-              <div className="settings-page__profile-block">
-                <p className="technical-label">Account</p>
-                <dl className="settings-page__account-details"><div><dt>Sign-in email</dt><dd>{user.email}</dd></div></dl>
-              </div>
-              <div className="settings-page__profile-block settings-page__profile-block--appearance">
-                <p className="technical-label">Appearance</p>
-                <ThemeControl />
-              </div>
-            </div>
           </div>
         </section>
-        <section className="settings-page__section ledger-section" id="repays-to" aria-labelledby="settings-repayment-heading">
+        <aside className="settings-vnext__rail settings-page__profile-column settings-page__profile-column--account" aria-label="Account details">
+          <div className="settings-page__profile-block">
+            <p className="technical-label">Account</p>
+            <dl className="settings-page__account-details"><div><dt>Sign-in email</dt><dd>{user.email}</dd></div></dl>
+          </div>
+          <div className="settings-page__profile-block settings-page__profile-block--appearance">
+            <p className="technical-label">Appearance</p>
+            <ThemeControl />
+          </div>
+        </aside>
+        <section className="settings-page__section settings-vnext__section settings-vnext__section--destinations ledger-section" id="repays-to" aria-labelledby="settings-repayment-heading">
           <div className="settings-page__section-heading"><div><p className="technical-label">Repays to</p><h2 id="settings-repayment-heading">Repayment destinations</h2><p>Choose where friends can repay you. Destinations marked as shared appear on active balance links.</p></div><span className="technical-label">{destinations.length} destinations</span></div>
           <RepaymentDestinationsSettings destinations={destinationEntries} createAction={createRepaymentDestinationAction} setOrderAction={setRepaymentDestinationOrderAction} />
         </section>
-        <section className="settings-page__section" id="budget" aria-labelledby="settings-budget-heading">
+        <section className="settings-page__section settings-vnext__section settings-vnext__section--budget" id="budget" aria-labelledby="settings-budget-heading">
           <div className="settings-page__section-heading">
             <div>
               <p className="technical-label">Budget</p>
@@ -105,6 +107,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
             </p>
           )}
         </section>
+        </div>
       </div>
     </section>
   );

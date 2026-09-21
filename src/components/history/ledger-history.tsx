@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { formatRupiah } from "@/domain/rupiah";
 import type { LedgerHistoryEvent, LedgerHistoryType } from "@/domain/ledger-history";
+import { OpenTile } from "@/components/vnext/open-tile";
 
 type LedgerHistoryProps = {
   items: readonly LedgerHistoryEvent[];
@@ -35,7 +36,10 @@ export function LedgerHistory({ items, type, nextCursor }: LedgerHistoryProps) {
             <li className="history-row" key={`expense-${item.id}`}>
               <Link href={`/app/expenses/${item.id}`} className="history-row__link">
                 <span className="technical-label">EXPENSE</span>
-                <span className="history-row__main"><strong>{item.description}</strong><span>{item.outingTitle} · <SourceCalendarDate canonicalDate={item.outingOccurredOn} timestamp={item.outingOccurredAt.toISOString()} /></span></span>
+                <span className="history-row__main">
+                  <strong>{item.description}</strong>
+                  <span>{item.outingTitle} · <SourceCalendarDate canonicalDate={item.outingOccurredOn} timestamp={item.outingOccurredAt.toISOString()} /></span>
+                </span>
                 <span className="history-row__values">
                   <span>
                     <small>Total</small>
@@ -50,13 +54,17 @@ export function LedgerHistory({ items, type, nextCursor }: LedgerHistoryProps) {
                     <strong>{formatRupiah(item.ownerPortionAmount)}</strong>
                   </span>
                 </span>
+                <OpenTile className="history-row__open" />
               </Link>
             </li>
           ) : (
             <li className="history-row" key={`repayment-${item.id}`}>
               <Link href={`/app/repayments/${item.id}`} className="history-row__link">
                 <span className="technical-label">REPAYMENT</span>
-                <span className="history-row__main"><strong>{item.friendName}</strong><span><SourceCalendarDate canonicalDate={item.paidOn} timestamp={item.paidAt.toISOString()} /></span></span>
+                <span className="history-row__main">
+                  <strong>{item.friendName}</strong>
+                  <span><SourceCalendarDate canonicalDate={item.paidOn} timestamp={item.paidAt.toISOString()} /></span>
+                </span>
                 <span className="history-row__values">
                   <span>
                     <small>Received</small>
@@ -71,6 +79,7 @@ export function LedgerHistory({ items, type, nextCursor }: LedgerHistoryProps) {
                     <strong>{formatRupiah(item.unallocatedAmount)}</strong>
                   </span>
                 </span>
+                <OpenTile className="history-row__open" />
               </Link>
             </li>
           ))}

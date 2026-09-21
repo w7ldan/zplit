@@ -2,6 +2,7 @@ import { requireSession } from "@/auth/require-session";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { LedgerHistory } from "@/components/history/ledger-history";
 import type { LedgerHistoryType } from "@/domain/ledger-history";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Ledger history" };
@@ -26,7 +27,7 @@ export default async function HistoryPage({ searchParams = Promise.resolve({}) }
   const history = await ledger.listLedgerHistory({ cursor, type });
 
   return (
-    <section className="app-page history-page" id="top">
+    <section className={`app-page history-page history-vnext zplit-vnext ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
