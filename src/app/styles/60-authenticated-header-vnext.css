@@ -4,6 +4,7 @@
   --authenticated-header-height: 5.25rem;
   --authenticated-header-surface: var(--surface);
   --authenticated-header-canvas: var(--paper);
+  --authenticated-header-detached-gutter: clamp(3.5rem, calc(4vw + 3rem), 8rem);
   --authenticated-header-text: var(--ink);
   --authenticated-header-text-soft: var(--muted-ink);
   --authenticated-header-rule: var(--rule);
@@ -23,8 +24,7 @@
 
 .app-shell .editorial-shell,
 .app-shell .app-shell__header-layout,
-.app-shell .header-shell__panel,
-.app-shell .header-shell__panel--detached {
+.app-shell .header-shell__panel {
   width: min(calc(100% - var(--authenticated-canvas-gutter)), var(--authenticated-canvas-max-width));
   max-width: var(--authenticated-canvas-max-width);
   min-width: 0;
@@ -39,22 +39,27 @@
 }
 
 .app-shell .header-shell__panel,
-.app-shell .app-shell__header-layout,
-.app-shell .header-shell__panel--detached {
+.app-shell .app-shell__header-layout {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   min-height: 3.85rem;
   padding: 0.55rem 0.65rem 0.55rem 1rem;
-  border: 1px solid var(--authenticated-header-rule);
-  border-radius: var(--radius-panel);
-  background: var(--authenticated-header-surface);
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
   pointer-events: auto;
-  transition: transform var(--motion-state) var(--ease-product), border-color var(--motion-state) var(--ease-product), background-color var(--motion-state) var(--ease-product);
+  transition: width var(--motion-layout) var(--ease-product), max-width var(--motion-layout) var(--ease-product), transform var(--motion-state) var(--ease-product), border-color var(--motion-state) var(--ease-product), background-color var(--motion-state) var(--ease-product);
 }
 
 .app-shell .header-shell__panel--detached {
+  width: min(calc(100% - var(--authenticated-header-detached-gutter)), calc(var(--authenticated-canvas-max-width) - 3rem));
+  max-width: calc(var(--authenticated-canvas-max-width) - 3rem);
+  border-color: var(--authenticated-header-rule);
+  border-radius: var(--radius-panel);
+  background: var(--authenticated-header-surface);
+  box-shadow: none;
   transform: translateY(0.3rem);
 }
 
@@ -774,6 +779,10 @@ body.global-search-open {
   .global-search__result-open,
   .global-search__result-open svg {
     transition: none;
+  }
+
+  .app-shell .header-shell__panel--detached {
+    transform: none;
   }
 
   .account-menu__panel,

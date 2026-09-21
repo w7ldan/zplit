@@ -30,6 +30,29 @@ describe("Responsive layout contract", () => {
     expect(cssRuleBody(lateOverridesSource, ".login-form")).toContain("background: var(--surface);");
   });
 
+  it("keeps authenticated attached and detached header treatments distinct without changing the wrapper footprint", () => {
+    const wrapper = cssRuleBody(headerVnextSource, ".app-shell .header-shell");
+    const canvasGeometry = cssRuleBody(headerVnextSource, ".app-shell .editorial-shell,\n.app-shell .app-shell__header-layout,\n.app-shell .header-shell__panel");
+    const attachedPanel = cssRuleBody(headerVnextSource, ".app-shell .header-shell__panel,\n.app-shell .app-shell__header-layout");
+    const detachedPanel = cssRuleBody(headerVnextSource, ".app-shell .header-shell__panel--detached");
+
+    expect(wrapper).toContain("min-height: var(--authenticated-header-height);");
+    expect(wrapper).toContain("padding-block: 0.7rem;");
+    expect(canvasGeometry).toContain("width: min(calc(100% - var(--authenticated-canvas-gutter)), var(--authenticated-canvas-max-width));");
+    expect(attachedPanel).toContain("min-height: 3.85rem;");
+    expect(attachedPanel).toContain("border: 1px solid transparent;");
+    expect(attachedPanel).toContain("background: transparent;");
+    expect(attachedPanel).toContain("transition: width var(--motion-layout) var(--ease-product), max-width var(--motion-layout) var(--ease-product),");
+    expect(detachedPanel).toContain("width: min(calc(100% - var(--authenticated-header-detached-gutter)), calc(var(--authenticated-canvas-max-width) - 3rem));");
+    expect(detachedPanel).toContain("max-width: calc(var(--authenticated-canvas-max-width) - 3rem);");
+    expect(detachedPanel).toContain("border-color: var(--authenticated-header-rule);");
+    expect(detachedPanel).toContain("border-radius: var(--radius-panel);");
+    expect(detachedPanel).toContain("background: var(--authenticated-header-surface);");
+    expect(detachedPanel).toContain("box-shadow: none;");
+    expect(detachedPanel).not.toMatch(/\bmin-height\s*:/);
+    expect(detachedPanel).not.toMatch(/\bpadding\s*:/);
+  });
+
   it("keeps trip detail columns wide and repayment activity labels on one line", () => {
     expect(recordsAndFormsSource).toMatch(/\.trip-record__meta,[\s\S]*?\.trip-record__outings\s*\{[\s\S]*?grid-column:\s*1 \/ -1;/);
     expect(authenticatedShellSource).toContain("grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr) auto;");

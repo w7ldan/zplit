@@ -154,6 +154,8 @@ describe("Motion and feedback contract", () => {
     expect(motionSource).not.toContain("@keyframes receipt-preview-out");
     expect(headerVnextSource).toContain("animation: authenticated-account-menu-in var(--motion-fast) var(--ease-product) both;");
     expect(headerVnextSource).toContain("@keyframes authenticated-account-menu-in");
+    expect(headerVnextSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.app-shell \.header-shell__panel,[\s\S]*?transition: none;/);
+    expect(headerVnextSource).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.app-shell \.header-shell__panel--detached\s*\{[\s\S]*?transform: none;/);
     expect(recordsAndFormsSource).toContain('.searchable-combobox__panel[data-placement="down"]');
     expect(recordsAndFormsSource).toContain('.searchable-combobox__panel[data-placement="up"]');
     expect(recordsAndFormsSource).toContain("transform-origin: top center;");
