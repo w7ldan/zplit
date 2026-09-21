@@ -5,6 +5,7 @@ import { getDatabase } from "@/db/client";
 import { resolveInstallationOwner } from "@/auth/invitations";
 import { getUnreadNotificationCountForUser } from "@/server/notifications";
 import { getUserAvatarMetadata } from "@/server/user-avatars";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 
@@ -15,5 +16,5 @@ export default async function AppLayout({ children }: Readonly<{ children: React
     getUnreadNotificationCountForUser(session.user.id),
     getUserAvatarMetadata(getDatabase(), session.user.id),
   ]);
-  return <AppShell user={{ ...session.user, avatar }} canManageInvites={owner?.id === session.user.id} initialUnreadCount={unreadCount}>{children}</AppShell>;
+  return <AppShell user={{ ...session.user, avatar }} canManageInvites={owner?.id === session.user.id} initialUnreadCount={unreadCount} fontClassName={zplitVNextFont.variable}>{children}</AppShell>;
 }

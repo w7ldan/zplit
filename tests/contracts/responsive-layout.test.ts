@@ -6,6 +6,7 @@ const css = readCssBundle(root).css;
 const foundationSource = readSource("src/app/styles/00-foundation.css");
 const publicSource = readSource("src/app/styles/10-public.css");
 const authenticatedShellSource = readSource("src/app/styles/20-authenticated-shell.css");
+const headerVnextSource = readSource("src/app/styles/60-authenticated-header-vnext.css");
 const recordsAndFormsSource = readSource("src/app/styles/30-records-and-forms.css");
 const lateOverridesSource = readSource("src/app/styles/90-late-overrides.css");
 
@@ -14,12 +15,11 @@ describe("Responsive layout contract", () => {
     expect(cssRuleBody(css, ".editorial-shell")).toContain("width: min(calc(100% - 2rem), 90rem);");
     expect(cssRuleBody(css, ".header-shell__panel")).toContain("max-width: 90rem;");
     expect(cssRuleBody(css, ".header-shell__panel--detached")).toContain("max-width: 72rem;");
-    expect(authenticatedShellSource).toContain(".app-shell .editorial-shell {");
-    expect(authenticatedShellSource).toContain("width: min(calc(100% - 2rem), 76rem);");
-    expect(authenticatedShellSource).toContain("max-width: 76rem;");
-    expect(authenticatedShellSource).toContain(".app-shell .header-shell__panel,");
-    expect(authenticatedShellSource).toContain(".app-shell .header-shell__panel--detached {");
-    expect(authenticatedShellSource).toContain("width: min(calc(100% - 1.5rem), 76rem);");
+    expect(headerVnextSource).toContain(".app-shell .editorial-shell,");
+    expect(headerVnextSource).toContain("--authenticated-canvas-max-width: 118rem;");
+    expect(headerVnextSource).toContain("width: min(calc(100% - var(--authenticated-canvas-gutter)), var(--authenticated-canvas-max-width));");
+    expect(headerVnextSource).toContain(".app-shell .header-shell__panel,");
+    expect(headerVnextSource).toContain(".app-shell .header-shell__panel--detached");
 
     const appShellRules = [...authenticatedShellSource.matchAll(/\.app-shell\s*\{([^{}]*)\}/g)].map((match) => match[1]);
     expect(publicSource).toContain(".public-home { background: var(--paper); }");
@@ -159,27 +159,28 @@ describe("Responsive layout contract", () => {
     expect(cssRuleBody(css, ".header-shell__brand > *")).toContain("gap: inherit;");
     expect(cssRuleBody(css, ".header-shell__nav")).toContain("justify-self: center;");
     expect(cssRuleBody(css, ".header-shell__actions")).toContain("justify-self: end;");
-    expect(cssRuleBody(css, ".public-home .site-header.header-shell__panel--detached")).toContain("padding-inline: 1rem;");
+    expect(cssRuleBody(css, ".public-home .header-shell__panel--detached")).toContain("border-color: var(--rule);");
     expect(css).not.toContain(".app-shell__header--detached {");
     expect(css).not.toContain(".app-shell__header-layout--detached {");
     expect(css).toMatch(/\.header-shell__nav a::after\s*\{[\s\S]*?transition: transform var\(--motion-instant\) var\(--ease-out\);/);
     expect(css).toMatch(/@media \(hover: hover\) and \(pointer: fine\)\s*\{[\s\S]*?\.header-shell__nav a:hover::after\s*\{[\s\S]*?transform: scaleX\(1\);/);
-    expect(cssRuleBody(css, ".app-shell__nav-link:hover, .app-shell__nav-link:focus-visible")).toContain("color: var(--ink);");
-    expect(css).toMatch(/@media \(max-width: 1199px\)\s*\{[\s\S]*?\.app-shell__mobile-nav\s*\{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+    expect(headerVnextSource).toContain(".app-shell__nav-link:hover,");
+    expect(headerVnextSource).toContain(".app-shell__mobile-nav {");
+    expect(headerVnextSource).toContain("overflow-x: auto;");
   });
 
   it("keeps shared/public and authenticated header breakpoints independent", () => {
     const sharedDesktop = cssAtRuleBodies(foundationSource, "@media (min-width: 1024px)");
-    const authenticatedDesktop = cssAtRuleBodies(authenticatedShellSource, "@media (min-width: 1200px)");
-    const authenticatedPanel = ".app-shell .header-shell__panel,\n.app-shell .header-shell__panel--detached";
+    const authenticatedDesktop = cssAtRuleBodies(headerVnextSource, "@media (max-width: 1199px)");
+    const authenticatedPanel = ".app-shell .header-shell__panel,\n.app-shell .app-shell__header-layout,\n.app-shell .header-shell__panel--detached";
 
     expect(sharedDesktop).toHaveLength(1);
     expect(cssRuleBody(sharedDesktop[0], ".header-shell__panel")).toContain("display: grid;");
     expect(foundationSource).not.toContain("@media (min-width: 1200px)");
     expect(cssRuleBody(publicSource, ".site-header")).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);");
-    expect(cssRuleBody(authenticatedShellSource, authenticatedPanel)).toContain("display: flex;");
+    expect(headerVnextSource).toContain("display: grid;");
     expect(authenticatedDesktop).toHaveLength(1);
-    expect(cssRuleBody(authenticatedDesktop[0], authenticatedPanel)).toContain("display: grid;");
+    expect(cssRuleBody(authenticatedDesktop[0], authenticatedPanel)).toContain("grid-template-columns: auto minmax(0, 1fr) auto;");
   });
 
   it("keeps the public mobile header grid in the public fragment", () => {

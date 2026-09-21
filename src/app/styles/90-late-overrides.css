@@ -98,13 +98,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .account-menu summary::after {
-    transition: none;
-  }
-
-}
-
 .debtor-statement {
   position: relative;
   min-height: 100svh;

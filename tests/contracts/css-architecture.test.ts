@@ -17,6 +17,7 @@ const lateOverridesSource = readSource("src/app/styles/90-late-overrides.css");
 const groupsVnextSource = readSource("src/app/styles/45-groups-vnext.css");
 const organizationsVnextSource = readSource("src/app/styles/50-organizations-vnext.css");
 const supportVnextSource = readSource("src/app/styles/55-authenticated-support-vnext.css");
+const headerVnextSource = readSource("src/app/styles/60-authenticated-header-vnext.css");
 const requiredImports = [
   "src/app/styles/00-foundation.css",
   "src/app/styles/05-vnext-foundation.css",
@@ -30,6 +31,7 @@ const requiredImports = [
   "src/app/styles/45-groups-vnext.css",
   "src/app/styles/50-organizations-vnext.css",
   "src/app/styles/55-authenticated-support-vnext.css",
+  "src/app/styles/60-authenticated-header-vnext.css",
 ];
 
 describe("Repository CSS architecture contract", () => {
@@ -75,7 +77,6 @@ describe("Repository CSS architecture contract", () => {
       ".header-shell {",
       ".public-home {",
       ".app-shell {",
-      ".app-shell__header-layout {",
       ".friend-row,\n.outing-row,",
       ".live-record-filters {",
       ".record-pagination {\n  display: flex;",
@@ -107,7 +108,7 @@ describe("Repository CSS architecture contract", () => {
     expect(organizationsVnextSource).not.toMatch(/(^|\n)\s*\.(?:expense-record|repayment-record|friend-record|trip-record|outing-record|ledger-list)\b/);
     expect(supportVnextSource).toContain(".settings-vnext");
     expect(supportVnextSource).toContain(".inbox-vnext");
-    expect(supportVnextSource).toContain(".search-vnext");
+    expect(supportVnextSource).not.toContain(".search-vnext");
     expect(supportVnextSource).toContain(".invites-vnext");
     expect(supportVnextSource).not.toContain(".organizations-vnext");
   });
@@ -136,12 +137,19 @@ describe("Repository CSS architecture contract", () => {
     expect(foundationSource).toContain(".header-shell {");
     expect(foundationSource).toContain(".header-shell__panel--detached {");
     expect(publicSource).not.toContain(".site-header--detached {");
-    expect(authenticatedSource).not.toContain(".app-shell__header-layout--detached {");
+    expect(authenticatedSource).not.toContain(".app-shell__header-layout");
+    expect(headerVnextSource).toContain(".app-shell__header-layout");
+    expect(headerVnextSource).toContain("--authenticated-canvas-max-width: 118rem;");
+    expect(headerVnextSource).toContain("box-shadow: none;");
+    expect(headerVnextSource).toContain(".global-search__dialog");
+    expect(authenticatedSource).not.toContain(".global-search__dialog");
+    expect(motionSource).not.toContain(".app-shell__mobile-nav");
+    expect(motionSource).not.toContain(".account-menu__name");
     expect(lateOverridesSource).not.toMatch(/\.header-shell(?:__[\w-]+)?\b/);
     expect(lateOverridesSource).not.toMatch(/\.app-shell__header(?:-layout)?\b/);
     expect(lateOverridesSource).not.toContain("app-shell__header-layout--detached");
     expect(foundationSource).toMatch(/\.header-shell__panel\s*\{[\s\S]*?width:\s*min\(calc\(100% - 2rem\), 90rem\);[\s\S]*?max-width:\s*90rem;[\s\S]*?border-bottom:\s*1px solid transparent;/);
-    expect(foundationSource).toMatch(/\.header-shell__panel--detached\s*\{[\s\S]*?width:\s*min\(calc\(100% - 2rem\), 72rem\);[\s\S]*?max-width:\s*72rem;[\s\S]*?transform:\s*translateY\(0\.6rem\);/);
+    expect(headerVnextSource).toMatch(/\.app-shell \.header-shell__panel--detached\s*\{[\s\S]*?transform:\s*translateY\(0\.3rem\);/);
   });
 
   it("keeps authenticated record selectors out of public and quarantine fragments", () => {
@@ -176,7 +184,7 @@ describe("Repository CSS architecture contract", () => {
     expect(authenticatedSource).not.toContain(".site-header");
     expect(authenticatedSource).not.toContain(".public-home");
     expect(publicSource).toContain(".public-home .site-header__access");
-    expect(publicSource).toContain(".public-home .site-header.header-shell__panel--detached");
+    expect(publicSource).toContain(".public-home .header-shell__panel--detached");
     expect(publicSource).toContain(".journey-scene__body");
     expect(publicSource).toContain(".landing-reveal");
     expect(publicSource).toContain(".capability--search");

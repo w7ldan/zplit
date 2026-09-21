@@ -7,7 +7,7 @@ const navigationState = vi.hoisted(() => ({ router: { replace: vi.fn(), refresh:
 
 vi.mock("next/navigation", () => ({ usePathname: () => pathState.value, useRouter: () => navigationState.router }));
 vi.mock("@/auth/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
-vi.mock("@/app/app/search/actions", () => ({ searchGlobalRecords: vi.fn() }));
+vi.mock("@/app/app/search-actions", () => ({ searchGlobalRecords: vi.fn() }));
 
 let frameCallback: FrameRequestCallback | undefined;
 
@@ -51,7 +51,7 @@ describe("AppShell", () => {
     ]);
     expect(within(primary).queryByRole("link", { name: "Trips" })).not.toBeInTheDocument();
     const actions = document.querySelector<HTMLElement>(".app-shell__actions")!;
-    expect(Array.from(actions.children).map((child) => child.className)).toEqual(["inbox-control", "global-search-trigger", "account-menu"]);
+    expect(Array.from(actions.children).map((child) => child.className)).toEqual(["global-search-trigger", "inbox-control", "account-menu"]);
     expect(within(actions).queryByRole("link", { name: "Add expense" })).not.toBeInTheDocument();
     expect(within(primary).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/app/history");

@@ -1,6 +1,6 @@
 # Zplit design system vNext
 
-Zplit vNext is the page-agnostic UI foundation for future route migrations. It is precise, architectural, tactile, compact, and financially legible. It should feel unmistakably Zplit without turning every route into a generic dashboard.
+Zplit vNext is the page-agnostic UI foundation for future route migrations. It is precise, architectural, tactile, compact, information-clear, and financially legible. It should feel unmistakably Zplit without turning every route into a generic dashboard.
 
 This document is canonical for new UI and migrated UI. It defines semantic roles and interaction contracts; page-specific composition remains owned by the route.
 
@@ -8,11 +8,11 @@ This document is canonical for new UI and migrated UI. It defines semantic roles
 
 The personality comes from Sora typography, strong financial hierarchy, asymmetric composition, semantic split layouts, compact alignment, surface contrast, tactile rules, and responsive motion. Technical Brutalism and Tonal Minimalism are the governing visual directions: structure, typography, borders, and tonal layers do the work.
 
-It does not come from gradients, shadows, glass, blobs, purple, random accents, excessive icons, fake insights, fake system status, or generic dashboard card grids.
+It does not come from gradients, shadows, glass, blobs, purple, random accents, excessive icons, excessive pills, fake insights, fake system status, generic dashboard card grids, or a generic SaaS-dashboard aesthetic.
 
 Current Zplit colors are authoritative. The supplied design specification is authoritative for typography, layout, density, geometry, borders, interaction, and responsive composition, but its literal color values are not copied into the product. Migrated routes consume the existing semantic palette from `src/app/styles/00-foundation.css`.
 
-The current header is frozen. Do not redesign, partially migrate, or restyle it as part of a route migration.
+The authenticated header is a completed vNext surface. Route migrations must treat it as the shared product control bar and must not introduce page-specific header variants.
 
 ## Compatibility boundary
 
@@ -23,11 +23,23 @@ The existing global stylesheet and legacy tokens remain active for unmigrated UI
 </section>
 ```
 
-Use `zplitVNextFont` from `src/app/fonts.ts`. The vNext scope owns its typography and semantic aliases; it must not be applied to `html`, `body`, `.app-shell`, or a header node.
+Use `zplitVNextFont` from `src/app/fonts.ts`. Page content uses the `.zplit-vnext` scope for typography and semantic aliases. The authenticated header has its own canonical owner, `src/app/styles/60-authenticated-header-vnext.css`, and consumes the same semantic palette without applying the page scope to `html` or `body`.
 
-The existing header continues to own its current typography, geometry, navigation, responsive behavior, sticky/detached behavior, animation, and interactions. Do not change the legacy root font or color variables while the header remains frozen.
+The authenticated header owns its typography, geometry, navigation, responsive behavior, sticky/detached behavior, animation, and utility interactions. Public headers remain separately owned. Do not change the legacy root font or color variables to style either surface.
 
 The Overview is the current proving ground. Its layout, `--overview-*` aliases, runway presentation, choreography, and exact module ratios are not global requirements.
+
+## Authenticated header
+
+The authenticated shell currently has a compact header. The authenticated header is a compact, tactile Zplit control bar with three deliberate zones: global product identity, primary navigation, and utilities. Its inner composition aligns to the authenticated canvas; its detached treatment may span the viewport background but must not create a second page hero or shift page content.
+
+Use solid semantic surfaces, tactile borders, controlled radii, and the existing blue accent family. The header has no glass, gradient, or shadow dependency. The active route remains obvious across nested routes, while inactive navigation stays quiet rather than turning every destination into a pill.
+
+The header owns the entry points for GlobalSearch, Inbox, and the account menu. Inbox exposes its canonical unread count and destination. The account menu preserves current identity, Settings, appearance, conditional Invitations, History, Exports, and sign-out actions.
+
+GlobalSearch is the one authoritative Search experience. It is a compact navigational dialog owned by the authenticated header, with dense semantic result rows, one destination focus target per row, meaningful no-query/loading/no-results states, and preserved query authorization and keyboard behavior.
+
+Responsive navigation keeps the core domains discoverable. On mobile, search stays visible in the top utility row. At medium and narrow widths, a visible secondary row may scroll horizontally when needed; it must remain keyboardable, touch-usable, free of page overflow, and clear about the active destination. Search, Inbox, and account remain reachable in the top row.
 
 ## Typography
 
@@ -37,7 +49,7 @@ Sora is canonical for migrated UI. Use these approximate roles:
 - `600`: rows, controls, and actions.
 - `800`: headings, financial values, major emphasis, and future wordmarks where appropriate.
 
-New UI must not default to Inter, Geist, Manrope, or serif. The current header typography is intentionally excluded from this rule until its separate migration.
+New UI must not default to Inter, Geist, Manrope, or serif. The authenticated header uses the same Sora family and weight hierarchy through its dedicated owner.
 
 ### Financial values
 
@@ -71,7 +83,7 @@ Prefer asymmetric composition, meaningful wide/narrow splits, compact vertical r
 
 Do not default to three equal KPI cards, four equal cards, uniform dashboard tiles, card-inside-card-inside-card, or equal columns without semantic reason. Page layouts remain free to express the route’s domain.
 
-Dense financial pages should use structured headings, grouped rows, dividers, compact financial alignment, full-row navigation, and responsive row transformations. Do not force dense ledgers into oversized cards.
+Dense financial pages should use structured headings, grouped rows, dividers, compact financial alignment, full-row navigation, and responsive row transformations. Ledger rows are not generic dashboard cards; do not force dense ledgers into oversized cards.
 
 Support surfaces have distinct information grammars: Settings is a management workbench, Inbox is a compact action queue, and Search is a dense grouped-results surface. Their shared vNext foundation should not flatten them into one generic card layout. Form width belongs to the form or task section, not the authenticated page shell.
 
@@ -156,7 +168,7 @@ Do not make every element use the same generic fade-up. Page-specific choreograp
 
 Use the existing vNext timings as the baseline: `100ms` press, `160ms` fast interaction, `220ms` state, `300ms` layout, `360ms` dialog/sheet, and `640ms` reveal. Prefer transforms, opacity, color, border, and deliberate clip reveals over layout-property animation.
 
-Avoid global pointer listeners, React state updates on every pointer frame, continuous idle loops, random 3D, and rubbery cartoon motion. When untouched, the interface should mostly settle and idle CPU usage should remain low.
+Avoid global pointer listeners, React state updates on every pointer frame, continuous idle loops, perpetual animation, random 3D, and rubbery cartoon motion. When untouched, the interface should mostly settle and idle CPU usage should remain low.
 
 ### Reduced motion
 
@@ -186,6 +198,6 @@ Migrate incrementally:
 6. Organizations.
 7. Settings, Inbox, and remaining authenticated pages.
 8. Public and auth surfaces if desired.
-9. Header last and separately.
+9. Header last and separately, as the shared authenticated control bar.
 
-Each route migration should opt into `.zplit-vnext`, preserve product and financial semantics, preserve the frozen header, and avoid importing page-specific Overview layout assumptions.
+Each route migration should opt into `.zplit-vnext`, preserve product and financial semantics, use the shared authenticated header contract, and avoid importing page-specific Overview layout assumptions.

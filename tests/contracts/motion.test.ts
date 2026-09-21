@@ -6,6 +6,7 @@ const css = readCssBundle(root).css;
 const foundationSource = readSource("src/app/styles/00-foundation.css");
 const publicSource = readSource("src/app/styles/10-public.css");
 const authenticatedShellSource = readSource("src/app/styles/20-authenticated-shell.css");
+const headerVnextSource = readSource("src/app/styles/60-authenticated-header-vnext.css");
 const recordsAndFormsSource = readSource("src/app/styles/30-records-and-forms.css");
 const motionSource = readSource("src/app/styles/40-motion-and-feedback.css");
 const journeySource = readSource("src/components/editorial/journey-showcase.tsx");
@@ -151,8 +152,8 @@ describe("Motion and feedback contract", () => {
     expect(motionSource).toContain("transition: opacity var(--motion-state) var(--ease-product), transform var(--motion-state) var(--ease-product);");
     expect(motionSource).toContain("receipt-preview--closing");
     expect(motionSource).not.toContain("@keyframes receipt-preview-out");
-    expect(authenticatedShellSource).toContain("animation: account-menu-panel-in var(--motion-fast) var(--ease-product) both;");
-    expect(motionSource).toContain("@keyframes account-menu-panel-in");
+    expect(headerVnextSource).toContain("animation: authenticated-account-menu-in var(--motion-fast) var(--ease-product) both;");
+    expect(headerVnextSource).toContain("@keyframes authenticated-account-menu-in");
     expect(recordsAndFormsSource).toContain('.searchable-combobox__panel[data-placement="down"]');
     expect(recordsAndFormsSource).toContain('.searchable-combobox__panel[data-placement="up"]');
     expect(recordsAndFormsSource).toContain("transform-origin: top center;");

@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { searchGlobalRecords as defaultSearch } from "@/app/app/search/actions";
+import { searchGlobalRecords as defaultSearch } from "@/app/app/search-actions";
 import type { GlobalSearchRecord } from "@/domain/ledger-repository";
 import { formatRupiah } from "@/domain/rupiah";
 import { SourceCalendarDate } from "@/components/editorial/local-date-time";
 import { useUnsavedChangesNavigation } from "@/components/navigation/unsaved-changes";
+import { OpenTile } from "@/components/vnext/open-tile";
 
 export type GlobalSearchAction = (query: string) => Promise<GlobalSearchRecord[]>;
 
@@ -34,13 +35,12 @@ function dateLabel(value?: string, calendarDate?: string) {
 }
 
 function recordDetail(record: GlobalSearchRecord) {
-  const amount = record.amount === undefined ? "" : formatRupiah(record.amount);
   const date = dateLabel(record.date, record.calendarDate);
   if (record.kind === "friend") return record.detail || record.context || "";
   if (record.kind === "trip") return [record.detail, record.context].filter(Boolean).join(" · ");
   if (record.kind === "outing") return <>{date}{date && record.context ? " · " : ""}{record.context}</>;
-  if (record.kind === "expense") return [amount, record.detail].filter(Boolean).join(" · ");
-  return <>{amount}{amount && date ? " · " : ""}{date}</>;
+  if (record.kind === "expense") return record.detail || "";
+  return date;
 }
 
 export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearchAction }) {
@@ -195,7 +195,7 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
   return <>
     <button className="global-search-trigger" type="button" data-quick-search-trigger="true" onClick={(event) => openSearch(event.currentTarget)} aria-label="Search records">
       <svg className="global-search-trigger__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-      <span>Search</span><kbd>/</kbd>
+      <span className="global-search-trigger__label">Search</span><kbd>/</kbd>
     </button>
     {open ? createPortal(<div className="global-search__backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeSearch(); }}>
       <section ref={dialogRef} className="global-search__dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title" aria-describedby="global-search-help" onMouseDown={(event) => event.stopPropagation()}>
@@ -245,10 +245,25 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
                 {group.map((record) => {
                   const index = results.indexOf(record);
                   const detail = recordDetail(record);
-                  return <button className={`global-search__result${index === activeIndex ? " global-search__result--active" : ""}`} type="button" role="option" tabIndex={-1} aria-selected={index === activeIndex} id={`global-search-result-${index}`} key={`${record.kind}-${record.id}`} onMouseEnter={() => setActiveIndex(index)} onClick={() => selectResult(record)}>
-                    <span className="global-search__result-title">{record.title}</span>
+                  return <a
+                    className={`global-search__result${index === activeIndex ? " global-search__result--active" : ""}`}
+                    href={hrefFor(record)}
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={index === activeIndex}
+                    id={`global-search-result-${index}`}
+                    key={`${record.kind}-${record.id}`}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={(event) => { event.preventDefault(); selectResult(record); }}
+                  >
+                    <span className="global-search__result-identity">
+                      <span className="global-search__result-kind" aria-hidden="true">{kindLabels[record.kind].slice(0, -1)}</span>
+                      <strong className="global-search__result-title">{record.title}</strong>
+                    </span>
                     {detail ? <span className="global-search__result-detail">{detail}</span> : null}
-                  </button>;
+                    {record.amount === undefined ? null : <strong className="global-search__result-amount">{formatRupiah(record.amount)}</strong>}
+                    <OpenTile className="global-search__result-open" />
+                  </a>;
                 })}
               </div>;
             })}

@@ -7,7 +7,7 @@ import { UnsavedChangesProvider, useUnsavedChangesGuard } from "@/components/nav
 
 const router = { push: vi.fn(), replace: vi.fn() };
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
-vi.mock("@/app/app/search/actions", () => ({ searchGlobalRecords: vi.fn() }));
+vi.mock("@/app/app/search-actions", () => ({ searchGlobalRecords: vi.fn() }));
 
 const records = [
   { kind: "friend" as const, id: "friend-a", title: "Ari" },
@@ -125,6 +125,8 @@ describe("GlobalSearch", () => {
     expect(screen.getByRole("group", { name: "Outings" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Expenses" })).toHaveTextContent("Rp 42.500");
     expect(screen.getByRole("group", { name: "Repayments" })).toHaveTextContent("Rp 42.500");
+    expect(screen.getByRole("option", { name: "Ari" })).toHaveAttribute("href", "/app/friends/friend-a");
+    expect(screen.getByRole("option", { name: "Ari" }).querySelector(".global-search__result-open")).toHaveAttribute("aria-hidden", "true");
     await waitFor(() => expect(screen.getAllByRole("time")).toHaveLength(2));
     expect(screen.getAllByRole("time").map((time) => time.getAttribute("dateTime"))).toEqual([
       "2026-08-02T00:00:00.000Z",
@@ -175,25 +177,25 @@ describe("GlobalSearch", () => {
   });
 
   it("keeps the authenticated overlay mobile-safe and out of public page code", () => {
-    const styles = readFileSync(path.resolve(process.cwd(), "src/app/styles/20-authenticated-shell.css"), "utf8");
+    const styles = readFileSync(path.resolve(process.cwd(), "src/app/styles/60-authenticated-header-vnext.css"), "utf8");
     const publicPage = readFileSync(path.resolve(process.cwd(), "src/app/page.tsx"), "utf8");
     expect(styles).toContain("body.global-search-open");
     expect(styles).toContain("max-height: calc(100svh - 1.5rem)");
     expect(styles).toMatch(/\.global-search__backdrop\s*\{[\s\S]*?overflow: hidden;/);
     expect(styles).toMatch(/\.global-search__dialog\s*\{[\s\S]*?grid-template-rows: auto auto minmax\(0, 1fr\);/);
     expect(styles).toMatch(/\.global-search__results\s*\{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;[\s\S]*?overscroll-behavior: contain;/);
-    expect(styles).toContain("width: min(38rem, 100%);");
+    expect(styles).toContain("width: min(42rem, 100%);");
     expect(publicPage).not.toContain("GlobalSearch");
   });
 
   it("keeps the desktop shortcut and makes the mobile trigger recognizable", () => {
-    const styles = readFileSync(path.resolve(process.cwd(), "src/app/styles/20-authenticated-shell.css"), "utf8");
+    const styles = readFileSync(path.resolve(process.cwd(), "src/app/styles/60-authenticated-header-vnext.css"), "utf8");
     renderSearch();
     const trigger = screen.getByRole("button", { name: "Search records" });
     expect(trigger).toHaveTextContent("Search");
     expect(trigger.querySelector("kbd")).toHaveTextContent("/");
     expect(trigger.querySelector(".global-search-trigger__icon")).toBeInTheDocument();
     expect(trigger).toHaveAttribute("aria-label", "Search records");
-    expect(styles).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.global-search-trigger span\s*\{[\s\S]*?display: none;[\s\S]*?\.global-search-trigger kbd\s*\{[\s\S]*?display: none;[\s\S]*?\.global-search-trigger__icon\s*\{[\s\S]*?display: block;/);
+    expect(styles).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.global-search-trigger__label,[\s\S]*?\.global-search-trigger kbd,[\s\S]*?display: none;/);
   });
 });

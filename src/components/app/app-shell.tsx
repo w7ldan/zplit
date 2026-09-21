@@ -33,6 +33,7 @@ type AppShellProps = {
   };
   canManageInvites?: boolean;
   initialUnreadCount?: number;
+  fontClassName?: string;
   children: ReactNode;
 };
 
@@ -65,7 +66,7 @@ function ChatLiveRefresh({ pathname }: { pathname: string }) {
   return null;
 }
 
-export function AppShell({ user, canManageInvites, initialUnreadCount = 0, children }: AppShellProps) {
+export function AppShell({ user, canManageInvites, initialUnreadCount = 0, fontClassName, children }: AppShellProps) {
   const pathname = usePathname() ?? "";
 
   useEffect(() => {
@@ -78,7 +79,7 @@ export function AppShell({ user, canManageInvites, initialUnreadCount = 0, child
       <ChatLiveRefresh pathname={pathname} />
       <UnsavedChangesProvider>
         <ToastProvider>
-        <div className="app-shell">
+        <div className={`app-shell${fontClassName ? ` ${fontClassName}` : ""}`}>
       <HeaderShell
         ariaLabel="Ledger header"
         navigationLabel="Ledger navigation"
@@ -103,8 +104,8 @@ export function AppShell({ user, canManageInvites, initialUnreadCount = 0, child
         )}
         actions={(
           <>
-            <InboxControl initialUnreadCount={initialUnreadCount} active={isCurrent(pathname, "/app/inbox")} />
             <GlobalSearch />
+            <InboxControl initialUnreadCount={initialUnreadCount} active={isCurrent(pathname, "/app/inbox")} />
             <details className="account-menu">
               <summary aria-label={`Open account menu for ${user.name}`}><UserAvatar userId={user.id} customAvatar={user.avatar} size="sm" decorative /><span className="account-menu__name">{user.name}</span></summary>
               <div className="account-menu__panel">

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { searchGlobalRecords } from "./actions";
+import { searchGlobalRecords } from "./search-actions";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -15,8 +15,8 @@ vi.mock("@/domain/ledger-repository", async () => {
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };
 });
 
-describe("global search action", () => {
-  it("binds one search to the authenticated owner", async () => {
+describe("global search server action", () => {
+  it("searches through the authenticated ledger owner", async () => {
     const search = vi.fn().mockResolvedValue([]);
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
