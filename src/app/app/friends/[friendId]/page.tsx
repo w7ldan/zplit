@@ -308,9 +308,6 @@ function FriendRecordContent({
             </Link>
           </div>
         </div>
-        {query?.saved === "1" ? (
-          <RecordConfirmation queryKey="saved" message="Friend changes saved." />
-        ) : null}
         <section className="friend-record__summary personal-vnext__summary personal-vnext__motion-reveal" aria-label="Friend summary" data-motion="enter">
           <section
             className={
@@ -362,8 +359,11 @@ function FriendRecordContent({
             </div>
           </div>
         </section>
+        {query?.saved === "1" ? (
+          <RecordConfirmation queryKey="saved" message="Friend changes saved." />
+        ) : null}
         <div className="friend-record__workspace personal-vnext__workspace personal-vnext__responsive-split" data-motion="enter">
-          <div className="friend-record__editor-column personal-vnext__form personal-vnext__form--narrow personal-vnext__motion-reveal">
+          <div className="friend-record__editor-column personal-vnext__motion-reveal">
             <p className="technical-label personal-vnext__eyebrow">EDIT RECORD</p>
             <FriendForm
               action={updateFriendAction.bind(null, friend.id)}

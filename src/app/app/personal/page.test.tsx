@@ -90,6 +90,12 @@ describe("/app/personal", () => {
     expect(screen.queryByRole("link", { name: /Friend 6/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Dinner/ })).toHaveAttribute("href", "/app/expenses/expense-a");
     expect(screen.getByRole("link", { name: /Friend 0.*Money received/ })).toHaveAttribute("href", "/app/repayments/repayment-a");
+    const recent = screen.getByRole("heading", { level: 2, name: "Recent activity" }).closest("section")!;
+    const recentRows = [...recent.querySelectorAll<HTMLAnchorElement>(".activity-row")];
+    expect(recentRows).toHaveLength(2);
+    expect(recentRows[0]?.children).toHaveLength(4);
+    expect(recentRows[0]?.querySelectorAll("a")).toHaveLength(0);
+    expect(recentRows[0]?.querySelector(".vnext-open-tile")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByRole("link", { name: /Bandung Trip/ })).toHaveAttribute("href", "/app/personal/groups/group-a");
     expect(document.querySelector(".personal-destination[href='/app/friends']")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/organization/i);

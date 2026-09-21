@@ -77,9 +77,11 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
     <section className={`app-page page-content zplit-vnext personal-vnext repayment-record ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-grid editorial-shell repayment-record__layout personal-vnext__detail-layout">
         <header className="repayment-record__intro personal-vnext__detail-intro personal-vnext__motion-reveal" data-motion="enter">
-          <p className="technical-label">Repayment · allocate received money</p>
-          <h1>{plan.friendName}</h1>
-          {plan.friendArchivedAt ? <p className="technical-label">ARCHIVED FRIEND</p> : null}
+          <div className="repayment-record__identity personal-vnext__detail-identity">
+            <p className="technical-label">Repayment · allocate received money</p>
+            <h1>{plan.friendName}</h1>
+            {plan.friendArchivedAt ? <p className="technical-label">ARCHIVED FRIEND</p> : null}
+          </div>
           <Link className="repayment-record__back vnext-link" href={contextTrip ? "/app/trips/" + contextTrip.id : "/app/repayments"}>{contextTrip ? contextTrip.name : "Repayments"}</Link>
         </header>
         {query?.created === "1" ? (
@@ -119,7 +121,7 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
                 <div><span className="technical-label">Notes</span><span className="repayment-record__notes-value">{plan.notes ?? "—"}</span></div>
               </div>
             </section>
-            <section className="repayment-record__edit-surface vnext-surface personal-vnext__form" aria-labelledby="repayment-details">
+            <section className="repayment-record__edit-surface vnext-surface" aria-labelledby="repayment-details">
               <p className="technical-label" id="repayment-details" tabIndex={-1}>EDIT RECORD</p>
               <RepaymentForm
                 action={updateRepaymentAction.bind(null, plan.id)}

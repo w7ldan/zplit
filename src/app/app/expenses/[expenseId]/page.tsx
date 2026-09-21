@@ -84,8 +84,10 @@ export default async function ExpenseRecordPage({
     <section className={`app-page page-content zplit-vnext personal-vnext expense-record ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-grid editorial-shell expense-record__layout personal-vnext__detail-layout">
         <header className="expense-record__intro personal-vnext__detail-intro personal-vnext__motion-reveal" data-motion="enter">
-          <p className="technical-label">Expense · assign shares</p>
-          <h1>{expense.description}</h1>
+          <div className="expense-record__identity personal-vnext__detail-identity">
+            <p className="technical-label">Expense · assign shares</p>
+            <h1>{expense.description}</h1>
+          </div>
           <Link className="expense-record__back vnext-link" href="/app/expenses">Expenses</Link>
         </header>
         {query?.created === "1" ? (
@@ -185,7 +187,7 @@ export default async function ExpenseRecordPage({
                 </section>
               ) : null}
             </section>
-            <section className="expense-record__edit-surface vnext-surface personal-vnext__form" aria-labelledby="expense-details">
+            <section className="expense-record__edit-surface vnext-surface" aria-labelledby="expense-details">
               <p className="technical-label" id="expense-details" tabIndex={-1}>EDIT RECORD</p>
               <ExpenseForm
                 action={updateExpenseAction.bind(null, expense.id)}

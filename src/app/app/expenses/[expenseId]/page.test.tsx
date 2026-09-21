@@ -87,6 +87,9 @@ describe("expense record", () => {
 
     expect(screen.getByText("Expense · assign shares")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Dinner" })).toBeInTheDocument();
+    expect(document.querySelector(".expense-record__identity")).toContainElement(screen.getByText("Expense · assign shares"));
+    expect(document.querySelector(".expense-record__identity")).toContainElement(screen.getByRole("heading", { level: 1, name: "Dinner" }));
+    expect(document.querySelector(".expense-record__intro")?.children).toHaveLength(2);
     expect(screen.getAllByText("Rp 84.000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Jakarta dinner").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Outing date")).toBeInTheDocument();

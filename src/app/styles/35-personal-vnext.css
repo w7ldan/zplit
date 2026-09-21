@@ -165,7 +165,7 @@
 }
 
 .personal-vnext .balance-row,
-.personal-vnext .activity-row,
+.personal-vnext.personal-page .activity-row,
 .personal-vnext .personal-destination,
 .personal-vnext .group-card {
   position: relative;
@@ -173,21 +173,28 @@
   border-block-start: 1px solid var(--vnext-rule);
 }
 
-.personal-vnext .balance-row,
-.personal-vnext .activity-row {
+.personal-vnext .balance-row {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 0.85rem;
 }
 
+.personal-vnext.personal-page .activity-row {
+  grid-template-columns: minmax(4.5rem, 0.16fr) minmax(0, 1fr) max-content 1.75rem;
+  min-block-size: 0;
+  min-height: 0;
+  gap: 0.85rem;
+  padding-block: 0.75rem;
+}
+
 .personal-vnext .balance-row > span:first-child,
-.personal-vnext .activity-row > span:nth-child(2) {
+.personal-vnext.personal-page .activity-row > span:nth-child(2) {
   display: grid;
   min-inline-size: 0;
   gap: 0.25rem;
 }
 
 .personal-vnext .balance-row strong,
-.personal-vnext .activity-row strong,
+.personal-vnext.personal-page .activity-row strong,
 .personal-vnext .personal-destination strong,
 .personal-vnext .group-card strong {
   overflow-wrap: anywhere;
@@ -196,8 +203,8 @@
 }
 
 .personal-vnext .balance-row small,
-.personal-vnext .activity-row small,
-.personal-vnext .activity-row > span:last-of-type,
+.personal-vnext.personal-page .activity-row small,
+.personal-vnext.personal-page .activity-row > span:nth-child(3),
 .personal-vnext .personal-destination > span {
   color: var(--vnext-text-soft);
   font-size: 0.8rem;
@@ -205,7 +212,7 @@
 }
 
 .personal-vnext .balance-row > span:nth-child(2),
-.personal-vnext .activity-row > span:nth-child(3) {
+.personal-vnext.personal-page .activity-row > span:nth-child(3) {
   display: grid;
   min-inline-size: max-content;
   justify-items: end;
@@ -215,13 +222,13 @@
 }
 
 .personal-vnext .balance-row > span:nth-child(2) strong,
-.personal-vnext .activity-row > span:nth-child(3) strong {
+.personal-vnext.personal-page .activity-row > span:nth-child(3) strong {
   white-space: nowrap;
   font-size: 1rem;
 }
 
 .personal-vnext .balance-row .vnext-open-tile,
-.personal-vnext .activity-row .vnext-open-tile,
+.personal-vnext.personal-page .activity-row .vnext-open-tile,
 .personal-vnext .personal-destination .vnext-open-tile {
   justify-self: end;
 }
@@ -448,20 +455,17 @@
     border-radius: 0 0 calc(var(--vnext-radius-module) - 1px) calc(var(--vnext-radius-module) - 1px);
   }
 
-  .personal-vnext .balance-row,
-  .personal-vnext .activity-row {
+  .personal-vnext .balance-row {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .personal-vnext .balance-row > span:nth-child(2),
-  .personal-vnext .activity-row > span:nth-child(3) {
+  .personal-vnext .balance-row > span:nth-child(2) {
     grid-column: 1;
     justify-items: start;
     text-align: left;
   }
 
-  .personal-vnext .balance-row .vnext-open-tile,
-  .personal-vnext .activity-row .vnext-open-tile {
+  .personal-vnext .balance-row .vnext-open-tile {
     grid-column: 2;
     grid-row: 1 / span 2;
   }
@@ -473,6 +477,35 @@
 
   .personal-vnext .personal-destination {
     min-block-size: 4.5rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .personal-vnext.personal-page .activity-row {
+    grid-template-columns: minmax(0, 1fr) max-content 1.75rem;
+    align-items: start;
+    gap: 0.35rem 0.75rem;
+  }
+
+  .personal-vnext.personal-page .activity-row > span:first-child {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .personal-vnext.personal-page .activity-row > span:nth-child(2) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .personal-vnext.personal-page .activity-row > span:nth-child(3) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .personal-vnext.personal-page .activity-row > .vnext-open-tile {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 }
 
@@ -1024,10 +1057,36 @@
 }
 
 .personal-vnext .personal-vnext__detail-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: end;
+  gap: 1.25rem;
   min-inline-size: 0;
 }
 
-.personal-vnext .personal-vnext__responsive-split,
+.personal-vnext .personal-vnext__detail-identity {
+  min-inline-size: 0;
+}
+
+.personal-vnext .personal-vnext__detail-identity > .technical-label {
+  margin: 0;
+}
+
+.personal-vnext .personal-vnext__detail-intro h1 {
+  max-inline-size: 18ch;
+  margin-block-start: 0.45rem;
+  font-size: clamp(2.25rem, 5vw, 4.25rem);
+  letter-spacing: -0.05em;
+  line-height: 0.96;
+}
+
+.personal-vnext .personal-vnext__detail-intro > .vnext-link {
+  align-self: end;
+  justify-self: start;
+  min-block-size: 2.75rem;
+  padding-block: 0.55rem;
+}
+
 .personal-vnext .personal-vnext__responsive-detail {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
@@ -1036,20 +1095,41 @@
   grid-column: 1 / -1;
 }
 
-.personal-vnext .personal-vnext__detail-layout > .expense-record__tasks,
-.personal-vnext .personal-vnext__detail-layout > .repayment-record__tasks {
+.personal-vnext.expense-record .personal-vnext__detail-layout > .expense-record__tasks,
+.personal-vnext.repayment-record .personal-vnext__detail-layout > .repayment-record__tasks {
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(18rem, 0.82fr);
+  grid-template-areas:
+    "primary"
+    "inspector";
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
   grid-column: 1 / -1;
   min-inline-size: 0;
 }
 
-.personal-vnext .expense-record__primary-task,
-.personal-vnext .repayment-record__primary-task,
-.personal-vnext .expense-record__sidebar,
-.personal-vnext .repayment-record__sidebar {
+.personal-vnext.expense-record .expense-record__primary-task,
+.personal-vnext.repayment-record .repayment-record__primary-task,
+.personal-vnext.expense-record .expense-record__sidebar,
+.personal-vnext.repayment-record .repayment-record__sidebar {
+  grid-column: auto;
+  grid-row: auto;
+  order: initial;
+  width: 100%;
+  max-width: none;
   min-inline-size: 0;
+  min-width: 0;
+  align-self: start;
+  justify-self: stretch;
+}
+
+.personal-vnext.expense-record .expense-record__primary-task,
+.personal-vnext.repayment-record .repayment-record__primary-task {
+  grid-area: primary;
+}
+
+.personal-vnext.expense-record .expense-record__sidebar,
+.personal-vnext.repayment-record .repayment-record__sidebar {
+  grid-area: inspector;
 }
 
 .personal-vnext .personal-vnext__history {
@@ -1419,6 +1499,22 @@
   min-inline-size: 0;
 }
 
+.personal-vnext.expense-record .expense-record__primary-task > .expense-receipts,
+.personal-vnext.repayment-record .repayment-record__primary-task > .payment-proof {
+  inline-size: 100%;
+  width: 100%;
+  max-inline-size: none;
+  max-width: none;
+}
+
+.personal-vnext.expense-record .expense-record__primary-task > .expense-receipts .expense-receipts__upload,
+.personal-vnext.repayment-record .repayment-record__primary-task > .payment-proof .expense-receipts__upload {
+  inline-size: 100%;
+  width: 100%;
+  max-inline-size: none;
+  max-width: none;
+}
+
 .personal-vnext .expense-record__summary,
 .personal-vnext .repayment-record__summary,
 .personal-vnext .expense-record__edit-surface,
@@ -1439,6 +1535,38 @@
 .personal-vnext .friend-record__editor-column,
 .personal-vnext .friend-record__share-column {
   min-inline-size: 0;
+}
+
+.personal-vnext.friend-record .friend-record__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+  grid-column: 1 / -1;
+  min-inline-size: 0;
+}
+
+.personal-vnext.friend-record .friend-record__summary {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.personal-vnext.friend-record .friend-record__editor-column,
+.personal-vnext.friend-record .friend-record__share-column {
+  inline-size: 100%;
+  width: 100%;
+  max-inline-size: none;
+  max-width: none;
+  align-self: start;
+  justify-self: stretch;
+}
+
+.personal-vnext.friend-record .friend-record__editor-column {
+  display: grid;
+  gap: 1rem;
+}
+
+.personal-vnext.friend-record .friend-record__share-column {
+  min-width: 0;
 }
 
 @media (min-width: 901px) {
@@ -1542,13 +1670,6 @@
     justify-self: end;
   }
 
-  .personal-vnext .personal-vnext__detail-layout > .expense-record__tasks,
-  .personal-vnext .personal-vnext__detail-layout > .repayment-record__tasks {
-    grid-template-columns: minmax(0, 7fr) minmax(18rem, 5fr);
-    gap: clamp(1rem, 2.5vw, 2rem);
-  }
-
-  .personal-vnext .personal-vnext__responsive-split,
   .personal-vnext .personal-vnext__responsive-detail {
     grid-template-columns: minmax(0, 7fr) minmax(18rem, 5fr);
     gap: clamp(1rem, 2.5vw, 2rem);
@@ -1559,8 +1680,37 @@
     gap: clamp(1rem, 2.5vw, 2rem);
   }
 
-  .personal-vnext .friend-record__summary {
-    grid-template-columns: minmax(0, 7fr) minmax(18rem, 5fr);
+}
+
+@media (min-width: 1024px) {
+  .personal-vnext .personal-vnext__detail-intro {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1.5rem 2rem;
+  }
+
+  .personal-vnext.expense-record .personal-vnext__detail-layout > .expense-record__tasks,
+  .personal-vnext.repayment-record .personal-vnext__detail-layout > .repayment-record__tasks {
+    grid-template-areas: "primary inspector";
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 28rem);
+    gap: clamp(1.5rem, 2vw, 2rem);
+  }
+
+  .personal-vnext.friend-record .friend-record__workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 30rem);
+    gap: clamp(1.5rem, 2.5vw, 2rem);
+  }
+
+  .personal-vnext.friend-record .friend-record__summary {
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 16rem);
+    gap: clamp(1.25rem, 2.5vw, 2.5rem);
+  }
+
+  .personal-vnext.friend-record .friend-record__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
   }
 }
 

@@ -66,6 +66,9 @@ describe("repayment record", () => {
 
     expect(screen.getByText("Repayment · allocate received money")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Ari" })).toBeInTheDocument();
+    expect(document.querySelector(".repayment-record__identity")).toContainElement(screen.getByText("Repayment · allocate received money"));
+    expect(document.querySelector(".repayment-record__identity")).toContainElement(screen.getByRole("heading", { level: 1, name: "Ari" }));
+    expect(document.querySelector(".repayment-record__intro")?.children).toHaveLength(2);
     for (const label of ["Received", "Applied to shares", "Needs allocation"]) expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Rp 84.000")).not.toHaveLength(0);
     expect(screen.getAllByText("Rp 40.000")).not.toHaveLength(0);
