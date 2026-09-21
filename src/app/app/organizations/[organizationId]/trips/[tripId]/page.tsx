@@ -138,7 +138,7 @@ export default async function OrganizationTripPage({
           />
         </section>
         {canEdit ? (
-          <>
+          <aside className="trip-record__management">
             <div className="trip-record__form">
               <p className="technical-label">EDIT GROUPING</p>
               <TripForm
@@ -155,7 +155,7 @@ export default async function OrganizationTripPage({
             <TripDeleteForm
               action={deleteTripAction.bind(null, organizationId, trip.id)}
             />
-          </>
+          </aside>
         ) : null}
       </div>
     </section>

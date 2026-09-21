@@ -3,8 +3,9 @@ import Link from "next/link";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
 import { getOrganizationForMember } from "@/server/organizations";
-import { formatRupiah } from "@/domain/rupiah";
 import { getAuthenticatedOrganizationLedger } from "@/server/authenticated-ledger";
+import { AnimatedMoney } from "@/components/vnext/animated-money";
+import { OpenTile } from "@/components/vnext/open-tile";
 
 export const dynamic = "force-dynamic";
 
@@ -51,21 +52,21 @@ export default async function OrganizationDetailPage({
             <div className="organization-ledger-summary">
               <div>
                 <span className="technical-label">OUTSTANDING</span>
-                <strong>{formatRupiah(ledgerSummary.totalOutstandingAmount)}</strong>
+                <AnimatedMoney amount={ledgerSummary.totalOutstandingAmount} label="Outstanding" tone={ledgerSummary.totalOutstandingAmount > 0 ? "debt" : "settled"} />
               </div>
               <div>
                 <span className="technical-label">EXPENSES</span>
-                <strong>{formatRupiah(ledgerSummary.totalExpenseAmount)}</strong>
+                <AnimatedMoney amount={ledgerSummary.totalExpenseAmount} label="Expenses" animate={false} />
               </div>
               <div>
                 <span className="technical-label">REPAID</span>
-                <strong>{formatRupiah(ledgerSummary.totalRepaidAmount)}</strong>
+                <AnimatedMoney amount={ledgerSummary.totalRepaidAmount} label="Repaid" tone="settled" animate={false} />
               </div>
             </div>
             <nav className="organization-detail__shortcuts" aria-label="Organization shortcuts">
-              <Link href={`/app/organizations/${organizationId}/expenses`}>View expenses</Link>
-              <Link href={`/app/organizations/${organizationId}/repayments`}>View repayments</Link>
-              <Link href={`/app/organizations/${organizationId}/people`}>View people</Link>
+              <Link href={`/app/organizations/${organizationId}/expenses`}><span>Expenses</span><OpenTile className="organization-detail__shortcut-tile" /></Link>
+              <Link href={`/app/organizations/${organizationId}/repayments`}><span>Repayments</span><OpenTile className="organization-detail__shortcut-tile" /></Link>
+              <Link href={`/app/organizations/${organizationId}/people`}><span>People</span><OpenTile className="organization-detail__shortcut-tile" /></Link>
             </nav>
           </section>
         ) : (

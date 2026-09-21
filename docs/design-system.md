@@ -75,6 +75,8 @@ Dense financial pages should use structured headings, grouped rows, dividers, co
 
 Authenticated application pages should normally use the available authenticated canvas. Do not arbitrarily make an entire page narrow while substantial usable space remains on the left and right. The authenticated canvas owns the outer page width; constrain individual content based on task type. Narrow content is appropriate for tiny confirmation forms, very short account forms, and single-purpose inputs. Standard content is appropriate for ordinary edit forms and medium-complexity task sections. Wide content is expected for financial detail pages, allocation workspaces, history views, ledgers, long record lists, multi-section detail screens, and dense task workflows. Use the available horizontal space purposefully rather than applying an arbitrary Personal page cap. Personal vNext page composition is owned by `src/app/styles/35-personal-vnext.css`, loaded after the legacy record/form layer; it must use the authenticated canvas and local narrow or standard constraints only where the content requires them.
 
+Capability-adaptive composition is structural: conditionally render controls, sections, and inspector rails only when the current capability grants access to their content. A read-only surface should expand into the space an unavailable mutation rail would have occupied; it should not display disabled-looking placeholders or preserve dead columns for visual symmetry.
+
 ## Shared interaction contracts
 
 The shared contracts live in `src/app/styles/05-vnext-foundation.css`. They are opt-in and page-agnostic.

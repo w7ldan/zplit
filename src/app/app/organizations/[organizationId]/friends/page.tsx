@@ -115,6 +115,7 @@ export default async function OrganizationFriendsPage({
                 friend={friend}
                 balance={balances.get(friend.id)}
                 basePath={base}
+                vnext
               />
             ))
           ) : (

@@ -29,7 +29,7 @@ export default async function OrganizationExportsPage({ params }: { params: Prom
                 <p>{description}</p>
               </div>
               <Link className="text-link" href={`${base}/exports/${kind}`}>
-                Download CSV <span aria-hidden="true">→</span>
+                Download
               </Link>
             </div>
           ))}

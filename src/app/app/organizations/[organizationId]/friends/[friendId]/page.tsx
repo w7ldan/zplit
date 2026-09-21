@@ -116,10 +116,6 @@ export default async function OrganizationFriendPage({
           </section>
           <div className="friend-record__meta">
             <div>
-              <span className="technical-label">Record state</span>
-              <strong>{friend.archivedAt ? "ARCHIVED" : "ACTIVE"}</strong>
-            </div>
-            <div>
               <span className="technical-label">Created</span>
               <LocalDateTime iso={friend.createdAt.toISOString()} mode="date" />
             </div>
@@ -147,6 +143,7 @@ export default async function OrganizationFriendPage({
             />
           </div>
         ) : null}
+        {friend.archivedAt ? <p className="friend-record__archived-note">Archived expense contact. History remains available.</p> : null}
         <section
           className="record-history ledger-section"
           id="friend-expense-shares"

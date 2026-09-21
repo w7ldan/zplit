@@ -118,6 +118,98 @@ function friendIdentity(candidate: { displayName: string; username: string | nul
   );
 }
 
+function OrganizationPeopleManagement({
+  organizationId,
+  canInvite,
+  canManageMembers,
+  invitationRoles,
+  pendingInvitations,
+  state,
+  formAction,
+  search,
+}: {
+  organizationId: string;
+  canInvite: boolean;
+  canManageMembers: boolean;
+  invitationRoles: OrganizationInvitationRole[];
+  pendingInvitations: OrganizationInvitationSummary[];
+  state: OrganizationInvitationActionState;
+  formAction: (formData: FormData) => void | Promise<void>;
+  search: (query: string, selectedId?: string) => Promise<SearchableOption[]>;
+}) {
+  return (
+    <aside className="organization-people__management">
+      <section className="organization-detail__section" aria-labelledby="organization-add-member-heading">
+        <h2 id="organization-add-member-heading">Add member</h2>
+        <form className="organization-invite__form" action={formAction}>
+          <label id="organization-member-target-label" htmlFor="organization-member-target">
+            Search by name or @username...
+          </label>
+          <SearchableCombobox
+            id="organization-member-target"
+            name="targetUserId"
+            value={state.values.targetUserId}
+            options={[]}
+            search={search}
+            required
+            placeholder="Search by name or @username..."
+            searchLabel="Search by name or @username..."
+            labelId="organization-member-target-label"
+          />
+          {canInvite ? (
+            <>
+              <label htmlFor="organization-member-role">Role for registered account</label>
+              <select id="organization-member-role" name="role" defaultValue={state.values.role}>
+                {invitationRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
+              </select>
+            </>
+          ) : null}
+          <p className="organization-invite__message" role={state.error && !state.error.endsWith("sent.") && !state.error.endsWith("added.") ? "alert" : "status"}>
+            {state.error || "Search for a Personal Friend or Zplit username."}
+          </p>
+          <button className="action-link action-link--primary" type="submit">Add member</button>
+        </form>
+        <p className="organization-detail__supporting-copy">
+          No matching person? <Link href="/app/friends?create=1">Add a Personal Friend first.</Link>
+        </p>
+        {canInvite && pendingInvitations.length > 0 ? (
+          <div className="organization-invite__pending">
+            <h3>Pending invitations</h3>
+            <ul className="organization-members__list">
+              {pendingInvitations.map((invitation) => (
+                <li className="organization-members__row organization-members__row--invitation" key={invitation.id}>
+                  <span className="organization-members__identity">
+                    <strong>{invitation.displayName}</strong>
+                    <span>@{invitation.username}</span>
+                  </span>
+                  <span className="organization-members__role">
+                    {roleLabel(invitation.role)} · Expires <LocalDateTime iso={invitation.expiresAt} mode="date" />
+                  </span>
+                  <form action={revokeOrganizationInvitationAction.bind(null, organizationId, invitation.id)}>
+                    <button className="text-link" type="submit">Revoke</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </section>
+      {canManageMembers ? (
+        <section className="organization-detail__section" aria-labelledby="organization-local-member-heading">
+          <h2 id="organization-local-member-heading">Add local member</h2>
+          <form className="organization-invite__form" action={createLocalOrganizationParticipantAction.bind(null, organizationId)}>
+            <label htmlFor="organization-local-member-name">Name</label>
+            <input id="organization-local-member-name" name="displayName" required />
+            <label htmlFor="organization-local-member-label">Label (optional)</label>
+            <input id="organization-local-member-label" name="label" />
+            <button className="action-link action-link--quiet" type="submit">Add member</button>
+          </form>
+        </section>
+      ) : null}
+    </aside>
+  );
+}
+
 export function OrganizationMembers({
   organizationId,
   members,
@@ -145,8 +237,9 @@ export function OrganizationMembers({
   const canInvite = invitationRoles.length > 0;
   const pendingByParticipant = new Map(pendingInvitations.flatMap((invitation) => invitation.participantId ? [[invitation.participantId, invitation] as const] : []));
 
+  const canManagePeople = canInvite || canManageMembers;
   return (
-    <>
+    <div className={`organization-people__workbench${canManagePeople ? " organization-people__workbench--management" : ""}${members ? " organization-people__workbench--members" : ""}`}>
       {members ? (
         <section className="organization-detail__section" aria-labelledby="organization-members-heading">
           <h2 id="organization-members-heading">Members</h2>
@@ -173,75 +266,17 @@ export function OrganizationMembers({
         </section>
       ) : null}
 
-      {canInvite || canManageMembers ? (
-        <section className="organization-detail__section" aria-labelledby="organization-add-member-heading">
-          <h2 id="organization-add-member-heading">Add member</h2>
-          <form className="organization-invite__form" action={formAction}>
-            <label id="organization-member-target-label" htmlFor="organization-member-target">
-              Search by name or @username...
-            </label>
-            <SearchableCombobox
-              id="organization-member-target"
-              name="targetUserId"
-              value={state.values.targetUserId}
-              options={[]}
-              search={search}
-              required
-              placeholder="Search by name or @username..."
-              searchLabel="Search by name or @username..."
-              labelId="organization-member-target-label"
-            />
-            {canInvite ? (
-              <>
-                <label htmlFor="organization-member-role">Role for registered account</label>
-                <select id="organization-member-role" name="role" defaultValue={state.values.role}>
-                  {invitationRoles.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}
-                </select>
-              </>
-            ) : null}
-            <p className="organization-invite__message" role={state.error && !state.error.endsWith("sent.") && !state.error.endsWith("added.") ? "alert" : "status"}>
-              {state.error || "Search for a Personal Friend or Zplit username."}
-            </p>
-            <button className="action-link action-link--primary" type="submit">Add member</button>
-          </form>
-          <p className="organization-detail__supporting-copy">
-            No matching person? <Link href="/app/friends?create=1">Add a Personal Friend first.</Link>
-          </p>
-          {canInvite && pendingInvitations.length > 0 ? (
-            <div className="organization-invite__pending">
-              <h3>Pending invitations</h3>
-              <ul className="organization-members__list">
-                {pendingInvitations.map((invitation) => (
-                  <li className="organization-members__row organization-members__row--invitation" key={invitation.id}>
-                    <span className="organization-members__identity">
-                      <strong>{invitation.displayName}</strong>
-                      <span>@{invitation.username}</span>
-                    </span>
-                    <span className="organization-members__role">
-                      {roleLabel(invitation.role)} · Expires <LocalDateTime iso={invitation.expiresAt} mode="date" />
-                    </span>
-                    <form action={revokeOrganizationInvitationAction.bind(null, organizationId, invitation.id)}>
-                      <button className="text-link" type="submit">Revoke</button>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
-      {canManageMembers ? (
-        <section className="organization-detail__section" aria-labelledby="organization-local-member-heading">
-          <h2 id="organization-local-member-heading">Add local member</h2>
-          <form className="organization-invite__form" action={createLocalOrganizationParticipantAction.bind(null, organizationId)}>
-            <label htmlFor="organization-local-member-name">Name</label>
-            <input id="organization-local-member-name" name="displayName" required />
-            <label htmlFor="organization-local-member-label">Label (optional)</label>
-            <input id="organization-local-member-label" name="label" />
-            <button className="action-link action-link--quiet" type="submit">Add member</button>
-          </form>
-        </section>
+      {canManagePeople ? (
+        <OrganizationPeopleManagement
+          organizationId={organizationId}
+          canInvite={canInvite}
+          canManageMembers={canManageMembers}
+          invitationRoles={invitationRoles}
+          pendingInvitations={pendingInvitations}
+          state={state}
+          formAction={formAction}
+          search={search}
+        />
       ) : null}
 
       {canViewExpenseContacts ? (
@@ -266,6 +301,6 @@ export function OrganizationMembers({
           {canManageExpenseContacts ? <Link className="action-link action-link--quiet" href={`/app/organizations/${organizationId}/friends?create=1`}>Manage expense contacts</Link> : null}
         </section>
       ) : null}
-    </>
+    </div>
   );
 }

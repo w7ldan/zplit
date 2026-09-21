@@ -104,7 +104,7 @@ export default async function OrganizationOutingPage({
           ) : null}
         </section>
         {canEdit ? (
-          <div className="outing-record__workspace">
+          <aside className="outing-record__workspace outing-record__management">
             <div className="outing-record__form">
               <p className="technical-label">EDIT RECORD</p>
               <OutingForm
@@ -135,7 +135,7 @@ export default async function OrganizationOutingPage({
               impact={impact}
               impactRevision={deletionImpactRevision(impact)}
             />
-          </div>
+          </aside>
         ) : null}
         <section className="record-history ledger-section" id="outing-expenses">
           <div className="ledger-section__heading">

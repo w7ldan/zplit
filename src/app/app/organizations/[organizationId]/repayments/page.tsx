@@ -152,6 +152,7 @@ function OrganizationRepaymentList({
                 key={repayment.id}
                 repayment={repayment}
                 basePath={base + "/repayments"}
+                vnext
               />
             ))}
           </div>

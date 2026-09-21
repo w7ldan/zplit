@@ -15,6 +15,7 @@ const personalVnextSource = readSource("src/app/styles/35-personal-vnext.css");
 const motionSource = readSource("src/app/styles/40-motion-and-feedback.css");
 const lateOverridesSource = readSource("src/app/styles/90-late-overrides.css");
 const groupsVnextSource = readSource("src/app/styles/45-groups-vnext.css");
+const organizationsVnextSource = readSource("src/app/styles/50-organizations-vnext.css");
 const requiredImports = [
   "src/app/styles/00-foundation.css",
   "src/app/styles/05-vnext-foundation.css",
@@ -26,6 +27,7 @@ const requiredImports = [
   "src/app/styles/40-motion-and-feedback.css",
   "src/app/styles/90-late-overrides.css",
   "src/app/styles/45-groups-vnext.css",
+  "src/app/styles/50-organizations-vnext.css",
 ];
 
 describe("Repository CSS architecture contract", () => {
@@ -96,6 +98,9 @@ describe("Repository CSS architecture contract", () => {
     expect(groupsVnextSource).not.toContain(".personal-vnext");
     expect(groupsVnextSource).not.toContain(".budget-page");
     expect(groupsVnextSource).not.toContain(".overview-page");
+    expect(organizationsVnextSource).toContain(".organizations-vnext");
+    expect(organizationsVnextSource).not.toContain("90-late-overrides");
+    expect(organizationsVnextSource).not.toMatch(/(^|\n)\s*\.(?:expense-record|repayment-record|friend-record|trip-record|outing-record|ledger-list)\b/);
   });
 
   it("keeps mobile disclosure ownership in the records-and-forms fragment", () => {

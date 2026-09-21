@@ -1,0 +1,1494 @@
+.organizations-vnext {
+  min-inline-size: 0;
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+}
+
+.organizations-vnext .app-page,
+.organizations-vnext .chat-page {
+  background: var(--vnext-canvas);
+  color: var(--vnext-text);
+}
+
+.organizations-vnext .editorial-shell {
+  inline-size: min(calc(100% - 2rem), 90rem);
+  max-inline-size: 90rem;
+}
+
+.organizations-vnext .app-page__layout {
+  gap: 1.35rem;
+  padding-block: 1.35rem 3.5rem;
+}
+
+.organizations-vnext .technical-label {
+  color: var(--vnext-text-quiet);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.organizations-vnext .app-page__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1.25rem;
+  padding-block: 0.85rem 1.1rem;
+  border-block-end: 1px solid var(--vnext-rule);
+}
+
+.organizations-vnext .app-page__header h1 {
+  max-inline-size: 18ch;
+  margin: 0.3rem 0 0;
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: clamp(2rem, 4vw, 3.8rem);
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+.organizations-vnext .app-page__lede,
+.organizations-vnext .organization-detail__supporting-copy {
+  max-inline-size: 48rem;
+  margin-block-start: 0.65rem;
+  color: var(--vnext-text-soft);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.organizations-vnext .app-page__header .action-link,
+.organizations-vnext .action-link {
+  min-block-size: 2.5rem;
+  border-radius: var(--vnext-radius-button);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.organizations-vnext .action-link--primary {
+  border-color: var(--vnext-accent-strong);
+  background: var(--vnext-accent-strong);
+  color: var(--vnext-text-on-accent);
+}
+
+.organizations-vnext .action-link--quiet {
+  border-color: var(--vnext-rule);
+  background: var(--vnext-surface);
+  color: var(--vnext-text);
+}
+
+.organizations-vnext .action-link--quiet:hover,
+.organizations-vnext .action-link--quiet:focus-visible {
+  border-color: var(--vnext-accent-strong);
+  background: var(--vnext-accent-wash);
+}
+
+.organizations-vnext .text-link,
+.organizations-vnext .vnext-link {
+  color: var(--vnext-link);
+  font-size: 0.76rem;
+}
+
+.organizations-vnext .ledger-section,
+.organizations-vnext .ledger-list {
+  border-block-color: var(--vnext-rule);
+}
+
+.organizations-vnext .ledger-section__heading,
+.organizations-vnext .ledger-list__heading {
+  min-block-size: 2.75rem;
+  padding-block: 0.65rem;
+}
+
+.organizations-vnext .ledger-section__heading h2,
+.organizations-vnext .ledger-empty h2,
+.organizations-vnext .ledger-empty h3 {
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.organizations-vnext .ledger-section__heading h2 {
+  font-size: 1.25rem;
+}
+
+.organizations-vnext .ledger-empty {
+  padding-block: 1.2rem;
+  border-top-color: var(--vnext-rule);
+}
+
+.organizations-vnext .ledger-empty p {
+  color: var(--vnext-text-soft);
+  font-size: 0.84rem;
+}
+
+.organizations-vnext .organization-context {
+  display: grid;
+  gap: 0.7rem;
+  padding-block: 1rem 0.65rem;
+  border-block-end: 1px solid var(--vnext-rule);
+}
+
+.organizations-vnext .organization-context__topline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.organizations-vnext .organization-context__identity {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.organizations-vnext .organization-context__identity .organization-detail__identity {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  gap: 0.65rem;
+}
+
+.organizations-vnext .organization-context__identity .organization-detail__identity h1 {
+  max-inline-size: 30ch;
+  margin: 0.18rem 0 0;
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: clamp(1.25rem, 2.3vw, 1.9rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .organization-context__facts {
+  margin: 0;
+  color: var(--vnext-text-soft);
+  font-size: 0.74rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.organizations-vnext .organization-context > .organization-detail__back {
+  margin: 0;
+  color: var(--vnext-link);
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.organizations-vnext .organization-detail__description {
+  max-inline-size: 58ch;
+  margin: 0;
+  color: var(--vnext-text-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .organization-context__nav {
+  display: flex;
+  gap: 1.05rem;
+  min-inline-size: 0;
+  overflow-x: auto;
+  padding-block: 0.2rem 0.55rem;
+  border-block-end: 1px solid var(--vnext-rule);
+  scrollbar-width: none;
+}
+
+.organizations-vnext .organization-context__nav::-webkit-scrollbar {
+  display: none;
+}
+
+.organizations-vnext .organization-context__nav a {
+  flex: 0 0 auto;
+  padding-block: 0.3rem;
+  color: var(--vnext-text-soft);
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.organizations-vnext .organization-context__nav a:hover,
+.organizations-vnext .organization-context__nav a:focus-visible,
+.organizations-vnext .organization-context__nav a[aria-current="page"] {
+  color: var(--vnext-text);
+}
+
+.organizations-vnext .organization-context__nav a[aria-current="page"] {
+  border-block-end: 2px solid var(--vnext-accent-strong);
+}
+
+.organizations-vnext .organization-context__subnav {
+  display: flex;
+  gap: 0.8rem;
+  margin: -0.35rem 0 0;
+  padding-inline-start: 0.15rem;
+}
+
+.organizations-vnext .organization-context__subnav a {
+  color: var(--vnext-text-soft);
+  font-size: 0.72rem;
+  text-decoration: none;
+}
+
+.organizations-vnext .organization-context__subnav a[aria-current="page"] {
+  color: var(--vnext-text);
+  font-weight: 600;
+}
+
+.organizations-vnext .chat-unread-badge {
+  min-inline-size: 1.25rem;
+  margin-inline-start: 0.3rem;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-control);
+  background: var(--vnext-accent-wash);
+  color: var(--vnext-text);
+  font-size: 0.64rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.organizations-vnext.organizations-page .app-page__layout {
+  gap: 1.15rem;
+}
+
+.organizations-vnext.organizations-page .app-page__header h1 {
+  max-inline-size: none;
+  font-size: clamp(2.2rem, 5vw, 4.8rem);
+}
+
+.organizations-vnext .organization-section {
+  display: grid;
+  gap: 0.8rem;
+  border: 0;
+}
+
+.organizations-vnext .organization-section .ledger-section__heading {
+  margin: 0;
+  border-block-end: 1px solid var(--vnext-rule);
+}
+
+.organizations-vnext .organization-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  padding: 0;
+}
+
+.organizations-vnext .organization-card {
+  display: flex;
+  min-inline-size: 0;
+  min-block-size: 6.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+  color: var(--vnext-text);
+  text-decoration: none;
+  transition: background-color var(--vnext-motion-fast) var(--vnext-ease-product), border-color var(--vnext-motion-fast) var(--vnext-ease-product), transform var(--vnext-motion-press) var(--vnext-ease-product);
+}
+
+.organizations-vnext .organization-card:hover,
+.organizations-vnext .organization-card:focus-visible {
+  border-color: var(--vnext-accent-strong);
+  background: var(--vnext-accent-wash);
+}
+
+.organizations-vnext .organization-card:active {
+  transform: scale(0.99);
+}
+
+.organizations-vnext .organization-card__details {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.2rem;
+}
+
+.organizations-vnext .organization-card__details strong {
+  color: var(--vnext-text);
+  font-size: 0.84rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .organization-card__details > span:not(.organization-card__ledger) {
+  color: var(--vnext-text-soft);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .organization-card__ledger {
+  display: grid;
+  gap: 0.1rem;
+  margin-block-start: 0.25rem;
+}
+
+.organizations-vnext .organization-card__ledger > span {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.organizations-vnext .organization-card__ledger strong {
+  color: var(--vnext-text);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.organizations-vnext .organization-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.organizations-vnext .organization-filter__link {
+  min-block-size: 2.25rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-button);
+  color: var(--vnext-text-soft);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.organizations-vnext .organization-filter__link--selected,
+.organizations-vnext .organization-filter__link:hover,
+.organizations-vnext .organization-filter__link:focus-visible {
+  border-color: var(--vnext-accent-strong);
+  background: var(--vnext-accent-wash);
+  color: var(--vnext-text);
+}
+
+.organizations-vnext .organization-detail-page .app-page__layout {
+  gap: 1.1rem;
+}
+
+.organizations-vnext .organization-detail__section,
+.organizations-vnext .organization-settings__profile,
+.organizations-vnext .organization-settings__exports,
+.organizations-vnext .organization-detail__delete {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+}
+
+.organizations-vnext .organization-detail__section h2,
+.organizations-vnext .organization-detail__section h3,
+.organizations-vnext .organization-settings__exports h2,
+.organizations-vnext .organization-detail__delete h2 {
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.organizations-vnext .organization-detail__section h2,
+.organizations-vnext .organization-settings__exports h2,
+.organizations-vnext .organization-detail__delete h2 {
+  font-size: 1.1rem;
+}
+
+.organizations-vnext .organization-detail__section h3 {
+  font-size: 0.9rem;
+}
+
+.organizations-vnext .organization-detail__overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.organizations-vnext .organization-detail__overview > div:first-child h2 {
+  margin: 0.3rem 0 0;
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+}
+
+.organizations-vnext .organization-ledger-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-rule);
+  overflow: visible;
+}
+
+.organizations-vnext .organization-ledger-summary > div {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.45rem;
+  padding: clamp(0.85rem, 2vw, 1.35rem);
+  background: var(--vnext-surface-strong);
+}
+
+.organizations-vnext .organization-ledger-summary > div:first-child {
+  border-radius: calc(var(--vnext-radius-module) - 1px) 0 0 calc(var(--vnext-radius-module) - 1px);
+  background: var(--vnext-surface-warm);
+}
+
+.organizations-vnext .organization-ledger-summary > div:last-child {
+  border-radius: 0 calc(var(--vnext-radius-module) - 1px) calc(var(--vnext-radius-module) - 1px) 0;
+}
+
+.organizations-vnext .organization-ledger-summary .animated-money,
+.organizations-vnext .organization-ledger-summary strong {
+  color: var(--vnext-text);
+  font-size: clamp(1rem, 2.2vw, 2rem);
+  font-weight: 800;
+}
+
+.organizations-vnext .organization-ledger-summary > div:first-child .animated-money {
+  font-size: clamp(1.35rem, 3vw, 2.8rem);
+}
+
+.organizations-vnext .organization-ledger-summary .animated-money[data-tone="debt"] {
+  color: var(--vnext-debt);
+}
+
+.organizations-vnext .organization-ledger-summary .animated-money[data-tone="settled"] {
+  color: var(--vnext-settled);
+}
+
+.organizations-vnext .organization-detail__shortcuts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  padding: 0;
+}
+
+.organizations-vnext .organization-detail__shortcuts a {
+  display: flex;
+  min-block-size: 3.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  border-block: 1px solid var(--vnext-rule);
+  color: var(--vnext-text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.organizations-vnext .organization-detail__shortcuts a:hover,
+.organizations-vnext .organization-detail__shortcuts a:focus-visible {
+  background: var(--vnext-accent-wash);
+}
+
+.organizations-vnext .organization-detail__shortcut-tile {
+  flex: 0 0 auto;
+}
+
+.organizations-vnext .organization-detail__section > p,
+.organizations-vnext .organization-detail__delete > p,
+.organizations-vnext .organization-settings__exports p {
+  color: var(--vnext-text-soft);
+}
+
+.organizations-vnext .organization-people__workbench {
+  display: grid;
+  gap: 1rem;
+}
+
+.organizations-vnext .organization-people__workbench--management.organization-people__workbench--members {
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.75fr);
+}
+
+.organizations-vnext .organization-people__workbench--management:not(.organization-people__workbench--members) {
+  grid-template-columns: 1fr;
+}
+
+.organizations-vnext .organization-people__workbench > .organization-detail__section:first-child {
+  grid-column: 1;
+}
+
+.organizations-vnext .organization-people__workbench--management.organization-people__workbench--members > .organization-people__management {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.organizations-vnext .organization-people__workbench--management:not(.organization-people__workbench--members) > .organization-people__management {
+  grid-column: 1;
+  grid-row: auto;
+}
+
+.organizations-vnext .organization-people__management,
+.organizations-vnext .organization-settings__management {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.organizations-vnext .organization-people__contacts {
+  grid-column: 1 / -1;
+}
+
+.organizations-vnext .organization-members__list {
+  gap: 0;
+}
+
+.organizations-vnext .organization-members__row {
+  min-block-size: 3.5rem;
+  gap: 0.7rem;
+  padding-block: 0.65rem;
+  border-top-color: var(--vnext-rule);
+}
+
+.organizations-vnext .organization-members__identity {
+  gap: 0.12rem;
+}
+
+.organizations-vnext .organization-members__identity strong {
+  color: var(--vnext-text);
+  font-size: 0.78rem;
+}
+
+.organizations-vnext .organization-members__identity span,
+.organizations-vnext .organization-members__role,
+.organizations-vnext .organization-invite__message {
+  color: var(--vnext-text-soft);
+  font-size: 0.7rem;
+}
+
+.organizations-vnext .organization-members__personal-friends {
+  margin-block-start: 0.5rem;
+}
+
+.organizations-vnext .organization-invite__form,
+.organizations-vnext .organization-form,
+.organizations-vnext .organization-people__link-form {
+  gap: 0.55rem;
+}
+
+.organizations-vnext .organization-form,
+.organizations-vnext .organization-invite__form {
+  max-inline-size: 34rem;
+}
+
+.organizations-vnext .organization-form__field label,
+.organizations-vnext .organization-invite__form > label {
+  color: var(--vnext-text);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.organizations-vnext .organization-form__field input,
+.organizations-vnext .organization-form__field textarea,
+.organizations-vnext .organization-invite__form input,
+.organizations-vnext .organization-invite__form select,
+.organizations-vnext .organization-people__link-form select,
+.organizations-vnext .organization-members__friend-invite select {
+  border-color: var(--vnext-rule);
+  border-radius: var(--vnext-radius-control);
+  background: var(--vnext-surface-strong);
+  color: var(--vnext-text);
+  font: inherit;
+}
+
+.organizations-vnext .organization-form__field-error,
+.organizations-vnext .organization-form__help,
+.organizations-vnext .organization-form__message {
+  color: var(--vnext-text-soft);
+  font-size: 0.7rem;
+}
+
+.organizations-vnext .organization-form__field-error {
+  color: var(--vnext-debt);
+}
+
+.organizations-vnext .organization-settings__workbench {
+  display: grid;
+  gap: 1rem;
+}
+
+.organizations-vnext .organization-settings__primary {
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.organizations-vnext .organization-settings__workbench--management {
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.75fr);
+}
+
+.organizations-vnext .organization-settings__workbench--rail-only {
+  grid-template-columns: 1fr;
+}
+
+.organizations-vnext .organization-settings__workbench--management .organization-settings__management {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.organizations-vnext .organization-settings__workbench--rail-only .organization-settings__management {
+  grid-column: 1;
+}
+
+.organizations-vnext .settings-page__section-heading {
+  align-items: start;
+  gap: 1rem;
+  border-block-end-color: var(--vnext-rule);
+}
+
+.organizations-vnext .settings-page__section-heading h2 {
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.organizations-vnext .settings-page__section-heading p,
+.organizations-vnext .organization-settings__exports p,
+.organizations-vnext .organization-detail__delete > p {
+  color: var(--vnext-text-soft);
+  font-size: 0.76rem;
+}
+
+.organizations-vnext .organization-settings__exports,
+.organizations-vnext .organization-detail__delete {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.organizations-vnext .organization-settings__exports .action-link {
+  justify-self: start;
+}
+
+.organizations-vnext .exports-list {
+  display: grid;
+  border-block: 1px solid var(--vnext-rule);
+}
+
+.organizations-vnext .exports-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-block-size: 4.25rem;
+  padding-block: 0.75rem;
+  border-top: 1px solid var(--vnext-rule);
+}
+
+.organizations-vnext .exports-row:first-child {
+  border-top: 0;
+}
+
+.organizations-vnext .exports-row h2 {
+  margin: 0;
+  color: var(--vnext-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.organizations-vnext .exports-row p {
+  margin: 0.25rem 0 0;
+  color: var(--vnext-text-soft);
+  font-size: 0.72rem;
+}
+
+.organizations-vnext .records-workspace {
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.organizations-vnext .records-workspace__toolbar {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.organizations-vnext .record-month-divider {
+  padding-block: 0.7rem 0.35rem;
+  border-block-end: 1px solid var(--vnext-rule);
+}
+
+.organizations-vnext .expense-row.vnext-row,
+.organizations-vnext .repayment-row.vnext-row,
+.organizations-vnext .friend-row.vnext-row,
+.organizations-vnext .organizations-vnext__trip-row {
+  grid-template-columns: minmax(0, 2fr) minmax(8rem, 1fr) minmax(8rem, 1fr) minmax(9rem, auto) auto;
+  min-block-size: 4rem;
+  padding: 0.7rem 0.8rem;
+  border-block-start: 1px solid var(--vnext-rule);
+  border-radius: 0;
+  color: var(--vnext-text);
+}
+
+.organizations-vnext .repayment-row.vnext-row {
+  grid-template-columns: minmax(0, 1.8fr) minmax(8rem, auto) minmax(8rem, auto) minmax(12rem, 1fr) auto;
+}
+
+.organizations-vnext .friend-row.vnext-row {
+  grid-template-columns: minmax(0, 2fr) minmax(9rem, auto) minmax(9rem, auto) auto;
+}
+
+.organizations-vnext .organizations-vnext__trip-row {
+  grid-template-columns: minmax(0, 2fr) minmax(11rem, auto) repeat(2, minmax(4.5rem, auto)) minmax(8rem, auto) auto;
+}
+
+.organizations-vnext .expense-row.vnext-row:hover,
+.organizations-vnext .expense-row.vnext-row:focus-visible,
+.organizations-vnext .repayment-row.vnext-row:hover,
+.organizations-vnext .repayment-row.vnext-row:focus-visible,
+.organizations-vnext .friend-row.vnext-row:hover,
+.organizations-vnext .friend-row.vnext-row:focus-visible,
+.organizations-vnext .organizations-vnext__trip-row:hover,
+.organizations-vnext .organizations-vnext__trip-row:focus-visible {
+  background: var(--vnext-accent-wash);
+}
+
+.organizations-vnext .expense-row.vnext-row > *,
+.organizations-vnext .repayment-row.vnext-row > *,
+.organizations-vnext .friend-row.vnext-row > *,
+.organizations-vnext .organizations-vnext__trip-row > * {
+  min-inline-size: 0;
+}
+
+.organizations-vnext .expense-row.vnext-row .expense-row__primary,
+.organizations-vnext .repayment-row.vnext-row .repayment-row__primary,
+.organizations-vnext .friend-row.vnext-row .friend-row__primary,
+.organizations-vnext .organizations-vnext__trip-row .trip-row__primary {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.organizations-vnext .expense-row.vnext-row h2,
+.organizations-vnext .repayment-row.vnext-row h2,
+.organizations-vnext .friend-row.vnext-row h2,
+.organizations-vnext .organizations-vnext__trip-row h2 {
+  margin: 0;
+  color: var(--vnext-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .expense-row.vnext-row > :not(.expense-row__primary):not(.expense-row__open-tile),
+.organizations-vnext .repayment-row.vnext-row > :not(.repayment-row__primary):not(.repayment-row__open-tile),
+.organizations-vnext .friend-row.vnext-row > :not(.friend-row__primary):not(.friend-row__open-tile),
+.organizations-vnext .organizations-vnext__trip-row > :not(.trip-row__primary):not(.trip-row__open-tile) {
+  display: grid;
+  align-content: center;
+  gap: 0.2rem;
+  color: var(--vnext-text-soft);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .expense-row.vnext-row .expense-row__amount,
+.organizations-vnext .repayment-row.vnext-row .repayment-row__received,
+.organizations-vnext .repayment-row.vnext-row .repayment-row__allocation,
+.organizations-vnext .friend-row.vnext-row .friend-row__outstanding,
+.organizations-vnext .organizations-vnext__trip-row .trip-row__total {
+  justify-items: end;
+  text-align: end;
+}
+
+.organizations-vnext .expense-row.vnext-row .expense-row__amount strong,
+.organizations-vnext .repayment-row.vnext-row strong,
+.organizations-vnext .friend-row.vnext-row .friend-row__outstanding strong,
+.organizations-vnext .organizations-vnext__trip-row .trip-row__total strong {
+  color: var(--vnext-text);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.organizations-vnext .repayment-row.vnext-row .repayment-row__allocation {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.organizations-vnext .repayment-row.vnext-row .repayment-row__allocation-item {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.organizations-vnext .repayment-row.vnext-row .repayment-row__allocation-item > span:last-child {
+  color: var(--vnext-text-soft);
+  font-size: 0.68rem;
+}
+
+.organizations-vnext .vnext-open-tile,
+.organizations-vnext .trip-row__open-tile {
+  align-self: center;
+  justify-self: end;
+}
+
+.organizations-vnext .outing-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(8rem, auto) minmax(9rem, 1fr) minmax(13rem, 1.2fr) auto;
+  gap: 1rem;
+  min-block-size: 4rem;
+  align-items: center;
+  padding-block: 0.7rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.organizations-vnext .outing-row > * {
+  min-inline-size: 0;
+}
+
+.organizations-vnext .outing-row__primary {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.organizations-vnext .outing-row__primary h2 {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .outing-row__date,
+.organizations-vnext .outing-row__trip,
+.organizations-vnext .outing-row__expenses {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--vnext-text-soft);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .outing-row__expenses {
+  justify-items: end;
+  text-align: end;
+}
+
+.organizations-vnext .outing-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.4rem;
+}
+
+.organizations-vnext .outing-row__edit,
+.organizations-vnext .outing-row__add-expense {
+  min-block-size: 2.3rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--vnext-radius-button);
+  font-size: 0.7rem;
+}
+
+.organizations-vnext .outing-row__add-expense {
+  border: 1px solid var(--vnext-accent-strong);
+  background: var(--vnext-accent-strong);
+  color: var(--vnext-text-on-accent);
+}
+
+.organizations-vnext .trip-record__layout,
+.organizations-vnext .outing-record__layout,
+.organizations-vnext .expense-record__layout,
+.organizations-vnext .repayment-record__layout,
+.organizations-vnext .friend-record__layout {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+  padding-block: 1.3rem 3.5rem;
+}
+
+.organizations-vnext .trip-record__intro,
+.organizations-vnext .outing-record__intro,
+.organizations-vnext .expense-record__intro,
+.organizations-vnext .repayment-record__intro,
+.organizations-vnext .friend-record__intro {
+  grid-column: 1 / -1;
+  display: flex;
+  min-inline-size: 0;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.4rem 1rem;
+  border-block-end-color: var(--vnext-rule);
+}
+
+.organizations-vnext .trip-record__intro h1,
+.organizations-vnext .outing-record__intro h1,
+.organizations-vnext .expense-record__intro h1,
+.organizations-vnext .repayment-record__intro h1,
+.organizations-vnext .friend-record__intro h1 {
+  max-inline-size: 28ch;
+  margin: 0.3rem 0 0;
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: clamp(1.65rem, 3.6vw, 3.4rem);
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+.organizations-vnext .trip-record__back,
+.organizations-vnext .outing-record__back,
+.organizations-vnext .expense-record__back,
+.organizations-vnext .repayment-record__back,
+.organizations-vnext .friend-record__back {
+  color: var(--vnext-link);
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.organizations-vnext .trip-record__actions,
+.organizations-vnext .outing-record__actions,
+.organizations-vnext .friend-record__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: end;
+  gap: 0.45rem;
+}
+
+.organizations-vnext .trip-record__summary,
+.organizations-vnext .outing-record__summary,
+.organizations-vnext .friend-record__summary {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+  padding: 1rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+}
+
+.organizations-vnext .trip-record__meta,
+.organizations-vnext .trip-record__financials,
+.organizations-vnext .outing-record__meta,
+.organizations-vnext .friend-record__meta {
+  display: grid;
+  gap: 0.75rem;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+}
+
+.organizations-vnext .trip-record__meta,
+.organizations-vnext .outing-record__meta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.organizations-vnext .trip-record__financials {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.organizations-vnext .trip-record__meta > div,
+.organizations-vnext .trip-record__financials > div,
+.organizations-vnext .outing-record__meta > div,
+.organizations-vnext .friend-record__meta > div {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-inline-size: 0;
+  color: var(--vnext-text-soft);
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .trip-record__meta strong,
+.organizations-vnext .trip-record__financials strong,
+.organizations-vnext .outing-record__meta time,
+.organizations-vnext .friend-record__meta time {
+  color: var(--vnext-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.organizations-vnext .trip-record__outings,
+.organizations-vnext .outing-record__workspace,
+.organizations-vnext .trip-record__management,
+.organizations-vnext .outing-record__management,
+.organizations-vnext .expense-record__tasks,
+.organizations-vnext .repayment-record__tasks,
+.organizations-vnext .friend-record__form,
+.organizations-vnext .record-history {
+  min-inline-size: 0;
+}
+
+.organizations-vnext .trip-record__outings,
+.organizations-vnext .outing-record__workspace,
+.organizations-vnext .record-history {
+  grid-column: 1 / -1;
+}
+
+.organizations-vnext .trip-record__outings {
+  grid-column: 1 / span 8;
+}
+
+.organizations-vnext .trip-record__management,
+.organizations-vnext .outing-record__management {
+  grid-column: 9 / -1;
+  align-self: start;
+  display: grid;
+  gap: 1rem;
+}
+
+.organizations-vnext .trip-record__section-heading {
+  padding-block: 0.7rem;
+  border-block-end-color: var(--vnext-rule);
+}
+
+.organizations-vnext .trip-record__section-heading h2 {
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.organizations-vnext .trip-record__form,
+.organizations-vnext .outing-record__form,
+.organizations-vnext .friend-record__form {
+  max-inline-size: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.organizations-vnext .trip-record__management .trip-record__form,
+.organizations-vnext .outing-record__management .outing-record__form,
+.organizations-vnext .friend-record__form {
+  padding: 0.85rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+}
+
+.organizations-vnext .trip-record__management .trip-form,
+.organizations-vnext .outing-record__management .outing-record__form,
+.organizations-vnext .friend-record__form .friend-form {
+  max-inline-size: none;
+}
+
+.organizations-vnext .expense-record__tasks,
+.organizations-vnext .repayment-record__tasks {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.organizations-vnext .expense-record__primary-task,
+.organizations-vnext .repayment-record__primary-task {
+  grid-column: 1 / span 8;
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.organizations-vnext .expense-record__sidebar,
+.organizations-vnext .repayment-record__sidebar {
+  grid-column: 9 / -1;
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.organizations-vnext .expense-record__controls,
+.organizations-vnext .repayment-record__controls {
+  display: grid;
+  gap: 1rem;
+  min-inline-size: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+}
+
+.organizations-vnext .expense-record__controls .expense-record__meta,
+.organizations-vnext .repayment-record__controls .repayment-record__meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.7rem;
+  padding: 0;
+  border: 0;
+}
+
+.organizations-vnext .expense-record__meta div,
+.organizations-vnext .repayment-record__meta div {
+  display: grid;
+  gap: 0.2rem;
+  min-inline-size: 0;
+  color: var(--vnext-text-soft);
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .expense-record__meta strong,
+.organizations-vnext .repayment-record__meta strong {
+  color: var(--vnext-text);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .expense-record__controls .expense-record__form,
+.organizations-vnext .repayment-record__controls .repayment-record__form {
+  max-inline-size: none;
+  margin: 0;
+  padding-block-start: 1rem;
+  border-block-start-color: var(--vnext-rule);
+}
+
+.organizations-vnext .expense-record__controls .delete-record-form,
+.organizations-vnext .repayment-record__controls .delete-record-form {
+  margin: 0;
+  padding-block-start: 1rem;
+  border-block-start-color: var(--vnext-debt);
+}
+
+.organizations-vnext .expense-share-editor,
+.organizations-vnext .repayment-allocation-editor {
+  max-inline-size: none;
+  padding: 1rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+}
+
+.organizations-vnext .record-history {
+  grid-column: 1 / -1;
+  border-block-color: var(--vnext-rule);
+}
+
+.organizations-vnext .record-history__row {
+  min-block-size: 4rem;
+  padding-block: 0.7rem;
+  border-top-color: var(--vnext-rule);
+}
+
+.organizations-vnext .record-history__primary h3,
+.organizations-vnext .record-history__primary h3 a {
+  color: var(--vnext-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.organizations-vnext .record-history__value strong,
+.organizations-vnext .record-history__values strong {
+  color: var(--vnext-text);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.organizations-vnext .friend-record__summary {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
+}
+
+.organizations-vnext .friend-record__balance-primary strong {
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: clamp(1.5rem, 3vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.organizations-vnext .friend-record__balance dl {
+  gap: 0.9rem;
+  margin-block-start: 0.85rem;
+}
+
+.organizations-vnext .friend-record__balance dt,
+.organizations-vnext .friend-record__balance dd {
+  color: var(--vnext-text-soft);
+  font-size: 0.74rem;
+}
+
+.organizations-vnext .friend-record__balance dd {
+  color: var(--vnext-text);
+}
+
+.organizations-vnext .friend-record__archived-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-inline-start: 2px solid var(--vnext-rule);
+  color: var(--vnext-text-soft);
+  font-size: 0.74rem;
+}
+
+.organizations-vnext .friend-record__form {
+  grid-column: 9 / -1;
+}
+
+.organizations-vnext .friend-record__form + .record-history,
+.organizations-vnext .friend-record__archived-note + .record-history {
+  grid-column: 1 / -1;
+}
+
+.organizations-vnext .chat-page .app-page__layout {
+  gap: 1rem;
+}
+
+.organizations-vnext .chat-page .app-page__header {
+  padding-block: 0.5rem 0.8rem;
+}
+
+.organizations-vnext .chat-page .app-page__header h1 {
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
+}
+
+.organizations-vnext .chat {
+  border-color: var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .organizations-vnext .organization-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .organizations-vnext .editorial-shell {
+    inline-size: min(calc(100% - 1.5rem), 90rem);
+  }
+}
+
+@media (max-width: 959px) {
+  .organizations-vnext .organization-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .organizations-vnext .trip-record__outings,
+  .organizations-vnext .trip-record__management,
+  .organizations-vnext .outing-record__management,
+  .organizations-vnext .expense-record__primary-task,
+  .organizations-vnext .repayment-record__primary-task,
+  .organizations-vnext .expense-record__sidebar,
+  .organizations-vnext .repayment-record__sidebar,
+  .organizations-vnext .friend-record__form {
+    grid-column: 1 / -1;
+  }
+
+  .organizations-vnext .trip-record__management,
+  .organizations-vnext .outing-record__management {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .organizations-vnext .expense-record__tasks,
+  .organizations-vnext .repayment-record__tasks {
+    grid-template-columns: 1fr;
+  }
+
+  .organizations-vnext .expense-record__primary-task,
+  .organizations-vnext .repayment-record__primary-task,
+  .organizations-vnext .expense-record__sidebar,
+  .organizations-vnext .repayment-record__sidebar {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 767px) {
+  .organizations-vnext .editorial-shell {
+    inline-size: min(calc(100% - 1.25rem), 90rem);
+  }
+
+  .organizations-vnext .app-page__layout {
+    padding-block: 1rem 2.5rem;
+  }
+
+  .organizations-vnext .app-page__header,
+  .organizations-vnext .organization-context__topline {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .organizations-vnext .organization-context__topline {
+    gap: 0.65rem;
+  }
+
+  .organizations-vnext .organization-context__identity {
+    flex-wrap: wrap;
+    align-items: start;
+  }
+
+  .organizations-vnext .organization-context__facts {
+    inline-size: 100%;
+    padding-inline-start: 3.25rem;
+  }
+
+  .organizations-vnext .organization-context > .organization-detail__back {
+    justify-self: start;
+  }
+
+  .organizations-vnext .organization-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .organizations-vnext .organization-card {
+    min-block-size: 5.75rem;
+  }
+
+  .organizations-vnext .organization-ledger-summary,
+  .organizations-vnext .organization-detail__shortcuts,
+  .organizations-vnext .organization-people__workbench--management.organization-people__workbench--members,
+  .organizations-vnext .organization-settings__workbench--management {
+    grid-template-columns: 1fr;
+  }
+
+  .organizations-vnext .organization-ledger-summary > div:first-child,
+  .organizations-vnext .organization-ledger-summary > div:last-child {
+    border-radius: 0;
+  }
+
+  .organizations-vnext .organization-ledger-summary > div:first-child {
+    border-radius: calc(var(--vnext-radius-module) - 1px) calc(var(--vnext-radius-module) - 1px) 0 0;
+  }
+
+  .organizations-vnext .organization-ledger-summary > div:last-child {
+    border-radius: 0 0 calc(var(--vnext-radius-module) - 1px) calc(var(--vnext-radius-module) - 1px);
+  }
+
+  .organizations-vnext .organization-people__workbench--management > .organization-people__management,
+  .organizations-vnext .organization-settings__workbench--management .organization-settings__management,
+  .organizations-vnext .organization-settings__workbench--rail-only .organization-settings__management {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .organizations-vnext .organization-people__workbench > .organization-detail__section:first-child,
+  .organizations-vnext .organization-people__contacts {
+    grid-column: 1;
+  }
+
+  .organizations-vnext .expense-row.vnext-row,
+  .organizations-vnext .repayment-row.vnext-row,
+  .organizations-vnext .friend-row.vnext-row,
+  .organizations-vnext .organizations-vnext__trip-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.45rem 0.75rem;
+    min-block-size: 4.5rem;
+  }
+
+  .organizations-vnext .expense-row.vnext-row .expense-row__primary,
+  .organizations-vnext .repayment-row.vnext-row .repayment-row__primary,
+  .organizations-vnext .friend-row.vnext-row .friend-row__primary,
+  .organizations-vnext .organizations-vnext__trip-row .trip-row__primary {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .organizations-vnext .expense-row.vnext-row .expense-row__amount,
+  .organizations-vnext .repayment-row.vnext-row .repayment-row__received,
+  .organizations-vnext .friend-row.vnext-row .friend-row__outstanding,
+  .organizations-vnext .organizations-vnext__trip-row .trip-row__total {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .organizations-vnext .expense-row.vnext-row .expense-row__outing,
+  .organizations-vnext .repayment-row.vnext-row .repayment-row__date,
+  .organizations-vnext .friend-row.vnext-row .friend-row__created,
+  .organizations-vnext .organizations-vnext__trip-row .trip-row__dates {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .organizations-vnext .expense-row.vnext-row .expense-row__date,
+  .organizations-vnext .repayment-row.vnext-row .repayment-row__allocation,
+  .organizations-vnext .friend-row.vnext-row .friend-row__edit,
+  .organizations-vnext .organizations-vnext__trip-row .trip-row__open-tile {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .organizations-vnext .organizations-vnext__trip-row .trip-row__outings,
+  .organizations-vnext .organizations-vnext__trip-row .trip-row__expenses {
+    display: none;
+  }
+
+  .organizations-vnext .repayment-row.vnext-row .repayment-row__allocation {
+    grid-template-columns: 1fr;
+    justify-items: end;
+  }
+
+  .organizations-vnext .expense-row.vnext-row .expense-row__open-tile,
+  .organizations-vnext .repayment-row.vnext-row .repayment-row__open-tile,
+  .organizations-vnext .friend-row.vnext-row .friend-row__open-tile {
+    display: none;
+  }
+
+  .organizations-vnext .outing-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.55rem 0.75rem;
+    align-items: start;
+  }
+
+  .organizations-vnext .outing-row__primary {
+    grid-column: 1 / -1;
+  }
+
+  .organizations-vnext .outing-row__expenses {
+    justify-items: start;
+    text-align: start;
+  }
+
+  .organizations-vnext .outing-row__actions {
+    grid-column: 1 / -1;
+    justify-content: start;
+  }
+
+  .organizations-vnext .trip-record__meta,
+  .organizations-vnext .trip-record__financials,
+  .organizations-vnext .outing-record__meta,
+  .organizations-vnext .friend-record__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .organizations-vnext .trip-record__management,
+  .organizations-vnext .outing-record__management {
+    grid-template-columns: 1fr;
+  }
+
+  .organizations-vnext .trip-record__intro,
+  .organizations-vnext .outing-record__intro,
+  .organizations-vnext .expense-record__intro,
+  .organizations-vnext .repayment-record__intro,
+  .organizations-vnext .friend-record__intro {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .organizations-vnext .trip-record__actions,
+  .organizations-vnext .outing-record__actions,
+  .organizations-vnext .friend-record__actions {
+    justify-content: start;
+  }
+
+  .organizations-vnext .exports-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .organizations-vnext .exports-row .text-link {
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .organizations-vnext .organization-card,
+  .organizations-vnext .vnext-row {
+    transition-duration: 0.01ms;
+  }
+}

@@ -78,6 +78,7 @@ export default async function OrganizationTripsPage({
                   key={trip.id}
                   trip={trip}
                   basePath={`${base}/trips`}
+                  vnext
                 />
               ))
             ) : (

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/auth/require-session";
-import { listOrganizations } from "@/server/organizations";
+import { listOrganizationOverviewSummaries, listOrganizations } from "@/server/organizations";
+import { readLedgerOverviewSummaries } from "@/domain/ledger/summary";
 import { OrganizationForm } from "@/components/organizations/organization-form";
 import { OrganizationCard } from "@/components/organizations/organization-card";
 import { TaskPanel } from "@/components/app/task-panel";
 import { createOrganizationAction } from "./actions";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Organizations" };
@@ -24,10 +26,26 @@ export default async function OrganizationsPage({
   const session = await requireSession();
   const params = await searchParams;
   const showArchived = first(params.filter) === "archived";
-  const organizations = await listOrganizations(getDatabase(), session.user.id, showArchived ? "archived" : "active");
+  const database = getDatabase();
+  const organizationScope = showArchived ? "archived" : "active";
+  const [organizations, overviewSummaries] = await Promise.all([
+    listOrganizations(database, session.user.id, organizationScope),
+    listOrganizationOverviewSummaries(database, session.user.id, undefined, organizationScope),
+  ]);
+  const ledgerSummaries = await readLedgerOverviewSummaries(
+    database,
+    overviewSummaries.flatMap((organization) => organization.canViewLedger && organization.ledgerScopeId ? [organization.ledgerScopeId] : []),
+  );
+  const ledgerSummaryByOrganization = new Map(
+    overviewSummaries.flatMap((organization) => {
+      if (!organization.canViewLedger || !organization.ledgerScopeId) return [];
+      const summary = ledgerSummaries.get(organization.ledgerScopeId);
+      return summary ? [[organization.id, summary] as const] : [];
+    }),
+  );
   const openCreate = first(params.create) === "1";
   return (
-    <section className="app-page organizations-page" id="top">
+    <section className={`app-page organizations-page zplit-vnext organizations-vnext ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <div className="app-page__header">
           <div>
@@ -52,22 +70,20 @@ export default async function OrganizationsPage({
               {organizations.length} {organizations.length === 1 ? "organization" : "organizations"}
             </span>
           </div>
-          <div>
-            {showArchived ? (
-              <Link className="text-link" href="/app/organizations">
-                View active organizations <span aria-hidden="true">→</span>
-              </Link>
-            ) : (
-              <Link className="text-link" href="/app/organizations?filter=archived">
-                View archived organizations <span aria-hidden="true">→</span>
-              </Link>
-            )}
-          </div>
+          <nav className="organization-filter" aria-label="Organization views">
+            <Link className={`organization-filter__link${!showArchived ? " organization-filter__link--selected" : ""}`} href="/app/organizations" aria-current={!showArchived ? "page" : undefined}>
+              Active
+            </Link>
+            <Link className={`organization-filter__link${showArchived ? " organization-filter__link--selected" : ""}`} href="/app/organizations?filter=archived" aria-current={showArchived ? "page" : undefined}>
+              Archived
+            </Link>
+          </nav>
           {organizations.length > 0 ? (
             <div className="organization-grid">
               {organizations.map((organization) => (
                 <OrganizationCard
                   organization={organization}
+                  ledgerSummary={ledgerSummaryByOrganization.get(organization.id)}
                   key={organization.id}
                 />
               ))}

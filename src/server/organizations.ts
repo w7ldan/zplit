@@ -345,8 +345,9 @@ export async function listOrganizationOverviewSummaries(
   database: Database,
   userId: string,
   limit = 4,
+  scope: OrganizationListScope = "active",
 ): Promise<OrganizationOverviewSummary[]> {
-  const rows = await listOrganizationRows(database, userId, limit);
+  const rows = await listOrganizationRows(database, userId, limit, scope);
   return rows.flatMap((row) => {
     const role = row.role as OrganizationRole;
     const capabilities = resolveOrganizationCapabilities(role, row.customCapabilities);

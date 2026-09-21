@@ -95,7 +95,8 @@ function OrganizationExpenseList({
               <ExpenseRow
                 key={expense.id}
                 expense={expense}
-                basePath={base + "/expenses"}
+                  basePath={base + "/expenses"}
+                  vnext
               />
             ))}
           </div>
