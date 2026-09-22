@@ -356,8 +356,7 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.invite-form__result,
-.friend-share__result {
+.invite-form__result {
   animation: result-in var(--motion-state) var(--ease-product) both;
 }
 
@@ -405,8 +404,7 @@
   .action-link:not(:disabled):active,
   .app-shell .text-link:not(:disabled):active,
   .toast,
-  .invite-form__result,
-  .friend-share__result {
+  .invite-form__result {
     animation: none !important;
     transform: none !important;
     transition: none !important;

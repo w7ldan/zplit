@@ -3,6 +3,7 @@ import { unstable_noStore } from "next/cache";
 import { resolveDebtorShareLink, DEBTOR_SHARE_UNAVAILABLE } from "@/server/debtor-share-links";
 import { getDatabase } from "@/db/client";
 import { DebtorStatementView } from "@/components/share/debtor-statement";
+import { zplitVNextFont } from "@/app/fonts";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -48,5 +49,19 @@ export default async function DebtorSharePage({
   }
   if (resolved) return <DebtorStatementView statement={resolved.statement} expiresAt={resolved.expiresAt} token={token} />;
 
-  return <main className="debtor-statement debtor-statement--unavailable"><div className="editorial-shell debtor-statement__shell"><p className="technical-label">READ-ONLY BALANCE</p><h1>{DEBTOR_SHARE_UNAVAILABLE}</h1></div></main>;
+  return (
+    <main className={`debtor-statement debtor-statement--unavailable zplit-vnext ${zplitVNextFont.variable}`}>
+      <div className="editorial-shell debtor-statement__shell">
+        <header className="debtor-statement__header">
+          <p className="technical-label">READ-ONLY BALANCE</p>
+          <p className="debtor-statement__brand">Zplit</p>
+        </header>
+        <section className="debtor-statement__unavailable-content" aria-labelledby="debtor-share-unavailable-heading">
+          <p className="technical-label">PRIVATE SHARE</p>
+          <h1 id="debtor-share-unavailable-heading">{DEBTOR_SHARE_UNAVAILABLE}</h1>
+          <p>Ask the person who shared this balance for a new link.</p>
+        </section>
+      </div>
+    </main>
+  );
 }

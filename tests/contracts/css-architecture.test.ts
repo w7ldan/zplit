@@ -18,6 +18,7 @@ const groupsVnextSource = readSource("src/app/styles/45-groups-vnext.css");
 const organizationsVnextSource = readSource("src/app/styles/50-organizations-vnext.css");
 const supportVnextSource = readSource("src/app/styles/55-authenticated-support-vnext.css");
 const headerVnextSource = readSource("src/app/styles/60-authenticated-header-vnext.css");
+const sharedPublicVnextSource = readSource("src/app/styles/65-shared-public-vnext.css");
 const requiredImports = [
   "src/app/styles/00-foundation.css",
   "src/app/styles/05-vnext-foundation.css",
@@ -32,6 +33,7 @@ const requiredImports = [
   "src/app/styles/50-organizations-vnext.css",
   "src/app/styles/55-authenticated-support-vnext.css",
   "src/app/styles/60-authenticated-header-vnext.css",
+  "src/app/styles/65-shared-public-vnext.css",
 ];
 
 describe("Repository CSS architecture contract", () => {
@@ -194,5 +196,17 @@ describe("Repository CSS architecture contract", () => {
     expect(lateOverridesSource).not.toContain(".journey-");
     expect(lateOverridesSource).not.toContain(".landing-reveal");
     expect(lateOverridesSource).not.toContain(".public-home");
+  });
+
+  it("keeps Shared/Public Links vNext styles in the canonical fragment", () => {
+    expect(recordsAndFormsSource).not.toContain(".friend-share__");
+    expect(recordsAndFormsSource).not.toContain(".debtor-statement");
+    expect(motionSource).not.toContain(".friend-share__");
+    expect(publicSource).not.toContain(".debtor-statement");
+    expect(lateOverridesSource).not.toContain(".debtor-statement");
+    expect(sharedPublicVnextSource).toContain(".debtor-statement.zplit-vnext");
+    expect(sharedPublicVnextSource).toContain(".friend-record .friend-share");
+    expect(sharedPublicVnextSource).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(sharedPublicVnextSource).not.toMatch(/box-shadow|gradient|backdrop-filter/i);
   });
 });

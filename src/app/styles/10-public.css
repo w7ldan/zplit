@@ -61,13 +61,6 @@
 .protected-page__identity strong { overflow-wrap: anywhere; font-size: 1.1rem; }
 .protected-page__content > .sign-out-button { margin-top: 2rem; }
 
-.debtor-statement__intro h1,
-.debtor-statement__item-heading,
-.debtor-statement__item-heading h3,
-.debtor-statement__item-heading p { min-width: 0; overflow-wrap: anywhere; }
-.debtor-statement .debtor-statement__item-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
-.debtor-statement .debtor-statement__item-values { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-
 /* Public landing: the stage is sized between the sticky header and fixed timeline. */
 .public-home { --public-canvas-max-width: 118rem; --public-step-height: 100svh; --public-header-height: 4.75rem; --public-timeline-height: 4.25rem; --public-scene-top: calc(var(--public-header-height) + 1rem); --public-scene-bottom: calc(var(--public-timeline-height) + 1.15rem); --public-mobile-gutter: clamp(1rem, 5vw, 1.4rem); min-width: 0; overflow-x: clip; isolation: isolate; }
 .public-home .editorial-shell { width: min(calc(100% - clamp(2rem, 5vw, 6rem)), var(--public-canvas-max-width)); min-width: 0; }
@@ -919,9 +912,4 @@
   .public-home .flow-card,
   .public-home .flow-balance { transform: none !important; box-shadow: none; }
   .public-home * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
-}
-
-@media (max-width: 767px) {
-  .debtor-statement .debtor-statement__item-heading { align-items: start; }
-  .debtor-statement .debtor-statement__item-values { grid-template-columns: 1fr; }
 }

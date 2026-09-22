@@ -22,6 +22,8 @@ const statement = {
 describe("DebtorStatementView", () => {
   it("renders the public data allowlist and explicit repayment states", () => {
     render(<DebtorStatementView statement={statement} expiresAt={new Date("2026-08-11T00:00:00Z")} />);
+    expect(screen.getByRole("main")).toHaveClass("debtor-statement", "zplit-vnext");
+    expect(document.querySelector(".debtor-statement__workspace")).toBeInTheDocument();
     expect(screen.getByText("READ-ONLY BALANCE")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument();
     expect(screen.getAllByText("Rp 60.000")).toHaveLength(2);

@@ -1,0 +1,921 @@
+.debtor-statement.zplit-vnext {
+  position: relative;
+  min-block-size: 100svh;
+  min-inline-size: 0;
+  overflow-x: clip;
+  isolation: isolate;
+  background: var(--vnext-canvas);
+  color: var(--vnext-text);
+}
+
+.debtor-statement.zplit-vnext .technical-label {
+  color: var(--vnext-text-quiet);
+}
+
+.debtor-statement__field {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto auto;
+  inline-size: min(28vw, 25rem);
+  block-size: 34rem;
+  border-inline-start: 1px solid var(--vnext-rule);
+  background: var(--vnext-accent-wash);
+}
+
+.debtor-statement__shell {
+  position: relative;
+  z-index: 1;
+  inline-size: min(calc(100% - clamp(2rem, 6vw, 7rem)), 80rem);
+  max-inline-size: 80rem;
+  margin-inline: auto;
+  padding-block: 1rem 4rem;
+}
+
+.debtor-statement__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.8rem;
+  border-block: 1px solid var(--vnext-rule);
+}
+
+.debtor-statement__header p,
+.debtor-statement__footer p {
+  margin: 0;
+}
+
+.debtor-statement__brand {
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.08em;
+  line-height: 1;
+}
+
+.debtor-statement__intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(12rem, 0.85fr);
+  gap: 1rem 3rem;
+  align-items: end;
+  padding-block: clamp(3.5rem, 8vw, 7rem) 2.5rem;
+  animation: shared-public-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
+}
+
+.debtor-statement__intro h1,
+.debtor-statement__unavailable-content h1 {
+  max-inline-size: 14ch;
+  margin-block-start: 0.85rem;
+  overflow-wrap: anywhere;
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+  font-size: clamp(2.9rem, 7vw, 6.6rem);
+  font-weight: 800;
+  letter-spacing: -0.075em;
+  line-height: 0.92;
+  text-wrap: balance;
+}
+
+.debtor-statement__lede {
+  max-inline-size: 26rem;
+  margin: 0;
+  color: var(--vnext-text-soft);
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.debtor-statement__intro-note {
+  grid-column: 2;
+  margin: -0.55rem 0 0;
+  color: var(--vnext-text-quiet);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.debtor-statement__summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(16rem, 0.75fr);
+  min-inline-size: 0;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-major);
+  background: var(--vnext-surface);
+  overflow: hidden;
+  animation: shared-public-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) 60ms both;
+}
+
+.debtor-statement__primary {
+  display: grid;
+  align-content: center;
+  gap: 0.7rem;
+  min-inline-size: 0;
+  min-block-size: 11rem;
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+  background: var(--vnext-accent-pale);
+}
+
+.debtor-statement__primary strong {
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  color: var(--vnext-text);
+  font-size: clamp(2.3rem, 5.2vw, 4.8rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.debtor-statement__primary p {
+  margin: 0;
+  color: var(--vnext-text-soft);
+  font-size: 0.8rem;
+}
+
+.debtor-statement__summary-support {
+  display: grid;
+  grid-template-columns: 1fr;
+  margin: 0;
+}
+
+.debtor-statement__summary-support .debtor-statement__metric {
+  display: grid;
+  align-content: center;
+  gap: 0.45rem;
+  min-inline-size: 0;
+  padding: 1.25rem;
+  border-inline-start: 1px solid var(--vnext-rule);
+}
+
+.debtor-statement__summary-support .debtor-statement__metric + .debtor-statement__metric {
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.debtor-statement__metric dt,
+.debtor-statement__metric dd {
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.debtor-statement__metric dt {
+  color: var(--vnext-text-quiet);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.debtor-statement__metric dd {
+  overflow-wrap: anywhere;
+  color: var(--vnext-text);
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+  line-height: 1.15;
+}
+
+.debtor-statement__workspace {
+  display: grid;
+  min-inline-size: 0;
+  margin-block-start: clamp(3rem, 6vw, 5rem);
+}
+
+.debtor-statement__workspace--with-destinations {
+  grid-template-areas: "history destinations";
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.43fr);
+  gap: clamp(2rem, 5vw, 4.5rem);
+  align-items: start;
+}
+
+.debtor-statement__destinations {
+  grid-area: destinations;
+  min-inline-size: 0;
+  padding: clamp(1rem, 2vw, 1.35rem);
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-major);
+  background: var(--vnext-surface-warm);
+}
+
+.debtor-statement__history {
+  grid-area: history;
+  min-inline-size: 0;
+}
+
+.debtor-statement__section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  min-inline-size: 0;
+  padding-block-end: 0.9rem;
+}
+
+.debtor-statement__section-heading h2 {
+  margin-block-start: 0.45rem;
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+  font-size: clamp(1.55rem, 3vw, 2.45rem);
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+.debtor-statement__section-note {
+  margin-block-end: 1rem;
+  color: var(--vnext-text-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.debtor-statement__destination-list,
+.debtor-statement__list {
+  min-inline-size: 0;
+  border-block: 1px solid var(--vnext-rule);
+}
+
+.debtor-statement__destination {
+  min-inline-size: 0;
+  padding-block: 1rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.debtor-statement__destination:first-child,
+.debtor-statement__item:first-child,
+.debtor-statement__repayment:first-child {
+  border-block-start: 0;
+}
+
+.debtor-statement__destination-heading,
+.debtor-statement__item-heading,
+.debtor-statement__repayment-heading,
+.debtor-statement__shared-receipts-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-inline-size: 0;
+}
+
+.debtor-statement__destination-identity,
+.debtor-statement__item-identity,
+.debtor-statement__repayment-heading > div {
+  min-inline-size: 0;
+}
+
+.debtor-statement__destination h3,
+.debtor-statement__item h3,
+.debtor-statement__repayment h3 {
+  overflow-wrap: anywhere;
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+  font-size: 1.03rem;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+}
+
+.debtor-statement__destination-identity p,
+.debtor-statement__destination-account,
+.debtor-statement__item-identity p,
+.debtor-statement__repayment-marker {
+  margin-block-start: 0.3rem;
+  color: var(--vnext-text-quiet);
+  font-size: 0.73rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.debtor-statement__destination-account {
+  flex: 0 1 10rem;
+  margin-block-start: 0;
+  text-align: end;
+}
+
+.debtor-statement__destination-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  margin-block-start: 0.8rem;
+}
+
+.debtor-statement__destination-copy input,
+.friend-share__copy-row input {
+  min-inline-size: 0;
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-control);
+  background: var(--vnext-paper);
+  color: var(--vnext-text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.debtor-statement__destination-copy-action {
+  min-inline-size: 5rem;
+}
+
+.debtor-statement__destination-note {
+  margin-block-start: 0.55rem;
+  color: var(--vnext-text-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.debtor-statement__item,
+.debtor-statement__repayment {
+  min-inline-size: 0;
+  padding-block: 1.15rem 1.25rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.debtor-statement__state {
+  flex: 0 0 auto;
+  min-block-size: 1.75rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: var(--vnext-radius-control);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
+.debtor-statement__state--open {
+  color: var(--vnext-debt);
+}
+
+.debtor-statement__state--settled {
+  color: var(--vnext-settled);
+}
+
+.debtor-statement__item-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin: 1rem 0 0;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.debtor-statement__item-values .debtor-statement__metric--remaining dd,
+.debtor-statement__item-values .debtor-statement__metric--amount dd {
+  color: var(--vnext-text);
+  font-size: 1.1rem;
+}
+
+.debtor-statement__item-values .debtor-statement__metric--remaining dt,
+.debtor-statement__item-values .debtor-statement__metric--amount dt {
+  color: var(--vnext-text);
+}
+
+.debtor-statement__shared-receipts,
+.debtor-statement__allocations {
+  margin-block-start: 1rem;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.debtor-statement__shared-receipts h4,
+.debtor-statement__allocations h4 {
+  color: var(--vnext-text);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.debtor-statement__shared-receipts-heading p {
+  color: var(--vnext-text-quiet);
+  font-size: 0.7rem;
+}
+
+.debtor-statement__shared-receipts ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.65rem;
+}
+
+.debtor-statement__shared-receipts .expense-receipts__preview-trigger {
+  min-block-size: 2.5rem;
+  margin-block-start: 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-control);
+  background: var(--vnext-surface);
+  color: var(--vnext-link);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.debtor-statement__empty {
+  margin: 0;
+  padding-block: 1rem;
+  border-block: 1px solid var(--vnext-rule);
+  color: var(--vnext-text-soft);
+  font-size: 0.82rem;
+}
+
+.debtor-statement__repayments {
+  margin-block-start: clamp(3rem, 6vw, 5rem);
+}
+
+.debtor-statement__repayment-heading h3 {
+  margin-block-start: 0.35rem;
+}
+
+.debtor-statement__repayment-marker {
+  flex: 0 1 auto;
+  margin-block-start: 0;
+  color: var(--vnext-settled);
+  font-weight: 700;
+  text-align: end;
+}
+
+.debtor-statement__repayment-values {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.debtor-statement__allocations ul {
+  display: grid;
+  gap: 0.55rem;
+  margin-block-start: 0.65rem;
+}
+
+.debtor-statement__allocations li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  min-inline-size: 0;
+  color: var(--vnext-text-soft);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.debtor-statement__allocations li span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.debtor-statement__allocations li strong {
+  flex: 0 0 auto;
+  color: var(--vnext-text);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.debtor-statement__pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding-block: 0.9rem 0.1rem;
+  color: var(--vnext-text-quiet);
+  font-size: 0.78rem;
+}
+
+.debtor-statement__pagination-summary {
+  font-variant-numeric: tabular-nums;
+}
+
+.debtor-statement__pagination-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.debtor-statement__pagination-control {
+  display: inline-flex;
+  min-block-size: 2.5rem;
+  align-items: center;
+  padding-inline: 0.7rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-control);
+  color: var(--vnext-link);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.debtor-statement__pagination-control[aria-disabled="true"] {
+  color: var(--vnext-text-quiet);
+  opacity: 0.55;
+}
+
+.debtor-statement__footer {
+  display: grid;
+  gap: 0.55rem;
+  max-inline-size: 42rem;
+  margin-block-start: 2.25rem;
+  color: var(--vnext-text-quiet);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.debtor-statement__footer strong {
+  color: var(--vnext-text-soft);
+}
+
+.debtor-statement--unavailable .debtor-statement__shell {
+  min-block-size: 100svh;
+}
+
+.debtor-statement__unavailable-content {
+  max-inline-size: 38rem;
+  padding-block: clamp(4rem, 12vw, 9rem);
+}
+
+.debtor-statement__unavailable-content p:last-child {
+  max-inline-size: 28rem;
+  margin-block-start: 1.25rem;
+  color: var(--vnext-text-soft);
+  line-height: 1.5;
+}
+
+.friend-record .friend-share {
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+}
+
+.friend-record .friend-share__heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.friend-record .friend-share__heading h2 {
+  margin-block-start: 0.45rem;
+  color: var(--vnext-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+.friend-record .friend-share__state,
+.friend-record .friend-share__description,
+.friend-record .friend-share__expiry,
+.friend-record .friend-share__message,
+.friend-record .friend-share__result p {
+  color: var(--vnext-text-soft);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.friend-record .friend-share__state {
+  color: var(--vnext-text-quiet);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.friend-record .friend-share__description,
+.friend-record .friend-share__expiry {
+  margin-block-start: 0.9rem;
+}
+
+.friend-record .friend-share__destinations {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface-warm);
+}
+
+.friend-record .friend-share__destinations h3,
+.friend-record .friend-share__destinations p {
+  margin-block-start: 0.3rem;
+}
+
+.friend-record .friend-share__destinations h3 {
+  color: var(--vnext-text);
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.friend-record .friend-share__destinations p:not(.technical-label) {
+  color: var(--vnext-text-quiet);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.friend-record .friend-share__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-block-start: 1rem;
+}
+
+.friend-record .friend-share__actions form {
+  margin: 0;
+}
+
+.friend-record .friend-share__actions button,
+.friend-record .friend-share__copy-row button {
+  cursor: pointer;
+}
+
+.friend-record .friend-share__message {
+  margin-block-start: 1rem;
+  color: var(--vnext-debt);
+}
+
+.friend-record .friend-share__result {
+  display: grid;
+  gap: 0.65rem;
+  margin-block-start: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-accent-wash);
+  animation: result-in var(--vnext-motion-state) var(--vnext-ease-product) both;
+}
+
+.friend-record .friend-share__result p,
+.friend-record .friend-share__result .technical-label {
+  margin: 0;
+}
+
+.friend-record .friend-share__result label {
+  color: var(--vnext-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.friend-record .friend-share__copy-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.friend-record .friend-share__warning {
+  color: var(--vnext-text);
+  font-weight: 700;
+}
+
+.friend-record .friend-share__receipts {
+  display: grid;
+  gap: 0.7rem;
+  margin-block-start: 1.25rem;
+  padding: 1rem;
+  border-color: var(--vnext-rule);
+  background: var(--vnext-surface);
+}
+
+.friend-record .friend-share__receipts legend {
+  color: var(--vnext-text);
+  padding-inline: 0.35rem;
+  font-weight: 800;
+}
+
+.friend-record .friend-share__receipts > p,
+.friend-record .friend-share__receipt-group p {
+  color: var(--vnext-text-quiet);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.friend-record .friend-share__receipt-group {
+  display: grid;
+  gap: 0.45rem;
+  padding-block-start: 0.75rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.friend-record .friend-share__receipt-group h3 {
+  color: var(--vnext-text);
+  font-size: 0.92rem;
+}
+
+.friend-record .friend-share__receipt {
+  display: flex;
+  align-items: start;
+  gap: 0.65rem;
+  min-block-size: 2.75rem;
+  padding-block: 0.5rem;
+  color: var(--vnext-text);
+  cursor: pointer;
+}
+
+.friend-record .friend-share__receipt > span {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.friend-record .friend-share__receipt small {
+  color: var(--vnext-text-quiet);
+  font-size: 0.72rem;
+}
+
+.friend-record .friend-share__qr {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  max-inline-size: 20rem;
+  margin-block-start: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+  color: var(--vnext-text);
+}
+
+.friend-record .friend-share__qr-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  inline-size: 100%;
+}
+
+.friend-record .friend-share__qr-heading h3 {
+  margin-block-start: 0.35rem;
+  color: var(--vnext-text);
+  font-size: 1rem;
+}
+
+.friend-record .friend-share__qr p {
+  margin: 0;
+  color: var(--vnext-text-quiet);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.friend-record .friend-share__qr svg {
+  display: block;
+  inline-size: min(100%, 16rem);
+  block-size: auto;
+  max-inline-size: 100%;
+  padding: 0.5rem;
+  background: var(--vnext-paper);
+}
+
+.friend-record .friend-share__reminder {
+  display: grid;
+  gap: 0.6rem;
+  margin-block-start: 0.9rem;
+  padding-block-start: 0.9rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.friend-record .friend-share__reminder-copy {
+  white-space: pre-line;
+}
+
+@keyframes shared-public-in {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 900px) {
+  .debtor-statement__workspace--with-destinations {
+    grid-template-areas: "destinations" "history";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .debtor-statement__destinations {
+    max-inline-size: 42rem;
+  }
+
+  .debtor-statement__repayment-values {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .debtor-statement__shell {
+    inline-size: min(calc(100% - 2rem), 80rem);
+    padding-block-end: 3rem;
+  }
+
+  .debtor-statement__field {
+    inline-size: 34vw;
+    block-size: 22rem;
+  }
+
+  .debtor-statement__intro {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    padding-block: 3.5rem 2rem;
+  }
+
+  .debtor-statement__intro-note {
+    grid-column: auto;
+    margin-block-start: -0.65rem;
+  }
+
+  .debtor-statement__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .debtor-statement__summary-support {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .debtor-statement__summary-support .debtor-statement__metric {
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--vnext-rule);
+  }
+
+  .debtor-statement__summary-support .debtor-statement__metric + .debtor-statement__metric {
+    border-inline-start: 1px solid var(--vnext-rule);
+  }
+
+  .debtor-statement__destination-heading,
+  .debtor-statement__item-heading,
+  .debtor-statement__repayment-heading,
+  .debtor-statement__shared-receipts-heading {
+    align-items: start;
+  }
+
+  .debtor-statement__destination-account {
+    max-inline-size: 8rem;
+  }
+
+  .debtor-statement__item-values,
+  .debtor-statement__repayment-values {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem 0.75rem;
+  }
+
+  .debtor-statement__destination-copy {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .debtor-statement__pagination {
+    align-items: start;
+  }
+
+  .debtor-statement__pagination-links {
+    inline-size: 100%;
+    justify-content: space-between;
+  }
+
+  .debtor-statement__pagination-control {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .friend-record .friend-share__heading,
+  .friend-record .friend-share__destinations {
+    grid-template-columns: 1fr;
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .friend-record .friend-share__copy-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .friend-record .friend-share__qr {
+    max-inline-size: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .debtor-statement__summary-support {
+    grid-template-columns: 1fr;
+  }
+
+  .debtor-statement__summary-support .debtor-statement__metric + .debtor-statement__metric {
+    border-inline-start: 0;
+  }
+
+  .debtor-statement__item-values,
+  .debtor-statement__repayment-values {
+    grid-template-columns: 1fr;
+  }
+
+  .debtor-statement__destination-copy {
+    grid-template-columns: 1fr;
+  }
+
+  .debtor-statement__destination-copy-action {
+    inline-size: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .debtor-statement__intro,
+  .debtor-statement__summary,
+  .friend-record .friend-share__result {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}

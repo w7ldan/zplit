@@ -7,6 +7,7 @@ const foundationSource = readSource("src/app/styles/00-foundation.css");
 const publicSource = readSource("src/app/styles/10-public.css");
 const authenticatedShellSource = readSource("src/app/styles/20-authenticated-shell.css");
 const headerVnextSource = readSource("src/app/styles/60-authenticated-header-vnext.css");
+const sharedPublicVnextSource = readSource("src/app/styles/65-shared-public-vnext.css");
 const recordsAndFormsSource = readSource("src/app/styles/30-records-and-forms.css");
 const lateOverridesSource = readSource("src/app/styles/90-late-overrides.css");
 
@@ -142,20 +143,20 @@ describe("Responsive layout contract", () => {
   });
 
   it("keeps debtor statement values and headings responsive at the owning breakpoint", () => {
-    const valuesSelector = ".debtor-statement .debtor-statement__item-values";
-    const headingSelector = ".debtor-statement .debtor-statement__item-heading";
-    const mobile = cssAtRuleBodies(publicSource, "@media (max-width: 767px)").find((body) => body.includes(`${valuesSelector} {`));
-    const lateMobile = cssAtRuleBodies(lateOverridesSource, "@media (max-width: 767px)").join("\n");
+    expect(cssRuleBody(sharedPublicVnextSource, ".debtor-statement__item-values")).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));");
+    expect(cssRuleBody(sharedPublicVnextSource, ".debtor-statement__destination-heading,\n.debtor-statement__item-heading,\n.debtor-statement__repayment-heading,\n.debtor-statement__shared-receipts-heading")).toContain("display: flex;");
+    expect(sharedPublicVnextSource).toMatch(/@media \(max-width: 640px\)[\s\S]*?\.debtor-statement__item-values,[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    expect(sharedPublicVnextSource).toMatch(/@media \(max-width: 380px\)[\s\S]*?\.debtor-statement__item-values,[\s\S]*?grid-template-columns: 1fr;/);
+    expect(publicSource).not.toContain(".debtor-statement");
+    expect(lateOverridesSource).not.toContain(".debtor-statement");
+  });
 
-    expect(cssRuleBody(publicSource, valuesSelector)).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));");
-    expect(cssRuleBody(publicSource, headingSelector)).toContain("align-items: baseline;");
-    expect(cssRuleBody(lateOverridesSource, ".debtor-statement__item-values")).not.toContain("grid-template-columns");
-    expect(mobile).toContain(`${headingSelector} {`);
-    expect(mobile).toContain("align-items: start;");
-    expect(mobile).toContain(`${valuesSelector} {`);
-    expect(mobile).toContain("grid-template-columns: 1fr;");
-    expect(lateMobile).not.toContain(".debtor-statement__item-heading");
-    expect(lateMobile).not.toContain(".debtor-statement__item-values");
+  it("keeps the public share workspace recomposable and touch-safe", () => {
+    expect(cssRuleBody(sharedPublicVnextSource, ".debtor-statement__workspace--with-destinations")).toContain("grid-template-areas: \"history destinations\";");
+    expect(sharedPublicVnextSource).toMatch(/@media \(max-width: 900px\)[\s\S]*?\.debtor-statement__workspace--with-destinations\s*\{[\s\S]*?grid-template-areas: "destinations" "history";/);
+    expect(sharedPublicVnextSource).toContain("min-block-size: 2.75rem;");
+    expect(sharedPublicVnextSource).toContain("min-block-size: 2.5rem;");
+    expect(sharedPublicVnextSource).toContain("@media (prefers-reduced-motion: reduce)");
   });
 
   it("keeps both headers on one centered three-region detached shell", () => {

@@ -29,7 +29,7 @@ export function CopyRepaymentDestination({ identifier, name }: { identifier: str
         onFocus={(event) => event.currentTarget.select()}
       />
       <button
-        className="action-link action-link--quiet"
+        className="vnext-button vnext-button--secondary debtor-statement__destination-copy-action"
         type="button"
         onClick={copyIdentifier}
         aria-label={copyLabel(status, `Copy ${name} repayment details`)}

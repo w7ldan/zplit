@@ -29,6 +29,8 @@ describe("/share/[token]", () => {
     render(await DebtorSharePage({ params: Promise.resolve({ token: "11111111-1111-4111-8111-111111111111" }) }));
     expect(screen.getByText("Ada")).toBeInTheDocument();
     expect(screen.getByText("Rp 8.000")).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("zplit-vnext");
+    expect(screen.queryByText(/expired|revoked|malformed|log in/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/owner@example.com|owner name|phone number|private notes|log in/i)).not.toBeInTheDocument();
   });
 
@@ -46,6 +48,7 @@ describe("/share/[token]", () => {
     mocks.resolve.mockResolvedValue(null);
     render(await DebtorSharePage({ params: Promise.resolve({ token }) }));
     expect(screen.getByText("This balance link is unavailable.")).toBeInTheDocument();
+    expect(screen.queryByText(/expired|revoked|never existed|log in/i)).not.toBeInTheDocument();
   });
 
   it("declares noindex, nofollow, no-referrer, and dynamic no-store behavior", async () => {
