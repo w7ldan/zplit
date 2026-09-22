@@ -376,6 +376,15 @@ body.global-search-open {
 }
 
 .global-search__backdrop {
+  --authenticated-header-height: 5.25rem;
+  --authenticated-header-surface: var(--surface);
+  --authenticated-header-canvas: var(--paper);
+  --authenticated-header-text: var(--ink);
+  --authenticated-header-text-soft: var(--muted-ink);
+  --authenticated-header-rule: var(--rule);
+  --authenticated-header-accent: #239FDF;
+  --authenticated-header-accent-wash: #EBF8FE;
+  --authenticated-header-text-on-accent: #0F1216;
   position: fixed;
   z-index: 70;
   inset: 0;
@@ -385,6 +394,12 @@ body.global-search-open {
   padding: calc(var(--authenticated-header-height) + 1rem) 1rem 1rem;
   background: var(--overlay);
   overscroll-behavior: none;
+}
+
+:root[data-theme="dark"] .global-search__backdrop {
+  --authenticated-header-accent: #72C5F5;
+  --authenticated-header-accent-wash: #192A32;
+  --authenticated-header-text-on-accent: #171816;
 }
 
 .global-search__dialog {

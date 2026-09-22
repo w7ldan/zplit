@@ -21,8 +21,27 @@ describe("Overview interactions", () => {
 
     expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "75");
     expect(screen.getByRole("meter")).toHaveAttribute("aria-valuetext", "Rp 750.000 remaining of Rp 1.000.000");
+    expect(document.querySelector(".overview-runway__caption")).toHaveTextContent("75% of budget remaining");
     const track = document.querySelector(".overview-runway__track");
     expect(track?.querySelector(".overview-runway__seam")).toBeInTheDocument();
+  });
+
+  it("explains remaining above the starting budget while keeping the meter bounded", () => {
+    render(<OverviewRunway remaining={1_263_357} totalBudget={1_000_000} />);
+
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuemin", "0");
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuemax", "100");
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "100");
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuetext", "Rp 1.263.357 remaining of Rp 1.000.000");
+    expect(document.querySelector(".overview-runway__caption")).toHaveTextContent("Rp 263.357 above starting budget");
+  });
+
+  it("explains negative remaining as over budget while keeping the meter bounded", () => {
+    render(<OverviewRunway remaining={-125_000} totalBudget={1_000_000} />);
+
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "0");
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuetext", "-Rp 125.000 remaining of Rp 1.000.000");
+    expect(document.querySelector(".overview-runway__caption")).toHaveTextContent("Rp 125.000 over budget");
   });
 
   it("makes reduced-motion content visible without waiting for an observer", () => {

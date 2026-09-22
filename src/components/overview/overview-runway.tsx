@@ -14,6 +14,11 @@ export function OverviewRunway({ remaining, totalBudget }: OverviewRunwayProps) 
   const runwayRef = useRef<HTMLDivElement>(null);
   const ratio = totalBudget > 0 ? remaining / totalBudget : 0;
   const proportion = Math.max(0, Math.min(1, ratio));
+  const caption = remaining > totalBudget
+    ? `${formatRupiah(remaining - totalBudget)} above starting budget`
+    : remaining < 0
+      ? `${formatRupiah(Math.abs(remaining))} over budget`
+      : `${Math.round(ratio * 100)}% of budget remaining`;
 
   useEffect(() => {
     const element = runwayRef.current;
@@ -55,7 +60,7 @@ export function OverviewRunway({ remaining, totalBudget }: OverviewRunwayProps) 
         <span className="overview-runway__fill" />
         <span className="overview-runway__seam" />
       </span>
-      <span className="overview-runway__caption" aria-hidden="true">{Math.round(ratio * 100)}% of budget remaining</span>
+      <span className="overview-runway__caption" aria-hidden="true">{caption}</span>
     </div>
   );
 }

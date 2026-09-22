@@ -188,6 +188,29 @@ describe("GlobalSearch", () => {
     expect(publicPage).not.toContain("GlobalSearch");
   });
 
+  it("gives the body portal its own opaque light and dark semantic surface", () => {
+    const styles = readFileSync(path.resolve(process.cwd(), "src/app/styles/60-authenticated-header-vnext.css"), "utf8");
+    const source = readFileSync(path.resolve(process.cwd(), "src/components/app/global-search.tsx"), "utf8");
+    const backdropRule = styles.match(/\.global-search__backdrop\s*\{([^}]+)\}/)?.[1] ?? "";
+
+    expect(source).toMatch(/createPortal\([\s\S]*?document\.body/);
+    for (const token of [
+      "--authenticated-header-surface: var(--surface)",
+      "--authenticated-header-canvas: var(--paper)",
+      "--authenticated-header-text: var(--ink)",
+      "--authenticated-header-text-soft: var(--muted-ink)",
+      "--authenticated-header-rule: var(--rule)",
+      "--authenticated-header-accent:",
+      "--authenticated-header-accent-wash:",
+    ]) expect(backdropRule).toContain(token);
+    expect(styles).toMatch(/\.global-search__dialog\s*\{[^}]*background:\s*var\(--authenticated-header-surface\)/);
+    expect(styles).toMatch(/\.global-search__dialog\s*\{[^}]*color:\s*var\(--authenticated-header-text\)/);
+    expect(styles).toMatch(/:root\[data-theme="dark"\]\s+\.global-search__backdrop\s*\{[^}]*--authenticated-header-accent:/);
+    expect(styles).toMatch(/:root\[data-theme="dark"\]\s+\.global-search__backdrop\s*\{[^}]*--authenticated-header-accent-wash:/);
+    expect(backdropRule).toContain("background: var(--overlay)");
+    expect(styles).not.toMatch(/backdrop-filter\s*:/);
+  });
+
   it("keeps the desktop shortcut and makes the mobile trigger recognizable", () => {
     const styles = readFileSync(path.resolve(process.cwd(), "src/app/styles/60-authenticated-header-vnext.css"), "utf8");
     renderSearch();
