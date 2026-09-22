@@ -17,10 +17,6 @@ export function OverviewReveal({ children, className, delay = 0, family = "rise"
     const element = revealRef.current;
     if (!element) return;
     const reduceMotion = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
-    if (reduceMotion?.matches) {
-      element.dataset.reveal = "visible";
-      return;
-    }
 
     let observer: IntersectionObserver | null = null;
     const reveal = () => {
@@ -28,7 +24,7 @@ export function OverviewReveal({ children, className, delay = 0, family = "rise"
       observer?.disconnect();
     };
 
-    if (element.getBoundingClientRect().top < window.innerHeight * 0.9) {
+    if (reduceMotion?.matches || element.getBoundingClientRect().top < window.innerHeight * 0.9) {
       reveal();
     } else if ("IntersectionObserver" in window) {
       element.dataset.reveal = "waiting";

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { zplitVNextFont } from "@/app/fonts";
 import { requireSession } from "@/auth/require-session";
 import { LedgerNotFoundError } from "@/domain/ledger-repository";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
@@ -69,9 +70,9 @@ export default async function TripRecordPage({
     ),
   ].join("\n");
   return (
-    <section className="app-page trip-record" id="top">
-      <div className="editorial-grid editorial-shell trip-record__layout">
-        <div className="trip-record__intro">
+    <section className={`app-page page-content zplit-vnext personal-vnext trip-record ${zplitVNextFont.variable}`} id="top">
+      <div className="editorial-grid editorial-shell trip-record__layout personal-vnext__detail-layout">
+        <div className="trip-record__intro personal-vnext__detail-intro personal-vnext__motion-reveal" data-motion="enter">
           <div>
             <p className="technical-label">Trip · editable grouping</p>
             <h1>{trip.name}</h1>
@@ -79,7 +80,7 @@ export default async function TripRecordPage({
           <div className="trip-record__actions">
             <TripSummaryCopy text={copySummary} />
             <Link
-              className="action-link action-link--quiet"
+              className="action-link action-link--quiet vnext-button vnext-button--secondary personal-vnext__secondary-action"
               href={`/app/outings?create=1&trip=${trip.id}`}
             >
               Add outing

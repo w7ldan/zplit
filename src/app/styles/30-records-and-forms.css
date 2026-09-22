@@ -2569,6 +2569,19 @@
   border-top: 0;
 }
 
+.zplit-vnext .searchable-combobox__custom > button,
+.zplit-vnext .searchable-combobox__panel {
+  border-color: var(--vnext-rule);
+  background: var(--vnext-paper);
+  color: var(--vnext-text);
+  box-shadow: none;
+}
+
+.zplit-vnext .searchable-combobox__option:hover,
+.zplit-vnext .searchable-combobox__option--active {
+  background: var(--vnext-accent-wash);
+}
+
 @media (max-width: 767px) {
   .friends-toolbar {
     grid-template-columns: 1fr;

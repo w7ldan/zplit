@@ -63,7 +63,7 @@ export function RepaymentRow({ repayment, basePath = "/app/repayments", vnext = 
         <div className="repayment-row__allocation-item">
           <span className="technical-label">Needs allocation</span>
           <strong className="vnext-money" aria-label={`Needs allocation ${formatRupiah(repayment.unallocatedAmount)}`}>{formatRupiah(repayment.unallocatedAmount)}{repayment.unallocatedAmount === 0 ? null : " needs allocation"}</strong>
-          {repayment.unallocatedAmount === 0 ? <span>Fully applied</span> : null}
+          {repayment.unallocatedAmount === 0 ? <span className="repayment-row__allocation-status">Fully applied</span> : null}
         </div>
       </div>
       <OpenTile className="repayment-row__open-tile" />

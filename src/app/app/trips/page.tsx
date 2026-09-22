@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { zplitVNextFont } from "@/app/fonts";
 import { requireSession } from "@/auth/require-session";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
 import { createTripAction } from "./actions";
@@ -41,23 +42,23 @@ export default async function TripsPage({ searchParams = Promise.resolve({}) }: 
   const openCreate = first(params.create) === "1";
 
   return (
-    <section className="app-page trips-page" id="top">
-      <div className="editorial-shell app-page__layout">
-        <div className="app-page__header">
+    <section className={`app-page page-content zplit-vnext personal-vnext trips-page ${zplitVNextFont.variable}`} id="top">
+      <div className="editorial-shell app-page__layout personal-vnext__layout">
+        <div className="app-page__header personal-vnext__hero">
           <div>
             <p className="technical-label">Trips · grouped outings</p>
             <h1>Trips</h1>
             <p className="app-page__lede">Group related outings without changing expense totals or ledger calculations.</p>
           </div>
           <Link
-            className="action-link action-link--primary"
+            className="action-link action-link--primary vnext-button vnext-button--primary personal-vnext__primary-action"
             href={recordHref("/app/trips", params, { create: "1" })}
             data-task-trigger="trip-create"
           >
             Add trip
           </Link>
         </div>
-        <div className="records-workspace">
+        <div className="records-workspace personal-vnext__workspace vnext-surface personal-vnext__responsive-workspace">
           <div className="records-workspace__toolbar">
             <OutingsTripsSwitch current="trips" />
             {first(params.created) ? <RecordConfirmation queryKey="created" message="Trip added." /> : null}
@@ -78,12 +79,21 @@ export default async function TripsPage({ searchParams = Promise.resolve({}) }: 
               <span className="technical-label">LATEST FIRST</span>
               <span className="technical-label">{tripPage.totalItems} entries</span>
             </div>
+            <div className="personal-vnext__ledger-columns personal-vnext__trip-columns" aria-hidden="true">
+              <span>Trip</span>
+              <span>Dates</span>
+              <span>Outings</span>
+              <span>Expenses</span>
+              <span>Total</span>
+              <span />
+            </div>
             {tripPage.items.length > 0 ? (
               tripPage.items.map((trip) => (
                 <TripRow
                   key={trip.id}
                   trip={trip}
                   emphasized={first(params.created) === trip.id}
+                  vnext
                 />
               ))
             ) : (

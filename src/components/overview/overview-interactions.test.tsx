@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { OverviewLink } from "./overview-link";
+import { OpenTile } from "@/components/vnext/open-tile";
 import { OverviewReveal } from "./overview-reveal";
 import { OverviewRunway } from "./overview-runway";
 
@@ -8,11 +9,11 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("Overview interactions", () => {
   it("keeps the whole row as one keyboard target", () => {
-    render(<OverviewLink href="/app/friends/friend-a"><strong>Ari</strong><span className="overview-open-tile" aria-hidden="true">↗</span></OverviewLink>);
+    render(<Link className="vnext-row" href="/app/friends/friend-a"><strong>Ari</strong><OpenTile /></Link>);
 
     expect(screen.getAllByRole("link")).toHaveLength(1);
     expect(screen.getByRole("link")).toHaveAttribute("href", "/app/friends/friend-a");
-    expect(screen.getByText("↗")).toHaveAttribute("aria-hidden", "true");
+    expect(document.querySelector(".vnext-open-tile")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("exposes the real budget proportion to assistive technology", () => {

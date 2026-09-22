@@ -79,7 +79,7 @@
   line-height: 1.05;
 }
 
-.personal-vnext .personal-vnext-summary {
+.personal-vnext .personal-ledger-summary {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 0.8fr));
   gap: 1px;
@@ -89,7 +89,9 @@
   background: var(--vnext-rule);
 }
 
-.personal-vnext .personal-vnext-summary > div {
+.personal-vnext .personal-ledger-summary__primary,
+.personal-vnext .personal-ledger-summary__attention,
+.personal-vnext .personal-ledger-summary__spending {
   display: grid;
   min-inline-size: 0;
   align-content: start;
@@ -98,17 +100,17 @@
   background: var(--vnext-surface);
 }
 
-.personal-vnext .personal-vnext-summary > div:first-child {
+.personal-vnext .personal-ledger-summary__primary {
   border-radius: calc(var(--vnext-radius-major) - 1px) 0 0 calc(var(--vnext-radius-major) - 1px);
   background: var(--vnext-surface-warm);
 }
 
-.personal-vnext .personal-vnext-summary > div:last-child {
+.personal-vnext .personal-ledger-summary__spending {
   border-radius: 0 calc(var(--vnext-radius-major) - 1px) calc(var(--vnext-radius-major) - 1px) 0;
 }
 
-.personal-vnext .personal-vnext-summary .animated-money,
-.personal-vnext .personal-vnext-summary strong {
+.personal-vnext .personal-ledger-summary .animated-money,
+.personal-vnext .personal-ledger-summary strong {
   display: block;
   max-inline-size: 100%;
   overflow: visible;
@@ -119,19 +121,19 @@
   line-height: 1;
 }
 
-.personal-vnext .personal-vnext-summary > div:first-child .animated-money {
+.personal-vnext .personal-ledger-summary__primary .animated-money {
   font-size: clamp(2rem, 5vw, 4.5rem);
 }
 
-.personal-vnext .personal-vnext-summary .animated-money[data-tone="debt"] {
+.personal-vnext .personal-ledger-summary .animated-money[data-tone="debt"] {
   color: var(--vnext-debt);
 }
 
-.personal-vnext .personal-vnext-summary .animated-money[data-tone="settled"] {
+.personal-vnext .personal-ledger-summary .animated-money[data-tone="settled"] {
   color: var(--vnext-settled);
 }
 
-.personal-vnext .personal-vnext-summary > div > span:last-child {
+.personal-vnext .personal-ledger-summary__description {
   max-inline-size: 27ch;
   color: var(--vnext-text-soft);
   line-height: 1.45;
@@ -144,7 +146,7 @@
   align-items: start;
 }
 
-.personal-vnext .personal-page__columns > .ledger-section,
+.personal-vnext .personal-page__columns .ledger-section,
 .personal-vnext .personal-destinations,
 .personal-vnext .group-section {
   padding: clamp(1rem, 2vw, 1.5rem);
@@ -153,7 +155,7 @@
   background: var(--vnext-surface);
 }
 
-.personal-vnext .personal-page__columns > .ledger-section:first-child {
+.personal-vnext .personal-balances {
   background: var(--vnext-surface-strong);
 }
 
@@ -166,8 +168,7 @@
 
 .personal-vnext .balance-row,
 .personal-vnext.personal-page .activity-row,
-.personal-vnext .personal-destination,
-.personal-vnext .group-card {
+.personal-vnext .personal-destination {
   position: relative;
   min-inline-size: 0;
   border-block-start: 1px solid var(--vnext-rule);
@@ -195,8 +196,7 @@
 
 .personal-vnext .balance-row strong,
 .personal-vnext.personal-page .activity-row strong,
-.personal-vnext .personal-destination strong,
-.personal-vnext .group-card strong {
+.personal-vnext .personal-destination strong {
   overflow-wrap: anywhere;
   color: var(--vnext-text);
   font-weight: 800;
@@ -205,7 +205,7 @@
 .personal-vnext .balance-row small,
 .personal-vnext.personal-page .activity-row small,
 .personal-vnext.personal-page .personal-activity-row__amount,
-.personal-vnext .personal-destination > span {
+.personal-vnext .personal-destination__description {
   color: var(--vnext-text-soft);
   font-size: 0.8rem;
   line-height: 1.35;
@@ -239,8 +239,7 @@
   font-weight: 600;
 }
 
-.personal-vnext .personal-destinations__grid,
-.personal-vnext .group-grid {
+.personal-vnext .personal-destinations__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
@@ -254,60 +253,13 @@
   background: var(--vnext-surface-strong);
 }
 
-.personal-vnext .personal-destination > span:not(.vnext-open-tile) {
+.personal-vnext .personal-destination__description {
   grid-column: 1;
 }
 
 .personal-vnext .personal-destination .vnext-open-tile {
   grid-column: 2;
   grid-row: 1 / span 2;
-}
-
-.personal-vnext .group-grid {
-  gap: 0;
-}
-
-.personal-vnext .group-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.8rem;
-  align-items: center;
-  min-block-size: 4.5rem;
-  padding: 0.85rem 0;
-  border-color: var(--vnext-rule);
-  border-radius: var(--vnext-radius-row);
-  background: var(--vnext-surface);
-  color: inherit;
-  text-decoration: none;
-  transition: background-color var(--vnext-motion-fast) var(--vnext-ease-product), transform var(--vnext-motion-press) var(--vnext-ease-product);
-}
-
-.personal-vnext .group-card:hover,
-.personal-vnext .group-card:focus-visible {
-  background: var(--vnext-accent-wash);
-}
-
-.personal-vnext .group-card__details {
-  display: grid;
-  min-inline-size: 0;
-  gap: 0.25rem;
-}
-
-.personal-vnext .group-card__details > span {
-  color: var(--vnext-text-soft);
-  font-size: 0.8rem;
-}
-
-.personal-vnext .group-card__details strong,
-.personal-vnext .group-card__balance strong {
-  color: var(--vnext-text);
-}
-
-.personal-vnext .group-card__balance {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  color: var(--vnext-text-soft);
 }
 
 .personal-vnext input:not([type="checkbox"]):not([type="radio"]),
@@ -329,50 +281,9 @@
   outline-offset: 3px;
 }
 
-.personal-vnext .vnext-button,
-.personal-vnext button.action-link,
-.personal-vnext .action-link {
-  min-block-size: 2.75rem;
-  border-radius: var(--vnext-radius-button);
-  font-family: inherit;
-  font-weight: 600;
-}
-
-.personal-vnext .task-panel.personal-task-panel {
-  border: 0;
-  background: transparent;
-  color: var(--vnext-text);
-}
-
-.personal-vnext .task-panel.personal-task-panel .task-panel__surface {
-  border: 1px solid var(--vnext-rule);
-  border-radius: var(--vnext-radius-overlay);
-  background: var(--vnext-surface);
-}
-
-.personal-vnext .task-panel.personal-task-panel .task-panel__header,
-.personal-vnext .task-panel.personal-task-panel .task-panel__footer {
-  border-color: var(--vnext-rule);
-}
-
-.personal-vnext .task-panel.personal-task-panel input,
-.personal-vnext .task-panel.personal-task-panel select,
-.personal-vnext .task-panel.personal-task-panel textarea {
-  background: var(--vnext-paper);
-}
-
 .personal-vnext [data-motion="enter"] {
   animation: personal-vnext-surface-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
 }
-
-.personal-vnext [data-motion="list"] > * {
-  animation: personal-vnext-list-in var(--vnext-motion-layout) var(--vnext-ease-product) both;
-}
-
-.personal-vnext [data-motion="list"] > :nth-child(2) { animation-delay: 60ms; }
-.personal-vnext [data-motion="list"] > :nth-child(3) { animation-delay: 100ms; }
-.personal-vnext [data-motion="list"] > :nth-child(4) { animation-delay: 140ms; }
-.personal-vnext [data-motion="list"] > :nth-child(5) { animation-delay: 180ms; }
 
 @keyframes personal-vnext-hero-in {
   from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateX(-1rem) scale(0.985); }
@@ -382,11 +293,6 @@
 @keyframes personal-vnext-surface-in {
   from { opacity: 0; clip-path: inset(0 0 0 7%); transform: translateY(0.35rem); }
   to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
-}
-
-@keyframes personal-vnext-list-in {
-  from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateX(0.6rem); }
-  to { opacity: 1; clip-path: inset(0); transform: translateX(0); }
 }
 
 @keyframes personal-vnext-split-in {
@@ -400,16 +306,16 @@
 }
 
 @media (max-width: 900px) {
-  .personal-vnext .personal-vnext-summary {
+  .personal-vnext .personal-ledger-summary {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
-  .personal-vnext .personal-vnext-summary > div:first-child {
+  .personal-vnext .personal-ledger-summary__primary {
     grid-column: 1 / -1;
     border-radius: calc(var(--vnext-radius-major) - 1px) calc(var(--vnext-radius-major) - 1px) 0 0;
   }
 
-  .personal-vnext .personal-vnext-summary > div:last-child {
+  .personal-vnext .personal-ledger-summary__spending {
     border-radius: 0 calc(var(--vnext-radius-major) - 1px) calc(var(--vnext-radius-major) - 1px) 0;
   }
 
@@ -428,23 +334,23 @@
     inline-size: 100%;
   }
 
-  .personal-vnext .personal-vnext-summary,
-  .personal-vnext .personal-vnext-summary > div:first-child,
-  .personal-vnext .personal-vnext-summary > div:last-child {
+  .personal-vnext .personal-ledger-summary,
+  .personal-vnext .personal-ledger-summary__primary,
+  .personal-vnext .personal-ledger-summary__spending {
     display: grid;
     grid-template-columns: 1fr;
     border-radius: 0;
   }
 
-  .personal-vnext .personal-vnext-summary {
+  .personal-vnext .personal-ledger-summary {
     border-radius: var(--vnext-radius-module);
   }
 
-  .personal-vnext .personal-vnext-summary > div:first-child {
+  .personal-vnext .personal-ledger-summary__primary {
     border-radius: calc(var(--vnext-radius-module) - 1px) calc(var(--vnext-radius-module) - 1px) 0 0;
   }
 
-  .personal-vnext .personal-vnext-summary > div:last-child {
+  .personal-vnext .personal-ledger-summary__spending {
     border-radius: 0 0 calc(var(--vnext-radius-module) - 1px) calc(var(--vnext-radius-module) - 1px);
   }
 
@@ -463,8 +369,7 @@
     grid-row: 1 / span 2;
   }
 
-  .personal-vnext .personal-destinations__grid,
-  .personal-vnext .group-grid {
+  .personal-vnext .personal-destinations__grid {
     grid-template-columns: 1fr;
   }
 
@@ -504,8 +409,269 @@
 
 @media (prefers-reduced-motion: reduce) {
   .personal-vnext [data-motion="enter"],
-  .personal-vnext [data-motion="list"] > * {
+  .personal-vnext [data-motion="state"] {
     animation: none !important;
+  }
+}
+
+.personal-vnext.personal-page .personal-home__header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: clamp(1rem, 3vw, 2.5rem);
+  padding-block: 1rem 1.35rem;
+}
+
+.personal-vnext.personal-page .personal-home__header h1 {
+  max-inline-size: 16ch;
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+}
+
+.personal-vnext.personal-page .personal-snapshot-section {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.personal-vnext.personal-page .personal-attention {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--vnext-debt);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-debt-wash);
+}
+
+.personal-vnext.personal-page .personal-attention h2 {
+  margin-block-start: 0.3rem;
+  color: var(--vnext-text);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.personal-vnext.personal-page .personal-attention__copy {
+  margin-block-start: 0.35rem;
+  color: var(--vnext-text-soft);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.personal-vnext.personal-page .personal-page__columns {
+  grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 0.7fr);
+  gap: clamp(1rem, 3vw, 2.5rem);
+}
+
+.personal-vnext.personal-page .personal-page__columns .ledger-section,
+.personal-vnext.personal-page .personal-destinations,
+.personal-vnext.personal-page .group-section {
+  padding: clamp(1rem, 2vw, 1.5rem);
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+}
+
+.personal-vnext.personal-page .personal-destinations,
+.personal-vnext.personal-page .group-section {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.personal-vnext.personal-page .personal-destinations__grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(14rem, 0.75fr);
+  gap: 0;
+}
+
+.personal-vnext.personal-page .personal-destination {
+  min-block-size: 4.5rem;
+  align-content: center;
+  border-radius: 0;
+  background: transparent;
+}
+
+.personal-vnext.personal-page .personal-destination__description {
+  color: var(--vnext-text-soft);
+  font-size: 0.76rem;
+}
+
+.personal-vnext.personal-page .group-section {
+  grid-column: 1 / -1;
+}
+
+.personal-vnext .outing-record__workspace {
+  max-inline-size: none;
+}
+
+.personal-vnext.trip-record .trip-record__intro,
+.personal-vnext.trip-record .trip-record__summary,
+.personal-vnext.trip-record .trip-record__outings,
+.personal-vnext.trip-record .trip-record__form,
+.personal-vnext.trip-record .trip-delete-form {
+  grid-column: 1 / -1;
+  min-inline-size: 0;
+}
+
+.personal-vnext.trip-record .trip-record__intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1.5rem;
+  padding-block: 1rem 1.25rem;
+  border-block-end: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext.trip-record .trip-record__intro h1 {
+  max-inline-size: 18ch;
+  margin-block-start: 0.45rem;
+  color: var(--vnext-text);
+  font-size: clamp(2.25rem, 5vw, 4.25rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.96;
+  overflow-wrap: anywhere;
+}
+
+.personal-vnext.trip-record .trip-record__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+  gap: 0.75rem;
+}
+
+.personal-vnext.trip-record .trip-record__summary {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  border: 1px solid var(--vnext-rule);
+  border-radius: var(--vnext-radius-module);
+  background: var(--vnext-surface);
+}
+
+.personal-vnext.trip-record .trip-record__meta,
+.personal-vnext.trip-record .trip-record__financials {
+  display: grid;
+  gap: 1px;
+  min-inline-size: 0;
+  border: 1px solid var(--vnext-rule);
+  background: var(--vnext-rule);
+}
+
+.personal-vnext.trip-record .trip-record__meta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.personal-vnext.trip-record .trip-record__financials {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.personal-vnext.trip-record .trip-record__meta > div,
+.personal-vnext.trip-record .trip-record__financials > div {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  min-inline-size: 0;
+  padding: 0.9rem;
+  background: var(--vnext-surface-strong);
+}
+
+.personal-vnext.trip-record .trip-record__financials strong {
+  color: var(--vnext-text);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.personal-vnext.trip-record .trip-record__settlement,
+.personal-vnext.trip-record .trip-record__outings {
+  padding-block-start: 0.25rem;
+}
+
+.personal-vnext.trip-record .trip-record__section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: 0.75rem;
+}
+
+.personal-vnext.trip-record .trip-record__section-heading h2 {
+  margin-block-start: 0.35rem;
+  color: var(--vnext-text);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.personal-vnext.trip-record .trip-record__settlement-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.8rem;
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext.trip-record .trip-record__settlement-row > div {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.25rem;
+}
+
+.personal-vnext.trip-record .trip-record__settlement-row span,
+.personal-vnext.trip-record .trip-record__notes,
+.personal-vnext.trip-record .trip-record__form,
+.personal-vnext.trip-record .trip-delete-form {
+  color: var(--vnext-text-soft);
+}
+
+.personal-vnext.trip-record .trip-record__outings .outing-row {
+  border-block-start: 1px solid var(--vnext-rule);
+}
+
+.personal-vnext.trip-record .trip-record__form {
+  max-inline-size: var(--personal-content-standard);
+  padding-block-start: 0.5rem;
+}
+
+@media (max-width: 767px) {
+  .personal-vnext.trip-record .trip-record__intro {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .personal-vnext.trip-record .trip-record__actions {
+    justify-content: start;
+  }
+
+  .personal-vnext.trip-record .trip-record__meta,
+  .personal-vnext.trip-record .trip-record__financials {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .personal-vnext.trip-record .trip-record__settlement-row {
+    align-items: start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 900px) {
+  .personal-vnext.personal-page .personal-page__columns,
+  .personal-vnext.personal-page .personal-destinations__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-vnext.personal-page .personal-attention {
+    align-items: start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .personal-vnext.personal-page .personal-home__header {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .personal-vnext.personal-page .personal-home__header .vnext-button {
+    inline-size: 100%;
   }
 }
 
@@ -798,7 +964,7 @@
   min-inline-size: 0;
 }
 
-.personal-vnext .repayment-row__allocation-item > span:last-child {
+.personal-vnext .repayment-row__allocation-status {
   color: var(--vnext-settled);
 }
 
@@ -912,7 +1078,6 @@
 .personal-vnext :is(input, select, textarea):focus-visible {
   outline: 2px solid var(--vnext-focus-ring);
   outline-offset: 3px;
-  box-shadow: none;
 }
 
 .personal-vnext .personal-vnext__help,
@@ -1135,11 +1300,6 @@
   border-block-start: 1px solid var(--vnext-rule);
 }
 
-.personal-vnext .personal-vnext__history-item:first-child,
-.personal-vnext .personal-vnext__multi-action-row:first-child {
-  border-block-start: 0;
-}
-
 .personal-vnext .personal-vnext__record-row,
 .personal-vnext .personal-vnext__multi-action-row {
   min-inline-size: 0;
@@ -1233,69 +1393,10 @@
   min-inline-size: 0;
 }
 
-.personal-vnext .personal-task-panel {
-  color: var(--vnext-text);
-}
-
-.personal-vnext .task-panel.personal-task-panel .task-panel__surface {
-  border: 1px solid var(--vnext-rule);
-  border-radius: var(--vnext-radius-overlay);
-  background: var(--vnext-surface);
-}
-
-.personal-vnext .task-panel.personal-task-panel .task-panel__header,
-.personal-vnext .task-panel.personal-task-panel .task-panel__footer {
-  border-color: var(--vnext-rule);
-}
-
-.personal-vnext .task-panel.personal-task-panel .task-panel__close {
-  border-color: var(--vnext-rule);
-  background: var(--vnext-surface-strong);
-  color: var(--vnext-text);
-}
-
 .personal-vnext .delete-confirmation-dialog {
   border: 1px solid var(--vnext-rule);
   border-radius: var(--vnext-radius-overlay);
   background: var(--vnext-surface);
-  color: var(--vnext-text);
-}
-
-.personal-vnext .searchable-combobox__custom > button,
-.personal-vnext .searchable-combobox__panel {
-  border-color: var(--vnext-rule);
-  background: var(--vnext-paper);
-  color: var(--vnext-text);
-  box-shadow: none;
-}
-
-.personal-vnext .searchable-combobox__option:hover,
-.personal-vnext .searchable-combobox__option--active {
-  background: var(--vnext-accent-wash);
-}
-
-.receipt-preview--vnext {
-  background-color: var(--vnext-overlay-heavy);
-}
-
-.receipt-preview--vnext .receipt-preview__surface {
-  border-color: var(--vnext-rule);
-  background: var(--vnext-surface);
-  box-shadow: none;
-}
-
-.receipt-preview--vnext .receipt-preview__header h2 {
-  color: var(--vnext-text);
-  font-family: var(--font-zplit-vnext), var(--font-body);
-}
-
-.receipt-preview--vnext .receipt-preview__header,
-.receipt-preview--vnext .receipt-preview__footer {
-  border-color: var(--vnext-rule);
-}
-
-.receipt-preview--vnext .receipt-preview__close {
-  border-color: var(--vnext-rule);
   color: var(--vnext-text);
 }
 
@@ -1319,11 +1420,6 @@
   animation: personal-vnext-surface-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
 }
 
-.personal-vnext .personal-vnext__motion-item,
-.personal-vnext [data-motion="list"] > * {
-  animation: personal-vnext-list-in var(--vnext-motion-layout) var(--vnext-ease-product) both;
-}
-
 .personal-vnext :is(.personal-vnext__summary, .personal-vnext__responsive-split, .personal-vnext__responsive-detail) {
   animation: personal-vnext-split-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
 }
@@ -1332,15 +1428,7 @@
   animation: personal-vnext-form-in var(--vnext-motion-state) var(--vnext-ease-product) both;
 }
 
-.personal-vnext .personal-vnext__motion-stagger > :nth-child(2) { animation-delay: 60ms; }
-.personal-vnext .personal-vnext__motion-stagger > :nth-child(3) { animation-delay: 100ms; }
-.personal-vnext .personal-vnext__motion-stagger > :nth-child(4) { animation-delay: 140ms; }
-
 .personal-vnext :is(h1, h2, h3, h4) {
-  font-family: var(--font-zplit-vnext), var(--font-body);
-}
-
-.personal-vnext .task-panel.personal-task-panel .task-panel__header h2 {
   font-family: var(--font-zplit-vnext), var(--font-body);
 }
 
@@ -1633,6 +1721,40 @@
     grid-column: 5;
   }
 
+  .personal-vnext.trips-page .personal-vnext__ledger-columns,
+  .personal-vnext.trips-page .trip-row.personal-vnext__trip-row {
+    grid-template-columns: minmax(0, 1.4fr) minmax(10rem, 0.9fr) minmax(5rem, 0.5fr) minmax(6rem, 0.55fr) minmax(9rem, 0.8fr) 1.75rem;
+  }
+
+  .personal-vnext.trips-page .trip-row.personal-vnext__trip-row {
+    display: grid;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .personal-vnext.trips-page .trip-row__dates {
+    grid-column: 2;
+  }
+
+  .personal-vnext.trips-page .trip-row__outings {
+    grid-column: 3;
+  }
+
+  .personal-vnext.trips-page .trip-row__expenses {
+    grid-column: 4;
+  }
+
+  .personal-vnext.trips-page .trip-row__total {
+    grid-column: 5;
+    justify-self: end;
+    text-align: end;
+  }
+
+  .personal-vnext.trips-page .trip-row__open-tile {
+    grid-column: 6;
+    justify-self: end;
+  }
+
   .personal-vnext.repayments-page .personal-vnext__ledger-columns,
   .personal-vnext.repayments-page .repayment-row.personal-vnext__record-row {
     grid-template-columns: minmax(0, 1.25fr) minmax(10rem, 0.8fr) minmax(8rem, 0.7fr) minmax(15rem, 1fr) 2rem;
@@ -1718,7 +1840,8 @@
 
   .personal-vnext .expense-row.personal-vnext__record-row,
   .personal-vnext .repayment-row.personal-vnext__record-row,
-  .personal-vnext .outing-row.personal-vnext__outing-row {
+  .personal-vnext .outing-row.personal-vnext__outing-row,
+  .personal-vnext .trip-row.personal-vnext__trip-row {
     grid-template-columns: 1fr;
     gap: 0.75rem;
   }
@@ -1731,6 +1854,11 @@
   .personal-vnext .repayment-row__date,
   .personal-vnext .repayment-row__allocation,
   .personal-vnext .repayment-row__open-tile,
+  .personal-vnext .trip-row__dates,
+  .personal-vnext .trip-row__outings,
+  .personal-vnext .trip-row__expenses,
+  .personal-vnext .trip-row__total,
+  .personal-vnext .trip-row__open-tile,
   .personal-vnext .outing-row__date,
   .personal-vnext .outing-row__trip,
   .personal-vnext .outing-row__expenses,
@@ -1749,9 +1877,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .personal-vnext .personal-vnext__motion-reveal,
-  .personal-vnext .personal-vnext__motion-item,
   .personal-vnext [data-motion="enter"],
-  .personal-vnext [data-motion="list"] > *,
   .personal-vnext [data-motion="allocation-change"],
   .personal-vnext [data-motion="proof-change"] {
     animation: none !important;

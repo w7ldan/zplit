@@ -7,7 +7,7 @@ import { OpenTile } from "@/components/vnext/open-tile";
 export function TripRow({ trip, emphasized = false, basePath = "/app/trips", vnext = false }: { trip: TripListRecord; emphasized?: boolean; basePath?: string; vnext?: boolean }) {
   if (vnext) {
     return (
-      <Link className={`trip-row vnext-row organizations-vnext__trip-row${emphasized ? " trip-row--created" : ""}`} data-record-id={trip.id} href={`${basePath}/${trip.id}`} aria-label={trip.name}>
+      <Link className={`trip-row vnext-row personal-vnext__trip-row${emphasized ? " trip-row--created" : ""}`} data-record-id={trip.id} href={`${basePath}/${trip.id}`} aria-label={trip.name}>
         <div className="trip-row__primary"><span className="technical-label">TRIP</span><h2>{trip.name}</h2></div>
         <div className="trip-row__dates"><span className="technical-label">Dates</span><CalendarDateRange startsOn={trip.startsOn} endsOn={trip.endsOn} /></div>
         <div className="trip-row__outings"><span className="technical-label">Outings</span>{trip.outingCount}</div>

@@ -90,6 +90,13 @@ describe("Repository CSS architecture contract", () => {
     expect(bundle.css.indexOf(".header-shell {")).toBeLessThan(bundle.css.indexOf(".app-shell {"));
     expect(bundle.fragmentSources[3]).toContain(".app-page__layout");
     expect(overviewSource).toContain(".overview-page {");
+    expect(overviewSource).toContain(".overview-signal-zone {");
+    expect(overviewSource).not.toContain(".overview-open-tile");
+    expect(overviewSource).not.toContain("--overview-pointer");
+    expect(personalVnextSource).toContain(".personal-ledger-summary");
+    expect(personalVnextSource).not.toContain(".overview-summary");
+    expect(personalVnextSource).not.toMatch(/:nth-child\(/);
+    expect(personalVnextSource).not.toContain("task-panel.personal-task-panel");
     expect(bundle.fragmentSources[5]).toContain("/* Shared authenticated record filters, pagination, and row actions. */");
     expect(bundle.fragmentSources[5]).toContain(".live-record-filters {");
     expect(bundle.fragmentSources[5]).toContain(".record-pagination {\n  display: flex;");

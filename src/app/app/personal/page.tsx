@@ -41,7 +41,7 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
   return (
     <section className={`app-page personal-page personal-vnext zplit-vnext ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
-        <header className="app-page__header" data-motion="enter">
+        <header className="app-page__header personal-home__header" data-motion="enter">
           <div>
             <p className="technical-label">Personal · private ledger</p>
             <h1>Personal</h1>
@@ -58,8 +58,18 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
           </div>
           <PersonalLedgerSnapshot summary={summary} />
         </section>
+        {summary.totalUnallocatedRepaymentAmount > 0 ? (
+          <section className="personal-attention" aria-labelledby="personal-attention-heading" data-motion="state">
+            <div>
+              <p className="technical-label">ATTENTION</p>
+              <h2 id="personal-attention-heading">Money needs allocation</h2>
+              <p className="personal-attention__copy">{formatRupiah(summary.totalUnallocatedRepaymentAmount)} received from friends is not attached to an expense share yet.</p>
+            </div>
+            <Link className="vnext-button vnext-button--secondary" href="/app/repayments?allocation=needs">Review repayments</Link>
+          </section>
+        ) : null}
         <div className="app-page__columns personal-page__columns">
-          <section className="ledger-section" aria-labelledby="personal-balances-heading">
+          <section className="ledger-section personal-balances" aria-labelledby="personal-balances-heading">
             <div className="ledger-section__heading">
               <h2 id="personal-balances-heading">Friend balances</h2>
               <span className="technical-label">Top balances</span>
@@ -136,9 +146,9 @@ export default async function PersonalPage({ searchParams = Promise.resolve({}) 
           </div>
           <div className="personal-destinations__grid" data-motion="list">
             {destinations.map(([label, href, description]) => (
-              <Link className="personal-destination vnext-row personal-vnext-row" href={href} key={href}>
+              <Link className="personal-destination vnext-row personal-vnext-row" data-destination={label.toLowerCase()} href={href} key={href}>
                 <strong>{label}</strong>
-                <span>{description}</span>
+                <span className="personal-destination__description">{description}</span>
                 <OpenTile />
               </Link>
             ))}
