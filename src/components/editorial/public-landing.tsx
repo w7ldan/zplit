@@ -50,7 +50,7 @@ function HeroRecord() {
       </div>
       <div className="public-vnext__record-status">
         <span>Recorded</span>
-        <span>2 shares open</span>
+        <span>1 share open</span>
         <span>1 repayment recorded</span>
       </div>
       <footer className="public-vnext__record-footer">
