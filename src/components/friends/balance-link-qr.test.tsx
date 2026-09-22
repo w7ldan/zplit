@@ -16,7 +16,7 @@ describe("BalanceLinkQr", () => {
     const url = "https://zplit.example/share/11111111-1111-4111-8111-111111111111";
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     render(<BalanceLinkQr url={url} onClose={vi.fn()} />);
-    expect(qrMock.render).toHaveBeenCalledWith(expect.objectContaining({ value: url, size: 256, level: "M", marginSize: 4, bgColor: "transparent", fgColor: "currentColor" }));
+    expect(qrMock.render).toHaveBeenCalledWith(expect.objectContaining({ value: url, size: 256, level: "M", marginSize: 4, bgColor: "#FFFEFA", fgColor: "#111315" }));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
