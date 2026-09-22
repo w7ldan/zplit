@@ -5,6 +5,10 @@ import {
   EXPENSE_BUDGET_MARKER,
   EXPENSE_BUDGET_PARTICIPATION_FIELD,
   parseExpenseBudgetParticipation,
+  REPAYMENT_BUDGET_INCLUDED_FIELD,
+  REPAYMENT_BUDGET_MARKER,
+  REPAYMENT_BUDGET_PARTICIPATION_FIELD,
+  parseRepaymentBudgetParticipation,
 } from "./participation";
 
 function budgetForm(values: Record<string, string>) {
@@ -46,5 +50,24 @@ describe("expense Budget participation parsing", () => {
       [EXPENSE_BUDGET_INCLUDED_FIELD]: EXPENSE_BUDGET_MARKER,
       [EXPENSE_BUDGET_CATEGORY_FIELD]: "not-a-category",
     }))).toEqual({ ok: false, categoryError: "Choose a valid Budget category." });
+  });
+});
+
+describe("repayment Budget participation parsing", () => {
+  it("leaves forms without a Personal Budget control undecided", () => {
+    expect(parseRepaymentBudgetParticipation(budgetForm({}))).toBeUndefined();
+  });
+
+  it("parses explicit inclusion without a category choice", () => {
+    expect(parseRepaymentBudgetParticipation(budgetForm({
+      [REPAYMENT_BUDGET_PARTICIPATION_FIELD]: REPAYMENT_BUDGET_MARKER,
+      [REPAYMENT_BUDGET_INCLUDED_FIELD]: REPAYMENT_BUDGET_MARKER,
+    }))).toEqual({ includeInBudget: true });
+  });
+
+  it("records an explicit exclusion when unchecked", () => {
+    expect(parseRepaymentBudgetParticipation(budgetForm({
+      [REPAYMENT_BUDGET_PARTICIPATION_FIELD]: REPAYMENT_BUDGET_MARKER,
+    }))).toEqual({ includeInBudget: false });
   });
 });

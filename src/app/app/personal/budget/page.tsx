@@ -13,9 +13,10 @@ import { BudgetCategoryList } from "@/components/budgeting/budget-category-list"
 import { SpreadControl } from "@/components/budgeting/spread-control";
 import { summarizeBudgetCategories, type BudgetPeriodSummary, type BudgetTransactionView } from "@/domain/budgeting/types";
 import type { BudgetRecurringDashboardSummary } from "@/server/budgeting/recurring";
+import type { ClosedBudgetPeriodSeed } from "@/server/budgeting/periods";
 import type { GroupBudgetObligation } from "@/server/budgeting/sources-group";
 import { getBudgetDashboard } from "@/server/budgeting/reporting";
-import { changeGroupObligationBudgetCategoryAction, changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, createBudgetSetupAction, createBudgetTransactionAction, importPersonalActivityAction, startNextBudgetPeriodAction, updateBudgetPlanAction } from "./actions";
+import { archiveActiveBudgetPeriodAction, changeGroupObligationBudgetCategoryAction, changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, createBudgetSetupAction, createBudgetTransactionAction, importPersonalActivityAction, startBudgetPeriodFromPausedAction, startNextBudgetPeriodAction, updateBudgetPlanAction } from "./actions";
 import { zplitVNextFont } from "@/app/fonts";
 
 export const metadata = { title: "Budget" };
@@ -56,6 +57,44 @@ function PageHeader({ period, importAvailable = false }: { period?: BudgetPeriod
       ) : null}
     </header>
   );
+}
+
+function BudgetPausedState({ period }: { period: ClosedBudgetPeriodSeed }) {
+  return (
+    <section className="ledger-section budget-paused-state" aria-labelledby="budget-paused-heading">
+      <p className="technical-label">Budget paused</p>
+      <h2 id="budget-paused-heading">Budget is paused</h2>
+      <p>Your previous periods and transactions are preserved. New Personal and Group ledger records continue normally.</p>
+      <p>Start another Budget period whenever you want to resume planning.</p>
+      <div className="budget-paused-state__actions">
+        <Link className="vnext-button vnext-button--primary action-link" href="/app/personal/budget?create=period" data-task-trigger="budget-period">Start new period</Link>
+        <Link className="text-link" href="/app/personal/budget/periods">Period history <span aria-hidden="true">→</span></Link>
+      </div>
+      <p className="budget-paused-state__last-period">Last period: <strong>{period.name}</strong> · {formatCalendarDate(period.startsOn)} – {formatCalendarDate(period.endsOn)}</p>
+    </section>
+  );
+}
+
+function ArchivePeriodPrompt() {
+  return (
+    <section className="ledger-section budget-archive-prompt" aria-labelledby="budget-archive-heading">
+      <div>
+        <p className="technical-label">Period lifecycle</p>
+        <h2 id="budget-archive-heading">Pause Budget planning</h2>
+        <p>Archive this period when you want to close it and pause Budget until you start another period.</p>
+      </div>
+      <Link className="vnext-button vnext-button--secondary action-link" href="/app/personal/budget?archive=1" data-task-trigger="budget-archive">Archive period</Link>
+    </section>
+  );
+}
+
+type BudgetPageSearchParams = { create?: string | string[]; imported?: string | string[]; archive?: string | string[]; archived?: string | string[]; error?: string | string[] };
+type BudgetDashboardData = Awaited<ReturnType<typeof getBudgetDashboard>>;
+type ActiveBudgetDashboard = Extract<BudgetDashboardData, { configured: true; period: BudgetPeriodSummary }>;
+type InactiveBudgetDashboard = Extract<BudgetDashboardData, { configured: true; period: null }>;
+
+function firstQueryValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function GroupObligationRows({ obligations, categories }: { obligations: GroupBudgetObligation[]; categories: BudgetCategoryOption[] }) {
@@ -248,29 +287,47 @@ function RecentSection({ transactions, categories }: { transactions: BudgetTrans
   );
 }
 
-export default async function BudgetPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ create?: string | string[]; imported?: string | string[] }> } = {}) {
-  const session = await requireSession();
-  const dashboard = await getBudgetDashboard(getDatabase(), session.user.id);
-  if (!dashboard.configured) return <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top"><div className="editorial-shell app-page__layout"><PageHeader /><SetupState /></div></section>;
-  if (!dashboard.period) return (
+function PausedBudgetPage({ dashboard, query }: { dashboard: InactiveBudgetDashboard; query: BudgetPageSearchParams }) {
+  const period = dashboard.pausedPeriod;
+  const openNewPeriod = firstQueryValue(query.create) === "period";
+  return (
     <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <PageHeader />
-        <section className="ledger-empty budget-invariant">
-          <h2>No active budget period is available.</h2>
-          <p>Budgeting is configured, but its active period cannot be opened right now. Review period history to confirm the latest state.</p>
-          <Link className="text-link" href="/app/personal/budget/periods">Review period history <span aria-hidden="true">→</span></Link>
-        </section>
+        {firstQueryValue(query.archived) ? <RecordConfirmation queryKey="archived" message="Period archived. Budget is paused; its history is preserved." /> : null}
+        {period ? <BudgetPausedState period={period} /> : (
+          <section className="ledger-empty budget-invariant">
+            <h2>No active budget period is available.</h2>
+            <p>Budgeting is configured, but there is no active or closed period to resume from. Review period history to confirm the latest state.</p>
+            <Link className="text-link" href="/app/personal/budget/periods">Review period history <span aria-hidden="true">→</span></Link>
+          </section>
+        )}
       </div>
+      {openNewPeriod && period ? (
+        <TaskPanel open eyebrow="Resume Budget" title="Start new period" description="Choose the next dates and confirm the full plan. Your closed period and pending activity remain preserved." triggerId="budget-period">
+          <BudgetTransitionForm
+            action={startBudgetPeriodFromPausedAction}
+            period={period}
+            categories={period.categories.map(({ id, name, allocatedAmount }) => ({ id, name, allocation: String(allocatedAmount) }))}
+            pending={dashboard.pendingNextPeriod ?? []}
+            recurringTemplates={dashboard.recurringTemplates ?? []}
+            uncategorizedCategoryId={period.categories.find((category) => category.systemKey === "uncategorized")?.id ?? ""}
+            fromPaused
+          />
+        </TaskPanel>
+      ) : null}
     </section>
   );
+}
+
+function ActiveBudgetPage({ dashboard, query }: { dashboard: ActiveBudgetDashboard; query: BudgetPageSearchParams }) {
   const period = dashboard.period;
-  const query = await searchParams;
-  const createMode = Array.isArray(query.create) ? query.create[0] : query.create;
-  const imported = (Array.isArray(query.imported) ? query.imported[0] : query.imported) === "1";
+  const createMode = firstQueryValue(query.create);
+  const imported = firstQueryValue(query.imported) === "1";
   const openCreate = createMode === "transaction";
   const openManage = createMode === "plan";
   const openNext = createMode === "period";
+  const openArchive = firstQueryValue(query.archive) === "1";
   return (
     <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
@@ -278,6 +335,7 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
         {imported ? <RecordConfirmation queryKey="imported" message="Eligible activity imported into Budget." /> : null}
         <BudgetSectionNav current="dashboard" />
         <CurrentPeriodSummary period={period} recurring={dashboard.recurringSummary ?? { dueCount: 0, expectedAmount: 0, nextDueOn: null }} />
+        <ArchivePeriodPrompt />
         <CategorySection period={period} />
         <RecentSection transactions={dashboard.recentTransactions} categories={period.categories.map(({ id, name }) => ({ id, name }))} />
         <SharedMoneySection
@@ -287,6 +345,7 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
           categories={period.categories.map(({ id, name }) => ({ id, name }))}
         />
       </div>
+      {firstQueryValue(query.archived) ? <RecordConfirmation queryKey="archived" message="Period archived. Budget is paused; its history is preserved." /> : null}
       {openCreate ? <TaskPanel open eyebrow="New budget record" title="Add transaction" description="Record a manual expense or credit/refund in the active period." triggerId="budget-transaction"><BudgetTransactionForm action={createBudgetTransactionAction} categories={period.categories.map(({ id, name }) => ({ id, name }))} /></TaskPanel> : null}
       {openManage ? <TaskPanel open eyebrow="Active plan" title="Manage plan" description="Adjust this period and its category allocations." triggerId="budget-plan"><BudgetPlanForm action={updateBudgetPlanAction} period={period} categories={period.categories.map(({ id, name, allocatedAmount, systemKey }) => ({ id, name, allocatedAmount, systemKey }))} /></TaskPanel> : null}
       {openNext ? (
@@ -307,6 +366,34 @@ export default async function BudgetPage({ searchParams = Promise.resolve({}) }:
           />
         </TaskPanel>
       ) : null}
+      {openArchive ? (
+        <TaskPanel open eyebrow="Close current period" title="Archive period" description="Review what this will do before confirming." triggerId="budget-archive">
+          <div className="budget-archive-confirmation">
+            <p><strong>{period.name}</strong></p>
+            <p>{formatCalendarDate(period.startsOn)} – {formatCalendarDate(period.endsOn)}</p>
+            <ul>
+              <li>This period, plan, transactions, impacts, categories, and history stay available.</li>
+              <li>Budget planning pauses until you start another period.</li>
+              <li>Personal and Group ledger records continue normally.</li>
+              <li>You can start a new Budget period later using the existing categories and history.</li>
+            </ul>
+            <form action={archiveActiveBudgetPeriodAction}>
+              <input type="hidden" name="expectedActivePeriodId" value={period.id} />
+              <button className="vnext-button vnext-button--secondary action-link" type="submit">Archive period</button>
+            </form>
+          </div>
+        </TaskPanel>
+      ) : null}
     </section>
   );
+}
+
+export default async function BudgetPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<BudgetPageSearchParams> } = {}) {
+  const session = await requireSession();
+  const dashboard = await getBudgetDashboard(getDatabase(), session.user.id);
+  if (!dashboard.configured) return <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top"><div className="editorial-shell app-page__layout"><PageHeader /><SetupState /></div></section>;
+  const query = await searchParams;
+  return dashboard.period
+    ? <ActiveBudgetPage dashboard={dashboard} query={query} />
+    : <PausedBudgetPage dashboard={dashboard} query={query} />;
 }

@@ -131,10 +131,17 @@ function BudgetSection({ snapshot }: { snapshot: BudgetOverviewSnapshot }) {
             <Link className="overview-text-link" href="/app/personal/budget">Set up Budget</Link>
           </div>
         ) : snapshot.period === null ? (
-          <div className="overview-empty">
-            <p>Budgeting is configured, but its active period needs attention.</p>
-            <Link className="overview-text-link" href="/app/personal/budget/periods">Review period history</Link>
-          </div>
+          snapshot.paused ? (
+            <div className="overview-empty overview-budget__paused">
+              <p><strong>Paused</strong></p>
+              <p>Last period: {snapshot.lastPeriod.name} · history preserved</p>
+            </div>
+          ) : (
+            <div className="overview-empty">
+              <p>Budgeting is configured, but no active period is available.</p>
+              <Link className="overview-text-link" href="/app/personal/budget/periods">Review period history</Link>
+            </div>
+          )
         ) : (
           <>
             <div className="overview-budget__hero">

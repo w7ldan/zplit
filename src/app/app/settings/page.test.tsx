@@ -38,7 +38,7 @@ describe("/app/settings", () => {
     vi.clearAllMocks();
     mocks.getDatabase.mockReturnValue({});
     mocks.getAvatar.mockResolvedValue(null);
-    mocks.getBudgetProfile.mockResolvedValue({ ownerUserId: "owner-a", includeNewExpensesByDefault: true, createdAt: new Date(), updatedAt: new Date() });
+    mocks.getBudgetProfile.mockResolvedValue({ ownerUserId: "owner-a", includeNewExpensesByDefault: true, includeNewRepaymentsByDefault: true, createdAt: new Date(), updatedAt: new Date() });
     mocks.getAuthenticatedLedger.mockResolvedValue({ user: { id: "owner-a", name: "Wildan", username: "wildan", email: "owner@example.com" }, ledger: { listRepaymentDestinations: vi.fn().mockResolvedValue(destinations) } });
   });
 
@@ -76,21 +76,24 @@ describe("/app/settings", () => {
     expect(screen.queryByText("ADD DESTINATION")).not.toBeInTheDocument();
     expect(document.querySelectorAll(".theme-control")).toHaveLength(1);
     expect(screen.getByRole("combobox", { name: "Theme" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "New expense default" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Budget defaults" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /Include new expenses in Budget by default/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Include new repayments in Budget by default/ })).toBeChecked();
     expect(screen.getByText("Sets the initial choice when creating an expense. Existing expenses are not changed.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save preference" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save defaults" })).toBeInTheDocument();
   });
 
   it("reflects the stored Budget default and its unconfigured state", async () => {
-    mocks.getBudgetProfile.mockResolvedValue({ ownerUserId: "owner-a", includeNewExpensesByDefault: false, createdAt: new Date(), updatedAt: new Date() });
+    mocks.getBudgetProfile.mockResolvedValue({ ownerUserId: "owner-a", includeNewExpensesByDefault: false, includeNewRepaymentsByDefault: true, createdAt: new Date(), updatedAt: new Date() });
     const { unmount } = render(await SettingsPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("checkbox", { name: /Include new expenses in Budget by default/ })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Include new repayments in Budget by default/ })).toBeChecked();
     unmount();
 
     mocks.getBudgetProfile.mockResolvedValue(null);
     render(await SettingsPage({ searchParams: Promise.resolve({}) }));
     expect(screen.queryByRole("checkbox", { name: /Include new expenses in Budget by default/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Include new repayments in Budget by default/ })).not.toBeInTheDocument();
     expect(screen.getByText(/Budgeting is not set up yet\./)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Set up Budget/ })).toHaveAttribute("href", "/app/personal/budget");
   });

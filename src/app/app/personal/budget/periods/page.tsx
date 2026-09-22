@@ -111,6 +111,14 @@ export default async function BudgetPeriodsPage() {
           </div>
         </header>
         <BudgetSectionNav current="periods" />
+        {!current && previous.length > 0 ? (
+          <section className="ledger-section budget-paused-state" aria-labelledby="budget-periods-paused-heading">
+            <p className="technical-label">Budget paused</p>
+            <h2 id="budget-periods-paused-heading">Budget is paused</h2>
+            <p>Your closed periods and history are preserved. Start a new period whenever you want to resume planning.</p>
+            <Link className="vnext-button vnext-button--primary action-link" href="/app/personal/budget?create=period" data-task-trigger="budget-period">Start a new period</Link>
+          </section>
+        ) : null}
         {periods.length === 0 ? (
           <section className="ledger-section" aria-labelledby="budget-period-history-heading">
             <div className="ledger-section__heading"><h2 id="budget-period-history-heading">Period history</h2></div>

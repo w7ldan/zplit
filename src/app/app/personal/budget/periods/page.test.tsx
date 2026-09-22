@@ -69,4 +69,17 @@ describe("Budget period history presentation", () => {
     expect(disclosure.tagName).toBe("DETAILS");
     expect(within(disclosure).getByText("Groceries")).toBeInTheDocument();
   });
+
+  it("shows the paused affordance when every period is closed", async () => {
+    mocks.listBudgetPeriodHistory.mockResolvedValue([
+      { id: "period-2", ordinal: 2, name: "October", startsOn: "2026-10-01", endsOn: "2026-10-31", status: "closed", totalBudget: 100000, netSpent: 25000, remaining: 75000, categories: [] },
+      { id: "period-1", ordinal: 1, name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", status: "closed", totalBudget: 80000, netSpent: 90000, remaining: -10000, categories: [] },
+    ]);
+    render(await BudgetPeriodsPage());
+
+    expect(screen.getByRole("heading", { name: "Budget is paused" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start a new period" })).toHaveAttribute("href", "/app/personal/budget?create=period");
+    expect(screen.queryByText("Current period")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Previous periods" })).toBeInTheDocument();
+  });
 });

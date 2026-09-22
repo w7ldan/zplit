@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   getAuthenticatedLedger: vi.fn(),
   getDatabase: vi.fn(),
-  setBudgetIncludeNewExpensesByDefault: vi.fn(),
+  setBudgetDefaults: vi.fn(),
   revalidatePath: vi.fn(),
   redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }),
 }));
@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: mocks.getAuthenticatedLedger }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
-vi.mock("@/server/budgeting/profiles", () => ({ setBudgetIncludeNewExpensesByDefault: mocks.setBudgetIncludeNewExpensesByDefault }));
+vi.mock("@/server/budgeting/profiles", () => ({ setBudgetDefaults: mocks.setBudgetDefaults }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
@@ -93,22 +93,24 @@ describe("repayment destination actions", () => {
   it("persists the private Budget default and refreshes the eligible create surface", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.setBudgetIncludeNewExpensesByDefault.mockResolvedValue({});
+    mocks.setBudgetDefaults.mockResolvedValue({});
 
     const enabled = new FormData();
     enabled.set("includeNewExpensesByDefault", "1");
+    enabled.set("includeNewRepaymentsByDefault", "1");
     await expect(updateBudgetDefaultAction(enabled)).rejects.toThrow("redirect:/app/settings?saved=1#budget");
-    expect(mocks.setBudgetIncludeNewExpensesByDefault).toHaveBeenCalledWith("database", "owner-a", true);
+    expect(mocks.setBudgetDefaults).toHaveBeenCalledWith("database", "owner-a", { includeNewExpensesByDefault: true, includeNewRepaymentsByDefault: true });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/expenses");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments");
 
     await expect(updateBudgetDefaultAction(new FormData())).rejects.toThrow("redirect:/app/settings?saved=1#budget");
-    expect(mocks.setBudgetIncludeNewExpensesByDefault).toHaveBeenLastCalledWith("database", "owner-a", false);
+    expect(mocks.setBudgetDefaults).toHaveBeenLastCalledWith("database", "owner-a", { includeNewExpensesByDefault: false, includeNewRepaymentsByDefault: false });
   });
 
   it("keeps an unconfigured Budget recoverable instead of failing the settings page", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.getDatabase.mockReturnValue("database");
-    mocks.setBudgetIncludeNewExpensesByDefault.mockRejectedValue(new Error("budgeting is not configured"));
+    mocks.setBudgetDefaults.mockRejectedValue(new Error("budgeting is not configured"));
 
     await expect(updateBudgetDefaultAction(new FormData())).rejects.toThrow("redirect:/app/settings?error=1#budget");
     expect(mocks.revalidatePath).not.toHaveBeenCalledWith("/app/expenses");

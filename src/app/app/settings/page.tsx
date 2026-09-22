@@ -87,7 +87,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
           <div className="settings-page__section-heading">
             <div>
               <p className="technical-label">Budget</p>
-              <h2 id="settings-budget-heading">New expense default</h2>
+              <h2 id="settings-budget-heading">Budget defaults</h2>
             </div>
           </div>
           {budgetProfile ? (
@@ -99,7 +99,14 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
                   <small>Sets the initial choice when creating an expense. Existing expenses are not changed.</small>
                 </span>
               </label>
-              <button className="action-link action-link--quiet" type="submit">Save preference</button>
+              <label className="settings-budget__control" htmlFor="settings-budget-include-repayments">
+                <input id="settings-budget-include-repayments" name="includeNewRepaymentsByDefault" type="checkbox" value="1" defaultChecked={budgetProfile.includeNewRepaymentsByDefault} />
+                <span>
+                  <strong>Include new repayments in Budget by default</strong>
+                  <small>Sets the initial choice when creating a repayment. Existing repayments are not changed.</small>
+                </span>
+              </label>
+              <button className="action-link action-link--quiet" type="submit">Save defaults</button>
             </form>
           ) : (
             <p className="settings-budget__empty">

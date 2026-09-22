@@ -273,9 +273,10 @@ type BudgetTransitionFormProps = {
   pending: Array<{ categoryId: string; categoryName: string; amount: number }>;
   recurringTemplates?: BudgetRecurringTemplateRule[];
   uncategorizedCategoryId?: string;
+  fromPaused?: boolean;
 };
 
-export function BudgetTransitionForm({ action, period, categories, pending, recurringTemplates = [], uncategorizedCategoryId = "" }: BudgetTransitionFormProps) {
+export function BudgetTransitionForm({ action, period, categories, pending, recurringTemplates = [], uncategorizedCategoryId = "", fromPaused = false }: BudgetTransitionFormProps) {
   const initialValues: BudgetTransitionValues = {
     expectedActivePeriodId: period.id,
     name: "",
@@ -299,8 +300,8 @@ export function BudgetTransitionForm({ action, period, categories, pending, recu
     });
   }
   return <form className="budget-form" action={formAction} noValidate>
-    <input type="hidden" name="expectedActivePeriodId" value={state.values.expectedActivePeriodId} />
-    <p className="budget-form__warning">Starting the next period closes <strong>{period.name}</strong> immediately. This cannot be undone.</p>
+    <input type="hidden" name={fromPaused ? "expectedLatestPeriodId" : "expectedActivePeriodId"} value={state.values.expectedActivePeriodId} />
+    <p className="budget-form__warning">{fromPaused ? <>Budget is paused. This starts the period after <strong>{period.name}</strong> and keeps its history.</> : <>Starting the next period closes <strong>{period.name}</strong> immediately. This cannot be undone.</>}</p>
     <div className="budget-form__grid">
       <Field label="Period name" id="budget-next-period-name" error={state.fieldErrors.periodName}><input id="budget-next-period-name" name="periodName" defaultValue={state.values.name} aria-invalid={Boolean(state.fieldErrors.periodName)} /></Field>
       <Field label="Total budget" id="budget-next-period-total" error={state.fieldErrors.totalBudget}><input id="budget-next-period-total" name="totalBudget" inputMode="numeric" defaultValue={state.values.totalBudget} aria-invalid={Boolean(state.fieldErrors.totalBudget)} /></Field>
@@ -315,6 +316,6 @@ export function BudgetTransitionForm({ action, period, categories, pending, recu
     <PendingPreview pending={pending} />
     <RecurringCandidatePreview candidates={candidates} categories={categories} uncategorizedCategoryId={uncategorizedCategoryId} skipped={skipped} toggle={toggleCandidate} />
     <p className="budget-form__message" role={state.formError ? "alert" : undefined}>{state.formError || "\u00a0"}</p>
-    <TaskPanelFooter className="budget-form__actions"><SubmitButton label="Start next period" /></TaskPanelFooter>
+    <TaskPanelFooter className="budget-form__actions"><SubmitButton label={fromPaused ? "Start new period" : "Start next period"} /></TaskPanelFooter>
   </form>;
 }

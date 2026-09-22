@@ -318,4 +318,23 @@ describe("/app overview", () => {
     expect(within(budget).queryByText(/Remaining|Net spent|Safe daily/)).not.toBeInTheDocument();
     expect(budget).not.toHaveTextContent("Rp 0");
   });
+
+  it("shows Budget as paused without Remaining or Safe daily metrics", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.createLedgerRepository.mockReturnValue({
+      getLedgerOverviewSummary: vi.fn().mockResolvedValue(summary),
+      listRecentActivity: vi.fn().mockResolvedValue([]),
+      listNeedsAttentionRepayments: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
+    });
+    mocks.getBudgetOverviewSnapshot.mockResolvedValue({ configured: true, period: null, paused: true, lastPeriod: { name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30" } });
+
+    render(await AppPage());
+
+    const budget = screen.getByRole("heading", { level: 2, name: "Budget" }).closest("section")!;
+    expect(budget).toHaveTextContent("Paused");
+    expect(budget).toHaveTextContent("Last period: September · history preserved");
+    expect(within(budget).getByRole("link", { name: "Open Budget" })).toHaveAttribute("href", "/app/personal/budget");
+    expect(budget.querySelector(".overview-runway")).not.toBeInTheDocument();
+    expect(budget).not.toHaveTextContent(/Safe \/ day|Remaining|Net spent/);
+  });
 });

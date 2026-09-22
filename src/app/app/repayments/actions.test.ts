@@ -1,10 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
-import { createRepaymentAction, deleteRepaymentAction, removeRepaymentAllocationAction, replaceRepaymentAllocationsAction, undoRepaymentAllocationAction, updateRepaymentAction, type RepaymentActionState, type RepaymentAllocationActionState } from "./actions";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createRepaymentAction, deleteRepaymentAction, removeRepaymentAllocationAction, replaceRepaymentAllocationsAction, setRepaymentBudgetParticipationAction, undoRepaymentAllocationAction, updateRepaymentAction, type RepaymentActionState, type RepaymentAllocationActionState } from "./actions";
 import { deletionImpactRevision, LedgerDeletionConfirmationRequiredError, LedgerNotFoundError, RepaymentAllocationAmountInvariantError, RepaymentAllocationShareInvariantError, RepaymentAmountInvariantError, RepaymentFriendInvariantError } from "@/domain/ledger-repository";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   getDatabase: vi.fn(),
+  getRepaymentBudgetControl: vi.fn().mockResolvedValue({ defaultIncluded: true }),
+  getPersonalLedgerScopeId: vi.fn().mockResolvedValue("personal-scope"),
+  setPersonalRepaymentBudgetParticipation: vi.fn(),
   createLedgerRepository: vi.fn(),
   revalidatePath: vi.fn(),
   redirect: vi.fn((path: string) => { throw new Error(`redirect:${path}`); }),
@@ -12,6 +15,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
+vi.mock("@/server/budgeting/profiles", () => ({ getRepaymentBudgetControl: mocks.getRepaymentBudgetControl }));
+vi.mock("@/server/ledger-scopes", () => ({ getPersonalLedgerScopeId: mocks.getPersonalLedgerScopeId }));
+vi.mock("@/server/budgeting/sources-personal", () => ({ setPersonalRepaymentBudgetParticipation: mocks.setPersonalRepaymentBudgetParticipation }));
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: async (session?: { user: { id: string } }) => { const current = session ?? await mocks.requireSession(); return { user: current.user, ledger: mocks.createLedgerRepository(mocks.getDatabase(), current.user.id) }; } }));
 vi.mock("@/domain/ledger-repository", async () => {
   const actual = await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository");
@@ -54,6 +60,10 @@ const values = {
 };
 
 describe("repayment actions", () => {
+  beforeEach(() => {
+    mocks.getRepaymentBudgetControl.mockResolvedValue({ defaultIncluded: true });
+  });
+
   it("returns validation errors without touching the repository", async () => {
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     const state = await createRepaymentAction(initialState, form({ friendId: "", amountRupiah: "", paidAtLocal: "", timezoneOffsetMinutes: "", paymentMethod: "", notes: "" }));
@@ -73,11 +83,35 @@ describe("repayment actions", () => {
     await expect(updateRepaymentAction("repayment-a", initialState, form(values))).rejects.toThrow("redirect:/app/repayments/repayment-a?saved=1");
 
     expect(mocks.createLedgerRepository).toHaveBeenCalledWith("database", "owner-a");
-    expect(createRepaymentWithAllocations).toHaveBeenCalledWith({ friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paidOn: "2026-01-02", paymentMethod: "Bank transfer", notes: "Received" }, []);
+    expect(createRepaymentWithAllocations).toHaveBeenCalledWith({ friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paidOn: "2026-01-02", paymentMethod: "Bank transfer", notes: "Received" }, [], { includeInBudget: true });
     expect(updateRepayment).toHaveBeenCalledWith("repayment-a", { friendId, amount: 84_000, paidAt: new Date("2026-01-02T02:30:00.000Z"), paidOn: "2026-01-02", paymentMethod: "Bank transfer", notes: "Received" });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/repayments/repayment-a");
+  });
+
+  it("uses the repayment default for new Personal records and honors an explicit unchecked choice", async () => {
+    const createRepaymentWithAllocations = vi.fn().mockResolvedValue({ id: "repayment-a" });
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.getRepaymentBudgetControl.mockResolvedValue({ defaultIncluded: false });
+    mocks.createLedgerRepository.mockReturnValue({ createRepaymentWithAllocations });
+    await expect(createRepaymentAction(initialState, form(values))).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1");
+    expect(createRepaymentWithAllocations).toHaveBeenLastCalledWith(expect.any(Object), [], { includeInBudget: false });
+
+    const explicitOff = form({ ...values, repaymentBudgetParticipation: "1" });
+    await expect(createRepaymentAction(initialState, explicitOff)).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1");
+    expect(createRepaymentWithAllocations).toHaveBeenLastCalledWith(expect.any(Object), [], { includeInBudget: false });
+  });
+
+  it("sets Personal repayment participation and refreshes Budget surfaces", async () => {
+    const repaymentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
+    mocks.getDatabase.mockReturnValue("database");
+    mocks.setPersonalRepaymentBudgetParticipation.mockResolvedValue(undefined);
+    await expect(setRepaymentBudgetParticipationAction(repaymentId, form({ includeInBudget: "1" }))).rejects.toThrow(`redirect:/app/repayments/${repaymentId}?budgetSaved=1#repayment-budget`);
+    expect(mocks.setPersonalRepaymentBudgetParticipation).toHaveBeenCalledWith("database", "owner-a", "personal-scope", repaymentId, { includeInBudget: true });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/personal/budget/transactions");
   });
 
   it("keeps contextual allocation inside the owner Trip and preserves the entered amount", async () => {
@@ -94,7 +128,7 @@ describe("repayment actions", () => {
     await expect(createRepaymentAction(initialState, formData)).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1&tripId=55555555-5555-4555-8555-555555555555");
     expect(getTrip).toHaveBeenCalledWith("55555555-5555-4555-8555-555555555555");
     expect(getRepaymentFriendContext).toHaveBeenCalledWith(friendId, true, "55555555-5555-4555-8555-555555555555");
-    expect(createRepaymentWithAllocations).toHaveBeenCalledWith(expect.objectContaining({ amount: 84_000 }), [{ expenseShareId: "66666666-6666-4666-8666-666666666666", amount: 42_000 }]);
+    expect(createRepaymentWithAllocations).toHaveBeenCalledWith(expect.objectContaining({ amount: 84_000 }), [{ expenseShareId: "66666666-6666-4666-8666-666666666666", amount: 42_000 }], { includeInBudget: true });
   });
 
   it("rejects a contextual allocation outside the selected Trip", async () => {
@@ -194,7 +228,7 @@ describe("repayment actions", () => {
     formData.append("amountRupiah", "42000");
 
     await expect(createRepaymentAction(initialState, formData)).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1");
-    expect(createRepaymentWithAllocations).toHaveBeenCalledWith(expect.objectContaining({ amount: 84_000 }), [{ expenseShareId, amount: 42_000 }]);
+    expect(createRepaymentWithAllocations).toHaveBeenCalledWith(expect.objectContaining({ amount: 84_000 }), [{ expenseShareId, amount: 42_000 }], { includeInBudget: true });
 
     createRepaymentWithAllocations.mockRejectedValue(new RepaymentAllocationShareInvariantError());
     const failed = await createRepaymentAction(initialState, formData);
@@ -211,7 +245,7 @@ describe("repayment actions", () => {
     formData.append("amountRupiah", "");
 
     await expect(createRepaymentAction(initialState, formData)).rejects.toThrow("redirect:/app/repayments/repayment-a?created=1");
-    expect(createRepaymentWithAllocations).toHaveBeenCalledWith(expect.objectContaining({ amount: 84_000 }), []);
+    expect(createRepaymentWithAllocations).toHaveBeenCalledWith(expect.objectContaining({ amount: 84_000 }), [], { includeInBudget: true });
   });
 
   it("returns stable allocation field and invariant errors", async () => {

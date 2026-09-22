@@ -9,9 +9,8 @@ import type {
   BudgetPeriodSummary,
   BudgetTransactionView,
 } from "@/domain/budgeting/types";
-import type { PendingBudgetImpactPreview } from "./periods";
+import { getActiveBudgetPeriod, getLatestClosedBudgetPeriod, listPendingBudgetImpactPreview, type ClosedBudgetPeriodSeed, type PendingBudgetImpactPreview } from "./periods";
 import { getBudgetProfile } from "./profiles";
-import { getActiveBudgetPeriod, listPendingBudgetImpactPreview } from "./periods";
 import { listBudgetTransactions } from "./transactions";
 import { getBudgetRecurringDashboardSummary, listActiveBudgetRecurringRules } from "./recurring";
 import type { BudgetRecurringTemplateRule } from "@/domain/budgeting/recurrence";
@@ -30,7 +29,7 @@ type GroupSharedMoney = { expectedBack: number; stillOwe: number; obligations: G
 type BudgetDashboard =
   | { configured: false }
   | { configured: true; period: BudgetPeriodSummary; recentTransactions: BudgetTransactionView[]; expectedBack: number; stillOwe: number; groupObligations: GroupBudgetObligation[]; importAvailable: boolean; pendingNextPeriod: PendingBudgetImpactPreview[]; recurringSummary: BudgetRecurringDashboardSummary; recurringTemplates: BudgetRecurringTemplateRule[] }
-  | { configured: true; period: null };
+  | { configured: true; period: null; pausedPeriod?: ClosedBudgetPeriodSeed; pendingNextPeriod?: PendingBudgetImpactPreview[]; recurringTemplates?: BudgetRecurringTemplateRule[] };
 
 async function groupSharedMoney(database: Database, ownerUserId: string): Promise<GroupSharedMoney> {
   const { readGroupBudgetSharedMoney } = await import("./sources-group");
@@ -40,7 +39,15 @@ async function groupSharedMoney(database: Database, ownerUserId: string): Promis
 export async function getBudgetDashboard(database: Database, ownerUserId: string): Promise<BudgetDashboard> {
   if (!(await getBudgetProfile(database, ownerUserId))) return { configured: false };
   const period = await getActiveBudgetPeriod(database, ownerUserId);
-  if (!period) return { configured: true, period: null };
+  if (!period) {
+    const pausedPeriod = await getLatestClosedBudgetPeriod(database, ownerUserId);
+    if (!pausedPeriod) return { configured: true, period: null };
+    const [pendingNextPeriod, recurringTemplates] = await Promise.all([
+      listPendingBudgetImpactPreview(database, ownerUserId, pausedPeriod.ordinal + 1),
+      listActiveBudgetRecurringRules(database, ownerUserId),
+    ]);
+    return { configured: true, period: null, pausedPeriod, pendingNextPeriod, recurringTemplates };
+  }
   const personalScopeId = await getPersonalLedgerScopeId(database, ownerUserId).catch((error: unknown) => {
     if (error instanceof LedgerScopeError && error.code === "personal_scope_missing") return null;
     throw error;
@@ -135,7 +142,12 @@ export async function getBudgetDashboard(database: Database, ownerUserId: string
 export async function getBudgetOverviewSnapshot(database: Database, ownerUserId: string): Promise<BudgetOverviewSnapshot> {
   if (!(await getBudgetProfile(database, ownerUserId))) return { configured: false };
   const period = await getActiveBudgetPeriod(database, ownerUserId);
-  if (!period) return { configured: true, period: null };
+  if (!period) {
+    const lastPeriod = await getLatestClosedBudgetPeriod(database, ownerUserId);
+    return lastPeriod
+      ? { configured: true, period: null, paused: true, lastPeriod: { name: lastPeriod.name, startsOn: lastPeriod.startsOn, endsOn: lastPeriod.endsOn } }
+      : { configured: true, period: null };
+  }
   const [appliedRows, recurring] = await Promise.all([
     database.select({
       direction: budgetTransactions.direction,

@@ -14,6 +14,7 @@ import { PaymentMethodFields } from "@/components/records/payment-method-fields"
 import { useRepaymentAllocationDraft } from "./use-repayment-allocation-draft";
 import { TaskPanelFooter } from "@/components/app/task-panel";
 import { useFocusFirstInvalid } from "@/components/records/use-focus-first-invalid";
+import { REPAYMENT_BUDGET_INCLUDED_FIELD, REPAYMENT_BUDGET_MARKER, REPAYMENT_BUDGET_PARTICIPATION_FIELD } from "@/domain/budgeting/participation";
 
 type RepaymentAction = (previousState: RepaymentActionState, formData: FormData) => Promise<RepaymentActionState>;
 
@@ -32,6 +33,7 @@ type RepaymentFormProps = {
   loadFriendContext?: (friendId: string, includeOpenExpenseShares?: boolean, tripId?: string) => Promise<RepaymentFriendContext>;
   tripContext?: { id: string; name: string };
   tripContextId?: string;
+  budgetControl?: { defaultIncluded: boolean };
   outstandingByFriend?: Record<string, number>;
   openExpenseSharesByFriend?: Record<string, OpenExpenseShare[]>;
 };
@@ -492,6 +494,7 @@ export function RepaymentForm({
   loadFriendContext,
   tripContext,
   tripContextId,
+  budgetControl,
   outstandingByFriend = {},
   openExpenseSharesByFriend = emptyOpenExpenseSharesByFriend,
 }: RepaymentFormProps) {
@@ -598,6 +601,16 @@ export function RepaymentForm({
         timezoneOffsetRef={timezoneOffsetRef}
         mode={mode}
       />
+      {mode === "create" && budgetControl ? (
+        <fieldset className="repayment-form__budget vnext-surface vnext-surface--warm personal-vnext__disclosure">
+          <legend>Budget</legend>
+          <input type="hidden" name={REPAYMENT_BUDGET_PARTICIPATION_FIELD} value={REPAYMENT_BUDGET_MARKER} />
+          <label className="repayment-form__budget-toggle" htmlFor="repayment-budget-include">
+            <input id="repayment-budget-include" name={REPAYMENT_BUDGET_INCLUDED_FIELD} type="checkbox" value={REPAYMENT_BUDGET_MARKER} defaultChecked={budgetControl.defaultIncluded} />
+            <span>Count this repayment in Budget</span>
+          </label>
+        </fieldset>
+      ) : null}
       {mode === "create" ? (
         <RepaymentAllocationSection
           draft={allocation}

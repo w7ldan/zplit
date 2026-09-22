@@ -8,7 +8,9 @@ function tableNames(table: unknown) {
 
 describe("budgeting schema", () => {
   it("defines the private user-owned budgeting model", () => {
-    expect(tableNames(schema.budgetProfiles)).toEqual(["owner_user_id", "include_new_expenses_by_default", "created_at", "updated_at"]);
+    expect(tableNames(schema.budgetProfiles)).toEqual(["owner_user_id", "include_new_expenses_by_default", "include_new_repayments_by_default", "created_at", "updated_at"]);
+    const profile = getTableConfig(schema.budgetProfiles);
+    expect(profile.columns.find((column) => column.name === "include_new_repayments_by_default")?.default).toBe(true);
     expect(tableNames(schema.budgetPeriods)).toEqual([
       "id", "owner_user_id", "ordinal", "name", "starts_on", "ends_on", "total_budget", "status", "created_at", "updated_at",
     ]);
@@ -80,6 +82,7 @@ describe("budgeting schema", () => {
     expect(tableNames(schema.budgetPersonalExpenseSources)).toEqual(["owner_user_id", "budget_transaction_id", "expense_id", "created_at"]);
     expect(tableNames(schema.budgetPersonalRepaymentSources)).toEqual(["owner_user_id", "budget_transaction_id", "repayment_id", "created_at"]);
     expect(tableNames(schema.budgetPersonalExpenseExclusions)).toEqual(["owner_user_id", "expense_id", "created_at"]);
+    expect(tableNames(schema.budgetPersonalRepaymentExclusions)).toEqual(["owner_user_id", "repayment_id", "created_at"]);
     for (const table of [schema.budgetPersonalExpenseSources, schema.budgetPersonalRepaymentSources]) {
       const config = getTableConfig(table);
       expect(config.uniqueConstraints.map((constraint) => constraint.name)).toEqual(expect.arrayContaining([
@@ -91,6 +94,13 @@ describe("budgeting schema", () => {
     const exclusions = getTableConfig(schema.budgetPersonalExpenseExclusions);
     expect(exclusions.primaryKeys.map((key) => key.getName())).toEqual(["budget_personal_expense_exclusions_pkey"]);
     expect(exclusions.foreignKeys.length).toBe(2);
+    const repaymentExclusions = getTableConfig(schema.budgetPersonalRepaymentExclusions);
+    expect(repaymentExclusions.primaryKeys.map((key) => key.getName())).toEqual(["budget_personal_repayment_exclusions_pkey"]);
+    expect(repaymentExclusions.foreignKeys.map((key) => key.getName())).toEqual(expect.arrayContaining([
+      "budget_personal_repayment_exclusions_owner_user_id_users_id_fk",
+      "budget_personal_repayment_exclusions_repayment_id_repayments_id_fk",
+    ]));
+    expect(repaymentExclusions.indexes.map((index) => index.config.name)).toContain("budget_personal_repayment_exclusions_repayment_idx");
   });
 
   it("defines typed Group source links and owner-private obligation classifications", () => {

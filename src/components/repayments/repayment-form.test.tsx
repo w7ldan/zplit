@@ -569,4 +569,15 @@ describe("RepaymentForm", () => {
     expect(screen.getByLabelText("Payment method")).toBeVisible();
     expect(screen.getByLabelText("Notes")).toBeVisible();
   });
+
+  it("shows the Personal repayment Budget choice only when supplied for creation", () => {
+    const { unmount } = render(<RepaymentForm action={vi.fn()} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} budgetControl={{ defaultIncluded: true }} />);
+    expect(screen.getByRole("checkbox", { name: "Count this repayment in Budget" })).toBeChecked();
+    expect(document.querySelector('input[name="repaymentBudgetParticipation"]')).toHaveValue("1");
+    expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+    unmount();
+
+    render(<RepaymentForm action={vi.fn()} friends={[{ id: activeFriend.id, label: activeFriend.name }]} searchFriends={vi.fn().mockResolvedValue([])} mode="edit" budgetControl={{ defaultIncluded: true }} />);
+    expect(screen.queryByRole("checkbox", { name: "Count this repayment in Budget" })).not.toBeInTheDocument();
+  });
 });

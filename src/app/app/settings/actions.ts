@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 import { getDatabase } from "@/db/client";
 import { users } from "@/db/schema";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
-import { setBudgetIncludeNewExpensesByDefault } from "@/server/budgeting/profiles";
+import { setBudgetDefaults } from "@/server/budgeting/profiles";
 import { getLedgerForAction, assertOrganizationLedgerWritableFromForm, ledgerPath } from "@/server/organization-ledger";
 
 export type RepaymentDestinationActionState = {
@@ -188,12 +188,14 @@ export async function setRepaymentDestinationOrderAction(orderedIds: string[]): 
 export async function updateBudgetDefaultAction(formData: FormData) {
   const session = await requireSession();
   const includeNewExpensesByDefault = formData.get("includeNewExpensesByDefault") === "1";
+  const includeNewRepaymentsByDefault = formData.get("includeNewRepaymentsByDefault") === "1";
   try {
-    await setBudgetIncludeNewExpensesByDefault(getDatabase(), session.user.id, includeNewExpensesByDefault);
+    await setBudgetDefaults(getDatabase(), session.user.id, { includeNewExpensesByDefault, includeNewRepaymentsByDefault });
   } catch {
     redirect("/app/settings?error=1#budget");
   }
   revalidatePath("/app/settings");
   revalidatePath("/app/expenses");
+  revalidatePath("/app/repayments");
   redirect("/app/settings?saved=1#budget");
 }

@@ -13,6 +13,8 @@ import { RecordPagination } from "@/components/records/record-pagination";
 import { financialMonthKey, groupRecordsByMonth, monthDisplayLabel, normalizeRepaymentFilters, normalizeTimezoneOffset, normalizeUuid, recordHref } from "@/domain/record-retrieval";
 import { validateRepaymentReturnTarget } from "@/domain/repayment-return";
 import type { RepaymentAllocationStrategy } from "@/domain/repayment-allocation-strategy";
+import { getDatabase } from "@/db/client";
+import { getRepaymentBudgetControl } from "@/server/budgeting/profiles";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Repayments" };
@@ -93,7 +95,7 @@ async function loadRepaymentContext(
   };
 }
 
-async function loadRepaymentsPageData(params: Awaited<NonNullable<RepaymentsPageProps["searchParams"]>>, repository: RepaymentLedger) {
+async function loadRepaymentsPageData(params: Awaited<NonNullable<RepaymentsPageProps["searchParams"]>>, repository: RepaymentLedger, ownerUserId: string) {
   const openCreate = first(params.create) === "1";
   const initialPaidAtUtc = openCreate ? new Date().toISOString() : undefined;
   const timezoneOffsetMinutes = normalizeTimezoneOffset(first(params.tz));
@@ -101,6 +103,7 @@ async function loadRepaymentsPageData(params: Awaited<NonNullable<RepaymentsPage
   const selection = await loadRepaymentSelection(params, repository, openCreate, filters.friendId);
   const repaymentPage = await repository.listRepaymentRecords({ q: first(params.q), friendId: selection.friendId, month: first(params.month), allocation: first(params.allocation), page: first(params.page), timezoneOffsetMinutes });
   const context = await loadRepaymentContext(params, repository, openCreate, selection.friendId, selection.friendOptions, selection.requestedExpenseShareId);
+  const budgetControl = openCreate ? await getRepaymentBudgetControl(getDatabase(), ownerUserId) : undefined;
   const effectiveParams = {
     ...params,
     friendId: selection.friendId,
@@ -114,6 +117,7 @@ async function loadRepaymentsPageData(params: Awaited<NonNullable<RepaymentsPage
   };
   return {
     openCreate,
+    budgetControl,
     initialPaidAtUtc,
     filters,
     ...selection,
@@ -218,6 +222,7 @@ function RepaymentCreatePanel({ data }: { data: RepaymentsPageData }) {
           loadFriendContext={loadRepaymentFriendContext}
           tripContext={tripContext}
           tripContextId={tripContext?.id}
+          budgetControl={data.budgetControl}
         />
       ) : (
         <div className="task-panel__empty">
@@ -307,7 +312,7 @@ export default async function RepaymentsPage({ searchParams = Promise.resolve({}
   if (emptyParams.length) redirect(recordHref("/app/repayments", params, Object.fromEntries(emptyParams.map((name) => [name, undefined]))));
   const session = await requireSession();
   const { ledger: repository } = await getAuthenticatedLedger(session);
-  const data = await loadRepaymentsPageData(params ?? {}, repository);
+  const data = await loadRepaymentsPageData(params ?? {}, repository, session.user.id);
 
   return <RepaymentsPageContent data={data} />;
 }

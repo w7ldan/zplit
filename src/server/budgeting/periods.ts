@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, gt, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, gt, lt, lte, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
   budgetCategories,
@@ -8,6 +8,7 @@ import {
   budgetPeriods,
   budgetPeriodCategories,
   budgetPersonalExpenseSources,
+  budgetPersonalRepaymentExclusions,
   budgetPersonalRepaymentSources,
   budgetTransactions,
 } from "@/db/schema";
@@ -29,6 +30,18 @@ export type StartNextBudgetPeriodInput = {
   totalBudget: number;
   allocations: Array<{ categoryId: string; allocatedAmount: number }>;
   recurrence?: BudgetRecurringTransitionSelection[];
+};
+
+export type StartBudgetPeriodFromPausedInput = Omit<StartNextBudgetPeriodInput, "expectedActivePeriodId"> & { expectedLatestPeriodId: string };
+
+export type ClosedBudgetPeriodSeed = {
+  id: string;
+  ordinal: number;
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  totalBudget: number;
+  categories: Array<{ id: string; name: string; systemKey: string | null; allocatedAmount: number; displayOrder: number }>;
 };
 
 export type PendingBudgetImpactPreview = { categoryId: string; categoryName: string; amount: number };
@@ -86,9 +99,9 @@ export async function rejectPeriodOverlap(transaction: Database, ownerUserId: st
   if (previous && startsOn <= previous.endsOn) throw new BudgetError("CONFLICT", "The active period overlaps the previous closed period.");
 }
 
-function validateTransitionInput(input: StartNextBudgetPeriodInput) {
+function validateTransitionInput(input: { expectedSourcePeriodId: string; name: string; startsOn: string; endsOn: string; totalBudget: number }) {
   const name = input.name.trim();
-  if (!input.expectedActivePeriodId.trim() || !name || name.length > 120 || !isValidBudgetDate(input.startsOn) || !isValidBudgetDate(input.endsOn) || input.startsOn > input.endsOn) {
+  if (!input.expectedSourcePeriodId.trim() || !name || name.length > 120 || !isValidBudgetDate(input.startsOn) || !isValidBudgetDate(input.endsOn) || input.startsOn > input.endsOn) {
     throw new BudgetError("INVALID_INPUT", "Enter a period name and a valid date range.");
   }
   if (!Number.isSafeInteger(input.totalBudget) || input.totalBudget < 1 || input.totalBudget > MAX_RUPIAH) {
@@ -97,7 +110,7 @@ function validateTransitionInput(input: StartNextBudgetPeriodInput) {
   return name;
 }
 
-function validateTransitionAllocations(input: StartNextBudgetPeriodInput, rows: Array<{ plan: typeof budgetPeriodCategories.$inferSelect; category: typeof budgetCategories.$inferSelect }>) {
+function validateTransitionAllocations(input: Pick<StartFollowingBudgetPeriodInput, "allocations" | "totalBudget">, rows: Array<{ plan: typeof budgetPeriodCategories.$inferSelect; category: typeof budgetCategories.$inferSelect }>) {
   if (rows.filter((row) => row.category.systemKey === "uncategorized").length !== 1) throw new BudgetError("CONFLICT", "The budget system category is unavailable.");
   if (input.allocations.length !== rows.length || new Set(input.allocations.map((allocation) => allocation.categoryId)).size !== rows.length) {
     throw new BudgetError("NOT_FOUND", "The category plan changed. Reload before starting the next period.");
@@ -126,7 +139,7 @@ async function zeroImpactPersonalExpenseIds(transaction: LedgerTransaction, owne
 async function zeroImpactPersonalRepaymentIds(transaction: LedgerTransaction, ownerUserId: string, startsOn: string, endsOn: string) {
   const rows = await transaction.select({ id: budgetPersonalRepaymentSources.repaymentId }).from(budgetPersonalRepaymentSources)
     .innerJoin(budgetTransactions, and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, budgetPersonalRepaymentSources.budgetTransactionId)))
-    .where(and(eq(budgetPersonalRepaymentSources.ownerUserId, ownerUserId), eq(budgetTransactions.status, "posted"), gte(budgetTransactions.occurredOn, startsOn), lte(budgetTransactions.occurredOn, endsOn), sql`not exists (select 1 from ${budgetImpacts} impact where impact.owner_user_id = ${ownerUserId} and impact.budget_transaction_id = ${budgetTransactions.id})`))
+    .where(and(eq(budgetPersonalRepaymentSources.ownerUserId, ownerUserId), eq(budgetTransactions.status, "posted"), gte(budgetTransactions.occurredOn, startsOn), lte(budgetTransactions.occurredOn, endsOn), sql`not exists (select 1 from ${budgetPersonalRepaymentExclusions} exclusion where exclusion.owner_user_id = ${ownerUserId} and exclusion.repayment_id = ${budgetPersonalRepaymentSources.repaymentId})`, sql`not exists (select 1 from ${budgetImpacts} impact where impact.owner_user_id = ${ownerUserId} and impact.budget_transaction_id = ${budgetTransactions.id})`))
     .orderBy(asc(budgetTransactions.occurredOn), asc(budgetPersonalRepaymentSources.repaymentId));
   return rows.map((row) => row.id);
 }
@@ -173,14 +186,59 @@ async function absorbZeroImpactActivity(transaction: LedgerTransaction, ownerUse
   return personalExpenseIds.length + personalRepaymentIds.length + groupExpenseIds.length + groupSettlementIds.length;
 }
 
-export async function startNextBudgetPeriod(database: Database, ownerUserId: string, input: StartNextBudgetPeriodInput) {
+export async function getLatestClosedBudgetPeriod(database: Database, ownerUserId: string): Promise<ClosedBudgetPeriodSeed | null> {
+  const [period] = await database.select({
+    id: budgetPeriods.id,
+    ordinal: budgetPeriods.ordinal,
+    name: budgetPeriods.name,
+    startsOn: budgetPeriods.startsOn,
+    endsOn: budgetPeriods.endsOn,
+    totalBudget: budgetPeriods.totalBudget,
+  }).from(budgetPeriods)
+    .where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.status, "closed")))
+    .orderBy(desc(budgetPeriods.ordinal))
+    .limit(1);
+  if (!period) return null;
+  const categories = await database.select({
+    id: budgetCategories.id,
+    name: budgetCategories.name,
+    systemKey: budgetCategories.systemKey,
+    allocatedAmount: budgetPeriodCategories.allocatedAmount,
+    displayOrder: budgetPeriodCategories.displayOrder,
+  }).from(budgetPeriodCategories)
+    .innerJoin(budgetCategories, and(eq(budgetCategories.ownerUserId, ownerUserId), eq(budgetCategories.id, budgetPeriodCategories.budgetCategoryId)))
+    .where(and(eq(budgetPeriodCategories.ownerUserId, ownerUserId), eq(budgetPeriodCategories.budgetPeriodId, period.id)))
+    .orderBy(asc(budgetPeriodCategories.displayOrder), asc(budgetCategories.name));
+  return { ...period, categories };
+}
+
+type StartFollowingBudgetPeriodInput = {
+  expectedSourcePeriodId: string;
+  name: string;
+  startsOn: string;
+  endsOn: string;
+  totalBudget: number;
+  allocations: Array<{ categoryId: string; allocatedAmount: number }>;
+  recurrence?: BudgetRecurringTransitionSelection[];
+};
+
+async function startFollowingBudgetPeriod(database: Database, ownerUserId: string, input: StartFollowingBudgetPeriodInput, fromPaused: boolean) {
   const name = validateTransitionInput(input);
   return database.transaction(async (transaction) => {
     await lockBudgetProfile(transaction as Database, ownerUserId);
-    const [current] = await transaction.select().from(budgetPeriods).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.status, "active"))).limit(1).for("update");
-    if (!current) throw new BudgetError("NOT_FOUND", "No active budget period is available.");
-    if (current.id !== input.expectedActivePeriodId) throw new BudgetError("CONFLICT", "This period changed in another request. Reload before starting the next period.");
-    if (input.startsOn <= current.endsOn) throw new BudgetError("INVALID_INPUT", "The next period must start after the current period ends.");
+    const [active] = await transaction.select().from(budgetPeriods).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.status, "active"))).limit(1).for("update");
+    let current = active;
+    if (fromPaused) {
+      if (active) throw new BudgetError("CONFLICT", "A new active period has already started. Reload Budget to continue.");
+      const [latestClosed] = await transaction.select().from(budgetPeriods).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.status, "closed"))).orderBy(desc(budgetPeriods.ordinal)).limit(1).for("update");
+      if (!latestClosed) throw new BudgetError("NOT_FOUND", "No closed Budget period is available to resume from.");
+      if (latestClosed.id !== input.expectedSourcePeriodId) throw new BudgetError("CONFLICT", "Budget history changed in another request. Reload before starting a new period.");
+      current = latestClosed;
+    } else {
+      if (!active) throw new BudgetError("NOT_FOUND", "No active budget period is available.");
+      if (active.id !== input.expectedSourcePeriodId) throw new BudgetError("CONFLICT", "This period changed in another request. Reload before starting the next period.");
+    }
+    if (input.startsOn <= current.endsOn) throw new BudgetError("INVALID_INPUT", "The new period must start after the previous period ends.");
 
     const rows = await transaction.select({ plan: budgetPeriodCategories, category: budgetCategories })
       .from(budgetPeriodCategories)
@@ -199,7 +257,7 @@ export async function startNextBudgetPeriod(database: Database, ownerUserId: str
     const categoryIds = new Set(rows.map((row) => row.category.id));
     if (pending.some((row) => !categoryIds.has(row.impact.budgetCategoryId))) throw new BudgetError("CONFLICT", "A pending budget impact targets a category missing from the next plan.");
 
-    await transaction.update(budgetPeriods).set({ status: "closed", updatedAt: new Date() }).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.id, current.id), eq(budgetPeriods.status, "active")));
+    if (!fromPaused) await transaction.update(budgetPeriods).set({ status: "closed", updatedAt: new Date() }).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.id, current.id), eq(budgetPeriods.status, "active")));
     const [next] = await transaction.insert(budgetPeriods).values({ ownerUserId, ordinal: nextOrdinal, name, startsOn: input.startsOn, endsOn: input.endsOn, totalBudget: input.totalBudget, status: "active" }).returning();
     if (!next) throw new BudgetError("CONFLICT", "The next budget period could not be created.");
     await transaction.insert(budgetPeriodCategories).values(rows.map((row) => ({ ownerUserId, budgetPeriodId: next.id, budgetCategoryId: row.category.id, allocatedAmount: allocationById.get(row.category.id)!, displayOrder: row.plan.displayOrder })));
@@ -219,6 +277,47 @@ export async function startNextBudgetPeriod(database: Database, ownerUserId: str
       absorbedRecurringCount,
       recurrence,
     };
+  });
+}
+
+export async function startNextBudgetPeriod(database: Database, ownerUserId: string, input: StartNextBudgetPeriodInput) {
+  return startFollowingBudgetPeriod(database, ownerUserId, {
+    expectedSourcePeriodId: input.expectedActivePeriodId,
+    name: input.name,
+    startsOn: input.startsOn,
+    endsOn: input.endsOn,
+    totalBudget: input.totalBudget,
+    allocations: input.allocations,
+    recurrence: input.recurrence,
+  }, false);
+}
+
+export async function startBudgetPeriodFromPaused(database: Database, ownerUserId: string, input: StartBudgetPeriodFromPausedInput) {
+  return startFollowingBudgetPeriod(database, ownerUserId, {
+    expectedSourcePeriodId: input.expectedLatestPeriodId,
+    name: input.name,
+    startsOn: input.startsOn,
+    endsOn: input.endsOn,
+    totalBudget: input.totalBudget,
+    allocations: input.allocations,
+    recurrence: input.recurrence,
+  }, true);
+}
+
+export async function archiveActiveBudgetPeriod(database: Database, ownerUserId: string, expectedActivePeriodId: string) {
+  if (!expectedActivePeriodId.trim()) throw new BudgetError("INVALID_INPUT", "The active period identity is required.");
+  return database.transaction(async (transaction) => {
+    await lockBudgetProfile(transaction as Database, ownerUserId);
+    const [period] = await transaction.select().from(budgetPeriods)
+      .where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.status, "active")))
+      .limit(1).for("update");
+    if (!period || period.id !== expectedActivePeriodId) throw new BudgetError("CONFLICT", "This period changed in another request. Reload before archiving it.");
+    const [closed] = await transaction.update(budgetPeriods)
+      .set({ status: "closed", updatedAt: new Date() })
+      .where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.id, period.id), eq(budgetPeriods.status, "active")))
+      .returning();
+    if (!closed) throw new BudgetError("CONFLICT", "This period changed in another request. Reload before archiving it.");
+    return closed;
   });
 }
 

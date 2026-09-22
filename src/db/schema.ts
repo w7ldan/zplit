@@ -1456,6 +1456,7 @@ export const budgetProfiles = pgTable("budget_profiles", {
     .primaryKey()
     .references(() => users.id, { onDelete: "cascade" }),
   includeNewExpensesByDefault: boolean("include_new_expenses_by_default").default(true).notNull(),
+  includeNewRepaymentsByDefault: boolean("include_new_repayments_by_default").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -1740,6 +1741,23 @@ export const budgetPersonalExpenseExclusions = pgTable(
   (table) => [
     primaryKey({ columns: [table.ownerUserId, table.expenseId], name: "budget_personal_expense_exclusions_pkey" }),
     index("budget_personal_expense_exclusions_expense_idx").on(table.expenseId),
+  ],
+);
+
+export const budgetPersonalRepaymentExclusions = pgTable(
+  "budget_personal_repayment_exclusions",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    repaymentId: uuid("repayment_id")
+      .notNull()
+      .references(() => repayments.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.ownerUserId, table.repaymentId], name: "budget_personal_repayment_exclusions_pkey" }),
+    index("budget_personal_repayment_exclusions_repayment_idx").on(table.repaymentId),
   ],
 );
 

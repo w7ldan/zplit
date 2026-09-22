@@ -48,6 +48,8 @@ export type ExpenseBudgetControlOptions = {
   categories: Array<{ id: string; name: string }>;
 };
 
+export type RepaymentBudgetControlOptions = { defaultIncluded: boolean };
+
 /**
  * The private preference plus the owner's usable categories for an eligible
  * expense create form. `undefined` means the owner has not configured
@@ -65,12 +67,17 @@ export async function getExpenseBudgetControl(database: Database, ownerUserId: s
   };
 }
 
+export async function getRepaymentBudgetControl(database: Database, ownerUserId: string): Promise<RepaymentBudgetControlOptions | undefined> {
+  const profile = await getBudgetProfile(database, ownerUserId);
+  return profile ? { defaultIncluded: profile.includeNewRepaymentsByDefault } : undefined;
+}
+
 /**
  * The single private preference that seeds the creation-time Budget control.
  * It only affects forms rendered afterwards; existing sources keep their
  * recorded participation.
  */
-export async function setBudgetIncludeNewExpensesByDefault(database: Database, ownerUserId: string, includeNewExpensesByDefault: boolean) {
+export async function setBudgetDefaults(database: Database, ownerUserId: string, defaults: { includeNewExpensesByDefault: boolean; includeNewRepaymentsByDefault: boolean }) {
   return database.transaction(async (transaction) => {
     const [profile] = await transaction
       .select({ ownerUserId: budgetProfiles.ownerUserId })
@@ -81,7 +88,7 @@ export async function setBudgetIncludeNewExpensesByDefault(database: Database, o
     if (!profile) throw new BudgetError("NOT_CONFIGURED", "Budgeting is not configured.");
     const [updated] = await transaction
       .update(budgetProfiles)
-      .set({ includeNewExpensesByDefault, updatedAt: new Date() })
+      .set({ ...defaults, updatedAt: new Date() })
       .where(eq(budgetProfiles.ownerUserId, ownerUserId))
       .returning();
     if (!updated) throw new BudgetError("CONFLICT", "The Budget preference could not be saved.");

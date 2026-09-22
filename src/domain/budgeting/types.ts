@@ -47,7 +47,8 @@ export type BudgetOverviewRecurringSummary = {
 
 export type BudgetOverviewSnapshot =
   | { configured: false }
-  | { configured: true; period: null }
+  | { configured: true; period: null; paused?: false }
+  | { configured: true; period: null; paused: true; lastPeriod: { name: string; startsOn: string; endsOn: string } }
   | { configured: true; period: BudgetOverviewPeriod; recurring: BudgetOverviewRecurringSummary };
 
 export type BudgetPeriodHistoryCategory = {

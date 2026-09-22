@@ -10,6 +10,7 @@ import { assertRepaymentAllocationReversalReceipt, assertRepaymentAllocationsInp
 import type { CreateRepaymentInput, DeleteRecordOptions, NeedsAttentionRepaymentResult, RepaymentAllocationReversalReceipt, RepaymentDeletionImpact, RepaymentListRecord, UpdateRepaymentInput } from "./types";
 import type { RepaymentAllocationInput } from "../repayment-allocation-input";
 import type { PersonalBudgetMutationHooks } from "./mutation-hooks";
+import type { RepaymentBudgetParticipation } from "../budgeting/participation";
 import {
   LedgerRepositoryError,
   RepaymentAmountInvariantError,
@@ -179,7 +180,7 @@ async function assertOwnedFriend(transaction: Pick<Database, "select">, friendId
     if (!friend) return notFound();
   }
 
-async function createRepayment(input: CreateRepaymentInput) {
+async function createRepayment(input: CreateRepaymentInput, participation?: RepaymentBudgetParticipation) {
     assertRepaymentInput(input);
     const requested = { ...input, friendId: input.friendId.trim().toLowerCase() };
     try {
@@ -187,7 +188,7 @@ async function createRepayment(input: CreateRepaymentInput) {
         await assertOwnedFriend(transaction, requested.friendId);
         const [repayment] = await transaction.insert(repayments).values({ ...requested, ledgerScopeId: scope }).returning();
         if (!repayment) return persistenceError(new Error("repayment insert returned no row"));
-        await personalBudget?.reconcileRepayment(transaction, repayment.id);
+        await personalBudget?.reconcileRepayment(transaction, repayment.id, participation);
         return repayment;
       });
     } catch (error) {
@@ -205,7 +206,7 @@ async function lockOwnedFriend(transaction: Pick<Database, "select">, friendId: 
     if (!friend) return notFound();
   }
 
-async function createRepaymentWithAllocations(input: CreateRepaymentInput, allocations: RepaymentAllocationInput[]) {
+async function createRepaymentWithAllocations(input: CreateRepaymentInput, allocations: RepaymentAllocationInput[], participation?: RepaymentBudgetParticipation) {
     assertRepaymentInput(input);
     assertRepaymentAllocationsInput(allocations);
     const requested = { ...input, friendId: input.friendId.trim().toLowerCase() };
@@ -219,7 +220,7 @@ async function createRepaymentWithAllocations(input: CreateRepaymentInput, alloc
         if (normalizedAllocations.length > 0) {
           await transaction.insert(repaymentAllocations).values(normalizedAllocations.map((allocation) => ({ ledgerScopeId: scope, repaymentId: repayment.id, ...allocation })));
         }
-        await personalBudget?.reconcileRepayment(transaction, repayment.id);
+        await personalBudget?.reconcileRepayment(transaction, repayment.id, participation);
         return repayment;
       });
     } catch (error) {

@@ -73,10 +73,26 @@ describe("Budget Overview snapshot reporting", () => {
   });
 
   it("reports a configured profile without an active period instead of fabricated totals", async () => {
-    const { database: databaseInstance, select } = recordingDatabase([[{ ownerUserId: "owner-1" }], []]);
+    const { database: databaseInstance, select } = recordingDatabase([[{ ownerUserId: "owner-1" }], [], []]);
 
     await expect((await import("./reporting")).getBudgetOverviewSnapshot(databaseInstance, "owner-1")).resolves.toEqual({ configured: true, period: null });
-    expect(select).toHaveBeenCalledTimes(2);
+    expect(select).toHaveBeenCalledTimes(3);
+  });
+
+  it("represents an archived period as paused without manufacturing a new period", async () => {
+    const { database: databaseInstance } = recordingDatabase([
+      [{ ownerUserId: "owner-1" }],
+      [],
+      [{ id: "closed-period", ordinal: 2, name: "October", startsOn: "2026-10-01", endsOn: "2026-10-31", totalBudget: 1000 }],
+      [],
+    ]);
+
+    await expect((await import("./reporting")).getBudgetOverviewSnapshot(databaseInstance, "owner-1")).resolves.toEqual({
+      configured: true,
+      period: null,
+      paused: true,
+      lastPeriod: { name: "October", startsOn: "2026-10-01", endsOn: "2026-10-31" },
+    });
   });
 
   it("derives Remaining and Net spent from applied posted impacts and keeps recurring planning separate", async () => {

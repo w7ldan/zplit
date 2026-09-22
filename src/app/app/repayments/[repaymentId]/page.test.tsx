@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getDatabase: vi.fn(),
   createLedgerRepository: vi.fn(),
   getPaymentProof: vi.fn(),
+  getPersonalLedgerScopeId: vi.fn().mockResolvedValue("personal-scope"),
+  getPersonalRepaymentBudgetState: vi.fn().mockResolvedValue({ status: "unprocessed" }),
   notFound: vi.fn(() => { throw new Error("not-found"); }),
 }));
 
@@ -16,6 +18,8 @@ vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession 
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: async (session?: { user: { id: string } }) => { const current = session ?? await mocks.requireSession(); return { user: current.user, ledger: mocks.createLedgerRepository(mocks.getDatabase(), current.user.id) }; } }));
 vi.mock("@/server/repayment-payment-proofs", () => ({ getRepaymentPaymentProofMetadata: mocks.getPaymentProof }));
+vi.mock("@/server/ledger-scopes", () => ({ getPersonalLedgerScopeId: mocks.getPersonalLedgerScopeId }));
+vi.mock("@/server/budgeting/sources-personal", () => ({ getPersonalRepaymentBudgetState: mocks.getPersonalRepaymentBudgetState }));
 vi.mock("@/domain/ledger-repository", async () => {
   const actual = await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository");
   return { ...actual, createLedgerRepository: mocks.createLedgerRepository };

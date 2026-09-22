@@ -5,6 +5,7 @@ import {
   budgetImpacts,
   budgetPersonalExpenseExclusions,
   budgetPersonalExpenseSources,
+  budgetPersonalRepaymentExclusions,
   budgetPersonalRepaymentSources,
   budgetProfiles,
   budgetPeriods,
@@ -18,7 +19,7 @@ import {
   ledgerScopes,
 } from "@/db/schema";
 import { BudgetError } from "@/domain/budgeting/errors";
-import type { ExpenseBudgetParticipation } from "@/domain/budgeting/participation";
+import type { ExpenseBudgetParticipation, RepaymentBudgetParticipation } from "@/domain/budgeting/participation";
 import { splitBudgetAmount } from "@/domain/budgeting/spread";
 import { LedgerIntegrityError } from "@/domain/ledger-summary";
 import type { LedgerTransaction, PersonalBudgetMutationHooks } from "@/domain/ledger/mutation-hooks";
@@ -30,6 +31,11 @@ export type PersonalBudgetIntegration = PersonalBudgetMutationHooks;
 
 export type PersonalExpenseBudgetState =
   | { status: "included"; transactionId: string; categoryId: string | null; categoryName: string }
+  | { status: "not_included" }
+  | { status: "unprocessed" };
+
+export type PersonalRepaymentBudgetState =
+  | { status: "included"; transactionId: string; actualAmount: number; appliedAmount: number }
   | { status: "not_included" }
   | { status: "unprocessed" };
 
@@ -167,6 +173,22 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
       .onConflictDoNothing({ target: [budgetPersonalExpenseExclusions.ownerUserId, budgetPersonalExpenseExclusions.expenseId] });
   }
 
+  async function repaymentExcluded(transaction: LedgerTransaction, repaymentId: string) {
+    const [exclusion] = await transaction
+      .select({ repaymentId: budgetPersonalRepaymentExclusions.repaymentId })
+      .from(budgetPersonalRepaymentExclusions)
+      .where(and(eq(budgetPersonalRepaymentExclusions.ownerUserId, ownerUserId), eq(budgetPersonalRepaymentExclusions.repaymentId, repaymentId)))
+      .limit(1);
+    return Boolean(exclusion);
+  }
+
+  async function recordRepaymentExclusion(transaction: LedgerTransaction, repaymentId: string) {
+    await transaction
+      .insert(budgetPersonalRepaymentExclusions)
+      .values({ ownerUserId, repaymentId })
+      .onConflictDoNothing({ target: [budgetPersonalRepaymentExclusions.ownerUserId, budgetPersonalRepaymentExclusions.repaymentId] });
+  }
+
   async function resolveParticipationCategoryId(transaction: LedgerTransaction, categoryId: string | null) {
     if (!categoryId) return null;
     const [category] = await transaction
@@ -209,6 +231,26 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
       .where(and(eq(budgetPersonalRepaymentSources.ownerUserId, ownerUserId), eq(budgetPersonalRepaymentSources.repaymentId, repaymentId)))
       .limit(1);
     return link ?? null;
+  }
+
+  async function voidPostedRepaymentSource(transaction: LedgerTransaction, existing: Awaited<ReturnType<typeof repaymentLink>>) {
+    if (existing?.transaction.status !== "posted") return;
+    await transaction.update(budgetTransactions).set({ status: "voided", voidedAt: new Date(), updatedAt: new Date() }).where(and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, existing.transaction.id)));
+  }
+
+  async function repaymentExcludedWithParticipation(
+    transaction: LedgerTransaction,
+    repaymentId: string,
+    existing: Awaited<ReturnType<typeof repaymentLink>>,
+    participation?: RepaymentBudgetParticipation,
+  ) {
+    if (participation?.includeInBudget === false) await recordRepaymentExclusion(transaction, repaymentId);
+    if (participation?.includeInBudget === true) {
+      await transaction.delete(budgetPersonalRepaymentExclusions).where(and(eq(budgetPersonalRepaymentExclusions.ownerUserId, ownerUserId), eq(budgetPersonalRepaymentExclusions.repaymentId, repaymentId)));
+    }
+    if (!await repaymentExcluded(transaction, repaymentId)) return false;
+    await voidPostedRepaymentSource(transaction, existing);
+    return true;
   }
 
   async function lockImpacts(transaction: LedgerTransaction, transactionId: string) {
@@ -364,14 +406,13 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
     return buildRepaymentBudgetDistribution(amount, allocationRows, uncategorizedId, categoryByExpense, new Set(excludedRows.map((row) => row.expenseId)));
   }
 
-  async function reconcileRepaymentWithPeriod(transaction: LedgerTransaction, repaymentId: string, period: ActivePeriod | null) {
+  async function reconcileRepaymentWithPeriod(transaction: LedgerTransaction, repaymentId: string, period: ActivePeriod | null, participation?: RepaymentBudgetParticipation) {
     const repayment = await getRepayment(transaction, repaymentId);
     if (!repayment) return;
     const existing = await repaymentLink(transaction, repaymentId);
+    if (await repaymentExcludedWithParticipation(transaction, repaymentId, existing, participation)) return;
     if (!repayment.paidOn) {
-      if (existing && existing.transaction.status === "posted") {
-        await transaction.update(budgetTransactions).set({ status: "voided", voidedAt: new Date(), updatedAt: new Date() }).where(and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, existing.transaction.id)));
-      }
+      await voidPostedRepaymentSource(transaction, existing);
       return;
     }
     const description = repayment.notes?.trim().slice(0, 240) || `Repayment from ${repayment.friendName}`;
@@ -400,9 +441,9 @@ export function createPersonalBudgetIntegration(ownerUserId: string, scope: stri
     if (period !== undefined) await reconcileExpenseWithPeriod(transaction, expenseId, period, participation);
   }
 
-  async function reconcileRepayment(transaction: LedgerTransaction, repaymentId: string) {
+  async function reconcileRepayment(transaction: LedgerTransaction, repaymentId: string, participation?: RepaymentBudgetParticipation) {
     const period = await lockProfileAndPeriod(transaction);
-    if (period !== undefined) await reconcileRepaymentWithPeriod(transaction, repaymentId, period);
+    if (period !== undefined) await reconcileRepaymentWithPeriod(transaction, repaymentId, period, participation);
   }
 
   async function reconcileRepayments(transaction: LedgerTransaction, repaymentIds: string[]) {
@@ -523,6 +564,46 @@ export async function setPersonalExpenseBudgetParticipation(
   });
 }
 
+export async function setPersonalRepaymentBudgetParticipation(
+  database: Database,
+  ownerUserId: string,
+  scope: string,
+  repaymentId: string,
+  participation: RepaymentBudgetParticipation,
+) {
+  return database.transaction(async (transaction) => {
+    const [repayment] = await transaction
+      .select({ id: repayments.id })
+      .from(repayments)
+      .innerJoin(ledgerScopes, and(eq(ledgerScopes.id, scope), eq(ledgerScopes.kind, "personal"), eq(ledgerScopes.userId, ownerUserId)))
+      .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
+      .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
+      .limit(1)
+      .for("update");
+    if (!repayment) throw new BudgetError("NOT_FOUND", "That Personal repayment is no longer available.");
+    await lockBudgetProfile(transaction as Database, ownerUserId);
+    const [source] = await transaction
+      .select({ budgetTransactionId: budgetPersonalRepaymentSources.budgetTransactionId, status: budgetTransactions.status })
+      .from(budgetPersonalRepaymentSources)
+      .innerJoin(budgetTransactions, and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, budgetPersonalRepaymentSources.budgetTransactionId)))
+      .where(and(eq(budgetPersonalRepaymentSources.ownerUserId, ownerUserId), eq(budgetPersonalRepaymentSources.repaymentId, repaymentId)))
+      .limit(1);
+    if (!participation.includeInBudget) {
+      await transaction
+        .insert(budgetPersonalRepaymentExclusions)
+        .values({ ownerUserId, repaymentId })
+        .onConflictDoNothing({ target: [budgetPersonalRepaymentExclusions.ownerUserId, budgetPersonalRepaymentExclusions.repaymentId] });
+      if (source?.status === "posted") {
+        await transaction.update(budgetTransactions).set({ status: "voided", voidedAt: new Date(), updatedAt: new Date() }).where(and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, source.budgetTransactionId)));
+      }
+      return;
+    }
+    await transaction.delete(budgetPersonalRepaymentExclusions).where(and(eq(budgetPersonalRepaymentExclusions.ownerUserId, ownerUserId), eq(budgetPersonalRepaymentExclusions.repaymentId, repaymentId)));
+    const integration = createPersonalBudgetIntegration(ownerUserId, scope);
+    await integration.reconcileRepayment(transaction as LedgerTransaction, repaymentId, participation);
+  });
+}
+
 export async function changePersonalExpenseBudgetCategory(database: Database, ownerUserId: string, scope: string, expenseId: string, categoryId: string) {
   return database.transaction(async (transaction) => {
     await lockBudgetProfile(transaction as Database, ownerUserId);
@@ -589,6 +670,7 @@ export async function hasImportablePersonalActivity(database: Database, ownerUse
         gte(repayments.paidOn, period.startsOn),
         lte(repayments.paidOn, period.endsOn),
         sql`not exists (select 1 from ${budgetPersonalRepaymentSources} source where source.owner_user_id = ${ownerUserId} and source.repayment_id = ${repayments.id})`,
+        sql`not exists (select 1 from ${budgetPersonalRepaymentExclusions} exclusion where exclusion.owner_user_id = ${ownerUserId} and exclusion.repayment_id = ${repayments.id})`,
       )),
   ]);
   return Number(expensesCount[0]?.count ?? 0) + Number(repaymentsCount[0]?.count ?? 0) > 0;
@@ -629,7 +711,7 @@ export async function importBudgetActivity(database: Database, ownerUserId: stri
       const repaymentRows = await transaction
         .select({ id: repayments.id })
         .from(repayments)
-        .where(and(eq(repayments.ledgerScopeId, scope), gte(repayments.paidOn, period.startsOn), lte(repayments.paidOn, period.endsOn), sql`not exists (select 1 from ${budgetPersonalRepaymentSources} source where source.owner_user_id = ${ownerUserId} and source.repayment_id = ${repayments.id})`))
+        .where(and(eq(repayments.ledgerScopeId, scope), gte(repayments.paidOn, period.startsOn), lte(repayments.paidOn, period.endsOn), sql`not exists (select 1 from ${budgetPersonalRepaymentSources} source where source.owner_user_id = ${ownerUserId} and source.repayment_id = ${repayments.id})`, sql`not exists (select 1 from ${budgetPersonalRepaymentExclusions} exclusion where exclusion.owner_user_id = ${ownerUserId} and exclusion.repayment_id = ${repayments.id})`))
         .orderBy(asc(repayments.paidOn), asc(repayments.id));
       const integration = createPersonalBudgetIntegration(ownerUserId, scope);
       for (const expense of expenseRows) await integration.reconcileExpense(transaction as LedgerTransaction, expense.id);
@@ -662,7 +744,7 @@ export async function importPersonalActivity(database: Database, ownerUserId: st
     const repaymentRows = await transaction
       .select({ id: repayments.id })
       .from(repayments)
-      .where(and(eq(repayments.ledgerScopeId, scope), gte(repayments.paidOn, period.startsOn), lte(repayments.paidOn, period.endsOn), sql`not exists (select 1 from ${budgetPersonalRepaymentSources} source where source.owner_user_id = ${ownerUserId} and source.repayment_id = ${repayments.id})`))
+      .where(and(eq(repayments.ledgerScopeId, scope), gte(repayments.paidOn, period.startsOn), lte(repayments.paidOn, period.endsOn), sql`not exists (select 1 from ${budgetPersonalRepaymentSources} source where source.owner_user_id = ${ownerUserId} and source.repayment_id = ${repayments.id})`, sql`not exists (select 1 from ${budgetPersonalRepaymentExclusions} exclusion where exclusion.owner_user_id = ${ownerUserId} and exclusion.repayment_id = ${repayments.id})`))
       .orderBy(asc(repayments.paidOn), asc(repayments.id));
     const integration = createPersonalBudgetIntegration(ownerUserId, scope);
     for (const expense of expenseRows) await integration.reconcileExpense(transaction as LedgerTransaction, expense.id);
@@ -710,4 +792,42 @@ export async function getPersonalExpenseBudgetState(database: Database, ownerUse
     .where(and(eq(budgetPersonalExpenseExclusions.ownerUserId, ownerUserId), eq(budgetPersonalExpenseExclusions.expenseId, expenseId)))
     .limit(1);
   return exclusion ? { status: "not_included" } : { status: "unprocessed" };
+}
+
+export async function getPersonalRepaymentBudgetState(database: Database, ownerUserId: string, scope: string, repaymentId: string): Promise<PersonalRepaymentBudgetState> {
+  const [repayment] = await database
+    .select({ amount: repayments.amount })
+    .from(repayments)
+    .innerJoin(ledgerScopes, and(eq(ledgerScopes.id, scope), eq(ledgerScopes.kind, "personal"), eq(ledgerScopes.userId, ownerUserId)))
+    .innerJoin(friends, and(eq(friends.ledgerScopeId, scope), eq(friends.id, repayments.friendId)))
+    .where(and(eq(repayments.ledgerScopeId, scope), eq(repayments.id, repaymentId)))
+    .limit(1);
+  if (!repayment) return { status: "unprocessed" };
+  const [exclusion] = await database
+    .select({ repaymentId: budgetPersonalRepaymentExclusions.repaymentId })
+    .from(budgetPersonalRepaymentExclusions)
+    .where(and(eq(budgetPersonalRepaymentExclusions.ownerUserId, ownerUserId), eq(budgetPersonalRepaymentExclusions.repaymentId, repaymentId)))
+    .limit(1);
+  if (exclusion) return { status: "not_included" };
+  const [link] = await database
+    .select({ transactionId: budgetTransactions.id })
+    .from(budgetPersonalRepaymentSources)
+    .innerJoin(budgetTransactions, and(eq(budgetTransactions.ownerUserId, ownerUserId), eq(budgetTransactions.id, budgetPersonalRepaymentSources.budgetTransactionId)))
+    .where(and(eq(budgetPersonalRepaymentSources.ownerUserId, ownerUserId), eq(budgetPersonalRepaymentSources.repaymentId, repaymentId)))
+    .limit(1);
+  if (!link) return { status: "unprocessed" };
+  const [applied] = await database
+    .select({ amount: sql<number>`coalesce(sum(${budgetImpacts.amount}), 0)::int`.mapWith(Number) })
+    .from(budgetImpacts)
+    .innerJoin(budgetTransactions, and(
+      eq(budgetTransactions.ownerUserId, ownerUserId),
+      eq(budgetTransactions.id, budgetImpacts.budgetTransactionId),
+      eq(budgetTransactions.status, "posted"),
+    ))
+    .where(and(
+      eq(budgetImpacts.ownerUserId, ownerUserId),
+      eq(budgetImpacts.budgetTransactionId, link.transactionId),
+      eq(budgetImpacts.status, "applied"),
+    ));
+  return { status: "included", transactionId: link.transactionId, actualAmount: repayment.amount, appliedAmount: applied?.amount ?? 0 };
 }

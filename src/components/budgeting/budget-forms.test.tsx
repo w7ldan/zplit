@@ -83,4 +83,19 @@ describe("budget forms", () => {
     expect(screen.getAllByText("Spread over 3 periods")).toHaveLength(2);
     expect(screen.getAllByLabelText(/Category for Gym/)[0]).toHaveValue("food");
   });
+
+  it("uses the latest closed period identity when resuming paused Budget", () => {
+    const { container } = render(<BudgetTransitionForm
+      action={transitionAction}
+      period={{ id: "closed-period", name: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 100000 }}
+      categories={[{ id: "uncategorized", name: "Uncategorized", allocation: "0" }]}
+      pending={[]}
+      fromPaused
+    />);
+
+    expect(container.querySelector('input[name="expectedLatestPeriodId"]')).toHaveValue("closed-period");
+    expect(container.querySelector('input[name="expectedActivePeriodId"]')).not.toBeInTheDocument();
+    expect(screen.getByText(/Budget is paused/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start new period" })).toBeInTheDocument();
+  });
 });

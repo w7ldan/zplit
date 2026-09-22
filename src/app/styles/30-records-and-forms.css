@@ -5768,8 +5768,34 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   margin-top: 0;
 }
 
+.repayment-budget-participation__amounts {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.repayment-budget-participation__amounts > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
+.repayment-budget-participation__amounts dt {
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+}
+
+.repayment-budget-participation__amounts dd {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .expense-form__budget,
-.group-expense-form__budget {
+.group-expense-form__budget,
+.repayment-form__budget {
   display: grid;
   gap: 0.65rem;
   min-width: 0;
@@ -5779,14 +5805,16 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .expense-form__budget legend,
-.group-expense-form__budget legend {
+.group-expense-form__budget legend,
+.repayment-form__budget legend {
   padding-inline: 0.35rem;
   font-size: 0.82rem;
   font-weight: 700;
 }
 
 .expense-form__budget-toggle,
-.group-expense-form__budget-toggle {
+.group-expense-form__budget-toggle,
+.repayment-form__budget-toggle {
   display: flex;
   align-items: start;
   gap: 0.6rem;
@@ -5796,7 +5824,8 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 .expense-form__budget-toggle input,
-.group-expense-form__budget-toggle input {
+.group-expense-form__budget-toggle input,
+.repayment-form__budget-toggle input {
   flex: 0 0 auto;
   min-height: auto;
   margin-top: 0.1rem;
@@ -6676,6 +6705,47 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   background: var(--vnext-paper);
 }
 
+.budget-page.zplit-vnext .budget-paused-state > h2,
+.budget-page.zplit-vnext .budget-archive-prompt h2 {
+  margin: 0.25rem 0 0.5rem;
+  color: var(--vnext-text);
+  font-family: inherit;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+}
+
+.budget-page.zplit-vnext .budget-paused-state > p,
+.budget-page.zplit-vnext .budget-archive-prompt p {
+  max-width: 58ch;
+  margin: 0.35rem 0 0;
+  color: var(--vnext-text-soft);
+  line-height: 1.55;
+}
+
+.budget-page.zplit-vnext .budget-paused-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem 1rem;
+  margin-block-start: 1rem;
+}
+
+.budget-page.zplit-vnext .budget-paused-state .budget-paused-state__last-period {
+  margin-block-start: 1.25rem;
+  padding-block-start: 0.8rem;
+  border-top: 1px solid var(--vnext-rule);
+  font-size: 0.85rem;
+}
+
+.budget-page.zplit-vnext .budget-archive-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
 .budget-page.zplit-vnext .ledger-section__heading {
   min-block-size: auto;
   margin-block-end: 0.75rem;
@@ -7316,6 +7386,15 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
 }
 
 @media (max-width: 767px) {
+  .budget-page.zplit-vnext .budget-archive-prompt {
+    align-items: start;
+  }
+
+  .budget-page.zplit-vnext .budget-paused-state__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .budget-page.zplit-vnext .app-page__layout {
     gap: 1rem;
     padding-block: 1rem 3rem;

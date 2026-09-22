@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   changeGroupExpenseBudgetCategoryAction: vi.fn(),
   changeGroupObligationBudgetCategoryAction: vi.fn(),
   importPersonalActivityAction: vi.fn(),
+  archiveActiveBudgetPeriodAction: vi.fn(),
+  startBudgetPeriodFromPausedAction: vi.fn(),
 }));
 
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
@@ -23,6 +25,8 @@ vi.mock("./actions", () => ({
   createBudgetSetupAction: vi.fn(),
   createBudgetTransactionAction: vi.fn(),
   importPersonalActivityAction: mocks.importPersonalActivityAction,
+  archiveActiveBudgetPeriodAction: mocks.archiveActiveBudgetPeriodAction,
+  startBudgetPeriodFromPausedAction: mocks.startBudgetPeriodFromPausedAction,
   startNextBudgetPeriodAction: vi.fn(),
   updateBudgetPlanAction: vi.fn(),
 }));
@@ -167,6 +171,19 @@ describe("/app/personal/budget task-panel modes", () => {
     expect(screen.queryByRole("button", { name: /^Confirm/ })).not.toBeInTheDocument();
   });
 
+  it("requires an explicit archive confirmation and explains the paused state", async () => {
+    render(await BudgetPage({ searchParams: Promise.resolve({ archive: "1" }) }));
+    const actions = document.querySelector(".budget-page__actions")!;
+    expect(within(actions as HTMLElement).queryByRole("link", { name: "Archive period" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Archive period" })).toHaveAttribute("href", "/app/personal/budget?archive=1");
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("September");
+    expect(dialog).toHaveTextContent("history stay available");
+    expect(dialog).toHaveTextContent("Budget planning pauses");
+    expect(dialog).toHaveTextContent("ledger records continue normally");
+    expect(within(dialog).getByRole("button", { name: "Archive period" })).toBeInTheDocument();
+  });
+
   it("recovers from a missing active period through period history", async () => {
     mocks.getBudgetDashboard.mockResolvedValue({ configured: true, period: null, recentTransactions: [] });
     render(await BudgetPage());
@@ -174,6 +191,28 @@ describe("/app/personal/budget task-panel modes", () => {
     const recovery = screen.getByRole("link", { name: "Review period history" });
     expect(recovery).toHaveAttribute("href", "/app/personal/budget/periods");
     expect(screen.queryByRole("button", { name: /create|period/i })).not.toBeInTheDocument();
+  });
+
+  it("renders Budget as paused and can start a new period from the latest closed plan", async () => {
+    const closed = { id: "period-closed", ordinal: 2, name: "October", startsOn: "2026-10-01", endsOn: "2026-10-31", totalBudget: 120_000, categories: [
+      { id: "category-system", name: "Uncategorized", systemKey: "uncategorized", allocatedAmount: 0, displayOrder: 0 },
+      { id: "category-food", name: "Food", systemKey: null, allocatedAmount: 80_000, displayOrder: 1 },
+    ] };
+    mocks.getBudgetDashboard.mockResolvedValue({ configured: true, period: null, pausedPeriod: closed, pendingNextPeriod: [{ categoryId: "category-food", categoryName: "Food", amount: 5_000 }], recurringTemplates: [] });
+
+    render(await BudgetPage({ searchParams: Promise.resolve({ create: "period" }) }));
+
+    expect(screen.getByRole("heading", { name: "Budget is paused" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start new period" })).toHaveAttribute("href", "/app/personal/budget?create=period");
+    expect(screen.queryByRole("link", { name: "Add transaction" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Manage plan" })).not.toBeInTheDocument();
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("keeps its history");
+    expect(within(dialog).getByDisplayValue("Food")).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue("80000")).toBeInTheDocument();
+    expect(within(dialog).getByText("Coming into this period")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Start new period" })).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue(closed.id)).toHaveAttribute("name", "expectedLatestPeriodId");
   });
 
   it("confirms a successful activity import from the query state", async () => {

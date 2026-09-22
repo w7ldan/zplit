@@ -14,9 +14,9 @@ const serverOnlyPath = require.resolve("server-only");
 if (!require.cache[serverOnlyPath]) require.cache[serverOnlyPath] = { exports: {} } as never;
 
 const { createLedgerRepository } = await import("../src/domain/ledger-repository");
-const { createPersonalBudgetIntegration, changePersonalExpenseBudgetCategory, getPersonalExpenseBudgetState, importPersonalActivity, setPersonalExpenseBudgetParticipation } = await import("../src/server/budgeting/sources-personal");
+const { createPersonalBudgetIntegration, changePersonalExpenseBudgetCategory, getPersonalExpenseBudgetState, getPersonalRepaymentBudgetState, importPersonalActivity, setPersonalExpenseBudgetParticipation, setPersonalRepaymentBudgetParticipation } = await import("../src/server/budgeting/sources-personal");
 const { changeGroupExpenseBudgetCategory, getGroupExpenseBudgetState, setGroupExpenseBudgetParticipation } = await import("../src/server/budgeting/sources-group");
-const { createBudgetSetup, getBudgetProfile, setBudgetIncludeNewExpensesByDefault } = await import("../src/server/budgeting/profiles");
+const { createBudgetSetup, getBudgetProfile, setBudgetDefaults } = await import("../src/server/budgeting/profiles");
 const { createGroupExpense, confirmGroupExpenseAsPayer } = await import("../src/server/group-accounting");
 const { createGroup } = await import("../src/server/groups");
 const { ensurePersonalLedgerScope } = await import("../src/server/ledger-scopes");
@@ -67,6 +67,7 @@ async function run() {
     });
     const ownerProfile = await getBudgetProfile(database, users.owner);
     assert.equal(ownerProfile?.includeNewExpensesByDefault, true, "a configured Budget must default to including new expenses");
+    assert.equal(ownerProfile?.includeNewRepaymentsByDefault, true, "a configured Budget must default to including new repayments");
 
     const categories = await pool.query<{ id: string; name: string }>("SELECT id, name FROM budget_categories WHERE owner_user_id = $1", [users.owner]);
     const foodId = categories.rows.find((category) => category.name === "Food")!.id;
@@ -74,10 +75,12 @@ async function run() {
     const uncategorizedId = categories.rows.find((category) => category.name === "Uncategorized")!.id;
 
     // Private preference storage: persisted, owner-scoped, and defaulted ON.
-    await setBudgetIncludeNewExpensesByDefault(database, users.owner, false);
+    await setBudgetDefaults(database, users.owner, { includeNewExpensesByDefault: false, includeNewRepaymentsByDefault: false });
     assert.equal((await getBudgetProfile(database, users.owner))?.includeNewExpensesByDefault, false, "the Budget default preference must persist OFF");
-    await setBudgetIncludeNewExpensesByDefault(database, users.owner, true);
+    assert.equal((await getBudgetProfile(database, users.owner))?.includeNewRepaymentsByDefault, false, "the repayment Budget default must persist OFF separately");
+    await setBudgetDefaults(database, users.owner, { includeNewExpensesByDefault: true, includeNewRepaymentsByDefault: true });
     assert.equal((await getBudgetProfile(database, users.owner))?.includeNewExpensesByDefault, true, "the Budget default preference must persist ON");
+    assert.equal((await getBudgetProfile(database, users.owner))?.includeNewRepaymentsByDefault, true, "the repayment Budget default must persist ON separately");
 
     const ids = {
       outingIncluded: randomUUID(),
@@ -114,35 +117,77 @@ async function run() {
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 0, "reconciliation must not auto-link an explicitly excluded Personal expense");
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_exclusions WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 1);
 
-    await repository.replaceExpenseShares(included.id, [{ friendId: ids.friend, baseAmount: 100 }]);
+    await repository.replaceExpenseShares(included.id, [{ friendId: ids.friend, baseAmount: 130 }]);
     await repository.replaceExpenseShares(excluded.id, [{ friendId: ids.friend, baseAmount: 150 }]);
+    const includedShare = (await repository.listExpenseShares(included.id))[0]!;
+    const excludedShare = (await repository.listExpenseShares(excluded.id))[0]!;
     const repayment = await repository.createRepaymentWithAllocations(
       { friendId: ids.friend, amount: 300, paidAt: new Date("2026-09-07T10:00:00Z"), paidOn: "2026-09-07", paymentMethod: "Cash", notes: null },
       [
-        { expenseShareId: (await repository.listExpenseShares(included.id))[0]!.id, amount: 100 },
-        { expenseShareId: (await repository.listExpenseShares(excluded.id))[0]!.id, amount: 150 },
+        { expenseShareId: includedShare.id, amount: 100 },
+        { expenseShareId: excludedShare.id, amount: 150 },
       ],
+      { includeInBudget: ownerProfile?.includeNewRepaymentsByDefault ?? true },
     );
     const repaymentLink = await row<{ budget_transaction_id: string }>(pool, "SELECT budget_transaction_id FROM budget_personal_repayment_sources WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, repayment.id]);
-    assert.equal((await pool.query("SELECT amount FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, repaymentLink.budget_transaction_id])).rows[0].amount, 300, "the repayment BudgetTransaction must retain actual cash");
+    assert.deepEqual(await row<{ amount: number; status: string }>(pool, "SELECT amount, status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, repaymentLink.budget_transaction_id]), { amount: 300, status: "posted" }, "the repayment BudgetTransaction must retain the full actual cash event");
     assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Food", amount: 100 }, { name: "Uncategorized", amount: 50 }], "excluded repayment allocations must not affect Budget");
+    assert.deepEqual(await getPersonalRepaymentBudgetState(database, users.owner, scope, repayment.id), { status: "included", transactionId: repaymentLink.budget_transaction_id, actualAmount: 300, appliedAmount: 150 });
+
+    await setPersonalRepaymentBudgetParticipation(database, users.owner, scope, repayment.id, { includeInBudget: false });
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_repayment_exclusions WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, repayment.id]), 1, "repayment exclusion must persist independently of its source link");
+    assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, repaymentLink.budget_transaction_id])).rows[0].status, "voided", "excluding a repayment voids its posted Budget source");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_impacts i JOIN budget_transactions t ON t.owner_user_id = i.owner_user_id AND t.id = i.budget_transaction_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 AND t.status = 'posted'", [users.owner, repaymentLink.budget_transaction_id]), 0, "an excluded repayment contributes no posted Budget effect");
+    assert.equal((await pool.query("SELECT amount FROM repayments WHERE ledger_scope_id = $1 AND id = $2", [scope, repayment.id])).rows[0].amount, 300, "Budget exclusion must preserve the actual repayment amount");
+    assert.equal((await pool.query("SELECT count(*) FROM repayment_allocations WHERE ledger_scope_id = $1 AND repayment_id = $2", [scope, repayment.id])).rows[0].count, "2", "Budget exclusion must preserve repayment allocations");
+    await setPersonalExpenseBudgetParticipation(database, users.owner, scope, included.id, { includeInBudget: false });
+    await setPersonalExpenseBudgetParticipation(database, users.owner, scope, included.id, { includeInBudget: true, categoryId: foodId });
+    assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, repaymentLink.budget_transaction_id])).rows[0].status, "voided", "source-expense participation reconciliation must preserve an explicit repayment exclusion");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_repayment_exclusions WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, repayment.id]), 1);
+    await repository.replaceRepaymentAllocations(repayment.id, [
+      { expenseShareId: includedShare.id, amount: 120 },
+      { expenseShareId: excludedShare.id, amount: 150 },
+    ]);
+    assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, repaymentLink.budget_transaction_id])).rows[0].status, "voided", "later allocation reconciliation must not undo an explicit repayment exclusion");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_repayment_exclusions WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, repayment.id]), 1);
+    await setPersonalRepaymentBudgetParticipation(database, users.owner, scope, repayment.id, { includeInBudget: true });
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_repayment_exclusions WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, repayment.id]), 0, "including a repayment removes its persisted exclusion");
+    assert.deepEqual(await row<{ budget_transaction_id: string }>(pool, "SELECT budget_transaction_id FROM budget_personal_repayment_sources WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, repayment.id]), repaymentLink, "re-inclusion must reuse the original Budget source");
+    assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, repaymentLink.budget_transaction_id])).rows[0].status, "posted");
+    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Food", amount: 120 }, { name: "Uncategorized", amount: 30 }], "re-inclusion applies only included allocations and unallocated remainder");
+    assert.deepEqual(await getPersonalRepaymentBudgetState(database, users.owner, scope, repayment.id), { status: "included", transactionId: repaymentLink.budget_transaction_id, actualAmount: 300, appliedAmount: 150 });
+    await repository.replaceRepaymentAllocations(repayment.id, [
+      { expenseShareId: includedShare.id, amount: 120 },
+      { expenseShareId: excludedShare.id, amount: 150 },
+    ]);
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_repayment_sources WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, repayment.id]), 1, "later reconciliation must not duplicate the source transaction");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2", [users.owner, repaymentLink.budget_transaction_id]), 2, "repeated reconciliation must not inflate impacts");
 
     await setPersonalExpenseBudgetParticipation(database, users.owner, scope, included.id, { includeInBudget: false });
     await setPersonalExpenseBudgetParticipation(database, users.owner, scope, included.id, { includeInBudget: false });
     assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, includedLink.budget_transaction_id])).rows[0].status, "voided");
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_impacts i JOIN budget_transactions t ON t.owner_user_id = i.owner_user_id AND t.id = i.budget_transaction_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 AND t.status = 'posted'", [users.owner, includedLink.budget_transaction_id]), 0, "excluded expense effects must leave posted Budget authority");
-    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Uncategorized", amount: 50 }], "repayment impacts must reconcile immediately after exclusion");
+    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Uncategorized", amount: 30 }], "repayment impacts must reconcile immediately after source-expense exclusion");
     await setPersonalExpenseBudgetParticipation(database, users.owner, scope, included.id, { includeInBudget: true, categoryId: null });
     assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [users.owner, includedLink.budget_transaction_id])).rows[0].status, "posted");
     assert.deepEqual((await pool.query<{ name: string }>("SELECT c.name FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2", [users.owner, includedLink.budget_transaction_id])).rows, [{ name: "Food" }], "re-inclusion must restore the prior category");
-    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Food", amount: 100 }, { name: "Uncategorized", amount: 50 }], "re-inclusion must restore repayment effects");
+    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Food", amount: 120 }, { name: "Uncategorized", amount: 30 }], "re-inclusion must restore repayment effects");
     await setPersonalExpenseBudgetParticipation(database, users.owner, scope, excluded.id, { includeInBudget: true, categoryId: null });
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 1, "an originally excluded expense must be linkable later");
     assert.deepEqual((await pool.query<{ name: string }>("SELECT c.name FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id JOIN budget_personal_expense_sources s ON s.owner_user_id = i.owner_user_id AND s.budget_transaction_id = i.budget_transaction_id WHERE s.owner_user_id = $1 AND s.expense_id = $2", [users.owner, excluded.id])).rows, [{ name: "Uncategorized" }], "an originally excluded expense must default to Uncategorized");
-    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Food", amount: 100 }, { name: "Uncategorized", amount: 200 }], "re-including the excluded allocation must restore only that allocation plus the unallocated remainder");
+    assert.deepEqual((await pool.query<{ name: string; amount: number }>("SELECT c.name, i.amount FROM budget_impacts i JOIN budget_categories c ON c.owner_user_id = i.owner_user_id AND c.id = i.budget_category_id WHERE i.owner_user_id = $1 AND i.budget_transaction_id = $2 ORDER BY c.name", [users.owner, repaymentLink.budget_transaction_id])).rows, [{ name: "Food", amount: 120 }, { name: "Uncategorized", amount: 180 }], "re-including the excluded allocation must restore only that allocation plus the unallocated remainder");
     await setPersonalExpenseBudgetParticipation(database, users.owner, scope, excluded.id, { includeInBudget: false });
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_exclusions WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 1);
     await assert.rejects(() => setPersonalExpenseBudgetParticipation(database, users.member, memberScope, included.id, { includeInBudget: false }), (error: unknown) => isBudgetError(error, "NOT_FOUND"), "another user must not toggle a Personal expense");
+    await setBudgetDefaults(database, users.owner, { includeNewExpensesByDefault: true, includeNewRepaymentsByDefault: false });
+    const defaultExcludedRepayment = await repository.createRepaymentWithAllocations(
+      { friendId: ids.friend, amount: 40, paidAt: new Date("2026-09-09T10:00:00Z"), paidOn: "2026-09-09", paymentMethod: "Cash", notes: null },
+      [],
+      { includeInBudget: (await getBudgetProfile(database, users.owner))!.includeNewRepaymentsByDefault },
+    );
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_repayment_exclusions WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, defaultExcludedRepayment.id]), 1, "the OFF new-repayment default must create an explicit durable exclusion");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_repayment_sources WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, defaultExcludedRepayment.id]), 0, "an excluded repayment must not create a zero-impact Budget source");
+    assert.deepEqual(await getPersonalRepaymentBudgetState(database, users.owner, scope, defaultExcludedRepayment.id), { status: "not_included" });
     // A deleted source removes its exclusion through the typed foreign key.
     const disposable = await repository.createExpense({ outingId: ids.outingExcluded, description: "Disposable excluded", amount: 100 }, { includeInBudget: false });
     await repository.deleteExpense(disposable.id, { cascadeDependents: true });
@@ -151,6 +196,10 @@ async function run() {
     // Import: excluded sources stay out while legacy unlinked sources remain eligible.
     const firstImport = await importPersonalActivity(database, users.owner, scope);
     assert.equal(firstImport.expenseCount, 1, "import must only pick up the legacy unlinked Personal expense");
+    assert.equal(firstImport.repaymentCount, 0, "repayment imports must skip explicitly excluded repayments");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_repayment_sources WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, defaultExcludedRepayment.id]), 0, "import must not absorb an explicitly excluded repayment");
+    await repository.deleteRepayment(defaultExcludedRepayment.id);
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_repayment_exclusions WHERE owner_user_id = $1 AND repayment_id = $2", [users.owner, defaultExcludedRepayment.id]), 0, "repayment deletion must cascade its private exclusion row");
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, ids.legacyExpense]), 1, "import must keep seeing legacy unlinked Personal expenses");
     assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_personal_expense_sources WHERE owner_user_id = $1 AND expense_id = $2", [users.owner, excluded.id]), 1, "import must preserve the retained excluded source link");
     assert.equal((await pool.query("SELECT t.status FROM budget_personal_expense_sources s JOIN budget_transactions t ON t.owner_user_id = s.owner_user_id AND t.id = s.budget_transaction_id WHERE s.owner_user_id = $1 AND s.expense_id = $2", [users.owner, excluded.id])).rows[0].status, "voided", "import must not resurrect an explicitly excluded source");

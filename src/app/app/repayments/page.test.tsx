@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getDatabase: vi.fn(),
 vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/authenticated-ledger", () => ({ getAuthenticatedLedger: async (session?: { user: { id: string } }) => { const current = session ?? await mocks.requireSession(); return { user: current.user, ledger: mocks.createLedgerRepository(mocks.getDatabase(), current.user.id) }; } }));
+vi.mock("@/server/budgeting/profiles", () => ({ getRepaymentBudgetControl: vi.fn().mockResolvedValue({ defaultIncluded: true }) }));
 vi.mock("@/domain/ledger-repository", async () => ({ ...(await vi.importActual<typeof import("@/domain/ledger-repository")>("@/domain/ledger-repository")), createLedgerRepository: mocks.createLedgerRepository }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ replace: vi.fn() }) }));
 
@@ -91,6 +92,7 @@ describe("/app/repayments", () => {
     render(await RepaymentsPage({ searchParams: Promise.resolve({ create: "1" }) }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(within(screen.getByRole("dialog")).getByRole("option", { name: "Bima (ARCHIVED)" })).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByRole("checkbox", { name: "Count this repayment in Budget" })).toBeChecked();
     expect(screen.getByText(/Outstanding for Ari/)).toBeInTheDocument();
   });
 

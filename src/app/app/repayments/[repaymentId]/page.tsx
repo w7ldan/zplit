@@ -11,11 +11,14 @@ import { AnimatedMoney } from "@/components/vnext/animated-money";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { deletionImpactRevision, LedgerNotFoundError } from "@/domain/ledger-repository";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
-import { loadRepaymentFriendContext, removeRepaymentAllocationAction, replaceRepaymentAllocationsAction, searchFriendOptions, undoRepaymentAllocationAction, updateRepaymentAction } from "../actions";
+import { loadRepaymentFriendContext, removeRepaymentAllocationAction, replaceRepaymentAllocationsAction, searchFriendOptions, setRepaymentBudgetParticipationAction, undoRepaymentAllocationAction, updateRepaymentAction } from "../actions";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
 import { DeleteRecordForm } from "@/components/app/delete-record-form";
 import { deleteRepaymentAction } from "../actions";
 import { getRepaymentPaymentProofMetadata } from "@/server/repayment-payment-proofs";
+import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
+import { getPersonalRepaymentBudgetState } from "@/server/budgeting/sources-personal";
+import { RepaymentBudgetParticipationBlock } from "@/components/repayments/repayment-budget-participation-block";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Repayment details" };
@@ -24,7 +27,7 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-type RepaymentRecordQuery = { created?: string | string[]; saved?: string | string[]; q?: string | string[]; page?: string | string[]; tripId?: string | string[] };
+type RepaymentRecordQuery = { created?: string | string[]; saved?: string | string[]; budgetSaved?: string | string[]; q?: string | string[]; page?: string | string[]; tripId?: string | string[] };
 type RepaymentRecordData = {
   plan: Awaited<ReturnType<Awaited<ReturnType<typeof getAuthenticatedLedger>>["ledger"]["getRepaymentAllocationPlan"]>>;
   deletionImpact: Awaited<ReturnType<Awaited<ReturnType<typeof getAuthenticatedLedger>>["ledger"]["getRepaymentDeletionImpact"]>>;
@@ -34,6 +37,7 @@ type RepaymentRecordData = {
   formContext: Omit<Awaited<ReturnType<Awaited<ReturnType<typeof getAuthenticatedLedger>>["ledger"]["getRepaymentFriendContext"]>>, "option"> & { option: { id: string; label: string; archived: boolean } };
   recentPaymentMethods: string[];
   paymentProof: Awaited<ReturnType<typeof getRepaymentPaymentProofMetadata>>;
+  budgetParticipation: Awaited<ReturnType<typeof getPersonalRepaymentBudgetState>>;
 };
 
 async function loadRepaymentRecordData(session: Awaited<ReturnType<typeof requireSession>>, repaymentId: string, query: RepaymentRecordQuery | undefined): Promise<RepaymentRecordData> {
@@ -59,6 +63,8 @@ async function loadRepaymentRecordData(session: Awaited<ReturnType<typeof requir
     repository.listRecentPaymentMethods(),
     getRepaymentPaymentProofMetadata(database, session.user.id, plan.id),
   ]);
+  const scope = await getPersonalLedgerScopeId(database, session.user.id);
+  const budgetParticipation = await getPersonalRepaymentBudgetState(database, session.user.id, scope, plan.id);
   return {
     plan,
     deletionImpact,
@@ -68,11 +74,12 @@ async function loadRepaymentRecordData(session: Awaited<ReturnType<typeof requir
     formContext: { ...friendContext, option: { id: friendContext.option.id, label: friendContext.option.name, archived: friendContext.option.archived } },
     recentPaymentMethods,
     paymentProof,
+    budgetParticipation,
   };
 }
 
 function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; query: RepaymentRecordQuery | undefined }) {
-  const { plan, contextTrip, deletionImpact, currentImpactRevision, friendOptions, formContext, recentPaymentMethods, paymentProof } = data;
+  const { plan, contextTrip, deletionImpact, currentImpactRevision, friendOptions, formContext, recentPaymentMethods, paymentProof, budgetParticipation } = data;
   return (
     <section className={`app-page page-content zplit-vnext personal-vnext repayment-record ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-grid editorial-shell repayment-record__layout personal-vnext__detail-layout">
@@ -95,6 +102,7 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
             message="Repayment changes saved."
           />
         ) : null}
+        {query?.budgetSaved === "1" ? <RecordConfirmation queryKey="budgetSaved" message="Budget participation updated." /> : null}
         <div className="repayment-record__tasks">
           <section className="repayment-record__primary-task" aria-label="Repayment allocation and payment proof">
             <section className="repayment-record__allocation-workspace" id="repayment-allocations">
@@ -121,6 +129,7 @@ function RepaymentRecordContent({ data, query }: { data: RepaymentRecordData; qu
                 <div><span className="technical-label">Notes</span><span className="repayment-record__notes-value">{plan.notes ?? "—"}</span></div>
               </div>
             </section>
+            <RepaymentBudgetParticipationBlock participation={budgetParticipation} repaymentId={plan.id} actualAmount={plan.amount} action={setRepaymentBudgetParticipationAction} />
             <section className="repayment-record__edit-surface vnext-surface" aria-labelledby="repayment-details">
               <p className="technical-label" id="repayment-details" tabIndex={-1}>EDIT RECORD</p>
               <RepaymentForm

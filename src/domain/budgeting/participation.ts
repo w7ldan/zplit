@@ -10,10 +10,15 @@ export type ExpenseBudgetParticipation =
   | { includeInBudget: false }
   | { includeInBudget: true; categoryId: string | null };
 
+export type RepaymentBudgetParticipation = { includeInBudget: boolean };
+
 export const EXPENSE_BUDGET_PARTICIPATION_FIELD = "budgetParticipation";
 export const EXPENSE_BUDGET_INCLUDED_FIELD = "includeInBudget";
 export const EXPENSE_BUDGET_CATEGORY_FIELD = "budgetCategoryId";
 export const EXPENSE_BUDGET_MARKER = "1";
+export const REPAYMENT_BUDGET_PARTICIPATION_FIELD = "repaymentBudgetParticipation";
+export const REPAYMENT_BUDGET_INCLUDED_FIELD = "includeRepaymentInBudget";
+export const REPAYMENT_BUDGET_MARKER = "1";
 
 export type ExpenseBudgetParticipationSubmission =
   | { ok: true; participation: ExpenseBudgetParticipation | undefined }
@@ -37,4 +42,9 @@ export function parseExpenseBudgetParticipation(formData: FormData): ExpenseBudg
   const normalized = normalizeUuid(categoryId);
   if (!normalized) return { ok: false, categoryError: "Choose a valid Budget category." };
   return { ok: true, participation: { includeInBudget: true, categoryId: normalized } };
+}
+
+export function parseRepaymentBudgetParticipation(formData: FormData): RepaymentBudgetParticipation | undefined {
+  if (formData.get(REPAYMENT_BUDGET_PARTICIPATION_FIELD) !== REPAYMENT_BUDGET_MARKER) return undefined;
+  return { includeInBudget: formData.get(REPAYMENT_BUDGET_INCLUDED_FIELD) === REPAYMENT_BUDGET_MARKER };
 }

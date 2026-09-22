@@ -5,6 +5,7 @@ const publicAuth = readSource("src/app/styles/70-public-auth-vnext.css");
 const publicLanding = readSource("src/components/editorial/public-landing.tsx");
 const sharedPublic = readSource("src/app/styles/65-shared-public-vnext.css");
 const foundation = readSource("src/app/styles/00-foundation.css");
+const budgetStyles = readSource("src/app/styles/30-records-and-forms.css");
 
 describe("Responsive layout contract", () => {
   it("recomposes the public document instead of switching to a second mobile product", () => {
@@ -31,5 +32,9 @@ describe("Responsive layout contract", () => {
     expect(sharedPublic).toContain("@media (max-width: 380px)");
     expect(sharedPublic).toContain("@media (prefers-reduced-motion: reduce)");
     expect(foundation).toContain("scrollbar-gutter: stable;");
+  });
+
+  it("keeps the paused Budget resume action stacked on narrow screens", () => {
+    expect(budgetStyles).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.budget-page\.zplit-vnext \.budget-paused-state__actions\s*\{[^}]*align-items: stretch;[^}]*flex-direction: column;/);
   });
 });

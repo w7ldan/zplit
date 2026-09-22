@@ -12,7 +12,7 @@ import { getDatabase } from "@/db/client";
 import { createBudgetSetup } from "@/server/budgeting/profiles";
 import { createBudgetCategory, updateBudgetPlan } from "@/server/budgeting/categories";
 import { createManualBudgetTransaction, spreadBudgetTransaction, voidBudgetTransaction } from "@/server/budgeting/transactions";
-import { startNextBudgetPeriod } from "@/server/budgeting/periods";
+import { archiveActiveBudgetPeriod, startBudgetPeriodFromPaused, startNextBudgetPeriod } from "@/server/budgeting/periods";
 import {
   archiveBudgetRecurringTemplate,
   createBudgetRecurringTemplate,
@@ -268,7 +268,7 @@ function transitionValues(formData: FormData): BudgetTransitionValues {
   const recurrenceCategoryIds = formData.getAll("recurrenceCategoryId").map(String);
   const selectedKeys = new Set(formData.getAll("recurrenceSelected").map(String));
   return {
-    expectedActivePeriodId: textValue(formData, "expectedActivePeriodId"),
+    expectedActivePeriodId: textValue(formData, "expectedActivePeriodId") || textValue(formData, "expectedLatestPeriodId"),
     name: textValue(formData, "periodName"),
     startsOn: textValue(formData, "startsOn"),
     endsOn: textValue(formData, "endsOn"),
@@ -312,6 +312,32 @@ export async function startNextBudgetPeriodAction(_previousState: BudgetFormStat
   }
   revalidateBudget();
   redirect("/app/personal/budget");
+}
+
+export async function startBudgetPeriodFromPausedAction(_previousState: BudgetFormState<BudgetTransitionValues>, formData: FormData): Promise<BudgetFormState<BudgetTransitionValues>> {
+  const values = transitionValues(formData);
+  const parsed = parseTransitionSubmission(values);
+  if (!parsed.ok) return parsed.state;
+  try {
+    const session = await requireSession();
+    await startBudgetPeriodFromPaused(getDatabase(), session.user.id, { expectedLatestPeriodId: values.expectedActivePeriodId, name: values.name, startsOn: values.startsOn, endsOn: values.endsOn, totalBudget: parsed.totalBudget, allocations: parsed.allocations, recurrence: values.recurrence });
+  } catch (error) {
+    return { fieldErrors: {}, formError: budgetErrorMessage(error, "Unable to start a new budget period."), values };
+  }
+  revalidateBudget();
+  redirect("/app/personal/budget");
+}
+
+export async function archiveActiveBudgetPeriodAction(formData: FormData) {
+  const expectedActivePeriodId = textValue(formData, "expectedActivePeriodId");
+  try {
+    const session = await requireSession();
+    await archiveActiveBudgetPeriod(getDatabase(), session.user.id, expectedActivePeriodId);
+  } catch {
+    redirect("/app/personal/budget?error=archive");
+  }
+  revalidateBudget();
+  redirect("/app/personal/budget?archived=1");
 }
 
 export async function spreadBudgetTransactionAction(_previousState: BudgetFormState<BudgetSpreadValues>, formData: FormData): Promise<BudgetFormState<BudgetSpreadValues>> {

@@ -24,9 +24,15 @@ import type { SearchableOption } from "@/components/records/searchable-combobox"
 import type { OpenExpenseShare } from "@/domain/ledger-repository";
 import { paymentMethodFormState, parsePaymentMethodFields, type PaymentMethodFormState } from "@/domain/payment-method";
 import { normalizeUuid } from "@/domain/record-retrieval";
+import { parseRepaymentBudgetParticipation } from "@/domain/budgeting/participation";
+import { BudgetError } from "@/domain/budgeting/errors";
 import { parseCascadeConfirmation, parseImpactRevision } from "@/domain/deletion-confirmation";
+import { getDatabase } from "@/db/client";
 import { getAuthenticatedLedger } from "@/server/authenticated-ledger";
-import { getLedgerForAction, ledgerPath } from "@/server/organization-ledger";
+import { getLedgerForAction, ledgerPath, organizationIdFromForm } from "@/server/organization-ledger";
+import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
+import { getRepaymentBudgetControl } from "@/server/budgeting/profiles";
+import { setPersonalRepaymentBudgetParticipation } from "@/server/budgeting/sources-personal";
 
 export type RepaymentActionState = {
   fieldErrors: RepaymentFieldErrors;
@@ -153,6 +159,9 @@ export async function createRepaymentAction(
   if (!result.ok) return { ...invalidState(result, paymentMethodForm), allocations: allocationResult.ok ? allocationResult.values : allocationResult.values, allocationFieldErrors: allocationResult.ok ? {} : allocationResult.errors };
   if (!allocationResult.ok) return { fieldErrors: {}, formError: "Please correct the marked fields.", values: result.values, allocations: allocationResult.values, allocationFieldErrors: allocationResult.errors, paymentMethodForm };
 
+  const isPersonal = !organizationIdFromForm(formData);
+  const budgetControl = isPersonal ? await getRepaymentBudgetControl(getDatabase(), session.user.id) : undefined;
+  const budgetParticipation = parseRepaymentBudgetParticipation(formData) ?? (budgetControl ? { includeInBudget: budgetControl.defaultIncluded } : undefined);
   const { ledger: repository } = await actionLedger(session, formData, "repayments.create");
   let contextTripId: string | undefined;
   const requestedTripId = normalizeUuid(typeof formData.get("tripId") === "string" ? formData.get("tripId") : undefined);
@@ -178,7 +187,7 @@ export async function createRepaymentAction(
 
   let repayment;
   try {
-    repayment = await repository.createRepaymentWithAllocations(result.value, allocationResult.value);
+    repayment = await repository.createRepaymentWithAllocations(result.value, allocationResult.value, isPersonal ? budgetParticipation : undefined);
   } catch (error) {
     return errorState(error, result.values, allocationResult.values, {}, paymentMethodForm);
   }
@@ -188,6 +197,22 @@ export async function createRepaymentAction(
   const redirectQuery = new URLSearchParams({ created: "1" });
   if (contextTripId) redirectQuery.set("tripId", contextTripId);
   redirect(`${ledgerPath(formData, "/repayments")}/${encodeURIComponent(repayment.id)}?${redirectQuery.toString()}`);
+}
+
+export async function setRepaymentBudgetParticipationAction(repaymentId: string, formData: FormData) {
+  const session = await requireSession();
+  const canonicalRepaymentId = normalizeUuid(repaymentId);
+  if (!canonicalRepaymentId) throw new BudgetError("INVALID_INPUT", "A valid Personal repayment is required.");
+  const database = getDatabase();
+  const scope = await getPersonalLedgerScopeId(database, session.user.id);
+  await setPersonalRepaymentBudgetParticipation(database, session.user.id, scope, canonicalRepaymentId, { includeInBudget: formData.get("includeInBudget") === "1" });
+  revalidatePath("/app");
+  revalidatePath("/app/personal");
+  revalidatePath("/app/repayments");
+  revalidatePath(`/app/repayments/${canonicalRepaymentId}`);
+  revalidatePath("/app/personal/budget");
+  revalidatePath("/app/personal/budget/transactions");
+  redirect(`/app/repayments/${canonicalRepaymentId}?budgetSaved=1#repayment-budget`);
 }
 
 export async function updateRepaymentAction(
