@@ -1,115 +1,16 @@
 
-.access-page {
-  background: var(--paper);
-}
-
-.access-page__field {
-  width: 24%;
-  background: var(--pastel-blue);
-}
-
-.access-page__marker {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.access-page__marker a {
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: -0.07em;
-  line-height: 1;
-  text-decoration: none;
-  text-transform: none;
-}
-
-.access-page__content {
-  grid-column: 2 / span 6;
-  max-width: 38rem;
-  padding-block: clamp(3rem, 5vw, 4.5rem);
-}
-
-.access-page h1 {
-  max-width: 10ch;
-  font-size: clamp(3.5rem, 7vw, 6.75rem);
-}
-
-.access-page__lede {
-  max-width: 29rem;
-  margin-top: 1.5rem;
-  font-size: 1rem;
-}
-
-.login-form {
-  max-width: 28rem;
-  margin-top: 2rem;
-  padding: 1.25rem;
-  border: 1px solid var(--ink);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
-}
-
-.login-form__field input {
-  border-radius: var(--radius-control);
-  background: var(--surface);
-}
-
-.login-form__remember input {
-  border-radius: var(--radius-sm);
-}
-
-.login-form__submit {
-  width: 100%;
-  min-width: 12rem;
-  border-radius: var(--radius-control);
-}
-
-.access-page__back {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  margin-top: 1rem;
-  color: var(--muted-ink);
-  font-size: 0.85rem;
-  text-underline-offset: 0.2em;
-}
-
-
-@media (max-width: 767px) {
-  .access-page__field {
-    width: 19%;
-    min-width: 4.5rem;
-  }
-
-  .access-page__content {
-    grid-column: 1 / -1;
-    padding-block: 3rem 1rem;
-    padding-right: 0.25rem;
-  }
-
-  .access-page h1 {
-    font-size: clamp(3.25rem, 14vw, 5rem);
-  }
-
-  .login-form {
-    margin-top: 1.75rem;
-    padding: 1rem;
-  }
-}
-
 /* Refined authenticated controls and row actions. */
-:is(.app-shell, .app-page, .task-panel, .login-form, .invite-form, .invite-signup-form, .expense-share-editor, .repayment-allocation-editor, .group-expense-form) :is(input, select, textarea):focus {
+:is(.app-shell, .app-page, .task-panel, .invite-form, .expense-share-editor, .repayment-allocation-editor, .group-expense-form) :is(input, select, textarea):focus {
   outline: none;
 }
 
-:is(.app-shell, .app-page, .task-panel, .login-form, .invite-form, .invite-signup-form, .expense-share-editor, .repayment-allocation-editor, .group-expense-form) :is(input, select, textarea):focus-visible {
+:is(.app-shell, .app-page, .task-panel, .invite-form, .expense-share-editor, .repayment-allocation-editor, .group-expense-form) :is(input, select, textarea):focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 2px var(--ink);
 }
 
 @media (forced-colors: active) {
-  :is(.app-shell, .app-page, .task-panel, .login-form, .invite-form, .invite-signup-form, .expense-share-editor, .repayment-allocation-editor, .group-expense-form) :is(input, select, textarea):focus-visible {
+  :is(.app-shell, .app-page, .task-panel, .invite-form, .expense-share-editor, .repayment-allocation-editor, .group-expense-form) :is(input, select, textarea):focus-visible {
     outline: 2px solid ButtonText;
     outline-offset: 2px;
     box-shadow: none;

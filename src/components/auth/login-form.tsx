@@ -40,7 +40,7 @@ export function LoginForm() {
   }
 
   return (
-    <form className="login-form" onSubmit={handleSubmit} noValidate>
+    <form className="login-form access-vnext__form" onSubmit={handleSubmit} noValidate>
       <div className="login-form__field">
         <label htmlFor="email">Email address</label>
         <input

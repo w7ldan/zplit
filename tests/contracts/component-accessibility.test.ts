@@ -6,6 +6,7 @@ const css = readCssBundle(root).css;
 const searchableComboboxSource = readSource("src/components/records/searchable-combobox.tsx");
 const recordsAndFormsSource = readSource("src/app/styles/30-records-and-forms.css");
 const lateOverridesSource = readSource("src/app/styles/90-late-overrides.css");
+const publicAuthSource = readSource("src/app/styles/70-public-auth-vnext.css");
 
 describe("Component and accessibility contract", () => {
   it("keeps browser defaults neutral and component typography authoritative", () => {
@@ -23,7 +24,7 @@ describe("Component and accessibility contract", () => {
     expect(linkBaseline).not.toMatch(/text-decoration:\s*(?:none|underline)/);
 
     expect(cssRuleBody(css, ".app-page__header h1")).toMatch(/font-size:[\s\S]*font-weight: 800;/);
-    expect(cssRuleBody(css, ".capability__copy h2")).toMatch(/font-size:[\s\S]*font-weight: 800;/);
+    expect(publicAuthSource).toMatch(/\.public-vnext h1,[\s\S]*?font-weight: 800;/);
     expect(cssRuleBody(css, ".text-link")).toContain("text-decoration: underline;");
     expect(cssRuleBody(css, ".header-shell__nav a")).toContain("text-decoration: none;");
     expect(cssRuleBody(css, ".friends-page__view")).toContain("text-decoration: none;");
@@ -34,9 +35,9 @@ describe("Component and accessibility contract", () => {
     expect(css).toContain("overflow-x: clip");
     expect(cssRuleBody(css, "html")).toContain("scrollbar-gutter: stable;");
     expect(css).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)");
-    expect(css).toContain(".journey-sticky--pinned");
-    expect(css).not.toContain("height: calc(100svh - var(--journey-sticky-top) - var(--journey-bottom-clearance))");
-    expect(css).toContain(".journey-scene__body");
+    expect(css).toContain(".public-vnext__flow");
+    expect(css).not.toContain("scroll-snap-type");
+    expect(css).not.toContain("wheel");
     expect(css).toContain(":is(input, select, textarea):focus-visible");
     expect(css).not.toMatch(/\.friend-form__field[^{}]*:focus(?!-)/);
     expect(css).not.toMatch(/\.repayment-form__field[^{}]*:focus(?!-)/);
@@ -52,9 +53,10 @@ describe("Component and accessibility contract", () => {
   it("anchors the native task panel without an implicit dialog gap", () => {
     const taskPanelRule = cssRuleBody(css, ".task-panel");
     expect(taskPanelRule).toContain("position: fixed;");
-    expect(taskPanelRule).toContain("inset: 0 0 0 auto;");
+    expect(taskPanelRule).toContain("inset-block: 0;");
+    expect(taskPanelRule).toContain("inset-inline-end: 0;");
     expect(taskPanelRule).toContain("margin: 0;");
-    expect(css).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.task-panel\s*\{[\s\S]*?inset:\s*auto 0 0;/);
+    expect(css).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.task-panel\s*\{[\s\S]*?inset-block-start:\s*auto;[\s\S]*?inset-block-end:\s*0;[\s\S]*?inset-inline:\s*0;/);
   });
 
   it("keeps searchable popups outside task-panel scroll clipping", () => {

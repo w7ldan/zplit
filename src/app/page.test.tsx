@@ -1,76 +1,41 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import HomePage from "./page";
 
 describe("public Zplit page", () => {
-  it("renders the motion piece's essential narrative independently of animation", () => {
+  it("renders the product story without motion-dependent content", () => {
     render(<HomePage />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "Make the number make sense." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Record shared money. See what remains." })).toBeInTheDocument();
     const navigation = within(screen.getByRole("navigation", { name: "Primary navigation" }));
-    expect(navigation.getByRole("link", { name: "The record" })).toHaveAttribute("href", "#record-flow");
-    expect(navigation.getByRole("link", { name: "Contexts" })).toHaveAttribute("href", "#contexts");
-    expect(navigation.getByRole("link", { name: "Together" })).toHaveAttribute("href", "#collaboration");
-    expect(within(document.querySelector(".site-header__actions")!).getByRole("link", { name: /Open Zplit/ })).toHaveAttribute("href", "/app");
-    for (const link of navigation.getAllByRole("link")) expect(document.querySelector(link.getAttribute("href")!)).toBeInTheDocument();
-
-    expect(screen.getByRole("heading", { level: 2, name: "Follow the amount." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Same situation. Different structure." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Talk around it. Keep it accounted for." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "A number can carry its proof." })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: /The record can travel/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: /No loose ends/ })).toBeInTheDocument();
+    for (const [name, href] of [["The record", "#record"], ["Contexts", "#contexts"], ["Privacy", "#private"]] as const) {
+      expect(navigation.getByRole("link", { name })).toHaveAttribute("href", href);
+      expect(document.querySelector(href)).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("link", { name: "Open Zplit" })).toHaveLength(3);
+    for (const link of screen.getAllByRole("link", { name: "Open Zplit" })) expect(link).toHaveAttribute("href", "/app");
+    expect(screen.getByRole("heading", { level: 2, name: "One record. Clearly followed." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Use the structure the money needs." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Keep the question attached to the record." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "The ledger stays private by default." })).toBeInTheDocument();
     expect(screen.getByText("Personal", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Group / Saturday crew", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("Organization / illustrative market team", { exact: true })).toBeInTheDocument();
-
-    expect(document.querySelectorAll("[data-public-timeline-desktop] [data-public-jump]")).toHaveLength(14);
-    const mobileTimeline = document.querySelector("[data-public-timeline-mobile]")!;
-    expect(mobileTimeline.querySelectorAll("[data-mobile-public-jump]")).toHaveLength(7);
-    expect(mobileTimeline).not.toHaveTextContent("SHARES");
-    expect(mobileTimeline).not.toHaveTextContent("REPAYMENT");
-    expect(mobileTimeline).not.toHaveTextContent("BALANCE");
-
-    const lifecycle = document.querySelector(".record-lifecycle")!;
-    expect(lifecycle.querySelectorAll("[data-lifecycle-panel]")).toHaveLength(3);
-    expect(lifecycle.querySelector('[data-lifecycle-panel="owner"]')).toHaveAttribute("data-lifecycle-active", "true");
-    expect(lifecycle.querySelector('[data-lifecycle-panel="share"]')).toHaveAttribute("data-lifecycle-active", "false");
-    expect(lifecycle.querySelector('[data-lifecycle-panel="history"]')).toHaveAttribute("data-lifecycle-active", "false");
+    expect(screen.getByText("Groups", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Organizations", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText(/Budget stays private/)).toBeInTheDocument();
+    expect(screen.getByText(/receipt supports context/i)).toBeInTheDocument();
+    expect(screen.getByText(/temporary, read-only link/i)).toBeInTheDocument();
+    expect(document.querySelectorAll(".public-vnext__flow-step")).toHaveLength(4);
+    expect(document.querySelectorAll(".public-vnext__money").length).toBeGreaterThan(4);
   });
 
-  it("keeps illustrative controls native and responsive", () => {
-    render(<HomePage />);
-
-    const recordControls = within(document.querySelector('[data-mobile-local-controls="record"]')!);
-    expect(recordControls.getByRole("button", { name: "SHARES" })).toHaveAttribute("aria-pressed", "false");
-    expect(recordControls.getByRole("button", { name: "EXPENSE" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(document.querySelector('[data-mobile-local-controls="scope"]')!).getByRole("button", { name: "GROUPS" })).toBeInTheDocument();
-    expect(within(document.querySelector('[data-mobile-local-controls="records"]')!).getByRole("button", { name: "HISTORY" })).toBeInTheDocument();
-
-    const participant = screen.getByRole("button", { name: /Sari/ });
-    fireEvent.click(participant);
-    expect(participant).toHaveAttribute("aria-pressed", "true");
-    expect(document.querySelector(".collaboration-demo")).toHaveAttribute("data-selected-person", "sari");
-
-    const search = screen.getByRole("searchbox", { hidden: true });
-    fireEvent.change(search, { target: { value: "train" } });
-    const searchResults = within(document.querySelector(".search-demo__results")!);
-    expect(searchResults.getByRole("button", { name: /Train home/, hidden: true })).toBeInTheDocument();
-    expect(searchResults.queryByRole("button", { name: /Market \+ picnic/, hidden: true })).not.toBeInTheDocument();
-
-    expect(document.querySelector(".private-demo")).toHaveAttribute("data-private-view", "owner");
-  });
-
-  it("keeps motion public-only and explicitly supports reduced motion", () => {
-    const publicStyles = readFileSync(path.resolve(process.cwd(), "src/app/styles/10-public.css"), "utf8");
-    const motionSource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/public-motion.tsx"), "utf8");
-    expect(publicStyles).toMatch(/\.public-home\b/);
-    expect(publicStyles).not.toMatch(/\.journey-|\.landing-reveal|\.story-motion/);
-    expect(motionSource).toMatch(/prefers-reduced-motion/);
-    expect(motionSource).toMatch(/gsap\.matchMedia/);
-    expect(motionSource).toMatch(/context\.revert/);
-    expect(document.querySelectorAll(".chat-message")).toHaveLength(0);
+  it("keeps the public implementation static, scoped, and motion-safe", () => {
+    const landingSource = readFileSync(path.resolve(process.cwd(), "src/components/editorial/public-landing.tsx"), "utf8");
+    const styles = readFileSync(path.resolve(process.cwd(), "src/app/styles/70-public-auth-vnext.css"), "utf8");
+    expect(landingSource).not.toMatch(/PublicMotion|ScrollTrigger|Observer|ScrollToPlugin|Flip|gsap|wheel|pointermove|mousemove/);
+    expect(styles).toContain(".public-vnext");
+    expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(styles).not.toMatch(/gradient|backdrop-filter|box-shadow:\s*0|perspective|Three\.js/i);
   });
 });

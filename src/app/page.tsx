@@ -1,28 +1,12 @@
+import { zplitVNextFont } from "@/app/fonts";
+import { PublicLanding } from "@/components/editorial/public-landing";
 import { SiteHeader } from "@/components/editorial/site-header";
-import { PublicMotion } from "@/components/editorial/public-motion";
-import {
-  CollaborationScene,
-  ContextsScene,
-  HeroScene,
-  LandingFinale,
-  PrivateAndHistoryScene,
-  ProofScene,
-  RecordFlowScene,
-} from "@/components/editorial/public-scenes";
 
 export default function HomePage() {
   return (
-    <PublicMotion>
+    <div className={`public-vnext zplit-vnext ${zplitVNextFont.variable}`} id="top">
       <SiteHeader />
-      <main>
-        <HeroScene />
-        <RecordFlowScene />
-        <ContextsScene />
-        <CollaborationScene />
-        <ProofScene />
-        <PrivateAndHistoryScene />
-      </main>
-      <LandingFinale />
-    </PublicMotion>
+      <PublicLanding />
+    </div>
   );
 }

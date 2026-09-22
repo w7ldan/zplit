@@ -16,14 +16,14 @@ export function SiteHeader() {
       brand={(
         <a href="#top" aria-label="Zplit home">
           <span className="site-header__wordmark">Zplit</span>
-          <span className="site-header__descriptor">SHARED EXPENSE LEDGER</span>
+          <span className="site-header__descriptor">SHARED MONEY, MADE LEGIBLE</span>
         </a>
       )}
       navigation={(
         <>
-          <a href="#record-flow">The record</a>
+          <a href="#record">The record</a>
           <a href="#contexts">Contexts</a>
-          <a href="#collaboration">Together</a>
+          <a href="#private">Privacy</a>
         </>
       )}
       actions={<ActionLink href="/app" variant="primary" className="site-header__access">Open Zplit</ActionLink>}

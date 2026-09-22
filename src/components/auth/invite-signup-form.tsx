@@ -24,7 +24,7 @@ function SubmitButton() {
 export function InviteSignupForm({ email, suggestedName, action }: { email: string; suggestedName?: string | null; action: JoinAction }) {
   const [state, formAction] = useActionState(action, { ...emptyState, values: { username: "", name: suggestedName ?? "" } });
   return (
-    <form className="invite-signup-form" action={formAction} noValidate>
+    <form className="invite-signup-form access-vnext__form" action={formAction} noValidate>
       <div className="invite-signup-form__invitee">
         <span className="technical-label">Invited email</span>
         <strong>{email}</strong>

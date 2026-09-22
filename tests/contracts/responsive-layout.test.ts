@@ -1,213 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { readCssBundle } from "@/test/read-css-bundle";
-import { cssAtRuleBodies, cssRuleBody, readSource, root } from "./helpers";
+import { readSource } from "./helpers";
 
-const css = readCssBundle(root).css;
-const foundationSource = readSource("src/app/styles/00-foundation.css");
-const publicSource = readSource("src/app/styles/10-public.css");
-const authenticatedShellSource = readSource("src/app/styles/20-authenticated-shell.css");
-const headerVnextSource = readSource("src/app/styles/60-authenticated-header-vnext.css");
-const sharedPublicVnextSource = readSource("src/app/styles/65-shared-public-vnext.css");
-const recordsAndFormsSource = readSource("src/app/styles/30-records-and-forms.css");
-const lateOverridesSource = readSource("src/app/styles/90-late-overrides.css");
+const publicAuth = readSource("src/app/styles/70-public-auth-vnext.css");
+const publicLanding = readSource("src/components/editorial/public-landing.tsx");
+const sharedPublic = readSource("src/app/styles/65-shared-public-vnext.css");
+const foundation = readSource("src/app/styles/00-foundation.css");
 
 describe("Responsive layout contract", () => {
-  it("keeps public and authenticated geometry on their intended canvases", () => {
-    expect(cssRuleBody(css, ".editorial-shell")).toContain("width: min(calc(100% - 2rem), 90rem);");
-    expect(cssRuleBody(css, ".header-shell__panel")).toContain("max-width: 90rem;");
-    expect(cssRuleBody(css, ".header-shell__panel--detached")).toContain("max-width: 72rem;");
-    expect(headerVnextSource).toContain(".app-shell .editorial-shell,");
-    expect(headerVnextSource).toContain("--authenticated-canvas-max-width: 118rem;");
-    expect(headerVnextSource).toContain("width: min(calc(100% - var(--authenticated-canvas-gutter)), var(--authenticated-canvas-max-width));");
-    expect(headerVnextSource).toContain(".app-shell .header-shell__panel,");
-    expect(headerVnextSource).toContain(".app-shell .header-shell__panel--detached");
-
-    const appShellRules = [...authenticatedShellSource.matchAll(/\.app-shell\s*\{([^{}]*)\}/g)].map((match) => match[1]);
-    expect(publicSource).toContain(".public-home { background: var(--paper); }");
-    expect(appShellRules.at(-1)).toContain("background: var(--paper);");
-    expect(cssRuleBody(authenticatedShellSource, ".app-page")).toContain("background: var(--paper);");
-    expect(authenticatedShellSource).not.toMatch(/\.app-shell\s*\{[^{}]*background:\s*var\(--surface\)/);
-    expect(authenticatedShellSource).not.toMatch(/\.app-page\s*\{[^{}]*background:\s*var\(--surface\)/);
-    expect(cssRuleBody(lateOverridesSource, ".login-form")).toContain("background: var(--surface);");
+  it("recomposes the public document instead of switching to a second mobile product", () => {
+    expect(publicLanding).not.toContain("mobile");
+    expect(publicAuth).toContain("@media (max-width: 767px)");
+    expect(publicAuth).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.public-vnext__flow\s*\{[\s\S]*?grid-template-columns: 1fr;/);
+    expect(publicAuth).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.public-vnext__privacy-example\s*\{[\s\S]*?grid-template-columns: 1fr;/);
+    expect(publicAuth).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.public-vnext \.site-header__nav\s*\{[\s\S]*?grid-column: 1 \/ -1;/);
+    expect(publicAuth).not.toMatch(/scroll-snap|height:\s*calc\([^)]*svh|position:\s*fixed/);
   });
 
-  it("keeps authenticated attached and detached header treatments distinct without changing the wrapper footprint", () => {
-    const wrapper = cssRuleBody(headerVnextSource, ".app-shell .header-shell");
-    const canvasGeometry = cssRuleBody(headerVnextSource, ".app-shell .editorial-shell,\n.app-shell .app-shell__header-layout,\n.app-shell .header-shell__panel");
-    const attachedPanel = cssRuleBody(headerVnextSource, ".app-shell .header-shell__panel,\n.app-shell .app-shell__header-layout");
-    const detachedPanel = cssRuleBody(headerVnextSource, ".app-shell .header-shell__panel--detached");
-
-    expect(wrapper).toContain("min-height: var(--authenticated-header-height);");
-    expect(wrapper).toContain("padding-block: 0.7rem;");
-    expect(canvasGeometry).toContain("width: min(calc(100% - var(--authenticated-canvas-gutter)), var(--authenticated-canvas-max-width));");
-    expect(attachedPanel).toContain("min-height: 3.85rem;");
-    expect(attachedPanel).toContain("border: 1px solid transparent;");
-    expect(attachedPanel).toContain("background: transparent;");
-    expect(attachedPanel).toContain("transition: width var(--motion-layout) var(--ease-product), max-width var(--motion-layout) var(--ease-product),");
-    expect(detachedPanel).toContain("width: min(calc(100% - var(--authenticated-header-detached-gutter)), calc(var(--authenticated-canvas-max-width) - 3rem));");
-    expect(detachedPanel).toContain("max-width: calc(var(--authenticated-canvas-max-width) - 3rem);");
-    expect(detachedPanel).toContain("border-color: var(--authenticated-header-rule);");
-    expect(detachedPanel).toContain("border-radius: var(--radius-panel);");
-    expect(detachedPanel).toContain("background: var(--authenticated-header-surface);");
-    expect(detachedPanel).toContain("box-shadow: none;");
-    expect(detachedPanel).not.toMatch(/\bmin-height\s*:/);
-    expect(detachedPanel).not.toMatch(/\bpadding\s*:/);
+  it("keeps access forms bounded and usable on narrow screens", () => {
+    expect(publicAuth).toContain(".access-vnext__content");
+    expect(publicAuth).toContain("overflow-wrap: anywhere;");
+    expect(publicAuth).toMatch(/\.access-vnext \.login-form__field input,[\s\S]*?width: 100%;/);
+    expect(publicAuth).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.access-vnext \.login-form__submit,[\s\S]*?width: 100%;/);
+    expect(publicAuth).toContain("@media (max-height: 640px) and (min-width: 768px)");
   });
 
-  it("keeps trip detail columns wide and repayment activity labels on one line", () => {
-    expect(recordsAndFormsSource).toMatch(/\.trip-record__meta,[\s\S]*?\.trip-record__outings\s*\{[\s\S]*?grid-column:\s*1 \/ -1;/);
-    expect(authenticatedShellSource).toContain("grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr) auto;");
-    expect(authenticatedShellSource).toContain(".activity-row > span:first-child");
-    expect(authenticatedShellSource).toContain("white-space: nowrap;");
-  });
-
-  it("keeps the desktop Journey on a centered narrower working canvas", () => {
-    const desktopStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) {");
-    const mobileStart = publicSource.indexOf("@media (max-width: 959px) {");
-    const desktop = publicSource.slice(desktopStart, mobileStart);
-    const journeyWidth = "width: min(calc(100% - clamp(4rem, 10vw, 10rem)), 72rem);";
-
-    expect(desktopStart).toBeGreaterThanOrEqual(0);
-    expect(mobileStart).toBeGreaterThan(desktopStart);
-    expect(desktop).toContain(`.journey-editorial, .journey-stage { ${journeyWidth} margin-inline: auto; }`);
-    expect(publicSource).not.toContain("width: min(calc(100% - clamp(4rem, 10vw, 10rem)), 82rem);");
-    expect(publicSource.slice(0, desktopStart)).not.toContain(journeyWidth);
-    expect(publicSource.slice(mobileStart)).not.toContain(journeyWidth);
-
-    for (const viewport of [1280, 1366, 1440, 1477, 1536, 1920]) {
-      const gutter = Math.min(10 * viewport / 100, 10 * 16);
-      const width = Math.min(viewport - gutter, 72 * 16);
-      expect(width).toBeGreaterThan(0);
-      expect(width).toBeLessThanOrEqual(1152);
-    }
-    const viewport = 1477;
-    const width = Math.min(viewport - Math.min(10 * viewport / 100, 10 * 16), 72 * 16);
-    expect(width).toBe(1152);
-    expect((viewport - width) / 2).toBeCloseTo(162.5, 1);
-  });
-
-  it("keeps compact Journey density bounded to short pinned desktops", () => {
-    const desktopStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) {");
-    const compactStart = publicSource.indexOf("@media (min-width: 960px) and (min-height: 720px) and (max-height: 850px) {");
-    const mobileStart = publicSource.indexOf("@media (max-width: 959px) {");
-    const compact = publicSource.slice(compactStart, mobileStart);
-    const normalDesktop = publicSource.slice(desktopStart, compactStart);
-
-    expect(compactStart).toBeGreaterThan(desktopStart);
-    expect(mobileStart).toBeGreaterThan(compactStart);
-    expect(compact).toContain(".journey-sticky--pinned {");
-    for (const value of [
-      "--journey-tab-height: 2.35rem",
-      "--journey-tab-number-size: 1.2rem",
-      "--journey-announcement-min-height: 2.9rem",
-      "--journey-announcement-heading-size: 1.35rem",
-      "--journey-frame-body-padding: 0.55rem 1rem",
-      "--journey-scene-gap: 1.25rem",
-      "--journey-row-height: 2.15rem",
-      "--journey-share-row-height: 1.7rem",
-    ]) expect(compact).toContain(value);
-    expect(normalDesktop).toContain("--journey-tab-height: 2.65rem");
-    expect(normalDesktop).toContain("--journey-announcement-min-height: 3.4rem");
-    expect(normalDesktop).toContain("--journey-row-height: 2.4rem");
-    expect(publicSource.slice(0, compactStart)).not.toContain("max-height: 850px");
-    expect(publicSource.slice(mobileStart)).not.toContain("max-height: 850px");
-  });
-
-  it("keeps detail grids owned, stable, and mobile-safe", () => {
-    expect(recordsAndFormsSource).not.toContain("grid-column: 1 / span 6");
-    expect(recordsAndFormsSource).not.toContain("grid-column: 2 / span 5");
-    for (const selector of [".outing-record__summary", ".outing-record__workspace", ".expense-record__controls", ".repayment-record__controls", ".trip-record__summary"]) {
-      expect(recordsAndFormsSource).toContain(selector);
-    }
-    expect(recordsAndFormsSource).toContain("grid-template-columns: repeat(12, minmax(0, 1fr));");
-    expect(recordsAndFormsSource).toContain("grid-column: 1 / span 8;");
-    expect(recordsAndFormsSource).toContain("grid-column: 9 / -1;");
-    expect(recordsAndFormsSource).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.friend-record__workspace\s*\{[\s\S]*?grid-template-columns: 1fr;[\s\S]*?\.expense-record__tasks,[\s\S]*?grid-template-columns: 1fr;/);
-    expect(recordsAndFormsSource).not.toContain("overflow-x: clip");
-  });
-
-  it("keeps desktop record columns semantic and aligned", () => {
-    expect(recordsAndFormsSource).toMatch(/@media \(min-width: 960px\)[\s\S]*?\.expense-row__meta,[\s\S]*?\.repayment-row__meta\s*\{[\s\S]*?display: contents;/);
-    expect(recordsAndFormsSource).toContain("minmax(0, 2fr) minmax(7rem, auto) minmax(7rem, auto)");
-    expect(recordsAndFormsSource).toContain("minmax(0, 2fr) minmax(7rem, auto) minmax(8rem, auto)");
-  });
-
-  it("keeps long record values bounded in rows while leaving detail values unclamped", () => {
-    expect(css).toMatch(/\.friend-row,[\s\S]*?\.repayment-row\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?overflow-wrap:\s*anywhere;/);
-    expect(css).toMatch(/\.friend-row__primary h2 a,[\s\S]*?\.repayment-row__primary h2 a\s*\{[\s\S]*?-webkit-line-clamp:\s*2;/);
-    expect(css).toMatch(/\.friend-row__meta > \*,[\s\S]*?\.repayment-row__meta > \*\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?overflow-wrap:\s*anywhere;/);
-    expect(css).toMatch(/\.balance-row\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) auto;/);
-    expect(css).toMatch(/\.activity-row small\s*\{[\s\S]*?overflow-wrap:\s*anywhere;[\s\S]*?white-space:\s*normal;/);
-    expect(css).toMatch(/\.friend-record__intro h1,[\s\S]*?\.repayment-record__intro h1\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/);
-    expect(cssRuleBody(css, ".friend-record__intro h1, .outing-record__intro h1, .expense-record__intro h1, .repayment-record__intro h1")).not.toContain("-webkit-line-clamp");
-  });
-
-  it("keeps debtor statement values and headings responsive at the owning breakpoint", () => {
-    expect(cssRuleBody(sharedPublicVnextSource, ".debtor-statement__item-values")).toContain("grid-template-columns: repeat(3, minmax(0, 1fr));");
-    expect(cssRuleBody(sharedPublicVnextSource, ".debtor-statement__destination-heading,\n.debtor-statement__item-heading,\n.debtor-statement__repayment-heading,\n.debtor-statement__shared-receipts-heading")).toContain("display: flex;");
-    expect(sharedPublicVnextSource).toMatch(/@media \(max-width: 640px\)[\s\S]*?\.debtor-statement__item-values,[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
-    expect(sharedPublicVnextSource).toMatch(/@media \(max-width: 380px\)[\s\S]*?\.debtor-statement__item-values,[\s\S]*?grid-template-columns: 1fr;/);
-    expect(publicSource).not.toContain(".debtor-statement");
-    expect(lateOverridesSource).not.toContain(".debtor-statement");
-  });
-
-  it("keeps the public share workspace recomposable and touch-safe", () => {
-    expect(cssRuleBody(sharedPublicVnextSource, ".debtor-statement__workspace--with-destinations")).toContain("grid-template-areas: \"history destinations\";");
-    expect(sharedPublicVnextSource).toMatch(/@media \(max-width: 900px\)[\s\S]*?\.debtor-statement__workspace--with-destinations\s*\{[\s\S]*?grid-template-areas: "destinations" "history";/);
-    expect(sharedPublicVnextSource).toContain("min-block-size: 2.75rem;");
-    expect(sharedPublicVnextSource).toContain("min-block-size: 2.5rem;");
-    expect(sharedPublicVnextSource).toContain("@media (prefers-reduced-motion: reduce)");
-  });
-
-  it("keeps both headers on one centered three-region detached shell", () => {
-    const header = cssRuleBody(css, ".header-shell");
-    const panel = cssRuleBody(css, ".header-shell__panel");
-    const detachedPanel = cssRuleBody(css, ".header-shell__panel--detached");
-    expect(header).toContain("position: sticky;");
-    expect(header).toContain("pointer-events: none;");
-    expect(panel).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);");
-    expect(panel).toContain("width: min(calc(100% - 2rem), 90rem);");
-    expect(panel).toContain("max-width: 90rem;");
-    expect(panel).toContain("border-bottom: 1px solid transparent;");
-    expect(panel).toContain("pointer-events: auto;");
-    expect(panel).toMatch(/transition:\s*width\s+var\(--motion-state\)/);
-    expect(detachedPanel).toContain("width: min(calc(100% - 2rem), 72rem);");
-    expect(detachedPanel).toContain("max-width: 72rem;");
-    expect(detachedPanel).toContain("transform: translateY(0.6rem);");
-    expect(detachedPanel).toContain("border: 1px solid var(--rule);");
-    expect(detachedPanel).toContain("border-radius: var(--radius-panel);");
-    expect(detachedPanel).toContain("background: var(--surface);");
-    expect(detachedPanel).toContain("box-shadow:");
-    expect(cssRuleBody(css, ".header-shell__brand")).toContain("justify-self: start;");
-    expect(cssRuleBody(css, ".header-shell__brand > *")).toContain("display: flex;");
-    expect(cssRuleBody(css, ".header-shell__brand > *")).toContain("gap: inherit;");
-    expect(cssRuleBody(css, ".header-shell__nav")).toContain("justify-self: center;");
-    expect(cssRuleBody(css, ".header-shell__actions")).toContain("justify-self: end;");
-    expect(cssRuleBody(css, ".public-home .header-shell__panel--detached")).toContain("border-color: var(--rule);");
-    expect(css).not.toContain(".app-shell__header--detached {");
-    expect(css).not.toContain(".app-shell__header-layout--detached {");
-    expect(css).toMatch(/\.header-shell__nav a::after\s*\{[\s\S]*?transition: transform var\(--motion-instant\) var\(--ease-out\);/);
-    expect(css).toMatch(/@media \(hover: hover\) and \(pointer: fine\)\s*\{[\s\S]*?\.header-shell__nav a:hover::after\s*\{[\s\S]*?transform: scaleX\(1\);/);
-    expect(headerVnextSource).toContain(".app-shell__nav-link:hover,");
-    expect(headerVnextSource).toContain(".app-shell__mobile-nav {");
-    expect(headerVnextSource).toContain("overflow-x: auto;");
-  });
-
-  it("keeps shared/public and authenticated header breakpoints independent", () => {
-    const sharedDesktop = cssAtRuleBodies(foundationSource, "@media (min-width: 1024px)");
-    const authenticatedDesktop = cssAtRuleBodies(headerVnextSource, "@media (max-width: 1199px)");
-    const authenticatedPanel = ".app-shell .header-shell__panel,\n.app-shell .app-shell__header-layout,\n.app-shell .header-shell__panel--detached";
-
-    expect(sharedDesktop).toHaveLength(1);
-    expect(cssRuleBody(sharedDesktop[0], ".header-shell__panel")).toContain("display: grid;");
-    expect(foundationSource).not.toContain("@media (min-width: 1200px)");
-    expect(cssRuleBody(publicSource, ".site-header")).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);");
-    expect(headerVnextSource).toContain("display: grid;");
-    expect(authenticatedDesktop).toHaveLength(1);
-    expect(cssRuleBody(authenticatedDesktop[0], authenticatedPanel)).toContain("grid-template-columns: auto minmax(0, 1fr) auto;");
-  });
-
-  it("keeps the public mobile header grid in the public fragment", () => {
-    expect(publicSource).toMatch(/@media \(max-width: 767px\)\s*\{\s*\.public-home \.site-header\s*\{[^}]*display: grid;[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+  it("leaves accepted Shared/Public Links layout ownership intact", () => {
+    expect(sharedPublic).toContain(".debtor-statement__workspace--with-destinations");
+    expect(sharedPublic).toContain("@media (max-width: 900px)");
+    expect(sharedPublic).toContain("@media (max-width: 640px)");
+    expect(sharedPublic).toContain("@media (max-width: 380px)");
+    expect(sharedPublic).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(foundation).toContain("scrollbar-gutter: stable;");
   });
 });

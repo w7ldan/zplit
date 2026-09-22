@@ -65,14 +65,15 @@ describe("Repository styling toolchain contract", () => {
     expect(cssRuleBody(baselineCss, "body")).toMatch(/margin: 0;[\s\S]*background: var\(--paper\);[\s\S]*font-family: var\(--font-body\);/);
   });
 
-  it("removes only the dead files and preserves authoritative paths", () => {
-    for (const file of ["src/components/editorial/chapter-label.tsx", "src/components/editorial/product-journey.tsx", "src/components/editorial/product-journey.test.tsx", "src/lib/utils.ts", "src/lib/utils.test.ts"]) {
+  it("removes superseded public motion files and preserves current paths", () => {
+    for (const file of ["src/components/editorial/chapter-label.tsx", "src/components/editorial/product-journey.tsx", "src/components/editorial/product-journey.test.tsx", "src/lib/utils.ts", "src/lib/utils.test.ts", "src/components/editorial/public-motion.tsx", "src/components/editorial/public-scenes.tsx", "src/components/editorial/public-interactions.tsx", "src/components/editorial/public-scenario.ts"]) {
       expect(existsSync(path.join(root, file))).toBe(false);
     }
-    for (const file of ["src/components/editorial/journey-showcase.tsx", "src/components/editorial/journey-showcase.test.tsx", "src/auth/cli.ts"]) {
+    for (const file of ["src/components/editorial/public-landing.tsx", "src/components/editorial/access-frame.tsx", "src/components/editorial/site-header.tsx", "src/auth/cli.ts"]) {
       expect(existsSync(path.join(root, file))).toBe(true);
     }
-    expect(css).toContain(".product-journey {");
+    expect(css).toContain(".public-vnext__hero");
+    expect(packageJson.dependencies).not.toHaveProperty("gsap");
     for (const alias of ["CreateFriendInput", "UpdateFriendInput", "CreateOutingInput", "UpdateOutingInput", "CreateExpenseInput", "UpdateExpenseInput", "CreateRepaymentInput", "UpdateRepaymentInput"]) {
       expect(ledgerTypes).toContain(alias);
     }

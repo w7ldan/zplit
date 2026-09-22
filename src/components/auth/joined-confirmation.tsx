@@ -24,7 +24,7 @@ export function JoinedConfirmation({ active = false }: { active?: boolean }) {
 
   return (
     <p
-      className="login-form__success"
+      className="access-vnext__confirmation"
       role="status"
       aria-live="polite"
       aria-hidden={visible ? undefined : true}

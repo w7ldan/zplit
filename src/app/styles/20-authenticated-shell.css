@@ -686,8 +686,6 @@
     line-height: 1.6;
   }
 
-  .access-page__field,
-  .protected-page__field,
   .ledger-overview::before,
   .friends-page::before,
   .friend-record::before,
@@ -752,38 +750,6 @@
     padding-top: 0.75rem;
   }
 
-  .access-page__layout,
-  .protected-page__layout {
-    padding-block: 1.5rem 3.5rem;
-  }
-
-  .access-page__content,
-  .protected-page__content {
-    grid-column: 1 / -1;
-    padding-block: 3.5rem 1rem;
-    padding-right: 0.5rem;
-  }
-
-  .access-page h1,
-  .protected-page h1 {
-    font-size: clamp(3.5rem, 15vw, 5.5rem);
-  }
-
-  .access-page__lede,
-  .protected-page__lede {
-    max-width: 24rem;
-    font-size: 1rem;
-  }
-
-  .login-form {
-    margin-top: 2.5rem;
-  }
-
-  .protected-page__identity {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    margin-top: 2.5rem;
-  }
 }
 
 @media (max-width: 767px) {

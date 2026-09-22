@@ -23,11 +23,11 @@ describe("root PWA metadata", () => {
   it("publishes generic Open Graph and Twitter metadata", () => {
     expect(metadata).toMatchObject({
       title: { default: "Zplit — Shared expenses, clearly settled", template: "%s · Zplit" },
-      description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
+      description: "Record shared expenses, make responsibility explicit, track repayments, and keep context attached.",
       metadataBase: new URL("https://idr.wildan.lol"),
       openGraph: {
         title: "Zplit — Shared expenses, clearly settled",
-        description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
+        description: "Record shared expenses, make responsibility explicit, track repayments, and keep context attached.",
         url: "https://idr.wildan.lol",
         siteName: "Zplit",
         locale: "en_US",
@@ -36,7 +36,7 @@ describe("root PWA metadata", () => {
       twitter: {
         card: "summary_large_image",
         title: "Zplit — Shared expenses, clearly settled",
-        description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
+        description: "Record shared expenses, make responsibility explicit, track repayments, and keep context attached.",
       },
     });
   });

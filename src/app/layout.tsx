@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     template: "%s · Zplit",
   },
   applicationName: "Zplit",
-  description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
+  description: "Record shared expenses, make responsibility explicit, track repayments, and keep context attached.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Zplit — Shared expenses, clearly settled",
-    description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
+    description: "Record shared expenses, make responsibility explicit, track repayments, and keep context attached.",
     url: "https://idr.wildan.lol",
     siteName: "Zplit",
     locale: "en_US",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Zplit — Shared expenses, clearly settled",
-    description: "Record outings, assign friend shares, and track repayments until every balance is clear.",
+    description: "Record shared expenses, make responsibility explicit, track repayments, and keep context attached.",
   },
 };
 

@@ -19,6 +19,7 @@ const organizationsVnextSource = readSource("src/app/styles/50-organizations-vne
 const supportVnextSource = readSource("src/app/styles/55-authenticated-support-vnext.css");
 const headerVnextSource = readSource("src/app/styles/60-authenticated-header-vnext.css");
 const sharedPublicVnextSource = readSource("src/app/styles/65-shared-public-vnext.css");
+const publicAuthSource = readSource("src/app/styles/70-public-auth-vnext.css");
 const requiredImports = [
   "src/app/styles/00-foundation.css",
   "src/app/styles/05-vnext-foundation.css",
@@ -34,6 +35,7 @@ const requiredImports = [
   "src/app/styles/55-authenticated-support-vnext.css",
   "src/app/styles/60-authenticated-header-vnext.css",
   "src/app/styles/65-shared-public-vnext.css",
+  "src/app/styles/70-public-auth-vnext.css",
 ];
 
 describe("Repository CSS architecture contract", () => {
@@ -77,12 +79,12 @@ describe("Repository CSS architecture contract", () => {
 
     const anchors = [
       ".header-shell {",
-      ".public-home {",
       ".app-shell {",
       ".friend-row,\n.outing-row,",
       ".live-record-filters {",
       ".record-pagination {\n  display: flex;",
       ".task-panel {",
+      ".public-vnext,",
     ].map((anchor) => bundle.css.indexOf(anchor));
 
     expect(anchors.every((index) => index >= 0)).toBe(true);
@@ -192,14 +194,10 @@ describe("Repository CSS architecture contract", () => {
     expect(lateOverridesSource).not.toContain(".friend-share {");
     expect(authenticatedSource).not.toContain(".site-header");
     expect(authenticatedSource).not.toContain(".public-home");
-    expect(publicSource).toContain(".public-home .site-header__access");
-    expect(publicSource).toContain(".public-home .header-shell__panel--detached");
-    expect(publicSource).toContain(".journey-scene__body");
-    expect(publicSource).toContain(".landing-reveal");
-    expect(publicSource).toContain(".capability--search");
-    expect(publicSource).toContain(".capability--receipt");
-    expect(publicSource).toContain(".capability--private");
-    expect(publicSource).toContain(".story-close");
+    expect(publicAuthSource).toContain(".public-vnext .site-header__access");
+    expect(publicAuthSource).toContain(".public-vnext .header-shell__panel--detached");
+    expect(publicAuthSource).toContain(".access-vnext");
+    expect(publicAuthSource).not.toMatch(/journey-|landing-reveal|capability--|story-close/);
     expect(lateOverridesSource).not.toContain(".journey-");
     expect(lateOverridesSource).not.toContain(".landing-reveal");
     expect(lateOverridesSource).not.toContain(".public-home");
@@ -210,6 +208,7 @@ describe("Repository CSS architecture contract", () => {
     expect(recordsAndFormsSource).not.toContain(".debtor-statement");
     expect(motionSource).not.toContain(".friend-share__");
     expect(publicSource).not.toContain(".debtor-statement");
+    expect(publicAuthSource).not.toContain(".debtor-statement");
     expect(lateOverridesSource).not.toContain(".debtor-statement");
     expect(sharedPublicVnextSource).toContain(".debtor-statement.zplit-vnext");
     expect(sharedPublicVnextSource).toContain(".friend-record .friend-share");
