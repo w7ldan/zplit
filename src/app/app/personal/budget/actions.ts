@@ -62,7 +62,10 @@ export type BudgetTransitionValues = {
   totalBudget: string;
   categories: Array<{ id: string; name: string; allocation: string }>;
   recurrence: BudgetRecurringTransitionSelection[];
+  confirmPreviousPeriodShortening: boolean;
 };
+
+export type BudgetArchiveValues = { expectedActivePeriodId: string; closeThrough: string };
 
 export type BudgetSpreadValues = { transactionId: string; count: string };
 
@@ -86,7 +89,7 @@ function textValue(formData: FormData, name: string) {
 function budgetErrorMessage(error: unknown, fallback: string) {
   if (!(error instanceof BudgetError)) return fallback;
   return {
-    INVALID_INPUT: "Please correct the marked fields.",
+    INVALID_INPUT: error.message || "Please correct the marked fields.",
     NOT_CONFIGURED: "Budgeting is not configured yet.",
     ALREADY_CONFIGURED: "Budgeting is already configured.",
     NOT_FOUND: "That budget record is no longer available.",
@@ -283,6 +286,7 @@ function transitionValues(formData: FormData): BudgetTransitionValues {
         categoryId: recurrenceCategoryIds[index] ? recurrenceCategoryIds[index] : null,
       };
     }),
+    confirmPreviousPeriodShortening: formData.get("confirmPreviousPeriodShortening") === "on",
   };
 }
 
@@ -320,7 +324,7 @@ export async function startBudgetPeriodFromPausedAction(_previousState: BudgetFo
   if (!parsed.ok) return parsed.state;
   try {
     const session = await requireSession();
-    await startBudgetPeriodFromPaused(getDatabase(), session.user.id, { expectedLatestPeriodId: values.expectedActivePeriodId, name: values.name, startsOn: values.startsOn, endsOn: values.endsOn, totalBudget: parsed.totalBudget, allocations: parsed.allocations, recurrence: values.recurrence });
+    await startBudgetPeriodFromPaused(getDatabase(), session.user.id, { expectedLatestPeriodId: values.expectedActivePeriodId, name: values.name, startsOn: values.startsOn, endsOn: values.endsOn, totalBudget: parsed.totalBudget, allocations: parsed.allocations, recurrence: values.recurrence, confirmPreviousPeriodShortening: values.confirmPreviousPeriodShortening });
   } catch (error) {
     return { fieldErrors: {}, formError: budgetErrorMessage(error, "Unable to start a new budget period."), values };
   }
@@ -328,13 +332,16 @@ export async function startBudgetPeriodFromPausedAction(_previousState: BudgetFo
   redirect("/app/personal/budget");
 }
 
-export async function archiveActiveBudgetPeriodAction(formData: FormData) {
-  const expectedActivePeriodId = textValue(formData, "expectedActivePeriodId");
+export async function archiveActiveBudgetPeriodAction(_previousState: BudgetFormState<BudgetArchiveValues>, formData: FormData): Promise<BudgetFormState<BudgetArchiveValues>> {
+  const values = { expectedActivePeriodId: textValue(formData, "expectedActivePeriodId"), closeThrough: textValue(formData, "closeThrough") };
+  if (!isValidBudgetDate(values.closeThrough)) {
+    return { fieldErrors: { closeThrough: "Choose a valid closing date." }, formError: "Please correct the marked field.", values };
+  }
   try {
     const session = await requireSession();
-    await archiveActiveBudgetPeriod(getDatabase(), session.user.id, expectedActivePeriodId);
-  } catch {
-    redirect("/app/personal/budget?error=archive");
+    await archiveActiveBudgetPeriod(getDatabase(), session.user.id, values.expectedActivePeriodId, values.closeThrough);
+  } catch (error) {
+    return { fieldErrors: {}, formError: budgetErrorMessage(error, "Unable to archive this budget period."), values };
   }
   revalidateBudget();
   redirect("/app/personal/budget?archived=1");

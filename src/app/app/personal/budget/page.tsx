@@ -4,9 +4,10 @@ import { getDatabase } from "@/db/client";
 import { formatRupiah } from "@/domain/rupiah";
 import { formatSignedRupiah } from "@/domain/budgeting/amounts";
 import { formatCalendarDate } from "@/components/editorial/calendar-date";
+import { localCalendarDate } from "@/domain/budgeting/dates";
 import { TaskPanel } from "@/components/app/task-panel";
 import { RecordConfirmation } from "@/components/app/record-confirmation";
-import { BudgetSetupForm, BudgetPlanForm, BudgetTransactionForm, BudgetTransitionForm } from "@/components/budgeting/budget-forms";
+import { BudgetArchiveForm, BudgetSetupForm, BudgetPlanForm, BudgetTransactionForm, BudgetTransitionForm } from "@/components/budgeting/budget-forms";
 import { SafeDaily } from "@/components/budgeting/safe-daily";
 import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
 import { BudgetCategoryList } from "@/components/budgeting/budget-category-list";
@@ -329,6 +330,8 @@ function ActiveBudgetPage({ dashboard, query }: { dashboard: ActiveBudgetDashboa
   const openManage = createMode === "plan";
   const openNext = createMode === "period";
   const openArchive = firstQueryValue(query.archive) === "1";
+  const today = localCalendarDate(new Date());
+  const defaultCloseThrough = today < period.startsOn ? period.startsOn : today > period.endsOn ? period.endsOn : today;
   return (
     <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
@@ -378,10 +381,7 @@ function ActiveBudgetPage({ dashboard, query }: { dashboard: ActiveBudgetDashboa
               <li>Personal and Group ledger records continue normally.</li>
               <li>You can start a new Budget period later using the existing categories and history.</li>
             </ul>
-            <form action={archiveActiveBudgetPeriodAction}>
-              <input type="hidden" name="expectedActivePeriodId" value={period.id} />
-              <button className="vnext-button vnext-button--secondary action-link" type="submit">Archive period</button>
-            </form>
+            <BudgetArchiveForm action={archiveActiveBudgetPeriodAction} period={period} defaultCloseThrough={defaultCloseThrough} />
           </div>
         </TaskPanel>
       ) : null}

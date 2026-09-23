@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -218,6 +218,28 @@ describe("/app/personal/budget task-panel modes", () => {
     expect(within(dialog).getByText("Coming into this period")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Start new period" })).toBeInTheDocument();
     expect(within(dialog).getByDisplayValue(closed.id)).toHaveAttribute("name", "expectedLatestPeriodId");
+    const startsOn = within(dialog).getByLabelText("Starts on");
+    fireEvent.input(startsOn, { target: { value: "2026-10-15" } });
+    expect(startsOn).toHaveValue("2026-10-15");
+    const notice = dialog.querySelector<HTMLElement>("[data-period-shortening-notice]");
+    expect(notice).toBeInTheDocument();
+    expect(notice).toHaveTextContent("will shorten October so it ends on");
+    expect(within(dialog).getByRole("checkbox", { name: "Confirm shortening the previous period." })).toBeRequired();
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Confirm shortening the previous period." }));
+    expect(within(dialog).getByRole("checkbox", { name: "Confirm shortening the previous period." })).toBeChecked();
+  });
+
+  it("offers a close-through date when archiving the active period", async () => {
+    render(await BudgetPage({ searchParams: Promise.resolve({ archive: "1" }) }));
+
+    const dialog = screen.getByRole("dialog");
+    const closeThrough = within(dialog).getByLabelText("Close period through");
+    expect(closeThrough).toHaveAttribute("type", "date");
+    expect(closeThrough).toHaveAttribute("min", period.startsOn);
+    expect(closeThrough).toHaveAttribute("max", period.endsOn);
+    expect((closeThrough as HTMLInputElement).value >= period.startsOn).toBe(true);
+    expect((closeThrough as HTMLInputElement).value <= period.endsOn).toBe(true);
+    expect(within(dialog).getByRole("button", { name: "Archive period" })).toBeInTheDocument();
   });
 
   it("confirms a successful activity import from the query state", async () => {

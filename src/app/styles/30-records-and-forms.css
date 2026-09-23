@@ -7227,6 +7227,23 @@ form.live-record-filters.live-record-filters--mobile-disclosure > .live-record-f
   color: var(--vnext-text);
 }
 
+.budget-page.zplit-vnext [data-period-shortening-notice] > p {
+  margin: 0;
+}
+
+.budget-page.zplit-vnext [data-period-shortening-notice] > label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.budget-page.zplit-vnext [data-period-shortening-notice] input {
+  flex: 0 0 auto;
+  margin-block-start: 0.15rem;
+}
+
 .budget-page.zplit-vnext .budget-recurring-row {
   grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 2fr) minmax(9rem, max-content) auto;
 }

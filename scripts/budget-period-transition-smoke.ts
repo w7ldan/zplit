@@ -174,21 +174,31 @@ async function run() {
 
     const pendingThroughPause = await createManualBudgetTransaction(database, ownerA, { direction: "outflow", amount: 600, description: "Pending through pause", occurredOn: "2026-11-10", categoryId: foodId });
     await spreadBudgetTransaction(database, ownerA, pendingThroughPause.id, 3);
-    const resumeRule = await createBudgetRecurringTemplate(database, ownerA, { name: "December plan", amount: 250, categoryId: foodId, frequency: "every_budget_period", startsOn: "2026-12-15", spreadCount: 1 });
-    assert.equal((await pool.query("SELECT count(*) FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2", [ownerA, resumeRule.id])).rows[0].count, "0", "a future recurring template must not materialize into the current period");
+    const resumeRule = await createBudgetRecurringTemplate(database, ownerA, { name: "November plan", amount: 250, categoryId: foodId, frequency: "monthly", startsOn: "2026-11-28", spreadCount: 1 });
+    assert.equal((await pool.query("SELECT count(*) FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 AND scheduled_on = '2026-11-28'", [ownerA, resumeRule.id])).rows[0].count, "1", "the November recurring plan is materialized once before early archive");
+    const futurePosted = await createManualBudgetTransaction(database, ownerA, { direction: "outflow", amount: 100, description: "Activity beyond early close", occurredOn: "2026-11-27", categoryId: foodId });
+    await assert.rejects(
+      archiveActiveBudgetPeriod(database, ownerA, november.period.id, "2026-11-23"),
+      (error: unknown) => error instanceof BudgetError && error.code === "CONFLICT" && error.message.includes("2026-11-27"),
+    );
+    assert.equal((await pool.query("SELECT status, ends_on::text FROM budget_periods WHERE owner_user_id = $1 AND id = $2", [ownerA, november.period.id])).rows[0].ends_on, "2026-11-30", "an unsafe early close leaves historical dates unchanged");
+    await voidBudgetTransaction(database, ownerA, futurePosted.id);
     const transactionsBeforeArchive = await transactionCount(pool, ownerA);
     const impactsBeforeArchive = await impactCount(pool, ownerA);
-    await archiveActiveBudgetPeriod(database, ownerA, november.period.id);
-    assert.equal((await pool.query("SELECT status FROM budget_periods WHERE owner_user_id = $1 AND id = $2", [ownerA, november.period.id])).rows[0].status, "closed", "archive must close the active period");
+    await archiveActiveBudgetPeriod(database, ownerA, november.period.id, "2026-11-23");
+    const earlyClosed = (await pool.query("SELECT status, ends_on::text FROM budget_periods WHERE owner_user_id = $1 AND id = $2", [ownerA, november.period.id])).rows[0];
+    assert.deepEqual(earlyClosed, { status: "closed", ends_on: "2026-11-23" }, "early archive closes through the requested date");
     assert.equal((await pool.query("SELECT count(*) FROM budget_periods WHERE owner_user_id = $1 AND status = 'active'", [ownerA])).rows[0].count, "0", "archive must leave Budget paused with no active period");
     assert.equal(await transactionCount(pool, ownerA), transactionsBeforeArchive, "archive must preserve Budget transactions");
     assert.equal(await impactCount(pool, ownerA), impactsBeforeArchive, "archive must preserve Budget impacts");
     assert.equal((await pool.query("SELECT count(*) FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND target_period_ordinal = 4 AND status = 'pending'", [ownerA, pendingThroughPause.id])).rows[0].count, "1", "archive must preserve pending next-period impacts");
-    assert.equal((await pool.query("SELECT count(*) FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2", [ownerA, resumeRule.id])).rows[0].count, "0", "paused Budget must not materialize an occurrence into a nonexistent period");
+    assert.equal((await pool.query("SELECT count(*) FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 AND scheduled_period_id = $3 AND status = 'due'", [ownerA, resumeRule.id, november.period.id])).rows[0].count, "1", "the unrecorded recurring plan remains attached to the closed period while Budget is paused");
     const pausedDashboard = await getBudgetDashboard(database, ownerA);
     assert(pausedDashboard.configured && pausedDashboard.period === null && pausedDashboard.pausedPeriod?.id === november.period.id, "the dashboard must expose an intentional paused state and its latest closed plan");
-    assert.deepEqual(await getBudgetOverviewSnapshot(database, ownerA), { configured: true, period: null, paused: true, lastPeriod: { name: "November", startsOn: "2026-11-01", endsOn: "2026-11-30" } }, "Overview must expose paused Budget without active-period totals");
-    await expectBudgetError("CONFLICT", archiveActiveBudgetPeriod(database, ownerA, november.period.id));
+    assert.deepEqual(await getBudgetOverviewSnapshot(database, ownerA), { configured: true, period: null, paused: true, lastPeriod: { name: "November", startsOn: "2026-11-01", endsOn: "2026-11-23" } }, "Overview must expose paused Budget without active-period totals");
+    await expectBudgetError("CONFLICT", archiveActiveBudgetPeriod(database, ownerA, november.period.id, "2026-11-23"));
+
+    await pool.query("UPDATE budget_periods SET ends_on = '2026-11-30' WHERE owner_user_id = $1 AND id = $2 AND status = 'closed'", [ownerA, november.period.id]);
 
     const pausedOutingId = randomUUID();
     await pool.query("INSERT INTO outings (id, ledger_scope_id, title, occurred_at, occurred_on) VALUES ($1, $2, 'Paused Personal activity', '2026-12-05T10:00:00Z', '2026-12-05')", [pausedOutingId, scopeA]);
@@ -214,34 +224,62 @@ async function run() {
     const resumeInput = {
       expectedLatestPeriodId: november.period.id,
       name: "December",
-      startsOn: "2026-12-01",
+      startsOn: "2026-11-24",
       endsOn: "2026-12-31",
       totalBudget: 10_000,
       allocations: november.plans.map((plan) => ({ categoryId: plan.category_id, allocatedAmount: plan.allocated_amount })),
     };
     await expectBudgetError("CONFLICT", startBudgetPeriodFromPaused(database, ownerA, { ...resumeInput, expectedLatestPeriodId: randomUUID() }));
-    await expectBudgetError("INVALID_INPUT", startBudgetPeriodFromPaused(database, ownerA, { ...resumeInput, startsOn: "2026-11-30" }));
+    await assert.rejects(
+      startBudgetPeriodFromPaused(database, ownerA, resumeInput),
+      (error: unknown) => error instanceof BudgetError && error.code === "CONFLICT" && error.message.includes("Confirm shortening") && error.message.includes("2026-11-23"),
+    );
+    assert.equal((await pool.query("SELECT ends_on::text FROM budget_periods WHERE owner_user_id = $1 AND id = $2", [ownerA, november.period.id])).rows[0].ends_on, "2026-11-30", "reset requires explicit confirmation before changing a previously archived period");
+    const confirmedResume = { ...resumeInput, confirmPreviousPeriodShortening: true };
     const resumeRace = await Promise.allSettled([
-      startBudgetPeriodFromPaused(database, ownerA, resumeInput),
-      startBudgetPeriodFromPaused(database, ownerA, resumeInput),
+      startBudgetPeriodFromPaused(database, ownerA, confirmedResume),
+      startBudgetPeriodFromPaused(database, ownerA, confirmedResume),
     ]);
     assert.equal(resumeRace.filter((result) => result.status === "fulfilled").length, 1, "only one concurrent paused resume may create the next period");
     const resumeLoser = resumeRace.find((result) => result.status === "rejected");
     assert(resumeLoser?.status === "rejected" && resumeLoser.reason instanceof BudgetError && resumeLoser.reason.code === "CONFLICT");
     const december = await activePlan(pool, ownerA);
     assert.equal(december.period.ordinal, 4, "resuming after archive increments the ordinal once");
-    assert(december.period.starts_on > november.period.ends_on, "the resumed period must start after the archived period ends");
+    assert.equal(december.period.starts_on, "2026-11-24", "the new Budget starts on the requested day after shortening the legacy closed period");
+    assert.equal((await pool.query("SELECT ends_on::text FROM budget_periods WHERE owner_user_id = $1 AND id = $2", [ownerA, november.period.id])).rows[0].ends_on, "2026-11-23", "the existing closed period ends the day before the new period");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_periods later_period JOIN budget_periods previous_period ON previous_period.owner_user_id = later_period.owner_user_id AND previous_period.ordinal + 1 = later_period.ordinal WHERE later_period.owner_user_id = $1 AND later_period.starts_on <= previous_period.ends_on", [ownerA]), 0, "periods do not overlap after the reset");
     assert.equal((await pool.query("SELECT count(*) FROM budget_periods WHERE owner_user_id = $1 AND status = 'active'", [ownerA])).rows[0].count, "1", "the resumed Budget keeps exactly one active period");
     assert.equal((await pool.query("SELECT count(*) FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND status = 'applied' AND budget_period_id = $3 AND target_period_ordinal = 4", [ownerA, pendingThroughPause.id, december.period.id])).rows[0].count, "1", "pending impacts apply once when the period starts");
     assert.equal((await pool.query("SELECT count(*) FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND status = 'pending' AND target_period_ordinal = 5", [ownerA, pendingThroughPause.id])).rows[0].count, "1", "later pending impacts remain pending after resume");
     assert.equal((await pool.query("SELECT count(*) FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND status = 'applied' AND budget_period_id = $3", [ownerA, pausedExpenseTransaction.id, december.period.id])).rows[0].count, "1", "eligible zero-impact Personal activity is absorbed once");
     assert.equal((await pool.query("SELECT count(*) FROM budget_impacts WHERE owner_user_id = $1 AND budget_transaction_id = $2 AND status = 'applied' AND budget_period_id = $3", [ownerA, pausedGroupTransaction.id, december.period.id])).rows[0].count, "1", "eligible zero-impact Group activity is absorbed once");
-    assert.equal((await pool.query("SELECT count(*) FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 AND scheduled_period_id = $3", [ownerA, resumeRule.id, december.period.id])).rows[0].count, "1", "the existing recurring template materializes once into the resumed period");
-    await expectBudgetError("CONFLICT", startBudgetPeriodFromPaused(database, ownerA, resumeInput));
+    assert.equal((await pool.query("SELECT count(*) FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 AND scheduled_period_id = $3 AND status = 'due'", [ownerA, resumeRule.id, december.period.id])).rows[0].count, "2", "the moved November occurrence and December occurrence each belong to the resumed period exactly once");
+    assert.deepEqual((await pool.query("SELECT scheduled_on::text FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 AND scheduled_period_id = $3 ORDER BY scheduled_on", [ownerA, resumeRule.id, december.period.id])).rows.map((item) => item.scheduled_on), ["2026-11-28", "2026-12-28"]);
+    await expectBudgetError("CONFLICT", startBudgetPeriodFromPaused(database, ownerA, confirmedResume));
     const archivedHistory = await listBudgetPeriodHistory(database, ownerA);
     assert.deepEqual(archivedHistory.map((period) => [period.ordinal, period.status]), [[4, "active"], [3, "closed"], [2, "closed"], [1, "closed"]]);
 
-    console.log("budget period transition smoke passed: integer spread, source rebalancing, category preservation, atomic stale-gated transitions, pending/void handling, zero-impact absorption, multi-category repayment mapping, history, and owner isolation");
+    const ownerBInitial = await activePlan(pool, ownerB);
+    const ownerBFoodId = ownerBInitial.plans.find((plan) => plan.name === "Food")!.category_id;
+    const ownerBPosted = await createManualBudgetTransaction(database, ownerB, { direction: "outflow", amount: 100, description: "History after proposed close", occurredOn: "2026-09-27", categoryId: ownerBFoodId });
+    await archiveActiveBudgetPeriod(database, ownerB, ownerBInitial.period.id, "2026-09-30");
+    const ownerBReset = {
+      expectedLatestPeriodId: ownerBInitial.period.id,
+      name: "September reset",
+      startsOn: "2026-09-24",
+      endsOn: "2026-09-30",
+      totalBudget: 10_000,
+      allocations: ownerBInitial.plans.map((plan) => ({ categoryId: plan.category_id, allocatedAmount: plan.allocated_amount })),
+      confirmPreviousPeriodShortening: true,
+    };
+    await assert.rejects(
+      startBudgetPeriodFromPaused(database, ownerB, ownerBReset),
+      (error: unknown) => error instanceof BudgetError && error.code === "CONFLICT" && error.message.includes("2026-09-27"),
+    );
+    assert.deepEqual((await pool.query("SELECT status, ends_on::text FROM budget_periods WHERE owner_user_id = $1 AND id = $2", [ownerB, ownerBInitial.period.id])).rows[0], { status: "closed", ends_on: "2026-09-30" }, "unsafe paused reset preserves posted historical activity and its original period range");
+    assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [ownerB, ownerBPosted.id])).rows[0].status, "posted", "unsafe reset leaves the posted transaction intact");
+
+    console.log("budget period transition smoke passed: early archive and confirmed paused reset, posted-history safety, recurring carry-forward, atomic stale-gated transitions, pending/void handling, zero-impact absorption, multi-category repayment mapping, history, and owner isolation");
   } catch (error) {
     console.error(`budget period transition smoke failed: ${formatSafeError(error, config.password)}`);
     process.exitCode = 1;

@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
   budgetCategories,
@@ -363,6 +363,7 @@ export async function materializeRecurringOccurrencesForPeriod(
   planCategoryIds: ReadonlySet<string>,
   uncategorizedId: string,
   selections: readonly BudgetRecurringTransitionSelection[] = [],
+  reassignFrom?: { periodId: string; endsOn: string },
 ) {
   const rules = await listActiveBudgetRecurringRules(transaction, ownerUserId);
   const candidates = buildRecurringCandidates(rules, period);
@@ -391,6 +392,20 @@ export async function materializeRecurringOccurrencesForPeriod(
       status: selection?.selected === false ? "skipped" as const : "due" as const,
     };
   });
+  if (reassignFrom) {
+    for (const row of rows) {
+      await transaction.update(budgetRecurringOccurrences).set({ ...row, updatedAt: new Date() })
+        .where(and(
+          eq(budgetRecurringOccurrences.ownerUserId, ownerUserId),
+          eq(budgetRecurringOccurrences.scheduledPeriodId, reassignFrom.periodId),
+          eq(budgetRecurringOccurrences.recurringTemplateId, row.recurringTemplateId),
+          eq(budgetRecurringOccurrences.scheduledOn, row.scheduledOn),
+          gt(budgetRecurringOccurrences.scheduledOn, reassignFrom.endsOn),
+          eq(budgetRecurringOccurrences.status, "due"),
+          isNull(budgetRecurringOccurrences.budgetTransactionId),
+        ));
+    }
+  }
   const inserted = await transaction.insert(budgetRecurringOccurrences).values(rows)
     .onConflictDoNothing({ target: [budgetRecurringOccurrences.ownerUserId, budgetRecurringOccurrences.recurringTemplateId, budgetRecurringOccurrences.scheduledOn] })
     .returning({ status: budgetRecurringOccurrences.status });

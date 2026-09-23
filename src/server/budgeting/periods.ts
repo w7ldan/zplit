@@ -32,7 +32,7 @@ export type StartNextBudgetPeriodInput = {
   recurrence?: BudgetRecurringTransitionSelection[];
 };
 
-export type StartBudgetPeriodFromPausedInput = Omit<StartNextBudgetPeriodInput, "expectedActivePeriodId"> & { expectedLatestPeriodId: string };
+export type StartBudgetPeriodFromPausedInput = Omit<StartNextBudgetPeriodInput, "expectedActivePeriodId"> & { expectedLatestPeriodId: string; confirmPreviousPeriodShortening?: boolean };
 
 export type ClosedBudgetPeriodSeed = {
   id: string;
@@ -220,7 +220,36 @@ type StartFollowingBudgetPeriodInput = {
   totalBudget: number;
   allocations: Array<{ categoryId: string; allocatedAmount: number }>;
   recurrence?: BudgetRecurringTransitionSelection[];
+  confirmPreviousPeriodShortening?: boolean;
 };
+
+function dayBefore(date: string) {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() - 1);
+  return value.toISOString().slice(0, 10);
+}
+
+async function rejectClosingOverPostedActivity(transaction: Database, ownerUserId: string, periodId: string, endsOn: string) {
+  const [activity] = await transaction.select({ occurredOn: budgetTransactions.occurredOn })
+    .from(budgetImpacts)
+    .innerJoin(budgetTransactions, and(
+      eq(budgetTransactions.ownerUserId, ownerUserId),
+      eq(budgetTransactions.id, budgetImpacts.budgetTransactionId),
+    ))
+    .where(and(
+      eq(budgetImpacts.ownerUserId, ownerUserId),
+      eq(budgetImpacts.budgetPeriodId, periodId),
+      eq(budgetImpacts.status, "applied"),
+      eq(budgetTransactions.status, "posted"),
+      gt(budgetTransactions.occurredOn, endsOn),
+    ))
+    .orderBy(asc(budgetTransactions.occurredOn))
+    .limit(1)
+    .for("update");
+  if (activity) {
+    throw new BudgetError("CONFLICT", `Cannot close through ${endsOn} because posted budget activity on ${activity.occurredOn} is already applied.`);
+  }
+}
 
 async function startFollowingBudgetPeriod(database: Database, ownerUserId: string, input: StartFollowingBudgetPeriodInput, fromPaused: boolean) {
   const name = validateTransitionInput(input);
@@ -238,7 +267,16 @@ async function startFollowingBudgetPeriod(database: Database, ownerUserId: strin
       if (!active) throw new BudgetError("NOT_FOUND", "No active budget period is available.");
       if (active.id !== input.expectedSourcePeriodId) throw new BudgetError("CONFLICT", "This period changed in another request. Reload before starting the next period.");
     }
-    if (input.startsOn <= current.endsOn) throw new BudgetError("INVALID_INPUT", "The new period must start after the previous period ends.");
+    let shortenedPreviousEndsOn: string | null = null;
+    if (input.startsOn <= current.endsOn) {
+      if (!fromPaused) throw new BudgetError("CONFLICT", `Start date must be after the previous period ends on ${current.endsOn}.`);
+      if (input.startsOn <= current.startsOn) throw new BudgetError("CONFLICT", `Start date must be after the previous period starts on ${current.startsOn} to preserve its history.`);
+      shortenedPreviousEndsOn = dayBefore(input.startsOn);
+      if (!input.confirmPreviousPeriodShortening) {
+        throw new BudgetError("CONFLICT", `Confirm shortening "${current.name}" so it ends on ${shortenedPreviousEndsOn} before starting this period.`);
+      }
+      await rejectClosingOverPostedActivity(transaction as Database, ownerUserId, current.id, shortenedPreviousEndsOn);
+    }
 
     const rows = await transaction.select({ plan: budgetPeriodCategories, category: budgetCategories })
       .from(budgetPeriodCategories)
@@ -257,6 +295,12 @@ async function startFollowingBudgetPeriod(database: Database, ownerUserId: strin
     const categoryIds = new Set(rows.map((row) => row.category.id));
     if (pending.some((row) => !categoryIds.has(row.impact.budgetCategoryId))) throw new BudgetError("CONFLICT", "A pending budget impact targets a category missing from the next plan.");
 
+    if (shortenedPreviousEndsOn) {
+      const [shortened] = await transaction.update(budgetPeriods).set({ endsOn: shortenedPreviousEndsOn, updatedAt: new Date() })
+        .where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.id, current.id), eq(budgetPeriods.status, "closed")))
+        .returning({ id: budgetPeriods.id });
+      if (!shortened) throw new BudgetError("CONFLICT", "The previous closed period changed before it could be shortened.");
+    }
     if (!fromPaused) await transaction.update(budgetPeriods).set({ status: "closed", updatedAt: new Date() }).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.id, current.id), eq(budgetPeriods.status, "active")));
     const [next] = await transaction.insert(budgetPeriods).values({ ownerUserId, ordinal: nextOrdinal, name, startsOn: input.startsOn, endsOn: input.endsOn, totalBudget: input.totalBudget, status: "active" }).returning();
     if (!next) throw new BudgetError("CONFLICT", "The next budget period could not be created.");
@@ -268,7 +312,15 @@ async function startFollowingBudgetPeriod(database: Database, ownerUserId: strin
     const absorbedCount = await absorbZeroImpactActivity(transaction as LedgerTransaction, ownerUserId, next);
     const uncategorizedId = rows.find((row) => row.category.systemKey === "uncategorized")!.category.id;
     const absorbedRecurringCount = await absorbZeroImpactRecurringActivity(transaction as Database, ownerUserId, next, categoryIds, uncategorizedId);
-    const recurrence = await materializeRecurringOccurrencesForPeriod(transaction as Database, ownerUserId, next, categoryIds, uncategorizedId, input.recurrence ?? []);
+    const recurrence = await materializeRecurringOccurrencesForPeriod(
+      transaction as Database,
+      ownerUserId,
+      next,
+      categoryIds,
+      uncategorizedId,
+      input.recurrence ?? [],
+      shortenedPreviousEndsOn ? { periodId: current.id, endsOn: shortenedPreviousEndsOn } : undefined,
+    );
     return {
       previousPeriod: current,
       period: next,
@@ -301,19 +353,25 @@ export async function startBudgetPeriodFromPaused(database: Database, ownerUserI
     totalBudget: input.totalBudget,
     allocations: input.allocations,
     recurrence: input.recurrence,
+    confirmPreviousPeriodShortening: input.confirmPreviousPeriodShortening,
   }, true);
 }
 
-export async function archiveActiveBudgetPeriod(database: Database, ownerUserId: string, expectedActivePeriodId: string) {
+export async function archiveActiveBudgetPeriod(database: Database, ownerUserId: string, expectedActivePeriodId: string, closeThrough: string) {
   if (!expectedActivePeriodId.trim()) throw new BudgetError("INVALID_INPUT", "The active period identity is required.");
+  if (!isValidBudgetDate(closeThrough)) throw new BudgetError("INVALID_INPUT", "Choose a valid date through which to close the period.");
   return database.transaction(async (transaction) => {
     await lockBudgetProfile(transaction as Database, ownerUserId);
     const [period] = await transaction.select().from(budgetPeriods)
       .where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.status, "active")))
       .limit(1).for("update");
     if (!period || period.id !== expectedActivePeriodId) throw new BudgetError("CONFLICT", "This period changed in another request. Reload before archiving it.");
+    if (closeThrough < period.startsOn || closeThrough > period.endsOn) {
+      throw new BudgetError("CONFLICT", `Close-through date must be between ${period.startsOn} and ${period.endsOn}.`);
+    }
+    if (closeThrough < period.endsOn) await rejectClosingOverPostedActivity(transaction as Database, ownerUserId, period.id, closeThrough);
     const [closed] = await transaction.update(budgetPeriods)
-      .set({ status: "closed", updatedAt: new Date() })
+      .set({ status: "closed", endsOn: closeThrough, updatedAt: new Date() })
       .where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.id, period.id), eq(budgetPeriods.status, "active")))
       .returning();
     if (!closed) throw new BudgetError("CONFLICT", "This period changed in another request. Reload before archiving it.");
