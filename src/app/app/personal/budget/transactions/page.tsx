@@ -52,9 +52,11 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
             : transaction.direction === "outflow" ? "Expense" : "Credit / refund";
   const categoryLabel = summarizeBudgetCategories(transaction.categoryNames);
   const appliedImpactAmount = transaction.appliedImpactAmount ?? transaction.amount;
-  const impactLabel = transaction.sourceType === "personal_repayment" && appliedImpactAmount !== transaction.amount
-    ? `Applied to Budget ${formatSignedRupiah(appliedImpactAmount)}`
-    : transaction.status === "voided" ? "Voided" : "Posted";
+  const impactLabel = transaction.status === "voided"
+    ? "Voided"
+    : transaction.sourceType === "personal_repayment" && appliedImpactAmount !== transaction.amount
+      ? `Applied to Budget ${formatSignedRupiah(appliedImpactAmount)}`
+      : "Posted";
   return (
     <div className={`budget-history-row${transaction.status === "voided" ? " budget-history-row--voided" : ""}`}>
       <span className="technical-label budget-history-row__type">{sourceLabel}</span>

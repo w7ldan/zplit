@@ -168,6 +168,31 @@ describe("/app/personal/budget/transactions presentation", () => {
     expect(screen.getByText("Applied to Budget Rp 150")).toBeInTheDocument();
   });
 
+  it("shows a voided partial repayment as voided while preserving its actual amount", async () => {
+    mocks.listBudgetTransactions.mockResolvedValue([{
+      id: "transaction-voided-partial-repayment",
+      direction: "inflow",
+      amount: 300,
+      appliedImpactAmount: 150,
+      description: "Excluded partial repayment",
+      occurredOn: "2026-09-06",
+      status: "voided",
+      origin: "linked",
+      sourceType: "personal_repayment",
+      sourceId: "repayment-a",
+      categoryName: "Food + Uncategorized",
+      categoryNames: ["Food", "Uncategorized"],
+      categoryId: null,
+    }]);
+    render(await BudgetTransactionsPage());
+
+    const row = screen.getByText("Excluded partial repayment").closest(".budget-history-row");
+    expect(row).toHaveTextContent("+Rp 300");
+    expect(row).toHaveTextContent("Voided");
+    expect(row).not.toHaveTextContent("Applied to Budget Rp 150");
+    expect(screen.queryByText("Applied to Budget Rp 150")).not.toBeInTheDocument();
+  });
+
   it("requires confirmation before voiding and keeps the existing action authoritative", async () => {
     mocks.listBudgetTransactions.mockResolvedValue([{
       id: "transaction-recurring",
