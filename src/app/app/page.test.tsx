@@ -123,6 +123,7 @@ describe("/app overview", () => {
     expect(screen.getByText("All received money is applied to shares.")).toBeInTheDocument();
     expect(screen.queryByText("All received money is assigned.")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: /Needs matching/ })).not.toBeInTheDocument();
+    expect(document.querySelector(".overview-signal-zone")).toHaveClass("overview-signal-zone--personal-only");
     expect(repository.listRecentActivity).toHaveBeenCalledExactlyOnceWith({ limit: 6 });
   });
 

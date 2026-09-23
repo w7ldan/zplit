@@ -6,6 +6,7 @@ import { formatCalendarDate } from "@/components/editorial/calendar-date";
 import { summarizeBudgetCategories, type BudgetTransactionView } from "@/domain/budgeting/types";
 import { listBudgetTransactions } from "@/server/budgeting/transactions";
 import { listBudgetCategoryOptions } from "@/server/budgeting/categories";
+import { getActiveBudgetPeriod } from "@/server/budgeting/periods";
 import { ConfirmationDialog } from "@/components/app/delete-confirmation-dialog";
 import { changeGroupExpenseBudgetCategoryAction, changePersonalExpenseBudgetCategoryAction, voidBudgetTransactionAction } from "../actions";
 import { SpreadControl } from "@/components/budgeting/spread-control";
@@ -17,8 +18,8 @@ export const dynamic = "force-dynamic";
 
 type BudgetCategoryOption = { id: string; name: string };
 
-function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[] }) {
-  if ((transaction.sourceType !== "personal_expense" && transaction.sourceType !== "group_expense") || transaction.status !== "posted") return null;
+function ChangeCategoryForm({ transaction, categories, canUseActivePeriod }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[]; canUseActivePeriod: boolean }) {
+  if (!canUseActivePeriod || (transaction.sourceType !== "personal_expense" && transaction.sourceType !== "group_expense") || transaction.status !== "posted") return null;
   const action = transaction.sourceType === "group_expense" ? changeGroupExpenseBudgetCategoryAction : changePersonalExpenseBudgetCategoryAction;
   return (
     <details className="budget-category-change">
@@ -35,7 +36,7 @@ function ChangeCategoryForm({ transaction, categories }: { transaction: BudgetTr
   );
 }
 
-function TransactionHistoryRow({ transaction, categories }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[] }) {
+function TransactionHistoryRow({ transaction, categories, canUseActivePeriod }: { transaction: BudgetTransactionView; categories: BudgetCategoryOption[]; canUseActivePeriod: boolean }) {
   const amount = transaction.direction === "inflow" ? `+${formatSignedRupiah(transaction.amount)}` : formatSignedRupiah(-transaction.amount);
   const sourceLabel = transaction.sourceType === "personal_expense"
     ? "Personal expense"
@@ -63,8 +64,8 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
       <span className="budget-history-row__identity">
         <strong>{transaction.description}</strong>
         <small>{categoryLabel} · {formatCalendarDate(transaction.occurredOn)}</small>
-        <ChangeCategoryForm transaction={transaction} categories={categories} />
-        <SpreadControl transaction={transaction} />
+        <ChangeCategoryForm transaction={transaction} categories={categories} canUseActivePeriod={canUseActivePeriod} />
+        {canUseActivePeriod ? <SpreadControl transaction={transaction} /> : null}
       </span>
       <span className="budget-history-row__amount"><strong>{amount}</strong><small>{impactLabel}</small></span>
       {transaction.status === "posted" && (transaction.origin === "manual" || transaction.origin === "recurring") ? (
@@ -83,13 +84,17 @@ function TransactionHistoryRow({ transaction, categories }: { transaction: Budge
   );
 }
 
-function HistoryContent({ transactions, categories }: { transactions: BudgetTransactionView[]; categories: Array<{ id: string; name: string }> }) {
+function HistoryContent({ transactions, categories, canUseActivePeriod }: { transactions: BudgetTransactionView[]; categories: Array<{ id: string; name: string }>; canUseActivePeriod: boolean }) {
   if (!transactions.length) {
     return (
       <div className="ledger-empty">
         <p>No budget transactions yet.</p>
-        <Link className="text-link" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add a transaction <span aria-hidden="true">→</span></Link>
-        <Link className="text-link" href="/app/personal/budget">Return to Budget <span aria-hidden="true">→</span></Link>
+        {canUseActivePeriod ? (
+          <>
+            <Link className="text-link" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add a transaction <span aria-hidden="true">→</span></Link>
+            <Link className="text-link" href="/app/personal/budget">Return to Budget <span aria-hidden="true">→</span></Link>
+          </>
+        ) : <p>Start a Budget period to record new transactions.</p>}
       </div>
     );
   }
@@ -101,7 +106,7 @@ function HistoryContent({ transactions, categories }: { transactions: BudgetTran
         <span>Amount</span>
         <span>Actions</span>
       </div>
-      <div className="budget-transaction-list">{transactions.map((transaction) => <TransactionHistoryRow transaction={transaction} categories={categories} key={transaction.id} />)}</div>
+      <div className="budget-transaction-list">{transactions.map((transaction) => <TransactionHistoryRow transaction={transaction} categories={categories} canUseActivePeriod={canUseActivePeriod} key={transaction.id} />)}</div>
     </>
   );
 }
@@ -109,18 +114,25 @@ function HistoryContent({ transactions, categories }: { transactions: BudgetTran
 export default async function BudgetTransactionsPage() {
   const session = await requireSession();
   const database = getDatabase();
-  const [transactions, categories] = await Promise.all([listBudgetTransactions(database, session.user.id), listBudgetCategoryOptions(database, session.user.id)]);
+  const [transactions, categories, activePeriod] = await Promise.all([
+    listBudgetTransactions(database, session.user.id),
+    listBudgetCategoryOptions(database, session.user.id),
+    getActiveBudgetPeriod(database, session.user.id),
+  ]);
+  const canUseActivePeriod = activePeriod !== null;
   return (
     <section className={`app-page page-content zplit-vnext budget-page budget-history-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <header className="app-page__header">
           <div><p className="technical-label">Personal · budget</p><h1>Transaction history</h1><p className="app-page__lede">Manual, recurring, and linked budget records, including voided history.</p></div>
-          <Link className="vnext-button vnext-button--primary action-link" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
+          {canUseActivePeriod
+            ? <Link className="vnext-button vnext-button--primary action-link" href="/app/personal/budget?create=transaction" data-task-trigger="budget-transaction">Add transaction</Link>
+            : <Link className="vnext-button vnext-button--secondary action-link" href="/app/personal/budget">Open Budget</Link>}
         </header>
         <BudgetSectionNav current="transactions" />
         <section className="ledger-section" aria-labelledby="budget-history-heading">
           <div className="ledger-section__heading"><h2 id="budget-history-heading">All transactions</h2><span className="technical-label">Newest first</span></div>
-          <HistoryContent transactions={transactions} categories={categories} />
+          <HistoryContent transactions={transactions} categories={categories} canUseActivePeriod={canUseActivePeriod} />
         </section>
       </div>
     </section>

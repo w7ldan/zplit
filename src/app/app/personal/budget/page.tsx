@@ -294,6 +294,7 @@ function PausedBudgetPage({ dashboard, query }: { dashboard: InactiveBudgetDashb
     <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
         <PageHeader />
+        <BudgetSectionNav current="dashboard" />
         {firstQueryValue(query.archived) ? <RecordConfirmation queryKey="archived" message="Period archived. Budget is paused; its history is preserved." /> : null}
         {period ? <BudgetPausedState period={period} /> : (
           <section className="ledger-empty budget-invariant">
@@ -391,7 +392,7 @@ function ActiveBudgetPage({ dashboard, query }: { dashboard: ActiveBudgetDashboa
 export default async function BudgetPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<BudgetPageSearchParams> } = {}) {
   const session = await requireSession();
   const dashboard = await getBudgetDashboard(getDatabase(), session.user.id);
-  if (!dashboard.configured) return <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top"><div className="editorial-shell app-page__layout"><PageHeader /><SetupState /></div></section>;
+  if (!dashboard.configured) return <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top"><div className="editorial-shell app-page__layout"><PageHeader /><BudgetSectionNav current="dashboard" /><SetupState /></div></section>;
   const query = await searchParams;
   return dashboard.period
     ? <ActiveBudgetPage dashboard={dashboard} query={query} />

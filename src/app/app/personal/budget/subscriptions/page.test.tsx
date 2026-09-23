@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   listDueBudgetRecurringOccurrences: vi.fn(),
   getBudgetRecurringDashboardSummary: vi.fn(),
   listActiveBudgetPlanCategoryOptions: vi.fn(),
+  getLatestClosedBudgetPeriod: vi.fn(),
   replace: vi.fn(),
   archiveBudgetRecurringTemplateAction: vi.fn(),
   skipBudgetRecurringOccurrenceAction: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("@/server/budgeting/recurring", () => ({
   getBudgetRecurringDashboardSummary: mocks.getBudgetRecurringDashboardSummary,
 }));
 vi.mock("@/server/budgeting/categories", () => ({ listActiveBudgetPlanCategoryOptions: mocks.listActiveBudgetPlanCategoryOptions }));
+vi.mock("@/server/budgeting/periods", () => ({ getLatestClosedBudgetPeriod: mocks.getLatestClosedBudgetPeriod }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
 vi.mock("../actions", () => ({
   archiveBudgetRecurringTemplateAction: mocks.archiveBudgetRecurringTemplateAction,
@@ -37,6 +39,7 @@ describe("/app/personal/budget/subscriptions presentation", () => {
     vi.clearAllMocks();
     mocks.requireSession.mockResolvedValue({ user: { id: "owner-a" } });
     mocks.listActiveBudgetPlanCategoryOptions.mockResolvedValue([{ id: "category-food", name: "Food" }]);
+    mocks.getLatestClosedBudgetPeriod.mockResolvedValue(null);
     mocks.listBudgetRecurringTemplates.mockResolvedValue([{
       id: "template-gym",
       name: "Gym",
@@ -76,6 +79,24 @@ describe("/app/personal/budget/subscriptions presentation", () => {
     expect(screen.getByLabelText(/Payment date for Gym/)).toBeInTheDocument();
     expect(screen.getByText(/Nothing here affects spending until a payment is recorded/)).toBeInTheDocument();
     expect(screen.getByText("1 due")).toBeInTheDocument();
+  });
+
+  it("keeps recurring records available while paused without exposing active-period controls", async () => {
+    mocks.listActiveBudgetPlanCategoryOptions.mockResolvedValue([]);
+    mocks.getLatestClosedBudgetPeriod.mockResolvedValue({ id: "period-closed" });
+    render(await BudgetSubscriptionsPage({ searchParams: Promise.resolve({ create: "template" }) }));
+
+    const nav = screen.getByRole("navigation", { name: "Budget sections" });
+    expect(within(nav).getByRole("link", { name: "Recurring" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("heading", { name: "Budget is paused" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start new period" })).toHaveAttribute("href", "/app/personal/budget?create=period");
+    expect(screen.getAllByText("Gym")).toHaveLength(2);
+    expect(screen.getByText("Start a period to record")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Record Gym payment" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Add recurring expense" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Edit", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Skip Gym occurrence scheduled/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Archive Gym recurring expense" })).toBeInTheDocument();
   });
 
   it("requires confirmation before archiving a recurring expense", async () => {

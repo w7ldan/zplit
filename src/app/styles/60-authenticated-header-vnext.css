@@ -637,6 +637,10 @@ body.global-search-open {
 }
 
 @media (max-width: 1199px) {
+  .app-shell {
+    --authenticated-header-detached-gutter: var(--authenticated-canvas-gutter);
+  }
+
   .app-shell .header-shell__panel,
   .app-shell .app-shell__header-layout,
   .app-shell .header-shell__panel--detached {
@@ -653,7 +657,7 @@ body.global-search-open {
     z-index: 19;
     top: var(--authenticated-header-height);
     gap: 0.25rem;
-    width: min(calc(100% - 1.5rem), var(--authenticated-canvas-max-width));
+    width: min(calc(100% - var(--authenticated-canvas-gutter)), var(--authenticated-canvas-max-width));
     min-width: 0;
     margin: 0.15rem auto 0.45rem;
     padding: 0.3rem;
@@ -666,7 +670,11 @@ body.global-search-open {
   }
 
   .app-shell__mobile-link {
-    flex: 0 0 auto;
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 0.3rem;
+    font-size: 0.76rem;
+    white-space: nowrap;
   }
 
   .global-search-trigger {
@@ -728,11 +736,6 @@ body.global-search-open {
 
   .account-menu summary {
     padding-inline: 0.45rem;
-  }
-
-  .app-shell__mobile-nav {
-    width: calc(100% - 1.5rem);
-    margin-top: 0.1rem;
   }
 
   .global-search__backdrop {

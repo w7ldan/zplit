@@ -45,6 +45,8 @@ describe("outing record", () => {
     expect(document.querySelector(".page-content")).toHaveClass("zplit-vnext", "personal-vnext");
     expect(screen.getByText("Outing · editable record")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Jakarta dinner" })).toBeInTheDocument();
+    expect(document.querySelector(".outing-record__identity")).toContainElement(screen.getByRole("heading", { level: 1, name: "Jakarta dinner" }));
+    expect(document.querySelector(".outing-record__actions")).toContainElement(screen.getByRole("link", { name: "← Outings" }));
     expect(document.querySelector(".outing-record__summary")!).toContainElement(document.querySelector(".outing-record__meta"));
     expect(document.querySelector(".outing-record__summary")!).toContainElement(document.querySelector(".outing-record__notes"));
     expect(document.querySelector(".outing-record__workspace")!).toContainElement(document.querySelector(".outing-record__form"));

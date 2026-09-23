@@ -30,6 +30,11 @@ describe("DebtorStatementView", () => {
     expect(screen.getByText("Dinner")).toBeInTheDocument();
     expect(screen.getByText(/Sunday outing/)).toBeInTheDocument();
     expect(screen.getByText("OPEN")).toBeInTheDocument();
+    const expenseItem = document.querySelector<HTMLElement>(".debtor-statement__item")!;
+    expect(within(expenseItem).getByRole("heading", { level: 3, name: "Dinner" })).toBeInTheDocument();
+    expect(within(expenseItem).getByText("Assigned", { exact: true })).toBeInTheDocument();
+    expect(within(expenseItem).getByText("Allocated repayments", { exact: true })).toBeInTheDocument();
+    expect(within(expenseItem).getByText("Remaining", { exact: true })).toBeInTheDocument();
     expect(screen.getByText(/The ledger owner controls the records shown here/)).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();

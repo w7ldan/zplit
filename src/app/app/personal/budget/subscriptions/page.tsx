@@ -7,6 +7,7 @@ import { TaskPanel } from "@/components/app/task-panel";
 import { ConfirmationDialog } from "@/components/app/delete-confirmation-dialog";
 import { budgetRecurringFrequencyLabel } from "@/domain/budgeting/recurrence";
 import { listActiveBudgetPlanCategoryOptions } from "@/server/budgeting/categories";
+import { getLatestClosedBudgetPeriod } from "@/server/budgeting/periods";
 import { getBudgetRecurringDashboardSummary, listBudgetRecurringTemplates, listDueBudgetRecurringOccurrences, type BudgetRecurringTemplateView } from "@/server/budgeting/recurring";
 import { RecurringRecordForm, RecurringTemplateForm } from "@/components/budgeting/recurring-forms";
 import { BudgetSectionNav } from "@/components/budgeting/budget-section-nav";
@@ -26,14 +27,14 @@ function spreadSummary(count: number) {
   return count === 1 ? "One period" : `Spread over ${count} periods`;
 }
 
-function TemplateRow({ template, categories }: { template: BudgetRecurringTemplateView; categories: Array<{ id: string; name: string }> }) {
+function TemplateRow({ template, categories, canUseActivePeriod }: { template: BudgetRecurringTemplateView; categories: Array<{ id: string; name: string }>; canUseActivePeriod: boolean }) {
   return (
     <div className="budget-recurring-row">
       <span className="technical-label budget-recurring-row__frequency">{budgetRecurringFrequencyLabel(template.frequency)}</span>
       <span className="budget-recurring-row__identity">
         <strong>{template.name}</strong>
         <small>{template.categoryName} · {spreadSummary(template.spreadCount)} · from {formatCalendarDate(template.startsOn)}</small>
-        <details className="budget-category-change">
+        {canUseActivePeriod ? <details className="budget-category-change">
           <summary className="action-link action-link--quiet" aria-label={`Edit ${template.name} recurring expense`}>Edit</summary>
           <RecurringTemplateForm
             action={updateBudgetRecurringTemplateAction}
@@ -50,7 +51,7 @@ function TemplateRow({ template, categories }: { template: BudgetRecurringTempla
               spreadCount: String(template.spreadCount),
             }}
           />
-        </details>
+        </details> : null}
       </span>
       <span className="budget-recurring-row__amount">
         <strong>{formatRupiah(template.amount)}</strong>
@@ -73,17 +74,20 @@ function TemplateRow({ template, categories }: { template: BudgetRecurringTempla
 export default async function BudgetSubscriptionsPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ create?: string | string[] }> } = {}) {
   const session = await requireSession();
   const database = getDatabase();
-  const [templates, dueOccurrences, categories, recurringSummary] = await Promise.all([
+  const [templates, dueOccurrences, categories, recurringSummary, latestClosedPeriod] = await Promise.all([
     listBudgetRecurringTemplates(database, session.user.id),
     listDueBudgetRecurringOccurrences(database, session.user.id),
     listActiveBudgetPlanCategoryOptions(database, session.user.id),
     getBudgetRecurringDashboardSummary(database, session.user.id),
+    getLatestClosedBudgetPeriod(database, session.user.id),
   ]);
   const query = await searchParams;
   const createMode = Array.isArray(query.create) ? query.create[0] : query.create;
   const dueCountLabel = dueOccurrences.length < recurringSummary.dueCount
     ? `${recurringSummary.dueCount} due · showing first ${dueOccurrences.length}`
     : `${recurringSummary.dueCount} due`;
+  const canUseActivePeriod = categories.length > 0;
+  const isPaused = !canUseActivePeriod && latestClosedPeriod !== null;
   return (
     <section className={`app-page page-content zplit-vnext budget-page ${zplitVNextFont.variable}`} id="top">
       <div className="editorial-shell app-page__layout">
@@ -94,19 +98,30 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
             <p className="app-page__lede">Expected recurring expenses. Nothing here affects spending until a payment is recorded.</p>
           </div>
           <div className="budget-page__actions">
-            <Link className="vnext-button vnext-button--primary action-link" href="/app/personal/budget/subscriptions?create=template" data-task-trigger="budget-recurring">Add recurring expense</Link>
+            {canUseActivePeriod
+              ? <Link className="vnext-button vnext-button--primary action-link" href="/app/personal/budget/subscriptions?create=template" data-task-trigger="budget-recurring">Add recurring expense</Link>
+              : isPaused
+                ? <Link className="vnext-button vnext-button--primary action-link" href="/app/personal/budget?create=period" data-task-trigger="budget-period">Start new period</Link>
+                : <Link className="vnext-button vnext-button--secondary action-link" href="/app/personal/budget">Open Budget</Link>}
           </div>
         </header>
         <BudgetSectionNav current="subscriptions" />
+        {isPaused ? (
+          <section className="ledger-section budget-paused-state" aria-labelledby="recurring-paused-heading">
+            <p className="technical-label">Budget paused</p>
+            <h2 id="recurring-paused-heading">Budget is paused</h2>
+            <p>Review recurring plans here, then start a new period to edit plans or record payments.</p>
+          </section>
+        ) : null}
         <section className="ledger-section" aria-labelledby="budget-recurring-heading">
           <div className="ledger-section__heading"><h2 id="budget-recurring-heading">Active recurring</h2><span className="technical-label">Amount · next occurrence</span></div>
           {templates.length === 0
             ? (
               <div className="ledger-empty">
                 <p>No recurring expenses yet.</p>
-                <Link className="text-link" href="/app/personal/budget/subscriptions?create=template">
-                  Add recurring expense <span aria-hidden="true">→</span>
-                </Link>
+                {canUseActivePeriod
+                  ? <Link className="text-link" href="/app/personal/budget/subscriptions?create=template">Add recurring expense <span aria-hidden="true">→</span></Link>
+                  : <p>Start a Budget period to add recurring plans.</p>}
               </div>
             )
             : (
@@ -117,7 +132,7 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
                   <span>Amount</span>
                   <span>Actions</span>
                 </div>
-                <div className="budget-recurring-list">{templates.map((template) => <TemplateRow categories={categories} key={template.id} template={template} />)}</div>
+                <div className="budget-recurring-list">{templates.map((template) => <TemplateRow categories={categories} canUseActivePeriod={canUseActivePeriod} key={template.id} template={template} />)}</div>
               </>
             )}
         </section>
@@ -127,7 +142,9 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
             ? (
               <div className="ledger-empty">
                 <p>No recurring payments are due right now.</p>
-                <Link className="text-link" href="/app/personal/budget/subscriptions?create=template">Add recurring expense <span aria-hidden="true">→</span></Link>
+                {canUseActivePeriod
+                  ? <Link className="text-link" href="/app/personal/budget/subscriptions?create=template">Add recurring expense <span aria-hidden="true">→</span></Link>
+                  : <p>Recurring payments can be recorded when a Budget period is active.</p>}
               </div>
             )
             : (
@@ -148,7 +165,7 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
                       <small>{occurrence.categoryName} · {spreadSummary(occurrence.spreadCount)}</small>
                     </span>
                     <span className="budget-recurring-due-row__amount"><strong>{formatRupiah(occurrence.amount)}</strong><small>Expected</small></span>
-                    <div className="budget-recurring-due-row__record"><RecurringRecordForm action={recordBudgetRecurringOccurrenceAction} occurrenceId={occurrence.id} contextLabel={occurrence.templateName} /></div>
+                    <div className="budget-recurring-due-row__record">{canUseActivePeriod ? <RecurringRecordForm action={recordBudgetRecurringOccurrenceAction} occurrenceId={occurrence.id} contextLabel={occurrence.templateName} /> : <span>Start a period to record</span>}</div>
                     <div className="budget-recurring-due-row__action"><ConfirmationDialog
                       title="Skip occurrence?"
                       entityName={`${occurrence.templateName} on ${formatCalendarDate(occurrence.scheduledOn)}`}
@@ -166,7 +183,7 @@ export default async function BudgetSubscriptionsPage({ searchParams = Promise.r
             )}
         </section>
       </div>
-      {createMode === "template" ? (
+      {createMode === "template" && canUseActivePeriod ? (
         <TaskPanel open eyebrow="New recurring expense" title="Add recurring expense" description="Describe a future payment expectation. No cash is recorded until you record a payment." triggerId="budget-recurring">
           <RecurringTemplateForm action={createBudgetRecurringTemplateAction} categories={categories} />
         </TaskPanel>

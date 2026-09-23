@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getDatabase: vi.fn(() => "database"),
   listBudgetTransactions: vi.fn(),
   listBudgetCategoryOptions: vi.fn(),
+  getActiveBudgetPeriod: vi.fn(),
   voidBudgetTransactionAction: vi.fn(),
 }));
 
@@ -13,6 +14,7 @@ vi.mock("@/auth/require-session", () => ({ requireSession: mocks.requireSession 
 vi.mock("@/db/client", () => ({ getDatabase: mocks.getDatabase }));
 vi.mock("@/server/budgeting/transactions", () => ({ listBudgetTransactions: mocks.listBudgetTransactions }));
 vi.mock("@/server/budgeting/categories", () => ({ listBudgetCategoryOptions: mocks.listBudgetCategoryOptions }));
+vi.mock("@/server/budgeting/periods", () => ({ getActiveBudgetPeriod: mocks.getActiveBudgetPeriod }));
 vi.mock("../actions", () => ({
   changeGroupExpenseBudgetCategoryAction: vi.fn(),
   changePersonalExpenseBudgetCategoryAction: vi.fn(),
@@ -98,6 +100,7 @@ describe("/app/personal/budget/transactions presentation", () => {
       },
     ]);
     mocks.listBudgetCategoryOptions.mockResolvedValue([{ id: "food", name: "Food" }]);
+    mocks.getActiveBudgetPeriod.mockResolvedValue({ id: "period-active" });
   });
 
   it("keeps category changes closed and bounds multi-category repayment labels", async () => {
@@ -145,6 +148,19 @@ describe("/app/personal/budget/transactions presentation", () => {
     render(await BudgetTransactionsPage());
     expect(screen.getByText("-Rp 600")).toBeInTheDocument();
     expect(screen.getByText("+Rp 300")).toBeInTheDocument();
+  });
+
+  it("keeps history browsable while suppressing active-period actions when Budget is paused", async () => {
+    mocks.getActiveBudgetPeriod.mockResolvedValue(null);
+    render(await BudgetTransactionsPage());
+
+    const nav = screen.getByRole("navigation", { name: "Budget sections" });
+    expect(within(nav).getByRole("link", { name: "Transactions" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Open Budget" })).toHaveAttribute("href", "/app/personal/budget");
+    expect(screen.queryByRole("link", { name: "Add transaction" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Change budget category")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Spread across/)).not.toBeInTheDocument();
+    expect(screen.getByText("Dinner")).toBeInTheDocument();
   });
 
   it("distinguishes partial repayment Budget impact from actual cash", async () => {

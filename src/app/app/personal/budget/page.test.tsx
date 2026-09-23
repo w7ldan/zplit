@@ -203,6 +203,11 @@ describe("/app/personal/budget task-panel modes", () => {
     render(await BudgetPage({ searchParams: Promise.resolve({ create: "period" }) }));
 
     expect(screen.getByRole("heading", { name: "Budget is paused" })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Budget sections" });
+    expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/app/personal/budget/transactions");
+    expect(within(nav).getByRole("link", { name: "Period history" })).toHaveAttribute("href", "/app/personal/budget/periods");
+    expect(within(nav).getByRole("link", { name: "Recurring" })).toHaveAttribute("href", "/app/personal/budget/subscriptions");
     expect(screen.getByRole("link", { name: "Start new period" })).toHaveAttribute("href", "/app/personal/budget?create=period");
     expect(screen.queryByRole("link", { name: "Add transaction" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Manage plan" })).not.toBeInTheDocument();

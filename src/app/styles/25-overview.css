@@ -45,9 +45,13 @@
 
 .overview-signal-zone {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.75fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(18rem, 0.75fr);
   gap: clamp(1rem, 2vw, 1.5rem);
   align-items: stretch;
+}
+
+.overview-signal-zone--personal-only {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .overview-stage,
@@ -162,7 +166,7 @@
 
 .overview-personal__body {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(14rem, 0.8fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(15rem, 0.8fr);
   flex: 1 1 auto;
   min-inline-size: 0;
 }
@@ -178,7 +182,7 @@
 .overview-personal__primary h2 {
   margin: 0;
   color: var(--vnext-link);
-  font-size: clamp(2.35rem, 6vw, 5.75rem);
+  font-size: clamp(2.35rem, 5vw, 4.4rem);
   font-weight: 800;
   letter-spacing: normal;
   line-height: 1;
@@ -186,9 +190,10 @@
 
 .overview-personal__supporting {
   display: grid;
-  align-content: end;
+  align-content: center;
   min-inline-size: 0;
   border-inline-start: 1px solid var(--vnext-rule);
+  background: var(--vnext-surface);
 }
 
 .overview-personal__supporting > div {
@@ -206,13 +211,17 @@
 .overview-personal__supporting .animated-money,
 .overview-personal__supporting .overview-money {
   color: var(--vnext-text);
-  font-size: clamp(1.2rem, 2.5vw, 2.2rem);
+  font-size: clamp(1.25rem, 2.1vw, 1.55rem);
   font-weight: 800;
+}
+
+.overview-personal__supporting .overview-eyebrow {
+  color: var(--vnext-text-soft);
 }
 
 .overview-personal__note {
   color: var(--vnext-text-soft);
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   line-height: 1.4;
 }
 

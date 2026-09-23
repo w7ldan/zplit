@@ -60,6 +60,19 @@ describe("AppShell", () => {
     expect(document.querySelectorAll(".toast-viewport")).toHaveLength(1);
   });
 
+  it("keeps the mobile primary destinations in their own second-row navigation", () => {
+    render(<AppShell user={{ id: "user-a", name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
+    const header = screen.getByRole("banner");
+    const mobile = screen.getByRole("navigation", { name: "Mobile ledger navigation" });
+    const actions = header.querySelector<HTMLElement>(".app-shell__actions")!;
+
+    expect(Array.from(actions.children).map((child) => child.className)).toEqual(["global-search-trigger", "inbox-control", "account-menu"]);
+    expect(within(mobile).getAllByRole("link").map((link) => link.textContent?.trim())).toEqual(["Overview", "Personal", "Organizations"]);
+    expect(within(mobile).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app");
+    expect(within(mobile).getByRole("link", { name: "Personal" })).toHaveAttribute("href", "/app/personal");
+    expect(within(mobile).getByRole("link", { name: "Organizations" })).toHaveAttribute("href", "/app/organizations");
+  });
+
   it("reconciles current Chat metadata through the single shared SSE connection", () => {
     pathState.value = "/app/organizations/org-a/expenses";
     vi.stubGlobal("EventSource", FakeEventSource);
@@ -76,7 +89,7 @@ describe("AppShell", () => {
     expect(navigationState.router.refresh).toHaveBeenCalledOnce();
   });
 
-  it.each(["/app/friends", "/app/outings", "/app/outings/outing-a", "/app/trips", "/app/trips/trip-a", "/app/expenses", "/app/repayments", "/app/history", "/app/exports", "/app/exports/export-a"])("marks Personal active for %s", (pathname) => {
+  it.each(["/app/personal/budget", "/app/personal/budget/transactions", "/app/personal/budget/periods", "/app/personal/budget/subscriptions", "/app/friends", "/app/outings", "/app/outings/outing-a", "/app/trips", "/app/trips/trip-a", "/app/expenses", "/app/repayments", "/app/history", "/app/exports", "/app/exports/export-a"])("marks Personal active for %s", (pathname) => {
     pathState.value = pathname;
     render(<AppShell user={{ id: "user-a", name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     for (const label of ["Ledger navigation", "Mobile ledger navigation"]) {

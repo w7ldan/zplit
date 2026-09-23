@@ -231,6 +231,9 @@
 .debtor-statement__destination-list,
 .debtor-statement__list {
   min-inline-size: 0;
+}
+
+.debtor-statement__destination-list {
   border-block: 1px solid var(--vnext-rule);
 }
 
@@ -240,9 +243,7 @@
   border-block-start: 1px solid var(--vnext-rule);
 }
 
-.debtor-statement__destination:first-child,
-.debtor-statement__item:first-child,
-.debtor-statement__repayment:first-child {
+.debtor-statement__destination:first-child {
   border-block-start: 0;
 }
 
@@ -328,8 +329,13 @@
 .debtor-statement__item,
 .debtor-statement__repayment {
   min-inline-size: 0;
-  padding-block: 1.15rem 1.25rem;
-  border-block-start: 1px solid var(--vnext-rule);
+  padding: 1rem 0.6rem 1rem 0.85rem;
+  border-inline-start: 2px solid var(--vnext-rule);
+}
+
+.debtor-statement__list {
+  display: grid;
+  gap: 0.85rem;
 }
 
 .debtor-statement__state {
@@ -356,9 +362,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.85rem;
-  margin: 1rem 0 0;
-  padding-block-start: 0.85rem;
-  border-block-start: 1px solid var(--vnext-rule);
+  margin: 0.85rem 0 0;
 }
 
 .debtor-statement__item-values .debtor-statement__metric--remaining dd,
@@ -850,6 +854,11 @@
   .debtor-statement__repayment-values {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.9rem 0.75rem;
+  }
+
+  .debtor-statement__item,
+  .debtor-statement__repayment {
+    padding: 0.85rem 0.35rem 0.85rem 0.7rem;
   }
 
   .debtor-statement__destination-copy {

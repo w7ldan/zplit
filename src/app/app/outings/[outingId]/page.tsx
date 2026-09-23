@@ -56,8 +56,10 @@ export default async function OutingRecordPage({ params, searchParams }: { param
     <section className={["app-page", "page-content", "zplit-vnext", "personal-vnext", "outing-record", zplitVNextFont.variable].filter(Boolean).join(" ")} id="top">
       <div className="editorial-grid editorial-shell outing-record__layout personal-vnext__detail-layout">
         <header className="outing-record__intro personal-vnext__detail-intro personal-vnext__motion-reveal" data-motion="enter">
-          <p className="technical-label">Outing · editable record</p>
-          <h1>{outing.title}</h1>
+          <div className="outing-record__identity personal-vnext__detail-identity">
+            <p className="technical-label">Outing · editable record</p>
+            <h1>{outing.title}</h1>
+          </div>
           <div className="outing-record__actions">
             <Link className="action-link action-link--quiet vnext-button vnext-button--secondary personal-vnext__secondary-action" href={`/app/expenses?create=1&outing=${outing.id}`}>Add expense</Link>
             <Link className="outing-record__back vnext-link personal-vnext__secondary-action" href="/app/outings">← Outings</Link>

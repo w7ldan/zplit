@@ -344,7 +344,7 @@ export default async function AppPage() {
             <Link className="overview-action overview-action--secondary vnext-button vnext-button--secondary" href="/app/repayments?create=1" data-task-trigger="repayment-create">Record repayment</Link>
           </div>
         </header>
-        <section className="overview-signal-zone" aria-label="Personal financial signals">
+        <section className={`overview-signal-zone${needsAttention.totalItems === 0 ? " overview-signal-zone--personal-only" : ""}`} aria-label="Personal financial signals">
           <PersonalHero summary={summary} />
           <MatchingSection items={displayedNeedsAttention} totalItems={needsAttention.totalItems} />
         </section>
