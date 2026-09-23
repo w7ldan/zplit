@@ -257,12 +257,14 @@ async function startFollowingBudgetPeriod(database: Database, ownerUserId: strin
     await lockBudgetProfile(transaction as Database, ownerUserId);
     const [active] = await transaction.select().from(budgetPeriods).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.status, "active"))).limit(1).for("update");
     let current = active;
+    let recurringReassignFrom: { periodId: string; endsOn: string } | undefined;
     if (fromPaused) {
       if (active) throw new BudgetError("CONFLICT", "A new active period has already started. Reload Budget to continue.");
       const [latestClosed] = await transaction.select().from(budgetPeriods).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.status, "closed"))).orderBy(desc(budgetPeriods.ordinal)).limit(1).for("update");
       if (!latestClosed) throw new BudgetError("NOT_FOUND", "No closed Budget period is available to resume from.");
       if (latestClosed.id !== input.expectedSourcePeriodId) throw new BudgetError("CONFLICT", "Budget history changed in another request. Reload before starting a new period.");
       current = latestClosed;
+      recurringReassignFrom = { periodId: latestClosed.id, endsOn: latestClosed.endsOn };
     } else {
       if (!active) throw new BudgetError("NOT_FOUND", "No active budget period is available.");
       if (active.id !== input.expectedSourcePeriodId) throw new BudgetError("CONFLICT", "This period changed in another request. Reload before starting the next period.");
@@ -300,6 +302,7 @@ async function startFollowingBudgetPeriod(database: Database, ownerUserId: strin
         .where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.id, current.id), eq(budgetPeriods.status, "closed")))
         .returning({ id: budgetPeriods.id });
       if (!shortened) throw new BudgetError("CONFLICT", "The previous closed period changed before it could be shortened.");
+      recurringReassignFrom = { periodId: current.id, endsOn: shortenedPreviousEndsOn };
     }
     if (!fromPaused) await transaction.update(budgetPeriods).set({ status: "closed", updatedAt: new Date() }).where(and(eq(budgetPeriods.ownerUserId, ownerUserId), eq(budgetPeriods.id, current.id), eq(budgetPeriods.status, "active")));
     const [next] = await transaction.insert(budgetPeriods).values({ ownerUserId, ordinal: nextOrdinal, name, startsOn: input.startsOn, endsOn: input.endsOn, totalBudget: input.totalBudget, status: "active" }).returning();
@@ -319,7 +322,7 @@ async function startFollowingBudgetPeriod(database: Database, ownerUserId: strin
       categoryIds,
       uncategorizedId,
       input.recurrence ?? [],
-      shortenedPreviousEndsOn ? { periodId: current.id, endsOn: shortenedPreviousEndsOn } : undefined,
+      recurringReassignFrom,
     );
     return {
       previousPeriod: current,

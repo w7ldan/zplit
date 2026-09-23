@@ -68,7 +68,7 @@ async function run() {
     await pool.query("INSERT INTO users (id, name, email, email_verified) VALUES ($1, 'Period Owner A', $2, true), ($3, 'Period Owner B', $4, true)", [ownerA, `period-a-${ownerA}@example.com`, ownerB, `period-b-${ownerB}@example.com`]);
     scopeA = await ensurePersonalLedgerScope(database, ownerA);
     await createBudgetSetup(database, ownerA, { periodName: "September", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 10_000, categories: [{ name: "Food", allocatedAmount: 2_000 }, { name: "Travel", allocatedAmount: 2_000 }] });
-    await createBudgetSetup(database, ownerB, { periodName: "Owner B", startsOn: "2026-09-01", endsOn: "2026-09-30", totalBudget: 10_000, categories: [{ name: "Food", allocatedAmount: 0 }] });
+    await createBudgetSetup(database, ownerB, { periodName: "Owner B", startsOn: "2026-11-01", endsOn: "2026-11-30", totalBudget: 10_000, categories: [{ name: "Food", allocatedAmount: 0 }] });
     const { period: initialPeriod, plans } = await activePlan(pool, ownerA);
     const foodId = plans.find((plan) => plan.name === "Food")!.category_id;
     const travelId = plans.find((plan) => plan.name === "Travel")!.category_id;
@@ -261,22 +261,49 @@ async function run() {
 
     const ownerBInitial = await activePlan(pool, ownerB);
     const ownerBFoodId = ownerBInitial.plans.find((plan) => plan.name === "Food")!.category_id;
-    const ownerBPosted = await createManualBudgetTransaction(database, ownerB, { direction: "outflow", amount: 100, description: "History after proposed close", occurredOn: "2026-09-27", categoryId: ownerBFoodId });
-    await archiveActiveBudgetPeriod(database, ownerB, ownerBInitial.period.id, "2026-09-30");
-    const ownerBReset = {
+    const ownerBEarlyArchiveRule = await createBudgetRecurringTemplate(database, ownerB, { name: "Early archive carry-forward", amount: 100, categoryId: ownerBFoodId, frequency: "monthly", startsOn: "2026-11-28", spreadCount: 1 });
+    const ownerBNovemberOccurrence = await row<{ id: string }>(pool, "SELECT id FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 AND scheduled_on = '2026-11-28' AND scheduled_period_id = $3", [ownerB, ownerBEarlyArchiveRule.id, ownerBInitial.period.id]);
+    await archiveActiveBudgetPeriod(database, ownerB, ownerBInitial.period.id, "2026-11-23");
+    assert.deepEqual((await pool.query("SELECT status, ends_on::text FROM budget_periods WHERE owner_user_id = $1 AND id = $2", [ownerB, ownerBInitial.period.id])).rows[0], { status: "closed", ends_on: "2026-11-23" }, "the early archived period keeps its shortened end date while paused");
+    assert.equal((await pool.query("SELECT count(*) FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 AND scheduled_on = '2026-11-28' AND scheduled_period_id = $3 AND status = 'due' AND budget_transaction_id IS NULL", [ownerB, ownerBEarlyArchiveRule.id, ownerBInitial.period.id])).rows[0].count, "1", "the due November occurrence remains in the closed period while Budget is paused");
+    const ownerBTransactionsBeforeResume = await transactionCount(pool, ownerB);
+    const ownerBImpactsBeforeResume = await impactCount(pool, ownerB);
+    await startBudgetPeriodFromPaused(database, ownerB, {
       expectedLatestPeriodId: ownerBInitial.period.id,
-      name: "September reset",
-      startsOn: "2026-09-24",
-      endsOn: "2026-09-30",
+      name: "December",
+      startsOn: "2026-11-24",
+      endsOn: "2026-12-31",
       totalBudget: 10_000,
       allocations: ownerBInitial.plans.map((plan) => ({ categoryId: plan.category_id, allocatedAmount: plan.allocated_amount })),
+    });
+    const ownerBDecember = await activePlan(pool, ownerB);
+    assert.equal(ownerBDecember.period.starts_on, "2026-11-24", "paused Budget resumes the day after the early archived period");
+    assert.equal((await pool.query("SELECT ends_on::text FROM budget_periods WHERE owner_user_id = $1 AND id = $2", [ownerB, ownerBInitial.period.id])).rows[0].ends_on, "2026-11-23", "resuming does not change the already-shortened period end");
+    assert.equal((await pool.query("SELECT count(*) FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 AND scheduled_period_id = $3 AND scheduled_on = '2026-11-28' AND status = 'due' AND budget_transaction_id IS NULL", [ownerB, ownerBEarlyArchiveRule.id, ownerBDecember.period.id])).rows[0].count, "1", "the already-materialized November occurrence moves into the resumed period exactly once");
+    const carriedNovemberOccurrence = await row<{ id: string }>(pool, "SELECT id FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 AND scheduled_on = '2026-11-28' AND scheduled_period_id = $3", [ownerB, ownerBEarlyArchiveRule.id, ownerBDecember.period.id]);
+    assert.equal(carriedNovemberOccurrence.id, ownerBNovemberOccurrence.id, "carry-forward preserves the existing occurrence identity");
+    assert.deepEqual((await pool.query("SELECT scheduled_on::text FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 AND scheduled_period_id = $3 ORDER BY scheduled_on", [ownerB, ownerBEarlyArchiveRule.id, ownerBDecember.period.id])).rows.map((item) => item.scheduled_on), ["2026-11-28", "2026-12-28"], "the moved November occurrence and later December occurrence each belong to the resumed period once");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2", [ownerB, ownerBEarlyArchiveRule.id]), 2, "carry-forward does not create duplicate occurrence rows");
+    assert.equal(await count(pool, "SELECT count(*)::text AS count FROM (SELECT recurring_template_id, scheduled_on FROM budget_recurring_occurrences WHERE owner_user_id = $1 AND recurring_template_id = $2 GROUP BY recurring_template_id, scheduled_on HAVING count(*) > 1) duplicates", [ownerB, ownerBEarlyArchiveRule.id]), 0, "each recurring template date remains unique after carry-forward");
+    assert.equal(await transactionCount(pool, ownerB), ownerBTransactionsBeforeResume, "carry-forward does not create a duplicate Budget transaction");
+    assert.equal(await impactCount(pool, ownerB), ownerBImpactsBeforeResume, "unrecorded carry-forward does not create duplicate Budget impacts");
+
+    const ownerBPosted = await createManualBudgetTransaction(database, ownerB, { direction: "outflow", amount: 100, description: "History after proposed close", occurredOn: "2026-12-27", categoryId: ownerBFoodId });
+    await archiveActiveBudgetPeriod(database, ownerB, ownerBDecember.period.id, "2026-12-31");
+    const ownerBReset = {
+      expectedLatestPeriodId: ownerBDecember.period.id,
+      name: "Year end reset",
+      startsOn: "2026-12-24",
+      endsOn: "2027-01-31",
+      totalBudget: 10_000,
+      allocations: ownerBDecember.plans.map((plan) => ({ categoryId: plan.category_id, allocatedAmount: plan.allocated_amount })),
       confirmPreviousPeriodShortening: true,
     };
     await assert.rejects(
       startBudgetPeriodFromPaused(database, ownerB, ownerBReset),
-      (error: unknown) => error instanceof BudgetError && error.code === "CONFLICT" && error.message.includes("2026-09-27"),
+      (error: unknown) => error instanceof BudgetError && error.code === "CONFLICT" && error.message.includes("2026-12-27"),
     );
-    assert.deepEqual((await pool.query("SELECT status, ends_on::text FROM budget_periods WHERE owner_user_id = $1 AND id = $2", [ownerB, ownerBInitial.period.id])).rows[0], { status: "closed", ends_on: "2026-09-30" }, "unsafe paused reset preserves posted historical activity and its original period range");
+    assert.deepEqual((await pool.query("SELECT status, ends_on::text FROM budget_periods WHERE owner_user_id = $1 AND id = $2", [ownerB, ownerBDecember.period.id])).rows[0], { status: "closed", ends_on: "2026-12-31" }, "unsafe paused reset preserves posted historical activity and its original period range");
     assert.equal((await pool.query("SELECT status FROM budget_transactions WHERE owner_user_id = $1 AND id = $2", [ownerB, ownerBPosted.id])).rows[0].status, "posted", "unsafe reset leaves the posted transaction intact");
 
     console.log("budget period transition smoke passed: early archive and confirmed paused reset, posted-history safety, recurring carry-forward, atomic stale-gated transitions, pending/void handling, zero-impact absorption, multi-category repayment mapping, history, and owner isolation");

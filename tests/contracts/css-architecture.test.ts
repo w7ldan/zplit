@@ -101,6 +101,9 @@ describe("Repository CSS architecture contract", () => {
     expect(overviewSource).not.toContain("--overview-pointer");
     expect(personalVnextSource).toContain(".personal-ledger-summary");
     expect(personalVnextSource).toContain(".personal-ledger-summary__attention--active");
+    expect(personalVnextSource).toMatch(/\.personal-vnext \.personal-ledger-summary__attention\s*\{[^}]*border-block-start:\s*3px solid transparent;/);
+    expect(personalVnextSource).toMatch(/\.personal-vnext \.personal-ledger-summary__attention--active\s*\{[^}]*border-block-start-color:\s*var\(--vnext-debt\);/);
+    expect(personalVnextSource).not.toMatch(/\.personal-vnext \.personal-ledger-summary__attention--active\s*\{[^}]*box-shadow:/);
     expect(personalVnextSource).not.toContain(".overview-summary");
     expect(personalVnextSource).not.toMatch(/:nth-child\(/);
     expect(personalVnextSource).not.toContain("task-panel.personal-task-panel");

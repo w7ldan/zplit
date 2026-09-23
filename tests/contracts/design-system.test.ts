@@ -4,8 +4,22 @@ import { readSource, root } from "./helpers";
 
 const css = readCssBundle(root).css;
 const documentation = readSource("docs/design-system.md");
+const foundation = readSource("src/app/styles/00-foundation.css");
 
 describe("Repository design-system contract", () => {
+  it("keeps the vNext warm surface canonical in both themes", () => {
+    const lightTokens = foundation.match(/\.zplit-vnext\s*\{([^}]*)\}/)?.[1] ?? "";
+    const darkTokens = foundation.match(/:root\[data-theme="dark"\]\s+\.zplit-vnext\s*\{([^}]*)\}/)?.[1] ?? "";
+
+    expect(lightTokens).toContain("--vnext-surface-warm: #FFFFFF;");
+    expect(lightTokens).not.toContain("#FAF7F1");
+    expect(darkTokens).toContain("--vnext-surface-warm: #211F1B;");
+    expect(darkTokens).toContain("--vnext-canvas: #171816;");
+    expect(darkTokens).toContain("--vnext-paper: #1D1E1C;");
+    expect(darkTokens).toContain("--vnext-surface: #20211F;");
+    expect(css).toContain("#F4F1EA");
+  });
+
   it("keeps design tokens, browser behavior, and documented density modes explicit", () => {
     for (const token of ["#111315", "#F4F1EA", "#FFFEFA", "#C7E4F6", "#62676B", "#C8C7C1", "--mint", "--peach", "--amber", "--error"]) {
       expect(css).toContain(token);
