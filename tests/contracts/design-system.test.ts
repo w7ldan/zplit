@@ -12,8 +12,9 @@ describe("Repository design-system contract", () => {
     const darkTokens = foundation.match(/:root\[data-theme="dark"\]\s+\.zplit-vnext\s*\{([^}]*)\}/)?.[1] ?? "";
 
     expect(lightTokens).toContain("--vnext-surface-warm: #FFFFFF;");
-    expect(lightTokens).not.toContain("#FAF7F1");
-    expect(darkTokens).toContain("--vnext-surface-warm: #211F1B;");
+    expect(darkTokens).toContain("--vnext-surface-warm: #20211F;");
+    expect(css).not.toContain("#FAF7F1");
+    expect(css).not.toContain("#211F1B");
     expect(darkTokens).toContain("--vnext-canvas: #171816;");
     expect(darkTokens).toContain("--vnext-paper: #1D1E1C;");
     expect(darkTokens).toContain("--vnext-surface: #20211F;");
