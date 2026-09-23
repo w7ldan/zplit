@@ -164,65 +164,19 @@
 }
 
 .zplit-vnext .animated-money[data-animating="true"] .animated-money__static {
-  visibility: hidden;
+  animation: animated-money-update 180ms ease-out both;
 }
 
-.zplit-vnext .animated-money__visual {
-  position: absolute;
-  inset: 0 auto auto 0;
-  display: inline-flex;
-  align-items: baseline;
-  max-inline-size: none;
-  visibility: hidden;
-  white-space: nowrap;
-}
-
-.zplit-vnext .animated-money[data-animating="true"] .animated-money__visual {
-  visibility: visible;
-}
-
-.zplit-vnext .animated-money__character {
-  display: inline-block;
-  flex: 0 0 auto;
-  font-variant-numeric: tabular-nums;
-  white-space: pre;
-}
-
-.zplit-vnext .animated-money__separator {
-  inline-size: 0.35em;
-  text-align: center;
-}
-
-.zplit-vnext .animated-money__digit {
-  display: inline-block;
-  inline-size: 1ch;
-  block-size: 1.1em;
-  flex: 0 0 1ch;
-  overflow: clip;
-  vertical-align: baseline;
-}
-
-.zplit-vnext .animated-money__reel {
-  display: flex;
-  inline-size: 1ch;
-  flex-direction: column;
-  line-height: 1.1;
-}
-
-.zplit-vnext .animated-money[data-animating="true"] .animated-money__reel {
-  will-change: transform;
-}
-
-.zplit-vnext .animated-money__reel-digit {
-  display: block;
-  inline-size: 1ch;
-  block-size: 1.1em;
-  flex: 0 0 1.1em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+@keyframes animated-money-update {
+  from { opacity: 0.72; }
+  to { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .zplit-vnext .animated-money[data-animating="true"] .animated-money__static {
+    animation: none;
+  }
+
   .zplit-vnext .vnext-button,
   .zplit-vnext .vnext-row,
   .zplit-vnext .vnext-link::after,

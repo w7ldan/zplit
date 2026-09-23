@@ -109,6 +109,11 @@
   border-radius: 0 calc(var(--vnext-radius-major) - 1px) calc(var(--vnext-radius-major) - 1px) 0;
 }
 
+.personal-vnext .personal-ledger-summary__attention--active {
+  background: var(--vnext-debt-wash);
+  box-shadow: inset 0 3px var(--vnext-debt);
+}
+
 .personal-vnext .personal-ledger-summary .animated-money,
 .personal-vnext .personal-ledger-summary strong {
   display: block;

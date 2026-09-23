@@ -101,7 +101,7 @@
   line-height: 1;
 }
 
-.overview-module h2 span {
+.overview-module h2 .overview-heading-count {
   color: var(--vnext-link);
   font-size: 0.68em;
   letter-spacing: normal;

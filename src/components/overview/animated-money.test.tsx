@@ -1,94 +1,89 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { formatRupiah } from "@/domain/rupiah";
 import { AnimatedMoney } from "./animated-money";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe("AnimatedMoney", () => {
-  it("renders the canonical formatted amount accessibly", () => {
-    render(<AnimatedMoney amount={2450000} label="Still owed" />);
+  it("starts settled with the final formatted value and exact accessible label", () => {
+    const { container } = render(<AnimatedMoney amount={2450000} label="Still owed" />);
+    const money = container.querySelector<HTMLElement>(".animated-money")!;
 
     expect(screen.getByText(formatRupiah(2450000))).toBeInTheDocument();
     expect(screen.getByLabelText(`Still owed: ${formatRupiah(2450000)}`)).toBeInTheDocument();
-    expect(screen.getByLabelText(`Still owed: ${formatRupiah(2450000)}`)).not.toHaveAttribute("aria-live");
+    expect(money).toHaveAttribute("data-animating", "false");
+    expect(money.querySelectorAll(":scope > span")).toHaveLength(1);
+    expect(money.querySelector(".animated-money__visual")).not.toBeInTheDocument();
+    expect(money.querySelector("[data-money-reel]")).not.toBeInTheDocument();
   });
 
-  it("keeps the static formatted value in the layout contract", () => {
-    const { container } = render(<AnimatedMoney amount={2450000} animate={false} />);
-
-    expect(container.querySelector(".animated-money__static")).toHaveTextContent(formatRupiah(2450000));
-  });
-
-  it("animates from a stable zero state on first meaningful render", () => {
-    const originalAnimate = HTMLElement.prototype.animate;
-    const animate = vi.fn(() => ({ cancel: vi.fn(), finished: Promise.resolve() } as unknown as Animation));
-    Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate });
-
-    try {
-      render(<AnimatedMoney amount={2450000} />);
-
-      expect(animate).toHaveBeenCalledTimes(7);
-      const firstCall = animate.mock.calls[0] as unknown as [unknown];
-      expect(firstCall?.[0]).toEqual([
-        { transform: "translate3d(0, -0em, 0)" },
-        { transform: "translate3d(0, -2.2em, 0)" },
-      ]);
-    } finally {
-      if (originalAnimate) Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: originalAnimate });
-      else Reflect.deleteProperty(HTMLElement.prototype, "animate");
-    }
-  });
-
-  it("updates the final readable value when the amount changes", () => {
+  it("keeps static text as the layout authority through a real amount update", () => {
+    vi.useFakeTimers();
     const view = render(<AnimatedMoney amount={350000} />);
+    const money = view.container.querySelector<HTMLElement>(".animated-money")!;
+    const staticText = money.querySelector<HTMLElement>(".animated-money__static")!;
 
     view.rerender(<AnimatedMoney amount={8900000} />);
+    act(() => vi.advanceTimersByTime(20));
 
-    expect(screen.getByText(formatRupiah(8900000))).toBeInTheDocument();
-    expect(screen.queryByText(formatRupiah(350000))).not.toBeInTheDocument();
+    expect(money).toHaveAttribute("data-animating", "true");
+    expect(money.querySelector(".animated-money__static")).toBe(staticText);
+    expect(staticText).toHaveTextContent(formatRupiah(8900000));
+    expect(money.children).toHaveLength(1);
+    expect(money).toHaveAttribute("aria-label", formatRupiah(8900000));
+
+    act(() => vi.advanceTimersByTime(180));
+
+    expect(money).toHaveAttribute("data-animating", "false");
+    expect(money.querySelector(".animated-money__static")).toBe(staticText);
+    expect(money.children).toHaveLength(1);
   });
 
-  it("animates each digit in its own stable reel", () => {
-    const originalAnimate = HTMLElement.prototype.animate;
-    const animate = vi.fn(() => ({ cancel: vi.fn(), finished: Promise.resolve() } as unknown as Animation));
-    Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate });
-
-    try {
-      const view = render(<AnimatedMoney amount={100} animate={false} />);
-      view.rerender(<AnimatedMoney amount={2450000} />);
-      const reels = [...view.container.querySelectorAll("[data-money-reel]")];
-
-      expect(reels).toHaveLength(7);
-      expect(animate).toHaveBeenCalledTimes(7);
-      const firstCall = animate.mock.calls[0] as unknown as [unknown];
-      expect(firstCall?.[0]).toEqual([
-        { transform: "translate3d(0, -0em, 0)" },
-        { transform: "translate3d(0, -2.2em, 0)" },
-      ]);
-    } finally {
-      if (originalAnimate) Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: originalAnimate });
-      else Reflect.deleteProperty(HTMLElement.prototype, "animate");
-    }
-  });
-
-  it("settles every digit reel immediately when reduced motion is preferred", () => {
-    const addEventListener = vi.fn();
-    const removeEventListener = vi.fn();
-    vi.stubGlobal("matchMedia", vi.fn(() => ({
+  it("does not animate initial or changed values under reduced motion", () => {
+    const media = {
       matches: true,
-      addEventListener,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
       addListener: vi.fn(),
-      removeEventListener,
       removeListener: vi.fn(),
-    })));
-
+    };
+    vi.stubGlobal("matchMedia", vi.fn(() => media));
     const view = render(<AnimatedMoney amount={84000} animate />);
+    const money = view.container.querySelector<HTMLElement>(".animated-money")!;
 
-    expect(screen.getByText(formatRupiah(84000))).toBeInTheDocument();
-    const reels = [...view.container.querySelectorAll<HTMLElement>("[data-money-reel]")];
-    expect(reels).toHaveLength(5);
-    expect(reels.at(-1)?.style.transform).toBe("translate3d(0, -0em, 0)");
-    expect(addEventListener).toHaveBeenCalledWith("change", expect.any(Function));
+    expect(money).toHaveAttribute("data-animating", "false");
+    view.rerender(<AnimatedMoney amount={92000} animate />);
+    expect(money).toHaveAttribute("data-animating", "false");
+    expect(money).toHaveAttribute("aria-label", formatRupiah(92000));
+    expect(media.addEventListener).toHaveBeenCalledWith("change", expect.any(Function));
+  });
+
+  it("stops an update transition when reduced motion becomes active", () => {
+    vi.useFakeTimers();
+    const listeners: Array<() => void> = [];
+    const media = {
+      matches: false,
+      addEventListener: vi.fn((_event: string, listener: () => void) => { listeners.push(listener); }),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    };
+    vi.stubGlobal("matchMedia", vi.fn(() => media));
+    const view = render(<AnimatedMoney amount={100} />);
+    const money = view.container.querySelector<HTMLElement>(".animated-money")!;
+    view.rerender(<AnimatedMoney amount={200} />);
+    act(() => vi.advanceTimersByTime(20));
+    expect(money).toHaveAttribute("data-animating", "true");
+
+    act(() => {
+      media.matches = true;
+      listeners.forEach((listener) => listener());
+    });
+
+    expect(money).toHaveAttribute("data-animating", "false");
   });
 });

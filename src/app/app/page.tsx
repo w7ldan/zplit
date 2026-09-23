@@ -89,7 +89,7 @@ function MatchingSection({ items, totalItems }: { items: Array<{ id: string; fri
         <div className="overview-module__heading">
           <div>
             <p className="technical-label">Personal</p>
-            <h2 id="needs-matching-heading">Needs matching <span>{totalItems}</span></h2>
+            <h2 id="needs-matching-heading">Needs matching <span className="overview-heading-count">{totalItems}</span></h2>
           </div>
           {totalItems > items.length ? (
             <Link className="overview-text-link" href="/app/repayments?allocation=needs">

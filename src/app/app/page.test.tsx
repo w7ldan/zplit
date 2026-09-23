@@ -77,6 +77,7 @@ describe("/app overview", () => {
     expect(screen.getAllByText("Ari").length).toBeGreaterThan(0);
     expect(screen.getByText("Received money still needs an expense.")).toBeInTheDocument();
     const attention = screen.getByRole("heading", { level: 2, name: /Needs matching/ }).closest("section")!;
+    expect(attention.querySelector(".overview-heading-count")).toHaveTextContent("1");
     expect(attention.querySelectorAll(".overview-row--matching")).toHaveLength(1);
     expect(within(attention).getByLabelText("Ari unallocated amount: Rp 5.000")).toBeInTheDocument();
     expect(within(attention).getByRole("link", { name: /Match/ })).toHaveAttribute("href", "/app/repayments/repayment-a#repayment-allocations");

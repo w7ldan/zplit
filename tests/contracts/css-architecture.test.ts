@@ -93,9 +93,14 @@ describe("Repository CSS architecture contract", () => {
     expect(bundle.fragmentSources[3]).toContain(".app-page__layout");
     expect(overviewSource).toContain(".overview-page {");
     expect(overviewSource).toContain(".overview-signal-zone {");
+    expect(overviewSource).not.toContain(".overview-module h2 span");
+    expect(overviewSource).toContain(".overview-module h2 .overview-heading-count");
+    expect(overviewSource).toContain(".overview-personal__primary h2");
+    expect(readSource("src/app/app/page.tsx")).toContain('className="overview-heading-count"');
     expect(overviewSource).not.toContain(".overview-open-tile");
     expect(overviewSource).not.toContain("--overview-pointer");
     expect(personalVnextSource).toContain(".personal-ledger-summary");
+    expect(personalVnextSource).toContain(".personal-ledger-summary__attention--active");
     expect(personalVnextSource).not.toContain(".overview-summary");
     expect(personalVnextSource).not.toMatch(/:nth-child\(/);
     expect(personalVnextSource).not.toContain("task-panel.personal-task-panel");
