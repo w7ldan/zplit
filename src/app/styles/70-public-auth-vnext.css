@@ -7,7 +7,7 @@
 .public-vnext {
   min-width: 0;
   overflow-x: clip;
-  background: var(--vnext-canvas);
+  background: var(--vnext-paper);
   isolation: isolate;
 }
 
@@ -63,7 +63,8 @@
 .public-vnext .header-shell {
   min-height: 5rem;
   padding-block: 0.65rem;
-  border-bottom-color: var(--vnext-rule);
+  border-bottom-color: transparent;
+  background: transparent;
   font-family: inherit;
 }
 
@@ -79,7 +80,7 @@
   align-items: center;
   padding: 0.5rem 0.75rem;
   border: 1px solid transparent;
-  background: var(--vnext-canvas);
+  background: transparent;
   color: var(--vnext-text);
 }
 
@@ -88,7 +89,7 @@
   max-width: 74rem;
   border-color: var(--vnext-rule);
   border-radius: var(--vnext-radius-module);
-  background: var(--vnext-paper);
+  background: var(--vnext-surface);
   box-shadow: none;
   transform: translateY(0.35rem);
 }

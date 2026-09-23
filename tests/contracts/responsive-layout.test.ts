@@ -8,6 +8,10 @@ const foundation = readSource("src/app/styles/00-foundation.css");
 const budgetStyles = readSource("src/app/styles/30-records-and-forms.css");
 const authenticatedHeader = readSource("src/app/styles/60-authenticated-header-vnext.css");
 const overviewStyles = readSource("src/app/styles/25-overview.css");
+const tabletHeaderRules = authenticatedHeader.split("@media (max-width: 1199px)")[1]?.split("@media (max-width: 767px)")[0] ?? "";
+const phoneHeaderRules = authenticatedHeader.split("@media (max-width: 767px)")[1]?.split("@media (prefers-reduced-motion: reduce)")[0] ?? "";
+const phoneMobileNav = phoneHeaderRules.match(/\.app-shell__mobile-nav\s*\{([^}]+)\}/)?.[1] ?? "";
+const phoneMain = phoneHeaderRules.match(/\.app-shell__main\s*\{([^}]+)\}/)?.[1] ?? "";
 
 describe("Responsive layout contract", () => {
   it("recomposes the public document instead of switching to a second mobile product", () => {
@@ -40,9 +44,16 @@ describe("Responsive layout contract", () => {
     expect(budgetStyles).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.budget-page\.zplit-vnext \.budget-paused-state__actions\s*\{[^}]*align-items: stretch;[^}]*flex-direction: column;/);
   });
 
-  it("keeps authenticated mobile navigation aligned as a stable second row", () => {
-    expect(authenticatedHeader).toMatch(/@media \(max-width: 1199px\)[\s\S]*?\.app-shell__mobile-nav\s*\{[^}]*position: sticky;[^}]*top: var\(--authenticated-header-height\);[^}]*width: min\(calc\(100% - var\(--authenticated-canvas-gutter\)\)/);
-    expect(authenticatedHeader).toMatch(/\.app-shell__mobile-link\s*\{[^}]*flex: 1 1 0;[^}]*white-space: nowrap;/);
+  it("keeps tablet navigation in the Header and fixes the three phone tabs to the viewport bottom", () => {
+    expect(tabletHeaderRules).toMatch(/\.app-shell__mobile-nav\s*\{[^}]*position: sticky;[^}]*top: var\(--authenticated-header-height\);/);
+    expect(authenticatedHeader).toMatch(/\.app-shell__nav\s*\{[^}]*display: flex;/);
+    expect(authenticatedHeader).toMatch(/\.app-shell__mobile-nav\s*\{[^}]*display: none;/);
+    expect(tabletHeaderRules).toMatch(/\.app-shell__nav\s*\{[^}]*display: none;/);
+    expect(phoneMobileNav).toMatch(/display: grid;[\s\S]*position: fixed;[\s\S]*bottom: 0;[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+    expect(phoneMobileNav).toContain("env(safe-area-inset-bottom, 0px)");
+    expect(phoneMobileNav).not.toContain("position: sticky");
+    expect(phoneMobileNav).not.toContain("overflow-x");
+    expect(phoneMain).toContain("padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px))");
     expect(authenticatedHeader).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.app-shell \.header-shell__panel,[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto auto auto;/);
   });
 

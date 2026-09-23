@@ -159,6 +159,10 @@ describe("Repository CSS architecture contract", () => {
     expect(authenticatedSource).not.toContain(".app-shell__header-layout");
     expect(headerVnextSource).toContain(".app-shell__header-layout");
     expect(headerVnextSource).toContain("--authenticated-canvas-max-width: 118rem;");
+    expect(headerVnextSource).toContain("--authenticated-header-surface: var(--vnext-surface);");
+    expect(headerVnextSource).toContain("--authenticated-header-canvas: var(--vnext-canvas);");
+    expect(headerVnextSource).not.toMatch(/var\(--(?:paper|surface)\)/);
+    expect(authenticatedSource).not.toMatch(/\.app-shell\s*\{[^}]*background:\s*var\(--paper\)/);
     expect(headerVnextSource).toContain("box-shadow: none;");
     expect(headerVnextSource).toContain(".global-search__dialog");
     expect(authenticatedSource).not.toContain(".global-search__dialog");
@@ -169,6 +173,9 @@ describe("Repository CSS architecture contract", () => {
     expect(lateOverridesSource).not.toContain("app-shell__header-layout--detached");
     expect(foundationSource).toMatch(/\.header-shell__panel\s*\{[\s\S]*?width:\s*min\(calc\(100% - 2rem\), 90rem\);[\s\S]*?max-width:\s*90rem;[\s\S]*?border-bottom:\s*1px solid transparent;/);
     expect(headerVnextSource).toMatch(/\.app-shell \.header-shell__panel--detached\s*\{[\s\S]*?transform:\s*translateY\(0\.3rem\);/);
+    expect(headerVnextSource).toMatch(/\.app-shell \.header-shell__panel--detached\s*\{[^}]*background:\s*var\(--authenticated-header-surface\)/);
+    expect(headerVnextSource).toMatch(/\.account-menu summary\s*\{[^}]*background:\s*var\(--authenticated-header-surface\)/);
+    expect(headerVnextSource).toMatch(/\.account-menu__panel\s*\{[^}]*background:\s*var\(--authenticated-header-surface\)/);
   });
 
   it("keeps authenticated record selectors out of public and quarantine fragments", () => {

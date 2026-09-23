@@ -19,6 +19,11 @@ describe("Public UI contract", () => {
     expect(siteHeader).toContain('href="/app"');
     expect(publicAuth).toContain(".public-vnext .site-header__access");
     expect(publicAuth).toContain(".access-vnext");
+    expect(publicAuth).toMatch(/\.public-vnext\s*\{[^}]*background:\s*var\(--vnext-paper\)/);
+    expect(publicAuth).toMatch(/\.public-vnext__hero\s*\{[^}]*background:\s*var\(--vnext-paper\)/);
+    expect(publicAuth).toMatch(/\.public-vnext \.header-shell\s*\{[^}]*border-bottom-color:\s*transparent;[^}]*background:\s*transparent;/);
+    expect(publicAuth).toMatch(/\.public-vnext \.header-shell__panel\s*\{[^}]*background:\s*transparent;/);
+    expect(publicAuth).toMatch(/\.public-vnext \.header-shell__panel--detached\s*\{[^}]*background:\s*var\(--vnext-surface\)/);
     expect(publicAuth).not.toMatch(/gradient|backdrop-filter|box-shadow:\s*0/i);
     expect(legacyPublic).not.toMatch(/public-home|public-scene|scene-index|journey-|landing-reveal|story-motion/);
   });

@@ -39,7 +39,7 @@ The header owns the entry points for GlobalSearch, Inbox, and the account menu. 
 
 GlobalSearch is the one authoritative Search experience. It is a compact navigational dialog owned by the authenticated header, with dense semantic result rows, one destination focus target per row, meaningful no-query/loading/no-results states, and preserved query authorization and keyboard behavior.
 
-Responsive navigation keeps the core domains discoverable. On mobile, search stays visible in the top utility row. At medium and narrow widths, a visible secondary row may scroll horizontally when needed; it must remain keyboardable, touch-usable, free of page overflow, and clear about the active destination. Search, Inbox, and account remain reachable in the top row.
+Responsive navigation keeps the core domains discoverable. On mobile (767px and narrower), search stays visible in the top utility row while Overview, Personal, and Organizations use a fixed bottom tab bar. At tablet widths (768px–1199px), a visible secondary row may scroll horizontally when needed; it must remain keyboardable, touch-usable, free of page overflow, and clear about the active destination. Search, Inbox, and account remain reachable in the top row.
 
 ## Typography
 
@@ -61,7 +61,7 @@ Static formatted money is the layout authority. It must render with stable `Rp` 
 
 ## Semantic palette
 
-Tokens are owned by `src/app/styles/00-foundation.css` and are scoped beneath `.zplit-vnext`. Their implementation names use the `--vnext-*` namespace so legacy descendants inside a partially migrated route do not accidentally consume vNext aliases. Shared interaction contracts are in `src/app/styles/05-vnext-foundation.css`. Use semantic roles rather than page-specific color names.
+Tokens are owned by `src/app/styles/00-foundation.css` and are scoped beneath `.zplit-vnext` page roots. Shared chrome may use `.vnext-token-scope` to consume the same variables without applying page-wide vNext styles. Their implementation names use the `--vnext-*` namespace so legacy descendants inside a partially migrated route do not accidentally consume vNext aliases. Shared interaction contracts are in `src/app/styles/05-vnext-foundation.css`. Use semantic roles rather than page-specific color names.
 
 The core roles are `--vnext-canvas`, `--vnext-paper`, `--vnext-surface`, `--vnext-surface-strong`, `--vnext-surface-warm`, `--vnext-text`, `--vnext-text-soft`, `--vnext-text-quiet`, `--vnext-rule`, `--vnext-accent`, `--vnext-accent-strong`, `--vnext-accent-deep`, `--vnext-link`, `--vnext-debt`, and `--vnext-settled`, with corresponding pale and wash roles.
 

@@ -2,24 +2,22 @@
   --authenticated-canvas-gutter: clamp(1.5rem, 4vw, 5rem);
   --authenticated-canvas-max-width: 118rem;
   --authenticated-header-height: 5.25rem;
-  --authenticated-header-surface: var(--surface);
-  --authenticated-header-canvas: var(--paper);
+  --authenticated-header-surface: var(--vnext-surface);
+  --authenticated-header-canvas: var(--vnext-canvas);
   --authenticated-header-detached-gutter: clamp(3.5rem, calc(4vw + 3rem), 8rem);
-  --authenticated-header-text: var(--ink);
-  --authenticated-header-text-soft: var(--muted-ink);
-  --authenticated-header-rule: var(--rule);
-  --authenticated-header-accent: #239FDF;
-  --authenticated-header-accent-wash: #EBF8FE;
-  --authenticated-header-text-on-accent: #0F1216;
+  --authenticated-header-text: var(--vnext-text);
+  --authenticated-header-text-soft: var(--vnext-text-soft);
+  --authenticated-header-rule: var(--vnext-rule);
+  --authenticated-header-accent: var(--vnext-accent-strong);
+  --authenticated-header-accent-wash: var(--vnext-accent-wash);
+  --authenticated-header-text-on-accent: var(--vnext-text-on-accent);
   min-height: 100svh;
   background: var(--authenticated-header-canvas);
   font-family: var(--font-zplit-vnext), var(--font-body);
 }
 
 :root[data-theme="dark"] .app-shell {
-  --authenticated-header-accent: #72C5F5;
-  --authenticated-header-accent-wash: #192A32;
-  --authenticated-header-text-on-accent: #171816;
+  --authenticated-header-accent: var(--vnext-accent);
 }
 
 .app-shell .editorial-shell,
@@ -377,14 +375,14 @@ body.global-search-open {
 
 .global-search__backdrop {
   --authenticated-header-height: 5.25rem;
-  --authenticated-header-surface: var(--surface);
-  --authenticated-header-canvas: var(--paper);
-  --authenticated-header-text: var(--ink);
-  --authenticated-header-text-soft: var(--muted-ink);
-  --authenticated-header-rule: var(--rule);
-  --authenticated-header-accent: #239FDF;
-  --authenticated-header-accent-wash: #EBF8FE;
-  --authenticated-header-text-on-accent: #0F1216;
+  --authenticated-header-surface: var(--vnext-surface);
+  --authenticated-header-canvas: var(--vnext-canvas);
+  --authenticated-header-text: var(--vnext-text);
+  --authenticated-header-text-soft: var(--vnext-text-soft);
+  --authenticated-header-rule: var(--vnext-rule);
+  --authenticated-header-accent: var(--vnext-accent-strong);
+  --authenticated-header-accent-wash: var(--vnext-accent-wash);
+  --authenticated-header-text-on-accent: var(--vnext-text-on-accent);
   position: fixed;
   z-index: 70;
   inset: 0;
@@ -392,14 +390,14 @@ body.global-search-open {
   align-items: start;
   overflow: hidden;
   padding: calc(var(--authenticated-header-height) + 1rem) 1rem 1rem;
-  background: var(--overlay);
+  background: var(--vnext-overlay);
   overscroll-behavior: none;
+  color: var(--authenticated-header-text);
+  font-family: var(--font-zplit-vnext), var(--font-body);
 }
 
 :root[data-theme="dark"] .global-search__backdrop {
-  --authenticated-header-accent: #72C5F5;
-  --authenticated-header-accent-wash: #192A32;
-  --authenticated-header-text-on-accent: #171816;
+  --authenticated-header-accent: var(--vnext-accent);
 }
 
 .global-search__dialog {
@@ -709,6 +707,30 @@ body.global-search-open {
     display: contents;
   }
 
+  .app-shell__mobile-nav {
+    display: grid;
+    position: fixed;
+    z-index: 50;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    width: 100%;
+    margin: 0;
+    padding-block: 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    padding-inline: max(0.55rem, env(safe-area-inset-left, 0px)) max(0.55rem, env(safe-area-inset-right, 0px));
+    border: 0;
+    border-top: 1px solid var(--authenticated-header-rule);
+    border-radius: 0;
+    background: var(--authenticated-header-surface);
+    overflow: visible;
+  }
+
+  .app-shell__main {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+
   .app-shell__brand {
     grid-column: 1;
   }
@@ -736,6 +758,22 @@ body.global-search-open {
 
   .account-menu summary {
     padding-inline: 0.45rem;
+  }
+
+  .app-shell__mobile-link {
+    min-height: 3.1rem;
+    padding: 0.35rem 0.2rem;
+    border: 0;
+    border-top: 2px solid transparent;
+    border-radius: 0;
+    font-size: 0.72rem;
+    line-height: 1.1;
+  }
+
+  .app-shell__mobile-link--active {
+    border-top-color: var(--authenticated-header-accent);
+    background: transparent;
+    color: var(--authenticated-header-text);
   }
 
   .global-search__backdrop {

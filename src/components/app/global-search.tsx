@@ -197,7 +197,7 @@ export function GlobalSearch({ search = defaultSearch }: { search?: GlobalSearch
       <svg className="global-search-trigger__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
       <span className="global-search-trigger__label">Search</span><kbd>/</kbd>
     </button>
-    {open ? createPortal(<div className="global-search__backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeSearch(); }}>
+    {open ? createPortal(<div className="global-search__backdrop vnext-token-scope" onMouseDown={(event) => { if (event.target === event.currentTarget) closeSearch(); }}>
       <section ref={dialogRef} className="global-search__dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title" aria-describedby="global-search-help" onMouseDown={(event) => event.stopPropagation()}>
         <div className="global-search__header">
           <div>

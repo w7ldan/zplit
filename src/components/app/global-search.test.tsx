@@ -193,21 +193,22 @@ describe("GlobalSearch", () => {
     const source = readFileSync(path.resolve(process.cwd(), "src/components/app/global-search.tsx"), "utf8");
     const backdropRule = styles.match(/\.global-search__backdrop\s*\{([^}]+)\}/)?.[1] ?? "";
 
-    expect(source).toMatch(/createPortal\([\s\S]*?document\.body/);
+    expect(source).toMatch(/createPortal\([\s\S]*?className="global-search__backdrop vnext-token-scope"[\s\S]*?document\.body/);
     for (const token of [
-      "--authenticated-header-surface: var(--surface)",
-      "--authenticated-header-canvas: var(--paper)",
-      "--authenticated-header-text: var(--ink)",
-      "--authenticated-header-text-soft: var(--muted-ink)",
-      "--authenticated-header-rule: var(--rule)",
-      "--authenticated-header-accent:",
-      "--authenticated-header-accent-wash:",
+      "--authenticated-header-surface: var(--vnext-surface)",
+      "--authenticated-header-canvas: var(--vnext-canvas)",
+      "--authenticated-header-text: var(--vnext-text)",
+      "--authenticated-header-text-soft: var(--vnext-text-soft)",
+      "--authenticated-header-rule: var(--vnext-rule)",
+      "--authenticated-header-accent: var(--vnext-accent-strong)",
+      "--authenticated-header-accent-wash: var(--vnext-accent-wash)",
     ]) expect(backdropRule).toContain(token);
+    expect(backdropRule).not.toMatch(/var\(--(?:paper|surface|ink|muted-ink|rule)\)/);
+    expect(backdropRule).toContain("background: var(--vnext-overlay)");
     expect(styles).toMatch(/\.global-search__dialog\s*\{[^}]*background:\s*var\(--authenticated-header-surface\)/);
     expect(styles).toMatch(/\.global-search__dialog\s*\{[^}]*color:\s*var\(--authenticated-header-text\)/);
     expect(styles).toMatch(/:root\[data-theme="dark"\]\s+\.global-search__backdrop\s*\{[^}]*--authenticated-header-accent:/);
-    expect(styles).toMatch(/:root\[data-theme="dark"\]\s+\.global-search__backdrop\s*\{[^}]*--authenticated-header-accent-wash:/);
-    expect(backdropRule).toContain("background: var(--overlay)");
+    expect(styles).toContain("background: var(--vnext-overlay)");
     expect(styles).not.toMatch(/backdrop-filter\s*:/);
   });
 

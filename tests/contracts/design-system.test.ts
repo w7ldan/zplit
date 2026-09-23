@@ -5,20 +5,34 @@ import { readSource, root } from "./helpers";
 const css = readCssBundle(root).css;
 const documentation = readSource("docs/design-system.md");
 const foundation = readSource("src/app/styles/00-foundation.css");
+const authenticatedHeader = readSource("src/app/styles/60-authenticated-header-vnext.css");
+const appShell = readSource("src/components/app/app-shell.tsx");
+const globalSearch = readSource("src/components/app/global-search.tsx");
 
 describe("Repository design-system contract", () => {
   it("keeps the vNext warm surface canonical in both themes", () => {
-    const lightTokens = foundation.match(/\.zplit-vnext\s*\{([^}]*)\}/)?.[1] ?? "";
-    const darkTokens = foundation.match(/:root\[data-theme="dark"\]\s+\.zplit-vnext\s*\{([^}]*)\}/)?.[1] ?? "";
+    const lightTokens = foundation.match(/\.vnext-token-scope\s*\{([^}]*)\}/)?.[1] ?? "";
+    const darkTokens = foundation.match(/:root\[data-theme="dark"\]\s+\.vnext-token-scope\s*\{([^}]*)\}/)?.[1] ?? "";
 
     expect(lightTokens).toContain("--vnext-surface-warm: #FFFFFF;");
     expect(darkTokens).toContain("--vnext-surface-warm: #20211F;");
+    expect(lightTokens).not.toMatch(/(?:^|\n)\s*(?:background|color|color-scheme|font-family|font-weight)\s*:/);
     expect(css).not.toContain("#FAF7F1");
     expect(css).not.toContain("#211F1B");
     expect(darkTokens).toContain("--vnext-canvas: #171816;");
     expect(darkTokens).toContain("--vnext-paper: #1D1E1C;");
     expect(darkTokens).toContain("--vnext-surface: #20211F;");
     expect(css).toContain("#F4F1EA");
+  });
+
+  it("keeps authenticated Header surfaces on vNext semantic tokens", () => {
+    expect(authenticatedHeader).toContain("--authenticated-header-canvas: var(--vnext-canvas);");
+    expect(authenticatedHeader).toContain("--authenticated-header-surface: var(--vnext-surface);");
+    expect(authenticatedHeader).not.toMatch(/var\(--(?:paper|surface)\)/);
+    expect(authenticatedHeader).not.toMatch(/#(?:F4F1EA|FFFEFA|FAF7F1|211F1B)/i);
+    expect(appShell).toContain("app-shell vnext-token-scope");
+    expect(appShell).not.toContain("app-shell zplit-vnext");
+    expect(globalSearch).toContain('className="global-search__backdrop vnext-token-scope"');
   });
 
   it("keeps design tokens, browser behavior, and documented density modes explicit", () => {
@@ -72,6 +86,7 @@ describe("Repository design-system contract", () => {
       "Edit forms remain direct",
       "Creating the prerequisite Friend from Add repayment returns to",
       "On mobile, search stays visible",
+      "fixed bottom tab bar",
       "active-filter count excludes free-text search",
       "filters remains available whenever filtering is active.",
       "Result updates announce",

@@ -79,7 +79,7 @@ export function AppShell({ user, canManageInvites, initialUnreadCount = 0, fontC
       <ChatLiveRefresh pathname={pathname} />
       <UnsavedChangesProvider>
         <ToastProvider>
-        <div className={`app-shell${fontClassName ? ` ${fontClassName}` : ""}`}>
+        <div className={`app-shell vnext-token-scope${fontClassName ? ` ${fontClassName}` : ""}`}>
       <HeaderShell
         ariaLabel="Ledger header"
         navigationLabel="Ledger navigation"

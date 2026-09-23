@@ -40,6 +40,7 @@ describe("AppShell", () => {
     render(<AppShell user={{ id: "user-a", name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     const primary = screen.getByRole("navigation", { name: "Ledger navigation" });
     const mobile = screen.getByRole("navigation", { name: "Mobile ledger navigation" });
+    expect(document.querySelector(".app-shell")).toHaveClass("vnext-token-scope");
     expect(document.querySelector(".app-shell__brand")).toBeInTheDocument();
     expect(document.querySelector(".app-shell__actions")).toBeInTheDocument();
     expect(within(primary).getAllByRole("link")).toHaveLength(3);
@@ -60,12 +61,13 @@ describe("AppShell", () => {
     expect(document.querySelectorAll(".toast-viewport")).toHaveLength(1);
   });
 
-  it("keeps the mobile primary destinations in their own second-row navigation", () => {
+  it("keeps the mobile primary navigation outside the top Header", () => {
     render(<AppShell user={{ id: "user-a", name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
     const header = screen.getByRole("banner");
     const mobile = screen.getByRole("navigation", { name: "Mobile ledger navigation" });
     const actions = header.querySelector<HTMLElement>(".app-shell__actions")!;
 
+    expect(header).not.toContainElement(mobile);
     expect(Array.from(actions.children).map((child) => child.className)).toEqual(["global-search-trigger", "inbox-control", "account-menu"]);
     expect(within(mobile).getAllByRole("link").map((link) => link.textContent?.trim())).toEqual(["Overview", "Personal", "Organizations"]);
     expect(within(mobile).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app");
@@ -100,7 +102,9 @@ describe("AppShell", () => {
   it.each([["/app", "Overview"], ["/app/organizations", "Organizations"], ["/app/organizations/org-a", "Organizations"], ["/app/friends/friend-a", "Personal"], ["/app/expenses/expense-a", "Personal"], ["/app/repayments/repayment-a", "Personal"]] as const)("keeps %s active state correct", (pathname, label) => {
     pathState.value = pathname;
     render(<AppShell user={{ id: "user-a", name: "Wildan", email: "owner@example.com" }}><p>Private</p></AppShell>);
-    expect(within(screen.getByRole("navigation", { name: "Ledger navigation" })).getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
+    for (const navigationName of ["Ledger navigation", "Mobile ledger navigation"]) {
+      expect(within(screen.getByRole("navigation", { name: navigationName })).getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
+    }
   });
 
   it("shows only the user name in the closed account control and keeps its menu", () => {
