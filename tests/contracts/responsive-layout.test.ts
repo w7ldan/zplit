@@ -49,9 +49,11 @@ describe("Responsive layout contract", () => {
     expect(authenticatedHeader).toMatch(/\.app-shell__nav\s*\{[^}]*display: flex;/);
     expect(authenticatedHeader).toMatch(/\.app-shell__mobile-nav\s*\{[^}]*display: none;/);
     expect(tabletHeaderRules).toMatch(/\.app-shell__nav\s*\{[^}]*display: none;/);
-    expect(phoneMobileNav).toMatch(/display: grid;[\s\S]*position: fixed;[\s\S]*bottom: 0;[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+    expect(phoneMobileNav).toMatch(/display: grid;[\s\S]*position: fixed;[\s\S]*top: auto;[\s\S]*bottom: 0;[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
     expect(phoneMobileNav).toContain("env(safe-area-inset-bottom, 0px)");
     expect(phoneMobileNav).not.toContain("position: sticky");
+    expect(phoneMobileNav).not.toMatch(/(?:min-)?height:\s*100%/);
+    expect(phoneMobileNav).not.toMatch(/inset-block:\s*0/);
     expect(phoneMobileNav).not.toContain("overflow-x");
     expect(phoneMain).toContain("padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px))");
     expect(authenticatedHeader).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.app-shell \.header-shell__panel,[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto auto auto;/);
