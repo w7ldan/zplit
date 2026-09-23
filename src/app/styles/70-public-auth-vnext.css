@@ -7,7 +7,7 @@
 .public-vnext {
   min-width: 0;
   overflow-x: clip;
-  background: var(--vnext-paper);
+  background: var(--vnext-surface);
   isolation: isolate;
 }
 
@@ -160,686 +160,167 @@
   padding-inline: 0.85rem;
 }
 
+
 .public-vnext__hero,
 .public-vnext__section,
 .public-vnext__finale {
   border-block-end: 1px solid var(--vnext-rule);
 }
 
-.public-vnext__hero {
-  background: var(--vnext-paper);
-}
-
-.public-vnext__hero-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: clamp(2rem, 7vw, 7rem);
-  align-items: center;
-  min-height: min(48rem, calc(100svh - 5rem));
-  padding-block: clamp(4rem, 9vw, 8rem);
-}
-
-.public-vnext__hero-copy,
-.public-vnext__hero-example,
-.public-vnext__section-copy,
-.public-vnext__section-layout > * {
-  min-width: 0;
-}
-
-.public-vnext__hero-copy {
-  max-width: 38rem;
-}
-
+.public-vnext__hero { background: var(--vnext-surface); }
+.public-vnext__hero > .editorial-shell { padding-block: 1.5rem clamp(4rem, 8vw, 7rem); }
 .public-vnext__marker {
   display: flex;
-  min-height: 2.15rem;
-  align-items: baseline;
-  gap: 0.7rem;
+  justify-content: space-between;
+  gap: 1rem;
   margin: 0;
-  padding-block: 0.55rem;
+  padding-block: 0.7rem;
   border-block: 1px solid var(--vnext-rule);
   color: var(--vnext-text-quiet);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-
-.public-vnext__marker-number {
-  color: var(--vnext-text);
-  font-variant-numeric: tabular-nums;
-}
-
+.public-vnext__marker span:first-child { color: var(--vnext-text); font-variant-numeric: tabular-nums; }
 .public-vnext h1,
 .public-vnext h2,
-.public-vnext h3,
-.access-vnext h1 {
+.public-vnext h3 {
   font-weight: 800;
   letter-spacing: -0.065em;
-  line-height: 0.94;
+  line-height: 0.98;
   text-wrap: balance;
 }
-
-.public-vnext__hero h1 {
-  max-width: 10ch;
-  margin-block-start: 1.35rem;
-  font-size: clamp(3.3rem, 7.5vw, 7.2rem);
-}
-
-.public-vnext__hero-lede {
-  max-width: 31rem;
-  margin-block-start: 1.5rem;
-  color: var(--vnext-text-soft);
-  font-size: clamp(1rem, 1.4vw, 1.2rem);
-  line-height: 1.5;
-}
-
-.public-vnext__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem 1.1rem;
-  margin-block-start: 2rem;
-}
-
-.public-vnext__actions .action-link {
-  min-block-size: 3rem;
-  padding-inline: 1.05rem;
-}
-
-.public-vnext__text-link {
-  position: relative;
-  display: inline-flex;
-  min-block-size: 2.75rem;
-  align-items: center;
-  color: var(--vnext-link);
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.public-vnext__text-link::after,
-.public-vnext__context-note strong::after {
-  position: absolute;
-  right: 0;
-  bottom: 0.35rem;
-  left: 0;
-  height: 1px;
-  background: currentColor;
-  content: "";
-  transform: scaleX(0);
-  transform-origin: right;
-  transition: transform var(--vnext-motion-fast) var(--vnext-ease-product);
-}
-
-.public-vnext__text-link:hover::after,
-.public-vnext__text-link:focus-visible::after {
-  transform: scaleX(1);
-  transform-origin: left;
-}
-
-.public-vnext__hero-note {
-  margin-block-start: clamp(2.25rem, 5vw, 4rem);
-  color: var(--vnext-text-quiet);
-  font-size: 0.75rem;
-  line-height: 1.5;
-}
-
-.public-vnext__hero-example {
-  max-width: 54rem;
-  justify-self: end;
-  padding: clamp(0.6rem, 1.5vw, 1.2rem);
-  border-inline-start: 2px solid var(--vnext-accent-strong);
-  animation: public-vnext-example-in var(--vnext-motion-reveal) var(--vnext-ease-emphasized) both;
-}
-
-.public-vnext__example-caption,
-.public-vnext__record-header,
-.public-vnext__record-status,
-.public-vnext__record-footer,
-.public-vnext__evidence-record header,
-.public-vnext__privacy-link,
-.public-vnext__privacy-owner,
-.public-vnext__privacy-shared {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  min-width: 0;
-}
-
-.public-vnext__example-caption {
-  padding-block-end: 0.65rem;
-  color: var(--vnext-text-quiet);
-  font-size: 0.67rem;
-  text-transform: uppercase;
-}
-
-.public-vnext__hero-record {
-  min-width: 0;
-  border: 1px solid var(--vnext-rule);
-  border-block-start: 3px solid var(--vnext-accent-strong);
-  border-radius: var(--vnext-radius-module);
-  background: var(--vnext-surface);
-  animation: public-vnext-record-in var(--vnext-motion-layout) var(--vnext-ease-emphasized) both;
-}
-
-.public-vnext__record-header,
-.public-vnext__record-expense,
-.public-vnext__record-status,
-.public-vnext__record-footer {
-  padding: clamp(0.85rem, 1.7vw, 1.35rem);
-}
-
-.public-vnext__record-header,
-.public-vnext__record-expense,
-.public-vnext__record-status {
-  border-block-end: 1px solid var(--vnext-rule);
-}
-
-.public-vnext__record-header h2 {
-  margin-block-start: 0.45rem;
-  font-size: clamp(1.8rem, 3.6vw, 3.8rem);
-}
-
-.public-vnext__record-date,
-.public-vnext__record-expense small,
-.public-vnext__record-status,
-.public-vnext__record-footer {
-  color: var(--vnext-text-soft);
-  font-size: 0.74rem;
-}
-
-.public-vnext__record-date {
-  flex: 0 0 auto;
-}
-
-.public-vnext__record-expense {
+.public-vnext__hero-intro {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1.7fr) minmax(13rem, 0.5fr);
   align-items: end;
-  gap: 1.5rem;
+  gap: clamp(2rem, 6vw, 6rem);
+  padding-block: clamp(3rem, 6vw, 6rem) clamp(2.5rem, 5vw, 5rem);
 }
-
-.public-vnext__record-expense > div,
-.public-vnext__record-footer-label {
-  display: grid;
-  gap: 0.35rem;
-  min-width: 0;
-}
-
-.public-vnext__record-expense strong {
-  font-size: clamp(1.25rem, 2vw, 2.1rem);
-  line-height: 1.05;
-}
-
-.public-vnext__money {
-  display: inline-block;
-  color: var(--vnext-text);
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.public-vnext__record-amount {
-  font-size: clamp(1.5rem, 3.4vw, 3.2rem);
-  line-height: 1;
-  text-align: right;
-}
-
-.public-vnext__record-status {
-  flex-wrap: wrap;
-  color: var(--vnext-text-quiet);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-}
-
-.public-vnext__record-footer {
-  align-items: baseline;
-}
-
-.public-vnext__record-footer .public-vnext__money {
-  font-size: clamp(1.2rem, 2.2vw, 2rem);
-}
-
-.public-vnext__section {
-  background: var(--vnext-canvas);
-}
-
-.public-vnext__section--record,
-.public-vnext__section--private {
-  background: var(--vnext-surface-strong);
-}
-
-.public-vnext__section-layout {
-  display: grid;
-  grid-template-columns: minmax(12rem, 0.7fr) minmax(0, 1.3fr);
-  gap: clamp(2rem, 7vw, 7rem);
-  align-items: start;
-  padding-block: clamp(4rem, 9vw, 8rem);
-}
-
-.public-vnext__section-copy {
-  position: sticky;
-  top: 7rem;
-}
-
-.public-vnext__section-copy h2 {
-  max-width: 11ch;
-  margin-block-start: 1.2rem;
-  font-size: clamp(2.7rem, 5vw, 5.7rem);
-}
-
-.public-vnext__section-copy > p:not(.public-vnext__marker) {
-  max-width: 29rem;
-  margin-block-start: 1.25rem;
+.public-vnext__hero h1 { font-size: clamp(3.5rem, 7.3vw, 7.8rem); }
+.public-vnext__hero h1 span { color: var(--vnext-accent-deep); }
+.public-vnext__hero-intro p,
+.public-vnext__private-intro p {
+  max-width: 23rem;
+  margin-block-end: 1.5rem;
   color: var(--vnext-text-soft);
-  font-size: 0.95rem;
+  font-size: clamp(0.95rem, 1.3vw, 1.1rem);
   line-height: 1.55;
 }
-
-.public-vnext__flow {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  min-width: 0;
-  border-block: 1px solid var(--vnext-rule);
+.public-vnext__hero-intro .action-link { min-block-size: 3rem; }
+.public-vnext__money { font-weight: 800; white-space: nowrap; }
+.public-vnext__hero-record {
+  border: 1px solid var(--vnext-rule);
+  border-block-start: 3px solid var(--vnext-accent-strong);
+  background: var(--vnext-surface);
 }
-
-.public-vnext__flow-step {
-  display: grid;
-  align-content: start;
-  gap: 0.6rem;
-  min-width: 0;
-  min-height: 19rem;
-  padding: 1.1rem;
-  border-inline-start: 1px solid var(--vnext-rule);
+.public-vnext__record-header,
+.public-vnext__record-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  align-items: end;
+  padding: clamp(1.2rem, 2.5vw, 2.5rem);
 }
-
-.public-vnext__flow-step:first-child {
-  border-inline-start: 0;
+.public-vnext__record-header { border-block-end: 1px solid var(--vnext-rule); }
+.public-vnext__record-header h2 { margin-block-start: 0.45rem; font-size: clamp(2rem, 4vw, 4.4rem); }
+.public-vnext__record-date,
+.public-vnext__record-index { color: var(--vnext-text-quiet); font-size: 0.73rem; }
+.public-vnext__record-body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
+.public-vnext__record-total,
+.public-vnext__record-people { display: flex; flex-direction: column; min-width: 0; padding: clamp(1.2rem, 2.5vw, 2.5rem); }
+.public-vnext__record-total { justify-content: space-between; min-height: 21rem; border-inline-end: 1px solid var(--vnext-rule); }
+.public-vnext__record-total > .public-vnext__money {
+  display: block;
+  font-size: clamp(2.8rem, 6vw, 6.8rem);
+  letter-spacing: -0.055em;
+  line-height: 1;
 }
-
-.public-vnext__flow-step--expense {
-  background: var(--vnext-paper);
-}
-
-.public-vnext__flow-step--shares {
-  background: var(--vnext-accent-wash);
-}
-
-.public-vnext__flow-step--repayment {
-  background: var(--vnext-surface-warm);
-}
-
-.public-vnext__flow-step--remaining {
-  background: var(--vnext-settled-wash);
-}
-
-.public-vnext__flow-step strong {
-  font-size: 1rem;
-  line-height: 1.2;
-}
-
-.public-vnext__flow-step > small,
-.public-vnext__share-row small {
-  color: var(--vnext-text-soft);
-  font-size: 0.72rem;
-  line-height: 1.4;
-}
-
-.public-vnext__flow-step > .public-vnext__money {
-  align-self: end;
-  margin-block-start: auto;
-  font-size: clamp(1.35rem, 2.4vw, 2.25rem);
-}
-
-.public-vnext__share-list {
-  display: grid;
-  gap: 0.6rem;
-  margin-block-start: 0.2rem;
-}
-
-.public-vnext__share-row {
+.public-vnext__record-people > .technical-label { margin-block-end: 1.25rem; }
+.public-vnext__shares { width: 100%; }
+.public-vnext__share {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.18rem 0.5rem;
-  align-items: center;
-  min-width: 0;
-  padding-block: 0.45rem;
+  gap: 0.2rem 1rem;
+  padding-block: 0.65rem;
   border-block-start: 1px solid var(--vnext-rule);
 }
-
-.public-vnext__person {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.77rem;
-  font-weight: 600;
-}
-
-.public-vnext__share-value {
-  font-size: 0.77rem;
-}
-
-.public-vnext__share-row small {
+.public-vnext__share-name { font-weight: 600; }
+.public-vnext__share-status {
   grid-column: 1 / -1;
-  padding-inline-start: 2.1rem;
-}
-
-.public-vnext__context-list {
-  display: grid;
-  min-width: 0;
-  border-block: 1px solid var(--vnext-rule);
-}
-
-.public-vnext__context-item {
-  display: grid;
-  grid-template-columns: minmax(8rem, 0.55fr) minmax(0, 1.45fr);
-  gap: 1.5rem;
-  min-width: 0;
-  padding-block: 1.35rem;
-  border-block-start: 1px solid var(--vnext-rule);
-}
-
-.public-vnext__context-item:first-child {
-  border-block-start: 0;
-}
-
-.public-vnext__context-name {
-  display: grid;
-  align-content: start;
-  gap: 0.35rem;
-}
-
-.public-vnext__context-name span {
   color: var(--vnext-text-quiet);
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.public-vnext__context-name strong {
-  font-size: clamp(1.35rem, 2.3vw, 2.4rem);
-  font-weight: 800;
-  letter-spacing: -0.05em;
-}
-
-.public-vnext__context-item p,
-.public-vnext__context-item small {
-  display: block;
-  max-width: 34rem;
-  line-height: 1.5;
-}
-
-.public-vnext__context-item p {
-  font-size: 0.95rem;
-}
-
-.public-vnext__context-item small {
-  margin-block-start: 0.5rem;
-  color: var(--vnext-text-soft);
-  font-size: 0.76rem;
-}
-
-.public-vnext__context-workbench {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(12rem, 0.75fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-.public-vnext__evidence-record {
-  min-width: 0;
-  padding: clamp(1rem, 2vw, 1.5rem);
-  border: 1px solid var(--vnext-rule);
-  border-radius: var(--vnext-radius-module);
-  background: var(--vnext-paper);
-}
-
-.public-vnext__evidence-record header {
-  align-items: baseline;
-  padding-block-end: 0.9rem;
-  border-block-end: 1px solid var(--vnext-rule);
-}
-
-.public-vnext__state {
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.67rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 0.68rem;
+  font-weight: 600;
   text-transform: uppercase;
 }
-
-.public-vnext__state--settled {
-  color: var(--vnext-settled);
-}
-
-.public-vnext__state--open {
-  color: var(--vnext-debt);
-}
-
-.public-vnext__evidence-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 1rem;
-  padding-block: 1.1rem;
+.public-vnext__share-status--open { color: var(--vnext-debt); }
+.public-vnext__record-footer { align-items: baseline; border-block-start: 1px solid var(--vnext-rule); background: var(--vnext-accent-wash); }
+.public-vnext__record-footer > span { color: var(--vnext-text-soft); font-size: 0.8rem; }
+.public-vnext__record-footer strong { color: var(--vnext-accent-deep); font-size: clamp(1.1rem, 2.2vw, 2rem); }
+.public-vnext__record-footer .public-vnext__money { color: inherit; }
+.public-vnext__section > .editorial-shell { padding-block: clamp(4rem, 8vw, 8rem); }
+.public-vnext__section h2 { margin-block: 1.5rem clamp(2.5rem, 5vw, 5rem); font-size: clamp(2.8rem, 5.5vw, 6rem); }
+.public-vnext__section--workflow { background: var(--vnext-canvas); }
+.public-vnext__workflow { border-block-start: 1px solid var(--vnext-rule); }
+.public-vnext__step {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 4rem);
+  padding-block: clamp(1.5rem, 3vw, 3rem);
   border-block-end: 1px solid var(--vnext-rule);
 }
-
-.public-vnext__evidence-heading h3 {
-  font-size: clamp(1.4rem, 2.5vw, 2.3rem);
-}
-
-.public-vnext__evidence-heading span,
-.public-vnext__evidence-note,
-.public-vnext__receipt > span,
-.public-vnext__receipt footer {
-  color: var(--vnext-text-soft);
-  font-size: 0.74rem;
-  line-height: 1.45;
-}
-
-.public-vnext__evidence-heading .public-vnext__money {
-  font-size: clamp(1.3rem, 2.5vw, 2.2rem);
-}
-
-.public-vnext__evidence-meta {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  padding-block: 1rem;
-}
-
-.public-vnext__evidence-meta div {
-  display: grid;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.public-vnext__evidence-meta dt {
-  color: var(--vnext-text-quiet);
-  font-size: 0.67rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.public-vnext__evidence-meta dd {
-  overflow-wrap: anywhere;
-  font-size: 0.82rem;
-}
-
-.public-vnext__receipt {
-  display: grid;
-  gap: 0.4rem;
-  padding: 0.9rem;
-  border: 1px solid var(--vnext-rule);
-  border-radius: var(--vnext-radius-control);
-  background: var(--vnext-surface-warm);
-}
-
-.public-vnext__receipt strong {
-  font-size: 1rem;
-}
-
-.public-vnext__receipt footer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding-block-start: 0.65rem;
-  border-block-start: 1px solid var(--vnext-rule);
-}
-
-.public-vnext__evidence-note {
-  margin-block-start: 0.85rem;
-}
-
-.public-vnext__context-note {
-  display: grid;
-  align-content: start;
-  gap: 0.85rem;
-  padding-block: 1rem;
-  border-block: 1px solid var(--vnext-rule);
-}
-
-.public-vnext__context-note strong {
-  position: relative;
-  width: fit-content;
-  padding-block-end: 0.35rem;
-  font-size: clamp(1.3rem, 2.2vw, 2rem);
-  font-weight: 800;
-}
-
-.public-vnext__context-note p {
-  color: var(--vnext-text-soft);
-  font-size: 0.85rem;
-  line-height: 1.5;
-}
-
-.public-vnext__privacy-example {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: stretch;
-  min-width: 0;
-  border-block: 1px solid var(--vnext-rule);
-}
-
-.public-vnext__privacy-owner,
-.public-vnext__privacy-link,
-.public-vnext__privacy-shared {
-  display: grid;
-  align-content: start;
-  justify-content: start;
-  gap: 0.65rem;
-  padding: clamp(1rem, 2vw, 1.5rem);
-}
-
-.public-vnext__privacy-owner {
-  background: var(--vnext-paper);
-}
-
-.public-vnext__privacy-link {
-  position: relative;
-  align-content: center;
-  border-inline: 1px solid var(--vnext-rule);
-  background: var(--vnext-accent-wash);
-}
-
-.public-vnext__privacy-shared {
-  background: var(--vnext-settled-wash);
-}
-
-.public-vnext__privacy-owner strong,
-.public-vnext__privacy-link strong,
-.public-vnext__privacy-shared strong {
-  font-size: 1.05rem;
-}
-
-.public-vnext__privacy-owner small,
-.public-vnext__privacy-link small,
-.public-vnext__privacy-shared small {
-  color: var(--vnext-text-soft);
-  font-size: 0.75rem;
-  line-height: 1.45;
-}
-
-.public-vnext__privacy-owner .public-vnext__money,
-.public-vnext__privacy-shared .public-vnext__money {
-  font-size: clamp(1.45rem, 2.5vw, 2.3rem);
-}
-
-.public-vnext__privacy-arrow {
-  color: var(--vnext-accent-deep);
-  font-size: 1.5rem;
-}
-
-.public-vnext__finale {
-  background: var(--vnext-accent-strong);
-  color: var(--vnext-text-on-accent);
-}
-
-.public-vnext__finale-layout {
-  display: flex;
-  min-height: min(38rem, 70svh);
-  align-items: end;
-  justify-content: space-between;
-  gap: 3rem;
-  padding-block: clamp(4rem, 9vw, 8rem);
-}
-
-.public-vnext__finale .public-vnext__marker {
-  border-color: currentColor;
-  color: currentColor;
-  opacity: 0.78;
-}
-
-.public-vnext__finale h2 {
-  max-width: 10ch;
-  margin-block-start: 1.25rem;
-  font-size: clamp(3rem, 6vw, 6.5rem);
-}
-
-.public-vnext__finale p {
-  max-width: 28rem;
-  margin-block-start: 1.25rem;
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-.public-vnext__finale-action {
-  display: grid;
-  justify-items: start;
-  gap: 1rem;
-  min-width: 12rem;
-}
-
-.public-vnext__finale-wordmark {
-  font-size: clamp(2.5rem, 5vw, 5rem);
-}
-
-.public-vnext__finale .action-link--primary {
-  border-color: var(--vnext-text);
-  background: var(--vnext-text);
-  color: var(--vnext-paper);
-}
-
+.public-vnext__step-heading > span { color: var(--vnext-accent-deep); font-size: 0.74rem; font-weight: 700; text-transform: uppercase; }
+.public-vnext__step h3 { max-width: 18ch; margin-block-start: 0.7rem; font-size: clamp(1.8rem, 3.2vw, 3.3rem); }
+.public-vnext__step-detail { align-self: center; display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; min-width: 0; font-size: 0.85rem; }
+.public-vnext__step-detail > .public-vnext__money { font-size: clamp(1.4rem, 2.6vw, 2.6rem); }
+.public-vnext__step-detail .public-vnext__shares { max-width: 30rem; }
+.public-vnext__step-detail .public-vnext__share { padding-block: 0.45rem; }
+.public-vnext__step-detail--repay { display: grid; }
+.public-vnext__step-detail--repay > div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding-block: 0.8rem; border-block-start: 1px solid var(--vnext-rule); }
+.public-vnext__step-detail--repay strong { color: var(--vnext-settled); }
+.public-vnext__step-detail--repay .public-vnext__money { color: var(--vnext-debt); font-size: clamp(1.2rem, 2.3vw, 2rem); }
+.public-vnext__section--contexts { background: var(--vnext-surface); }
+.public-vnext__contexts { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); grid-template-rows: repeat(2, minmax(0, 1fr)); border-block-start: 1px solid var(--vnext-rule); }
+.public-vnext__context { min-width: 0; padding: clamp(1.5rem, 3vw, 3rem); border-block-end: 1px solid var(--vnext-rule); }
+.public-vnext__context--personal { grid-row: 1 / 3; border-inline-end: 1px solid var(--vnext-rule); display: flex; flex-direction: column; }
+.public-vnext__context--groups { background: var(--vnext-canvas); }
+.public-vnext__context--organizations { background: var(--vnext-surface); }
+.public-vnext__context h3 { max-width: 14ch; margin-block-start: 1.25rem; font-size: clamp(1.9rem, 3vw, 3.5rem); }
+.public-vnext__context--personal h3 { font-size: clamp(2.7rem, 4.7vw, 5.5rem); }
+.public-vnext__context p { margin-block-start: 0.8rem; color: var(--vnext-text-soft); font-size: 0.85rem; }
+.public-vnext__context-ledger { margin-block-start: 2rem; }
+.public-vnext__context--personal .public-vnext__context-ledger { margin-block-start: auto; padding-block-start: 4rem; }
+.public-vnext__context-ledger > div { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; padding-block: 0.8rem; border-block-start: 1px solid var(--vnext-rule); font-size: 0.82rem; }
+.public-vnext__context-ledger small { display: block; margin-block-start: 0.2rem; color: var(--vnext-text-quiet); font-size: 0.7rem; }
+.public-vnext__context-ledger strong { font-size: clamp(1rem, 1.8vw, 1.7rem); white-space: nowrap; }
+.public-vnext__section--private { background: var(--vnext-canvas); }
+.public-vnext__private-intro { display: flex; justify-content: space-between; align-items: end; gap: 2rem; }
+.public-vnext__private-intro h2 { margin-block-end: clamp(2.5rem, 5vw, 5rem); }
+.public-vnext__private-intro p { margin-block-end: clamp(2.5rem, 5vw, 5rem); }
+.public-vnext__comparison { display: grid; grid-template-columns: minmax(0, 1fr) 8rem minmax(0, 0.82fr); border-block: 1px solid var(--vnext-rule); }
+.public-vnext__view { min-width: 0; padding: clamp(1.25rem, 2.5vw, 2.5rem); }
+.public-vnext__view--owner { background: var(--vnext-surface); }
+.public-vnext__view--shared { background: var(--vnext-accent-wash); }
+.public-vnext__view h3 { margin-block: 1.1rem 1.5rem; font-size: clamp(1.8rem, 3vw, 3rem); }
+.public-vnext__view-total { display: flex; justify-content: space-between; gap: 1rem; padding-block: 0.8rem; border-block: 1px solid var(--vnext-rule); font-size: 0.8rem; }
+.public-vnext__view .public-vnext__share { padding-block: 0.55rem; }
+.public-vnext__view-extra { display: grid; gap: 0.6rem; margin-block-start: 1.5rem; padding-block-start: 1rem; border-block-start: 1px solid var(--vnext-rule); color: var(--vnext-text-quiet); font-size: 0.72rem; }
+.public-vnext__view-extra span { padding-inline-start: 0.65rem; border-inline-start: 2px solid var(--vnext-rule); }
+.public-vnext__comparison-divider { display: grid; place-items: center; border-inline: 1px solid var(--vnext-rule); color: var(--vnext-accent-deep); font-size: 0.7rem; font-weight: 700; text-align: center; text-transform: uppercase; }
+.public-vnext__comparison-divider span { max-width: 5rem; }
+.public-vnext__statement > div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding-block: 0.8rem; border-block-start: 1px solid var(--vnext-rule); font-size: 0.82rem; }
+.public-vnext__statement-remaining { color: var(--vnext-accent-deep); font-weight: 700; }
+.public-vnext__statement-remaining .public-vnext__money { font-size: clamp(1.4rem, 2.5vw, 2.5rem); }
+.public-vnext__view--shared p { max-width: 24rem; margin-block-start: 2rem; color: var(--vnext-text-soft); font-size: 0.75rem; line-height: 1.5; }
+.public-vnext__finale { background: var(--vnext-accent-strong); color: var(--vnext-text-on-accent); }
+.public-vnext__finale > .editorial-shell { padding-block: clamp(4rem, 8vw, 8rem); }
+.public-vnext__finale .public-vnext__marker { border-color: currentColor; color: currentColor; }
+.public-vnext__finale > .editorial-shell > div { display: flex; justify-content: space-between; align-items: end; gap: 2rem; padding-block-start: clamp(3rem, 6vw, 6rem); }
+.public-vnext__finale h2 { font-size: clamp(3rem, 6vw, 6.5rem); }
+.public-vnext__finale .action-link--primary { flex: none; border-color: var(--vnext-text); background: var(--vnext-text); color: var(--vnext-paper); }
 .public-vnext__finale .action-link--primary:hover,
-.public-vnext__finale .action-link--primary:focus-visible {
-  border-color: var(--vnext-paper);
-  background: var(--vnext-paper);
-  color: var(--vnext-text);
-}
-
-.public-vnext__finale-action small {
-  font-size: 0.73rem;
-}
-
-@keyframes public-vnext-example-in {
-  from { transform: translateY(0.6rem); }
-  to { transform: translateY(0); }
-}
-
-@keyframes public-vnext-record-in {
-  from { transform: translateY(0.35rem); }
-  to { transform: translateY(0); }
-}
-
+.public-vnext__finale .action-link--primary:focus-visible { border-color: var(--vnext-paper); background: var(--vnext-paper); color: var(--vnext-text); }
 .access-vnext {
   position: relative;
   min-height: 100svh;
@@ -1058,128 +539,6 @@
 }
 
 @media (max-width: 767px) {
-  .public-vnext .header-shell {
-    min-height: 6.4rem;
-  }
-
-  .public-vnext .header-shell__panel,
-  .public-vnext .header-shell__panel--detached {
-    width: calc(100% - 1rem);
-    min-height: 5.35rem;
-    padding: 0.45rem 0.6rem;
-  }
-
-  .public-vnext .site-header {
-    grid-template-columns: minmax(0, 1fr) auto;
-    row-gap: 0.35rem;
-  }
-
-  .public-vnext .site-header__brand {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .public-vnext .site-header__descriptor {
-    display: none;
-  }
-
-  .public-vnext .site-header__nav {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: space-between;
-    justify-self: stretch;
-    gap: 0.35rem;
-    width: 100%;
-  }
-
-  .public-vnext .site-header__actions {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .public-vnext .site-header__nav a,
-  .public-vnext .site-header__access {
-    min-block-size: 2.25rem;
-    font-size: 0.68rem;
-  }
-
-  .public-vnext .site-header__access {
-    padding-inline: 0.65rem;
-  }
-
-  .public-vnext__hero-layout,
-  .public-vnext__section-layout {
-    grid-template-columns: 1fr;
-    gap: 2.5rem;
-    min-height: 0;
-    padding-block: 3.75rem;
-  }
-
-  .public-vnext__hero h1 {
-    font-size: clamp(3.2rem, 14vw, 5.1rem);
-  }
-
-  .public-vnext__hero-example {
-    justify-self: stretch;
-  }
-
-  .public-vnext__section-copy {
-    position: static;
-  }
-
-  .public-vnext__section-copy h2 {
-    max-width: 12ch;
-    font-size: clamp(2.7rem, 12vw, 4.4rem);
-  }
-
-  .public-vnext__flow {
-    grid-template-columns: 1fr;
-  }
-
-  .public-vnext__flow-step {
-    min-height: 0;
-    border-block-start: 1px solid var(--vnext-rule);
-    border-inline-start: 0;
-  }
-
-  .public-vnext__flow-step:first-child {
-    border-block-start: 0;
-  }
-
-  .public-vnext__flow-step > .public-vnext__money {
-    margin-block-start: 0.4rem;
-  }
-
-  .public-vnext__context-item,
-  .public-vnext__context-workbench,
-  .public-vnext__privacy-example {
-    grid-template-columns: 1fr;
-  }
-
-  .public-vnext__context-item {
-    gap: 0.75rem;
-  }
-
-  .public-vnext__context-workbench {
-    gap: 1.5rem;
-  }
-
-  .public-vnext__privacy-link {
-    border-inline: 0;
-    border-block: 1px solid var(--vnext-rule);
-  }
-
-  .public-vnext__finale-layout {
-    display: grid;
-    min-height: 0;
-    gap: 3rem;
-    padding-block: 4rem;
-  }
-
-  .public-vnext__finale h2 {
-    font-size: clamp(3rem, 13vw, 5rem);
-  }
-
   .access-vnext__accent {
     width: 20%;
     min-width: 4.5rem;
@@ -1206,30 +565,6 @@
   }
 }
 
-@media (max-width: 380px) {
-  .public-vnext__record-header,
-  .public-vnext__record-expense {
-    display: grid;
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .public-vnext__record-amount {
-    text-align: left;
-  }
-
-  .public-vnext__actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .public-vnext__actions .action-link,
-  .public-vnext__text-link {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
 @media (max-height: 640px) and (min-width: 768px) {
   .access-vnext__content {
     padding-block: 3rem;
@@ -1237,17 +572,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .public-vnext__hero-example,
-  .public-vnext__hero-record,
-  .access-vnext__confirmation {
+  .access-vnext__confirmation,
+  :is(.public-vnext, .access-vnext) .action-link {
     animation: none !important;
     transition: none !important;
     transform: none !important;
-  }
-
-  .public-vnext__text-link::after,
-  :is(.public-vnext, .access-vnext) .action-link {
-    transition: none !important;
   }
 }
 
@@ -1258,4 +587,46 @@
     outline: 2px solid ButtonText;
     outline-offset: 2px;
   }
+}
+
+@media (max-width: 900px) {
+  .public-vnext__hero-intro { grid-template-columns: 1fr; gap: 1.5rem; }
+  .public-vnext__hero-intro p { max-width: 32rem; }
+  .public-vnext__comparison { grid-template-columns: minmax(0, 1fr) 4rem minmax(0, 1fr); }
+}
+@media (max-width: 767px) {
+  .public-vnext__hero > .editorial-shell { padding-block: 1rem 4rem; }
+  .public-vnext__hero-intro { padding-block: 3rem 2.5rem; }
+  .public-vnext__hero h1 { font-size: clamp(2.8rem, 11vw, 5.2rem); }
+  .public-vnext__record-header { align-items: start; }
+  .public-vnext__record-body { grid-template-columns: 1fr; }
+  .public-vnext__record-total { min-height: 0; gap: 1rem; border-inline-end: 0; border-block-end: 1px solid var(--vnext-rule); }
+  .public-vnext__record-total > .public-vnext__money { font-size: clamp(2.1rem, 9vw, 4.8rem); }
+  .public-vnext__record-footer { align-items: start; flex-direction: column; gap: 0.4rem; }
+  .public-vnext__section > .editorial-shell { padding-block: 4rem; }
+  .public-vnext__section h2 { font-size: clamp(2.5rem, 9vw, 4.5rem); }
+  .public-vnext__step { grid-template-columns: 1fr; gap: 1rem; }
+  .public-vnext__step-detail { align-items: start; }
+  .public-vnext__contexts { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .public-vnext__context--personal { grid-row: auto; border-inline-end: 0; }
+  .public-vnext__context--personal .public-vnext__context-ledger { padding-block-start: 0; }
+  .public-vnext__private-intro { display: block; }
+  .public-vnext__private-intro h2 { margin-block-end: 1rem; }
+  .public-vnext__private-intro p { margin-block-end: 2.5rem; }
+  .public-vnext__comparison { grid-template-columns: 1fr; }
+  .public-vnext__comparison-divider { min-height: 3.5rem; border-inline: 0; border-block: 1px solid var(--vnext-rule); }
+  .public-vnext__comparison-divider span { max-width: none; }
+  .public-vnext__finale > .editorial-shell > div { display: grid; justify-content: start; }
+  .public-vnext__finale h2 { font-size: clamp(2.8rem, 10vw, 5rem); }
+}
+@media (max-width: 420px) {
+  .public-vnext__record-header { display: grid; gap: 0.6rem; }
+  .public-vnext__step-detail { display: grid; }
+  .public-vnext__step-detail--repay { display: grid; }
+  .public-vnext__context-ledger > div { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .public-vnext__hero-record,
+  .public-vnext__hero-intro,
+  .public-vnext__comparison { animation: none !important; transition: none !important; }
 }
