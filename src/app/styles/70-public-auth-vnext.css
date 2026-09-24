@@ -11,7 +11,13 @@
   isolation: isolate;
 }
 
-.public-vnext .editorial-shell,
+.public-vnext .editorial-shell {
+  width: calc(100% - clamp(2rem, 4vw, 5rem));
+  max-width: none;
+  margin-inline: auto;
+  min-width: 0;
+}
+
 .access-vnext .editorial-shell {
   width: min(calc(100% - clamp(2rem, 6vw, 8rem)), 78rem);
   min-width: 0;
@@ -74,8 +80,8 @@
 
 .public-vnext .header-shell__panel {
   display: grid;
-  width: min(calc(100% - clamp(2rem, 6vw, 8rem)), 78rem);
-  max-width: 78rem;
+  width: calc(100% - clamp(2rem, 4vw, 5rem));
+  max-width: none;
   min-height: 3.7rem;
   align-items: center;
   padding: 0.5rem 0.75rem;
@@ -85,8 +91,6 @@
 }
 
 .public-vnext .header-shell__panel--detached {
-  width: min(calc(100% - clamp(2rem, 6vw, 8rem)), 74rem);
-  max-width: 74rem;
   border-color: var(--vnext-rule);
   border-radius: var(--vnext-radius-module);
   background: var(--vnext-surface);

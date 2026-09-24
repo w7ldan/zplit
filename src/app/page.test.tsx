@@ -51,4 +51,12 @@ describe("public Zplit page", () => {
     expect(styles).not.toMatch(/#FAF7F1|#211F1B/i);
     expect(styles).not.toMatch(/gradient|backdrop-filter|box-shadow:\s*0|perspective|Three\.js/i);
   });
+
+  it("uses a broad landing canvas while keeping Access bounded", () => {
+    const styles = readFileSync(path.resolve(process.cwd(), "src/app/styles/70-public-auth-vnext.css"), "utf8");
+    expect(styles).toMatch(/\.public-vnext \.editorial-shell\s*\{[^}]*width: calc\(100% - clamp\(2rem, 4vw, 5rem\)\);[^}]*max-width: none;/);
+    expect(styles).toMatch(/\.access-vnext \.editorial-shell\s*\{[^}]*width: min\(calc\(100% - clamp\(2rem, 6vw, 8rem\)\), 78rem\);/);
+    expect(styles).toMatch(/\.public-vnext \.header-shell__panel\s*\{[^}]*width: calc\(100% - clamp\(2rem, 4vw, 5rem\)\);[^}]*max-width: none;/);
+    expect(styles).not.toMatch(/\.public-vnext \.header-shell__panel--detached\s*\{[^}]*max-width:\s*\d+rem;/);
+  });
 });
