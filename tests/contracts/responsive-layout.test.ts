@@ -8,6 +8,10 @@ const foundation = readSource("src/app/styles/00-foundation.css");
 const budgetStyles = readSource("src/app/styles/30-records-and-forms.css");
 const authenticatedHeader = readSource("src/app/styles/60-authenticated-header-vnext.css");
 const overviewStyles = readSource("src/app/styles/25-overview.css");
+const authenticatedShell = readSource("src/app/styles/20-authenticated-shell.css");
+const groupsVnext = readSource("src/app/styles/45-groups-vnext.css");
+const organizationsVnext = readSource("src/app/styles/50-organizations-vnext.css");
+const activeContextNavigation = readSource("src/components/app/use-active-context-navigation.ts");
 const tabletHeaderRules = authenticatedHeader.split("@media (max-width: 1199px)")[1]?.split("@media (max-width: 767px)")[0] ?? "";
 const phoneHeaderRules = authenticatedHeader.split("@media (max-width: 767px)")[1]?.split("@media (prefers-reduced-motion: reduce)")[0] ?? "";
 const phoneMobileNav = phoneHeaderRules.match(/\.app-shell__mobile-nav\s*\{([^}]+)\}/)?.[1] ?? "";
@@ -42,6 +46,36 @@ describe("Responsive layout contract", () => {
 
   it("keeps the paused Budget resume action stacked on narrow screens", () => {
     expect(budgetStyles).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.budget-page\.zplit-vnext \.budget-paused-state__actions\s*\{[^}]*align-items: stretch;[^}]*flex-direction: column;/);
+  });
+
+  it("keeps Group and Organization context navigation readable and positions the active tab", () => {
+    for (const className of [".group-context__nav", ".organization-context__nav"]) {
+      const navRule = authenticatedShell.match(new RegExp(`${className.replaceAll(".", "\\.")} \\{([^}]+)\\}`))?.[1] ?? "";
+      expect(navRule).toContain("max-width: 100%;");
+      expect(navRule).toContain("overflow-x: auto;");
+      expect(navRule).toContain("padding-inline-end: 2rem;");
+      expect(navRule).toContain("overscroll-behavior-inline: contain;");
+    }
+    expect(authenticatedShell).toMatch(/\.group-context__nav a\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/);
+    expect(authenticatedShell).toMatch(/\.organization-context__nav a\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/);
+    expect(authenticatedShell).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.group-context__nav\s*\{[^}]*padding-inline:\s*0\.75rem;/);
+    expect(organizationsVnext).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.organization-context__nav\s*\{[^}]*padding-inline:\s*0\.75rem;/);
+    expect(authenticatedShell).not.toMatch(/\.group-context__nav::after|\.organization-context__nav::after/);
+    expect(activeContextNavigation).toContain("'[aria-current=\"page\"]'");
+    expect(activeContextNavigation).toContain("activeItem.scrollIntoView");
+    expect(groupsVnext).toContain(".group-context__nav");
+    expect(organizationsVnext).toContain(".organization-context__nav");
+  });
+
+  it("collapses Organization People and Settings workbenches without retaining desktop rail placement", () => {
+    const phoneOrganizationRules = organizationsVnext.split("@media (max-width: 767px)")[1] ?? "";
+    expect(phoneOrganizationRules).toMatch(/\.organization-people__workbench--management\.organization-people__workbench--members\s*,[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);/);
+    expect(phoneOrganizationRules).toMatch(/\.organization-people__workbench--management\.organization-people__workbench--members > \.organization-people__management\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*auto;[^}]*inline-size:\s*100%;/);
+    expect(phoneOrganizationRules).toMatch(/\.organization-people__management > \.organization-detail__section,[\s\S]*?\.organization-invite__form,[\s\S]*?inline-size:\s*100%;\s*max-inline-size:\s*100%;/);
+    expect(phoneOrganizationRules).toMatch(/\.organization-invite__form input,[\s\S]*?inline-size:\s*100%;/);
+    expect(phoneOrganizationRules).toMatch(/\.organization-settings__workbench--management\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/);
+    expect(groupsVnext).toContain(".groups-vnext.group-settings-page .group-detail__section");
+    expect(authenticatedShell).toMatch(/\.group-form__field input,[\s\S]*?width:\s*100%;/);
   });
 
   it("keeps tablet navigation in the Header and fixes the three phone tabs to the viewport bottom", () => {

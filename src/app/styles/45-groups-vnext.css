@@ -159,10 +159,6 @@
   border-block-end-color: var(--vnext-accent-strong);
 }
 
-.groups-vnext .group-context__nav::after {
-  background: var(--vnext-canvas);
-}
-
 .groups-vnext .chat-unread-badge {
   border-color: var(--vnext-rule);
   border-radius: var(--vnext-radius-control);

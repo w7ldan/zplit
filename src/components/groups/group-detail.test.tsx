@@ -6,6 +6,36 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/app/personal/groups/gro
 import { GroupNavigation } from "./group-detail";
 
 describe("GroupNavigation", () => {
+  it("scrolls the active destination fully into the context rail", () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollIntoView",
+    );
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    try {
+      const { unmount } = render(<GroupNavigation groupId="group-a" canManageGroup />);
+
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        behavior: "instant",
+        block: "nearest",
+        inline: "nearest",
+      });
+
+      unmount();
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+      }
+    }
+  });
+
   it("places Expenses in the Group context navigation", () => {
     render(<GroupNavigation groupId="group-a" canManageGroup />);
     const navigation = screen.getByRole("navigation", { name: "Group navigation" });

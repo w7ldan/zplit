@@ -44,6 +44,7 @@ describe("OrganizationMembers", () => {
     expect(screen.getByRole("img", { name: "Alice Tan avatar" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Alice Tan avatar" }).tagName).toBe("svg");
     expect(container.querySelector('img[src*="/app/avatar?userId=user-a"]')).not.toBeInTheDocument();
+    expect(container.querySelector(".organization-people__workbench--management.organization-people__workbench--members > .organization-people__management")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Role for registered account" })).toHaveValue("member");
     expect(screen.getByRole("heading", { name: "Add member" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Search by name or @username..." })).toBeInTheDocument();

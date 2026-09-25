@@ -7,6 +7,7 @@ import type { GroupActionState } from "@/domain/group-contracts";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { displayUnreadCount } from "@/components/notifications/inbox-control";
+import { useActiveContextNavigation } from "@/components/app/use-active-context-navigation";
 
 type ProfileAction = (previousState: GroupActionState, formData: FormData) => Promise<GroupActionState>;
 
@@ -43,9 +44,10 @@ export function GroupIdentity({ group }: { group: { id: string; name: string; av
 
 export function GroupNavigation({ groupId, canManageGroup, chatUnreadCount = 0 }: { groupId: string; canManageGroup: boolean; chatUnreadCount?: number }) {
   const pathname = usePathname() ?? "";
+  const navigationRef = useActiveContextNavigation(pathname);
   const base = `/app/personal/groups/${groupId}`;
   return (
-    <nav className="group-context__nav" aria-label="Group navigation">
+    <nav ref={navigationRef} className="group-context__nav" aria-label="Group navigation">
       <Link href={base} aria-current={pathname === base ? "page" : undefined}>
         Overview
       </Link>

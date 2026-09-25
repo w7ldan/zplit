@@ -1318,6 +1318,12 @@
   .organizations-vnext .organization-context__facts {
     inline-size: 100%;
     padding-inline-start: 3.25rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .organizations-vnext .organization-context__nav {
+    padding-inline: 0.75rem;
   }
 
   .organizations-vnext .organization-context__topline > .organization-detail__back {
@@ -1336,7 +1342,7 @@
   .organizations-vnext .organization-detail__shortcuts,
   .organizations-vnext .organization-people__workbench--management.organization-people__workbench--members,
   .organizations-vnext .organization-settings__workbench--management {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .organizations-vnext .organization-ledger-summary > div:first-child,
@@ -1359,9 +1365,49 @@
     grid-row: auto;
   }
 
+  .organizations-vnext .organization-people__workbench--management.organization-people__workbench--members > .organization-people__management {
+    grid-column: 1;
+    grid-row: auto;
+    min-inline-size: 0;
+    inline-size: 100%;
+  }
+
+  .organizations-vnext .organization-people__workbench > * {
+    min-inline-size: 0;
+  }
+
+  .organizations-vnext .organization-people__management > .organization-detail__section,
+  .organizations-vnext .organization-invite__form,
+  .organizations-vnext .organization-people__management .organization-form {
+    inline-size: 100%;
+    max-inline-size: 100%;
+  }
+
+  .organizations-vnext .organization-invite__form input,
+  .organizations-vnext .organization-invite__form select,
+  .organizations-vnext .organization-invite__form .searchable-combobox {
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
   .organizations-vnext .organization-people__workbench > .organization-detail__section:first-child,
   .organizations-vnext .organization-people__contacts {
     grid-column: 1;
+  }
+
+  .organizations-vnext .organization-members__personal-friends .organization-members__row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .organizations-vnext .organization-members__friend-identity,
+  .organizations-vnext .organization-members__friend-identity .organization-members__identity {
+    min-inline-size: 0;
+  }
+
+  .organizations-vnext .organization-members__personal-friends .organization-members__row > form {
+    grid-column: 1;
+    justify-self: start;
   }
 
   .organizations-vnext .expense-row.vnext-row,

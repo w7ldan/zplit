@@ -7,6 +7,7 @@ import { OrganizationForm } from "@/components/organizations/organization-form";
 import type { OrganizationActionState } from "@/domain/organization-contracts";
 import { displayUnreadCount } from "@/components/notifications/inbox-control";
 import { usePathname } from "next/navigation";
+import { useActiveContextNavigation } from "@/components/app/use-active-context-navigation";
 
 type ProfileAction = (previousState: OrganizationActionState, formData: FormData) => Promise<OrganizationActionState>;
 
@@ -55,6 +56,7 @@ export function OrganizationIdentity({ organization }: { organization: { id: str
 
 export function OrganizationNavigation({ organizationId, canViewLedger, canViewChat = false, chatUnreadCount = 0, canViewPeople, canViewSettings }: { organizationId: string; canViewLedger: boolean; canViewChat?: boolean; chatUnreadCount?: number; canViewPeople: boolean; canViewSettings: boolean }) {
   const pathname = usePathname() ?? "";
+  const navigationRef = useActiveContextNavigation(pathname);
   const base = `/app/organizations/${organizationId}`;
   const links: Array<[string, string, boolean]> = [
     ["Overview", base, pathname === base],
@@ -84,7 +86,7 @@ export function OrganizationNavigation({ organizationId, canViewLedger, canViewC
   ] as const;
   const activity = canViewLedger && (pathname.startsWith(`${base}/trips`) || pathname.startsWith(`${base}/outings`));
   return <>
-    <nav className="organization-context__nav" aria-label="Organization navigation">
+    <nav ref={navigationRef} className="organization-context__nav" aria-label="Organization navigation">
       {links.map(([label, href, active]) => (
         <Link
           href={href}
