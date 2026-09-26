@@ -69,10 +69,10 @@ describe("Repository styling toolchain contract", () => {
     for (const file of ["src/components/editorial/chapter-label.tsx", "src/components/editorial/product-journey.tsx", "src/components/editorial/product-journey.test.tsx", "src/lib/utils.ts", "src/lib/utils.test.ts", "src/components/editorial/public-motion.tsx", "src/components/editorial/public-scenes.tsx", "src/components/editorial/public-interactions.tsx", "src/components/editorial/public-scenario.ts"]) {
       expect(existsSync(path.join(root, file))).toBe(false);
     }
-    for (const file of ["src/components/editorial/public-landing.tsx", "src/components/editorial/access-frame.tsx", "src/components/editorial/site-header.tsx", "src/auth/cli.ts"]) {
+    for (const file of ["src/components/marketing/money-trail.tsx", "src/components/marketing/money-trail-interactions.tsx", "src/components/editorial/access-frame.tsx", "src/auth/cli.ts"]) {
       expect(existsSync(path.join(root, file))).toBe(true);
     }
-    expect(css).toContain(".public-vnext__hero");
+    expect(css).toContain(".trail-hero");
     expect(packageJson.dependencies).not.toHaveProperty("gsap");
     for (const alias of ["CreateFriendInput", "UpdateFriendInput", "CreateOutingInput", "UpdateOutingInput", "CreateExpenseInput", "UpdateExpenseInput", "CreateRepaymentInput", "UpdateRepaymentInput"]) {
       expect(ledgerTypes).toContain(alias);

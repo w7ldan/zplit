@@ -6,7 +6,7 @@ const css = readCssBundle(root).css;
 const searchableComboboxSource = readSource("src/components/records/searchable-combobox.tsx");
 const recordsAndFormsSource = readSource("src/app/styles/30-records-and-forms.css");
 const lateOverridesSource = readSource("src/app/styles/90-late-overrides.css");
-const publicAuthSource = readSource("src/app/styles/70-public-auth-vnext.css");
+const landingSource = readSource("src/app/styles/75-money-trail.css");
 
 describe("Component and accessibility contract", () => {
   it("keeps browser defaults neutral and component typography authoritative", () => {
@@ -24,7 +24,7 @@ describe("Component and accessibility contract", () => {
     expect(linkBaseline).not.toMatch(/text-decoration:\s*(?:none|underline)/);
 
     expect(cssRuleBody(css, ".app-page__header h1")).toMatch(/font-size:[\s\S]*font-weight: 800;/);
-    expect(publicAuthSource).toMatch(/\.public-vnext h1,[\s\S]*?font-weight: 800;/);
+    expect(landingSource).toMatch(/\.trail-site h1,[\s\S]*?font-weight: 800;/);
     expect(cssRuleBody(css, ".text-link")).toContain("text-decoration: underline;");
     expect(cssRuleBody(css, ".header-shell__nav a")).toContain("text-decoration: none;");
     expect(cssRuleBody(css, ".friends-page__view")).toContain("text-decoration: none;");
@@ -35,7 +35,7 @@ describe("Component and accessibility contract", () => {
     expect(css).toContain("overflow-x: clip");
     expect(cssRuleBody(css, "html")).toContain("scrollbar-gutter: stable;");
     expect(css).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)");
-    expect(css).toContain(".public-vnext__flow");
+    expect(css).toContain(".trail-story-layout");
     expect(css).not.toContain("scroll-snap-type");
     expect(css).not.toContain("wheel");
     expect(css).toContain(":is(input, select, textarea):focus-visible");

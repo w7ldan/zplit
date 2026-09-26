@@ -36,6 +36,7 @@ const requiredImports = [
   "src/app/styles/60-authenticated-header-vnext.css",
   "src/app/styles/65-shared-public-vnext.css",
   "src/app/styles/70-public-auth-vnext.css",
+  "src/app/styles/75-money-trail.css",
 ];
 
 describe("Repository CSS architecture contract", () => {
@@ -84,7 +85,7 @@ describe("Repository CSS architecture contract", () => {
       ".live-record-filters {",
       ".record-pagination {\n  display: flex;",
       ".task-panel {",
-      ".public-vnext,",
+      ".trail-site {",
     ].map((anchor) => bundle.css.indexOf(anchor));
 
     expect(anchors.every((index) => index >= 0)).toBe(true);
@@ -209,8 +210,7 @@ describe("Repository CSS architecture contract", () => {
     expect(lateOverridesSource).not.toContain(".friend-share {");
     expect(authenticatedSource).not.toContain(".site-header");
     expect(authenticatedSource).not.toContain(".public-home");
-    expect(publicAuthSource).toContain(".public-vnext .site-header__access");
-    expect(publicAuthSource).toContain(".public-vnext .header-shell__panel--detached");
+    expect(readSource("src/app/styles/75-money-trail.css")).toContain(".trail-header-scrolled");
     expect(publicAuthSource).toContain(".access-vnext");
     expect(publicAuthSource).not.toMatch(/journey-|landing-reveal|capability--|story-close/);
     expect(lateOverridesSource).not.toContain(".journey-");

@@ -1,41 +1,33 @@
 import { describe, expect, it } from "vitest";
 import { readSource } from "./helpers";
 
-const landing = readSource("src/components/editorial/public-landing.tsx");
-const accessFrame = readSource("src/components/editorial/access-frame.tsx");
-const siteHeader = readSource("src/components/editorial/site-header.tsx");
-const publicAuth = readSource("src/app/styles/70-public-auth-vnext.css");
-const legacyPublic = readSource("src/app/styles/10-public.css");
+const landing = readSource("src/components/marketing/money-trail.tsx");
+const interactions = readSource(
+  "src/components/marketing/money-trail-interactions.tsx",
+);
+const css = readSource("src/app/styles/75-money-trail.css");
+const access = readSource("src/app/styles/70-public-auth-vnext.css");
 
 describe("Public UI contract", () => {
-  it("keeps public content on the vNext scope and uses the public header separately", () => {
-    expect(landing).toContain("public-vnext__hero");
-    expect(landing).toContain("public-vnext__flow-step--expense");
-    expect(accessFrame).toContain("access-vnext");
-    expect(siteHeader).toContain('navigationLabel="Primary navigation"');
-    expect(siteHeader).toContain('href="#record"');
-    expect(siteHeader).toContain('href="#contexts"');
-    expect(siteHeader).toContain('href="#private"');
-    expect(siteHeader).toContain('href="/app"');
-    expect(publicAuth).toContain(".public-vnext .site-header__access");
-    expect(publicAuth).toContain(".access-vnext");
-    expect(publicAuth).toMatch(/\.public-vnext\s*\{[^}]*background:\s*var\(--vnext-paper\)/);
-    expect(publicAuth).toMatch(/\.public-vnext__hero\s*\{[^}]*background:\s*var\(--vnext-paper\)/);
-    expect(publicAuth).toMatch(/\.public-vnext \.header-shell\s*\{[^}]*border-bottom-color:\s*transparent;[^}]*background:\s*transparent;/);
-    expect(publicAuth).toMatch(/\.public-vnext \.header-shell__panel\s*\{[^}]*background:\s*transparent;/);
-    expect(publicAuth).toMatch(/\.public-vnext \.header-shell__panel--detached\s*\{[^}]*background:\s*var\(--vnext-surface\)/);
-    expect(publicAuth).not.toMatch(/gradient|backdrop-filter|box-shadow:\s*0/i);
-    expect(legacyPublic).not.toMatch(/public-home|public-scene|scene-index|journey-|landing-reveal|story-motion/);
+  it("owns the new landing separately from access forms", () => {
+    expect(landing).toContain("trail-hero");
+    expect(landing).toContain("Bandung day out");
+    expect(interactions).toContain('href="/login"');
+    expect(interactions).toContain('href="#record"');
+    expect(css).toContain(".trail-header-scrolled");
+    expect(access).toContain(".access-vnext");
+    expect(access).not.toContain(".trail-");
+    expect(css).not.toMatch(/gradient|backdrop-filter|box-shadow/i);
   });
 
-  it("keeps the product distinctions truthful in the static examples", () => {
-    expect(landing).toContain("Budget stays private");
-    expect(landing).toContain("actual Personal and Group cash movement");
-    expect(landing).toContain("Peer-to-peer accounting");
-    expect(landing).toContain("capability-based access");
-    expect(landing).toContain("Conversation can coordinate the group");
-    expect(landing).toContain("does not confirm or change the financial state by itself");
-    expect(landing).toContain("temporary, read-only link");
-    expect(landing).not.toMatch(/fake|seamless|revolutionary|all-in-one|trusted by/i);
+  it("keeps public examples scoped and explicit", () => {
+    expect(landing).toContain("temporary, revocable link");
+    expect(landing).toMatch(/Repayment destination and receipt appear only when the owner\s+enables them\./);
+    expect(interactions).toContain("Pending confirmation");
+    expect(interactions).toContain("Offset · not cash");
+    expect(interactions).toContain("private Budget");
+    expect(interactions).not.toMatch(
+      /trusted by|Get started free|public signup/i,
+    );
   });
 });

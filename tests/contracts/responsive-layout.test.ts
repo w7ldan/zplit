@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readSource } from "./helpers";
 
 const publicAuth = readSource("src/app/styles/70-public-auth-vnext.css");
-const publicLanding = readSource("src/components/editorial/public-landing.tsx");
+const publicLanding = readSource("src/components/marketing/money-trail.tsx");
+const landingCss = readSource("src/app/styles/75-money-trail.css");
 const sharedPublic = readSource("src/app/styles/65-shared-public-vnext.css");
 const foundation = readSource("src/app/styles/00-foundation.css");
 const budgetStyles = readSource("src/app/styles/30-records-and-forms.css");
@@ -18,13 +19,13 @@ const phoneMobileNav = phoneHeaderRules.match(/\.app-shell__mobile-nav\s*\{([^}]
 const phoneMain = phoneHeaderRules.match(/\.app-shell__main\s*\{([^}]+)\}/)?.[1] ?? "";
 
 describe("Responsive layout contract", () => {
-  it("recomposes the public document instead of switching to a second mobile product", () => {
-    expect(publicLanding).not.toContain("mobile");
-    expect(publicAuth).toContain("@media (max-width: 767px)");
-    expect(publicAuth).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.public-vnext__flow\s*\{[\s\S]*?grid-template-columns: 1fr;/);
-    expect(publicAuth).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.public-vnext__privacy-example\s*\{[\s\S]*?grid-template-columns: 1fr;/);
-    expect(publicAuth).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.public-vnext \.site-header__nav\s*\{[\s\S]*?grid-column: 1 \/ -1;/);
-    expect(publicAuth).not.toMatch(/scroll-snap|height:\s*calc\([^)]*svh|position:\s*fixed/);
+  it("recomposes the landing and removes desktop stickiness on phones", () => {
+    expect(publicLanding).toContain("trail-hero");
+    expect(landingCss).toContain("@media (max-width: 767px)");
+    expect(landingCss).toContain("@media (max-width: 420px)");
+    expect(landingCss).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.trail-story-sticky \{\s*position: static;/);
+    expect(landingCss).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.trail-share-layout \{\s*grid-template-columns: 1fr;/);
+    expect(landingCss).not.toMatch(/scroll-snap|height:\s*calc\([^)]*svh/);
   });
 
   it("keeps access forms bounded and usable on narrow screens", () => {
