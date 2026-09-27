@@ -86,8 +86,7 @@ export function Story() {
   useEffect(() => {
     if (
       typeof IntersectionObserver === "undefined" ||
-      window.matchMedia("(max-width: 767px), (prefers-reduced-motion: reduce)")
-        .matches
+      window.matchMedia("(max-width: 767px)").matches
     )
       return;
     const nodes = document.querySelectorAll<HTMLElement>("[data-story-step]");
@@ -185,54 +184,53 @@ export function Story() {
                   <path pathLength="1" d="M10 0 V260 Q10 280 30 280" />
                 </svg>
                 <div className="trail-story-record-rows">
-                  <div className="trail-story-record-row">
+                  <div className="trail-story-record-row" aria-hidden={step < 1}>
                     <span>
                       Wildan <small>Own share</small>
                     </span>
                     <Amount value={160_000} />
                   </div>
-                  <div className="trail-story-record-row">
+                  <div className="trail-story-record-row" aria-hidden={step < 1}>
                     <span>
                       Alya <small>Share</small>
                     </span>
                     <Amount value={160_000} />
                   </div>
-                  <div className="trail-story-record-row">
+                  <div className="trail-story-record-row" aria-hidden={step < 1}>
                     <span>
                       Bima <small>Share</small>
                     </span>
                     <Amount value={160_000} />
                   </div>
-                  <div className="trail-story-record-row trail-story-repayment">
+                  <div className="trail-story-record-row trail-story-repayment" aria-hidden={step < 2}>
                     <span>
                       Alya <small>Cash received</small>
                     </span>
                     <Amount value={100_000} />
                   </div>
-                  <div className="trail-story-record-row trail-story-applied">
+                  <div className="trail-story-record-row trail-story-applied" aria-hidden={step < 2}>
                     <span>Applied to Alya’s share</span>
                     <Amount value={applied} />
                   </div>
                 </div>
               </div>
-              {step >= 2 && (
-                <div className="trail-story-settlement">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={partial}
-                      onChange={(event) => setPartial(event.target.checked)}
-                    />{" "}
-                    Show partial allocation
-                  </label>
-                  <p aria-live="polite">
-                    {partial
-                      ? "Rp100.000 received · Rp80.000 applied · Rp20.000 needs allocation"
-                      : "Rp100.000 received · Rp100.000 applied"}
-                  </p>
-                </div>
-              )}
-              <div className="trail-story-balance" aria-live="polite">
+              <div className="trail-story-settlement" aria-hidden={step < 2}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={partial}
+                    disabled={step < 2}
+                    onChange={(event) => setPartial(event.target.checked)}
+                  />{" "}
+                  Show partial allocation
+                </label>
+                <p aria-live="polite">
+                  {partial
+                    ? "Rp100.000 received · Rp80.000 applied · Rp20.000 needs allocation"
+                    : "Rp100.000 received · Rp100.000 applied"}
+                </p>
+              </div>
+              <div className="trail-story-balance" aria-hidden={step < 3} aria-live="polite">
                 <div>
                   <span>Alya still owes</span>
                   <Amount value={alyaRemaining} />

@@ -84,12 +84,12 @@
   transform: translateY(1px);
 }
 .trail-button-primary {
-  border-color: var(--trail-ink);
-  background: var(--trail-ink);
-  color: #fff !important;
+  border-color: var(--vnext-accent-strong);
+  background: var(--vnext-accent-strong);
+  color: var(--vnext-text-on-accent) !important;
 }
 .trail-button-primary:hover {
-  background: var(--vnext-accent-deep);
+  border-color: var(--vnext-accent-deep);
 }
 .trail-button-secondary {
   background: var(--vnext-paper);
@@ -495,7 +495,17 @@
   font-size: 0.78rem;
   transition:
     background-color 260ms ease,
-    color 260ms ease;
+    color 260ms ease,
+    opacity 260ms ease,
+    transform 260ms ease,
+    visibility 260ms ease;
+}
+.trail-story-record-row[aria-hidden="true"],
+.trail-story-settlement[aria-hidden="true"],
+.trail-story-balance[aria-hidden="true"] {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
 }
 .trail-story-record-row small {
   display: inline;
@@ -511,6 +521,7 @@
 }
 .trail-story-settlement {
   padding: 0.6rem clamp(1rem, 2.5vw, 2.5rem) 1rem;
+  transition: opacity 260ms ease, transform 260ms ease, visibility 260ms ease;
 }
 .trail-story-settlement label,
 .trail-budget-aside label {
@@ -537,6 +548,7 @@
 .trail-story-balance {
   padding: 1rem clamp(1rem, 2.5vw, 2.5rem);
   border-top: 1px solid var(--vnext-rule);
+  transition: opacity 260ms ease, transform 260ms ease, visibility 260ms ease;
 }
 .trail-story-balance > div,
 .trail-story-balance > strong {
@@ -669,7 +681,7 @@
 .trail-spaces {
   --vnext-text: #f3f4f1;
   --vnext-text-soft: #b4b9b2;
-  --vnext-text-quiet: #b4b9b2;
+  --vnext-text-quiet: #878d86;
   --vnext-rule: #6a726a;
   --trail-ink: #72c5f5;
   --vnext-focus-ring: #72c5f5;

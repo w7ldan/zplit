@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import HomePage from "./page";
 
 describe("Money Trail landing", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("renders the complete example and real invite-only entry route", () => {
     render(<HomePage />);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
@@ -48,22 +50,89 @@ describe("Money Trail landing", () => {
     );
   });
 
-  it("keeps repayment cash, allocation, and balance consistent", () => {
+  it("reveals the ledger in order and keeps partial allocation consistent", () => {
     render(<HomePage />);
     const story = within(
       screen.getByRole("region", { name: "Follow the money" }),
     );
+    const ledger = story.getByRole("article", {
+      name: "Illustrative Bandung day out ledger",
+    });
+    const shares = ledger.querySelectorAll(".trail-story-record-row:nth-child(-n + 3)");
+    const repayment = ledger.querySelector(".trail-story-repayment");
+    const applied = ledger.querySelector(".trail-story-applied");
+    const settlement = ledger.querySelector(".trail-story-settlement");
+    const balance = ledger.querySelector(".trail-story-balance");
+    expect(within(ledger).getByText("Bandung day out")).toBeInTheDocument();
+    expect(within(ledger).getByText("Rp 480.000")).toBeInTheDocument();
+    expect(shares).toHaveLength(3);
+    for (const share of shares) expect(share).toHaveAttribute("aria-hidden", "true");
+    expect(repayment).toHaveAttribute("aria-hidden", "true");
+    expect(balance).toHaveAttribute("aria-hidden", "true");
+
+    fireEvent.click(story.getByRole("button", { name: /02 \/ Shares/ }));
+    for (const share of shares) expect(share).toHaveAttribute("aria-hidden", "false");
+    for (const share of shares)
+      expect(within(share as HTMLElement).getByText("Rp 160.000")).toBeInTheDocument();
+    expect(repayment).toHaveAttribute("aria-hidden", "true");
+    expect(balance).toHaveAttribute("aria-hidden", "true");
+
     fireEvent.click(story.getByRole("button", { name: /03 \/ Repayment/ }));
+    expect(repayment).toHaveAttribute("aria-hidden", "false");
+    expect(applied).toHaveAttribute("aria-hidden", "false");
+    expect(settlement).toHaveAttribute("aria-hidden", "false");
+    expect(balance).toHaveAttribute("aria-hidden", "true");
     expect(
       story.getByText("Rp100.000 received · Rp100.000 applied"),
     ).toBeInTheDocument();
-    expect(story.getByText("Rp 220.000")).toBeInTheDocument();
     fireEvent.click(
       story.getByRole("checkbox", { name: "Show partial allocation" }),
     );
     expect(story.getByText(/Rp20.000 needs allocation/)).toBeInTheDocument();
-    expect(story.getByText("Rp 240.000")).toBeInTheDocument();
-    expect(story.getAllByText("Rp 80.000")).toHaveLength(2);
+    expect(within(applied as HTMLElement).getByText("Rp 80.000")).toBeInTheDocument();
+
+    fireEvent.click(story.getByRole("button", { name: /04 \/ Remaining/ }));
+    expect(balance).toHaveAttribute("aria-hidden", "false");
+    expect(within(balance as HTMLElement).getByText("Rp 80.000")).toBeInTheDocument();
+    expect(within(balance as HTMLElement).getByText("Rp 160.000")).toBeInTheDocument();
+    expect(within(balance as HTMLElement).getByText("Rp 240.000")).toBeInTheDocument();
+    fireEvent.click(story.getByRole("checkbox", { name: "Show partial allocation" }));
+    expect(within(balance as HTMLElement).getByText("Rp 60.000")).toBeInTheDocument();
+    expect(within(balance as HTMLElement).getByText("Rp 220.000")).toBeInTheDocument();
+  });
+
+  it("advances the desktop story under reduced motion", () => {
+    let onIntersect: IntersectionObserverCallback = () => undefined;
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+    }));
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(callback: IntersectionObserverCallback) {
+        onIntersect = callback;
+      }
+      observe() {}
+      disconnect() {}
+    });
+    render(<HomePage />);
+    const story = screen.getByRole("region", { name: "Follow the money" });
+    const repaymentStep = story.querySelector<HTMLElement>('[data-story-step="2"]');
+    expect(repaymentStep).not.toBeNull();
+    act(() => onIntersect([
+      {
+        isIntersecting: true,
+        intersectionRatio: 1,
+        target: repaymentStep as HTMLElement,
+        boundingClientRect: repaymentStep!.getBoundingClientRect(),
+        intersectionRect: repaymentStep!.getBoundingClientRect(),
+        rootBounds: null,
+        time: 0,
+      },
+    ], {} as IntersectionObserver));
+    const ledger = within(story).getByRole("article", {
+      name: "Illustrative Bandung day out ledger",
+    });
+    expect(ledger).toHaveClass("trail-story-paper-step-2");
+    expect(ledger.querySelector(".trail-story-repayment")).toHaveAttribute("aria-hidden", "false");
   });
 
   it("keeps Budget private and shared space statuses truthful", () => {
@@ -120,6 +189,11 @@ describe("Money Trail landing", () => {
     expect(css).toContain("@media (max-width: 767px)");
     expect(css).toContain("@media (max-width: 420px)");
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(css).toMatch(/\.trail-story-record-row\[aria-hidden="true"\],[\s\S]*?visibility: hidden;/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?animation: none !important;[\s\S]*?transition: none !important;/);
+    expect(css).toMatch(/\.trail-button-primary\s*\{\s*border-color: var\(--vnext-accent-strong\);\s*background: var\(--vnext-accent-strong\);\s*color: var\(--vnext-text-on-accent\) !important;/);
+    expect(css).toMatch(/\.trail-button-primary:hover\s*\{\s*border-color: var\(--vnext-accent-deep\);/);
+    expect(css).toMatch(/\.trail-spaces\s*\{[^}]*--vnext-text-soft: #b4b9b2;[^}]*--vnext-text-quiet: #878d86;/);
     expect(css).not.toMatch(
       /#FAF7F1|#211F1B|gradient|backdrop-filter|box-shadow/i,
     );
