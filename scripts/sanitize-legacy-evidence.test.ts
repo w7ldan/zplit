@@ -108,6 +108,52 @@ function row(id: string, file: Awaited<ReturnType<typeof legacyImage>>, relation
 }
 
 describe("legacy evidence image backfill", () => {
+  it("preserves metadata-distinct receipts that converge to the same normalized bytes", async () => {
+    const first = await legacyImage("jpeg", "first.jpg", "FIRST_PRIVATE_MARKER");
+    const second = await legacyImage("jpeg", "second.jpg", "SECOND_PRIVATE_MARKER");
+    expect(first.sha256).not.toBe(second.sha256);
+    const normalizedFirst = await normalizeEvidenceImage(first);
+    const normalizedSecond = await normalizeEvidenceImage(second);
+    expect(normalizedFirst.sha256).toBe(normalizedSecond.sha256);
+    expect(normalizedFirst.content).toEqual(normalizedSecond.content);
+
+    const firstId = "00000000-0000-0000-0000-000000000011";
+    const secondId = "00000000-0000-0000-0000-000000000012";
+    const shareMapping = { id: "00000000-0000-4000-8000-000000000013", expenseReceiptId: secondId };
+    const { client, rows } = createClient({
+      expense_receipts: [row(firstId, first, "same-expense"), row(secondId, second, "same-expense")],
+      repayment_proofs: [],
+      group_expense_receipts: [],
+      group_settlement_proofs: [],
+    });
+    expect((await runEvidenceImageBackfill(client as never, 1)).expense_receipts).toEqual({ converted: 2, alreadyCurrent: 0 });
+    expect(rows.expense_receipts.map((receipt) => receipt.id)).toEqual([firstId, secondId]);
+    expect(rows.expense_receipts.map((receipt) => receipt.relationship_id)).toEqual(["same-expense", "same-expense"]);
+    expect(rows.expense_receipts.map((receipt) => receipt.normalization_version)).toEqual([1, 1]);
+    expect(rows.expense_receipts.map((receipt) => receipt.sha256)).toEqual([normalizedFirst.sha256, normalizedFirst.sha256]);
+    expect(rows.expense_receipts[0]?.content).toEqual(rows.expense_receipts[1]?.content);
+    expect(rows.expense_receipts.every((receipt) => receipt.created_at === "2024-02-03T04:05:06.000Z")).toBe(true);
+    const sharedRow = rows.expense_receipts.find((receipt) => receipt.id === shareMapping.expenseReceiptId);
+    expect(sharedRow?.id).toBe(secondId);
+    const sharedQuery = {
+      from: vi.fn(), innerJoin: vi.fn(), where: vi.fn(),
+      limit: vi.fn().mockResolvedValue([{ id: shareMapping.id, mediaType: sharedRow?.media_type, byteSize: sharedRow?.byte_size, content: sharedRow?.content }]),
+    };
+    sharedQuery.from.mockReturnValue(sharedQuery);
+    sharedQuery.innerJoin.mockReturnValue(sharedQuery);
+    sharedQuery.where.mockReturnValue(sharedQuery);
+    const sharedReceipt = await getSharedDebtorReceipt({ select: vi.fn(() => sharedQuery) } as never, "00000000-0000-4000-8000-000000000088", shareMapping.id);
+    expect(sharedReceipt).toMatchObject({ id: shareMapping.id, mediaType: "image/webp" });
+    expect(sharedReceipt?.content).toEqual(normalizedSecond.content);
+    for (const receipt of rows.expense_receipts) {
+      const metadata = await sharp(receipt.content).metadata();
+      expect(metadata.exif).toBeUndefined();
+      expect(metadata.xmp).toBeUndefined();
+      expect(receipt.content.toString("latin1")).not.toContain("PRIVATE_MARKER");
+    }
+    expect((await runEvidenceImageBackfill(client as never, 1)).expense_receipts).toEqual({ converted: 0, alreadyCurrent: 2 });
+  });
+
   it("normalizes metadata-bearing JPEG, PNG, and WebP across all evidence tables and preserves identities", async () => {
     const marker = "BACKFILL_EXIF_GPS_MARKER_1427";
     const jpeg = await legacyImage("jpeg", "receipt.jpg", marker);

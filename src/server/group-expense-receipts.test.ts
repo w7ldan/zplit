@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { createValidatedReceiptImage } from "@/test/receipt-image";
-import { EVIDENCE_IMAGE_NORMALIZATION_VERSION } from "@/server/evidence-images";
+import { EVIDENCE_IMAGE_NORMALIZATION_VERSION, normalizeEvidenceImage } from "@/server/evidence-images";
 
 vi.mock("server-only", () => ({}));
 
-const { createGroupExpenseReceipt, deleteGroupExpenseReceipt, getGroupExpenseReceipt, GroupExpenseReceiptPermissionError, GroupExpenseReceiptUnavailableError } = await import("./group-expense-receipts");
+const { createGroupExpenseReceipt, deleteGroupExpenseReceipt, getGroupExpenseReceipt, GroupExpenseReceiptDuplicateError, GroupExpenseReceiptPermissionError, GroupExpenseReceiptUnavailableError } = await import("./group-expense-receipts");
 
 const groupId = "11111111-1111-4111-8111-111111111111";
 const expenseId = "22222222-2222-4222-8222-222222222222";
@@ -52,6 +52,14 @@ function authorizedRows(receipts: unknown[] = []) {
 }
 
 describe("Group expense receipt service", () => {
+  it("rejects a new upload whose normalized hash already belongs to the expense", async () => {
+    const normalized = await normalizeEvidenceImage(file);
+    const database = databaseFor([[{ id: groupId, archivedAt: null }], ...authorizedRows([{ id: receiptId, byteSize: normalized.byteSize, sha256: normalized.sha256 }])]);
+    await expect(createGroupExpenseReceipt(database.database, groupId, expenseId, "user-b", file)).rejects.toBeInstanceOf(GroupExpenseReceiptDuplicateError);
+    expect(database.locks).toEqual(["lifecycle:update", "expense:update", "participant:update", "membership:update", "receipts:update"]);
+    expect(database.transaction.insert).not.toHaveBeenCalled();
+  });
+
   it("locks expense, creator participant, membership, and receipts in the compatible order", async () => {
     const created = { id: receiptId, originalFilename: file.originalFilename, mediaType: file.mediaType, byteSize: file.byteSize, createdAt: new Date() };
     const database = databaseFor([[{ id: groupId, archivedAt: null }], ...authorizedRows()], [created]);

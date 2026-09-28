@@ -330,6 +330,13 @@
       "when": 1790597376964,
       "tag": "0046_far_tomorrow_man",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790599476459,
+      "tag": "0047_steady_guardian",
+      "breakpoints": true
     }
   ]
 }
