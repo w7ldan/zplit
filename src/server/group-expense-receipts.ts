@@ -8,7 +8,7 @@ import { groupExpenseReceipts, groupExpenses, groupMemberships, groupParticipant
 import { MAX_RECEIPT_BYTES_PER_EXPENSE, MAX_RECEIPTS_PER_EXPENSE, type ValidatedReceiptFile } from "@/domain/receipt-file";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { GroupError, lockActiveGroupForOperationalMutation, requireGroupAccess } from "@/server/groups";
-import { normalizeEvidenceImage } from "@/server/evidence-images";
+import { EVIDENCE_IMAGE_NORMALIZATION_VERSION, normalizeEvidenceImage } from "@/server/evidence-images";
 
 export const GROUP_RECEIPT_COUNT_LIMIT_MESSAGE = "An expense can have up to 5 receipts.";
 export const GROUP_RECEIPT_TOTAL_LIMIT_MESSAGE = "Receipts for one expense cannot exceed 15 MiB.";
@@ -95,7 +95,7 @@ export async function createGroupExpenseReceipt(database: Database, groupId: str
       if (existing.length >= MAX_RECEIPTS_PER_EXPENSE) throw new GroupExpenseReceiptCountError();
       if (existing.some((receipt) => receipt.sha256 === normalizedFile.sha256)) throw new GroupExpenseReceiptDuplicateError();
       if (existing.reduce((total, receipt) => total + receipt.byteSize, 0) + normalizedFile.byteSize > MAX_RECEIPT_BYTES_PER_EXPENSE) throw new GroupExpenseReceiptTotalSizeError();
-      const [created] = await transaction.insert(groupExpenseReceipts).values({ groupId, expenseId, originalFilename: normalizedFile.originalFilename, mediaType: normalizedFile.mediaType, byteSize: normalizedFile.byteSize, sha256: normalizedFile.sha256, content: Buffer.from(normalizedFile.content) }).returning(metadataSelection());
+      const [created] = await transaction.insert(groupExpenseReceipts).values({ groupId, expenseId, originalFilename: normalizedFile.originalFilename, mediaType: normalizedFile.mediaType, byteSize: normalizedFile.byteSize, sha256: normalizedFile.sha256, content: Buffer.from(normalizedFile.content), normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION }).returning(metadataSelection());
       if (!created) throw new Error("Group receipt was not created");
       return created;
     });

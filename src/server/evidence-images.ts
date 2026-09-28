@@ -9,6 +9,7 @@ import {
 
 export const MAX_EVIDENCE_IMAGE_PIXELS = 40_000_000;
 export const EVIDENCE_IMAGE_MEDIA_TYPE = "image/webp" as const;
+export const EVIDENCE_IMAGE_NORMALIZATION_VERSION = 1;
 
 function normalizedFilename(filename: string) {
   const stem = filename.replace(/\.[^.]*$/u, "");

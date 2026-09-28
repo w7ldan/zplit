@@ -18,6 +18,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   unique,
@@ -853,6 +854,7 @@ export const groupSettlementProofs = pgTable(
     byteSize: integer("byte_size").notNull(),
     sha256: varchar("sha256", { length: 64 }).notNull(),
     content: bytea("content").notNull(),
+    normalizationVersion: smallint("normalization_version").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -861,6 +863,7 @@ export const groupSettlementProofs = pgTable(
     check("group_settlement_proofs_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
     check("group_settlement_proofs_filename_not_blank", sql`btrim(${table.originalFilename}) <> ''`),
     check("group_settlement_proofs_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    check("group_settlement_proofs_normalization_version_valid", sql`${table.normalizationVersion} IN (0, 1)`),
     foreignKey({
       columns: [table.groupId, table.settlementId],
       foreignColumns: [groupSettlements.groupId, groupSettlements.id],
@@ -869,6 +872,7 @@ export const groupSettlementProofs = pgTable(
     unique("group_settlement_proofs_group_id_id_unique").on(table.groupId, table.id),
     unique("group_settlement_proofs_settlement_sha256_unique").on(table.groupId, table.settlementId, table.sha256),
     uniqueIndex("group_settlement_proofs_settlement_uidx").on(table.groupId, table.settlementId),
+    index("group_settlement_proofs_normalization_pending_idx").on(table.id).where(sql`${table.normalizationVersion} = 0`),
   ],
 );
 
@@ -913,6 +917,7 @@ export const groupExpenseReceipts = pgTable(
     byteSize: integer("byte_size").notNull(),
     sha256: varchar("sha256", { length: 64 }).notNull(),
     content: bytea("content").notNull(),
+    normalizationVersion: smallint("normalization_version").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -921,6 +926,7 @@ export const groupExpenseReceipts = pgTable(
     check("group_expense_receipts_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
     check("group_expense_receipts_filename_not_blank", sql`btrim(${table.originalFilename}) <> ''`),
     check("group_expense_receipts_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    check("group_expense_receipts_normalization_version_valid", sql`${table.normalizationVersion} IN (0, 1)`),
     foreignKey({
       columns: [table.groupId, table.expenseId],
       foreignColumns: [groupExpenses.groupId, groupExpenses.id],
@@ -929,6 +935,7 @@ export const groupExpenseReceipts = pgTable(
     unique("group_expense_receipts_group_id_id_unique").on(table.groupId, table.id),
     unique("group_expense_receipts_expense_sha256_unique").on(table.groupId, table.expenseId, table.sha256),
     index("group_expense_receipts_expense_created_id_idx").on(table.groupId, table.expenseId, table.createdAt, table.id),
+    index("group_expense_receipts_normalization_pending_idx").on(table.id).where(sql`${table.normalizationVersion} = 0`),
   ],
 );
 
@@ -1022,6 +1029,7 @@ export const expenseReceipts = pgTable(
     byteSize: integer("byte_size").notNull(),
     sha256: varchar("sha256", { length: 64 }).notNull(),
     content: bytea("content").notNull(),
+    normalizationVersion: smallint("normalization_version").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -1030,6 +1038,7 @@ export const expenseReceipts = pgTable(
     check("expense_receipts_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
     check("expense_receipts_filename_not_blank", sql`btrim(${table.originalFilename}) <> ''`),
     check("expense_receipts_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    check("expense_receipts_normalization_version_valid", sql`${table.normalizationVersion} IN (0, 1)`),
     foreignKey({
       columns: [table.ledgerScopeId, table.expenseId],
       foreignColumns: [expenses.ledgerScopeId, expenses.id],
@@ -1038,6 +1047,7 @@ export const expenseReceipts = pgTable(
     uniqueIndex("expense_receipts_owner_expense_id_uidx").on(table.ledgerScopeId, table.expenseId, table.id),
     uniqueIndex("expense_receipts_owner_expense_sha256_uidx").on(table.ledgerScopeId, table.expenseId, table.sha256),
     index("expense_receipts_owner_expense_created_id_idx").on(table.ledgerScopeId, table.expenseId, table.createdAt, table.id),
+    index("expense_receipts_normalization_pending_idx").on(table.id).where(sql`${table.normalizationVersion} = 0`),
   ],
 );
 
@@ -1202,6 +1212,7 @@ export const repaymentProofs = pgTable(
     byteSize: integer("byte_size").notNull(),
     sha256: varchar("sha256", { length: 64 }).notNull(),
     content: bytea("content").notNull(),
+    normalizationVersion: smallint("normalization_version").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -1210,12 +1221,14 @@ export const repaymentProofs = pgTable(
     check("repayment_proofs_content_size_matches", sql`octet_length(${table.content}) = ${table.byteSize}`),
     check("repayment_proofs_filename_not_blank", sql`btrim(${table.originalFilename}) <> ''`),
     check("repayment_proofs_sha256_hex", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    check("repayment_proofs_normalization_version_valid", sql`${table.normalizationVersion} IN (0, 1)`),
     foreignKey({
       columns: [table.ledgerScopeId, table.repaymentId],
       foreignColumns: [repayments.ledgerScopeId, repayments.id],
       name: "repayment_proofs_owner_repayment_fk",
     }).onDelete("cascade"),
     uniqueIndex("repayment_proofs_owner_repayment_uidx").on(table.ledgerScopeId, table.repaymentId),
+    index("repayment_proofs_normalization_pending_idx").on(table.id).where(sql`${table.normalizationVersion} = 0`),
   ],
 );
 

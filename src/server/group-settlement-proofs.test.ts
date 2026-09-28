@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { createValidatedReceiptImage } from "@/test/receipt-image";
+import { EVIDENCE_IMAGE_NORMALIZATION_VERSION } from "@/server/evidence-images";
 
 const groupMocks = vi.hoisted(() => ({
   lockActiveGroupForOperationalMutation: vi.fn(async () => undefined),
@@ -62,8 +63,17 @@ describe("Group settlement proof service", () => {
     await createGroupSettlementProof(database.database, groupId, settlementId, "user-a", file);
 
     const stored = database.transaction.insert.mock.results[0]?.value.values.mock.calls[0]?.[0];
-    expect(stored).toMatchObject({ originalFilename: "transfer.webp", mediaType: "image/webp", byteSize: stored.content.byteLength });
+    expect(stored).toMatchObject({ originalFilename: "transfer.webp", mediaType: "image/webp", byteSize: stored.content.byteLength, normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION });
     expect(Buffer.from(stored.content).subarray(0, 4).toString("latin1")).toBe("RIFF");
+  });
+
+  it("marks a replaced normalized proof current", async () => {
+    const file = await createValidatedReceiptImage("replacement.png");
+    const database = databaseFor(authorizedRows([{ id: "proof-a" }]), [{ id: "proof-a", originalFilename: "replacement.webp", mediaType: "image/webp", byteSize: 1, createdAt: new Date() }]);
+
+    await replaceGroupSettlementProof(database.database, groupId, settlementId, "user-a", file);
+
+    expect(database.transaction.update.mock.results[0]?.value.set.mock.calls[0]?.[0]).toMatchObject({ normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION });
   });
 
   it("does not update an existing proof when replacement normalization fails", async () => {

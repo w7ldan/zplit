@@ -6,7 +6,7 @@ import { RECEIPT_READ_HEADERS } from "./expense-receipts";
 import { databaseCode } from "./database-error-code";
 import { getPersonalLedgerScopeId } from "./ledger-scopes";
 import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireLockedOrganizationAccess } from "./organizations";
-import { normalizeEvidenceImage } from "./evidence-images";
+import { EVIDENCE_IMAGE_NORMALIZATION_VERSION, normalizeEvidenceImage } from "./evidence-images";
 
 export const PAYMENT_PROOF_UNAVAILABLE_MESSAGE = "This repayment or payment proof is no longer available.";
 export const PAYMENT_PROOF_ALREADY_ATTACHED_MESSAGE = "This repayment already has a payment proof.";
@@ -135,6 +135,7 @@ export async function createRepaymentPaymentProof(
           byteSize: normalizedFile.byteSize,
           sha256: normalizedFile.sha256,
           content: Buffer.from(normalizedFile.content),
+          normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION,
         })
         .returning(metadataSelection());
       if (!created) throw new Error("Payment proof was not created");
@@ -180,6 +181,7 @@ export async function replaceRepaymentPaymentProof(
           byteSize: normalizedFile.byteSize,
           sha256: normalizedFile.sha256,
           content: Buffer.from(normalizedFile.content),
+          normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION,
         })
         .where(proofOwnerWhere(ledgerScopeId, repaymentId, existing.id))
         .returning(metadataSelection());
@@ -197,6 +199,7 @@ export async function replaceRepaymentPaymentProof(
         byteSize: normalizedFile.byteSize,
         sha256: normalizedFile.sha256,
         content: Buffer.from(normalizedFile.content),
+        normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION,
       })
       .returning(metadataSelection());
     if (!created) throw new Error("Payment proof was not created");

@@ -160,7 +160,8 @@ describe("database schema", () => {
       { from: ["group_id", "debtor_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
       { from: ["group_id", "creditor_participant_id"], to: "group_participants", target: ["group_id", "id"], onDelete: "restrict" },
     ]));
-    expect(getTableConfig(schema.groupExpenseReceipts).checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_expense_receipts_content_size_matches", "group_expense_receipts_sha256_hex"]));
+    expect(getTableConfig(schema.groupExpenseReceipts).checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_expense_receipts_content_size_matches", "group_expense_receipts_sha256_hex", "group_expense_receipts_normalization_version_valid"]));
+    expect(indexColumns(schema.groupExpenseReceipts, "group_expense_receipts_normalization_pending_idx")).toEqual(["id"]);
     const lifecycleEvents = getTableConfig(schema.groupExpenseLifecycleEvents);
     expect(lifecycleEvents.columns.map((column) => column.name)).toEqual(["id", "group_id", "expense_id", "event_type", "actor_user_id", "from_state", "to_state", "created_at"]);
     expect(lifecycleEvents.checks.map((check) => check.name)).toEqual(expect.arrayContaining(["group_expense_lifecycle_events_type_allowed", "group_expense_lifecycle_events_transition_shape"]));
@@ -223,6 +224,8 @@ describe("database schema", () => {
       target: ["group_id", "id"],
       onDelete: "restrict",
     });
+    expect(getTableConfig(schema.groupSettlementProofs).checks.map((check) => check.name)).toContain("group_settlement_proofs_normalization_version_valid");
+    expect(indexColumns(schema.groupSettlementProofs, "group_settlement_proofs_normalization_pending_idx")).toEqual(["id"]);
   });
 
   it("defines immutable reciprocal Group offsets with Group-safe applications", () => {
@@ -421,6 +424,7 @@ describe("database schema", () => {
       "byte_size",
       "sha256",
       "content",
+      "normalization_version",
       "created_at",
     ]);
     expect(table.checks.map((check) => check.name)).toEqual(expect.arrayContaining([
@@ -429,12 +433,14 @@ describe("database schema", () => {
       "repayment_proofs_content_size_matches",
       "repayment_proofs_filename_not_blank",
       "repayment_proofs_sha256_hex",
+      "repayment_proofs_normalization_version_valid",
     ]));
     expect(foreignKeyShape(schema.repaymentProofs)).toEqual(expect.arrayContaining([
       { from: ["ledger_scope_id"], to: "ledger_scopes", target: ["id"], onDelete: "restrict" },
       { from: ["ledger_scope_id", "repayment_id"], to: "repayments", target: ["ledger_scope_id", "id"], onDelete: "cascade" },
     ]));
     expect(indexColumns(schema.repaymentProofs, "repayment_proofs_owner_repayment_uidx")).toEqual(["ledger_scope_id", "repayment_id"]);
+    expect(indexColumns(schema.repaymentProofs, "repayment_proofs_normalization_pending_idx")).toEqual(["id"]);
   });
 
   it("defines private receipt storage constraints and indexes", () => {
@@ -449,6 +455,7 @@ describe("database schema", () => {
       "byte_size",
       "sha256",
       "content",
+      "normalization_version",
       "created_at",
     ]);
     expect((table.columns.find((column) => column.name === "original_filename") as unknown as { config: { length: number } }).config.length).toBe(160);
@@ -460,6 +467,7 @@ describe("database schema", () => {
       "expense_receipts_content_size_matches",
       "expense_receipts_filename_not_blank",
       "expense_receipts_sha256_hex",
+      "expense_receipts_normalization_version_valid",
     ]));
     expect(foreignKeyShape(schema.expenseReceipts)).toEqual(expect.arrayContaining([
       { from: ["ledger_scope_id"], to: "ledger_scopes", target: ["id"], onDelete: "restrict" },
@@ -467,6 +475,7 @@ describe("database schema", () => {
     ]));
     expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_sha256_uidx")).toEqual(["ledger_scope_id", "expense_id", "sha256"]);
     expect(indexColumns(schema.expenseReceipts, "expense_receipts_owner_expense_created_id_idx")).toEqual(["ledger_scope_id", "expense_id", "created_at", "id"]);
+    expect(indexColumns(schema.expenseReceipts, "expense_receipts_normalization_pending_idx")).toEqual(["id"]);
   });
 
   it("defines one-time account invitations with bounded, linked fields", () => {

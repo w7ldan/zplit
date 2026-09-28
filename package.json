@@ -15,6 +15,7 @@
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:sanitize-evidence": "tsx scripts/sanitize-legacy-evidence.ts",
     "test:database": "tsx scripts/database-smoke.ts",
     "test:budgeting-foundation": "tsx scripts/budgeting-foundation-smoke.ts",
     "test:budgeting-personal": "tsx scripts/budgeting-personal-smoke.ts",

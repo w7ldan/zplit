@@ -7,7 +7,7 @@ import {
   type ValidatedReceiptFile,
 } from "../domain/receipt-file";
 import { databaseCode } from "./database-error-code";
-import { normalizeEvidenceImage } from "./evidence-images";
+import { EVIDENCE_IMAGE_NORMALIZATION_VERSION, normalizeEvidenceImage } from "./evidence-images";
 import { getPersonalLedgerScopeId } from "./ledger-scopes";
 import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireLockedOrganizationAccess } from "./organizations";
 
@@ -150,6 +150,7 @@ export async function createExpenseReceipt(
           byteSize: normalizedFile.byteSize,
           sha256: normalizedFile.sha256,
           content: Buffer.from(normalizedFile.content),
+          normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION,
         })
         .returning(metadataSelection());
       if (!created) throw new Error("Receipt was not created");

@@ -17,7 +17,7 @@ import {
 } from "@/server/group-settlements";
 import { lockActiveGroupForOperationalMutation, requireGroupAccess } from "@/server/groups";
 import { RECEIPT_READ_HEADERS } from "@/server/expense-receipts";
-import { normalizeEvidenceImage } from "@/server/evidence-images";
+import { EVIDENCE_IMAGE_NORMALIZATION_VERSION, normalizeEvidenceImage } from "@/server/evidence-images";
 
 export const GROUP_SETTLEMENT_PROOF_UNAVAILABLE_MESSAGE = "This Group settlement or payment proof is no longer available.";
 export const GROUP_SETTLEMENT_PROOF_ALREADY_ATTACHED_MESSAGE = "This settlement already has a payment proof.";
@@ -135,6 +135,7 @@ async function mutateProof(
           byteSize: normalizedFile.byteSize,
           sha256: normalizedFile.sha256,
           content: Buffer.from(normalizedFile.content),
+          normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION,
         })
         .where(and(eq(groupSettlementProofs.groupId, groupId), eq(groupSettlementProofs.settlementId, settlementId), eq(groupSettlementProofs.id, existing.id)))
         .returning(metadataSelection());
@@ -151,6 +152,7 @@ async function mutateProof(
         byteSize: normalizedFile.byteSize,
         sha256: normalizedFile.sha256,
         content: Buffer.from(normalizedFile.content),
+        normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION,
       })
       .returning(metadataSelection());
     if (!created) throw new Error("Settlement proof was not created");

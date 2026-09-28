@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import { createValidatedReceiptImage } from "@/test/receipt-image";
+import { EVIDENCE_IMAGE_NORMALIZATION_VERSION } from "@/server/evidence-images";
 
 vi.mock("server-only", () => ({}));
 
@@ -58,6 +59,7 @@ describe("Group expense receipt service", () => {
     await expect(createGroupExpenseReceipt(database.database, groupId, expenseId, "user-b", file)).resolves.toEqual(created);
     expect(database.locks).toEqual(["lifecycle:update", "expense:update", "participant:update", "membership:update", "receipts:update"]);
     expect(database.transaction.insert).toHaveBeenCalledOnce();
+    expect(database.transaction.insert.mock.results[0]?.value.values.mock.calls[0]?.[0]).toMatchObject({ normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION });
   });
 
   it("rejects stale or non-creator authorization before a receipt mutation", async () => {

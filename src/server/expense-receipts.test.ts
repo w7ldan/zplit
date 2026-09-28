@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
-import { normalizeEvidenceImage } from "@/server/evidence-images";
+import { EVIDENCE_IMAGE_NORMALIZATION_VERSION, normalizeEvidenceImage } from "@/server/evidence-images";
 import { createValidatedReceiptImage } from "@/test/receipt-image";
 
 vi.mock("server-only", () => ({}));
@@ -79,7 +79,7 @@ describe("expense receipt service", () => {
     expect(db.transaction.insert).toHaveBeenCalledOnce();
     const inserted = db.transaction.insert.mock.results[0]?.value;
     const stored = inserted.values.mock.calls[0]?.[0];
-    expect(stored).toMatchObject({ mediaType: "image/webp", originalFilename: "receipt.webp", byteSize: stored.content.byteLength });
+    expect(stored).toMatchObject({ mediaType: "image/webp", originalFilename: "receipt.webp", byteSize: stored.content.byteLength, normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION });
     expect((await sharp(stored.content).metadata()).format).toBe("webp");
     expect(stored.content).not.toEqual(Buffer.from(file.content));
   });

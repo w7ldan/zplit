@@ -22,6 +22,18 @@ docker compose -f compose.yml --profile tools run --rm migrate
 
 The migration runner uses the database secret file, takes an advisory lock, and applies the checked-in `drizzle` journal. Never skip a failed migration or manually rerun a journal entry. Verify the database health and migration state before starting a new web image.
 
+## Legacy evidence image sanitization
+
+After applying the migration that adds evidence normalization state and deploying code that marks new evidence as normalized, run the evidence backfill against the explicitly selected target database. Keep evidence writes stopped during the run so an older application process cannot create unmarked rows after its table has been processed. Configure the target through the normal `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD_FILE` settings; `DB_NAME` must name the intended database, and `ZPLIT_EVIDENCE_BACKFILL_CONFIRM` must equal `<DB_NAME>:sanitize-evidence`.
+
+```sh
+DB_NAME=<explicit-target-database> \
+ZPLIT_EVIDENCE_BACKFILL_CONFIRM=<explicit-target-database>:sanitize-evidence \
+npm run db:sanitize-evidence
+```
+
+The command uses a session advisory lock and small transactions, reports per-table conversion counts, and can be interrupted and rerun. It processes only rows whose normalization version is zero. A malformed row stops the run, rolls back its current batch, reports only its table and row ID, and remains intact for manual remediation. Do not treat a failed/incomplete run as completion; rerun after the identified row has been safely remediated. The command never reads a `DATABASE_URL` and does not print database credentials or image contents.
+
 ## Deploy, verify, and roll back
 
 1. Confirm the intended release commit, branch, and clean release worktree. Do not infer the release commit from uncommitted files.

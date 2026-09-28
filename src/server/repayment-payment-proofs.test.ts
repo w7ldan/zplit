@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { createValidatedReceiptImage } from "@/test/receipt-image";
+import { EVIDENCE_IMAGE_NORMALIZATION_VERSION } from "@/server/evidence-images";
 
 vi.mock("server-only", () => ({}));
 vi.mock("./ledger-scopes", () => ({ getPersonalLedgerScopeId: vi.fn().mockResolvedValue("owner-a") }));
@@ -62,7 +63,7 @@ describe("repayment payment proof service", () => {
     await expect(createRepaymentPaymentProof(add.database, "owner-a", "repayment-a", file)).resolves.toEqual(created);
     expect(add.transaction.insert.mock.results[0]?.value.values).toHaveBeenCalledWith(expect.objectContaining({ ledgerScopeId: "owner-a", repaymentId: "repayment-a", content: expect.any(Buffer) }));
     const stored = add.transaction.insert.mock.results[0]?.value.values.mock.calls[0]?.[0];
-    expect(stored).toMatchObject({ mediaType: "image/webp", originalFilename: "transfer.webp", byteSize: stored.content.byteLength });
+    expect(stored).toMatchObject({ mediaType: "image/webp", originalFilename: "transfer.webp", byteSize: stored.content.byteLength, normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION });
     expect((await sharp(stored.content).metadata()).format).toBe("webp");
     expect(stored.content).not.toEqual(Buffer.from(file.content));
     expect(stored).not.toHaveProperty("amount");
@@ -77,6 +78,7 @@ describe("repayment payment proof service", () => {
     const replacement = databaseFor([[{ id: "repayment-a" }], [{ id: "proof-a" }]], [created], [replaced]);
     await expect(replaceRepaymentPaymentProof(replacement.database, "owner-a", "repayment-a", { ...file, originalFilename: "new.png" })).resolves.toEqual(replaced);
     expect(replacement.transaction.update).toHaveBeenCalledOnce();
+    expect(replacement.transaction.update.mock.results[0]?.value.set.mock.calls[0]?.[0]).toMatchObject({ normalizationVersion: EVIDENCE_IMAGE_NORMALIZATION_VERSION });
     expect(replacement.transaction.insert).not.toHaveBeenCalled();
 
     const removal = databaseFor([[{ id: "repayment-a" }]], [{ id: "proof-a" }]);
