@@ -7,6 +7,7 @@ import {
   type ValidatedReceiptFile,
 } from "../domain/receipt-file";
 import { databaseCode } from "./database-error-code";
+import { normalizeEvidenceImage } from "./evidence-images";
 import { getPersonalLedgerScopeId } from "./ledger-scopes";
 import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireLockedOrganizationAccess } from "./organizations";
 
@@ -125,6 +126,8 @@ export async function createExpenseReceipt(
         .for("update");
       if (!expense) throw new ExpenseReceiptUnavailableError();
 
+      const normalizedFile = await normalizeEvidenceImage(validatedFile);
+
       const existing = await transaction
         .select({ id: expenseReceipts.id, byteSize: expenseReceipts.byteSize, sha256: expenseReceipts.sha256 })
         .from(expenseReceipts)
@@ -132,8 +135,8 @@ export async function createExpenseReceipt(
         .orderBy(asc(expenseReceipts.id))
         .for("update");
       if (existing.length >= MAX_RECEIPTS_PER_EXPENSE) throw new ExpenseReceiptCountError();
-      if (existing.some((receipt) => receipt.sha256 === validatedFile.sha256)) throw new ExpenseReceiptDuplicateError();
-      if (existing.reduce((total, receipt) => total + receipt.byteSize, 0) + validatedFile.byteSize > MAX_RECEIPT_BYTES_PER_EXPENSE) {
+      if (existing.some((receipt) => receipt.sha256 === normalizedFile.sha256)) throw new ExpenseReceiptDuplicateError();
+      if (existing.reduce((total, receipt) => total + receipt.byteSize, 0) + normalizedFile.byteSize > MAX_RECEIPT_BYTES_PER_EXPENSE) {
         throw new ExpenseReceiptTotalSizeError();
       }
 
@@ -142,11 +145,11 @@ export async function createExpenseReceipt(
         .values({
           ledgerScopeId,
           expenseId,
-          originalFilename: validatedFile.originalFilename,
-          mediaType: validatedFile.mediaType,
-          byteSize: validatedFile.byteSize,
-          sha256: validatedFile.sha256,
-          content: Buffer.from(validatedFile.content),
+          originalFilename: normalizedFile.originalFilename,
+          mediaType: normalizedFile.mediaType,
+          byteSize: normalizedFile.byteSize,
+          sha256: normalizedFile.sha256,
+          content: Buffer.from(normalizedFile.content),
         })
         .returning(metadataSelection());
       if (!created) throw new Error("Receipt was not created");

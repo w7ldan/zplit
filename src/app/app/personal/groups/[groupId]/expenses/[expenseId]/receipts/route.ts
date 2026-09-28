@@ -36,6 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ gro
   try {
     return json({ receipt: await createGroupExpenseReceipt(getDatabase(), groupId, expenseId, session.user.id, validated) });
   } catch (error) {
+    if (error instanceof ReceiptFileValidationError) return json({ field: "receipt", error: error.message }, 400);
     if (error instanceof GroupExpenseReceiptUnavailableError) return json({ error: error.message }, 404);
     if (error instanceof GroupExpenseReceiptPermissionError) return json({ error: error.message }, 403);
     if (error instanceof GroupExpenseReceiptCountError || error instanceof GroupExpenseReceiptTotalSizeError || error instanceof GroupExpenseReceiptDuplicateError) return json({ error: error.message }, 409);

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
+import { createValidatedReceiptImage } from "@/test/receipt-image";
 
 vi.mock("server-only", () => ({}));
 vi.mock("./ledger-scopes", () => ({ getPersonalLedgerScopeId: vi.fn().mockResolvedValue("owner-a") }));
@@ -24,13 +26,7 @@ const {
   RepaymentPaymentProofUnavailableError,
 } = await import("./repayment-payment-proofs");
 
-const file = {
-  originalFilename: "transfer.png",
-  mediaType: "image/png" as const,
-  byteSize: 8,
-  sha256: "a".repeat(64),
-  content: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-};
+const file = await createValidatedReceiptImage("transfer.png");
 
 function query(rows: unknown[]) {
   const result = {
@@ -61,11 +57,15 @@ function databaseFor(selectRows: unknown[][], returningRows: unknown[] = [], rep
 
 describe("repayment payment proof service", () => {
   it("adds, reads metadata/content, replaces one row, and removes it owner-scoped", async () => {
-    const created = { id: "proof-a", originalFilename: file.originalFilename, mediaType: file.mediaType, byteSize: file.byteSize, createdAt: new Date() };
+    const created = { id: "proof-a", originalFilename: "transfer.webp", mediaType: "image/webp", byteSize: 0, createdAt: new Date() };
     const add = databaseFor([[{ id: "repayment-a" }], []], [created]);
     await expect(createRepaymentPaymentProof(add.database, "owner-a", "repayment-a", file)).resolves.toEqual(created);
     expect(add.transaction.insert.mock.results[0]?.value.values).toHaveBeenCalledWith(expect.objectContaining({ ledgerScopeId: "owner-a", repaymentId: "repayment-a", content: expect.any(Buffer) }));
-    expect(add.transaction.insert.mock.results[0]?.value.values.mock.calls[0]?.[0]).not.toHaveProperty("amount");
+    const stored = add.transaction.insert.mock.results[0]?.value.values.mock.calls[0]?.[0];
+    expect(stored).toMatchObject({ mediaType: "image/webp", originalFilename: "transfer.webp", byteSize: stored.content.byteLength });
+    expect((await sharp(stored.content).metadata()).format).toBe("webp");
+    expect(stored.content).not.toEqual(Buffer.from(file.content));
+    expect(stored).not.toHaveProperty("amount");
 
     const metadata = databaseFor([[created]]);
     await expect(getRepaymentPaymentProofMetadata(metadata.database, "owner-a", "repayment-a")).resolves.toEqual(created);
@@ -101,6 +101,12 @@ describe("repayment payment proof service", () => {
     const failed = databaseFor([[{ id: "repayment-a" }], [{ id: "proof-a" }]]);
     failed.transaction.update.mockImplementation(() => { throw new Error("write failed"); });
     await expect(replaceRepaymentPaymentProof(failed.database, "owner-a", "repayment-a", file)).rejects.toThrow("write failed");
+
+    const invalid = { ...file, content: Uint8Array.from([0xff, 0xd8, 0xff]) };
+    const failedNormalization = databaseFor([[{ id: "repayment-a" }], [{ id: "proof-a" }]]);
+    await expect(replaceRepaymentPaymentProof(failedNormalization.database, "owner-a", "repayment-a", invalid)).rejects.toThrow("could not be processed");
+    expect(failedNormalization.transaction.update).not.toHaveBeenCalled();
+    expect(failedNormalization.transaction.insert).not.toHaveBeenCalled();
   });
 
   it("locks an active Organization for payment proof upload and deletion while archived proof reads remain available", async () => {

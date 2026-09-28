@@ -10,13 +10,14 @@ import {
   groupSettlementProofs,
   groupSettlements,
 } from "@/db/schema";
-import { MAX_RECEIPT_BYTES, type ValidatedReceiptFile } from "@/domain/receipt-file";
+import { type ValidatedReceiptFile } from "@/domain/receipt-file";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import {
   publishGroupSettlementFreshness,
 } from "@/server/group-settlements";
 import { lockActiveGroupForOperationalMutation, requireGroupAccess } from "@/server/groups";
 import { RECEIPT_READ_HEADERS } from "@/server/expense-receipts";
+import { normalizeEvidenceImage } from "@/server/evidence-images";
 
 export const GROUP_SETTLEMENT_PROOF_UNAVAILABLE_MESSAGE = "This Group settlement or payment proof is no longer available.";
 export const GROUP_SETTLEMENT_PROOF_ALREADY_ATTACHED_MESSAGE = "This settlement already has a payment proof.";
@@ -113,7 +114,6 @@ async function mutateProof(
   validatedFile: ValidatedReceiptFile,
   replace: boolean,
 ) {
-  if (validatedFile.byteSize > MAX_RECEIPT_BYTES) throw new RangeError("Settlement proof is too large");
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
     await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
@@ -125,15 +125,16 @@ async function mutateProof(
       .limit(1)
       .for("update");
     if (existing && !replace) throw new GroupSettlementProofAlreadyAttachedError();
+    const normalizedFile = await normalizeEvidenceImage(validatedFile, "Payment proof");
     if (existing) {
       const [updated] = await transactionalDatabase
         .update(groupSettlementProofs)
         .set({
-          originalFilename: validatedFile.originalFilename,
-          mediaType: validatedFile.mediaType,
-          byteSize: validatedFile.byteSize,
-          sha256: validatedFile.sha256,
-          content: Buffer.from(validatedFile.content),
+          originalFilename: normalizedFile.originalFilename,
+          mediaType: normalizedFile.mediaType,
+          byteSize: normalizedFile.byteSize,
+          sha256: normalizedFile.sha256,
+          content: Buffer.from(normalizedFile.content),
         })
         .where(and(eq(groupSettlementProofs.groupId, groupId), eq(groupSettlementProofs.settlementId, settlementId), eq(groupSettlementProofs.id, existing.id)))
         .returning(metadataSelection());
@@ -145,11 +146,11 @@ async function mutateProof(
       .values({
         groupId,
         settlementId,
-        originalFilename: validatedFile.originalFilename,
-        mediaType: validatedFile.mediaType,
-        byteSize: validatedFile.byteSize,
-        sha256: validatedFile.sha256,
-        content: Buffer.from(validatedFile.content),
+        originalFilename: normalizedFile.originalFilename,
+        mediaType: normalizedFile.mediaType,
+        byteSize: normalizedFile.byteSize,
+        sha256: normalizedFile.sha256,
+        content: Buffer.from(normalizedFile.content),
       })
       .returning(metadataSelection());
     if (!created) throw new Error("Settlement proof was not created");

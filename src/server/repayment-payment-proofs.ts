@@ -6,6 +6,7 @@ import { RECEIPT_READ_HEADERS } from "./expense-receipts";
 import { databaseCode } from "./database-error-code";
 import { getPersonalLedgerScopeId } from "./ledger-scopes";
 import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireLockedOrganizationAccess } from "./organizations";
+import { normalizeEvidenceImage } from "./evidence-images";
 
 export const PAYMENT_PROOF_UNAVAILABLE_MESSAGE = "This repayment or payment proof is no longer available.";
 export const PAYMENT_PROOF_ALREADY_ATTACHED_MESSAGE = "This repayment already has a payment proof.";
@@ -122,16 +123,18 @@ export async function createRepaymentPaymentProof(
         .for("update");
       if (existing) throw new RepaymentPaymentProofAlreadyAttachedError();
 
+      const normalizedFile = await normalizeEvidenceImage(validatedFile, "Payment proof");
+
       const [created] = await transaction
         .insert(repaymentProofs)
         .values({
           ledgerScopeId,
           repaymentId,
-          originalFilename: validatedFile.originalFilename,
-          mediaType: validatedFile.mediaType,
-          byteSize: validatedFile.byteSize,
-          sha256: validatedFile.sha256,
-          content: Buffer.from(validatedFile.content),
+          originalFilename: normalizedFile.originalFilename,
+          mediaType: normalizedFile.mediaType,
+          byteSize: normalizedFile.byteSize,
+          sha256: normalizedFile.sha256,
+          content: Buffer.from(normalizedFile.content),
         })
         .returning(metadataSelection());
       if (!created) throw new Error("Payment proof was not created");
@@ -167,15 +170,16 @@ export async function replaceRepaymentPaymentProof(
       .where(proofOwnerWhere(ledgerScopeId, repaymentId))
       .limit(1)
       .for("update");
+    const normalizedFile = await normalizeEvidenceImage(validatedFile, "Payment proof");
     if (existing) {
       const [replaced] = await transaction
         .update(repaymentProofs)
         .set({
-          originalFilename: validatedFile.originalFilename,
-          mediaType: validatedFile.mediaType,
-          byteSize: validatedFile.byteSize,
-          sha256: validatedFile.sha256,
-          content: Buffer.from(validatedFile.content),
+          originalFilename: normalizedFile.originalFilename,
+          mediaType: normalizedFile.mediaType,
+          byteSize: normalizedFile.byteSize,
+          sha256: normalizedFile.sha256,
+          content: Buffer.from(normalizedFile.content),
         })
         .where(proofOwnerWhere(ledgerScopeId, repaymentId, existing.id))
         .returning(metadataSelection());
@@ -188,11 +192,11 @@ export async function replaceRepaymentPaymentProof(
       .values({
         ledgerScopeId,
         repaymentId,
-        originalFilename: validatedFile.originalFilename,
-        mediaType: validatedFile.mediaType,
-        byteSize: validatedFile.byteSize,
-        sha256: validatedFile.sha256,
-        content: Buffer.from(validatedFile.content),
+        originalFilename: normalizedFile.originalFilename,
+        mediaType: normalizedFile.mediaType,
+        byteSize: normalizedFile.byteSize,
+        sha256: normalizedFile.sha256,
+        content: Buffer.from(normalizedFile.content),
       })
       .returning(metadataSelection());
     if (!created) throw new Error("Payment proof was not created");

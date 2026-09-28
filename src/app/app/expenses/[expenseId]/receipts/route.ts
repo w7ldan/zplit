@@ -69,6 +69,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ exp
     const receipt = await createExpenseReceipt(getDatabase(), session.user.id, expenseId, validatedFile);
     return json({ receipt });
   } catch (error) {
+    if (error instanceof ReceiptFileValidationError) return json({ field: "receipt", error: error.message }, 400);
     if (error instanceof ExpenseReceiptUnavailableError) return new Response(EXPENSE_UNAVAILABLE, { status: 404 });
     if (error instanceof ExpenseReceiptCountError || error instanceof ExpenseReceiptTotalSizeError || error instanceof ExpenseReceiptDuplicateError) {
       return json({ error: error.message }, 409);

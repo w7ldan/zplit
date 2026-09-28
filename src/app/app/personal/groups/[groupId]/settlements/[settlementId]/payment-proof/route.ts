@@ -69,6 +69,7 @@ async function upload(
       : await createGroupSettlementProof(getDatabase(), groupId, settlementId, session.user.id, validatedFile);
     return json({ paymentProof });
   } catch (error) {
+    if (error instanceof ReceiptFileValidationError) return json({ field: "paymentProof", error: error.message }, 400);
     if (error instanceof GroupSettlementProofUnavailableError) return json({ error: error.message }, 404);
     if (error instanceof GroupSettlementProofPermissionError) return json({ error: error.message }, 403);
     if (error instanceof GroupSettlementProofAlreadyAttachedError) return json({ error: error.message }, 409);

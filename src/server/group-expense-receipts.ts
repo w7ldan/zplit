@@ -8,6 +8,7 @@ import { groupExpenseReceipts, groupExpenses, groupMemberships, groupParticipant
 import { MAX_RECEIPT_BYTES_PER_EXPENSE, MAX_RECEIPTS_PER_EXPENSE, type ValidatedReceiptFile } from "@/domain/receipt-file";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { GroupError, lockActiveGroupForOperationalMutation, requireGroupAccess } from "@/server/groups";
+import { normalizeEvidenceImage } from "@/server/evidence-images";
 
 export const GROUP_RECEIPT_COUNT_LIMIT_MESSAGE = "An expense can have up to 5 receipts.";
 export const GROUP_RECEIPT_TOTAL_LIMIT_MESSAGE = "Receipts for one expense cannot exceed 15 MiB.";
@@ -89,11 +90,12 @@ export async function createGroupExpenseReceipt(database: Database, groupId: str
     return await database.transaction(async (transaction) => {
       await lockActiveGroupForOperationalMutation(transaction as Database, groupId);
       await requireExpense(transaction as Database, groupId, expenseId, creatorUserId, true);
+      const normalizedFile = await normalizeEvidenceImage(validatedFile);
       const existing = await transaction.select({ id: groupExpenseReceipts.id, byteSize: groupExpenseReceipts.byteSize, sha256: groupExpenseReceipts.sha256 }).from(groupExpenseReceipts).where(and(eq(groupExpenseReceipts.groupId, groupId), eq(groupExpenseReceipts.expenseId, expenseId))).orderBy(asc(groupExpenseReceipts.id)).for("update");
       if (existing.length >= MAX_RECEIPTS_PER_EXPENSE) throw new GroupExpenseReceiptCountError();
-      if (existing.some((receipt) => receipt.sha256 === validatedFile.sha256)) throw new GroupExpenseReceiptDuplicateError();
-      if (existing.reduce((total, receipt) => total + receipt.byteSize, 0) + validatedFile.byteSize > MAX_RECEIPT_BYTES_PER_EXPENSE) throw new GroupExpenseReceiptTotalSizeError();
-      const [created] = await transaction.insert(groupExpenseReceipts).values({ groupId, expenseId, originalFilename: validatedFile.originalFilename, mediaType: validatedFile.mediaType, byteSize: validatedFile.byteSize, sha256: validatedFile.sha256, content: Buffer.from(validatedFile.content) }).returning(metadataSelection());
+      if (existing.some((receipt) => receipt.sha256 === normalizedFile.sha256)) throw new GroupExpenseReceiptDuplicateError();
+      if (existing.reduce((total, receipt) => total + receipt.byteSize, 0) + normalizedFile.byteSize > MAX_RECEIPT_BYTES_PER_EXPENSE) throw new GroupExpenseReceiptTotalSizeError();
+      const [created] = await transaction.insert(groupExpenseReceipts).values({ groupId, expenseId, originalFilename: normalizedFile.originalFilename, mediaType: normalizedFile.mediaType, byteSize: normalizedFile.byteSize, sha256: normalizedFile.sha256, content: Buffer.from(normalizedFile.content) }).returning(metadataSelection());
       if (!created) throw new Error("Group receipt was not created");
       return created;
     });

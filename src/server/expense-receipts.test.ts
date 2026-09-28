@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
+import { normalizeEvidenceImage } from "@/server/evidence-images";
+import { createValidatedReceiptImage } from "@/test/receipt-image";
 
 vi.mock("server-only", () => ({}));
 vi.mock("./ledger-scopes", () => ({ getPersonalLedgerScopeId: vi.fn().mockResolvedValue("owner-a") }));
@@ -25,13 +28,8 @@ const {
   listExpenseReceipts,
 } = await import("./expense-receipts");
 
-const file = {
-  originalFilename: "receipt.png",
-  mediaType: "image/png" as const,
-  byteSize: 8,
-  sha256: "a".repeat(64),
-  content: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-};
+const file = await createValidatedReceiptImage();
+const normalizedFile = await normalizeEvidenceImage(file);
 
 function query(rows: unknown[], log: string[], name: string) {
   const result = {
@@ -80,7 +78,10 @@ describe("expense receipt service", () => {
     expect(db.lockLog).toEqual(["expense:update", "receipts:update"]);
     expect(db.transaction.insert).toHaveBeenCalledOnce();
     const inserted = db.transaction.insert.mock.results[0]?.value;
-    expect(inserted.values.mock.calls[0]?.[0]).toHaveProperty("content");
+    const stored = inserted.values.mock.calls[0]?.[0];
+    expect(stored).toMatchObject({ mediaType: "image/webp", originalFilename: "receipt.webp", byteSize: stored.content.byteLength });
+    expect((await sharp(stored.content).metadata()).format).toBe("webp");
+    expect(stored.content).not.toEqual(Buffer.from(file.content));
   });
 
   it("maps missing/foreign expenses and count, total, and duplicate limits", async () => {
@@ -93,7 +94,7 @@ describe("expense receipt service", () => {
     const total = databaseFor([[{ id: "expense-a" }], [{ id: "receipt-a", byteSize: 15 * 1024 * 1024 - 1, sha256: "b".repeat(64) }]]);
     await expect(createExpenseReceipt(total.database, "owner-a", "expense-a", file)).rejects.toBeInstanceOf(ExpenseReceiptTotalSizeError);
 
-    const duplicate = databaseFor([[{ id: "expense-a" }], [{ id: "receipt-a", byteSize: 1, sha256: file.sha256 }]]);
+    const duplicate = databaseFor([[{ id: "expense-a" }], [{ id: "receipt-a", byteSize: 1, sha256: normalizedFile.sha256 }]]);
     await expect(createExpenseReceipt(duplicate.database, "owner-a", "expense-a", file)).rejects.toBeInstanceOf(ExpenseReceiptDuplicateError);
   });
 

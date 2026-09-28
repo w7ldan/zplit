@@ -70,6 +70,7 @@ async function upload(request: Request, repaymentId: string, replace: boolean) {
       : await createRepaymentPaymentProof(getDatabase(), session.user.id, repaymentId, validatedFile);
     return json({ paymentProof });
   } catch (error) {
+    if (error instanceof ReceiptFileValidationError) return json({ field: "paymentProof", error: error.message }, 400);
     if (error instanceof RepaymentPaymentProofUnavailableError) return new Response(PAYMENT_PROOF_UNAVAILABLE, { status: 404 });
     if (error instanceof RepaymentPaymentProofAlreadyAttachedError) return json({ error: PAYMENT_PROOF_ALREADY_ATTACHED_MESSAGE }, 409);
     return json({ error: replace ? "Unable to replace this payment proof." : "Unable to save this payment proof." }, 500);

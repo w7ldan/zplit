@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
+import { createValidatedReceiptImage } from "@/test/receipt-image";
 
 vi.mock("server-only", () => ({}));
 
@@ -9,7 +10,7 @@ const groupId = "11111111-1111-4111-8111-111111111111";
 const expenseId = "22222222-2222-4222-8222-222222222222";
 const participantId = "33333333-3333-4333-8333-333333333333";
 const receiptId = "44444444-4444-4444-8444-444444444444";
-const file = { originalFilename: "receipt.png", mediaType: "image/png" as const, byteSize: 4, sha256: "a".repeat(64), content: Uint8Array.from([1, 2, 3, 4]) };
+const file = await createValidatedReceiptImage();
 
 function query(rows: unknown[], locks: string[], name: string) {
   const result = {
