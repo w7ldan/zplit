@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
   return {
     FakeGroupError,
     requireGroupAccess: vi.fn(async () => ({})),
+    lockActiveGroupForOperationalMutation: vi.fn(async () => undefined),
     createNotificationInDatabase: vi.fn(),
     publishNotificationStateChange: vi.fn(),
     publishRealtimeEvent: vi.fn(async () => undefined),
@@ -17,7 +18,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/server/groups", () => ({ GroupError: mocks.FakeGroupError, requireGroupAccess: mocks.requireGroupAccess }));
+vi.mock("@/server/groups", () => ({ GroupError: mocks.FakeGroupError, requireGroupAccess: mocks.requireGroupAccess, lockActiveGroupForOperationalMutation: mocks.lockActiveGroupForOperationalMutation }));
 vi.mock("@/server/notifications", () => ({ createNotificationInDatabase: mocks.createNotificationInDatabase, publishNotificationStateChange: mocks.publishNotificationStateChange }));
 vi.mock("@/server/realtime", () => ({ publishRealtimeEvent: mocks.publishRealtimeEvent }));
 vi.mock("@/server/budgeting/sources-group", () => ({ reconcileGroupExpense: vi.fn(async () => undefined) }));
@@ -196,6 +197,25 @@ describe("Group expense lifecycle server operations", () => {
     expect(inactive.update).not.toHaveBeenCalled();
   });
 
+  it("rejects expense confirmation, rejection, and voiding after Group archive before writes", async () => {
+    const repository = (database: ReturnType<typeof databaseFor>) => createGroupAccountingRepository(database.database, groupId);
+    const archivedError = () => new mocks.FakeGroupError("archived");
+    const cases = [
+      { run: (database: ReturnType<typeof databaseFor>) => repository(database).confirmExpenseAsPayer(expenseId, actorUserId) },
+      { run: (database: ReturnType<typeof databaseFor>) => repository(database).rejectExpenseAsPayer(expenseId, actorUserId) },
+      { run: (database: ReturnType<typeof databaseFor>) => repository(database).voidExpenseAsPayer(expenseId, actorUserId) },
+    ];
+
+    for (const operation of cases) {
+      const database = databaseFor([], [], []);
+      mocks.lockActiveGroupForOperationalMutation.mockRejectedValueOnce(archivedError());
+      await expect(operation.run(database)).rejects.toMatchObject({ code: "forbidden" });
+      expect(database.update).not.toHaveBeenCalled();
+      expect(database.inserted).toEqual([]);
+      expect(mocks.createNotificationInDatabase).not.toHaveBeenCalled();
+    }
+  });
+
   it("loads obligation applications in one batch and keeps access Group-scoped", async () => {
     const obligation = {
       id: "66666666-6666-4666-8666-666666666666",
@@ -277,5 +297,16 @@ describe("Group expense lifecycle server operations", () => {
     ]);
     expect(db.inserted).toEqual([]);
     expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("keeps historical expense reads available after Group archive", async () => {
+    const confirmed = expense("confirmed");
+    const event = { id: "event-history", groupId, expenseId, eventType: "payer_confirmed", actorUserId, fromState: "pending", toState: "confirmed", createdAt: new Date() };
+    const db = databaseFor(detailSelects(confirmed, [], event), [], []);
+    mocks.lockActiveGroupForOperationalMutation.mockRejectedValueOnce(new mocks.FakeGroupError("archived"));
+
+    await expect(createGroupAccountingRepository(db.database, groupId).getExpense(expenseId, actorUserId))
+      .resolves.toMatchObject({ id: expenseId, state: "confirmed" });
+    expect(mocks.lockActiveGroupForOperationalMutation).not.toHaveBeenCalled();
   });
 });

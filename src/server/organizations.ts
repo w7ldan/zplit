@@ -156,9 +156,21 @@ async function lockOrganizationLifecycle(database: Database, organizationId: str
   return row;
 }
 
-export async function lockActiveOrganizationForOperationalMutation(database: Database, organizationId: string) {
+export async function lockActiveOrganizationForOperationalMutation(database: Database, organizationId: string, ledgerScopeId?: string) {
   const row = await lockOrganizationLifecycle(database, organizationId);
   if (row.archivedAt) throw new OrganizationError("archived");
+  if (ledgerScopeId) {
+    const [scope] = await database
+      .select({ id: ledgerScopes.id })
+      .from(ledgerScopes)
+      .where(and(
+        eq(ledgerScopes.id, ledgerScopeId),
+        eq(ledgerScopes.kind, "organization"),
+        eq(ledgerScopes.organizationId, organizationId),
+      ))
+      .limit(1);
+    if (!scope) throw new OrganizationError("not_found");
+  }
   return row;
 }
 

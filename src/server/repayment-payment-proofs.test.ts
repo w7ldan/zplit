@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("./ledger-scopes", () => ({ getPersonalLedgerScopeId: vi.fn().mockResolvedValue("owner-a") }));
+const organizationMocks = vi.hoisted(() => {
+  class FakeOrganizationError extends Error {
+    constructor(readonly code: string) { super(code); }
+  }
+  return { FakeOrganizationError, lockActiveOrganizationForOperationalMutation: vi.fn(async () => undefined) };
+});
+vi.mock("./organizations", () => ({ OrganizationError: organizationMocks.FakeOrganizationError, lockActiveOrganizationForOperationalMutation: organizationMocks.lockActiveOrganizationForOperationalMutation }));
 
 const {
   createRepaymentPaymentProof,
@@ -90,5 +97,41 @@ describe("repayment payment proof service", () => {
     const failed = databaseFor([[{ id: "repayment-a" }], [{ id: "proof-a" }]]);
     failed.transaction.update.mockImplementation(() => { throw new Error("write failed"); });
     await expect(replaceRepaymentPaymentProof(failed.database, "owner-a", "repayment-a", file)).rejects.toThrow("write failed");
+  });
+
+  it("locks an active Organization for payment proof upload and deletion while archived proof reads remain available", async () => {
+    const organizationOwner = { organizationId: "organization-a", ledgerScopeId: "scope-organization" };
+    const created = { id: "proof-a", originalFilename: file.originalFilename, mediaType: file.mediaType, byteSize: file.byteSize, createdAt: new Date() };
+    const upload = databaseFor([[{ id: "repayment-a" }], []], [created]);
+    await expect(createRepaymentPaymentProof(upload.database, organizationOwner, "repayment-a", file)).resolves.toEqual(created);
+    expect(organizationMocks.lockActiveOrganizationForOperationalMutation).toHaveBeenCalledWith(upload.transaction, "organization-a", "scope-organization");
+    expect(upload.transaction.insert).toHaveBeenCalledOnce();
+
+    const removal = databaseFor([[{ id: "repayment-a" }]], [{ id: "proof-a" }]);
+    await expect(deleteRepaymentPaymentProof(removal.database, organizationOwner, "repayment-a", "proof-a")).resolves.toBe(true);
+    expect(organizationMocks.lockActiveOrganizationForOperationalMutation).toHaveBeenLastCalledWith(removal.transaction, "organization-a", "scope-organization");
+
+    const historical = databaseFor([[{ id: "proof-a", mediaType: file.mediaType, byteSize: file.byteSize, content: Buffer.from(file.content) }]]);
+    await expect(getRepaymentPaymentProof(historical.database, organizationOwner, "repayment-a", "proof-a")).resolves.toMatchObject({ id: "proof-a" });
+    expect(organizationMocks.lockActiveOrganizationForOperationalMutation).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects archived Organization payment proof upload, replacement, and deletion before attachment writes", async () => {
+    const organizationOwner = { organizationId: "organization-a", ledgerScopeId: "scope-organization" };
+    const upload = databaseFor([[{ id: "repayment-a" }], []], [{ id: "proof-a" }]);
+    organizationMocks.lockActiveOrganizationForOperationalMutation.mockRejectedValueOnce(new organizationMocks.FakeOrganizationError("archived"));
+    await expect(createRepaymentPaymentProof(upload.database, organizationOwner, "repayment-a", file)).rejects.toBeInstanceOf(RepaymentPaymentProofUnavailableError);
+    expect(upload.transaction.insert).not.toHaveBeenCalled();
+
+    const replacement = databaseFor([[{ id: "repayment-a" }], [{ id: "proof-a" }]], [{ id: "proof-a" }], [{ id: "proof-a" }]);
+    organizationMocks.lockActiveOrganizationForOperationalMutation.mockRejectedValueOnce(new organizationMocks.FakeOrganizationError("archived"));
+    await expect(replaceRepaymentPaymentProof(replacement.database, organizationOwner, "repayment-a", file)).rejects.toBeInstanceOf(RepaymentPaymentProofUnavailableError);
+    expect(replacement.transaction.update).not.toHaveBeenCalled();
+    expect(replacement.transaction.insert).not.toHaveBeenCalled();
+
+    const removal = databaseFor([[{ id: "repayment-a" }]], [{ id: "proof-a" }]);
+    organizationMocks.lockActiveOrganizationForOperationalMutation.mockRejectedValueOnce(new organizationMocks.FakeOrganizationError("archived"));
+    await expect(deleteRepaymentPaymentProof(removal.database, organizationOwner, "repayment-a", "proof-a")).rejects.toBeInstanceOf(RepaymentPaymentProofUnavailableError);
+    expect(removal.transaction.delete).not.toHaveBeenCalled();
   });
 });

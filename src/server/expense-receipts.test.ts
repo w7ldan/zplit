@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("./ledger-scopes", () => ({ getPersonalLedgerScopeId: vi.fn().mockResolvedValue("owner-a") }));
+const organizationMocks = vi.hoisted(() => {
+  class FakeOrganizationError extends Error {
+    constructor(readonly code: string) { super(code); }
+  }
+  return { FakeOrganizationError, lockActiveOrganizationForOperationalMutation: vi.fn(async () => undefined) };
+});
+vi.mock("./organizations", () => ({ OrganizationError: organizationMocks.FakeOrganizationError, lockActiveOrganizationForOperationalMutation: organizationMocks.lockActiveOrganizationForOperationalMutation }));
 
 const {
   createExpenseReceipt,
@@ -91,5 +98,36 @@ describe("expense receipt service", () => {
     await expect(deleteExpenseReceipt(db.database, "owner-a", "expense-a", "receipt-a")).resolves.toBe(true);
     const missing = databaseFor([], []);
     await expect(deleteExpenseReceipt(missing.database, "owner-a", "expense-a", "receipt-a")).resolves.toBe(false);
+  });
+
+  it("locks an active Organization for receipt uploads and deletes while retaining archived reads", async () => {
+    const organizationOwner = { organizationId: "organization-a", ledgerScopeId: "scope-organization" };
+    const created = { id: "receipt-a", originalFilename: file.originalFilename, mediaType: file.mediaType, byteSize: file.byteSize, createdAt: new Date() };
+    const upload = databaseFor([[{ id: "expense-a" }], []], [created]);
+    await expect(createExpenseReceipt(upload.database, organizationOwner, "expense-a", file)).resolves.toEqual(created);
+    expect(organizationMocks.lockActiveOrganizationForOperationalMutation).toHaveBeenCalledWith(upload.transaction, "organization-a", "scope-organization");
+    expect(upload.transaction.insert).toHaveBeenCalledOnce();
+
+    const removal = databaseFor([], [{ id: "receipt-a" }]);
+    await expect(deleteExpenseReceipt(removal.database, organizationOwner, "expense-a", "receipt-a")).resolves.toBe(true);
+    expect(organizationMocks.lockActiveOrganizationForOperationalMutation).toHaveBeenLastCalledWith(removal.transaction, "organization-a", "scope-organization");
+
+    const historical = databaseFor([[{ id: "receipt-a", mediaType: "image/png", byteSize: 8, content: Buffer.from(file.content) }]]);
+    await expect(getExpenseReceipt(historical.database, organizationOwner, "expense-a", "receipt-a")).resolves.toMatchObject({ id: "receipt-a" });
+    expect(organizationMocks.lockActiveOrganizationForOperationalMutation).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects archived Organization receipt upload and deletion before any attachment write", async () => {
+    const organizationOwner = { organizationId: "organization-a", ledgerScopeId: "scope-organization" };
+    const archived = new organizationMocks.FakeOrganizationError("archived");
+    const upload = databaseFor([[{ id: "expense-a" }], []], [{ id: "receipt-a" }]);
+    organizationMocks.lockActiveOrganizationForOperationalMutation.mockRejectedValueOnce(archived);
+    await expect(createExpenseReceipt(upload.database, organizationOwner, "expense-a", file)).rejects.toBeInstanceOf(ExpenseReceiptUnavailableError);
+    expect(upload.transaction.insert).not.toHaveBeenCalled();
+
+    const removal = databaseFor([], [{ id: "receipt-a" }]);
+    organizationMocks.lockActiveOrganizationForOperationalMutation.mockRejectedValueOnce(new organizationMocks.FakeOrganizationError("archived"));
+    await expect(deleteExpenseReceipt(removal.database, organizationOwner, "expense-a", "receipt-a")).rejects.toBeInstanceOf(ExpenseReceiptUnavailableError);
+    expect(removal.transaction.delete).not.toHaveBeenCalled();
   });
 });

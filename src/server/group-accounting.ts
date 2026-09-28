@@ -136,7 +136,7 @@ function mapGroupError(error: unknown): never {
   if (error instanceof GroupError) {
     if (error.code === "not_member") throw new GroupAccountingError("not_member");
     if (error.code === "invalid_id") throw new GroupAccountingError("invalid_id");
-    if (error.code === "forbidden") throw new GroupAccountingError("forbidden");
+    if (error.code === "forbidden" || error.code === "archived") throw new GroupAccountingError("forbidden");
   }
   throw error;
 }
@@ -855,6 +855,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
       return database.transaction(async (transaction) => {
         const transactionalDatabase = transaction as Database;
         await requireGroupAccess(transactionalDatabase, groupId, payerUserId);
+        await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
         const [expense] = await transactionalDatabase
           .select()
           .from(groupExpenses)
@@ -902,6 +903,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
       const result = await database.transaction(async (transaction) => {
         const transactionalDatabase = transaction as Database;
         await requireGroupAccess(transactionalDatabase, groupId, payerUserId);
+        await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
         const [expense] = await transactionalDatabase
           .select()
           .from(groupExpenses)
@@ -946,6 +948,7 @@ export function createGroupAccountingRepository(database: Database, groupId: str
       assertUserId(payerUserId);
       const result = await database.transaction(async (transaction) => {
         const transactionalDatabase = transaction as Database;
+        await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
         const voided = await voidConfirmedExpense(transactionalDatabase, groupId, expenseId, payerUserId, new Date());
         await reconcileGroupExpense(transaction, expenseId);
         return { expense: await loadExpense(transactionalDatabase, groupId, expenseId), userIds: voided.userIds };

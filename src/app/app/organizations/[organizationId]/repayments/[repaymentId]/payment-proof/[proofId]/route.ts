@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ orga
   const { organizationId, repaymentId, proofId } = await params;
   try {
     const access = await requireOrganizationLedgerAccess(getDatabase(), organizationId, session.user.id, "ledger.view");
-    const proof = await getRepaymentPaymentProof(getDatabase(), { ledgerScopeId: access.ledgerScopeId }, repaymentId, proofId);
+    const proof = await getRepaymentPaymentProof(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId }, repaymentId, proofId);
     if (!proof) return new Response(PAYMENT_PROOF_UNAVAILABLE_MESSAGE, { status: 404, headers: PAYMENT_PROOF_READ_HEADERS });
     const extension = extensionByMediaType[proof.mediaType as keyof typeof extensionByMediaType];
     if (!extension) return new Response(PAYMENT_PROOF_UNAVAILABLE_MESSAGE, { status: 404, headers: PAYMENT_PROOF_READ_HEADERS });
@@ -29,7 +29,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ o
   const { organizationId, repaymentId, proofId } = await params;
   try {
     const access = await requireOrganizationLedgerAccess(getDatabase(), organizationId, session.user.id, "repayments.edit");
-    if (!await deleteRepaymentPaymentProof(getDatabase(), { ledgerScopeId: access.ledgerScopeId }, repaymentId, proofId)) return new Response(PAYMENT_PROOF_UNAVAILABLE_MESSAGE, { status: 404, headers: PAYMENT_PROOF_READ_HEADERS });
+    if (!await deleteRepaymentPaymentProof(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId }, repaymentId, proofId)) return new Response(PAYMENT_PROOF_UNAVAILABLE_MESSAGE, { status: 404, headers: PAYMENT_PROOF_READ_HEADERS });
     return new Response(null, { status: 204, headers: PAYMENT_PROOF_READ_HEADERS });
   } catch { return new Response(PAYMENT_PROOF_UNAVAILABLE_MESSAGE, { status: 404, headers: PAYMENT_PROOF_READ_HEADERS }); }
 }

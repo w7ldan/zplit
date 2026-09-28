@@ -8,6 +8,7 @@ import {
 } from "../domain/receipt-file";
 import { databaseCode } from "./database-error-code";
 import { getPersonalLedgerScopeId } from "./ledger-scopes";
+import { lockActiveOrganizationForOperationalMutation, OrganizationError } from "./organizations";
 
 export const RECEIPT_COUNT_LIMIT_MESSAGE = "An expense can have up to 5 receipts.";
 export const RECEIPT_TOTAL_LIMIT_MESSAGE = "Receipts for one expense cannot exceed 15 MiB.";
@@ -71,7 +72,7 @@ function metadataSelection() {
   };
 }
 
-type LedgerOwner = string | { ledgerScopeId: string };
+type LedgerOwner = string | { ledgerScopeId: string; organizationId: string };
 
 async function getLedgerScopeId(database: Database, owner: LedgerOwner) {
   if (typeof owner === "string") {
@@ -80,6 +81,16 @@ async function getLedgerScopeId(database: Database, owner: LedgerOwner) {
   }
   if (!owner.ledgerScopeId?.trim()) throw new Error("A receipt scope is required");
   return owner.ledgerScopeId;
+}
+
+async function lockOwnerOrganizationForMutation(database: Database, owner: LedgerOwner) {
+  if (typeof owner === "string") return;
+  try {
+    await lockActiveOrganizationForOperationalMutation(database, owner.organizationId, owner.ledgerScopeId);
+  } catch (error) {
+    if (error instanceof OrganizationError && error.code === "archived") throw new ExpenseReceiptUnavailableError();
+    throw error;
+  }
 }
 
 export async function listExpenseReceipts(database: Database, owner: LedgerOwner, expenseId: string): Promise<ExpenseReceiptMetadata[]> {
@@ -100,6 +111,7 @@ export async function createExpenseReceipt(
   const ledgerScopeId = await getLedgerScopeId(database, owner);
   try {
     return await database.transaction(async (transaction) => {
+      await lockOwnerOrganizationForMutation(transaction as Database, owner);
       const [expense] = await transaction
         .select({ id: expenses.id })
         .from(expenses)
@@ -160,15 +172,18 @@ export async function getExpenseReceipt(database: Database, owner: LedgerOwner, 
 
 export async function deleteExpenseReceipt(database: Database, owner: LedgerOwner, expenseId: string, receiptId: string) {
   const ledgerScopeId = await getLedgerScopeId(database, owner);
-  const deleted = await database
-    .delete(expenseReceipts)
-    .where(
-      and(
-        eq(expenseReceipts.ledgerScopeId, ledgerScopeId),
-        eq(expenseReceipts.expenseId, expenseId),
-        eq(expenseReceipts.id, receiptId),
-      ),
-    )
-    .returning({ id: expenseReceipts.id });
-  return deleted.length > 0;
+  return database.transaction(async (transaction) => {
+    await lockOwnerOrganizationForMutation(transaction as Database, owner);
+    const deleted = await transaction
+      .delete(expenseReceipts)
+      .where(
+        and(
+          eq(expenseReceipts.ledgerScopeId, ledgerScopeId),
+          eq(expenseReceipts.expenseId, expenseId),
+          eq(expenseReceipts.id, receiptId),
+        ),
+      )
+      .returning({ id: expenseReceipts.id });
+    return deleted.length > 0;
+  });
 }

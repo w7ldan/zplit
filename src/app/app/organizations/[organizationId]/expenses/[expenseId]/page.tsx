@@ -57,7 +57,7 @@ export default async function OrganizationExpensePage({
     access.ledger.listExpenseCharges(expense.id),
     listExpenseReceipts(
       getDatabase(),
-      { ledgerScopeId: access.ledgerScopeId },
+      { ledgerScopeId: access.ledgerScopeId, organizationId },
       expense.id,
     ),
     access.ledger.getPreviousExpenseSplit(expense.id),

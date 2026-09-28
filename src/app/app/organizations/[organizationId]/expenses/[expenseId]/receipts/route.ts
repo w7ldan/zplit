@@ -25,7 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
     if (entries.length !== 1 || entries[0]?.[0] !== "receipt" || !isUploadFile(entries[0][1])) return json({ field: "receipt", error: "Choose one receipt image." }, 400);
     const file = entries[0][1];
     const validated = validateReceiptFile({ bytes: new Uint8Array(await file.arrayBuffer()), filename: file.name, mediaType: file.type.trim().toLowerCase() });
-    return json({ receipt: await createExpenseReceipt(getDatabase(), { ledgerScopeId: access.ledgerScopeId }, expenseId, validated) });
+    return json({ receipt: await createExpenseReceipt(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId }, expenseId, validated) });
   } catch (error) {
     if (error instanceof ReceiptFileValidationError) return json({ field: "receipt", error: error.message }, 400);
     if (error instanceof ExpenseReceiptUnavailableError) return new Response(error.message, { status: 404 });

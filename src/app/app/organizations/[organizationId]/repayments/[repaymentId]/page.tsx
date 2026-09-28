@@ -61,7 +61,7 @@ export default async function OrganizationRepaymentPage({
       access.ledger.listRecentPaymentMethods(),
       getRepaymentPaymentProofMetadata(
         getDatabase(),
-        { ledgerScopeId: access.ledgerScopeId },
+        { ledgerScopeId: access.ledgerScopeId, organizationId },
         plan.id,
       ),
     ],

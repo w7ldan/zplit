@@ -15,7 +15,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ orga
   const { organizationId, expenseId, receiptId } = await params;
   try {
     const access = await requireOrganizationLedgerAccess(getDatabase(), organizationId, session.user.id, "ledger.view");
-    const receipt = await getExpenseReceipt(getDatabase(), { ledgerScopeId: access.ledgerScopeId }, expenseId, receiptId);
+    const receipt = await getExpenseReceipt(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId }, expenseId, receiptId);
     if (!receipt) return new Response(RECEIPT_UNAVAILABLE_MESSAGE, { status: 404, headers: privateHeaders() });
     const extension = extensionByMediaType[receipt.mediaType as keyof typeof extensionByMediaType];
     if (!extension) return new Response(RECEIPT_UNAVAILABLE_MESSAGE, { status: 404, headers: privateHeaders() });
@@ -31,7 +31,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ o
   const { organizationId, expenseId, receiptId } = await params;
   try {
     const access = await requireOrganizationLedgerAccess(getDatabase(), organizationId, session.user.id, "expenses.edit");
-    if (!await deleteExpenseReceipt(getDatabase(), { ledgerScopeId: access.ledgerScopeId }, expenseId, receiptId)) return new Response(RECEIPT_UNAVAILABLE_MESSAGE, { status: 404, headers: privateHeaders() });
+    if (!await deleteExpenseReceipt(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId }, expenseId, receiptId)) return new Response(RECEIPT_UNAVAILABLE_MESSAGE, { status: 404, headers: privateHeaders() });
     return new Response(null, { status: 204, headers: privateHeaders() });
   } catch { return new Response(RECEIPT_UNAVAILABLE_MESSAGE, { status: 404, headers: privateHeaders() }); }
 }

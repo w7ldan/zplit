@@ -5,6 +5,7 @@ import { type ValidatedReceiptFile } from "../domain/receipt-file";
 import { RECEIPT_READ_HEADERS } from "./expense-receipts";
 import { databaseCode } from "./database-error-code";
 import { getPersonalLedgerScopeId } from "./ledger-scopes";
+import { lockActiveOrganizationForOperationalMutation, OrganizationError } from "./organizations";
 
 export const PAYMENT_PROOF_UNAVAILABLE_MESSAGE = "This repayment or payment proof is no longer available.";
 export const PAYMENT_PROOF_ALREADY_ATTACHED_MESSAGE = "This repayment already has a payment proof.";
@@ -46,7 +47,7 @@ function metadataSelection() {
   };
 }
 
-type LedgerOwner = string | { ledgerScopeId: string };
+type LedgerOwner = string | { ledgerScopeId: string; organizationId: string };
 
 async function getLedgerScopeId(database: Database, owner: LedgerOwner) {
   if (typeof owner === "string") {
@@ -55,6 +56,16 @@ async function getLedgerScopeId(database: Database, owner: LedgerOwner) {
   }
   if (!owner.ledgerScopeId?.trim()) throw new Error("A payment proof scope is required");
   return owner.ledgerScopeId;
+}
+
+async function lockOwnerOrganizationForMutation(database: Database, owner: LedgerOwner) {
+  if (typeof owner === "string") return;
+  try {
+    await lockActiveOrganizationForOperationalMutation(database, owner.organizationId, owner.ledgerScopeId);
+  } catch (error) {
+    if (error instanceof OrganizationError && error.code === "archived") throw new RepaymentPaymentProofUnavailableError();
+    throw error;
+  }
 }
 
 function repaymentOwnerWhere(ledgerScopeId: string, repaymentId: string) {
@@ -89,6 +100,7 @@ export async function createRepaymentPaymentProof(
   const ledgerScopeId = await getLedgerScopeId(database, owner);
   try {
     return await database.transaction(async (transaction) => {
+      await lockOwnerOrganizationForMutation(transaction as Database, owner);
       const [repayment] = await transaction
         .select({ id: repayments.id })
         .from(repayments)
@@ -135,6 +147,7 @@ export async function replaceRepaymentPaymentProof(
 ): Promise<RepaymentPaymentProofMetadata> {
   const ledgerScopeId = await getLedgerScopeId(database, owner);
   return database.transaction(async (transaction) => {
+    await lockOwnerOrganizationForMutation(transaction as Database, owner);
     const [repayment] = await transaction
       .select({ id: repayments.id })
       .from(repayments)
@@ -196,6 +209,7 @@ export async function getRepaymentPaymentProof(database: Database, owner: Ledger
 export async function deleteRepaymentPaymentProof(database: Database, owner: LedgerOwner, repaymentId: string, proofId: string) {
   const ledgerScopeId = await getLedgerScopeId(database, owner);
   return database.transaction(async (transaction) => {
+    await lockOwnerOrganizationForMutation(transaction as Database, owner);
     const [repayment] = await transaction
       .select({ id: repayments.id })
       .from(repayments)

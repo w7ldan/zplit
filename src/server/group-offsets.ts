@@ -102,7 +102,7 @@ function mapGroupError(error: unknown): never {
     if (error.code === "not_member") throw new GroupOffsetError("forbidden");
     if (error.code === "invalid_id") throw new GroupOffsetError("invalid_id");
     if (error.code === "not_found") throw new GroupOffsetError("not_found");
-    if (error.code === "forbidden") throw new GroupOffsetError("forbidden");
+    if (error.code === "forbidden" || error.code === "archived") throw new GroupOffsetError("forbidden");
   }
   throw error;
 }
@@ -319,6 +319,7 @@ async function confirmOffset(database: Database, groupId: string, offsetId: stri
     if (result.changed && result.notificationUserId) publishNotificationStateChange(result.notificationUserId, "created");
     return confirmed;
   } catch (error) {
+    if (error instanceof GroupError) mapGroupError(error);
     if (error instanceof GroupOffsetAllocationError) throw new GroupOffsetError("financial_integrity");
     if (error instanceof GroupOffsetError) throw error;
     if (databaseCode(error, true) === "23514" || databaseCode(error, true) === "P0001") throw new GroupOffsetError("financial_integrity");

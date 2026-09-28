@@ -105,7 +105,7 @@ function mapGroupError(error: unknown): never {
     if (error.code === "not_member") throw new GroupSettlementError("forbidden");
     if (error.code === "invalid_id") throw new GroupSettlementError("invalid_id");
     if (error.code === "not_found") throw new GroupSettlementError("not_found");
-    if (error.code === "forbidden") throw new GroupSettlementError("forbidden");
+    if (error.code === "forbidden" || error.code === "archived") throw new GroupSettlementError("forbidden");
   }
   throw error;
 }
@@ -349,6 +349,7 @@ async function confirmSettlement(database: Database, groupId: string, settlement
     return confirmed;
   } catch (error) {
     if (error instanceof GroupSettlementAllocationError) throw new GroupSettlementError("financial_integrity");
+    if (error instanceof GroupError) mapGroupError(error);
     if (databaseCode(error, true) === "23514" || databaseCode(error, true) === "P0001") throw new GroupSettlementError("financial_integrity");
     throw error;
   }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 import type { Database } from "@/db/client";
 import { ledgerScopes, organizationMemberships, organizationParticipants, organizations } from "@/db/schema";
 import type { OrganizationRole } from "@/domain/organization-permissions";
@@ -17,6 +18,7 @@ import {
   getOrganizationForMember,
   hasOrganizationFinancialHistory,
   listOrganizationOverviewSummaries,
+  lockActiveOrganizationForOperationalMutation,
   OrganizationError,
   requireOrganizationAccess,
   requireOrganizationLedgerAccess,
@@ -320,5 +322,23 @@ describe("organizations", () => {
 
     const active = { select: vi.fn(() => queryBuilder([{ id: organizationId, archivedAt: null }])) } as unknown as Database;
     await expect(assertOrganizationActiveForOperationalMutation(active, organizationId)).resolves.toBeUndefined();
+  });
+
+  it("locks an active Organization and verifies its ledger scope before scoped mutations", async () => {
+    const scopeId = "22222222-2222-4222-8222-222222222222";
+    const conditions: unknown[] = [];
+    const queries = [
+      queryBuilder([{ id: organizationId, archivedAt: null }]),
+      queryBuilder([{ id: scopeId }]),
+    ];
+    const lifecycleQuery = queries[0];
+    for (const query of queries) query.where.mockImplementation((condition: unknown) => { conditions.push(condition); return query; });
+    const database = { select: vi.fn(() => queries.shift()) } as unknown as Database;
+
+    await expect(lockActiveOrganizationForOperationalMutation(database, organizationId, scopeId)).resolves.toMatchObject({ id: organizationId });
+
+    expect(database.select).toHaveBeenCalledTimes(2);
+    expect(lifecycleQuery?.for).toHaveBeenCalledWith("update");
+    expect(new PgDialect().sqlToQuery(conditions[1] as never).params).toEqual([scopeId, "organization", organizationId]);
   });
 });

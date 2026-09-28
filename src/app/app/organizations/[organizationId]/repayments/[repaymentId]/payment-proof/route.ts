@@ -24,7 +24,8 @@ async function upload(request: Request, organizationId: string, repaymentId: str
     if (entries.length !== 1 || entries[0]?.[0] !== "paymentProof" || !isUploadFile(entries[0][1])) return json({ field: "paymentProof", error: "Choose one payment proof image." }, 400);
     const file = entries[0][1];
     const validated = validateReceiptFile({ bytes: new Uint8Array(await file.arrayBuffer()), filename: file.name, mediaType: file.type.trim().toLowerCase() }, "Payment proof");
-    const paymentProof = replace ? await replaceRepaymentPaymentProof(getDatabase(), { ledgerScopeId: access.ledgerScopeId }, repaymentId, validated) : await createRepaymentPaymentProof(getDatabase(), { ledgerScopeId: access.ledgerScopeId }, repaymentId, validated);
+    const owner = { ledgerScopeId: access.ledgerScopeId, organizationId };
+    const paymentProof = replace ? await replaceRepaymentPaymentProof(getDatabase(), owner, repaymentId, validated) : await createRepaymentPaymentProof(getDatabase(), owner, repaymentId, validated);
     return json({ paymentProof });
   } catch (error) {
     if (error instanceof ReceiptFileValidationError) return json({ field: "paymentProof", error: error.message }, 400);

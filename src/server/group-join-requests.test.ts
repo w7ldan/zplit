@@ -138,7 +138,7 @@ describe("Group join requests", () => {
   });
 
   it("refuses new invitations for archived Groups", async () => {
-    const { db } = database([
+    const { db, calls } = database([
       [{ id: groupId, name: "Trip", archivedAt: new Date("2026-01-01T00:00:00.000Z") }],
       [{ name: "Owner", username: "owner" }],
       [{ id: targetUserId, name: "Alice", username: "alice" }],
@@ -147,6 +147,21 @@ describe("Group join requests", () => {
       [],
     ]);
     await expect(createGroupInvitation(db, groupId, requesterUserId, "alice")).rejects.toMatchObject({ code: "forbidden" });
+    expect(calls).toEqual([]);
+    expect(mocks.createNotificationInDatabase).not.toHaveBeenCalled();
+  });
+
+  it("refuses new participant link requests for archived Groups before inserting or notifying", async () => {
+    const { db, calls } = database([
+      [{ id: groupId, name: "Trip", archivedAt: new Date("2026-01-01T00:00:00.000Z") }],
+      [{ name: "Owner", username: "owner" }],
+      [{ id: targetUserId, name: "Alice", username: "alice" }],
+    ]);
+
+    await expect(createGroupParticipantLinkRequest(db, groupId, participantId, requesterUserId, "alice"))
+      .rejects.toMatchObject({ code: "forbidden" });
+    expect(calls).toEqual([]);
+    expect(mocks.createNotificationInDatabase).not.toHaveBeenCalled();
   });
 
   it("rejects a Member, email-shaped lookup, existing representation, and duplicate pending request", async () => {

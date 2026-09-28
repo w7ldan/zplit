@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { groupMemberships, groupParticipants } from "@/db/schema";
+import { lockActiveGroupForOperationalMutation } from "@/server/groups";
 
 export type LockedGroupParticipant = {
   id: string;
@@ -16,6 +17,7 @@ export type LockedGroupMembership = {
 };
 
 export async function lockGroupFinancialParticipants(database: Database, groupId: string, participantIds: string[]) {
+  await lockActiveGroupForOperationalMutation(database, groupId);
   const ids = [...new Set(participantIds)].sort();
   const participants = await database
     .select({
