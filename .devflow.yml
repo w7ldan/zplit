@@ -1,0 +1,21 @@
+profile:
+  - "web"
+  - "node"
+  - "infra"
+
+repo:
+  branch: ""
+
+commands:
+  typecheck: "npm run typecheck"
+  lint: "npm run lint"
+  test: "npm run test"
+  build: "npm run build"
+
+validation:
+  full_suite_default: false
+  build_default: false
+
+agents:
+  subagents: false
+  jev: preferred

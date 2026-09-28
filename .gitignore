@@ -24,4 +24,5 @@ zplit.zip
 !.env.example
 
 AGENTS.md
+!/AGENTS.md
 .agents/
