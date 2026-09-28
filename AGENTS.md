@@ -20,7 +20,7 @@
 - Distinguish agent-reported results, independent source review, observed runtime validation, and production validation. Never promote one evidence level into another.
 - For an independent review, inspect the actual change, verify stated invariants, distinguish source facts from agent reports, and report scope and limitations.
 - For security review, trace a concrete principal, resource, trust boundary, attacker capability, and impact. Separate confirmed issues from source leads, runtime needs, hardening, and attempts that did not reproduce the concern.
-- Use changed-scope checks and focused validation first. A successful cached result is reusable only when devflow proves the indexed inputs are unchanged. Jev may broaden validation but cannot remove deterministic checks.
+- After edits, plan with `devflow check --changed --json`, then prefer `devflow check --changed --run-focused` for selected tests and static checks. If focused execution is unavailable, run the listed tests manually. Run `devflow check --changed --run` when risk, the validation plan, task requirements, checkpoint, or repository rules warrant the configured broad suite; do not run both modes blindly. A successful cached result is reusable only when devflow proves the indexed inputs are unchanged. Jev may broaden validation but cannot remove deterministic checks.
 - Use `devflow checkpoint` when semantic uncertainty remains or Jev is preferred. Deep-reason only on unresolved or high-risk findings; independently verify important signals. The lead owns implementation, integration, and final correctness. Subagents are disabled by default.
 - Ask only when a missing fact blocks safe progress or materially changes the result. Continue independent work while clarification is pending.
 
