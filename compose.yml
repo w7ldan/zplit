@@ -117,6 +117,40 @@ services:
       - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=1777
     user: node
 
+  sanitize-evidence:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: evidence-sanitizer
+    image: zplit-evidence-sanitizer:local
+    profiles:
+      - tools
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    secrets:
+      - postgres_password
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: zplit
+      DB_USER: zplit
+      DB_PASSWORD_FILE: /run/secrets/postgres_password
+    networks:
+      - database
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=1777
+    user: node
+    command:
+      - ./node_modules/.bin/tsx
+      - scripts/sanitize-legacy-evidence.ts
+
   bootstrap-owner:
     build:
       context: .

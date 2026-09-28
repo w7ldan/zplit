@@ -143,7 +143,7 @@ for (const privatePath of privatePaths) requireCondition(new RegExp(`(?:^|\\s)${
 requireCondition(/header @private[\s\S]*?X-Robots-Tag\s+"noindex, nofollow, noarchive"/.test(caddy), "private paths must disable crawler indexing");
 requireCondition(/header @private[\s\S]*?Cache-Control\s+"no-store"/.test(caddy), "private paths must be non-cacheable");
 
-requireCondition(onlyKeys(services, ["web", "postgres", "migrate", "bootstrap-owner"]), "exactly web, postgres, migrate, and bootstrap-owner services are required");
+requireCondition(onlyKeys(services, ["web", "postgres", "migrate", "sanitize-evidence", "bootstrap-owner"]), "exactly web, postgres, migrate, sanitize-evidence, and bootstrap-owner services are required");
 requireCondition(onlyKeys(networks, ["ingress", "database"]), "only ingress and database networks may be declared");
 requireCondition(onlyKeys(volumes, ["postgres_data"]), "only postgres_data may be declared as a named volume");
 requireCondition(onlyKeys(secrets, ["postgres_password", "better_auth_secret", "owner_name", "owner_email", "owner_password"]), "exactly five deployment secrets are required");
@@ -241,6 +241,35 @@ for (const [key, value] of Object.entries({
 }
 forbiddenServiceFeatures(migrator);
 
+const evidenceSanitizer = services["sanitize-evidence"];
+const evidenceSanitizerEnvironment = evidenceSanitizer.environment ?? {};
+requireCondition(evidenceSanitizer.image === "zplit-evidence-sanitizer:local", "sanitize-evidence must use the local evidence-sanitizer image");
+requireCondition(evidenceSanitizer.build?.target === "evidence-sanitizer", "sanitize-evidence must build the evidence-sanitizer target");
+requireCondition(Array.isArray(evidenceSanitizer.profiles) && evidenceSanitizer.profiles.length === 1 && evidenceSanitizer.profiles[0] === "tools", "sanitize-evidence must use the tools profile");
+requireCondition(evidenceSanitizer.restart === "no", "sanitize-evidence must not have a persistent restart policy");
+requireCondition(evidenceSanitizer.depends_on?.postgres?.condition === "service_healthy", "sanitize-evidence must depend on healthy PostgreSQL");
+requireCondition(hasNetworkOnly(evidenceSanitizer, "database"), "sanitize-evidence must use only the database network");
+requireCondition(hasSecrets(evidenceSanitizer, ["postgres_password"]), "sanitize-evidence must mount only the postgres_password secret");
+requireCondition(empty(evidenceSanitizer.ports), "sanitize-evidence must not publish ports");
+requireCondition(empty(evidenceSanitizer.volumes), "sanitize-evidence must not use persistent volumes");
+requireCondition(evidenceSanitizer.read_only === true, "sanitize-evidence root filesystem must be read-only");
+requireCondition(Array.isArray(evidenceSanitizer.cap_drop) && evidenceSanitizer.cap_drop.some((capability) => capability.toUpperCase() === "ALL"), "sanitize-evidence must drop all Linux capabilities");
+requireCondition(Array.isArray(evidenceSanitizer.security_opt) && evidenceSanitizer.security_opt.includes("no-new-privileges:true"), "sanitize-evidence must use no-new-privileges:true");
+requireCondition(evidenceSanitizer.user === "node", "sanitize-evidence must run as non-root node");
+requireCondition(Array.isArray(evidenceSanitizer.tmpfs) && evidenceSanitizer.tmpfs.some((mount) => mount.startsWith("/tmp:")), "sanitize-evidence bounded /tmp tmpfs is required");
+for (const [key, value] of Object.entries({
+  DB_HOST: "postgres",
+  DB_PORT: "5432",
+  DB_NAME: "zplit",
+  DB_USER: "zplit",
+  DB_PASSWORD_FILE: "/run/secrets/postgres_password",
+})) {
+  requireCondition(evidenceSanitizerEnvironment[key] === value, `sanitize-evidence ${key} must be ${value}`);
+}
+requireCondition(!Object.hasOwn(evidenceSanitizerEnvironment, "ZPLIT_EVIDENCE_BACKFILL_CONFIRM"), "sanitize-evidence confirmation must be supplied explicitly at run time");
+requireCondition(JSON.stringify(evidenceSanitizer.command) === JSON.stringify(["./node_modules/.bin/tsx", "scripts/sanitize-legacy-evidence.ts"]), "sanitize-evidence must execute the canonical sanitizer script");
+forbiddenServiceFeatures(evidenceSanitizer);
+
 const bootstrap = services["bootstrap-owner"];
 const bootstrapEnvironment = bootstrap.environment ?? {};
 requireCondition(bootstrap.image === "zplit-auth-tool:local", "bootstrap-owner must use the local auth-tool image");
@@ -276,22 +305,38 @@ forbiddenServiceFeatures(bootstrap);
 
 const dockerfile = readFileSync(path.join(root, "Dockerfile"), "utf8");
 const fromImages = [...dockerfile.matchAll(/^\s*FROM\s+(\S+)(?:\s+AS\s+([\w-]+))?/gm)];
-requireCondition(fromImages.length === 5, "Dockerfile must have dependency, build, migrator, auth-tool, and runtime stages");
+requireCondition(fromImages.length === 6, "Dockerfile must have dependency, build, migrator, evidence-sanitizer, auth-tool, and runtime stages");
 requireCondition(fromImages[0][1] === baseImage && fromImages[0][2] === "dependencies", "dependencies must use the authorized immutable Node image");
 requireCondition(fromImages[1][1] === baseImage && fromImages[1][2] === "builder", "builder must use the authorized immutable Node image");
 requireCondition(fromImages[2][1] === "dependencies" && fromImages[2][2] === "migrator", "migrator must derive from dependencies");
-requireCondition(fromImages[3][1] === "dependencies" && fromImages[3][2] === "auth-tool", "auth-tool must derive from dependencies");
-requireCondition(fromImages[4][1] === baseImage && fromImages[4][2] === "runtime", "runtime must use the authorized immutable Node image");
+requireCondition(fromImages[3][1] === "dependencies" && fromImages[3][2] === "evidence-sanitizer", "evidence-sanitizer must derive from dependencies");
+requireCondition(fromImages[4][1] === "dependencies" && fromImages[4][2] === "auth-tool", "auth-tool must derive from dependencies");
+requireCondition(fromImages[5][1] === baseImage && fromImages[5][2] === "runtime", "runtime must use the authorized immutable Node image");
 requireCondition(/COPY\s+drizzle\s+\.\/drizzle/.test(dockerfile), "migrator must contain drizzle migrations");
 requireCondition(/COPY\s+scripts\/migrate\.ts\s+\.\/scripts\/migrate\.ts/.test(dockerfile), "migrator must contain scripts/migrate.ts");
 const migratorStart = dockerfile.indexOf("FROM dependencies AS migrator");
+const evidenceSanitizerStart = dockerfile.indexOf("FROM dependencies AS evidence-sanitizer");
 const authToolStart = dockerfile.indexOf("FROM dependencies AS auth-tool");
 const runtimeStart = dockerfile.indexOf("FROM ", authToolStart + 1);
-const migratorStage = dockerfile.slice(migratorStart, authToolStart);
+const migratorStage = dockerfile.slice(migratorStart, evidenceSanitizerStart);
 requireCondition(!/COPY\s+\.\s+\./.test(migratorStage), "migrator must not copy application source");
 requireCondition(!/(?:src\/|\.next|vitest|secrets|\.git)/.test(migratorStage), "migrator must not contain application, test, secret, or Git paths");
 requireCondition(/^\s*USER\s+node\s*$/m.test(migratorStage), "migrator must use USER node");
 requireCondition(/^\s*CMD\s+\["\.\/node_modules\/\.bin\/tsx",\s*"scripts\/migrate\.ts"\]\s*$/m.test(migratorStage), "migrator must execute the migration script");
+const evidenceSanitizerStage = dockerfile.slice(evidenceSanitizerStart, authToolStart);
+for (const requiredPath of [
+  "tsconfig.json",
+  "scripts/migrate.ts",
+  "scripts/sanitize-legacy-evidence.ts",
+  "src/server/evidence-images.ts",
+  "src/domain/receipt-file.ts",
+]) {
+  requireCondition(evidenceSanitizerStage.includes(`COPY ${requiredPath}`), `evidence-sanitizer must contain ${requiredPath}`);
+}
+requireCondition(!/COPY\s+\.\s+\./.test(evidenceSanitizerStage), "evidence-sanitizer must not copy all application source");
+requireCondition(!/(?:src\/app|\.next|vitest|secrets|\.git)/.test(evidenceSanitizerStage), "evidence-sanitizer must not contain application, test, secret, or Git paths");
+requireCondition(/^\s*USER\s+node\s*$/m.test(evidenceSanitizerStage), "evidence-sanitizer must use USER node");
+requireCondition(/^\s*CMD\s+\["\.\/node_modules\/\.bin\/tsx",\s*"scripts\/sanitize-legacy-evidence\.ts"\]\s*$/m.test(evidenceSanitizerStage), "evidence-sanitizer must execute the canonical sanitizer script");
 const authToolStage = dockerfile.slice(authToolStart, runtimeStart);
 requireCondition(!/COPY\s+\.\s+\./.test(authToolStage), "auth-tool must not copy application source");
 for (const requiredPath of [

@@ -20,6 +20,17 @@ COPY scripts/migrate.ts ./scripts/migrate.ts
 USER node
 CMD ["./node_modules/.bin/tsx", "scripts/migrate.ts"]
 
+FROM dependencies AS evidence-sanitizer
+
+WORKDIR /app
+COPY tsconfig.json ./tsconfig.json
+COPY scripts/migrate.ts ./scripts/migrate.ts
+COPY scripts/sanitize-legacy-evidence.ts ./scripts/sanitize-legacy-evidence.ts
+COPY src/server/evidence-images.ts ./src/server/evidence-images.ts
+COPY src/domain/receipt-file.ts ./src/domain/receipt-file.ts
+USER node
+CMD ["./node_modules/.bin/tsx", "scripts/sanitize-legacy-evidence.ts"]
+
 FROM dependencies AS auth-tool
 
 WORKDIR /app
