@@ -29,7 +29,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ o
   const { organizationId, repaymentId, proofId } = await params;
   try {
     const access = await requireOrganizationLedgerAccess(getDatabase(), organizationId, session.user.id, "repayments.edit");
-    if (!await deleteRepaymentPaymentProof(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId }, repaymentId, proofId)) return new Response(PAYMENT_PROOF_UNAVAILABLE_MESSAGE, { status: 404, headers: PAYMENT_PROOF_READ_HEADERS });
+    if (!await deleteRepaymentPaymentProof(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId, userId: session.user.id, requiredCapability: "repayments.edit" }, repaymentId, proofId)) return new Response(PAYMENT_PROOF_UNAVAILABLE_MESSAGE, { status: 404, headers: PAYMENT_PROOF_READ_HEADERS });
     return new Response(null, { status: 204, headers: PAYMENT_PROOF_READ_HEADERS });
   } catch { return new Response(PAYMENT_PROOF_UNAVAILABLE_MESSAGE, { status: 404, headers: PAYMENT_PROOF_READ_HEADERS }); }
 }

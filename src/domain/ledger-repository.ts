@@ -2,10 +2,12 @@ import type { Database } from "../db/client";
 import { LedgerRepositoryError } from "./ledger/errors";
 import type { OpenExpenseSharesByFriend, RepaymentFriendContext } from "./ledger/types";
 import type { PersonalBudgetMutationHooks } from "./ledger/mutation-hooks";
+import type { OrganizationCapability } from "./organization-permissions";
 export type * from "./ledger/types";
 export type { LedgerErrorCode } from "./ledger/errors";
 export {
   deletionImpactRevision,
+  LedgerAuthorizationError,
   ExpenseShareAllocationInvariantError,
   ExpenseShareInvariantError,
   LedgerDeletionConfirmationRequiredError,
@@ -37,7 +39,7 @@ import { createExpenseMutationRepository } from "./ledger/expenses";
 import { createRepaymentMutationRepository } from "./ledger/repayments";
 import { createRepaymentDestinationRepository } from "./ledger/repayment-destinations";
 
-type LedgerMutationGuard = (database: Database) => Promise<void>;
+type LedgerMutationGuard = (database: Database, capability: OrganizationCapability) => Promise<void>;
 
 export type { PersonalBudgetMutationHooks } from "./ledger/mutation-hooks";
 
@@ -75,7 +77,7 @@ export function createLedgerRepository(database: Database, ledgerScopeId: string
   const outingsMutations = createOutingsMutationRepository(database, scope, { lockExpenseDependents }, mutationGuard, personalBudget);
   const friendsMutationMethods = createFriendsMutationRepository(database, scope, mutationGuard);
   const tripsMutationMethods = createTripsMutationRepository(database, scope, mutationGuard);
-  const repaymentMutationMethods = createRepaymentMutationRepository(database, scope, allocationRepository, personalBudget);
+  const repaymentMutationMethods = createRepaymentMutationRepository(database, scope, allocationRepository, mutationGuard, personalBudget);
   const repaymentDestinationMethods = createRepaymentDestinationRepository(database, scope, mutationGuard);
 
   async function getRepaymentFriendContext(friendId: string, includeOpenExpenseShares = false, tripId?: string): Promise<RepaymentFriendContext> {

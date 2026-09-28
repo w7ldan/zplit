@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
+import type { OrganizationCapability } from "../organization-permissions";
 import { expenses, outings, trips } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
 import { ledgerDifference, ledgerInteger, literalContains, notFound, persistenceError, safeRetrievalInteger } from "./query-utils";
@@ -279,11 +280,11 @@ async function getTripSummary(tripId: string): Promise<TripFinancialSummary> {
   return { getTrip, searchTrips, listTripRecords, getTripSummary };
 }
 
-export function createTripsMutationRepository(database: Database, scope: string, mutationGuard?: (database: Database) => Promise<void>) {
+export function createTripsMutationRepository(database: Database, scope: string, mutationGuard?: (database: Database, capability: OrganizationCapability) => Promise<void>) {
 async function mutate<T>(operation: (database: Database) => Promise<T>) {
     if (!mutationGuard) return operation(database);
     return database.transaction(async (transaction) => {
-      await mutationGuard(transaction as Database);
+      await mutationGuard(transaction as Database, "trips.manage");
       return operation(transaction as Database);
     });
   }
@@ -323,7 +324,7 @@ async function deleteTrip(tripId: string) {
     assertTripId(tripId);
     try {
       return await database.transaction(async (transaction) => {
-        await mutationGuard?.(transaction as Database);
+        await mutationGuard?.(transaction as Database, "trips.manage");
         const [trip] = await transaction
           .select({ id: trips.id })
           .from(trips)

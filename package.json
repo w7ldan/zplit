@@ -48,6 +48,7 @@
     "test:production-scale": "tsx scripts/production-scale-acceptance.ts",
     "test:debtor-shares": "tsx scripts/debtor-share-smoke.ts",
     "test:history-delete": "tsx scripts/history-delete-smoke.ts",
+    "test:authorization-serialization": "tsx scripts/authorization-serialization-smoke.ts",
     "seed:scale": "tsx scripts/scale-fixture.ts seed",
     "verify:scale": "tsx scripts/scale-fixture.ts verify",
     "clear:scale": "tsx scripts/scale-fixture.ts clear",

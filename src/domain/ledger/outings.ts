@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
+import type { OrganizationCapability } from "../organization-permissions";
 import { expenseReceipts, expenseShares, expenses, outings, repaymentAllocations, repayments, trips } from "../../db/schema";
 import { addDeletionAmount, assertDeleteOptions, assertDeletionConfirmation, literalContains, notFound, persistenceError, safeDeletionIds, safeRetrievalInteger } from "./query-utils";
 import {
@@ -192,13 +193,13 @@ export function createOutingsMutationRepository(
   database: Database,
   scope: string,
   { lockExpenseDependents }: Pick<ReturnType<typeof createExpenseMutationRepository>, "lockExpenseDependents">,
-  mutationGuard?: (database: Database) => Promise<void>,
+  mutationGuard?: (database: Database, capability: OrganizationCapability) => Promise<void>,
   personalBudget?: PersonalBudgetMutationHooks,
 ) {
 async function mutate<T>(operation: (database: Database) => Promise<T>) {
     if (!mutationGuard && !personalBudget) return operation(database);
     return database.transaction(async (transaction) => {
-      if (mutationGuard) await mutationGuard(transaction as Database);
+      if (mutationGuard) await mutationGuard(transaction as Database, "outings.manage");
       return operation(transaction as Database);
     });
   }
@@ -299,7 +300,7 @@ async function deleteOuting(outingId: string, options: DeleteRecordOptions = { c
     assertDeleteOptions(options);
     try {
       return await database.transaction(async (transaction) => {
-        await mutationGuard?.(transaction as Database);
+        await mutationGuard?.(transaction as Database, "outings.manage");
         const [outing] = await transaction
           .select({ id: outings.id })
           .from(outings)

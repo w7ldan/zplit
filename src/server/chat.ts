@@ -7,8 +7,8 @@ import { CHAT_PAGE_SIZE, CHAT_STATE_CHANGED_EVENT, type ChatScope, normalizeChat
 import type { ChatMessageDto, ChatViewDto } from "@/domain/chat-contracts";
 import { resolveOrganizationCapabilities } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
-import { lockActiveGroupForOperationalMutation, requireGroupAccess, GroupError } from "@/server/groups";
-import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireOrganizationAccess } from "@/server/organizations";
+import { lockActiveGroupForOperationalMutation, requireGroupAccess, requireLockedGroupAccess, GroupError } from "@/server/groups";
+import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireLockedOrganizationAccess, requireOrganizationAccess } from "@/server/organizations";
 import { publishRealtimeEvent, type RealtimeData } from "@/server/realtime";
 import { getUserAvatarMetadataForViewer } from "@/server/user-avatar-access";
 
@@ -359,10 +359,10 @@ export async function sendChatMessage(database: Database, input: { scope: ChatSc
     await lockActiveScopeForMutation(transactionalDatabase, scope);
     let senderParticipantId: string | undefined;
     if (scope.type === "organization") {
-      const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);
+      const access = await requireLockedOrganizationAccess(transactionalDatabase, scope.id, input.userId);
       access.require("chat.send");
     } else {
-      await requireGroupAccess(transactionalDatabase, scope.id, input.userId);
+      await requireLockedGroupAccess(transactionalDatabase, scope.id, input.userId);
       senderParticipantId = await activeGroupParticipant(transactionalDatabase, scope.id, input.userId);
     }
     const thread = await ensureThread(transactionalDatabase, scope);
@@ -393,20 +393,14 @@ export async function markChatRead(database: Database, input: { scope: ChatScope
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
     if (scope.type === "organization") {
-      const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);
+      const access = await requireLockedOrganizationAccess(transactionalDatabase, scope.id, input.userId);
       access.require("chat.view");
     } else {
-      await requireGroupAccess(transactionalDatabase, scope.id, input.userId);
+      await requireLockedGroupAccess(transactionalDatabase, scope.id, input.userId);
     }
     const message = await findMessage(transactionalDatabase, scope, messageId);
     if (!message) throw new ChatError("message_not_found");
     const changed = await advanceChatReadCursor(transactionalDatabase, { threadId: message.threadId, userId: input.userId, messageId });
-    if (scope.type === "organization") {
-      const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);
-      access.require("chat.view");
-    } else {
-      await requireGroupAccess(transactionalDatabase, scope.id, input.userId);
-    }
     return changed
       ? { changed: true, threadId: message.threadId, userIds: await recipientIds(transactionalDatabase, scope) }
       : { changed: false, threadId: message.threadId, userIds: [] as string[] };
@@ -432,10 +426,10 @@ export async function editChatMessage(database: Database, input: { scope: ChatSc
     const transactionalDatabase = transaction as Database;
     await lockActiveScopeForMutation(transactionalDatabase, scope);
     if (scope.type === "organization") {
-      const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);
+      const access = await requireLockedOrganizationAccess(transactionalDatabase, scope.id, input.userId);
       access.require("chat.send");
     } else {
-      await requireGroupAccess(transactionalDatabase, scope.id, input.userId);
+      await requireLockedGroupAccess(transactionalDatabase, scope.id, input.userId);
     }
     const message = await findMessage(transactionalDatabase, scope, input.messageId);
     if (!message) throw new ChatError("message_not_found");
@@ -455,20 +449,19 @@ export async function deleteChatMessage(database: Database, input: { scope: Chat
     const transactionalDatabase = transaction as Database;
     await lockActiveScopeForMutation(transactionalDatabase, scope);
     let canModerate = false;
+    let requireOwnOrganizationSend: (() => void) | undefined;
     if (scope.type === "organization") {
-      const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);
+      const access = await requireLockedOrganizationAccess(transactionalDatabase, scope.id, input.userId);
       canModerate = access.can("chat.moderate");
+      requireOwnOrganizationSend = () => access.require("chat.send");
     } else {
-      const access = await requireGroupAccess(transactionalDatabase, scope.id, input.userId);
+      const access = await requireLockedGroupAccess(transactionalDatabase, scope.id, input.userId);
       canModerate = access.canManageGroup;
     }
     const message = await findMessage(transactionalDatabase, scope, input.messageId);
     if (!message) throw new ChatError("message_not_found");
     if (message.senderUserId === input.userId) {
-      if (scope.type === "organization") {
-        const access = await requireOrganizationAccess(transactionalDatabase, scope.id, input.userId);
-        access.require("chat.send");
-      }
+      requireOwnOrganizationSend?.();
     } else if (!canModerate) {
       throw new ChatError("forbidden");
     }

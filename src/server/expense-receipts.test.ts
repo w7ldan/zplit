@@ -6,9 +6,13 @@ const organizationMocks = vi.hoisted(() => {
   class FakeOrganizationError extends Error {
     constructor(readonly code: string) { super(code); }
   }
-  return { FakeOrganizationError, lockActiveOrganizationForOperationalMutation: vi.fn(async () => undefined) };
+  return {
+    FakeOrganizationError,
+    lockActiveOrganizationForOperationalMutation: vi.fn(async () => undefined),
+    requireLockedOrganizationAccess: vi.fn(async () => ({ require: vi.fn() })),
+  };
 });
-vi.mock("./organizations", () => ({ OrganizationError: organizationMocks.FakeOrganizationError, lockActiveOrganizationForOperationalMutation: organizationMocks.lockActiveOrganizationForOperationalMutation }));
+vi.mock("./organizations", () => ({ OrganizationError: organizationMocks.FakeOrganizationError, lockActiveOrganizationForOperationalMutation: organizationMocks.lockActiveOrganizationForOperationalMutation, requireLockedOrganizationAccess: organizationMocks.requireLockedOrganizationAccess }));
 
 const {
   createExpenseReceipt,
@@ -101,11 +105,12 @@ describe("expense receipt service", () => {
   });
 
   it("locks an active Organization for receipt uploads and deletes while retaining archived reads", async () => {
-    const organizationOwner = { organizationId: "organization-a", ledgerScopeId: "scope-organization" };
+    const organizationOwner = { organizationId: "organization-a", ledgerScopeId: "scope-organization", userId: "user-a", requiredCapability: "expenses.edit" as const };
     const created = { id: "receipt-a", originalFilename: file.originalFilename, mediaType: file.mediaType, byteSize: file.byteSize, createdAt: new Date() };
     const upload = databaseFor([[{ id: "expense-a" }], []], [created]);
     await expect(createExpenseReceipt(upload.database, organizationOwner, "expense-a", file)).resolves.toEqual(created);
     expect(organizationMocks.lockActiveOrganizationForOperationalMutation).toHaveBeenCalledWith(upload.transaction, "organization-a", "scope-organization");
+    expect(organizationMocks.requireLockedOrganizationAccess).toHaveBeenCalledWith(upload.transaction, "organization-a", "user-a");
     expect(upload.transaction.insert).toHaveBeenCalledOnce();
 
     const removal = databaseFor([], [{ id: "receipt-a" }]);
@@ -118,7 +123,7 @@ describe("expense receipt service", () => {
   });
 
   it("rejects archived Organization receipt upload and deletion before any attachment write", async () => {
-    const organizationOwner = { organizationId: "organization-a", ledgerScopeId: "scope-organization" };
+    const organizationOwner = { organizationId: "organization-a", ledgerScopeId: "scope-organization", userId: "user-a", requiredCapability: "expenses.edit" as const };
     const archived = new organizationMocks.FakeOrganizationError("archived");
     const upload = databaseFor([[{ id: "expense-a" }], []], [{ id: "receipt-a" }]);
     organizationMocks.lockActiveOrganizationForOperationalMutation.mockRejectedValueOnce(archived);

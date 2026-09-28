@@ -31,7 +31,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ o
   const { organizationId, expenseId, receiptId } = await params;
   try {
     const access = await requireOrganizationLedgerAccess(getDatabase(), organizationId, session.user.id, "expenses.edit");
-    if (!await deleteExpenseReceipt(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId }, expenseId, receiptId)) return new Response(RECEIPT_UNAVAILABLE_MESSAGE, { status: 404, headers: privateHeaders() });
+    if (!await deleteExpenseReceipt(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId, userId: session.user.id, requiredCapability: "expenses.edit" }, expenseId, receiptId)) return new Response(RECEIPT_UNAVAILABLE_MESSAGE, { status: 404, headers: privateHeaders() });
     return new Response(null, { status: 204, headers: privateHeaders() });
   } catch { return new Response(RECEIPT_UNAVAILABLE_MESSAGE, { status: 404, headers: privateHeaders() }); }
 }

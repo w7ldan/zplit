@@ -54,6 +54,11 @@ function queryBuilder(result: unknown) {
 
 function database(selectResults: unknown[][], insertResults: unknown[][] = [], updateResults: unknown[][] = []) {
   const selects = [...selectResults];
+  const first = selects[0]?.[0] as Record<string, unknown> | undefined;
+  const second = selects[1]?.[0] as Record<string, unknown> | undefined;
+  if (first && "role" in first && !("id" in first) && second && "id" in second && "name" in second) {
+    selects.splice(0, 2, [second], [first], [{ archivedAt: second.archivedAt ?? null }]);
+  }
   const inserts = [...insertResults];
   const updates = [...updateResults];
   const db = {
@@ -101,7 +106,10 @@ describe("Organization invitation policy and creation", () => {
   });
 
   it("rejects elevated roles for a Custom actor unless the complete preset is granted", async () => {
-    const db = database([[access("custom", ["members.invite", "roles.manage", "organization.view", "members.view"])]
+    const db = database([
+      [{ id: organizationId, name: "Team" }],
+      [access("custom", ["members.invite", "roles.manage", "organization.view", "members.view"])],
+      [{ archivedAt: null }],
     ]);
     await expect(createOrganizationInvitation(db, organizationId, inviterUserId, { username: "target", role: "treasurer" })).rejects.toMatchObject({ code: "forbidden" });
   });
@@ -168,16 +176,17 @@ describe("Organization invitation policy and creation", () => {
       [],
       [],
       [{ name: "Inviter" }],
-      [access("member")],
     ], [[invitation()]]);
     await expect(createOrganizationInvitation(db, organizationId, inviterUserId, { username: "target", role: "member" })).resolves.toBeDefined();
-    await expect(createOrganizationInvitation(db, "33333333-3333-4333-8333-333333333333", inviterUserId, { username: "target", role: "member" })).rejects.toMatchObject({ code: "forbidden" });
+    const otherOrganizationId = "33333333-3333-4333-8333-333333333333";
+    const otherOrganizationDb = database([[{ id: otherOrganizationId, name: "Organization B" }], [access("member")], [{ archivedAt: null }]]);
+    await expect(createOrganizationInvitation(otherOrganizationDb, otherOrganizationId, inviterUserId, { username: "target", role: "member" })).rejects.toMatchObject({ code: "forbidden" });
   });
 
   it("fails closed for crafted roles and email-shaped usernames", async () => {
     const invalidRoleDb = database([[access("owner")]]);
     await expect(createOrganizationInvitation(invalidRoleDb, organizationId, inviterUserId, { username: "owner", role: "owner" })).rejects.toMatchObject({ code: "invalid_role" });
-    const emailDb = database([[access("owner")]]);
+    const emailDb = database([[{ id: organizationId, name: "Team" }], [access("owner")], [{ archivedAt: null }]]);
     await expect(createOrganizationInvitation(emailDb, organizationId, inviterUserId, { username: "email@example.com", role: "member" })).rejects.toMatchObject({ code: "invalid_target" });
   });
 
@@ -334,6 +343,7 @@ describe("Organization invitation responses", () => {
       [{ id: organizationId }],
       [invitation({ role: "admin" })],
       [access("owner")],
+      [{ archivedAt: null }],
       [],
       [],
     ], [[{ id: "participant-target" }], [{ organizationId, userId: targetUserId, participantId: "participant-target", role: "admin", customCapabilities: [] }]], [[accepted], []]);
@@ -356,6 +366,7 @@ describe("Organization invitation responses", () => {
       [{ id: organizationId }],
       [invitation({ participantId })],
       [access("owner")],
+      [{ archivedAt: null }],
       [],
       [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
       [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
@@ -377,6 +388,7 @@ describe("Organization invitation responses", () => {
       [{ id: organizationId }],
       [invitation({ participantId })],
       [access("owner")],
+      [{ archivedAt: null }],
       [],
       [participant],
       [{ linkedUserId: targetUserId }],
@@ -398,6 +410,7 @@ describe("Organization invitation responses", () => {
       [{ id: organizationId }],
       [invitation({ participantId, targetUserId: "unrelated" })],
       [access("owner")],
+      [{ archivedAt: null }],
       [],
       [participant],
       [{ linkedUserId: targetUserId }],
@@ -418,6 +431,7 @@ describe("Organization invitation responses", () => {
       [{ id: organizationId }],
       [invitation({ participantId })],
       [access("owner")],
+      [{ archivedAt: null }],
       [],
       [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
       [{ id: participantId, userId: null, sourcePersonalFriendId: null }],
@@ -431,7 +445,7 @@ describe("Organization invitation responses", () => {
 
   it("rejects acceptance after the inviter loses current authority and creates no membership", async () => {
     const revoked = invitation({ status: "revoked", revokedAt: new Date(), updatedAt: new Date() });
-    const db = database([[invitation()], [{ id: organizationId }], [invitation()], [access("member")]], [], [[revoked], []]);
+    const db = database([[invitation()], [{ id: organizationId }], [invitation()], [access("member")], [{ archivedAt: null }]], [], [[revoked], []]);
     await expect(acceptOrganizationInvitation(db, targetUserId, invitationId)).rejects.toMatchObject({ code: "stale_authority" });
     expect(db.insert).not.toHaveBeenCalled();
   });
@@ -460,11 +474,11 @@ describe("Organization invitation responses", () => {
 
   it("revokes only through current Organization members.invite access", async () => {
     const revoked = invitation({ status: "revoked", revokedAt: new Date(), updatedAt: new Date() });
-    const db = database([[access("owner")], [invitation()]], [], [[revoked], []]);
+    const db = database([[{ id: organizationId, name: "Team" }], [access("owner")], [{ archivedAt: null }], [invitation()]], [], [[revoked], []]);
     await expect(revokeOrganizationInvitation(db, organizationId, inviterUserId, invitationId)).resolves.toMatchObject({ status: "revoked" });
     expect(mocks.publishNotificationStateChange).toHaveBeenCalledWith(targetUserId, "resolved");
 
-    const deniedDb = database([[access("member")]]);
+    const deniedDb = database([[{ id: organizationId, name: "Team" }], [access("member")], [{ archivedAt: null }]]);
     await expect(revokeOrganizationInvitation(deniedDb, organizationId, inviterUserId, invitationId)).rejects.toMatchObject({ code: "forbidden" });
   });
 

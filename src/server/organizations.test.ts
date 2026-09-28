@@ -57,6 +57,18 @@ function databaseForMembership(membership: { role: string; customCapabilities?: 
   return database as unknown as Database & { update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn>; insert: ReturnType<typeof vi.fn> };
 }
 
+function databaseForLockedMembership(membership: { role: string; customCapabilities?: unknown } | undefined, mutationResult: unknown[] = []) {
+  const selects = [[{ id: organizationId, archivedAt: null }], membership ? [membership] : [], [{ archivedAt: null }]];
+  const database = {
+    select: vi.fn(() => queryBuilder(selects.shift() ?? [])),
+    update: vi.fn(() => queryBuilder(mutationResult)),
+    delete: vi.fn(() => queryBuilder(mutationResult)),
+    insert: vi.fn(() => queryBuilder(mutationResult)),
+    transaction: vi.fn(async (callback: (transaction: unknown) => unknown) => callback(database)),
+  };
+  return database as unknown as Database & { update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn>; insert: ReturnType<typeof vi.fn> };
+}
+
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const organization = { id: organizationId, name: "Studio", description: null };
 const avatar = { mediaType: "image/webp" as const, byteSize: 1, sha256: "a".repeat(64), content: Buffer.from([1]) };
@@ -119,7 +131,7 @@ describe("organizations", () => {
   });
 
   it.each(updateRoles)("applies organization.update by capability for %s", async (role, customCapabilities, allowed) => {
-    const database = databaseForMembership({ role, customCapabilities }, [organization]);
+    const database = databaseForLockedMembership({ role, customCapabilities }, [organization]);
     const result = updateOrganization(database, organizationId, "user-a", { name: "Studio" });
     if (allowed) await expect(result).resolves.toEqual(organization);
     else await expect(result).rejects.toMatchObject({ code: "forbidden" });
@@ -127,7 +139,7 @@ describe("organizations", () => {
   });
 
   it.each(updateRoles)("applies organization.update to avatar saves for %s", async (role, customCapabilities, allowed) => {
-    const database = databaseForMembership({ role, customCapabilities }, [avatar]);
+    const database = databaseForLockedMembership({ role, customCapabilities }, [avatar]);
     const result = saveOrganizationAvatar(database, organizationId, "user-a", avatar);
     if (allowed) await expect(result).resolves.toMatchObject({ sha256: avatar.sha256 });
     else await expect(result).rejects.toMatchObject({ code: "forbidden" });
@@ -135,7 +147,7 @@ describe("organizations", () => {
   });
 
   it.each(updateRoles)("applies organization.update to avatar removal for %s", async (role, customCapabilities, allowed) => {
-    const database = databaseForMembership({ role, customCapabilities }, [{ organizationId }]);
+    const database = databaseForLockedMembership({ role, customCapabilities }, [{ organizationId }]);
     const result = deleteOrganizationAvatar(database, organizationId, "user-a");
     if (allowed) await expect(result).resolves.toBe(true);
     else await expect(result).rejects.toMatchObject({ code: "forbidden" });

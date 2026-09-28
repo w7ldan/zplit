@@ -5,7 +5,7 @@ import { type ValidatedReceiptFile } from "../domain/receipt-file";
 import { RECEIPT_READ_HEADERS } from "./expense-receipts";
 import { databaseCode } from "./database-error-code";
 import { getPersonalLedgerScopeId } from "./ledger-scopes";
-import { lockActiveOrganizationForOperationalMutation, OrganizationError } from "./organizations";
+import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireLockedOrganizationAccess } from "./organizations";
 
 export const PAYMENT_PROOF_UNAVAILABLE_MESSAGE = "This repayment or payment proof is no longer available.";
 export const PAYMENT_PROOF_ALREADY_ATTACHED_MESSAGE = "This repayment already has a payment proof.";
@@ -47,7 +47,10 @@ function metadataSelection() {
   };
 }
 
-type LedgerOwner = string | { ledgerScopeId: string; organizationId: string };
+type OrganizationLedgerOwner = { ledgerScopeId: string; organizationId: string };
+type AuthorizedOrganizationLedgerOwner = OrganizationLedgerOwner & { userId: string; requiredCapability: "repayments.edit" };
+type LedgerOwner = string | OrganizationLedgerOwner;
+type MutationOwner = string | AuthorizedOrganizationLedgerOwner;
 
 async function getLedgerScopeId(database: Database, owner: LedgerOwner) {
   if (typeof owner === "string") {
@@ -58,10 +61,12 @@ async function getLedgerScopeId(database: Database, owner: LedgerOwner) {
   return owner.ledgerScopeId;
 }
 
-async function lockOwnerOrganizationForMutation(database: Database, owner: LedgerOwner) {
+async function lockOwnerOrganizationForMutation(database: Database, owner: MutationOwner) {
   if (typeof owner === "string") return;
   try {
     await lockActiveOrganizationForOperationalMutation(database, owner.organizationId, owner.ledgerScopeId);
+    const access = await requireLockedOrganizationAccess(database, owner.organizationId, owner.userId);
+    access.require(owner.requiredCapability);
   } catch (error) {
     if (error instanceof OrganizationError && error.code === "archived") throw new RepaymentPaymentProofUnavailableError();
     throw error;
@@ -93,7 +98,7 @@ export async function getRepaymentPaymentProofMetadata(database: Database, owner
 
 export async function createRepaymentPaymentProof(
   database: Database,
-  owner: LedgerOwner,
+  owner: MutationOwner,
   repaymentId: string,
   validatedFile: ValidatedReceiptFile,
 ): Promise<RepaymentPaymentProofMetadata> {
@@ -141,7 +146,7 @@ export async function createRepaymentPaymentProof(
 
 export async function replaceRepaymentPaymentProof(
   database: Database,
-  owner: LedgerOwner,
+  owner: MutationOwner,
   repaymentId: string,
   validatedFile: ValidatedReceiptFile,
 ): Promise<RepaymentPaymentProofMetadata> {
@@ -206,7 +211,7 @@ export async function getRepaymentPaymentProof(database: Database, owner: Ledger
   return proof ?? null;
 }
 
-export async function deleteRepaymentPaymentProof(database: Database, owner: LedgerOwner, repaymentId: string, proofId: string) {
+export async function deleteRepaymentPaymentProof(database: Database, owner: MutationOwner, repaymentId: string, proofId: string) {
   const ledgerScopeId = await getLedgerScopeId(database, owner);
   return database.transaction(async (transaction) => {
     await lockOwnerOrganizationForMutation(transaction as Database, owner);

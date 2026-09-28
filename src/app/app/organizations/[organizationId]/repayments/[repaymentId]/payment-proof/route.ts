@@ -4,7 +4,7 @@ import { getDatabase } from "@/db/client";
 import { MAX_RECEIPT_BYTES, ReceiptFileValidationError, validateReceiptFile } from "@/domain/receipt-file";
 import { isSameOriginRequest, SAME_ORIGIN_ERROR } from "@/server/same-origin-request";
 import { createRepaymentPaymentProof, PAYMENT_PROOF_ALREADY_ATTACHED_MESSAGE, RepaymentPaymentProofAlreadyAttachedError, RepaymentPaymentProofUnavailableError, replaceRepaymentPaymentProof } from "@/server/repayment-payment-proofs";
-import { requireOrganizationLedgerAccess } from "@/server/organizations";
+import { OrganizationError, requireOrganizationLedgerAccess } from "@/server/organizations";
 
 export const dynamic = "force-dynamic";
 const MAX_REQUEST_BYTES = MAX_RECEIPT_BYTES + 1024 * 1024;
@@ -24,11 +24,12 @@ async function upload(request: Request, organizationId: string, repaymentId: str
     if (entries.length !== 1 || entries[0]?.[0] !== "paymentProof" || !isUploadFile(entries[0][1])) return json({ field: "paymentProof", error: "Choose one payment proof image." }, 400);
     const file = entries[0][1];
     const validated = validateReceiptFile({ bytes: new Uint8Array(await file.arrayBuffer()), filename: file.name, mediaType: file.type.trim().toLowerCase() }, "Payment proof");
-    const owner = { ledgerScopeId: access.ledgerScopeId, organizationId };
+    const owner = { ledgerScopeId: access.ledgerScopeId, organizationId, userId: session.user.id, requiredCapability: "repayments.edit" as const };
     const paymentProof = replace ? await replaceRepaymentPaymentProof(getDatabase(), owner, repaymentId, validated) : await createRepaymentPaymentProof(getDatabase(), owner, repaymentId, validated);
     return json({ paymentProof });
   } catch (error) {
     if (error instanceof ReceiptFileValidationError) return json({ field: "paymentProof", error: error.message }, 400);
+    if (error instanceof OrganizationError && (error.code === "forbidden" || error.code === "not_member")) return json({ error: "You do not have permission to edit this Organization repayment." }, 403);
     if (error instanceof RepaymentPaymentProofUnavailableError) return new Response(error.message, { status: 404 });
     if (error instanceof RepaymentPaymentProofAlreadyAttachedError) return json({ error: PAYMENT_PROOF_ALREADY_ATTACHED_MESSAGE }, 409);
     return json({ error: replace ? "Unable to replace this payment proof." : "Unable to save this payment proof." }, 500);

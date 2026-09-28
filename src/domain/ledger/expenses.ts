@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
+import type { OrganizationCapability } from "../organization-permissions";
 import { debtorShareReceipts, expenseCharges, expenseChargeTargets, expenseReceipts, expenseShares, expenses, friends, outings, repaymentAllocations, trips } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
 import { calculateShareBreakdown } from "../expense-share-input";
@@ -416,7 +417,7 @@ export function createExpenseMutationRepository(
   scope: string,
   read: Pick<ReturnType<typeof createExpenseReadRepository>, "expenseSelection" | "listExpenseChargesFor" | "listExpenseSharesFor">,
   allocations: Pick<RepaymentAllocationRepository, "lockRepaymentAllocationsForShares" | "reconcileDeletedExpenseAllocations">,
-  mutationGuard?: (database: Database) => Promise<void>,
+  mutationGuard?: (database: Database, capability: OrganizationCapability) => Promise<void>,
   personalBudget?: PersonalBudgetMutationHooks,
 ) {
   const { expenseSelection, listExpenseChargesFor, listExpenseSharesFor } = read;
@@ -462,7 +463,7 @@ async function createExpense(input: CreateExpenseInput, budgetParticipation?: Ex
     assertExpenseInput(input);
     try {
       return await database.transaction(async (transaction) => {
-        await mutationGuard?.(transaction as Database);
+        await mutationGuard?.(transaction as Database, "expenses.create");
         await assertOwnedOuting(transaction, input.outingId);
         const [expense] = await transaction.insert(expenses).values({ ...input, ledgerScopeId: scope }).returning();
         if (!expense) return persistenceError(new Error("expense insert returned no row"));
@@ -486,7 +487,7 @@ async function updateExpense(expenseId: string, input: UpdateExpenseInput) {
     assertExpenseInput(input);
     try {
       return await database.transaction(async (transaction) => {
-        await mutationGuard?.(transaction as Database);
+        await mutationGuard?.(transaction as Database, "expenses.edit");
         const [currentExpense] = await transaction
           .select({ id: expenses.id, amount: expenses.amount })
           .from(expenses)
@@ -561,7 +562,7 @@ async function deleteExpense(expenseId: string, options: DeleteRecordOptions = {
     assertDeleteOptions(options);
     try {
       return await database.transaction(async (transaction) => {
-        await mutationGuard?.(transaction as Database);
+        await mutationGuard?.(transaction as Database, "expenses.delete");
         const [expense] = await transaction
           .select({ id: expenses.id })
           .from(expenses)
@@ -757,7 +758,7 @@ async function prepareExpenseShareReplacement(
     if (charges !== undefined) assertExpenseChargesInput(charges);
     try {
       return await database.transaction(async (transaction) => {
-        await mutationGuard?.(transaction as Database);
+        await mutationGuard?.(transaction as Database, "expenses.edit");
         const replacement = await prepareExpenseShareReplacement(transaction, expenseId, shares, charges);
         const dependents = await lockExpenseDependents(transaction, [expenseId]);
         const requestedFriendIds = new Set(replacement.requested.map((share) => share.friendId));

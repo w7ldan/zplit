@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { Database } from "../../db/client";
+import type { OrganizationCapability } from "../organization-permissions";
 import { friends, repaymentAllocations, repayments } from "../../db/schema";
 import { LedgerIntegrityError } from "../ledger-summary";
 import type { RepaymentAllocationRepository } from "./allocations";
@@ -168,6 +169,7 @@ export function createRepaymentMutationRepository(
   database: Database,
   scope: string,
   allocations: RepaymentAllocationRepository,
+  mutationGuard?: (database: Database, capability: OrganizationCapability) => Promise<void>,
   personalBudget?: PersonalBudgetMutationHooks,
 ) {
   const { getRepaymentAllocatedAmount, repaymentSelection, validateNewRepaymentAllocations, withRepaymentTotals, removeRepaymentAllocation: removeAllocation, restoreRepaymentAllocation, replaceAllocationRows } = allocations;
@@ -185,6 +187,7 @@ async function createRepayment(input: CreateRepaymentInput, participation?: Repa
     const requested = { ...input, friendId: input.friendId.trim().toLowerCase() };
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database, "repayments.create");
         await assertOwnedFriend(transaction, requested.friendId);
         const [repayment] = await transaction.insert(repayments).values({ ...requested, ledgerScopeId: scope }).returning();
         if (!repayment) return persistenceError(new Error("repayment insert returned no row"));
@@ -213,6 +216,7 @@ async function createRepaymentWithAllocations(input: CreateRepaymentInput, alloc
     const normalizedAllocations = allocations.map((allocation) => ({ ...allocation, expenseShareId: allocation.expenseShareId.trim().toLowerCase() }));
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database, "repayments.create");
         await lockOwnedFriend(transaction, requested.friendId);
         await validateNewRepaymentAllocations(transaction, requested.friendId, requested.amount, normalizedAllocations);
         const [repayment] = await transaction.insert(repayments).values({ ...requested, ledgerScopeId: scope }).returning();
@@ -234,6 +238,7 @@ async function updateRepayment(repaymentId: string, input: UpdateRepaymentInput)
     const requested = { ...input, friendId: input.friendId.trim().toLowerCase() };
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database, "repayments.edit");
         const [current] = await transaction
           .select({ id: repayments.id, friendId: repayments.friendId, amount: repayments.amount, paidAt: repayments.paidAt, paidOn: repayments.paidOn })
           .from(repayments)
@@ -303,6 +308,7 @@ async function deleteRepayment(repaymentId: string, options: DeleteRecordOptions
     assertDeleteOptions(options);
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database, "repayments.delete");
         const [repayment] = await transaction
           .select({ id: repayments.id, friendId: repayments.friendId })
           .from(repayments)
@@ -344,6 +350,7 @@ async function removeRepaymentAllocation(repaymentId: string, expenseShareId: st
     const shareId = expenseShareId.trim().toLowerCase();
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database, "repayments.edit");
         const removed = await removeAllocation(transaction, repaymentId, shareId);
         const reversalReceipt: RepaymentAllocationReversalReceipt = {
           version: 1,
@@ -366,6 +373,7 @@ async function undoRepaymentAllocation(receipt: RepaymentAllocationReversalRecei
     assertRepaymentAllocationReversalReceipt(receipt);
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database, "repayments.edit");
         const restored = await restoreRepaymentAllocation(transaction, receipt);
         await personalBudget?.reconcileRepayment(transaction, restored.repaymentId);
         return restored;
@@ -384,6 +392,7 @@ async function replaceRepaymentAllocations(repaymentId: string, allocations: Rep
     }));
     try {
       return await database.transaction(async (transaction) => {
+        await mutationGuard?.(transaction as Database, "repayments.edit");
         const result = await replaceAllocationRows(transaction, repaymentId, requested, options);
         await personalBudget?.reconcileRepayment(transaction, repaymentId);
         return result;

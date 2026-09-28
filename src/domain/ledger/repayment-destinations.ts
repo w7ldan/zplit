@@ -1,5 +1,6 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import type { Database } from "../../db/client";
+import type { OrganizationCapability } from "../organization-permissions";
 import { repaymentDestinations } from "../../db/schema";
 import { parseRepaymentDestination, type RepaymentDestinationInput, type RepaymentDestinationType } from "../repayment-destination";
 import { LedgerNotFoundError, LedgerRepositoryError } from "./errors";
@@ -28,14 +29,14 @@ function orderedIds(value: unknown) {
   return ids;
 }
 
-export function createRepaymentDestinationRepository(database: Database, ledgerScopeId: string, mutationGuard?: (database: Database) => Promise<void>) {
+export function createRepaymentDestinationRepository(database: Database, ledgerScopeId: string, mutationGuard?: (database: Database, capability: OrganizationCapability) => Promise<void>) {
   const scope = ledgerScopeId.trim();
   if (!scope) throw new LedgerRepositoryError("INVALID_OWNER", "A ledger scope is required");
 
   async function mutate<T>(operation: (database: Database) => Promise<T>) {
     if (!mutationGuard) return operation(database);
     return database.transaction(async (transaction) => {
-      await mutationGuard(transaction as Database);
+      await mutationGuard(transaction as Database, "repayment_destinations.manage");
       return operation(transaction as Database);
     });
   }
@@ -70,7 +71,7 @@ export function createRepaymentDestinationRepository(database: Database, ledgerS
     assertInput(input);
     try {
       return await database.transaction(async (transaction) => {
-        await mutationGuard?.(transaction as Database);
+        await mutationGuard?.(transaction as Database, "repayment_destinations.manage");
         const [last] = await transaction
           .select({ sortOrder: repaymentDestinations.sortOrder })
           .from(repaymentDestinations)
@@ -128,7 +129,7 @@ export function createRepaymentDestinationRepository(database: Database, ledgerS
     const requestedIds = orderedIds(ids);
     try {
       await database.transaction(async (transaction) => {
-        await mutationGuard?.(transaction as Database);
+        await mutationGuard?.(transaction as Database, "repayment_destinations.manage");
         const existing = await transaction
           .select({ id: repaymentDestinations.id })
           .from(repaymentDestinations)

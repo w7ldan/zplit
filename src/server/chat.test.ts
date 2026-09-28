@@ -4,17 +4,20 @@ import { chatMessages, chatThreadReads } from "@/db/schema";
 
 const mocks = vi.hoisted(() => ({
   requireOrganizationAccess: vi.fn(),
+  requireLockedOrganizationAccess: vi.fn(),
   lockActiveOrganizationForOperationalMutation: vi.fn(),
   requireGroupAccess: vi.fn(),
+  requireLockedGroupAccess: vi.fn(),
   lockActiveGroupForOperationalMutation: vi.fn(),
   getUserAvatarMetadataForViewer: vi.fn(),
   publishRealtimeEvent: vi.fn(async () => undefined),
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/server/organizations", () => ({ requireOrganizationAccess: mocks.requireOrganizationAccess, OrganizationError: class OrganizationError extends Error { constructor(readonly code: string) { super(code); } }, lockActiveOrganizationForOperationalMutation: mocks.lockActiveOrganizationForOperationalMutation }));
+vi.mock("@/server/organizations", () => ({ requireOrganizationAccess: mocks.requireOrganizationAccess, requireLockedOrganizationAccess: mocks.requireLockedOrganizationAccess, OrganizationError: class OrganizationError extends Error { constructor(readonly code: string) { super(code); } }, lockActiveOrganizationForOperationalMutation: mocks.lockActiveOrganizationForOperationalMutation }));
 vi.mock("@/server/groups", () => ({
   requireGroupAccess: mocks.requireGroupAccess,
+  requireLockedGroupAccess: mocks.requireLockedGroupAccess,
   lockActiveGroupForOperationalMutation: mocks.lockActiveGroupForOperationalMutation,
   GroupError: class GroupError extends Error {
     constructor(readonly code: string) {
@@ -78,7 +81,9 @@ describe("chat server ownership", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireOrganizationAccess.mockResolvedValue(organizationAccess());
+    mocks.requireLockedOrganizationAccess.mockResolvedValue(organizationAccess());
     mocks.requireGroupAccess.mockResolvedValue({ canManageGroup: false });
+    mocks.requireLockedGroupAccess.mockResolvedValue({ canManageGroup: false });
     mocks.lockActiveOrganizationForOperationalMutation.mockImplementation(async (database: Database) => {
       const [row] = await database.select() as unknown as [{ archivedAt?: unknown }?];
       if (row?.archivedAt) throw Object.assign(new Error("archived"), { code: "archived" });
@@ -94,7 +99,7 @@ describe("chat server ownership", () => {
     const db = database([[{ archivedAt: null }], [{ id: threadId }], [{ userId: "user-a" }, { userId: "user-b" }]], [{ id: "message-a" }], [{ threadId }]);
     await sendChatMessage(db, { scope: { type: "organization", id: organizationId }, userId: "user-a", body: " hello " });
 
-    expect(mocks.requireOrganizationAccess).toHaveBeenCalledWith(db.tx, organizationId, "user-a");
+    expect(mocks.requireLockedOrganizationAccess).toHaveBeenCalledWith(db.tx, organizationId, "user-a");
     expect(db.insertValues).toEqual(expect.arrayContaining([{ organizationId }, expect.objectContaining({ organizationId, threadId: threadId, senderUserId: "user-a", body: "hello" }), expect.objectContaining({ threadId, userId: "user-a", lastReadMessageId: "message-a" })]));
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledTimes(2);
     expect(mocks.publishRealtimeEvent).toHaveBeenCalledWith("user-b", expect.objectContaining({ type: "chat.state.changed", data: { scope: "organization", organizationId, threadId } }));
@@ -104,7 +109,7 @@ describe("chat server ownership", () => {
     mocks.requireOrganizationAccess.mockResolvedValueOnce(organizationAccess(true, false, false));
     await expect(getOrganizationChat(database([]), organizationId, "user-a")).rejects.toThrow("forbidden");
 
-    mocks.requireOrganizationAccess.mockResolvedValueOnce(organizationAccess(false, false, true));
+    mocks.requireLockedOrganizationAccess.mockResolvedValueOnce(organizationAccess(false, false, true));
     await expect(sendChatMessage(database([]), { scope: { type: "organization", id: organizationId }, userId: "user-a", body: "message" })).rejects.toThrow("forbidden");
   });
 
@@ -130,7 +135,7 @@ describe("chat server ownership", () => {
     const db = database([[{ archivedAt: null }], [{ participantId }], [{ id: threadId }], [{ userId: "user-a" }]], [{ id: "message-a" }]);
     await sendChatMessage(db, { scope: { type: "group", id: groupId }, userId: "user-a", body: "message" });
 
-    expect(mocks.requireGroupAccess).toHaveBeenCalledWith(db.tx, groupId, "user-a");
+    expect(mocks.requireLockedGroupAccess).toHaveBeenCalledWith(db.tx, groupId, "user-a");
     expect(db.insertValues[1]).toEqual(expect.objectContaining({ groupId, senderParticipantId: participantId, senderUserId: "user-a" }));
   });
 
@@ -260,7 +265,7 @@ describe("chat server ownership", () => {
     await expect(editChatMessage(database([[{ archivedAt: archived }]]), { scope: { type: "group", id: groupId }, messageId: "message-a", userId: "user-a", body: "late" })).rejects.toMatchObject({ code: "archived" });
   });
 
-  it("makes a second delete a safe no-op and allows Group management moderation", async () => {    mocks.requireGroupAccess.mockResolvedValue({ canManageGroup: true });
+  it("makes a second delete a safe no-op and allows Group management moderation", async () => {    mocks.requireLockedGroupAccess.mockResolvedValue({ canManageGroup: true });
     const db = database([[{ archivedAt: null }], [{ id: "message-a", senderUserId: "user-b", deletedAt: new Date(), threadId }]]);
     await expect(deleteChatMessage(db, { scope: { type: "group", id: groupId }, messageId: "message-a", userId: "user-a" })).resolves.toMatchObject({ changed: false });
     expect(mocks.publishRealtimeEvent).not.toHaveBeenCalled();

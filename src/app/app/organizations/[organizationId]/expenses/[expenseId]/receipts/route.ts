@@ -4,7 +4,7 @@ import { getDatabase } from "@/db/client";
 import { ReceiptFileValidationError, validateReceiptFile } from "@/domain/receipt-file";
 import { isSameOriginRequest, SAME_ORIGIN_ERROR } from "@/server/same-origin-request";
 import { createExpenseReceipt, ExpenseReceiptCountError, ExpenseReceiptDuplicateError, ExpenseReceiptTotalSizeError, ExpenseReceiptUnavailableError } from "@/server/expense-receipts";
-import { requireOrganizationLedgerAccess } from "@/server/organizations";
+import { OrganizationError, requireOrganizationLedgerAccess } from "@/server/organizations";
 
 export const dynamic = "force-dynamic";
 const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
@@ -25,9 +25,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
     if (entries.length !== 1 || entries[0]?.[0] !== "receipt" || !isUploadFile(entries[0][1])) return json({ field: "receipt", error: "Choose one receipt image." }, 400);
     const file = entries[0][1];
     const validated = validateReceiptFile({ bytes: new Uint8Array(await file.arrayBuffer()), filename: file.name, mediaType: file.type.trim().toLowerCase() });
-    return json({ receipt: await createExpenseReceipt(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId }, expenseId, validated) });
+    return json({ receipt: await createExpenseReceipt(getDatabase(), { ledgerScopeId: access.ledgerScopeId, organizationId, userId: session.user.id, requiredCapability: "expenses.edit" }, expenseId, validated) });
   } catch (error) {
     if (error instanceof ReceiptFileValidationError) return json({ field: "receipt", error: error.message }, 400);
+    if (error instanceof OrganizationError && (error.code === "forbidden" || error.code === "not_member")) return json({ error: "You do not have permission to edit this Organization expense." }, 403);
     if (error instanceof ExpenseReceiptUnavailableError) return new Response(error.message, { status: 404 });
     if (error instanceof ExpenseReceiptCountError || error instanceof ExpenseReceiptTotalSizeError || error instanceof ExpenseReceiptDuplicateError) return json({ error: error.message }, 409);
     return json({ error: "Unable to save this receipt." }, 500);

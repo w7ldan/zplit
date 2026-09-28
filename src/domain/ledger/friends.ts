@@ -1,5 +1,6 @@
 import { and, asc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "../../db/client";
+import type { OrganizationCapability } from "../organization-permissions";
 import { expenseShares, friends, repayments, users } from "../../db/schema";
 import { literalContains, notFound, persistenceError, safeRetrievalInteger } from "./query-utils";
 import {
@@ -270,11 +271,11 @@ async function searchFriends(options: { q?: unknown; selectedId?: unknown; activ
   return { getFriend, listFriends, searchFriends, listFriendRecords, listFriendsExperience };
 }
 
-export function createFriendsMutationRepository(database: Database, scope: string, mutationGuard?: (database: Database) => Promise<void>) {
+export function createFriendsMutationRepository(database: Database, scope: string, mutationGuard?: (database: Database, capability: OrganizationCapability) => Promise<void>) {
 async function mutate<T>(operation: (database: Database) => Promise<T>) {
     if (!mutationGuard) return operation(database);
     return database.transaction(async (transaction) => {
-      await mutationGuard(transaction as Database);
+      await mutationGuard(transaction as Database, "friends.manage");
       return operation(transaction as Database);
     });
   }

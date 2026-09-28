@@ -7,7 +7,7 @@ import type { OrganizationMember } from "@/domain/organization-contracts";
 import { isOrganizationRole, type OrganizationRole } from "@/domain/organization-permissions";
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { getPersonalLedgerScopeId } from "@/server/ledger-scopes";
-import { lockActiveOrganizationForOperationalMutation, requireOrganizationAccess } from "@/server/organizations";
+import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireLockedOrganizationAccess, requireOrganizationAccess } from "@/server/organizations";
 
 export class OrganizationParticipantError extends Error {
   constructor(readonly code: "invalid_id" | "invalid_input" | "not_found" | "forbidden" | "registered_personal_friend" | "conflict") {
@@ -30,15 +30,15 @@ function cleanInput(input: { displayName: string; label?: string | null }) {
 }
 
 async function requireMemberManagement(database: Database, organizationId: string, actorUserId: string) {
-  const [membership] = await database
-    .select({ organizationId: organizationMemberships.organizationId })
-    .from(organizationMemberships)
-    .where(and(eq(organizationMemberships.organizationId, organizationId), eq(organizationMemberships.userId, actorUserId)))
-    .limit(1)
-    .for("update");
-  if (!membership) throw new OrganizationParticipantError("forbidden");
-  const access = await requireOrganizationAccess(database, organizationId, actorUserId);
-  access.require("members.manage");
+  try {
+    const access = await requireLockedOrganizationAccess(database, organizationId, actorUserId);
+    access.require("members.manage");
+  } catch (error) {
+    if (error instanceof OrganizationError && (error.code === "forbidden" || error.code === "not_member")) {
+      throw new OrganizationParticipantError("forbidden");
+    }
+    throw error;
+  }
 }
 
 export async function listOrganizationParticipants(database: Database, organizationId: string, viewerUserId: string): Promise<OrganizationMember[]> {

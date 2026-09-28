@@ -5,12 +5,13 @@ import { organizationParticipants } from "@/db/schema";
 const mocks = vi.hoisted(() => ({
   getPersonalLedgerScopeId: vi.fn(),
   requireOrganizationAccess: vi.fn(),
+  requireLockedOrganizationAccess: vi.fn(),
   lockActiveOrganizationForOperationalMutation: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/ledger-scopes", () => ({ getPersonalLedgerScopeId: mocks.getPersonalLedgerScopeId }));
-vi.mock("@/server/organizations", () => ({ requireOrganizationAccess: mocks.requireOrganizationAccess, lockActiveOrganizationForOperationalMutation: mocks.lockActiveOrganizationForOperationalMutation }));
+vi.mock("@/server/organizations", () => ({ requireOrganizationAccess: mocks.requireOrganizationAccess, requireLockedOrganizationAccess: mocks.requireLockedOrganizationAccess, OrganizationError: class OrganizationError extends Error { constructor(readonly code: string) { super(code); } }, lockActiveOrganizationForOperationalMutation: mocks.lockActiveOrganizationForOperationalMutation }));
 
 import {
   addPersonalFriendAsOrganizationParticipant,
@@ -54,6 +55,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getPersonalLedgerScopeId.mockResolvedValue("scope-owner");
   mocks.requireOrganizationAccess.mockResolvedValue({ require: vi.fn() });
+  mocks.requireLockedOrganizationAccess.mockResolvedValue({ require: vi.fn() });
   mocks.lockActiveOrganizationForOperationalMutation.mockResolvedValue(undefined);
 });
 
@@ -61,7 +63,6 @@ describe("Organization participants", () => {
   it("projects a local Personal Friend without reusing its ID or granting access", async () => {
     const participant = { id: "33333333-3333-4333-8333-333333333333", organizationId, userId: null, sourcePersonalFriendId: personalFriendId, displayName: "Alex", label: null };
     const { db, calls } = database([
-      [{ organizationId }],
       [{ id: personalFriendId, name: "Alex", linkedUserId: null, archivedAt: null }],
       [],
     ], [[participant]]);
@@ -72,10 +73,10 @@ describe("Organization participants", () => {
   });
 
   it("rejects a foreign, archived, or already registered Personal Friend", async () => {
-    const foreign = database([[{ organizationId }], []]);
+    const foreign = database([[]]);
     await expect(addPersonalFriendAsOrganizationParticipant(foreign.db, organizationId, "user-owner", personalFriendId)).rejects.toMatchObject({ code: "not_found" });
 
-    const registered = database([[{ organizationId }], [{ id: personalFriendId, name: "Alex", linkedUserId: "user-alex", archivedAt: null }]]);
+    const registered = database([[{ id: personalFriendId, name: "Alex", linkedUserId: "user-alex", archivedAt: null }]]);
     await expect(addPersonalFriendAsOrganizationParticipant(registered.db, organizationId, "user-owner", personalFriendId)).rejects.toMatchObject({ code: "registered_personal_friend" });
 
     expect(new OrganizationParticipantError("conflict")).toBeInstanceOf(Error);
@@ -84,7 +85,7 @@ describe("Organization participants", () => {
   it("allows duplicate display names for direct local members", async () => {
     const first = { id: "33333333-3333-4333-8333-333333333333", displayName: "Alex" };
     const second = { id: "44444444-4444-4444-8444-444444444444", displayName: "Alex" };
-    const { db, calls } = database([[{ organizationId }], [{ organizationId }]], [[first], [second]]);
+    const { db, calls } = database([], [[first], [second]]);
     await expect(createLocalOrganizationParticipant(db, organizationId, "user-owner", { displayName: "Alex" })).resolves.toEqual(first);
     await expect(createLocalOrganizationParticipant(db, organizationId, "user-owner", { displayName: "Alex" })).resolves.toEqual(second);
     expect(calls.map(({ values }) => values)).toEqual([

@@ -13,7 +13,7 @@ import { NOTIFICATION_TYPES, type NotificationMetadata } from "@/domain/notifica
 import { requireSession } from "@/auth/require-session";
 import { createNotificationInDatabase, publishNotificationStateChange } from "@/server/notifications";
 import { searchUsernameDirectoryInDatabase } from "@/server/user-directory";
-import { GroupError, lockActiveGroupForOperationalMutation, requireGroupAccess } from "@/server/groups";
+import { GroupError, lockActiveGroupForOperationalMutation, requireGroupAccess, requireLockedGroupAccess } from "@/server/groups";
 
 export class GroupJoinRequestError extends Error {
   constructor(readonly code: "invalid_id" | "forbidden" | "invalid_target" | "self" | "already_member" | "registered_participant" | "duplicate" | "not_found" | "resolved" | "expired" | "stale_authority" | "participant_not_found" | "already_linked" | "conflict") {
@@ -230,10 +230,10 @@ function requestMetadata(
 }
 
 async function createRequestInTransaction(database: Database, input: CreateRequestInput) {
-  const access = await requireGroupAccess(database, input.groupId, input.requesterUserId);
-  access.requireManageParticipants();
   validateRequestTarget(input);
   const { group, requester } = await resolveGroupContext(database, input.groupId, input.requesterUserId);
+  const access = await requireLockedGroupAccess(database, input.groupId, input.requesterUserId);
+  access.requireManageParticipants();
   const target = await resolveTarget(database, input);
   if (!target) throw new GroupJoinRequestError("invalid_target");
   if (target.id === input.requesterUserId) throw new GroupJoinRequestError("self");
@@ -315,7 +315,8 @@ export async function listGroupJoinRequests(database: Database, groupId: string,
   assertGroupId(groupId);
   assertUserId(viewerUserId);
   const result = await database.transaction(async (transaction) => {
-    const access = await requireGroupAccess(transaction as Database, groupId, viewerUserId);
+    await lockActiveGroupForOperationalMutation(transaction as Database, groupId);
+    const access = await requireLockedGroupAccess(transaction as Database, groupId, viewerUserId);
     access.requireManageParticipants();
     const rows = await transaction
       .select({
@@ -392,15 +393,8 @@ export async function getCurrentUserGroupJoinRequestStatuses(requestIds: string[
 }
 
 async function currentRequesterHasAuthority(database: Database, groupId: string, requesterUserId: string) {
-  const [lockedMembership] = await database
-    .select({ userId: groupMemberships.userId })
-    .from(groupMemberships)
-    .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, requesterUserId)))
-    .limit(1)
-    .for("update");
-  if (!lockedMembership) return false;
   try {
-    const access = await requireGroupAccess(database, groupId, requesterUserId);
+    const access = await requireLockedGroupAccess(database, groupId, requesterUserId);
     access.requireManageParticipants();
     return true;
   } catch (error) {
@@ -622,7 +616,13 @@ export async function revokeGroupJoinRequest(database: Database, groupId: string
   assertUserId(actorUserId);
   assertRequestId(requestId);
   const result = await database.transaction(async (transaction) => {
-    const access = await requireGroupAccess(transaction as Database, groupId, actorUserId);
+    try {
+      await lockActiveGroupForOperationalMutation(transaction as Database, groupId);
+    } catch (error) {
+      if (error instanceof GroupError && (error.code === "archived" || error.code === "not_found")) throw new GroupJoinRequestError("forbidden");
+      throw error;
+    }
+    const access = await requireLockedGroupAccess(transaction as Database, groupId, actorUserId);
     access.requireManageParticipants();
     const [request] = await transaction
       .select()

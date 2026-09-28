@@ -13,6 +13,8 @@ export type LedgerErrorCode =
   | "REPAYMENT_ALLOCATION_AMOUNT_EXCEEDED"
   | "REPAYMENT_ALLOCATION_SHARE_EXCEEDED"
   | "DELETION_CONFIRMATION_REQUIRED"
+  | "FORBIDDEN"
+  | "NOT_MEMBER"
   | "PERSISTENCE_ERROR";
 
 export class LedgerRepositoryError extends Error {
@@ -29,6 +31,13 @@ export class LedgerNotFoundError extends LedgerRepositoryError {
   constructor() {
     super("NOT_FOUND", "Ledger record not found");
     this.name = "LedgerNotFoundError";
+  }
+}
+
+export class LedgerAuthorizationError extends LedgerRepositoryError {
+  constructor(code: "FORBIDDEN" | "NOT_MEMBER") {
+    super(code, code === "NOT_MEMBER" ? "Organization membership is required." : "You do not have permission to make this change.");
+    this.name = "LedgerAuthorizationError";
   }
 }
 

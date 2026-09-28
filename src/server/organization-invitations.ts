@@ -17,7 +17,7 @@ import { normalizeUuid } from "@/domain/record-retrieval";
 import { parseUsername } from "@/domain/username";
 import { NOTIFICATION_TYPES, type NotificationMetadata } from "@/domain/notifications";
 import { requireSession } from "@/auth/require-session";
-import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireOrganizationAccess } from "@/server/organizations";
+import { lockActiveOrganizationForOperationalMutation, OrganizationError, requireLockedOrganizationAccess, requireOrganizationAccess } from "@/server/organizations";
 import { createNotificationInDatabase, publishNotificationStateChange } from "@/server/notifications";
 import { searchUsernameDirectoryInDatabase } from "@/server/user-directory";
 import { findOrganizationParticipantFromLinkedFriend, listOrganizationParticipants, lockOrganizationParticipantForInvitation } from "@/server/organization-participants";
@@ -175,7 +175,8 @@ export async function listPendingOrganizationInvitations(database: Database, org
   assertOrganizationId(organizationId);
   assertUserId(viewerUserId);
   const result = await database.transaction(async (transaction) => {
-    const access = await requireOrganizationAccess(transaction as Database, organizationId, viewerUserId);
+    await lockOrganizationForInvitation(transaction as Database, organizationId);
+    const access = await requireLockedOrganizationAccess(transaction as Database, organizationId, viewerUserId);
     access.require("members.invite");
     const rows = await transaction
       .select({
@@ -215,10 +216,10 @@ export async function createOrganizationInvitation(database: Database, organizat
   if (!isOrganizationInvitationRole(requestedRole)) throw new OrganizationInvitationError("invalid_role");
   const role = requestedRole;
   const created = await database.transaction(async (transaction) => {
-    const access = await requireOrganizationAccess(transaction as Database, organizationId, inviterUserId);
-    if (!canGrantOrganizationInvitationRole(role, access.can)) throw new OrganizationInvitationError("forbidden");
     validateInvitationTarget(input);
     const organization = await lockOrganizationForInvitation(transaction as Database, organizationId);
+    const access = await requireLockedOrganizationAccess(transaction as Database, organizationId, inviterUserId);
+    if (!canGrantOrganizationInvitationRole(role, access.can)) throw new OrganizationInvitationError("forbidden");
     const target = await resolveInvitationTarget(transaction as Database, input);
     if (!target) throw new OrganizationInvitationError("invalid_target");
     if (target.id === inviterUserId) throw new OrganizationInvitationError("self");
@@ -432,7 +433,7 @@ async function acceptOrDecline(database: Database, targetUserId: string, invitat
 
     let inviterAccess;
     try {
-      inviterAccess = await requireOrganizationAccess(transaction as Database, invitation.organizationId, invitation.invitedByUserId);
+      inviterAccess = await requireLockedOrganizationAccess(transaction as Database, invitation.organizationId, invitation.invitedByUserId);
     } catch (error) {
       if (!(error instanceof OrganizationError)) throw error;
       const revoked = await transitionPendingInvitation(transaction as Database, invitation.id, "revoked", now, targetUserId);
@@ -491,7 +492,8 @@ export async function revokeOrganizationInvitation(database: Database, organizat
   assertUserId(actorUserId);
   assertInvitationId(invitationId);
   const result = await database.transaction(async (transaction) => {
-    const access = await requireOrganizationAccess(transaction as Database, organizationId, actorUserId);
+    await lockOrganizationForInvitation(transaction as Database, organizationId);
+    const access = await requireLockedOrganizationAccess(transaction as Database, organizationId, actorUserId);
     access.require("members.invite");
     const [invitation] = await transaction
       .select()

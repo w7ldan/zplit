@@ -103,11 +103,15 @@ export async function requireGroupAccess(database: Database, groupId: string, us
     .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, userId)))
     .limit(1);
   if (!membership) throw new GroupError("not_member");
-  if (!isGroupRole(membership.role)) throw new GroupError("forbidden");
-  const access = groupAccessForRole(membership.role);
+  return groupAccessForMembership(membership.role);
+}
+
+function groupAccessForMembership(role: unknown): GroupAccess {
+  if (!isGroupRole(role)) throw new GroupError("forbidden");
+  const access = groupAccessForRole(role);
   return {
     ...access,
-    role: membership.role,
+    role,
     requireManageGroup: () => { if (!access.canManageGroup) throw new GroupError("forbidden"); },
     requireManageParticipants: () => { if (!access.canManageParticipants) throw new GroupError("forbidden"); },
     requireManageRoles: () => { if (!access.canManageRoles) throw new GroupError("forbidden"); },
@@ -115,17 +119,16 @@ export async function requireGroupAccess(database: Database, groupId: string, us
   };
 }
 
-async function requireLockedGroupAccess(database: Database, groupId: string, userId: string) {
+export async function requireLockedGroupAccess(database: Database, groupId: string, userId: string): Promise<GroupAccess> {
+  assertGroupId(groupId);
   const [membership] = await database
-    .select({ userId: groupMemberships.userId })
+    .select({ role: groupMemberships.role })
     .from(groupMemberships)
     .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, userId)))
     .limit(1)
     .for("update");
   if (!membership) throw new GroupError("not_member");
-  const access = await requireGroupAccess(database, groupId, userId);
-  access.requireManageParticipants();
-  return access;
+  return groupAccessForMembership(membership.role);
 }
 
 export type GroupListScope = "active" | "archived" | "all";
@@ -314,9 +317,9 @@ export async function updateGroup(database: Database, groupId: string, userId: s
   assertGroupId(groupId);
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
-    access.requireManageGroup();
     await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
+    const access = await requireLockedGroupAccess(transactionalDatabase, groupId, userId);
+    access.requireManageGroup();
     const [group] = await transaction.update(groups).set({ ...cleanInput(input), updatedAt: new Date() }).where(eq(groups.id, groupId)).returning();
     if (!group) throw new GroupError("not_found");
     return group;
@@ -393,9 +396,9 @@ export async function createExternalParticipant(database: Database, groupId: str
   assertGroupId(groupId);
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
-    access.requireManageParticipants();
     await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
+    const access = await requireLockedGroupAccess(transactionalDatabase, groupId, userId);
+    access.requireManageParticipants();
     const [participant] = await transaction.insert(groupParticipants).values({ groupId, ...cleanParticipantInput(input) }).returning();
     if (!participant) throw new Error("External participant was not created");
     return participant;
@@ -412,8 +415,9 @@ export async function addPersonalFriendAsGroupParticipant(
   if (!normalizeUuid(personalFriendId)) throw new GroupError("personal_friend_not_found");
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    await requireLockedGroupAccess(transactionalDatabase, groupId, actorUserId);
     await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
+    const access = await requireLockedGroupAccess(transactionalDatabase, groupId, actorUserId);
+    access.requireManageParticipants();
     const personalScopeId = await getPersonalLedgerScopeId(transactionalDatabase, actorUserId);
     const [friend] = await transaction
       .select({ id: friends.id, name: friends.name, linkedUserId: friends.linkedUserId, archivedAt: friends.archivedAt })
@@ -546,9 +550,9 @@ export async function updateExternalParticipant(database: Database, groupId: str
   assertGroupId(groupId);
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
-    access.requireManageParticipants();
     await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
+    const access = await requireLockedGroupAccess(transactionalDatabase, groupId, userId);
+    access.requireManageParticipants();
     const participant = await getParticipant(transactionalDatabase, groupId, participantId);
     if (participant.userId) throw new GroupError("registered_participant");
     const [updated] = await transaction.update(groupParticipants).set({ ...cleanParticipantInput(input), updatedAt: new Date() }).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, participantId))).returning();
@@ -561,9 +565,9 @@ export async function deleteExternalParticipant(database: Database, groupId: str
   assertGroupId(groupId);
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
-    access.requireManageParticipants();
     await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
+    const access = await requireLockedGroupAccess(transactionalDatabase, groupId, userId);
+    access.requireManageParticipants();
     const now = new Date();
     const [participant] = await transaction.select().from(groupParticipants).where(and(eq(groupParticipants.groupId, groupId), eq(groupParticipants.id, participantId))).limit(1).for("update");
     if (!participant) throw new GroupError("participant_not_found");
@@ -623,8 +627,8 @@ export async function removeGroupMember(database: Database, groupId: string, act
   assertGroupId(groupId);
   const result = await database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireGroupAccess(transactionalDatabase, groupId, actorUserId);
     await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
+    const access = await requireLockedGroupAccess(transactionalDatabase, groupId, actorUserId);
     const [participant] = await transaction
       .select({ id: groupParticipants.id, participantGroupId: groupParticipants.groupId, participantUserId: groupParticipants.userId })
       .from(groupParticipants)
@@ -675,9 +679,9 @@ export async function getGroupAvatar(database: Database, groupId: string, userId
 export async function saveGroupAvatar(database: Database, groupId: string, userId: string, avatar: { mediaType: "image/webp"; byteSize: number; sha256: string; content: Uint8Array }) {
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
-    access.requireManageGroup();
     await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
+    const access = await requireLockedGroupAccess(transactionalDatabase, groupId, userId);
+    access.requireManageGroup();
     const [saved] = await transaction.insert(groupAvatars).values({ ...avatar, groupId, content: Buffer.from(avatar.content) }).onConflictDoUpdate({ target: groupAvatars.groupId, set: { mediaType: avatar.mediaType, byteSize: avatar.byteSize, sha256: avatar.sha256, content: Buffer.from(avatar.content), updatedAt: new Date() } }).returning(avatarSelection());
     if (!saved) throw new Error("Unable to save the group avatar");
     return { ...saved, mediaType: "image/webp" as const };
@@ -687,9 +691,9 @@ export async function saveGroupAvatar(database: Database, groupId: string, userI
 export async function deleteGroupAvatar(database: Database, groupId: string, userId: string) {
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireGroupAccess(transactionalDatabase, groupId, userId);
-    access.requireManageGroup();
     await lockActiveGroupForOperationalMutation(transactionalDatabase, groupId);
+    const access = await requireLockedGroupAccess(transactionalDatabase, groupId, userId);
+    access.requireManageGroup();
     const deleted = await transaction.delete(groupAvatars).where(eq(groupAvatars.groupId, groupId)).returning({ groupId: groupAvatars.groupId });
     return deleted.length > 0;
   });

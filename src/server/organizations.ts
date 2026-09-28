@@ -26,6 +26,7 @@ import {
 import { normalizeUuid } from "@/domain/record-retrieval";
 import { createOrganizationLedgerScope, getPersonalLedgerScopeId } from "@/server/ledger-scopes";
 import { createLedgerRepository } from "@/domain/ledger-repository";
+import { LedgerAuthorizationError } from "@/domain/ledger/errors";
 import { publishNotificationStateChange } from "@/server/notifications";
 
 export type { OrganizationRole } from "@/domain/organization-permissions";
@@ -72,6 +73,19 @@ export type OrganizationLedgerAccess = OrganizationAccess & {
   ledger: ReturnType<typeof createLedgerRepository>;
 };
 
+function organizationAccessFromMembership(membership: { role: unknown; customCapabilities: unknown; archivedAt: Date | null }): OrganizationAccess {
+  if (!isOrganizationRole(membership.role)) throw new OrganizationError("forbidden");
+  const capabilities = resolveOrganizationCapabilities(membership.role, membership.customCapabilities);
+  return {
+    role: membership.role,
+    archivedAt: membership.archivedAt,
+    can: (capability) => capabilities.has(capability),
+    require: (capability) => {
+      if (!capabilities.has(capability)) throw new OrganizationError("forbidden");
+    },
+  };
+}
+
 function toOrganizationCapabilities(access: OrganizationAccess): OrganizationCapabilities {
   return {
     canUpdate: access.can("organization.update"),
@@ -96,16 +110,25 @@ export async function requireOrganizationAccess(database: Database, organization
     .where(and(eq(organizationMemberships.organizationId, organizationId), eq(organizationMemberships.userId, userId)))
     .limit(1);
   if (!membership) throw new OrganizationError("not_member");
-  if (!isOrganizationRole(membership.role)) throw new OrganizationError("forbidden");
-  const capabilities = resolveOrganizationCapabilities(membership.role, membership.customCapabilities);
-  return {
-    role: membership.role,
-    archivedAt: membership.archivedAt ?? null,
-    can: (capability) => capabilities.has(capability),
-    require: (capability) => {
-      if (!capabilities.has(capability)) throw new OrganizationError("forbidden");
-    },
-  };
+  return organizationAccessFromMembership({ ...membership, archivedAt: membership.archivedAt ?? null });
+}
+
+export async function requireLockedOrganizationAccess(database: Database, organizationId: string, userId: string): Promise<OrganizationAccess> {
+  assertOrganizationId(organizationId);
+  const [membership] = await database
+    .select({ role: organizationMemberships.role, customCapabilities: organizationMemberships.customCapabilities })
+    .from(organizationMemberships)
+    .where(and(eq(organizationMemberships.organizationId, organizationId), eq(organizationMemberships.userId, userId)))
+    .limit(1)
+    .for("update");
+  if (!membership) throw new OrganizationError("not_member");
+  const [organization] = await database
+    .select({ archivedAt: organizations.archivedAt })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  if (!organization) throw new OrganizationError("not_found");
+  return organizationAccessFromMembership({ ...membership, archivedAt: organization.archivedAt ?? null });
 }
 
 export async function requireOrganizationLedgerAccess(
@@ -116,31 +139,45 @@ export async function requireOrganizationLedgerAccess(
 ): Promise<OrganizationLedgerAccess> {
   const access = await requireOrganizationAccess(database, organizationId, userId);
   access.require(capability);
+  return createOrganizationLedgerAccess(database, organizationId, userId, access, await organizationLedgerScopeId(database, organizationId));
+}
+
+async function organizationLedgerScopeId(database: Database, organizationId: string) {
   const [scope] = await database
     .select({ id: ledgerScopes.id })
     .from(ledgerScopes)
     .where(and(eq(ledgerScopes.kind, "organization"), eq(ledgerScopes.organizationId, organizationId)))
     .limit(1);
   if (!scope) throw new OrganizationError("not_found");
+  return scope.id;
+}
+
+function createOrganizationLedgerAccess(database: Database, organizationId: string, userId: string, access: OrganizationAccess, ledgerScopeId: string): OrganizationLedgerAccess {
   return {
     ...access,
     organizationId,
-    ledgerScopeId: scope.id,
-    ledger: createLedgerRepository(database, scope.id, {
-      mutationGuard: (transaction) => lockActiveOrganizationForOperationalMutation(transaction, organizationId).then(() => undefined),
+    ledgerScopeId,
+    ledger: createLedgerRepository(database, ledgerScopeId, {
+      mutationGuard: async (transaction, capability) => {
+        await lockActiveOrganizationForOperationalMutation(transaction, organizationId, ledgerScopeId);
+        try {
+          const currentAccess = await requireLockedOrganizationAccess(transaction, organizationId, userId);
+          currentAccess.require(capability);
+        } catch (error) {
+          if (error instanceof OrganizationError && (error.code === "forbidden" || error.code === "not_member")) {
+            throw new LedgerAuthorizationError(error.code === "not_member" ? "NOT_MEMBER" : "FORBIDDEN");
+          }
+          throw error;
+        }
+      },
     }),
   };
 }
 
-async function requireLockedOrganizationLedgerAccess(database: Database, organizationId: string, userId: string) {
-  const [membership] = await database
-    .select({ userId: organizationMemberships.userId })
-    .from(organizationMemberships)
-    .where(and(eq(organizationMemberships.organizationId, organizationId), eq(organizationMemberships.userId, userId)))
-    .limit(1)
-    .for("update");
-  if (!membership) throw new OrganizationError("not_member");
-  return requireOrganizationLedgerAccess(database, organizationId, userId, "friends.manage");
+async function requireLockedOrganizationLedgerAccess(database: Database, organizationId: string, userId: string, capability: OrganizationCapability) {
+  const access = await requireLockedOrganizationAccess(database, organizationId, userId);
+  access.require(capability);
+  return createOrganizationLedgerAccess(database, organizationId, userId, access, await organizationLedgerScopeId(database, organizationId));
 }
 
 export type OrganizationListScope = "active" | "archived" | "all";
@@ -215,8 +252,8 @@ export async function addPersonalFriendAsOrganizationExpenseContact(
   if (!normalizeUuid(personalFriendId)) throw new OrganizationError("not_found");
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireLockedOrganizationLedgerAccess(transactionalDatabase, organizationId, actorUserId);
     await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
+    const access = await requireLockedOrganizationLedgerAccess(transactionalDatabase, organizationId, actorUserId, "friends.manage");
     const personalScopeId = await getPersonalLedgerScopeId(transactionalDatabase, actorUserId);
     const [source] = await transaction
       .select({
@@ -436,9 +473,9 @@ export async function createOrganization(
 export async function updateOrganization(database: Database, organizationId: string, userId: string, input: { name: string; description?: string | null }) {
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireOrganizationAccess(transactionalDatabase, organizationId, userId);
-    access.require("organization.update");
     await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
+    const access = await requireLockedOrganizationAccess(transactionalDatabase, organizationId, userId);
+    access.require("organization.update");
     const [organization] = await transaction
       .update(organizations)
       .set({ ...cleanInput(input), updatedAt: new Date() })
@@ -529,9 +566,9 @@ export async function getOrganizationAvatar(database: Database, organizationId: 
 export async function saveOrganizationAvatar(database: Database, organizationId: string, userId: string, avatar: { mediaType: "image/webp"; byteSize: number; sha256: string; content: Uint8Array }) {
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireOrganizationAccess(transactionalDatabase, organizationId, userId);
-    access.require("organization.update");
     await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
+    const access = await requireLockedOrganizationAccess(transactionalDatabase, organizationId, userId);
+    access.require("organization.update");
     const [saved] = await transaction
       .insert(organizationAvatars)
       .values({ ...avatar, organizationId, content: Buffer.from(avatar.content) })
@@ -548,9 +585,9 @@ export async function saveOrganizationAvatar(database: Database, organizationId:
 export async function deleteOrganizationAvatar(database: Database, organizationId: string, userId: string) {
   return database.transaction(async (transaction) => {
     const transactionalDatabase = transaction as Database;
-    const access = await requireOrganizationAccess(transactionalDatabase, organizationId, userId);
-    access.require("organization.update");
     await lockActiveOrganizationForOperationalMutation(transactionalDatabase, organizationId);
+    const access = await requireLockedOrganizationAccess(transactionalDatabase, organizationId, userId);
+    access.require("organization.update");
     const deleted = await transaction.delete(organizationAvatars).where(eq(organizationAvatars.organizationId, organizationId)).returning({ organizationId: organizationAvatars.organizationId });
     return deleted.length > 0;
   });
